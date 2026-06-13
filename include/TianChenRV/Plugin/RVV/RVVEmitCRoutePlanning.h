@@ -83,6 +83,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedMAccOp maskedMAccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
   tcrv::rvv::WideningProductOp wideningProductOp;
+  tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
@@ -213,6 +214,128 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter sourceStrideABI;
   support::RuntimeABIParameter outStrideABI;
 };
+
+// The selected product head of a low-precision product-reduction chain is either
+// a typed tcrv_rvv.widening_product (unpacked-byte candidate) OR a typed
+// tcrv_rvv.packed_i4_nibble_unpack_product (packed-i4 candidate). Exactly one of
+// the two slice slots is populated; the analysis hatches and the contraction
+// route-family plan derivation read the head's lhs/rhs/result and product
+// relation through these accessors so neither candidate path dereferences the
+// other's null slot.
+inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.wideningProductOp) ||
+         static_cast<bool>(slice.nibbleProductOp);
+}
+
+inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getResult();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getResult();
+  return mlir::Value();
+}
+
+inline mlir::Value productSlotVL(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getVl();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getVl();
+  return mlir::Value();
+}
+
+inline mlir::Operation *
+productSlotOperation(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getOperation();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getOperation();
+  return nullptr;
+}
+
+inline mlir::Value productSlotLhs(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getLhs();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getLhs();
+  return mlir::Value();
+}
+
+inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getRhs();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getRhs();
+  return mlir::Value();
+}
+
+inline llvm::StringRef
+productSlotRelation(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getProductRelation();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getProductRelation();
+  return llvm::StringRef();
+}
+
+// The product head is signed when it is the signed widening-product candidate or
+// the (always-signed) packed-i4 nibble-unpack candidate.
+inline bool productSlotIsSigned(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getKind() == "signed_widening_product";
+  if (slice.nibbleProductOp)
+    return true;
+  return false;
+}
+
+inline bool productSlotIsUnsigned(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getKind() == "unsigned_widening_product";
+  return false;
+}
+
+// The PLAN/HEADER `rvv_selected_body_typed_compute_op` chain for a low-precision
+// product-reduction dequant(/clamp) selected body, derived from the ACTUAL
+// realized structure of the slice: the typed product head (widening_product for
+// the unpacked-byte candidate, packed_i4_nibble_unpack_product for the packed-i4
+// candidate) + standalone_reduce + (gearbox_cross_region_handoff ONLY if the
+// legacy two-scope carrier is present) + dequantize (+ compare + select for the
+// clamp family). The head op type and handoff presence are read from the typed
+// ops (I5-legal structural reads), so the chain never asserts a phantom handoff
+// or a wrong head op.
+//
+// Returns a StringRef into a fixed set of static string constants (the chain is
+// one of a bounded set of {head}x{handoff?}x{clamp?} combinations), so the
+// returned view is stable across the by-value copies of the route description.
+inline llvm::StringRef
+getRVVSelectedBodyDequantTypedComputeOpChain(
+    const RVVSelectedBodyRouteSlice &slice, bool isClamp) {
+  const bool nibble = static_cast<bool>(slice.nibbleProductOp);
+  const bool handoff = static_cast<bool>(slice.gearboxCrossRegionHandoffOp);
+  static constexpr llvm::StringLiteral kWideningHandoffDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kWideningHandoffClamp(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
+      "tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kWideningDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kWideningClamp(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kNibbleDequant(
+      "tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kNibbleClamp(
+      "tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select");
+  if (handoff)
+    return isClamp ? kWideningHandoffClamp : kWideningHandoffDequant;
+  if (nibble)
+    return isClamp ? kNibbleClamp : kNibbleDequant;
+  return isClamp ? kWideningClamp : kWideningDequant;
+}
 
 struct RVVSelectedBodyTypedConfigFacts {
   llvm::StringRef factsID;

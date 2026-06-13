@@ -1,12 +1,21 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/resource_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"/resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-DECISION
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/region_count = 2 : i64/region_count = 3 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-REGION-COUNT
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/from_phase = "load-product-reduce"/from_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_statement_strategy = "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue"/remediation_statement_strategy = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"/remediation_product_plan = "metadata-only-packed-i4-product-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"/packed_unpack_plan = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-UNPACK-PLAN
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/schedule_decision = "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"/schedule_decision = "metadata-only-packed-i4-schedule-decision"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-SCHEDULE-DECISION
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_vector_budget = "packed-i4-remediation-budget-5of32-vector-groups", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-PACKED-HANDOFF-REMEDIATION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=tcrv_rvv.gearbox_cross_region_handoff --implicit-check-not=tcrv_rvv.vsetvl_region_marker
+// Stage 3 single-scope flip: the resource decision now lives on the lone with_vl
+// scope as tcrv_rvv.low_precision_resource.realization_decision (the deleted
+// two-scope handoff op previously carried a bare resource_decision). Re-targeted to
+// the with_vl occurrence; still fail-closed at emission-plan time with the specific
+// "requires packed-i4 realization decision" provider-fact-gate reason.
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"/tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-DECISION
+// Stage 3 single-scope flip: the region count now lives on with_vl as
+// tcrv_rvv.low_precision_resource.realized_vsetvl_region_count (the deleted handoff/
+// markers previously carried region_count). Re-targeted; still fail-closed at
+// emission-plan time with the specific "realized vsetvl region count" reason.
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-REGION-COUNT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.product_phase = "load-product-reduce"/tcrv_rvv.low_precision_resource.product_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.remediation_statement_strategy = "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue"/tcrv_rvv.low_precision_resource.remediation_statement_strategy = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"/tcrv_rvv.low_precision_resource.remediation_product_plan = "metadata-only-packed-i4-product-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"/tcrv_rvv.low_precision_resource.packed_unpack_plan = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-UNPACK-PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.schedule_decision = "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"/tcrv_rvv.low_precision_resource.schedule_decision = "metadata-only-packed-i4-schedule-decision"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-SCHEDULE-DECISION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.remediation_vector_budget = "packed-i4-remediation-budget-5of32-vector-groups", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-PACKED-HANDOFF-REMEDIATION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.low_precision_resource.performance_feedback = "same-target-packed-i4-no-win.v1", /s///' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-REALIZATION-POLICY-EVIDENCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"/s//tcrv_rvv.low_precision_resource.realization_decision", value = "artifact-name-derived-resource-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REALIZATION-DECISION
@@ -100,57 +109,21 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision = "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision_reason = "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32"
-// REALIZED: tcrv_rvv.vsetvl_region_marker
-// REALIZED-SAME: phase = "load-product-reduce"
-// REALIZED-SAME: region_count = 2 : i64
-// REALIZED-SAME: region_index = 1 : i64
-// REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"
-// REALIZED: tcrv_rvv.gearbox_cross_region_handoff
-// REALIZED-SAME: beyond_local_repair_admission_blocker = "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
-// REALIZED-SAME: beyond_local_repair_admission_contract = "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
-// REALIZED-SAME: beyond_local_repair_admission_decision = "deny-performance-preferred-campaign-no-further-provider-repair"
-// REALIZED-SAME: beyond_local_repair_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
-// REALIZED-SAME: dequant_region_index = 2 : i64
-// REALIZED-SAME: from_phase = "load-product-reduce"
-// REALIZED-SAME: operand_form = "packed-i4-nibbles"
-// REALIZED-SAME: packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
-// REALIZED-SAME: packed_storage_load = "unit-stride-vle8-i8mf4-packed-i4x2"
-// REALIZED-SAME: packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"
-// REALIZED-SAME: packed_unpacked_source = "signed-i8mf4-logical-lanes-from-packed-i4x2"
-// REALIZED-SAME: packing_layout = "two-signed-i4-elements-per-byte-low-high-nibbles"
-// REALIZED-SAME: peak_live_vector_groups = 5 : i64
-// REALIZED-SAME: performance_admission_closure = "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
-// REALIZED-SAME: performance_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
-// REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
-// REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
-// REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
-// REALIZED-SAME: primitive_source_signedness = "signed"
-// REALIZED-SAME: product_region_index = 1 : i64
-// REALIZED-SAME: region_count = 2 : i64
-// REALIZED-SAME: remediation_plan = "attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1"
-// REALIZED-SAME: remediation_plan_contract = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
-// REALIZED-SAME: remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"
-// REALIZED-SAME: remediation_reduction_plan = "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed-scalar-epilogue.v1"
-// REALIZED-SAME: remediation_schedule_contract = "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
-// REALIZED-SAME: remediation_statement_strategy = "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue"
-// REALIZED-SAME: remediation_unpack_plan = "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
-// REALIZED-SAME: remediation_vector_budget = "packed-i4-remediation-budget-5of32-vector-groups"
-// REALIZED-SAME: remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1"
-// REALIZED-SAME: resource_candidate_count = 3 : i64
-// REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
-// REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"
-// REALIZED-SAME: resource_legal_candidate_count = 3 : i64
-// REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
-// REALIZED-SAME: resource_selected_candidate_index = 3 : i64
-// REALIZED-SAME: schedule_decision = "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"
-// REALIZED-SAME: schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-// REALIZED-SAME: schedule_decision_reason = "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32"
-// REALIZED-SAME: unpack_intent = "sign-extend-i4-nibbles-before-widening-product"
-// REALIZED-SAME: vector_register_budget = 32 : i64
-// REALIZED: tcrv_rvv.vsetvl_region_marker
-// REALIZED-SAME: phase = "dequant-store"
-// REALIZED-SAME: region_count = 2 : i64
-// REALIZED-SAME: region_index = 2 : i64
+// Stage 3 single-scope packed-i4 flip: the realized body is one tcrv_rvv.with_vl
+// scope carrying a typed tcrv_rvv.packed_i4_nibble_unpack_product head + the inline
+// dequant chain, with NO tcrv_rvv.gearbox_cross_region_handoff carrier and NO
+// tcrv_rvv.vsetvl_region_marker placeholders. The structural unroll_factor (=1) the
+// conversion reads is stamped on with_vl; the low_precision_resource.* facts above
+// survive on the single scope. Numerics HW-validated on ssh rvv (tolerance=1e-05).
+// REALIZED-DAG: unroll_factor = 1 : i64
+// REALIZED-DAG: tcrv_rvv.packed_i4_nibble_unpack_product
+// REALIZED-DAG: kind = "signed_packed_i4_nibble_unpack_product"
+// REALIZED-DAG: tcrv_rvv.standalone_reduce
+// REALIZED-DAG: tcrv_rvv.dequantize
+// REALIZED-DAG: tcrv_rvv.store
+// The deleted two-scope carrier/markers are genuinely absent across the WHOLE
+// realized body (the REALIZED RUN line's --implicit-check-not enforces this
+// globally, fail-closed: a stray handoff or marker anywhere = incomplete flip).
 
 // PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
 // PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
@@ -303,31 +276,29 @@ module {
 // CPP: __riscv_vwredsum_vs_i16mf2_i32m1
 // CPP: tcrv_emitc.assign target=dot_acc_vec
 // CPP: __riscv_vmv_x_s_i32m1_i32
-// CPP-NOT: __riscv_vfmv_v_f_f32m1
-// CPP: tcrv_emitc.assign target=out[0]
-// CPP: [0] =
-// CPP-NOT: __riscv_vse32_v_f32m1
+// Stage 3 single-scope flip: the conversion emits the UNIFIED vector dequant
+// epilogue (lane-0 extract -> scalar dequant -> VL=1 f32 splat-store), the same as
+// the grouped/unpacked candidate -- numerically a single-scalar write to out[0]
+// (HW-validated on ssh rvv, tolerance=1e-05). The legacy packed-i4 scalar out[0]=
+// store is retired (it was the other code path's form, numerically equivalent).
+// CPP: __riscv_vfmv_v_f_f32m1
+// CPP: __riscv_vse32_v_f32m1
 
-// STALE-PACKED-DECISION: requires resource_decision to match the selected low-precision resource candidate
-// STALE-PACKED-DECISION: consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1
+// STALE-PACKED-DECISION: requires packed-i4 realization decision 'consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1' but found 'consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1'
 
-// STALE-PACKED-REGION-COUNT: requires region_count to match the bounded Gearbox resource decision
+// STALE-PACKED-REGION-COUNT: realized vsetvl region count 2 but found 3
 
-// STALE-PACKED-FROM-PHASE: requires from_phase 'load-product-reduce'
+// STALE-PACKED-FROM-PHASE: product phase 'load-product-reduce' but found 'tail-product-reduce'
 
-// STALE-PACKED-HANDOFF-REMEDIATION: requires packed-i4 measurement-disposition remediation planning fact 'remediation_statement_strategy' to match policy/evidence fact 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue'
-// STALE-PACKED-HANDOFF-REMEDIATION-SAME: metadata-only-packed-i4-unpack-plan
+// STALE-PACKED-HANDOFF-REMEDIATION: measurement-disposition remediation statement strategy 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue' but found 'metadata-only-packed-i4-unpack-plan'
 
-// STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN: requires packed-i4 measurement-disposition remediation planning fact 'remediation_product_plan' to match policy/evidence fact 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1'
-// STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN-SAME: metadata-only-packed-i4-product-plan
+// STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN: measurement-disposition remediation product plan 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1' but found 'metadata-only-packed-i4-product-plan'
 
-// STALE-PACKED-HANDOFF-UNPACK-PLAN: requires tcrv_rvv.gearbox_cross_region_handoff packed-i4 load/unpack fact 'packed_unpack_plan' to match provider-owned resource fact 'low-high-i4-sign-extend-to-i8mf4'
-// STALE-PACKED-HANDOFF-UNPACK-PLAN-SAME: metadata-only-packed-i4-unpack-plan
+// STALE-PACKED-HANDOFF-UNPACK-PLAN: packed-i4 unpack plan 'low-high-i4-sign-extend-to-i8mf4' but found 'metadata-only-packed-i4-unpack-plan'
 
-// STALE-PACKED-HANDOFF-SCHEDULE-DECISION: requires packed-i4 resource schedule fact 'schedule_decision' to match provider-owned resource fact 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
-// STALE-PACKED-HANDOFF-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
+// STALE-PACKED-HANDOFF-SCHEDULE-DECISION: packed-i4 schedule decision 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1' but found 'metadata-only-packed-i4-schedule-decision'
 
-// MISSING-PACKED-HANDOFF-REMEDIATION: requires packed-i4 measurement-disposition remediation planning fact 'remediation_vector_budget' before evidence mirror validation
+// MISSING-PACKED-HANDOFF-REMEDIATION: requires low-precision measurement-disposition evidence/admission fact 'tcrv_rvv.low_precision_resource.remediation_vector_budget' before policy/evidence validation
 
 // MISSING-REALIZATION-POLICY-EVIDENCE: requires low-precision measurement-disposition evidence/admission fact 'tcrv_rvv.low_precision_resource.performance_feedback' before policy/evidence validation
 

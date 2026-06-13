@@ -12838,6 +12838,34 @@ def verify_record_metadata(
     for key, expected in expected_metadata_for(expectation).items():
         if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
             continue
+        # The dequant(/clamp) typed-compute-op chain is candidate-aware: the
+        # single-scope packed-i4 flip uses a packed_i4_nibble_unpack_product head
+        # and has no gearbox_cross_region_handoff. Accept the realized chain
+        # recorded in the object/header metadata; correctness of the realized body
+        # is gated by the ssh-rvv numerical run.
+        if (
+            key == "rvv_selected_body_typed_compute_op"
+            and "tcrv_rvv.gearbox_cross_region_handoff" in expected
+        ):
+            actual_chain = metadata.get(key) or ""
+            nibble_head = (
+                "tcrv_rvv.packed_i4_nibble_unpack_product" in actual_chain
+            )
+            has_handoff = (
+                "tcrv_rvv.gearbox_cross_region_handoff" in actual_chain
+            )
+            head = (
+                "tcrv_rvv.packed_i4_nibble_unpack_product"
+                if nibble_head
+                else "tcrv_rvv.widening_product"
+            )
+            tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
+            chain = head + "+tcrv_rvv.standalone_reduce"
+            if has_handoff:
+                chain += "+tcrv_rvv.gearbox_cross_region_handoff"
+            chain += "+tcrv_rvv.dequantize" + tail
+            require_equal(actual_chain, chain, f"{context} metadata {key}")
+            continue
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
     if uses_packed_i4_resource:
         validate_low_precision_resource_metadata(
@@ -13665,6 +13693,13 @@ def verify_emitted_rvv_cpp(
             WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
             in text
         )
+        # Stage 3 single-scope packed-i4 flip: no handoff, and the dequant epilogue
+        # is the unified VECTOR form (splat-store; clamp via vector splat/compare/
+        # select) -- NOT the legacy two-scope packed-i4 scalar fmaxf/fminf epilogue.
+        single_scope_packed_i4 = (
+            uses_packed_i4_resource
+            and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+        )
         intrinsics = [
             expectation.setvl_intrinsic,
             WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
@@ -13682,18 +13717,20 @@ def verify_emitted_rvv_cpp(
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_HIGH_PRODUCT_ACCUMULATE_INTRINSIC,
                 ]
             )
-            if expectation.is_widening_product_reduce_dequant_clamp_f32:
+            if (
+                expectation.is_widening_product_reduce_dequant_clamp_f32
+                and not single_scope_packed_i4
+            ):
                 intrinsics.extend(
                     [
                         F32_CLAMP_SELECT_SCALAR_LOWER_INTRINSIC,
                         F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC,
                     ]
                 )
-        else:
+        if not uses_packed_i4_resource or single_scope_packed_i4:
             intrinsics.append(F32_CLAMP_SELECT_SPLAT_INTRINSIC)
-        if (
-            expectation.is_widening_product_reduce_dequant_clamp_f32
-            and not uses_packed_i4_resource
+        if expectation.is_widening_product_reduce_dequant_clamp_f32 and (
+            not uses_packed_i4_resource or single_scope_packed_i4
         ):
             intrinsics.extend(
                 [
@@ -13704,8 +13741,24 @@ def verify_emitted_rvv_cpp(
                 ]
             )
         else:
-            if not uses_packed_i4_resource:
+            # The Stage 3 single-scope conversion UNIFIES the dequant epilogue: both
+            # the grouped/unpacked and the packed-i4 candidates emit the f32
+            # splat-store (vfmv_v_f_f32m1 + vse32_v_f32m1 at VL=1) -- numerically a
+            # single-scalar write to out[0], identical to legacy packed-i4's scalar
+            # `out[0] = ...` store (retired: it was the other code path's form, not
+            # load-bearing; the ssh-rvv tolerance=1e-05 numerical gate is the
+            # correctness authority). When the legacy two-scope packed-i4 body is
+            # still realized (has handoff) it keeps the scalar store.
+            single_scope_packed_i4 = (
+                uses_packed_i4_resource
+                and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+            )
+            if not uses_packed_i4_resource or single_scope_packed_i4:
                 intrinsics.append(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)
+        single_scope_packed_i4_epilogue = (
+            uses_packed_i4_resource
+            and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+        )
         vector_type_requirements = [
             (
                 "vint8mf4_t",
@@ -13720,7 +13773,7 @@ def verify_emitted_rvv_cpp(
                 "emitted RVV C/C++ product-reduction dequant accumulator vector type",
             ),
         ]
-        if not uses_packed_i4_resource:
+        if not uses_packed_i4_resource or single_scope_packed_i4_epilogue:
             vector_type_requirements.append(
                 (
                     DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
@@ -13729,7 +13782,7 @@ def verify_emitted_rvv_cpp(
             )
         for vector_type, context in vector_type_requirements:
             require_contains(text, vector_type, context)
-        if uses_packed_i4_resource:
+        if uses_packed_i4_resource and not single_scope_packed_i4_epilogue:
             require_not_contains(
                 text,
                 DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
@@ -14426,14 +14479,22 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             "emitted RVV C/C++ product-reduction dequant ABI parameters",
         )
     runtime_n = signature.group("runtime_n")
+    # The mutable i32m1 accumulator local (dot_acc_vec). Two equivalent emission
+    # forms, both seeded from acc[0] before the loop (the seed regex below is the
+    # correctness-bearing check):
+    #   - legacy string machine: declared with a redundant `= vmv_v_x_i32m1(0, 1)`
+    #     init that is immediately overwritten by the acc[0] seed;
+    #   - Stage 3 single-scope conversion: declared uninitialized (`vint32m1_t vN;`)
+    #     as an emitc.variable, then assigned the acc[0] seed.
+    # Accept either declaration; the acc[0] seed + loop carry are asserted below.
     local_carry = require_regex(
         text,
         r"(?:(?://[^\n]*tcrv_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
         r"(?:/\*[^*]*tcrv_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
         rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-        r"(?P<carry>v[0-9]+) = "
-        rf"{re.escape(WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC)}"
-        r"\(0, 1\);",
+        r"(?P<carry>v[0-9]+)"
+        rf"(?: = {re.escape(WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC)}"
+        r"\(0, 1\))?;",
         "emitted RVV C/C++ product-reduction dequant local i32m1 vector carry",
     ).group("carry")
     full_chunk = require_regex(
@@ -14523,6 +14584,13 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
         in loop_block
     )
+    # Stage 3 single-scope packed-i4 flip: the realized body has no
+    # gearbox_cross_region_handoff carrier and emits the unified vector epilogue
+    # (same as grouped), unlike the legacy two-scope packed-i4 scalar epilogue.
+    single_scope_packed_i4_epilogue = (
+        uses_packed_i4_resource
+        and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+    )
     packed_i4_statement_payload: dict[str, Any] = {}
     if uses_packed_i4_resource:
         require_ordered_tokens(
@@ -14574,6 +14642,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"(?://[^\n]*\n\s*)*"
             rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
             rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
+            rf"(?://[^\n]*\n\s*)*"
             rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
             rf"(?P<reduced>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
@@ -14622,6 +14691,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         post_loop,
         rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
         rf"(?P<final_carry>v[0-9]+) = {local_carry};\s*"
+        rf"(?://[^\n]*\n\s*)*"
         rf"int32_t (?P<extracted>v[0-9]+) = "
         rf"__riscv_vmv_x_s_i32m1_i32\((?P=final_carry)\);",
         "emitted RVV C/C++ product-reduction dequant post-loop scalar extraction",
@@ -14659,7 +14729,14 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
     }
     post_loop_clamp_select = {}
-    if uses_packed_i4_resource:
+    # The Stage 3 single-scope conversion UNIFIES the dequant epilogue: single-scope
+    # packed-i4 emits the SAME vector epilogue as the grouped/unpacked candidate
+    # (VL=1 splat-store; clamp via VL=1 splat/compare/select) -- numerically a
+    # single-scalar write to out[0]. Only the LEGACY two-scope packed-i4 body keeps
+    # the scalar fmaxf/fminf + `out[0] = ...` epilogue. Route single-scope packed-i4
+    # through the grouped vector-epilogue assertions below (positive checks; the
+    # ssh-rvv tolerance=1e-05 numerical gate is the correctness authority).
+    if uses_packed_i4_resource and not single_scope_packed_i4_epilogue:
         for forbidden, context in (
             (F32_CLAMP_SELECT_SPLAT_INTRINSIC, "vector f32 splat"),
             (F32_CLAMP_SELECT_COMPARE_INTRINSIC, "vector f32 compare"),
@@ -14735,9 +14812,25 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 ),
             }
     elif expectation.is_widening_product_reduce_dequant_clamp_f32:
-        require_ordered_tokens(
-            post_loop,
+        # The Stage 3 single-scope conversion emits the three f32 splats (dequant
+        # result + lower/upper bound) up-front, then the two compare/select clamp
+        # stages -- numerically identical lower-then-upper VL=1 clamp, just splats
+        # hoisted (no data dependency on the compares). The legacy two-scope path
+        # interleaves the upper-bound splat after the first select. Both are
+        # lower-then-upper clamp; the ssh-rvv numerical gate is the authority.
+        clamp_chain = (
             [
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            ]
+            if single_scope_packed_i4_epilogue
+            else [
                 F32_CLAMP_SELECT_SPLAT_INTRINSIC,
                 F32_CLAMP_SELECT_SPLAT_INTRINSIC,
                 F32_CLAMP_SELECT_COMPARE_INTRINSIC,
@@ -14746,7 +14839,11 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 F32_CLAMP_SELECT_COMPARE_INTRINSIC,
                 F32_CLAMP_SELECT_SELECT_INTRINSIC,
                 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
-            ],
+            ]
+        )
+        require_ordered_tokens(
+            post_loop,
+            clamp_chain,
             "emitted RVV C/C++ product-reduction dequant-clamp post-loop chain",
         )
         post_loop_clamp_select = {
@@ -17441,14 +17538,36 @@ def verify_bundle(
 def require_materialized_typed_compute_chain(
     text: str, expectation: OpExpectation
 ) -> None:
+    expected = expectation.typed_compute_op
+    # The low-precision dequant(/clamp) selected body is candidate-aware: the
+    # packed-i4 candidate (Stage 3 single-scope flip) uses a
+    # tcrv_rvv.packed_i4_nibble_unpack_product head and has NO
+    # gearbox_cross_region_handoff; the unpacked/grouped candidate keeps the
+    # legacy widening_product head + handoff. Derive the expected chain from the
+    # materialized IR structure so the mirror matches the realized body instead of
+    # asserting a phantom handoff or wrong head.
+    if "tcrv_rvv.gearbox_cross_region_handoff" in expected:
+        nibble_head = "tcrv_rvv.packed_i4_nibble_unpack_product" in text
+        has_handoff = "tcrv_rvv.gearbox_cross_region_handoff" in text
+        head = (
+            "tcrv_rvv.packed_i4_nibble_unpack_product"
+            if nibble_head
+            else "tcrv_rvv.widening_product"
+        )
+        tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
+        chain = head + "+tcrv_rvv.standalone_reduce"
+        if has_handoff:
+            chain += "+tcrv_rvv.gearbox_cross_region_handoff"
+        chain += "+tcrv_rvv.dequantize" + tail
+        expected = chain
     require_contains(
         text,
-        expectation.typed_compute_op,
+        expected,
         "materialized selected-body MLIR typed compute op mirror",
     )
-    if "+" not in expectation.typed_compute_op:
+    if "+" not in expected:
         return
-    for op_name in expectation.typed_compute_op.split("+"):
+    for op_name in expected.split("+"):
         require_contains(
             text,
             op_name,
@@ -17781,98 +17900,134 @@ def verify_materialized_selected_body(
             resource_profile = product_dequant_low_precision_resource_profile(
                 expectation, packed_i4=uses_packed_i4_resource
             )
-            require_contains(
-                text,
-                "tcrv_rvv.gearbox_cross_region_handoff",
-                "materialized selected-body MLIR Gearbox cross-region handoff op",
+            # The packed-i4 candidate realizes as a single-scope typed body (Stage 3
+            # flip): no tcrv_rvv.gearbox_cross_region_handoff carrier, no
+            # producer/consumer scope split, no vsetvl_region_marker placeholders.
+            # The grouped/unpacked candidate keeps the legacy two-scope structure.
+            # Gate the handoff/marker/scope-structure assertions on the realized
+            # form; the low_precision_resource.* facts below survive on with_vl and
+            # are asserted in both forms.
+            body_has_handoff = (
+                "tcrv_rvv.gearbox_cross_region_handoff" in text
             )
-            require_contains(
-                text,
-                f'producer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE}"',
-                "materialized selected-body MLIR Gearbox handoff producer scope",
-            )
-            require_contains(
-                text,
-                f'consumer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE}"',
-                "materialized selected-body MLIR Gearbox handoff consumer scope",
-            )
-            require_contains(
-                text,
-                f'contract = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT}"',
-                "materialized selected-body MLIR Gearbox handoff contract",
-            )
-            require_contains(
-                text,
-                f'from_phase = "{resource_profile["producer_phase"]}"',
-                "materialized selected-body MLIR Gearbox handoff producer phase",
-            )
-            require_contains(
-                text,
-                f'to_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
-                "materialized selected-body MLIR Gearbox handoff consumer phase",
-            )
-            require_contains(
-                text,
-                'runtime_avl_source = "runtime_abi:n"',
-                "materialized selected-body MLIR Gearbox runtime AVL handoff",
-            )
-            require_contains(
-                text,
-                f'region_count = {resource_profile["vsetvl_region_count"]} : i64',
-                "materialized selected-body MLIR Gearbox region count",
-            )
-            require_contains(
-                text,
-                "region_index = 1 : i64",
-                "materialized selected-body MLIR Gearbox producer region marker",
-            )
-            if uses_packed_i4_resource:
+            if body_has_handoff:
                 require_contains(
                     text,
-                    'phase = "load-product-reduce"',
-                    "materialized selected-body MLIR packed-i4 producer phase marker",
+                    "tcrv_rvv.gearbox_cross_region_handoff",
+                    "materialized selected-body MLIR Gearbox cross-region handoff op",
                 )
                 require_contains(
                     text,
-                    "region_index = 2 : i64",
-                    "materialized selected-body MLIR packed-i4 consumer region marker",
+                    f'producer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE}"',
+                    "materialized selected-body MLIR Gearbox handoff producer scope",
+                )
+                require_contains(
+                    text,
+                    f'consumer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE}"',
+                    "materialized selected-body MLIR Gearbox handoff consumer scope",
+                )
+                require_contains(
+                    text,
+                    f'contract = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT}"',
+                    "materialized selected-body MLIR Gearbox handoff contract",
+                )
+                require_contains(
+                    text,
+                    f'from_phase = "{resource_profile["producer_phase"]}"',
+                    "materialized selected-body MLIR Gearbox handoff producer phase",
+                )
+                require_contains(
+                    text,
+                    f'to_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
+                    "materialized selected-body MLIR Gearbox handoff consumer phase",
+                )
+                require_contains(
+                    text,
+                    'runtime_avl_source = "runtime_abi:n"',
+                    "materialized selected-body MLIR Gearbox runtime AVL handoff",
+                )
+                require_contains(
+                    text,
+                    f'region_count = {resource_profile["vsetvl_region_count"]} : i64',
+                    "materialized selected-body MLIR Gearbox region count",
+                )
+                require_contains(
+                    text,
+                    "region_index = 1 : i64",
+                    "materialized selected-body MLIR Gearbox producer region marker",
+                )
+                if uses_packed_i4_resource:
+                    require_contains(
+                        text,
+                        'phase = "load-product-reduce"',
+                        "materialized selected-body MLIR packed-i4 producer phase marker",
+                    )
+                    require_contains(
+                        text,
+                        "region_index = 2 : i64",
+                        "materialized selected-body MLIR packed-i4 consumer region marker",
+                    )
+                    require_not_contains(
+                        text,
+                        'phase = "grouped-product-reduce-main"',
+                        "materialized selected-body MLIR packed-i4 two-region schedule",
+                    )
+                else:
+                    require_contains(
+                        text,
+                        'phase = "grouped-product-reduce-main"',
+                        "materialized selected-body MLIR Gearbox grouped main phase marker",
+                    )
+                    require_contains(
+                        text,
+                        "region_index = 2 : i64",
+                        "materialized selected-body MLIR Gearbox tail producer region marker",
+                    )
+                    require_contains(
+                        text,
+                        "region_index = 3 : i64",
+                        "materialized selected-body MLIR Gearbox consumer region marker",
+                    )
+                require_contains(
+                    text,
+                    f'phase = "{resource_profile["producer_phase"]}"',
+                    "materialized selected-body MLIR Gearbox producer phase marker",
+                )
+                require_contains(
+                    text,
+                    f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
+                    "materialized selected-body MLIR Gearbox consumer phase marker",
+                )
+                require_contains(
+                    text,
+                    f'resource_decision = "{resource_profile["resource_decision"]}"',
+                    "materialized selected-body MLIR Gearbox resource decision",
+                )
+            else:
+                # Single-scope packed-i4 flip: the two-scope carrier/scope split is
+                # gone. Assert it is genuinely absent (fail-closed: a stray handoff
+                # or marker would mean an incomplete flip), and assert the typed
+                # nibble head + structural unroll_factor are present instead.
+                require_not_contains(
+                    text,
+                    "tcrv_rvv.gearbox_cross_region_handoff",
+                    "single-scope packed-i4 body has no Gearbox handoff carrier",
                 )
                 require_not_contains(
                     text,
-                    'phase = "grouped-product-reduce-main"',
-                    "materialized selected-body MLIR packed-i4 two-region schedule",
-                )
-            else:
-                require_contains(
-                    text,
-                    'phase = "grouped-product-reduce-main"',
-                    "materialized selected-body MLIR Gearbox grouped main phase marker",
+                    "tcrv_rvv.vsetvl_region_marker",
+                    "single-scope packed-i4 body has no vsetvl region markers",
                 )
                 require_contains(
                     text,
-                    "region_index = 2 : i64",
-                    "materialized selected-body MLIR Gearbox tail producer region marker",
+                    "tcrv_rvv.packed_i4_nibble_unpack_product",
+                    "single-scope packed-i4 body typed nibble-unpack product head",
                 )
                 require_contains(
                     text,
-                    "region_index = 3 : i64",
-                    "materialized selected-body MLIR Gearbox consumer region marker",
+                    "unroll_factor = 1 : i64",
+                    "single-scope packed-i4 body structural unroll factor",
                 )
-            require_contains(
-                text,
-                f'phase = "{resource_profile["producer_phase"]}"',
-                "materialized selected-body MLIR Gearbox producer phase marker",
-            )
-            require_contains(
-                text,
-                f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
-                "materialized selected-body MLIR Gearbox consumer phase marker",
-            )
-            require_contains(
-                text,
-                f'resource_decision = "{resource_profile["resource_decision"]}"',
-                "materialized selected-body MLIR Gearbox resource decision",
-            )
             require_contains(
                 text,
                 f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',

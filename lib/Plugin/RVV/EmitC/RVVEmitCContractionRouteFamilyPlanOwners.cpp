@@ -1531,9 +1531,28 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         "contraction route-family plan",
         description.contractionRouteFamilyPlanID,
         wideningDotFacts->contractionRouteFamilyPlanID);
-    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
-        "typed compute op", description.typedComputeOpName,
-        wideningDotFacts->typedComputeOpName);
+    // The typed-compute-op chain for the dequant(/clamp) routes is candidate-
+    // aware (the actual head op + handoff presence on the realized body), not the
+    // static canonical chain in wideningDotFacts. Compare the description against
+    // the slice-derived expected chain so a single-scope nibble/grouped body is
+    // accepted while a mismatched chain still fails closed.
+    const bool isDequantTypedComputeChainFamily =
+        operation ==
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+        operation ==
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+    if (isDequantTypedComputeChainFamily) {
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "typed compute op", description.typedComputeOpName,
+          getRVVSelectedBodyDequantTypedComputeOpChain(
+              analysis.slice,
+              operation == RVVSelectedBodyOperationKind::
+                               WideningProductReduceDequantClampF32));
+    } else {
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "typed compute op", description.typedComputeOpName,
+          wideningDotFacts->typedComputeOpName);
+    }
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "compare predicate", description.comparePredicateKind,
         wideningDotFacts->comparePredicateKind);
@@ -5413,6 +5432,34 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
     RVVSelectedBodyRouteSlice &slice, llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
   const std::int64_t expectedRegionCount = selection.vsetvlRegionCount;
+  // Single-scope typed dequant body (Stage 3 flip): the realization no longer
+  // emits tcrv_rvv.vsetvl_region_marker placeholders -- the loop/region structure
+  // is expressed as typed ops (inline product/reduce slices + with_vl unroll_factor
+  // + the typed dequant chain) and synthesized structurally by the conversion. The
+  // marker-walk below is retired for this form; the region-index ORDERING invariant
+  // (productRegionIndex < dequantRegionIndex inside the region count, and the
+  // dequant-clamp region sharing) is the fail-closed structural check that survives,
+  // validated from the with_vl-sourced selection facts.
+  if (slice.vsetvlRegionMarkers.empty()) {
+    if (selection.productRegionIndex <= 0 ||
+        selection.dequantRegionIndex <= 0 ||
+        selection.dequantRegionIndex > expectedRegionCount ||
+        selection.productRegionIndex >= selection.dequantRegionIndex)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "single-scope structure requires provider-owned product/dequant "
+          "region indices to be ordered inside the realized region count");
+    if (isRVVLowPrecisionResourceDequantClampCandidateID(
+            selection.selectedCandidateID) &&
+        selection.clampRegionIndex != selection.dequantRegionIndex)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "single-scope structure requires dequant-clamp compare/select to "
+          "share the dequant/store region");
+    return llvm::Error::success();
+  }
   if (static_cast<std::int64_t>(slice.vsetvlRegionMarkers.size()) !=
       expectedRegionCount)
     return makeRVVEmitCRouteProviderError(
@@ -5525,12 +5572,24 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         "structure cannot derive a Gearbox handoff resource decision for "
         "selected candidate '" +
         selection.selectedCandidateID + "'");
-  if (!handoff)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " selected-body realization low-precision direct-contraction "
-        "structure requires tcrv_rvv.gearbox_cross_region_handoff between "
-        "the product/reduction and dequant/store regions");
+  if (!handoff) {
+    // Single-scope typed dequant body (Stage 3 flip): no cross-region handoff
+    // carrier exists -- the i32 product-reduction result feeds tcrv_rvv.dequantize
+    // directly. The fail-closed structural equivalence is that the dequant source
+    // is the selected standalone_reduce result; the handoff's RESOURCE facts (the
+    // operand_form / packing_layout / unpack_intent / candidate-set cross-checks
+    // below) are validated independently off the with_vl scope by
+    // requireRVVLowPrecisionResourceRealizationCompilerFacts. The producer/consumer
+    // SCOPE-SPLIT check is intentionally retired here -- a single scope no longer
+    // has a producer/consumer split to validate.
+    if (slice.dequantizeOp.getSource() != slice.standaloneReduceOp.getResult())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "single-scope structure requires tcrv_rvv.dequantize to consume the "
+          "selected standalone_reduce i32 result");
+    return llvm::Error::success();
+  }
 
   if (handoff.getInput() != slice.standaloneReduceOp.getResult() ||
       handoff.getOutput() != slice.dequantizeOp.getSource())
@@ -9857,10 +9916,10 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       isProductReductionDequantization;
   mlir::Value lhsSourceValue =
-      isProductReductionChain ? analysis.slice.wideningProductOp.getLhs()
+      isProductReductionChain ? productSlotLhs(analysis.slice)
                               : analysis.slice.arithmeticLhs;
   mlir::Value rhsSourceValue =
-      isProductReductionChain ? analysis.slice.wideningProductOp.getRhs()
+      isProductReductionChain ? productSlotRhs(analysis.slice)
                               : analysis.slice.arithmeticRhs;
   llvm::Expected<RVVContractionVectorFacts> lhsSourceFacts =
       deriveContractionVectorFacts(
@@ -9889,7 +9948,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   std::optional<RVVContractionVectorFacts> reductionResultFacts;
   if (isProductReductionChain) {
     if (analysis.slice.standaloneReduceOp.getInput() !=
-        analysis.slice.wideningProductOp.getResult())
+        productSlotResult(analysis.slice))
       return makeRVVEmitCRouteProviderError(
           "product-reduction contraction route-family plan requires "
           "tcrv_rvv.standalone_reduce input to consume the selected "
@@ -9899,9 +9958,13 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
           "requires tcrv_rvv.dequantize in the selected RVV body");
+    // Two carriers of the i32 product-reduction result feed the dequant:
+    //   - legacy two-scope body: the gearbox_cross_region_handoff output;
+    //   - single-scope typed body (Stage 3 flip): the standalone_reduce result
+    //     directly, with no handoff op present.
     if (isProductReductionDequantization &&
-        (!analysis.slice.gearboxCrossRegionHandoffOp ||
-         analysis.slice.gearboxCrossRegionHandoffOp.getInput() !=
+        analysis.slice.gearboxCrossRegionHandoffOp &&
+        (analysis.slice.gearboxCrossRegionHandoffOp.getInput() !=
              analysis.slice.standaloneReduceOp.getResult() ||
          analysis.slice.gearboxCrossRegionHandoffOp.getOutput() !=
              analysis.slice.dequantizeOp.getSource() ||
@@ -9915,6 +9978,15 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           "forward the selected standalone_reduce result, bind the selected "
           "with_vl token, and consume the selected runtime n/AVL SSA value "
           "before tcrv_rvv.dequantize");
+    if (isProductReductionDequantization &&
+        !analysis.slice.gearboxCrossRegionHandoffOp &&
+        analysis.slice.dequantizeOp.getSource() !=
+            analysis.slice.standaloneReduceOp.getResult())
+      return makeRVVEmitCRouteProviderError(
+          "product-reduction dequantization contraction route-family plan "
+          "requires tcrv_rvv.dequantize to consume the selected "
+          "tcrv_rvv.standalone_reduce i32 result in the single-scope typed "
+          "body");
     if (isProductReductionDequantization &&
         analysis.slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)
@@ -9969,7 +10041,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
             "store structural dataflow");
     }
     llvm::Expected<RVVContractionVectorFacts> derivedProductFacts =
-        deriveContractionVectorFacts(analysis.slice.wideningProductOp.getResult(),
+        deriveContractionVectorFacts(productSlotResult(analysis.slice),
                                      "product intermediate",
                                      "contraction route-family plan");
     if (!derivedProductFacts)
@@ -10175,8 +10247,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     plan.resultLayout = analysis.slice.standaloneReduceOp.getResultLayout();
     plan.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
     plan.destinationMemoryForm = kRVVDestinationMemoryForm;
-    plan.wideningProductRelation =
-        analysis.slice.wideningProductOp.getProductRelation();
+    plan.wideningProductRelation = productSlotRelation(analysis.slice);
     plan.productReductionChainRelation =
         getContractionProductReductionChainRelation(
             plan.sourceSEW, plan.sourceLMUL, plan.productSEW,

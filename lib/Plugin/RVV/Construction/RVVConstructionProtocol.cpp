@@ -1291,26 +1291,43 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV low-precision widening product-reduction construction requires "
         "generic tcrv_rvv.widening_product followed by "
         "tcrv_rvv.standalone_reduce");
-  if (isWideningProductReduceDequantizeF32 &&
-      typedComputeOpName != "tcrv_rvv.widening_product+"
-                            "tcrv_rvv.standalone_reduce+"
-                            "tcrv_rvv.gearbox_cross_region_handoff+"
-                            "tcrv_rvv.dequantize")
+  // The dequant(/clamp) chain is candidate-aware: widening_product or
+  // packed_i4_nibble_unpack_product head, and the gearbox_cross_region_handoff is
+  // present only in the legacy two-scope body. Accept exactly the bounded legal
+  // set (fail-closed: any other chain rejected).
+  auto isLegalDequantChain = [&](bool isClamp) -> bool {
+    const llvm::StringRef tail =
+        isClamp ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+                : "+tcrv_rvv.dequantize";
+    const std::string wideningHandoff =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+         "tcrv_rvv.gearbox_cross_region_handoff" +
+         llvm::Twine(tail))
+            .str();
+    const std::string widening =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    const std::string nibble =
+        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    return typedComputeOpName == wideningHandoff ||
+           typedComputeOpName == widening || typedComputeOpName == nibble;
+  };
+  if (isWideningProductReduceDequantizeF32 && !isLegalDequantChain(false))
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequantization "
-        "construction requires generic tcrv_rvv.widening_product followed by "
-        "tcrv_rvv.standalone_reduce, tcrv_rvv.gearbox_cross_region_handoff, "
-        "and tcrv_rvv.dequantize");
-  if (isWideningProductReduceDequantClampF32 &&
-      typedComputeOpName != "tcrv_rvv.widening_product+"
-                            "tcrv_rvv.standalone_reduce+"
-                            "tcrv_rvv.gearbox_cross_region_handoff+"
-                            "tcrv_rvv.dequantize+tcrv_rvv.compare+"
-                            "tcrv_rvv.select")
+        "construction requires generic tcrv_rvv.widening_product or "
+        "tcrv_rvv.packed_i4_nibble_unpack_product followed by "
+        "tcrv_rvv.standalone_reduce, an optional "
+        "tcrv_rvv.gearbox_cross_region_handoff, and tcrv_rvv.dequantize");
+  if (isWideningProductReduceDequantClampF32 && !isLegalDequantChain(true))
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequant-clamp "
-        "construction requires generic tcrv_rvv.widening_product followed by "
-        "tcrv_rvv.standalone_reduce, "
+        "construction requires generic tcrv_rvv.widening_product or "
+        "tcrv_rvv.packed_i4_nibble_unpack_product followed by "
+        "tcrv_rvv.standalone_reduce, an optional "
         "tcrv_rvv.gearbox_cross_region_handoff, tcrv_rvv.dequantize, "
         "tcrv_rvv.compare, and tcrv_rvv.select");
   if ((isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) &&
@@ -2762,59 +2779,77 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return steps;
   }
   if (isWideningProductReduceDequantizeF32) {
+    // The product head and the presence of the gearbox cross-region handoff /
+    // consumer with_vl scope are read from the candidate-aware typedComputeOpName
+    // chain (head+standalone_reduce[+gearbox_cross_region_handoff]+dequantize):
+    //   - legacy two-scope body: widening_product head + handoff + consumer scope;
+    //   - single-scope typed body (Stage 3 flip): widening_product OR
+    //     packed_i4_nibble_unpack_product head, NO handoff, NO consumer scope.
+    const bool nibbleHead = typedComputeOpName.starts_with(
+        "tcrv_rvv.packed_i4_nibble_unpack_product");
+    const bool hasHandoff =
+        typedComputeOpName.contains("tcrv_rvv.gearbox_cross_region_handoff");
+    const llvm::StringRef headOp =
+        nibbleHead ? llvm::StringRef("tcrv_rvv.packed_i4_nibble_unpack_product")
+                   : llvm::StringRef("tcrv_rvv.widening_product");
+    unsigned order = 1;
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "rhs", 1});
+                     "rhs", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "acc", 2});
+                     "acc", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "scale", 3});
+                     "scale", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "out", 4});
+                     "out", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "n", 5});
+                     "n", order++});
     steps.push_back({"configure", "tcrv_rvv.setvl",
                      "rvv.role.configure.setvl", "TCRVConfigOpInterface",
                      "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
-                     6});
+                     order++});
     steps.push_back({"scope", "tcrv_rvv.with_vl",
                      "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 7});
+                     "TCRVEmitCLowerableInterface", "with_vl", order++});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "lhs_load", 8});
+                     "lhs_load", order++});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "rhs_load", 9});
-    steps.push_back({"compute", "tcrv_rvv.widening_product",
+                     "rhs_load", order++});
+    steps.push_back({"compute", headOp,
                      route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface", "widening_product", 10});
+                     "TCRVEmitCLowerableInterface", "widening_product",
+                     order++});
     steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface",
-                     "widening_product_reduce", 11});
-    steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface",
-                     "gearbox_cross_region_handoff", 12});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "consumer_with_vl", 13});
+                     "widening_product_reduce", order++});
+    if (hasHandoff) {
+      steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface",
+                       "gearbox_cross_region_handoff", order++});
+      steps.push_back({"scope", "tcrv_rvv.with_vl",
+                       "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                       "TCRVEmitCLowerableInterface", "consumer_with_vl",
+                       order++});
+    }
     steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     route->operationMnemonic, 14});
+                     route->operationMnemonic, order++});
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "store", 15});
+                     "store", order++});
     return steps;
   }
   if (isWideningProductReduceDequantClampF32) {
@@ -2853,52 +2888,66 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"scope", "tcrv_rvv.with_vl",
                      "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
                      "TCRVEmitCLowerableInterface", "with_vl", 9});
+    // Candidate-aware head + optional handoff/consumer-scope (see the dequantize
+    // block); single-scope typed bodies (Stage 3 flip) carry neither.
+    const bool nibbleHead = typedComputeOpName.starts_with(
+        "tcrv_rvv.packed_i4_nibble_unpack_product");
+    const bool hasHandoff =
+        typedComputeOpName.contains("tcrv_rvv.gearbox_cross_region_handoff");
+    const llvm::StringRef headOp =
+        nibbleHead ? llvm::StringRef("tcrv_rvv.packed_i4_nibble_unpack_product")
+                   : llvm::StringRef("tcrv_rvv.widening_product");
+    unsigned order = 10;
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "lhs_load", 10});
+                     "lhs_load", order++});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "rhs_load", 11});
-    steps.push_back({"compute", "tcrv_rvv.widening_product",
+                     "rhs_load", order++});
+    steps.push_back({"compute", headOp,
                      route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface", "widening_product", 12});
+                     "TCRVEmitCLowerableInterface", "widening_product",
+                     order++});
     steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface",
-                     "widening_product_reduce", 13});
-    steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
-                     route->typedRoleID, "TCRVComputeOpInterface",
-                     "TCRVEmitCLowerableInterface",
-                     "gearbox_cross_region_handoff", 14});
-    steps.push_back({"scope", "tcrv_rvv.with_vl",
-                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "consumer_with_vl", 15});
+                     "widening_product_reduce", order++});
+    if (hasHandoff) {
+      steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface",
+                       "gearbox_cross_region_handoff", order++});
+      steps.push_back({"scope", "tcrv_rvv.with_vl",
+                       "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                       "TCRVEmitCLowerableInterface", "consumer_with_vl",
+                       order++});
+    }
     steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "dequantize", 16});
+                     "dequantize", order++});
     steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_bound_splat", 17});
+                     "lower_bound_splat", order++});
     steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_bound_splat", 18});
+                     "upper_bound_splat", order++});
     steps.push_back({"compute", "tcrv_rvv.compare",
                      "rvv.role.compute.generic_vector",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_compare", 19});
+                     "lower_compare", order++});
     steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_select", 20});
+                     "lower_select", order++});
     steps.push_back({"compute", "tcrv_rvv.compare",
                      "rvv.role.compute.generic_vector",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_compare", 21});
+                     "upper_compare", order++});
     steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_select", 22});
+                     "upper_select", order++});
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "store", 23});
+                     "store", order++});
     return steps;
   }
   if (isWideningProductReduceAdd) {
@@ -5178,6 +5227,44 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " segment2 interleave memory movement cannot use generic "
         "tcrv_rvv.binary");
+  // The low-precision dequant(/clamp) chain is candidate-aware (widening_product
+  // or packed_i4_nibble_unpack_product head; gearbox_cross_region_handoff only in
+  // the legacy two-scope body). Accept exactly the bounded legal set.
+  const bool isDequantMetadataRoute =
+      route->operationMnemonic == "widening_product_reduce_dequantize_f32" ||
+      route->operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
+  if (isDequantMetadataRoute) {
+    const bool isClampRoute =
+        route->operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
+    const llvm::StringRef tail =
+        isClampRoute ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+                     : "+tcrv_rvv.dequantize";
+    const std::string wideningHandoff =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+         "tcrv_rvv.gearbox_cross_region_handoff" +
+         llvm::Twine(tail))
+            .str();
+    const std::string widening =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    const std::string nibble =
+        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    if (facts.typedComputeOpName != wideningHandoff &&
+        facts.typedComputeOpName != widening &&
+        facts.typedComputeOpName != nibble)
+      return makeRVVConstructionError(
+          llvm::Twine(context) +
+          " selected-body typed compute op for operation '" +
+          facts.operationMnemonic +
+          "' must be one of the bounded low-precision product-reduction "
+          "dequant chains (widening_product/packed_i4_nibble_unpack_product "
+          "head, optional gearbox_cross_region_handoff), but was '" +
+          facts.typedComputeOpName + "'");
+    return llvm::Error::success();
+  }
   if (!usesGenericBinary && facts.typedComputeOpName != route->typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -6216,6 +6303,45 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body segment2 interleave memory movement cannot use "
         "generic tcrv_rvv.binary");
+  // The low-precision dequant(/clamp) routes have a candidate-aware typed-compute
+  // chain: the head op is widening_product (unpacked-byte/grouped) or
+  // packed_i4_nibble_unpack_product (packed-i4), and the legacy two-scope body
+  // additionally carries the gearbox_cross_region_handoff. Accept exactly the
+  // bounded legal set (still fail-closed: any other chain is rejected).
+  const bool isDequantTypedComputeRoute =
+      expected.operationMnemonic == "widening_product_reduce_dequantize_f32" ||
+      expected.operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
+  if (isDequantTypedComputeRoute) {
+    const bool isClampRoute =
+        expected.operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
+    const llvm::StringRef tail =
+        isClampRoute ? "+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+                     : "+tcrv_rvv.dequantize";
+    const std::string wideningHandoffChain =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+         "tcrv_rvv.gearbox_cross_region_handoff" +
+         llvm::Twine(tail))
+            .str();
+    const std::string wideningChain =
+        ("tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    const std::string nibbleChain =
+        ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
+    if (typedComputeOpName != wideningHandoffChain &&
+        typedComputeOpName != wideningChain &&
+        typedComputeOpName != nibbleChain)
+      return makeRVVConstructionError(
+          llvm::Twine("selected-body typed compute op for operation '") +
+          operationMnemonic +
+          "' must be one of the bounded low-precision product-reduction "
+          "dequant chains (widening_product/packed_i4_nibble_unpack_product "
+          "head, optional gearbox_cross_region_handoff), but was '" +
+          typedComputeOpName + "'");
+    return llvm::Error::success();
+  }
   if (!usesGenericBinary && expected.typedComputeOpName != typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine("selected-body typed compute op for operation '") +

@@ -1059,6 +1059,26 @@ mlir::Operation *createRealizedGenericWideningProductCompute(
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericPackedI4NibbleUnpackProductCompute(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    llvm::StringRef productRelation, mlir::Value lhs, mlir::Value rhs,
+    mlir::Value vl, std::int64_t productSEW, llvm::StringRef productLMUL) {
+  // The packed-i4 nibble-unpack widening product carries the i4 sign-extend /
+  // unpack STRUCTURE as one typed op (the fixed vsll/vsra/vwmul/vsra/vwmacc chain
+  // is the op's lowering); the single-scope Stage 3 conversion walks the typed op
+  // and never reads operand_form/unpack_intent mirror strings.
+  mlir::OperationState state(loc, "tcrv_rvv.packed_i4_nibble_unpack_product");
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute(
+      "kind",
+      builder.getStringAttr("signed_packed_i4_nibble_unpack_product"));
+  state.addAttribute("product_relation",
+                     builder.getStringAttr(productRelation));
+  state.addTypes(
+      getGenericVectorType(builder, productSEW, productLMUL, /*isUnsigned=*/false));
+  return builder.create(state);
+}
+
 mlir::Operation *createRealizedGenericStandaloneWideningReduceCompute(
     mlir::OpBuilder &builder, mlir::Location loc,
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
@@ -1987,7 +2007,19 @@ realizePreRealizedRVVSelectedContractionFamily(
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;
   mlir::Value compareRHSValue;
-  if (plan.usesProductReductionDequantization) {
+  // The packed-i4 candidate realizes as a SINGLE-scope typed body (Stage 3 flip):
+  // a tcrv_rvv.packed_i4_nibble_unpack_product head, the dequant/clamp chain
+  // inlined in the one with_vl scope, NO vsetvl_region_marker placeholders, NO
+  // gearbox_cross_region_handoff, NO consumer with_vl. The grouped/unpacked
+  // candidate keeps the legacy two-scope realization until its bounded multi-slice
+  // analysis support lands. The compute structure is typed; the conversion walks
+  // it without reading operand_form/unpack_intent mirror strings.
+  const bool realizesSingleScopePackedI4Dequant =
+      plan.usesProductReductionDequantization && selectedResourceCandidate &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          selectedResourceCandidate->candidateID);
+  if (plan.usesProductReductionDequantization &&
+      !realizesSingleScopePackedI4Dequant) {
     const llvm::StringRef resourceDecision =
         getRVVLowPrecisionContractionResourceRealizationDecision(
             selectedResourceCandidate->candidateID);
@@ -2070,18 +2102,74 @@ realizePreRealizedRVVSelectedContractionFamily(
         selectedResourceCandidate
             ? llvm::StringRef(selectedResourceCandidate->primitiveResultLayout)
             : llvm::StringRef(lowPrecisionPrimitiveFacts->resultLayout);
-    auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
-        createRealizedGenericWideningProductCompute(
-            builder, loc, plan.productKind, productRelation, lhsValue,
-            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL,
-            plan.isUnsignedProductReduction));
+    // The packed-i4 single-scope flip emits a typed nibble-unpack product head;
+    // every other candidate keeps the typed widening_product head.
+    mlir::Value productResult;
+    if (realizesSingleScopePackedI4Dequant) {
+      auto nibbleProduct =
+          llvm::cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(
+              createRealizedGenericPackedI4NibbleUnpackProductCompute(
+                  builder, loc, productRelation, lhsValue, rhsValue,
+                  setvl.getVl(), plan.productSEW, plan.productLMUL));
+      productResult = nibbleProduct.getResult();
+    } else {
+      auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
+          createRealizedGenericWideningProductCompute(
+              builder, loc, plan.productKind, productRelation, lhsValue,
+              rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL,
+              plan.isUnsignedProductReduction));
+      productResult = product.getResult();
+    }
     auto reduced = llvm::cast<tcrv::rvv::StandaloneReduceOp>(
         createRealizedGenericStandaloneWideningReduceCompute(
-            builder, loc, accumulatorLayout, resultLayout, product.getResult(),
+            builder, loc, accumulatorLayout, resultLayout, productResult,
             plan.acc, setvl.getVl(), plan.resultSEW, plan.resultLMUL,
             plan.isUnsignedProductReduction));
     if (!plan.usesProductReductionDequantization) {
       createRealizedGenericStore(builder, loc, plan.out, reduced.getResult(),
+                                 setvl.getVl());
+    } else if (realizesSingleScopePackedI4Dequant) {
+      // Single-scope packed-i4: inline the dequant(/clamp) chain in the producer
+      // with_vl -- no handoff, no consumer scope. The i32 carry feeds dequantize
+      // directly. Stamp the bare structural `unroll_factor` (=1) the conversion
+      // reads to size the chunk loop.
+      withVL->setAttr("unroll_factor", builder.getI64IntegerAttr(1));
+      auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
+          createRealizedGenericDequantizeCompute(
+              builder, loc, plan.dequantizationRelation, reduced.getResult(),
+              plan.scale, setvl.getVl(), plan.resultLMUL));
+      mlir::Value valueToStore = dequantized.getResult();
+      if (plan.usesProductReductionDequantClamp) {
+        auto lowerSplat = llvm::cast<tcrv::rvv::SplatOp>(
+            createRealizedGenericF32Splat(builder, loc, plan.lowerBound,
+                                          setvl.getVl(), plan.resultLMUL));
+        auto upperSplat = llvm::cast<tcrv::rvv::SplatOp>(
+            createRealizedGenericF32Splat(builder, loc, plan.upperBound,
+                                          setvl.getVl(), plan.resultLMUL));
+        auto lowerCompare = llvm::cast<tcrv::rvv::CompareOp>(
+            createRealizedGenericCompare(builder, loc, dequantized.getResult(),
+                                         lowerSplat.getBroadcast(),
+                                         setvl.getVl(),
+                                         plan.lowerPredicateKind));
+        auto lowerSelect = llvm::cast<tcrv::rvv::SelectOp>(
+            createRealizedGenericSelect(builder, loc, lowerCompare.getMask(),
+                                        lowerSplat.getBroadcast(),
+                                        dequantized.getResult(),
+                                        setvl.getVl()));
+        auto upperCompare = llvm::cast<tcrv::rvv::CompareOp>(
+            createRealizedGenericCompare(builder, loc,
+                                         upperSplat.getBroadcast(),
+                                         lowerSelect.getSelected(),
+                                         setvl.getVl(),
+                                         plan.upperPredicateKind));
+        auto upperSelect = llvm::cast<tcrv::rvv::SelectOp>(
+            createRealizedGenericSelect(builder, loc, upperCompare.getMask(),
+                                        upperSplat.getBroadcast(),
+                                        lowerSelect.getSelected(),
+                                        setvl.getVl()));
+        valueToStore = upperSelect.getSelected();
+      }
+      createRealizedGenericStore(builder, loc, plan.out, valueToStore,
                                  setvl.getVl());
     } else {
       mlir::Value dequantSource = reduced.getResult();

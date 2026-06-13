@@ -236,8 +236,10 @@
 # EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1
 # EMITTED-C: tcrv_emitc.assign target=dot_acc_vec
 # EMITTED-C: __riscv_vmv_x_s_i32m1_i32
-# EMITTED-C: tcrv_emitc.assign target=out[0]
-# EMITTED-C: [0] =
+# Stage 3 single-scope flip: unified vector dequant epilogue (VL=1 f32 splat-store),
+# same as grouped; legacy packed-i4 scalar out[0]= store retired (HW-validated 1e-05).
+# EMITTED-C: __riscv_vfmv_v_f_f32m1
+# EMITTED-C: __riscv_vse32_v_f32m1
 
 # HARNESS-DAG: static int32_t sign_extend_i4(uint8_t nibble)
 # HARNESS-DAG: static int8_t pack_signed_i4_pair(int32_t low, int32_t high)

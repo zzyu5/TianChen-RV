@@ -12593,7 +12593,7 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
             "product-reduction rhs source vector", sourceConfig))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            slice.wideningProductOp->getResult(0),
+            productSlotResult(slice),
             "product-reduction i16 product vector", productConfig))
       return error;
     mlir::Value reductionResult = slice.standaloneReduceOp
@@ -16346,7 +16346,7 @@ llvm::Error recordRVVSelectedBodySelect(RVVSelectedBodyRouteSlice &slice,
              RVVSelectedBodyOperationKind::
                  WideningProductReduceDequantClampF32) &&
         slice.dequantizeOp && slice.standaloneReduceOp &&
-        slice.wideningProductOp;
+        hasProductHead(slice);
     slice.secondarySelectOp = select;
     slice.arithmeticOp = select.getOperation();
     slice.arithmeticKind =
@@ -16368,7 +16368,7 @@ llvm::Error recordRVVSelectedBodySelect(RVVSelectedBodyRouteSlice &slice,
   const bool extendsProductReductionDequantClamp =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
-      slice.dequantizeOp && slice.standaloneReduceOp && slice.wideningProductOp;
+      slice.dequantizeOp && slice.standaloneReduceOp && hasProductHead(slice);
   if (slice.arithmeticOp && !extendsDequantClampEpilogue &&
       !extendsProductReductionDequantClamp)
     return makeRVVEmitCRouteProviderError(
@@ -16479,24 +16479,26 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
         "' for bounded RVV standalone reduction route");
   if (slice.arithmeticOp) {
     if (slice.arithmeticKind != RVVSelectedBodyOperationKind::WideningProduct ||
+        !hasProductHead(slice) ||
         *reductionKind !=
             RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
-          "unless a typed tcrv_rvv.widening_product feeds a matching "
+          "unless a typed tcrv_rvv.widening_product or "
+          "tcrv_rvv.packed_i4_nibble_unpack_product feeds a matching "
           "signed or unsigned tcrv_rvv.standalone_reduce widening add chain");
     const bool isSignedProductReduction =
-        slice.wideningProductOp.getKind() == "signed_widening_product" &&
+        productSlotIsSigned(slice) &&
         standaloneReduce.getKind() == "signed_widening_reduce_add";
     const bool isUnsignedProductReduction =
-        slice.wideningProductOp.getKind() == "unsigned_widening_product" &&
+        productSlotIsUnsigned(slice) &&
         standaloneReduce.getKind() == "unsigned_widening_reduce_add";
     if (!isSignedProductReduction && !isUnsignedProductReduction)
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction RVV route requires widening "
           "product signedness to match standalone widening-reduction "
           "signedness");
-    if (standaloneReduce.getInput() != slice.wideningProductOp.getResult())
+    if (standaloneReduce.getInput() != productSlotResult(slice))
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction RVV route requires "
           "tcrv_rvv.standalone_reduce input to consume the selected "
@@ -16504,8 +16506,8 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
     slice.standaloneReduceOp = standaloneReduce;
     slice.arithmeticOp = standaloneReduce.getOperation();
     slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProductReduceAdd;
-    slice.arithmeticLhs = slice.wideningProductOp.getLhs();
-    slice.arithmeticRhs = slice.wideningProductOp.getRhs();
+    slice.arithmeticLhs = productSlotLhs(slice);
+    slice.arithmeticRhs = productSlotRhs(slice);
     slice.arithmeticAccumulator = standaloneReduce.getAccumulatorSeed();
     slice.accumulatorBuffer = standaloneReduce.getAccumulatorSeed();
     slice.arithmeticResult = standaloneReduce.getResult();
@@ -16739,6 +16741,34 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   return llvm::Error::success();
 }
 
+// Record a typed signed packed-i4 nibble-unpack widening product as the selected
+// product head of a low-precision dequant chain. Mirrors
+// recordRVVSelectedBodyWideningProduct but stores into slice.nibbleProductOp; the
+// downstream standalone-reduce / dequant hatches read the product head through
+// productSlotResult / hasProductHead so a single-scope nibble body threads the
+// same WideningProduct->StandaloneReduce->Dequantize promotion path.
+llvm::Error recordRVVSelectedBodyNibbleUnpackProduct(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::PackedI4NibbleUnpackProductOp product) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (product.getKind() != "signed_packed_i4_nibble_unpack_product" ||
+      product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(
+            "unsupported generic tcrv_rvv.packed_i4_nibble_unpack_product kind '") +
+        product.getKind() +
+        "' for bounded RVV low-precision packed-i4 nibble-unpack product route");
+  slice.nibbleProductOp = product;
+  slice.arithmeticOp = product.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProduct;
+  slice.arithmeticLhs = product.getLhs();
+  slice.arithmeticRhs = product.getRhs();
+  slice.arithmeticResult = product.getResult();
+  return llvm::Error::success();
+}
+
 llvm::Error recordRVVSelectedBodyWideningDotReduce(
     RVVSelectedBodyRouteSlice &slice,
     tcrv::rvv::WideningDotReduceOp dotReduce) {
@@ -16894,7 +16924,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "product-reduction dequantization cross-region boundary");
   if (slice.arithmeticKind !=
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
-      !slice.standaloneReduceOp || !slice.wideningProductOp)
+      !slice.standaloneReduceOp || !hasProductHead(slice))
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
         "tcrv_rvv.gearbox_cross_region_handoff to follow the selected "
@@ -17263,22 +17293,29 @@ llvm::Error recordRVVSelectedBodyDequantize(
   if (slice.arithmeticOp) {
     if (slice.arithmeticKind !=
             RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
-        !slice.standaloneReduceOp || !slice.wideningProductOp)
+        !slice.standaloneReduceOp || !hasProductHead(slice))
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
           "unless a low-precision product-reduction result feeds a "
           "tcrv_rvv.dequantize i32-to-f32 chain");
-    if (!slice.gearboxCrossRegionHandoffOp)
-      return makeRVVEmitCRouteProviderError(
-          "low-precision product-reduction dequantization RVV route requires "
-          "a tcrv_rvv.gearbox_cross_region_handoff between the selected "
-          "tcrv_rvv.standalone_reduce i32 result and tcrv_rvv.dequantize");
-    if (dequantize.getSource() !=
-        slice.gearboxCrossRegionHandoffOp.getOutput())
+    // Two carriers of the i32 product-reduction result feed the dequant:
+    //   - legacy two-scope: the gearbox_cross_region_handoff output (carrier);
+    //   - single-scope typed body (Stage 3 flip): the standalone_reduce result
+    //     directly (no handoff op is present).
+    if (slice.gearboxCrossRegionHandoffOp) {
+      if (dequantize.getSource() !=
+          slice.gearboxCrossRegionHandoffOp.getOutput())
+        return makeRVVEmitCRouteProviderError(
+            "low-precision product-reduction dequantization RVV route requires "
+            "tcrv_rvv.dequantize source to consume the selected "
+            "tcrv_rvv.gearbox_cross_region_handoff output");
+    } else if (dequantize.getSource() !=
+               slice.standaloneReduceOp.getResult()) {
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction dequantization RVV route requires "
           "tcrv_rvv.dequantize source to consume the selected "
-          "tcrv_rvv.gearbox_cross_region_handoff output");
+          "tcrv_rvv.standalone_reduce i32 result");
+    }
     slice.dequantizeOp = dequantize;
     slice.arithmeticOp = dequantize.getOperation();
     slice.arithmeticKind =
@@ -17580,6 +17617,9 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
     return recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc);
   if (auto product = llvm::dyn_cast<tcrv::rvv::WideningProductOp>(op))
     return recordRVVSelectedBodyWideningProduct(slice, product);
+  if (auto nibbleProduct =
+          llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op))
+    return recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct);
   if (auto dotReduce = llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op))
     return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
   if (auto maskedDotReduce =
@@ -17641,7 +17681,8 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
       "mask_load, segment2_load, segment2_store, binary, compare, "
       "masked_binary, select, reduce, standalone_reduce, "
       "masked_standalone_reduce, macc, masked_macc, "
-      "widening_product, widening_convert, gearbox_cross_region_handoff, "
+      "widening_product, packed_i4_nibble_unpack_product, widening_convert, "
+      "gearbox_cross_region_handoff, "
       "widening_dot_reduce, "
       "masked_widening_dot_reduce, move, masked_move, masked_load, "
       "masked_strided_load, masked_indexed_load, masked_indexed_store, "
@@ -18914,6 +18955,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto nibbleProduct =
+            llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct))
+        return std::move(error);
+      continue;
+    }
     if (auto dotReduce =
             llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op)) {
       if (llvm::Error error =
@@ -19008,7 +19056,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "mask_load, segment2_load, segment2_store, binary, compare, "
         "masked_binary, select, reduce, standalone_reduce, "
         "masked_standalone_reduce, macc, masked_macc, "
-        "widening_product, widening_convert, gearbox_cross_region_handoff, "
+        "widening_product, packed_i4_nibble_unpack_product, widening_convert, "
+      "gearbox_cross_region_handoff, "
         "widening_dot_reduce, "
         "masked_widening_dot_reduce, move, masked_move, masked_load, "
         "masked_strided_load, masked_indexed_load, masked_indexed_store, "
@@ -19501,19 +19550,22 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.gearbox_cross_region_handoff only for low-precision "
         "product-reduction dequantization/dequant-clamp selected-body "
         "realization");
+  // The dequant/dequant-clamp selected body has two structurally legal forms:
+  //   - legacy two-scope: a gearbox_cross_region_handoff carrier + a nested
+  //     consumer with_vl (producer/consumer split). BOTH must be present.
+  //   - single-scope typed body (Stage 3 flip): no handoff, no consumer scope --
+  //     the i32 carry feeds tcrv_rvv.dequantize directly inside the one with_vl.
+  // A handoff present without a consumer scope (or vice versa) is a malformed
+  // partial two-scope body and stays fail-closed.
   if (isWideningProductReduceDequantGearboxRoute &&
-      !slice.gearboxCrossRegionHandoffOp)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires "
-        "tcrv_rvv.gearbox_cross_region_handoff for low-precision "
-        "product-reduction dequantization/dequant-clamp selected-body "
-        "realization");
-  if (isWideningProductReduceDequantGearboxRoute && !slice.gearboxConsumerWithVL)
+      static_cast<bool>(slice.gearboxCrossRegionHandoffOp) !=
+          static_cast<bool>(slice.gearboxConsumerWithVL))
     return makeRVVEmitCRouteProviderError(
         "bounded Gearbox product-reduction dequantization/dequant-clamp RVV "
-        "route requires true multi-with_vl producer/consumer scope "
-        "collection; a single tcrv_rvv.with_vl marker mirror is not route "
-        "authority");
+        "route requires either a complete two-scope producer/consumer body "
+        "(both tcrv_rvv.gearbox_cross_region_handoff and the nested consumer "
+        "tcrv_rvv.with_vl) or a single-scope typed body with neither; a "
+        "partial two-scope body is not route authority");
   if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
         "bounded Gearbox multi-with_vl RVV route collection is currently "
@@ -19760,7 +19812,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.reduceOp || slice.standaloneReduceOp ||
        slice.maskedStandaloneReduceOp || slice.maccOp ||
        slice.wideningMAccOp ||
-       slice.wideningProductOp ||
+       hasProductHead(slice) ||
        slice.wideningDotReduceOp ||
        isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
@@ -19791,7 +19843,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.selectOp || slice.reduceOp || slice.standaloneReduceOp ||
        slice.maskedStandaloneReduceOp || slice.maccOp ||
        slice.wideningMAccOp || slice.wideningDotReduceOp ||
-       slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
+       hasProductHead(slice) || slice.maskedWideningDotReduceOp ||
        isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route supports only "
@@ -19812,7 +19864,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.selectOp || slice.reduceOp || slice.standaloneReduceOp ||
        slice.maskedStandaloneReduceOp || slice.maccOp ||
        slice.wideningMAccOp || slice.wideningDotReduceOp ||
-       slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
+       hasProductHead(slice) || slice.maskedWideningDotReduceOp ||
        isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store/update route "
@@ -19827,7 +19879,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
        slice.standaloneReduceOp || slice.maskedStandaloneReduceOp ||
        slice.maccOp || slice.wideningMAccOp || slice.wideningDotReduceOp ||
-       slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
+       hasProductHead(slice) || slice.maskedWideningDotReduceOp ||
        slice.compareOp ||
        isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
@@ -19842,7 +19894,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
        slice.standaloneReduceOp || slice.maskedStandaloneReduceOp ||
        slice.maccOp || slice.wideningMAccOp || slice.wideningDotReduceOp ||
-       slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
+       hasProductHead(slice) || slice.maskedWideningDotReduceOp ||
        slice.compareOp ||
        isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
@@ -20438,7 +20490,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (isDequantization &&
       (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
        slice.reduceOp || slice.maccOp || slice.wideningMAccOp ||
-       slice.wideningProductOp || slice.wideningDotReduceOp ||
+       hasProductHead(slice) || slice.wideningDotReduceOp ||
        slice.maskedWideningDotReduceOp || slice.wideningConvertOp))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV dequantization route cannot mix "
@@ -20765,8 +20817,18 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           : (hasStridedMemory
                  ? 13
                  : ((isCompareSelect || isMaskedArithmetic) ? 11 : 10))));
+  // The isWideningProductReduceDequantize/Clamp base counts (15/23) include the
+  // legacy two-scope gearbox_cross_region_handoff op. A single-scope typed body
+  // (Stage 3 flip) drops the handoff (and its markers + consumer with_vl), so the
+  // expected op count is one fewer when no handoff op is present.
+  const unsigned expectedHandoffAdjust =
+      (isWideningProductReduceDequantGearboxRoute &&
+       !slice.gearboxCrossRegionHandoffOp)
+          ? 1u
+          : 0u;
   const unsigned expectedRVVOpsWithMarkers =
-      expectedRVVOps + slice.vsetvlRegionMarkers.size() +
+      expectedRVVOps - expectedHandoffAdjust +
+      slice.vsetvlRegionMarkers.size() +
       (slice.gearboxConsumerWithVL ? 1 : 0);
   if (rvvOpCount != expectedRVVOpsWithMarkers)
     return makeRVVEmitCRouteProviderError(
@@ -22444,13 +22506,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
           "dequantization route requires a tcrv_rvv.dequantize consumer");
-    if (hasProductReductionDequantization &&
-        !slice.gearboxCrossRegionHandoffOp)
-      return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV low-precision product-reduction "
-          "dequantization route requires a structural "
-          "tcrv_rvv.gearbox_cross_region_handoff between product/reduction "
-          "and dequantization");
+    // Single-scope typed dequant bodies (Stage 3 flip) carry the i32 carry on
+    // the standalone_reduce result directly and have no handoff op; only the
+    // legacy two-scope body has the gearbox_cross_region_handoff carrier.
     if (hasProductReductionDequantization &&
         slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)
@@ -22472,17 +22530,22 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         : isWideningProductReduceDequantize
             ? slice.dequantizeOp.getResult()
             : slice.standaloneReduceOp.getResult();
-    if (slice.wideningProductOp.getLhs() != slice.lhsValue ||
-        slice.wideningProductOp.getRhs() != slice.rhsValue ||
-        slice.standaloneReduceOp.getInput() !=
-            slice.wideningProductOp.getResult() ||
+    // The dequant consumer reads either the handoff carrier (legacy two-scope)
+    // or the standalone_reduce result directly (single-scope typed body).
+    const mlir::Value dequantI32Carrier =
+        slice.gearboxCrossRegionHandoffOp
+            ? slice.gearboxCrossRegionHandoffOp.getOutput()
+            : slice.standaloneReduceOp.getResult();
+    if (productSlotLhs(slice) != slice.lhsValue ||
+        productSlotRhs(slice) != slice.rhsValue ||
+        slice.standaloneReduceOp.getInput() != productSlotResult(slice) ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||
         (hasProductReductionDequantization &&
-         (slice.gearboxCrossRegionHandoffOp.getInput() !=
-              slice.standaloneReduceOp.getResult() ||
-          slice.gearboxCrossRegionHandoffOp.getOutput() !=
-              slice.dequantizeOp.getSource())))
+         ((slice.gearboxCrossRegionHandoffOp &&
+           slice.gearboxCrossRegionHandoffOp.getInput() !=
+               slice.standaloneReduceOp.getResult()) ||
+          dequantI32Carrier != slice.dequantizeOp.getSource())))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
           "tcrv_rvv.widening_product to consume lhs/rhs i8 source loads, "
@@ -22525,9 +22588,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded generic RVV low-precision product-reduction route does not "
           "load the accumulator seed as a vector; it must remain a scalar "
           "runtime ABI boundary");
-    if (slice.wideningProductOp.getVl() != slice.setvl.getVl() ||
+    if (productSlotVL(slice) != slice.setvl.getVl() ||
         slice.standaloneReduceOp.getVl() != slice.setvl.getVl() ||
-        (hasProductReductionDequantization &&
+        (slice.gearboxCrossRegionHandoffOp &&
          slice.gearboxCrossRegionHandoffOp.getVl() != slice.setvl.getVl()) ||
         (hasProductReductionDequantization &&
          slice.dequantizeOp.getVl() != slice.setvl.getVl()) ||
@@ -22547,6 +22610,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "gearbox_cross_region_handoff, dequantize, and store to consume "
           "the selected !tcrv_rvv.vl token");
     if (hasProductReductionDequantization &&
+        slice.gearboxCrossRegionHandoffOp &&
         slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
             slice.setvl.getAvl())
       return makeRVVEmitCRouteProviderError(
@@ -23974,7 +24038,7 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return 10;
     if (op == slice.rhsLoadOperation)
       return 11;
-    if (op == slice.wideningProductOp.getOperation())
+    if (op == productSlotOperation(slice))
       return 12;
     if (op == slice.standaloneReduceOp.getOperation())
       return 13;
@@ -23984,27 +24048,33 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (slice.gearboxConsumerWithVL &&
         op == slice.gearboxConsumerWithVL.getOperation())
       return 15;
+    // Single-scope typed dequant-clamp body (Stage 3 flip): no handoff op and no
+    // consumer with_vl scope, so the post-reduce clamp role orders close the 14/15
+    // gap the deleted two-scope ops would have occupied (contiguous with the
+    // chain-driven expected step sequence).
+    const unsigned clampTwoScopeExtra =
+        slice.gearboxCrossRegionHandoffOp ? 2u : 0u;
     if (slice.dequantizeOp && op == slice.dequantizeOp.getOperation())
-      return 16;
+      return 14u + clampTwoScopeExtra;
     if (slice.lowerBoundScalarSplat &&
         op == slice.lowerBoundScalarSplat.getOperation())
-      return 17;
+      return 15u + clampTwoScopeExtra;
     if (slice.upperBoundScalarSplat &&
         op == slice.upperBoundScalarSplat.getOperation())
-      return 18;
+      return 16u + clampTwoScopeExtra;
     if (op == slice.compareOp.getOperation())
-      return 19;
+      return 17u + clampTwoScopeExtra;
     if (slice.selectOp && op == slice.selectOp.getOperation())
-      return 20;
+      return 18u + clampTwoScopeExtra;
     if (slice.secondaryCompareOp &&
         op == slice.secondaryCompareOp.getOperation())
-      return 21;
+      return 19u + clampTwoScopeExtra;
     if (slice.secondarySelectOp &&
         op == slice.secondarySelectOp.getOperation())
-      return 22;
+      return 20u + clampTwoScopeExtra;
     if (op == slice.storeOperation)
-      return 23;
-    return 24;
+      return 21u + clampTwoScopeExtra;
+    return 22u + clampTwoScopeExtra;
   }
   if (isWideningProductReduce) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -24026,7 +24096,7 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return isWideningProductReduceDequantize ? 8 : 7;
     if (op == slice.rhsLoadOperation)
       return isWideningProductReduceDequantize ? 9 : 8;
-    if (op == slice.wideningProductOp.getOperation())
+    if (op == productSlotOperation(slice))
       return isWideningProductReduceDequantize ? 10 : 9;
     if (isWideningProductReduceDequantize &&
         op == slice.standaloneReduceOp.getOperation())
@@ -24038,11 +24108,19 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (isWideningProductReduceDequantize && slice.gearboxConsumerWithVL &&
         op == slice.gearboxConsumerWithVL.getOperation())
       return 13;
+    // Single-scope typed dequant body (Stage 3 flip): no handoff op and no
+    // consumer with_vl scope, so the dequantize/store role orders close up the
+    // gap (12/13) the deleted two-scope ops would have occupied, staying
+    // contiguous with the chain-driven expected step sequence.
+    const unsigned dequantTwoScopeExtra =
+        slice.gearboxCrossRegionHandoffOp ? 2u : 0u;
     if (op == slice.arithmeticOp)
-      return isWideningProductReduceDequantize ? 14 : 10;
+      return isWideningProductReduceDequantize ? (12u + dequantTwoScopeExtra)
+                                               : 10;
     if (op == slice.storeOperation)
-      return isWideningProductReduceDequantize ? 15 : 11;
-    return isWideningProductReduceDequantize ? 16 : 12;
+      return isWideningProductReduceDequantize ? (13u + dequantTwoScopeExtra)
+                                               : 11;
+    return isWideningProductReduceDequantize ? (14u + dequantTwoScopeExtra) : 12;
   }
   if (isComputedMaskStandaloneReduction) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -25009,9 +25087,22 @@ llvm::Error verifySelectedRVVRoleSequence(
   const bool isRuntimeScalarCompositeConstructionRoute =
       constructionRoute.operationMnemonic ==
       "runtime_scalar_cmp_masked_indexed_gather_macc_scatter";
+  // The dequant(/clamp) routes verify the realized op sequence against a
+  // candidate-aware chain (actual head op + handoff presence) so a single-scope
+  // nibble/grouped body matches; the role-sequence verifier still rejects any IR
+  // that does not match the derived chain (fail-closed, not relaxed).
+  const bool isDequantConstructionRoute =
+      constructionRoute.operationMnemonic ==
+          "widening_product_reduce_dequantize_f32" ||
+      constructionRoute.operationMnemonic ==
+          "widening_product_reduce_dequant_clamp_f32";
   llvm::StringRef selectedTypedComputeOpName =
-      (isWideningProductReduceConstructionRoute ||
-       isRuntimeScalarCompositeConstructionRoute)
+      isDequantConstructionRoute
+          ? getRVVSelectedBodyDequantTypedComputeOpChain(
+                slice, constructionRoute.operationMnemonic ==
+                           "widening_product_reduce_dequant_clamp_f32")
+      : (isWideningProductReduceConstructionRoute ||
+         isRuntimeScalarCompositeConstructionRoute)
           ? constructionRoute.typedComputeOpName
           : slice.arithmeticOp->getName().getStringRef();
   std::string routeSequenceContext =
@@ -34208,9 +34299,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.slice = std::move(*slice);
   analysis.description.operation = analysis.slice.arithmeticKind;
   analysis.description.memoryForm = analysis.slice.memoryForm;
-  if (analysis.slice.wideningProductOp)
+  if (hasProductHead(analysis.slice))
     analysis.description.wideningProductRelation =
-        analysis.slice.wideningProductOp.getProductRelation();
+        productSlotRelation(analysis.slice);
   if ((analysis.slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ||
       analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::ComputedMaskSelect ||
@@ -34871,18 +34962,33 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return constructionRoute.takeError();
   analysis.constructionRoute = *constructionRoute;
 
-  analysis.description.typedComputeOpName =
-      (routeProfile->operation.operation ==
-           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
-       routeProfile->operation.operation ==
-           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-       routeProfile->operation.operation ==
-           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
-       routeProfile->operation.operation ==
-           RVVSelectedBodyOperationKind::
-               RuntimeScalarComputedMaskIndexedGatherMAccScatter)
-          ? analysis.constructionRoute->typedComputeOpName
-          : analysis.slice.arithmeticOp->getName().getStringRef();
+  // For the low-precision dequant(/clamp) routes the typed-compute-op chain is
+  // derived from the ACTUAL realized structure (head op type + handoff presence),
+  // so a single-scope typed body (Stage 3 flip) reports its real
+  // packed_i4_nibble_unpack_product/widening_product head and omits the deleted
+  // handoff -- it never asserts a phantom two-scope chain.
+  const bool isDequantTypedComputeChain =
+      routeProfile->operation.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      routeProfile->operation.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  if (isDequantTypedComputeChain) {
+    analysis.description.typedComputeOpName =
+        getRVVSelectedBodyDequantTypedComputeOpChain(
+            analysis.slice,
+            routeProfile->operation.operation ==
+                RVVSelectedBodyOperationKind::
+                    WideningProductReduceDequantClampF32);
+  } else {
+    analysis.description.typedComputeOpName =
+        (routeProfile->operation.operation ==
+             RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+         routeProfile->operation.operation ==
+             RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskIndexedGatherMAccScatter)
+            ? analysis.constructionRoute->typedComputeOpName
+            : analysis.slice.arithmeticOp->getName().getStringRef();
+  }
   analysis.description.emitCRouteID = analysis.constructionRoute->emitCRouteID;
   analysis.description.runtimeABIName =
       analysis.constructionRoute->runtimeABIName;
@@ -36099,7 +36205,16 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " multiply-accumulate cannot use generic tcrv_rvv.binary");
-  if (!usesGenericBinary)
+  // The low-precision dequant(/clamp) routes carry a candidate-aware typed-compute
+  // chain on the description (validated against the bounded legal set by the
+  // construction-protocol layer), so it must not be mirrored against the single
+  // static construction-route chain here.
+  const bool isDequantTypedComputeRoute =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  if (!usesGenericBinary && !isDequantTypedComputeRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "typed compute op", description.typedComputeOpName,
             constructionRoute.typedComputeOpName))

@@ -766,6 +766,12 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef resultElementTypeName;
   llvm::StringRef conversionKind;
   llvm::StringRef conversionRelation;
+  // For most routes this points at a static construction-route string. For the
+  // low-precision dequant(/clamp) routes the chain is candidate-aware (head op
+  // type + handoff presence) and is recomputed via
+  // buildRVVSelectedBodyDequantTypedComputeOpChain at the emission/verification
+  // sites that own a slice, rather than cached here -- so this struct stays a
+  // pure non-owning view (it is copied by value at ~9 sites).
   llvm::StringRef typedComputeOpName;
   llvm::StringRef boundaryOpName;
   llvm::StringRef emitCRouteID;

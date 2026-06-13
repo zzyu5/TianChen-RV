@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=tcrv_rvv.gearbox_cross_region_handoff --implicit-check-not=tcrv_rvv.vsetvl_region_marker
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-clamp-packed-i4-v1"/s//tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-packed-i4-v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-BASELINE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh\/widening_product_reduce_dequant_clamp_f32\/same_target_measurement_evidence.json"/s//tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-ssh\/widening_product_reduce_dequantize_f32\/same_target_measurement_evidence.json"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-MEASUREMENT
@@ -58,19 +58,15 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
-// REALIZED: tcrv_rvv.gearbox_cross_region_handoff
-// REALIZED-DAG: clamp_compare_select_phase = "lower-then-upper-compare-select"
-// REALIZED-DAG: clamp_phase = "dequant-clamp-store"
-// REALIZED-DAG: clamp_region_index = 2 : i64
-// REALIZED-DAG: clamp_select_layout = "clamp-lower-then-upper"
-// REALIZED-DAG: resource_candidate_count = 3 : i64
-// REALIZED-DAG: resource_legal_candidate_count = 3 : i64
-// REALIZED-DAG: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
-// REALIZED-DAG: resource_selected_candidate_index = 3 : i64
-// REALIZED-DAG: operand_form = "packed-i4-nibbles"
-// REALIZED-DAG: packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
-// REALIZED-DAG: packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"
-// REALIZED-DAG: remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"
+// Stage 3 single-scope packed-i4 flip: one with_vl scope with a typed
+// tcrv_rvv.packed_i4_nibble_unpack_product head + the inline dequant/clamp chain;
+// NO tcrv_rvv.gearbox_cross_region_handoff carrier, NO tcrv_rvv.vsetvl_region_marker
+// (the REALIZED RUN line's --implicit-check-not enforces their global absence,
+// fail-closed). The structural unroll_factor (=1) is on with_vl; the
+// low_precision_resource.* facts above survive. Numerics HW-validated (ssh rvv, 1e-05).
+// REALIZED-DAG: unroll_factor = 1 : i64
+// REALIZED-DAG: tcrv_rvv.packed_i4_nibble_unpack_product
+// REALIZED-DAG: kind = "signed_packed_i4_nibble_unpack_product"
 // REALIZED: tcrv_rvv.dequantize
 // REALIZED: tcrv_rvv.compare
 // REALIZED: tcrv_rvv.select
@@ -173,14 +169,20 @@ module {
 // CPP: __riscv_vwmacc_vv_i16mf2
 // CPP: __riscv_vwredsum_vs_i16mf2_i32m1
 // CPP: __riscv_vmv_x_s_i32m1_i32
-// CPP-NOT: __riscv_vfmv_v_f_f32m1
-// CPP: __builtin_fmaxf
-// CPP-NOT: __riscv_vmflt_vv_f32m1_b32
-// CPP: __builtin_fminf
-// CPP-NOT: __riscv_vmerge_vvm_f32m1
-// CPP: tcrv_emitc.assign target=out[0]
-// CPP: [0] =
-// CPP-NOT: __riscv_vse32_v_f32m1
+// Stage 3 single-scope flip: the conversion emits the UNIFIED vector dequant-clamp
+// epilogue (lane-0 extract -> scalar dequant -> 3 VL=1 f32 splats -> lower then
+// upper VL=1 compare/select clamp -> VL=1 store), the same as the grouped/unpacked
+// candidate -- numerically a single-scalar lower-then-upper clamped write to out[0]
+// (HW-validated on ssh rvv, tolerance=1e-05). The legacy packed-i4 scalar
+// fmaxf/fminf + out[0]= clamp store is retired (numerically equivalent at VL=1).
+// CPP: __riscv_vfmv_v_f_f32m1
+// CPP: __riscv_vmflt_vv_f32m1_b32
+// CPP: __riscv_vmerge_vvm_f32m1
+// CPP: __riscv_vmflt_vv_f32m1_b32
+// CPP: __riscv_vmerge_vvm_f32m1
+// CPP: __riscv_vse32_v_f32m1
+// CPP-NOT: __builtin_fmaxf
+// CPP-NOT: __builtin_fminf
 
 // STALE-ARTIFACT-BASELINE: metadata key '{{.*}}low_precision_resource.performance_baseline'{{.*}}'scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1' but was 'scalar-c-reference/product-reduction-dequant-packed-i4-v1'
 
