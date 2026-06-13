@@ -51,17 +51,6 @@ llvm::Error verifyRVVSelectedBodyElementwiseRouteDescriptionMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::StringRef context);
 
-llvm::Error verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    const RVVSelectedBodyRouteStatementPlanOwnerSelection
-        &statementPlanOwnerSelection,
-    llvm::StringRef context);
-
 std::optional<llvm::StringRef>
 getExpectedRVVSelectedBodyElementwiseRouteOperandBindingPlanID(
     RVVSelectedBodyOperationKind operation);

@@ -22,8 +22,6 @@
 
 namespace tianchenrv::plugin::rvv {
 
-struct RVVSelectedBodyRouteStatementPlanOwnerSelection;
-
 struct RVVRouteOperandBinding {
   std::string logicalOperand;
   support::RuntimeABIParameter parameter;
@@ -1457,85 +1455,24 @@ struct RVVSelectedBodyResidualRouteOperandBindingFacts {
   const support::RuntimeABIParameter *outStrideABI = nullptr;
 };
 
-struct RVVSelectedBodyWideningConversionRouteStatementPlan {
-  const RVVSelectedBodyWideningConversionRouteFamilyPlan
-      *wideningConversionPlan = nullptr;
-
-  bool plansWideningConversionRoute = false;
-  bool plansWidenI32ToI64 = false;
-  bool plansWidenI16ToI32 = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyDequantizationRouteStatementPlan {
-  const RVVSelectedBodyDequantizationRouteFamilyPlan *dequantizationPlan =
-      nullptr;
-
-  bool plansDequantizationRoute = false;
-  bool plansDequantizeI32ToF32 = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan {
-  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
-      *runtimeScalarSplatStorePlan = nullptr;
-
-  bool plansRuntimeScalarSplatStoreRoute = false;
-  bool plansTypedRuntimeScalarSplatStore = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyReductionRouteStatementPlan {
-  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
-
-  bool plansReductionRoute = false;
-  bool plansReduceAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 1>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
-  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
-      *standaloneReductionPlan = nullptr;
-
-  bool plansStandaloneReductionRoute = false;
-  bool plansPlainStandaloneReductionRoute = false;
-  bool plansComputedMaskStandaloneReductionRoute = false;
-  bool plansRuntimeScalarComputedMaskStandaloneReductionRoute = false;
-  bool plansStandaloneReduceAdd = false;
-  bool plansComputedMaskStandaloneReduceAdd = false;
-  bool plansRuntimeScalarComputedMaskStandaloneReduction = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 3>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyPlainMAccRouteStatementPlan {
-  const RVVSelectedBodyPlainMAccRouteFamilyPlan *plainMAccPlan = nullptr;
-  const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan
-      *scalarBroadcastMAccPlan = nullptr;
-  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
-
-  bool plansPlainMAccRoute = false;
-  bool plansMAccAdd = false;
-  bool plansScalarBroadcastMAccAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
+// RVVSelectedBodyWideningConversionRouteStatementPlan retired (Stage 3 换心):
+// the widening-conversion string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
+// RVVSelectedBodyDequantizationRouteStatementPlan retired (Stage 3 换心): the
+// dequantization string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
+// RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan retired (Stage 3
+// 换心): the runtime-scalar-splat-store string statement-plan owner is deleted —
+// the family converts through the real DialectConversion.
+// RVVSelectedBodyReductionRouteStatementPlan retired (Stage 3 换心): the
+// reduction string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
+// RVVSelectedBodyStandaloneReductionRouteStatementPlan retired (Stage 3 换心):
+// the standalone-reduction string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
+// RVVSelectedBodyPlainMAccRouteStatementPlan retired (Stage 3 换心): the
+// plain-MAcc string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
 
 // RVVSelectedBodyBaseMemoryMovementRouteStatementPlan retired (Stage 3 换心):
 // the base-memory string statement-plan owner is deleted — the whole family
@@ -1631,27 +1568,9 @@ struct RVVCompositeGatherMAccScatterRouteFamilyPlan {
   const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
 };
 
-struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
-  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
-      *computedMaskMemoryPlan = nullptr;
-
-  bool plansComputedMaskMemoryRoute = false;
-  bool plansRuntimeScalarComputedMaskStore = false;
-  bool plansRuntimeScalarComputedMaskLoadStore = false;
-  bool plansComputedMaskUnitLoadStore = false;
-  bool plansComputedMaskStridedStore = false;
-  bool plansComputedMaskStridedLoadUnitStore = false;
-  bool plansComputedMaskIndexedGatherLoadUnitStore = false;
-  bool plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore = false;
-  bool plansRuntimeScalarComputedMaskIndexedGatherMAccScatter = false;
-  bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
-  bool plansRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad = false;
-  RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
+// RVVSelectedBodyComputedMaskMemoryRouteStatementPlan retired (Stage 3 换心):
+// the computed-mask-memory string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
 
 // RVVSelectedBodySegment2MemoryRouteStatementPlan retired (Stage 3 换心): the
 // Segment2 memory string statement-plan struct is deleted together with its
@@ -1719,18 +1638,9 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   llvm::StringRef maskCType;
 };
 
-struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
-  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
-      *computedMaskAccumulationPlan = nullptr;
-
-  bool plansComputedMaskAccumulationRoute = false;
-  bool plansComputedMaskedMAccAdd = false;
-  bool plansRuntimeScalarComputedMaskedMAccAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
+// RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan retired (Stage 3
+// 换心): the computed-mask-accumulation string statement-plan owner is deleted —
+// the family converts through the real DialectConversion.
 
 struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
@@ -1784,32 +1694,11 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
       lowPrecisionResourceSelection;
 };
 
-struct RVVSelectedBodyDirectContractionRouteStatementPlan {
-  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
-
-  bool plansDirectContractionRoute = false;
-  bool plansWideningMAcc = false;
-  bool plansWideningProduct = false;
-  bool plansProductReductionChain = false;
-  bool plansProductReductionDequantization = false;
-  bool plansProductReductionDequantClamp = false;
-  bool plansDotReduction = false;
-  bool plansComputedMask = false;
-  bool plansStridedInput = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCLocalVariable, 2>
-      localVariables;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCAssignStep, 2>
-      preLoopAssignments;
-  conversion::emitc::TCRVEmitCForLoop loop;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCForLoop, 1> extraLoops;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
-      postLoopSteps;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCAssignStep, 2>
-      postLoopAssignments;
-};
+// RVVSelectedBodyDirectContractionRouteStatementPlan retired (Stage 3 换心): the
+// direct-contraction string statement-plan owner is deleted — the family
+// converts through the real DialectConversion. The provider plan
+// RVVSelectedBodyDirectContractionRouteProviderPlan above stays as the shared
+// description/provider source of truth.
 
 enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
   None,

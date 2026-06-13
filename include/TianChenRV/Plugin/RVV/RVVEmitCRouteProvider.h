@@ -2081,10 +2081,6 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::StringRef context);
 
-llvm::Error diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context);
-
 llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
     const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);

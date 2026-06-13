@@ -19,15 +19,6 @@ llvm::Error
 verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-llvm::Error verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
-        &computedMaskMemoryStatementPlan,
-    llvm::StringRef context);
-
 llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp body);
