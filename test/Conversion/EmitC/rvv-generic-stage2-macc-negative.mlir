@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_macc_broadcast_rejected {
@@ -21,5 +21,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV multiply-accumulate route requires explicit vector lhs, rhs, and accumulator loads
-// CHECK-SAME: broadcast/splat macc is not in this bounded slice
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_macc_broadcast body to EmitC

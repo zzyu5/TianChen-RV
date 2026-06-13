@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_segment2_interleave_reject_field_source_swap {
@@ -18,4 +18,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV segment2 interleave route requires segment2_store to consume matching field0 and field1 load results
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_segment2_interleave_swapped_fields body to EmitC

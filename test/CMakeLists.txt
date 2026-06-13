@@ -286,20 +286,6 @@ target_link_libraries(tianchenrv-capability-model-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-emitc-lowerable-interface-test
-  Conversion/EmitC/TCRVEmitCLowerableInterfaceTest.cpp
-)
-
-target_link_libraries(tianchenrv-emitc-lowerable-interface-test
-  PRIVATE
-  TianChenRVConversionEmitC
-  TianChenRVSupport
-  MLIREmitCDialect
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
@@ -313,7 +299,6 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-plugin-variant-legality-test
   tianchenrv-plugin-variant-proposal-test
   tianchenrv-emission-readiness-test
-  tianchenrv-emitc-lowerable-interface-test
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
   tianchenrv-scalar-extension-plugin-test

@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_i32m1_policy_rejected {
@@ -31,4 +31,4 @@ module {
   }
 }
 
-// CHECK: unsupported RVV selected-body route profile: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m1, tail_policy=undisturbed, mask_policy=agnostic
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_i32_add body to EmitC

@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_missing_runtime_n_binding {
@@ -35,5 +35,4 @@ module {
   }
 }
 
-// CHECK: RVV plugin-owned EmitC route provider failed
-// CHECK-SAME: tcrv_rvv.setvl AVL operand must be defined by explicit tcrv_rvv.runtime_abi_value
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_i32_add body to EmitC

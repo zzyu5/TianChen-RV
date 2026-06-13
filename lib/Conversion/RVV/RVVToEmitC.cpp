@@ -560,11 +560,11 @@ bool bufferPointeeMatchesVectorElement(mlir::Value bufferValue,
 }
 
 //===----------------------------------------------------------------------===//
-// Provenance comments, byte-identical to the legacy materializer
-// (TCRVEmitCLowerableMaterializer.cpp makeRouteSourceProvenanceComment /
-// makeStepProvenanceComment). Reproduced so the rendered C carries the same
-// `// tcrv_emitc.*` lines and stays byte-equivalent to the hardware-validated
-// golden.
+// Provenance comments, byte-identical to the legacy string-route materializer
+// that once rendered them (makeRouteSourceProvenanceComment /
+// makeStepProvenanceComment, since retired). Reproduced so the rendered C
+// carries the same `// tcrv_emitc.*` lines and stays byte-equivalent to the
+// hardware-validated golden.
 //===----------------------------------------------------------------------===//
 
 constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";

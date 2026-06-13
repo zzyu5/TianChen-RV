@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_generic_strided_load_unit_store_reject_stride_role {
@@ -18,4 +18,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV source byte-strided load requires source-byte-stride runtime ABI value
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_generic_strided_load_unit_store_bad_stride_role body to EmitC

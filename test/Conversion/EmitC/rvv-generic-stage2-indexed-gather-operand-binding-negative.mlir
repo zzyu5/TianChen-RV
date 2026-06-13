@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_indexed_gather_reject_duplicate_data_index_c_name {
@@ -19,5 +19,4 @@ module {
   }
 }
 
-// CHECK: RVV selected-body runtime ABI contract invalid
-// CHECK-SAME: data, index, out, n for the bounded int32_t indexed-gather to unit-stride-store route
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_indexed_gather_duplicate_index_name body to EmitC

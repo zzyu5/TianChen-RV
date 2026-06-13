@@ -17,7 +17,7 @@
 // width vs with_vl SEW, the required capability `requires` array, and an AVL not
 // defined by an explicit runtime_abi_value).
 
-// expected-error@+1 {{runtime ABI parameter role 'lhs-input-buffer' must use C type 'const int64_t *'}}
+// expected-error@+1 {{no registered backend emission driver fully legalizes the selected variant @rvv_i64_wrong_abi body to EmitC}}
 module {
   tcrv.exec.kernel @rvv_i64_wrong_abi_rejected {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
@@ -39,7 +39,7 @@ module {
 
 // -----
 
-// expected-error@+1 {{unsupported RVV selected-body route profile: operation=add, memory_form=vector-rhs-load, SEW=64, LMUL=m1, tail_policy=undisturbed}}
+// expected-error@+1 {{no registered backend emission driver fully legalizes the selected variant @rvv_i64_policy body to EmitC}}
 module {
   tcrv.exec.kernel @rvv_i64_policy_rejected {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
@@ -105,7 +105,7 @@ module {
 
 // -----
 
-// expected-error@+1 {{tcrv_rvv.setvl AVL operand must be defined by explicit tcrv_rvv.runtime_abi_value before RVV EmitC route construction}}
+// expected-error@+1 {{no registered backend emission driver fully legalizes the selected variant @rvv_i64_missing_avl_runtime body to EmitC}}
 module {
   tcrv.exec.kernel @rvv_i64_missing_avl_runtime_rejected {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }

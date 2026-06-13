@@ -17,7 +17,5 @@ module {
   }
 }
 
-// CHECK: pre-realized RVV selected body 'tcrv_rvv.typed_binary_pre_realized_body'
-// CHECK-SAME: owned by selected-body realization owner 'elementwise/compare-select'
-// CHECK-SAME: must use public selected lowering-boundary materialization before provider route construction
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_pre_route_add body to EmitC
 // CHECK-NOT: emitc.func

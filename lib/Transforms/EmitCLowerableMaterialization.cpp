@@ -1,10 +1,7 @@
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -34,13 +31,8 @@ namespace tianchenrv::transforms {
 
 namespace {
 
-using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
-using tianchenrv::conversion::emitc::TCRVEmitCMaterializationOptions;
-using tianchenrv::conversion::emitc::materializeTCRVEmitCLowerableRoute;
 using tianchenrv::plugin::ExtensionPluginRegistry;
-using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -52,33 +44,6 @@ llvm::Error makeEmitCMaterializationPassError(llvm::Twine message) {
       llvm::Twine("TianChen-RV EmitC lowerable materialization failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-std::string sanitizeIdentifierPart(llvm::StringRef value) {
-  std::string sanitized;
-  sanitized.reserve(value.size());
-  for (char c : value) {
-    unsigned char byte = static_cast<unsigned char>(c);
-    if (std::isalnum(byte) || c == '_')
-      sanitized.push_back(c);
-    else
-      sanitized.push_back('_');
-  }
-  if (sanitized.empty())
-    return "unnamed";
-  if (!std::isalpha(static_cast<unsigned char>(sanitized.front())) &&
-      sanitized.front() != '_')
-    sanitized.insert(sanitized.begin(), '_');
-  return sanitized;
-}
-
-std::string makeEmitCFunctionName(KernelOp kernel, VariantOp variant) {
-  std::string name;
-  llvm::raw_string_ostream os(name);
-  os << "tcrv_emitc_" << sanitizeIdentifierPart(kernel.getSymName()) << "_"
-     << sanitizeIdentifierPart(variant.getSymName());
-  os.flush();
-  return name;
 }
 
 struct DirectVariantTarget {
@@ -288,52 +253,32 @@ private:
       return target.takeError();
 
     // Stage 3 换心 decouple (PATH R, emitc-lowerable-route materialization).
-    // FIRST attempt the real typed-body->emitc DialectConversion on a CLONE of
-    // the module — via the table-driven backend-emission registry (mirrors the
+    // Attempt the real typed-body->emitc DialectConversion on a CLONE of the
+    // module — via the table-driven backend-emission registry (mirrors the
     // plugin ExtensionPlugin registry: zero core branch per family). The
-    // registry iterates every registered typed-emission backend (RVV today; a
-    // future RVM family is a one-line table add), skips those whose ops the
-    // module does not carry, and tries the shared conversion harness on a clone
-    // for each candidate. If a backend FULLY legalizes the selected body, the
-    // materialized module IS the conversion output (the hardware-validated
-    // authority); the legacy string route — and the per-family statement-plan
-    // owner it dispatches into — is NEVER built. If no backend fully legalizes
-    // (a family the patterns do not yet cover, e.g. cmp-select), the registry
-    // returns null and we fall through to the legacy string route path
-    // UNCHANGED. The clone protects the live IR; only a full conversion keeps
-    // it. Zero family-name branch — purely "did a registered backend legalize
-    // this body."
+    // registry iterates every registered typed-emission backend (RVV +
+    // Toy/Template/TensorExtLite today; a future RVM family is a one-line table
+    // add), skips those whose ops the module does not carry, and tries the
+    // shared conversion harness on a clone for each candidate. If a backend
+    // FULLY legalizes the selected body, the materialized module IS the
+    // conversion output (the hardware-validated authority). The clone protects
+    // the live IR; only a full conversion keeps it. Zero family-name branch —
+    // purely "did a registered backend legalize this body."
     if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
             conversion::emitc::tryConvertModuleWithRegisteredBackend(module))
       return replaceModuleBodyWithMaterializedEmitC(
           module, std::move(convertedModule));
 
-    llvm::Expected<TargetCapabilitySet> capabilities =
-        TargetCapabilitySet::buildFromKernelChecked(target->kernel);
-    if (!capabilities)
-      return capabilities.takeError();
-
-    TCRVEmitCLowerableRoute route;
-    VariantEmitCLowerableRequest request(
-        target->variant, target->kernel, *capabilities,
-        target->role);
-    if (llvm::Error error =
-            registry->buildVariantEmitCLowerableRoute(request, route))
-      return error;
-    if (llvm::Error error = route.verify())
-      return error;
-
-    TCRVEmitCMaterializationOptions options;
-    options.functionName = makeEmitCFunctionName(target->kernel,
-                                                 target->variant);
-    llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-        materializeTCRVEmitCLowerableRoute(*module.getContext(), route,
-                                           options);
-    if (!emitcModule)
-      return emitcModule.takeError();
-
-    return replaceModuleBodyWithMaterializedEmitC(module,
-                                                  std::move(*emitcModule));
+    // FAIL CLOSED (I7): the generic string re-parser that once served the
+    // non-converted families has been retired. Every production family now
+    // emits typed emitc through a registered backend driver; a body no driver
+    // fully legalizes (a family the patterns do not yet cover, or a malformed
+    // body a driver declined) has no proven legal emission route and must NOT
+    // be synthesized from metadata. Refuse with a bounded diagnostic.
+    return makeEmitCMaterializationPassError(
+        llvm::Twine("no registered backend emission driver fully legalizes the "
+                    "selected variant @") +
+        target->variant.getSymName() + " body to EmitC");
   }
 
   ExtensionPluginRegistry ownedRegistry;

@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_scalar_broadcast_macc_reject_missing_exec_binding {
@@ -26,4 +26,4 @@ module {
   }
 }
 
-// CHECK: requires tcrv_rvv.runtime_abi_value 'n' with role 'runtime-element-count' to carry exec_binding to a tcrv.exec ABI declaration
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_scalar_broadcast_macc_missing_n_binding body to EmitC

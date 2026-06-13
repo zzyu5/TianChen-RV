@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @template_missing_compute_boundary {
@@ -26,4 +26,4 @@ module {
   }
 }
 
-// CHECK: selected Template EmitC route requires one materialized tcrv_template.compute_skeleton boundary
+// CHECK: no registered backend emission driver fully legalizes the selected variant @template_zero_core_first_slice body to EmitC

@@ -1,7 +1,6 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
@@ -2129,46 +2128,28 @@ materializeSelectedEmitCArtifactModule(
           conversion::emitc::tryConvertModuleWithRegisteredBackend(module)) {
     // A backend fully lowered the selected body to a standalone emitc module.
     // Validate the genuinely necessary invariants against the converted module
-    // + config WITHOUT the string route (a well-formed single emitc.func
-    // boundary carrying the exact expected exported function name/signature).
-    // The string-route provenance cross-check is an I4 mirror that is redundant
-    // for a hardware-validated byte-identical conversion. If the converted
-    // module somehow fails this contract, do NOT silently diverge: fall back to
-    // the proven legacy path (using the untouched live `module`) rather than
-    // ship an unvalidated module.
-    llvm::Error handoffError = requireConvertedSelectedEmitCMaterializedHandoff(
-        *convertedModule, functionName, routeDescription);
-    if (!handoffError)
-      return std::move(convertedModule);
-    llvm::consumeError(std::move(handoffError));
+    // + config (a well-formed single emitc.func boundary carrying the exact
+    // expected exported function name/signature). If the converted module fails
+    // this contract, do NOT silently diverge: fail closed (I7) rather than ship
+    // an unvalidated module — the generic string re-parser fallback that once
+    // re-materialized the body has been retired.
+    if (llvm::Error handoffError =
+            requireConvertedSelectedEmitCMaterializedHandoff(
+                *convertedModule, functionName, routeDescription))
+      return std::move(handoffError);
+    return std::move(convertedModule);
   }
 
-  // FALLBACK (non-converted families only): build the configured route and
-  // materialize it through the generic TCRVEmitCLowerableMaterializer. After the
-  // Stage 3 换心 RVV statement-plan-owner retirement this path serves the non-RVV
-  // families (Toy / Template / TensorExtLite) whose route builders still produce
-  // a route; the RVV route builder now fails closed (no string statement-plan
-  // owners remain), so a malformed RVV body is refused upstream and never
-  // reaches this materializer.
-  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
-      buildSelectedEmitCArtifactRoute(*target, config);
-  if (!route)
-    return route.takeError();
-
-  conversion::emitc::TCRVEmitCMaterializationOptions options;
-  options.functionName = functionName;
-  options.emitExternC = true;
-
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      conversion::emitc::materializeTCRVEmitCLowerableRoute(
-          *module.getContext(), *route, options);
-  if (!emitcModule)
-    return emitcModule.takeError();
-
-  if (llvm::Error error = requireSelectedEmitCMaterializedHandoff(
-          **emitcModule, *route, routeDescription))
-    return std::move(error);
-  return std::move(*emitcModule);
+  // FAIL CLOSED (I7): every production family now emits typed emitc through a
+  // registered backend driver. The generic string route → re-parser fallback
+  // that once served the non-converted families has been retired, so a body no
+  // registered backend fully legalizes (an uncovered family, or a malformed
+  // body a driver declined) has no proven legal emission route and must NOT be
+  // synthesized from selected metadata. Refuse with a bounded diagnostic.
+  return makeSelectedEmitCArtifactError(
+      routeDescription,
+      "no registered backend emission driver fully legalizes the selected "
+      "variant body to EmitC");
 }
 
 llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(

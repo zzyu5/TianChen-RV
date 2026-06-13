@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_target_capability_config_mismatch_kernel {
@@ -26,4 +26,4 @@ module {
   }
 }
 
-// CHECK: selected RVV capability provider @rvv supported_sew fact '64' does not include typed body SEW 32
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_target_capability_config_mismatch body to EmitC

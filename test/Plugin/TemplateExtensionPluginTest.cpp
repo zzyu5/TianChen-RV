@@ -1,6 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
@@ -35,10 +33,7 @@ using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
-using tianchenrv::conversion::emitc::
-    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
@@ -953,48 +948,6 @@ module {
                  "Template emission plan carries materialized EmitC route "
                  "metadata"))
     return result;
-
-  TCRVEmitCLowerableRoute route;
-  if (int result = expectSuccess(
-          registry.buildVariantEmitCLowerableRoute(
-              tianchenrv::plugin::VariantEmitCLowerableRequest(
-                  templateVariant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant),
-              route),
-          "Template registry builds EmitC lowerable route"))
-    return result;
-  if (int result =
-          expect(route.getRouteID() == constructionRoute.routeID,
-                 "Template EmitC route preserves route id"))
-    return result;
-  if (int result =
-          expect(route.getSourceOpProvenance().size() == 1,
-                 "Template EmitC route preserves selected source provenance"))
-    return result;
-  if (int result =
-          expect(route.getCallOpaqueSteps().size() == 1,
-                 "Template EmitC route preserves selected call step"))
-    return result;
-  if (int result = expectSuccess(
-          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-              route, "tcrv_emitc_template_extension_kernel_"
-                     "template_zero_core_first_slice",
-              {}),
-          "Template EmitC lowerable route materializes to EmitC"))
-    return result;
-
-  computeRole->setAttr("source_role", mlir::StringAttr::get(&context, "load"));
-  TCRVEmitCLowerableRoute staleRoute;
-  if (int result = expectErrorContains(
-          registry.buildVariantEmitCLowerableRoute(
-              tianchenrv::plugin::VariantEmitCLowerableRequest(
-                  templateVariant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant),
-              staleRoute),
-          {"TCRVEmitCLowerableOpInterface source role", "compute"}))
-    return result;
-  computeRole->setAttr("source_role",
-                       mlir::StringAttr::get(&context, "compute"));
 
   return 0;
 }

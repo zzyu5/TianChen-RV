@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @tensorext_lite_stale_route {
@@ -30,4 +30,4 @@ module {
   }
 }
 
-// CHECK: must carry EmitC route mapping metadata
+// CHECK: no registered backend emission driver fully legalizes the selected variant @tensorext_lite_tile_mma_first_slice body to EmitC

@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_scalar_broadcast_macc_reject_stale_rhs_consumer {
@@ -21,4 +21,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV scalar-broadcast multiply-accumulate composition route requires tcrv_rvv.macc to consume the lhs load, the RHS scalar splat result, and the accumulator-input-buffer load result
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_scalar_broadcast_macc_bad_rhs body to EmitC

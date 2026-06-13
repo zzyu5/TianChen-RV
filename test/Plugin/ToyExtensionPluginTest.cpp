@@ -1,6 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
@@ -31,7 +29,6 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -684,34 +681,6 @@ module {
                              getToyTemplatePreferredCapabilitySymbol(),
                  "Toy emission plan advertises the plugin-local "
                  "materialized object/header/bundle artifact bridge"))
-    return result;
-
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-  if (int result = expectSuccess(
-          registry.buildVariantEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(toyVariant, kernel, capabilities,
-                                           VariantEmissionRole::DirectVariant),
-              route),
-          "Toy plugin builds active EmitC lowerable route"))
-    return result;
-  if (int result =
-          expect(route.getRouteID() == routeSpec.routeID &&
-                     route.getSourceOpProvenance().size() == 1 &&
-                     route.getFunctionDeclarations().size() == 1 &&
-                     route.getCallOpaqueSteps().size() == 1 &&
-                     route.getCallOpaqueSteps().front().callee ==
-                         routeSpec.callee,
-                 "Toy EmitC route consumes compute role provenance"))
-    return result;
-  std::string emitcFunctionName =
-      (llvm::Twine("tcrv_emitc_toy_template_kernel_") +
-       toyVariant.getSymName())
-          .str();
-  if (int result = expectSuccess(
-          tianchenrv::conversion::emitc::
-              verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-                  route, emitcFunctionName),
-          "Toy active route materializes through the common EmitC materializer"))
     return result;
 
   return 0;

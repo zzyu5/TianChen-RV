@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_i32m1_with_vl_not_setvl_result {
@@ -32,4 +32,4 @@ module {
   }
 }
 
-// CHECK: selected RVV body config/VL structure requires tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl result
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_i32_add body to EmitC

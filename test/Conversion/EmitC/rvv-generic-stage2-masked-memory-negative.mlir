@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_generic_masked_memory_reject_missing_old_destination_load {
@@ -19,4 +19,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV masked memory route requires exactly one tcrv_rvv.load op for old destination; source must be tcrv_rvv.masked_load
+// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_generic_masked_memory_missing_old_destination_load body to EmitC

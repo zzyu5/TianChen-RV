@@ -1,6 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
@@ -28,7 +26,6 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
-using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -866,42 +863,6 @@ module {
           "TensorExtLite emission-plan artifact metadata matches protocol"))
     return result;
 
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;
-  if (int result = expectSuccess(
-          registry.buildVariantEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(tensorext_liteVariant, kernel,
-                                           capabilities,
-                                           VariantEmissionRole::DirectVariant),
-              emitcRoute),
-          "TensorExtLite route builds through registry"))
-    return result;
-  if (int result =
-          expect(emitcRoute.getRouteID() == routeMetadata.routeID &&
-                     emitcRoute.getFunctionDeclarations().size() == 4 &&
-                     emitcRoute.getFunctionDeclarations()[0].name ==
-                         roleSteps[0].callee &&
-                     emitcRoute.getSourceOpProvenance().size() == 4 &&
-                     emitcRoute.getCallOpaqueSteps().size() == 4 &&
-                     emitcRoute.getSourceOpProvenance()[0].role ==
-                         roleSteps[0].sourceRole &&
-                     emitcRoute.getSourceOpProvenance()[1].role ==
-                         roleSteps[1].sourceRole &&
-                     emitcRoute.getSourceOpProvenance()[2].role ==
-                         roleSteps[2].sourceRole &&
-                     emitcRoute.getSourceOpProvenance()[3].role ==
-                         roleSteps[3].sourceRole &&
-                     emitcRoute.getCallOpaqueSteps()[2].callee ==
-                         roleSteps[2].callee,
-                 "TensorExtLite route preserves role sequence provenance and "
-                 "call-opaque mapping"))
-    return result;
-  if (int result = expectSuccess(
-          tianchenrv::conversion::emitc::
-              verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-                  emitcRoute, "tcrv_tensorext_lite_test", {}),
-          "TensorExtLite common EmitC materializer accepts the route"))
-    return result;
-
   return 0;
 }
 
@@ -958,18 +919,30 @@ module {
                  "TensorExtLite reordered negative materializes variant"))
     return result;
 
+  llvm::Expected<VariantSelectionPlan> planOrError =
+      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                         registry);
+  if (!planOrError)
+    return fail("TensorExtLite reordered role selection planning failed: " +
+                llvm::toString(planOrError.takeError()));
+  VariantSelectionPlan selectionPlan = std::move(*planOrError);
+  DiagnosticOp marker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, selectionPlan, &marker),
+          "materialize TensorExtLite selected marker for reordered role "
+          "negative"))
+    return result;
+
   materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant,
                                        /*reorderLoadAndTile=*/true);
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "reordered TensorExtLite role module verifies"))
     return result;
 
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;
   return expectErrorContains(
-      registry.buildVariantEmitCLowerableRoute(VariantEmitCLowerableRequest(
-          tensorext_liteVariant, kernel, capabilities,
-          VariantEmissionRole::DirectVariant),
-                                               emitcRoute),
+      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          kernel, capabilities, registry),
       {"selected TensorExtLite role ops must appear in",
        tianchenrv::plugin::tensorext_lite::
            getTensorExtLiteConstructionManifest()
