@@ -444,6 +444,8 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
 /// load/store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` /
 /// `vfloat<sew>m<lmul>_t` opaque type.
 llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
+  if (type.getElementType().isSignlessInteger(8))
+    return "i8";
   if (type.getElementType().isSignlessInteger(16))
     return "i16";
   if (type.getElementType().isSignlessInteger(32))
@@ -466,6 +468,8 @@ bool isFloatVector(tcrvrvv::VectorType type) {
 /// "int64_t", f32 -> "float". Returns "" for an element the converter cannot
 /// name (so the caller fails the match).
 llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
+  if (type.getElementType().isSignlessInteger(8))
+    return "int8_t";
   if (type.getElementType().isSignlessInteger(16))
     return "int16_t";
   if (type.getElementType().isSignlessInteger(32))
@@ -865,6 +869,65 @@ public:
         }
       }
 
+      // Computed-mask widening dot-reduce ordering. The string-plan owner emits
+      // the compare-produced mask IMMEDIATELY after its two compare-input loads
+      // (the byte order the harness ordered-token validator depends on), BEFORE
+      // the two dot-product input loads. The realized IR instead carries the
+      // compare AFTER all four loads (its operands and the dot inputs are
+      // siblings). Reorder ONLY a computed-mask dot-reduce body (one carrying a
+      // masked_widening_dot_reduce) so the rendered C keeps the legacy
+      // mask-early order; every other body keeps IR order. The compare is moved
+      // to immediately follow the last of its own (load/strided_load) operands.
+      bool hasMaskedDotReduce = llvm::any_of(orderedOps, [](mlir::Operation *op) {
+        return llvm::isa<tcrvrvv::MaskedWideningDotReduceOp>(op);
+      });
+      if (hasMaskedDotReduce) {
+        auto compareIt = llvm::find_if(orderedOps, [](mlir::Operation *op) {
+          return llvm::isa<tcrvrvv::CompareOp>(op);
+        });
+        if (compareIt != orderedOps.end()) {
+          mlir::Operation *compareOp = *compareIt;
+          // Find the last position among the compare's operand-defining ops in
+          // the current order; the compare reorders to immediately after it.
+          long lastOperandPos = -1;
+          for (mlir::Value operand : compareOp->getOperands()) {
+            mlir::Operation *def = operand.getDefiningOp();
+            if (!def)
+              continue;
+            auto pos = llvm::find(orderedOps, def);
+            if (pos != orderedOps.end())
+              lastOperandPos = std::max<long>(
+                  lastOperandPos, std::distance(orderedOps.begin(), pos));
+          }
+          if (lastOperandPos >= 0) {
+            orderedOps.erase(compareIt);
+            // The erase shifts positions after compareIt; recompute the insert
+            // point by re-finding the last operand def.
+            mlir::Operation *anchor = nullptr;
+            long anchorPos = -1;
+            for (mlir::Value operand : compareOp->getOperands()) {
+              mlir::Operation *def = operand.getDefiningOp();
+              if (!def)
+                continue;
+              auto pos = llvm::find(orderedOps, def);
+              if (pos != orderedOps.end()) {
+                long p = std::distance(orderedOps.begin(), pos);
+                if (p > anchorPos) {
+                  anchorPos = p;
+                  anchor = def;
+                }
+              }
+            }
+            if (anchor) {
+              auto anchorIt = llvm::find(orderedOps, anchor);
+              orderedOps.insert(std::next(anchorIt), compareOp);
+            } else {
+              orderedOps.insert(orderedOps.begin(), compareOp);
+            }
+          }
+        }
+      }
+
       // The standalone reduction in-loop running seed reads back out[0]; the
       // store cell (the output buffer base) is the body's store target. Resolve
       // it once so the standalone reduce ops can read/seed it.
@@ -999,6 +1062,28 @@ public:
           if (mlir::failed(emitMaskedStandaloneReduce(
                   rewriter, loc, maskedStandaloneReduce, valueMap,
                   standaloneOutBuffer, bodyVL)))
+            return mlir::failure();
+        } else if (auto wproduct =
+                       llvm::dyn_cast<tcrvrvv::WideningProductOp>(op)) {
+          if (mlir::failed(emitWideningProduct(rewriter, loc, wproduct,
+                                               valueMap, bodyVL)))
+            return mlir::failure();
+        } else if (auto wmacc =
+                       llvm::dyn_cast<tcrvrvv::WideningMAccOp>(op)) {
+          if (mlir::failed(
+                  emitWideningMAcc(rewriter, loc, wmacc, valueMap, bodyVL)))
+            return mlir::failure();
+        } else if (auto dotReduce =
+                       llvm::dyn_cast<tcrvrvv::WideningDotReduceOp>(op)) {
+          if (mlir::failed(emitWideningDotReduce(rewriter, loc, dotReduce,
+                                                 valueMap, standaloneOutBuffer,
+                                                 bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedDotReduce =
+                       llvm::dyn_cast<tcrvrvv::MaskedWideningDotReduceOp>(op)) {
+          if (mlir::failed(emitMaskedWideningDotReduce(
+                  rewriter, loc, maskedDotReduce, valueMap, standaloneOutBuffer,
+                  bodyVL)))
             return mlir::failure();
         } else if (auto binary = llvm::dyn_cast<tcrvrvv::BinaryOp>(op)) {
           if (mlir::failed(emitBinary(rewriter, loc, binary, valueMap, bodyVL)))
@@ -1420,6 +1505,22 @@ private:
       return layout && layout.getValue() ==
                            "store-standalone-reduction-lane0-to-output-scalar";
     }
+    // The widening dot-product reduction (plain / strided-input / computed-mask)
+    // carries the SAME scalar-carry-through-output structure: an i32 seed read
+    // from the accumulator-input buffer pre-loop, a running seed read back from
+    // out[0] each chunk, and a lane-0 result stored to the output base (VL=1).
+    // Its result layout is `store-dot-reduction-lane0-to-output-scalar`.
+    if (auto dot = llvm::dyn_cast<tcrvrvv::WideningDotReduceOp>(op)) {
+      mlir::StringAttr layout = dot.getResultLayoutAttr();
+      return layout && layout.getValue() ==
+                           "store-dot-reduction-lane0-to-output-scalar";
+    }
+    if (auto maskedDot =
+            llvm::dyn_cast<tcrvrvv::MaskedWideningDotReduceOp>(op)) {
+      mlir::StringAttr layout = maskedDot.getResultLayoutAttr();
+      return layout && layout.getValue() ==
+                           "store-dot-reduction-lane0-to-output-scalar";
+    }
     return false;
   }
 
@@ -1574,12 +1675,25 @@ private:
       resultValue = standalone.getResult();
       sourceOpName = standalone.getTCRVEmitCLowerableSourceOpName();
       sourceRole = standalone.getTCRVEmitCLowerableSourceRole();
-    } else {
-      auto masked = llvm::cast<tcrvrvv::MaskedStandaloneReduceOp>(reduceOp);
+    } else if (auto masked =
+                   llvm::dyn_cast<tcrvrvv::MaskedStandaloneReduceOp>(reduceOp)) {
       accSeed = masked.getAccumulatorSeed();
       resultValue = masked.getResult();
       sourceOpName = masked.getTCRVEmitCLowerableSourceOpName();
       sourceRole = masked.getTCRVEmitCLowerableSourceRole();
+    } else if (auto dot =
+                   llvm::dyn_cast<tcrvrvv::WideningDotReduceOp>(reduceOp)) {
+      accSeed = dot.getAccumulatorSeed();
+      resultValue = dot.getResult();
+      sourceOpName = dot.getTCRVEmitCLowerableSourceOpName();
+      sourceRole = dot.getTCRVEmitCLowerableSourceRole();
+    } else {
+      auto maskedDot =
+          llvm::cast<tcrvrvv::MaskedWideningDotReduceOp>(reduceOp);
+      accSeed = maskedDot.getAccumulatorSeed();
+      resultValue = maskedDot.getResult();
+      sourceOpName = maskedDot.getTCRVEmitCLowerableSourceOpName();
+      sourceRole = maskedDot.getTCRVEmitCLowerableSourceRole();
     }
     auto resultVecType =
         llvm::dyn_cast<tcrvrvv::VectorType>(resultValue.getType());
@@ -1654,10 +1768,19 @@ private:
       return rewriter.notifyMatchFailure(
           reduce, "standalone reduce result must be m1");
     // The input must be an explicit vector load (no broadcast/splat seed) --
-    // mirrors the legacy reduction input-load requirement.
-    if (!reduce.getInput().getDefiningOp<tcrvrvv::LoadOp>())
-      return rewriter.notifyMatchFailure(
-          reduce, "standalone reduce input must be an explicit vector load");
+    // mirrors the legacy reduction input-load requirement. The
+    // widening-product-reduce family chains the reduction directly onto the
+    // tcrv_rvv.widening_product result (load -> load -> vwmul -> vwredsum), so a
+    // widening_product input is the OTHER convertible producer: it is a real
+    // typed vector dataflow value, not a broadcast/splat scalar seed.
+    {
+      mlir::Operation *inputDef = reduce.getInput().getDefiningOp();
+      if (!inputDef ||
+          !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp>(inputDef))
+        return rewriter.notifyMatchFailure(
+            reduce, "standalone reduce input must be an explicit vector load or "
+                    "widening_product result");
+    }
     std::optional<llvm::StringRef> mnemonic =
         standaloneReductionMnemonic(reduce.getKind());
     if (!mnemonic)
@@ -1791,6 +1914,291 @@ private:
                                          mlir::ValueRange{masked, seed, bodyVL})
             .getResult(0);
     valueMap[reduce.getResult()] = result;
+    return mlir::success();
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Widening contraction family (signed low-precision products / dot-reduce /
+  // widening macc). Byte-identical to the legacy
+  // RVVEmitCContractionRouteFamilyPlanOwners.cpp DirectContraction oracle.
+  //===--------------------------------------------------------------------===//
+
+  /// widening_product(%lhs,%rhs,%vl){kind=signed_widening_product} ->
+  ///   v<rd><rl> p = __riscv_vwmul_vv_<rd><rl>(lhs, rhs, vl);
+  /// The vwmul widens the narrower (fractional-lmul) source multiplicands into
+  /// the RESULT (one-step-wider) vector type, so the intrinsic dtype/lmul come
+  /// from the RESULT type (i8/mf4 x i8/mf4 -> i16/mf2 == __riscv_vwmul_vv_i16mf2).
+  /// Only the signed i-source slice is in scope; the unsigned (ui) source uses a
+  /// vwmulu intrinsic the legacy provider has NOT productionized for this body
+  /// converter, so an unsigned source falls back to the legacy path unchanged.
+  mlir::LogicalResult
+  emitWideningProduct(mlir::ConversionPatternRewriter &rewriter,
+                      mlir::Location loc, tcrvrvv::WideningProductOp product,
+                      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getResult().getType());
+    auto lhsVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getLhs().getType());
+    if (!resultVecType || !lhsVecType)
+      return rewriter.notifyMatchFailure(product,
+                                         "widening product types not vectors");
+    if (product.getKind() != "signed_widening_product")
+      return rewriter.notifyMatchFailure(
+          product, "only the signed widening product is convertible");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    if (!resultEmitC || !convertVectorTypeToEmitC(lhsVecType))
+      return rewriter.notifyMatchFailure(
+          product, "widening product type not convertible");
+    mlir::Value lhs = valueMap.lookup(product.getLhs());
+    mlir::Value rhs = valueMap.lookup(product.getRhs());
+    if (!lhs || !rhs)
+      return rewriter.notifyMatchFailure(product,
+                                         "widening product operand unmapped");
+    // The widened product intrinsic dtype/lmul derive from the RESULT vector.
+    std::string callee =
+        riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(product.getTCRVEmitCLowerableSourceOpName(),
+                         product.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         callee,
+                                         mlir::ValueRange{lhs, rhs, bodyVL})
+            .getResult(0);
+    valueMap[product.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// widening_macc(%lhs,%rhs,%acc,%vl){kind=signed_widening_macc_add} ->
+  ///   v<rd><rl> r = __riscv_vwmacc_vv_<rd><rl>(acc, lhs, rhs, vl);
+  /// The fused widening multiply-accumulate widens the narrower i16 source
+  /// multiplicands and accumulates into the i32 accumulator vector. The C call
+  /// order is (accumulator, lhs, rhs, vl); the intrinsic dtype/lmul derive from
+  /// the RESULT (i32/m1) vector. The accumulator is an explicit loaded i32
+  /// vector chunk (the per-chunk macc seed), not a scalar-carry cell.
+  mlir::LogicalResult
+  emitWideningMAcc(mlir::ConversionPatternRewriter &rewriter,
+                   mlir::Location loc, tcrvrvv::WideningMAccOp macc,
+                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                   mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(macc.getResult().getType());
+    auto lhsVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(macc.getLhs().getType());
+    if (!resultVecType || !lhsVecType)
+      return rewriter.notifyMatchFailure(macc,
+                                         "widening macc types not vectors");
+    if (macc.getKind() != "signed_widening_macc_add")
+      return rewriter.notifyMatchFailure(
+          macc, "only the signed widening macc-add is convertible");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    if (!resultEmitC || !convertVectorTypeToEmitC(lhsVecType))
+      return rewriter.notifyMatchFailure(macc,
+                                         "widening macc type not convertible");
+    mlir::Value lhs = valueMap.lookup(macc.getLhs());
+    mlir::Value rhs = valueMap.lookup(macc.getRhs());
+    mlir::Value accumulator = valueMap.lookup(macc.getAccumulator());
+    if (!lhs || !rhs || !accumulator)
+      return rewriter.notifyMatchFailure(macc, "widening macc operand unmapped");
+    std::string callee =
+        riscvIntrinsicName("vwmacc", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(macc.getTCRVEmitCLowerableSourceOpName(),
+                         macc.getTCRVEmitCLowerableSourceRole(), callee));
+    // vwmacc destination read-modify-writes the accumulator: (acc, lhs, rhs, vl).
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, callee,
+                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
+            .getResult(0);
+    valueMap[macc.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// widening_dot_reduce(%lhs,%rhs,%acc,%vl){kind=signed_widening_dot_reduce_add}
+  /// is the scalar-carry-through-output dot product. The pre-loop seed
+  /// (out[0]=acc[0]) and the lane-0 result store (out base, VL=1) are handled by
+  /// the shared standalone-reduction machinery; the in-loop dataflow is:
+  ///   v<rd>m1 p = __riscv_vwmul_vv_<rd>m1(lhs, rhs, vl);      // widened product
+  ///   <celt> r = out[0]; v<rd>m1 seed = vmv_v_x_<rd>m1(r, 1); // running seed
+  ///   v<rd>m1 red = __riscv_vredsum_vs_<rd>m1_<rd>m1(p, seed, vl);
+  /// The product widens i16/mf2 multiplicands into the i32/m1 result, so the
+  /// vwmul/vredsum dtype/lmul derive from the RESULT (i32/m1) vector.
+  mlir::LogicalResult
+  emitWideningDotReduce(mlir::ConversionPatternRewriter &rewriter,
+                        mlir::Location loc, tcrvrvv::WideningDotReduceOp dot,
+                        llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                        mlir::Value outBuffer, mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dot.getResult().getType());
+    auto lhsVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dot.getLhs().getType());
+    if (!resultVecType || !lhsVecType)
+      return rewriter.notifyMatchFailure(dot, "dot reduce types not vectors");
+    if (resultVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(dot, "dot reduce result must be m1");
+    if (dot.getKind() != "signed_widening_dot_reduce_add")
+      return rewriter.notifyMatchFailure(
+          dot, "only the signed widening dot-reduce-add is convertible");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    if (!resultEmitC || !convertVectorTypeToEmitC(lhsVecType))
+      return rewriter.notifyMatchFailure(dot, "dot reduce type not convertible");
+    mlir::Value lhs = valueMap.lookup(dot.getLhs());
+    mlir::Value rhs = valueMap.lookup(dot.getRhs());
+    if (!lhs || !rhs)
+      return rewriter.notifyMatchFailure(dot, "dot reduce operand unmapped");
+
+    // Widened product (result dtype/lmul): vwmul_vv_i32m1(lhs, rhs, vl).
+    std::string productCallee =
+        riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), productCallee));
+    mlir::Value product =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         productCallee,
+                                         mlir::ValueRange{lhs, rhs, bodyVL})
+            .getResult(0);
+
+    // In-loop running-seed read: out[0] -> splat m1.
+    mlir::Value seed = emitScalarSeedSplat(
+        rewriter, loc, outBuffer, resultVecType,
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
+    if (!seed)
+      return rewriter.notifyMatchFailure(dot,
+                                         "dot reduce running seed not "
+                                         "convertible");
+
+    // Plain horizontal reduction of the i32 product over the running seed.
+    std::string reduceCallee = riscvReductionIntrinsicName(
+        "vredsum", vectorElementWidth(resultVecType), resultVecType.getLmul(),
+        vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), reduceCallee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, reduceCallee,
+                mlir::ValueRange{product, seed, bodyVL})
+            .getResult(0);
+    valueMap[dot.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// masked_widening_dot_reduce(%mask,%lhs,%rhs,%acc,%vl) is the predicated
+  /// scalar-carry dot product. The pre-loop seed / lane-0 store are shared. The
+  /// in-loop dataflow zeroes inactive product lanes before reducing:
+  ///   v<rd>m1 zero = vmv_v_x_<rd>m1(0, vl);                       // running vl
+  ///   v<rd>m1 mp   = __riscv_vwmul_vv_<rd>m1_m(mask, lhs, rhs, vl); // masked
+  ///   v<rd>m1 mrg  = __riscv_vmerge_vvm_<rd>m1(zero, mp, mask, vl); // 0 inactive
+  ///   <celt> r = out[0]; v<rd>m1 seed = vmv_v_x_<rd>m1(r, 1);
+  ///   v<rd>m1 red = __riscv_vredsum_vs_<rd>m1_<rd>m1(mrg, seed, vl);
+  mlir::LogicalResult emitMaskedWideningDotReduce(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedWideningDotReduceOp dot,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, mlir::Value outBuffer,
+      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dot.getResult().getType());
+    auto lhsVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dot.getLhs().getType());
+    if (!resultVecType || !lhsVecType)
+      return rewriter.notifyMatchFailure(dot,
+                                         "masked dot reduce types not vectors");
+    if (resultVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(dot,
+                                         "masked dot reduce result must be m1");
+    if (dot.getKind() != "signed_masked_widening_dot_reduce_add")
+      return rewriter.notifyMatchFailure(
+          dot, "only the signed masked widening dot-reduce-add is convertible");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    if (!resultEmitC || !convertVectorTypeToEmitC(lhsVecType))
+      return rewriter.notifyMatchFailure(dot,
+                                         "masked dot reduce type not "
+                                         "convertible");
+    mlir::Value mask = valueMap.lookup(dot.getMask());
+    mlir::Value lhs = valueMap.lookup(dot.getLhs());
+    mlir::Value rhs = valueMap.lookup(dot.getRhs());
+    if (!mask || !lhs || !rhs)
+      return rewriter.notifyMatchFailure(dot,
+                                         "masked dot reduce operand unmapped");
+
+    // Zero background over the running VL (the inactive-lane neutral for add).
+    std::string zeroCallee =
+        riscvIntrinsicName("vmv_v_x", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), zeroCallee));
+    mlir::Value zeroLiteral = rewriter.create<emitc::LiteralOp>(
+        loc, resultIntScalarType(rewriter), "0");
+    mlir::Value zeroVec =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         zeroCallee,
+                                         mlir::ValueRange{zeroLiteral, bodyVL})
+            .getResult(0);
+
+    // Masked widened product: vwmul_vv_<rd>m1_m(mask, lhs, rhs, vl).
+    std::string productCallee =
+        riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType)) +
+        "_m";
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), productCallee));
+    mlir::Value maskedProduct =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, productCallee,
+                mlir::ValueRange{mask, lhs, rhs, bodyVL})
+            .getResult(0);
+
+    // Merge the masked product over the zero background (inactive lanes -> 0).
+    std::string mergeCallee =
+        riscvIntrinsicName("vmerge", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), mergeCallee));
+    mlir::Value merged =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, mergeCallee,
+                mlir::ValueRange{zeroVec, maskedProduct, mask, bodyVL})
+            .getResult(0);
+
+    // In-loop running-seed read: out[0] -> splat m1.
+    mlir::Value seed = emitScalarSeedSplat(
+        rewriter, loc, outBuffer, resultVecType,
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
+    if (!seed)
+      return rewriter.notifyMatchFailure(
+          dot, "masked dot reduce running seed not convertible");
+
+    std::string reduceCallee = riscvReductionIntrinsicName(
+        "vredsum", vectorElementWidth(resultVecType), resultVecType.getLmul(),
+        vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
+                         dot.getTCRVEmitCLowerableSourceRole(), reduceCallee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, reduceCallee,
+                mlir::ValueRange{merged, seed, bodyVL})
+            .getResult(0);
+    valueMap[dot.getResult()] = result;
     return mlir::success();
   }
 
@@ -4002,7 +4410,9 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           return emitc::OpaqueType::get(type.getContext(), "vfloat32m1_t");
         }
         unsigned sew = 0;
-        if (type.getElementType().isSignlessInteger(16))
+        if (type.getElementType().isSignlessInteger(8))
+          sew = 8;
+        else if (type.getElementType().isSignlessInteger(16))
           sew = 16;
         else if (type.getElementType().isSignlessInteger(32))
           sew = 32;
@@ -4012,10 +4422,15 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           return std::nullopt;
         // The widening standalone-reduce source is a FRACTIONAL-LMUL i16
         // vector (i16/mf2 -> vint16mf2_t). The full-LMUL grid stays {m1,m2};
-        // i16 also admits its fractional mf2 rung. Other (sew, lmul) pairs are
+        // i16 also admits its fractional mf2 rung. The signed widening-product
+        // / widening-dot contraction family adds the FRACTIONAL-LMUL i8 source
+        // rung (i8/mf4 -> vint8mf4_t): the low-precision multiplicand loaded
+        // before the vwmul widening to i16/mf2. Other (sew, lmul) pairs are
         // left unconverted on purpose so later families extend explicitly.
         bool inScope = false;
-        if (sew == 16)
+        if (sew == 8)
+          inScope = lmul == "mf4";
+        else if (sew == 16)
           inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2";
         else
           inScope = lmul == "m1" || lmul == "m2";
