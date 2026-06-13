@@ -75,12 +75,12 @@ bool isRVVSelectedBodyDequantizationStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
-bool isRVVSelectedBodyReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-bool isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-bool isRVVSelectedBodyPlainMAccStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
+// isRVVSelectedBody{Reduction,StandaloneReduction,PlainMAcc,
+// ComputedMaskAccumulation}StatementPlanConsumer retired (Stage 3 换心 — 6th
+// owner): the reduction owner's four families convert through the real
+// DialectConversion (RVVToEmitC.cpp); their statement-plan consumer predicates
+// + owner builders are deleted with the owner file. The route-family planning
+// consumers stay as the description/provider source of truth.
 bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 // isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer retired (Stage 3
@@ -91,8 +91,6 @@ bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
 // over the vint32m1x2_t tuple, converts through the real DialectConversion). The
 // route-family planning consumer isRVVSelectedBodySegment2RouteFamilyPlanningConsumer
 // stays as the description/provider source of truth.
-bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
 
 llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
 getRVVSelectedBodyWideningConversionRouteStatementPlan(
@@ -141,32 +139,23 @@ llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
         &statementPlan,
     llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyReductionRouteStatementPlan>
-getRVVSelectedBodyReductionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
+// getRVVSelectedBody{Reduction,StandaloneReduction,PlainMAcc}RouteStatementPlan
+// retired (Stage 3 换心 — 6th owner): the reduction owner's reduce_add,
+// standalone-reduction and plain/scalar-broadcast MAcc string statement-plan
+// builders are deleted — all three families convert through the real
+// DialectConversion (RVVToEmitC.cpp) and the shared gate decouples every valid
+// body. The RVVSelectedBody*RouteStatementPlan structs stay in
+// RVVEmitCRoutePlanning.h as the description/provider source of truth.
 
-llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>
-getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
+// verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts stays as the
+// description/provider source of truth (defined in
+// RVVEmitCResidualStatementPlanOwners.cpp, the route-family provider-fact
+// verifier shared with the route provider).
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     const RVVSelectedBodyStandaloneReductionRouteStatementPlan &statementPlan,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyPlainMAccRouteStatementPlan>
-getRVVSelectedBodyPlainMAccRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
 // getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan retired (Stage 3 换心):
@@ -184,12 +173,12 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
 // verifyRVVSelectedBodySegment2MemoryRouteProviderFacts stay as the
 // description/provider source of truth in the route-family provider.
 
-llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
-getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
+// getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan retired (Stage 3
+// 换心 — 6th owner): the computed-mask / runtime-scalar-cmp masked-macc string
+// statement-plan builder is deleted — the family converts through the real
+// DialectConversion (RVVToEmitC.cpp emitMaskedMAcc). The
+// RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan struct stays in
+// RVVEmitCRoutePlanning.h as the description/provider source of truth.
 
 llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -228,54 +217,15 @@ buildRVVSelectedBodyRuntimeScalarSplatStoreMigratedRouteStatementPlan(
         &residualOperandBindingFacts,
     RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
-llvm::Error buildRVVSelectedBodyReductionMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyStandaloneReductionMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
-
-llvm::Error
-buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+// build{Reduction,StandaloneReduction,PlainMAcc,ComputedMaskAccumulation}
+// MigratedRouteStatementPlan retired (Stage 3 换心 — 6th owner): the reduction
+// owner's four string statement-plan builders + the whole
+// RVVEmitCReductionAccumulationStatementPlanOwners.cpp helper file are deleted —
+// all four families (reduce_add, standalone-reduction incl. widening vwredsum,
+// plain/scalar-broadcast macc, computed-mask masked-macc) convert through the
+// real DialectConversion (RVVToEmitC.cpp) and the shared gate
+// rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so the
+// migrated string-plan dispatch is never reached.
 
 // buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan retired
 // (Stage 3 换心): the computed-mask memory string statement-plan owner builder is

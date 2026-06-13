@@ -194,50 +194,18 @@ bool isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer(
              RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
 }
 
-bool isRVVSelectedBodyReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  return description.operation == RVVSelectedBodyOperationKind::ReduceAdd &&
-         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-}
-
-bool isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
-  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::
-               ComputedMaskUnitStrideStandaloneReduction;
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceAdd:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMin:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskStandaloneReduceMax:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::
-               RuntimeScalarComputedMaskUnitStrideStandaloneReduction;
-  default:
-    return false;
-  }
-}
-
-bool isRVVSelectedBodyPlainMAccStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation == RVVSelectedBodyOperationKind::MAccAdd)
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  return description.operation ==
-             RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::RHSScalarBroadcastMAcc;
-}
+// isRVVSelectedBody{Reduction,StandaloneReduction,PlainMAcc}StatementPlanConsumer
+// retired (Stage 3 换心 — 6th owner): the reduction owner's reduce_add,
+// standalone-reduction (incl. computed-mask / runtime-scalar-cmp / widening
+// vwredsum) and plain/scalar-broadcast MAcc families all convert through the
+// real DialectConversion (RVVToEmitC.cpp) and the shared gate
+// rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so none ever
+// reaches this string statement-plan dispatch. Their consumer predicates +
+// owner builders + the whole RVVEmitCReductionAccumulationStatementPlanOwners.cpp
+// helper file are deleted. The route-family planning consumers + provider-fact
+// verifiers (in RVVEmitCRoutePlanning.cpp /
+// RVVEmitCResidualStatementPlanOwners.cpp) stay as the description/provider
+// source of truth shared with the route provider.
 
 bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -289,19 +257,14 @@ bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
 // verifyRVVSelectedBodySegment2MemoryRouteProviderFacts stay as the
 // description/provider source of truth shared with the route provider.
 
-bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskUnitStrideMAcc;
-  default:
-    return false;
-  }
-}
+// isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer retired
+// (Stage 3 换心 — 6th owner): the computed-mask / runtime-scalar-cmp masked
+// multiply-accumulate family converts through the real DialectConversion
+// (RVVToEmitC.cpp emitMaskedMAcc) and the shared gate decouples every valid
+// body, so no masked-macc body ever reaches this string statement-plan
+// dispatch. Its consumer predicate + owner builder are deleted with the rest of
+// the reduction owner; the route-family provider machine stays as the
+// description/provider source of truth.
 
 llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
 getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
@@ -319,16 +282,25 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
            RuntimeScalarSplatStore,
        isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer,
        buildRVVSelectedBodyRuntimeScalarSplatStoreMigratedRouteStatementPlan},
-      {"reduction", RVVSelectedBodyMigratedRouteStatementPlanFamily::Reduction,
-       isRVVSelectedBodyReductionStatementPlanConsumer,
-       buildRVVSelectedBodyReductionMigratedRouteStatementPlan},
-      {"standalone reduction",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction,
-       isRVVSelectedBodyStandaloneReductionStatementPlanConsumer,
-       buildRVVSelectedBodyStandaloneReductionMigratedRouteStatementPlan},
-      {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc,
-       isRVVSelectedBodyPlainMAccStatementPlanConsumer,
-       buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan},
+      // Reduction / StandaloneReduction / PlainMAcc / ComputedMaskAccumulation
+      // retired (Stage 3 换心 — 6th owner): all four families the reduction
+      // owner held now convert through the real DialectConversion
+      // (RVVToEmitC.cpp) and the shared gate rvvSelectedBodyFullyConvertsToEmitC
+      // decouples every valid body, so none ever reaches this string
+      // statement-plan dispatch:
+      //   - Reduction (reduce_add, per-chunk vector seed) -> emitReduce.
+      //   - PlainMAcc (macc_add, scalar-broadcast macc) -> emitMAcc / emitSplat.
+      //   - ComputedMaskAccumulation (computed-mask + runtime-scalar-cmp
+      //     masked_macc) -> emitMaskedMAcc.
+      //   - StandaloneReduction (scalar-carry-through-memory standalone_reduce /
+      //     masked_standalone_reduce, incl. the i16mf2->i32m1 widening
+      //     vwredsum rung) -> emitStandaloneReduce / emitMaskedStandaloneReduce.
+      // The whole RVVEmitCReductionAccumulationStatementPlanOwners.cpp owner
+      // (4 owner builders + their consumer predicates + statement-plan helpers)
+      // is deleted. The description/provider source of truth stays: the
+      // route-family planning consumers + provider-fact verifiers +
+      // diagnoseMissing live in RVVEmitCRoutePlanning.cpp /
+      // RVVEmitCResidualStatementPlanOwners.cpp, shared with the route provider.
       // BaseMemoryMovement retired (Stage 3 换心): the whole family converts
       // through the real DialectConversion (RVVToEmitC.cpp) and the shared gate
       // rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so no
@@ -361,11 +333,6 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
       // (getRVVSelectedBodySegment2RouteFamilyProviderPlan,
       // verifyRVVSelectedBodySegment2MemoryRouteProviderFacts) stays as the
       // description/provider source of truth shared with the route provider.
-      {"computed-mask accumulation",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::
-           ComputedMaskAccumulation,
-       isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer,
-       buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan},
   };
   return owners;
 }

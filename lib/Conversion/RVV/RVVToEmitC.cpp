@@ -444,6 +444,8 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
 /// load/store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` /
 /// `vfloat<sew>m<lmul>_t` opaque type.
 llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
+  if (type.getElementType().isSignlessInteger(16))
+    return "i16";
   if (type.getElementType().isSignlessInteger(32))
     return "i32";
   if (type.getElementType().isSignlessInteger(64))
@@ -464,6 +466,8 @@ bool isFloatVector(tcrvrvv::VectorType type) {
 /// "int64_t", f32 -> "float". Returns "" for an element the converter cannot
 /// name (so the caller fails the match).
 llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
+  if (type.getElementType().isSignlessInteger(16))
+    return "int16_t";
   if (type.getElementType().isSignlessInteger(32))
     return "int32_t";
   if (type.getElementType().isSignlessInteger(64))
@@ -765,6 +769,16 @@ public:
                                          setvlCallee, mlir::ValueRange{avlArg})
             .getResult(0);
 
+    // Standalone reduction pre-loop seed: out[0] = acc[0]. Runs BEFORE the loop
+    // (between the pre-loop full-chunk setvl and the for-loop), seeding the
+    // scalar accumulator carried through the output cell across runtime chunks.
+    bool standaloneReduction = isStandaloneReductionBody(scope);
+    if (standaloneReduction) {
+      if (mlir::failed(
+              emitStandaloneReductionPreLoopSeed(rewriter, loc, scope, valueMap)))
+        return mlir::failure();
+    }
+
     // for (size_t i = 0; i < n; i += vlmax) { ... }
     mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
     auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
@@ -849,6 +863,19 @@ public:
           });
           orderedOps.insert(std::next(insertAfter), indexLoadOp);
         }
+      }
+
+      // The standalone reduction in-loop running seed reads back out[0]; the
+      // store cell (the output buffer base) is the body's store target. Resolve
+      // it once so the standalone reduce ops can read/seed it.
+      mlir::Value standaloneOutBuffer;
+      if (standaloneReduction) {
+        for (mlir::Operation *opPtr : orderedOps)
+          if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(opPtr))
+            standaloneOutBuffer = valueMap.lookup(store.getBuffer());
+        if (!standaloneOutBuffer)
+          return rewriter.notifyMatchFailure(
+              variant, "standalone reduction output buffer unmapped");
       }
 
       // Convert each body op in emit order. Body holds the typed dataflow ops
@@ -961,6 +988,18 @@ public:
         } else if (auto reduce = llvm::dyn_cast<tcrvrvv::ReduceOp>(op)) {
           if (mlir::failed(emitReduce(rewriter, loc, reduce, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto standaloneReduce =
+                       llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(op)) {
+          if (mlir::failed(emitStandaloneReduce(rewriter, loc, standaloneReduce,
+                                                valueMap, standaloneOutBuffer,
+                                                bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedStandaloneReduce =
+                       llvm::dyn_cast<tcrvrvv::MaskedStandaloneReduceOp>(op)) {
+          if (mlir::failed(emitMaskedStandaloneReduce(
+                  rewriter, loc, maskedStandaloneReduce, valueMap,
+                  standaloneOutBuffer, bodyVL)))
+            return mlir::failure();
         } else if (auto binary = llvm::dyn_cast<tcrvrvv::BinaryOp>(op)) {
           if (mlir::failed(emitBinary(rewriter, loc, binary, valueMap, bodyVL)))
             return mlir::failure();
@@ -992,22 +1031,39 @@ public:
                                                   bodyVL)))
             return mlir::failure();
         } else if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
-          // The reduce family stores only lane 0 of the reduction result back
-          // to the output chunk base, so its store VL is the literal 1 (not the
-          // running chunk VL). Detect a reduce-sourced store and emit VL=1;
-          // every other (elementwise) store keeps the chunk VL. This mirrors the
-          // legacy `tcrv_rvv.reduction_store_vl = "1"` fact.
-          mlir::Value storeVL = bodyVL;
-          if (auto reduceDef =
-                  store.getValue().getDefiningOp<tcrvrvv::ReduceOp>()) {
-            mlir::StringAttr layout = reduceDef.getResultLayoutAttr();
-            if (layout && layout.getValue() ==
-                              "store-reduction-lane0-to-output-chunk-base")
-              storeVL = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+          // The standalone reduction stores its lane-0 scalar result back to the
+          // output buffer BASE (no `+ i` offset, VL=1): the running scalar lives
+          // in out[0] across chunks. Mirror the legacy scalar-output store.
+          if (isStandaloneReductionOp(store.getValue().getDefiningOp())) {
+            auto resultVecType = llvm::dyn_cast<tcrvrvv::VectorType>(
+                store.getValue().getType());
+            mlir::Value value = valueMap.lookup(store.getValue());
+            if (!resultVecType || !value || !standaloneOutBuffer)
+              return rewriter.notifyMatchFailure(
+                  store, "standalone reduction store operand unmapped");
+            if (mlir::failed(emitStandaloneReductionScalarStore(
+                    rewriter, loc, store, standaloneOutBuffer, value,
+                    resultVecType)))
+              return mlir::failure();
+          } else {
+            // The reduce family stores only lane 0 of the reduction result back
+            // to the output chunk base, so its store VL is the literal 1 (not
+            // the running chunk VL). Detect a reduce-sourced store and emit
+            // VL=1; every other (elementwise) store keeps the chunk VL. This
+            // mirrors the legacy `tcrv_rvv.reduction_store_vl = "1"` fact.
+            mlir::Value storeVL = bodyVL;
+            if (auto reduceDef =
+                    store.getValue().getDefiningOp<tcrvrvv::ReduceOp>()) {
+              mlir::StringAttr layout = reduceDef.getResultLayoutAttr();
+              if (layout && layout.getValue() ==
+                                "store-reduction-lane0-to-output-chunk-base")
+                storeVL =
+                    rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+            }
+            if (mlir::failed(emitStore(rewriter, loc, store, valueMap,
+                                       inductionVar, storeVL)))
+              return mlir::failure();
           }
-          if (mlir::failed(emitStore(rewriter, loc, store, valueMap,
-                                     inductionVar, storeVL)))
-            return mlir::failure();
         } else {
           return rewriter.notifyMatchFailure(
               variant, "unsupported op in with_vl beachhead body");
@@ -1328,6 +1384,421 @@ private:
             .getResult(0);
     valueMap[reduce.getResult()] = result;
     return mlir::success();
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Standalone (scalar-carry-through-memory) reduction family.
+  //
+  // Unlike the per-chunk `reduce` family (which seeds with a freshly loaded
+  // accumulator vector and writes the lane-0 result to the chunk base), the
+  // standalone reduction carries ONE scalar accumulator through the output
+  // memory cell `out[0]` across runtime VL chunks:
+  //   PRE-LOOP: out[0] = acc[0]    (splat the seed read from the accumulator
+  //                                 buffer into a lane-0 m1 vector, store VL=1).
+  //   IN-LOOP : out[0] = reduce(input_chunk, splat(out[0]))   (read the running
+  //                                 scalar back, splat it, horizontal-reduce the
+  //                                 input chunk over it, store back VL=1).
+  // The seed/result vector is ALWAYS lmul m1 (the reduction lands its scalar in
+  // lane 0 of an m1 destination); the SOURCE may be a wider/fractional lmul
+  // (m2, or the widening mf2 rung). Byte-identical to the legacy
+  // RVVEmitCReductionAccumulationStatementPlanOwners.cpp standalone oracle.
+  //===--------------------------------------------------------------------===//
+
+  /// True iff `op` is a (masked) standalone reduction carrying the scalar-carry
+  /// output layout. This is the discriminator separating the standalone family
+  /// from the per-chunk `reduce` family.
+  static bool isStandaloneReductionOp(mlir::Operation *op) {
+    if (!op)
+      return false;
+    if (auto standalone = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(op)) {
+      mlir::StringAttr layout = standalone.getResultLayoutAttr();
+      return layout && layout.getValue() ==
+                           "store-standalone-reduction-lane0-to-output-scalar";
+    }
+    if (auto masked = llvm::dyn_cast<tcrvrvv::MaskedStandaloneReduceOp>(op)) {
+      mlir::StringAttr layout = masked.getResultLayoutAttr();
+      return layout && layout.getValue() ==
+                           "store-standalone-reduction-lane0-to-output-scalar";
+    }
+    return false;
+  }
+
+  /// True iff the with_vl body is a standalone reduction body (it carries a
+  /// scalar-carry standalone_reduce / masked_standalone_reduce).
+  static bool isStandaloneReductionBody(tcrvrvv::WithVLOp scope) {
+    for (mlir::Operation &op : scope.getBody().front())
+      if (isStandaloneReductionOp(&op))
+        return true;
+    return false;
+  }
+
+  /// The reduction mnemonic for the standalone family, mirroring the legacy
+  /// getRVVSelectedBodyStandaloneReductionIntrinsic kind table. The widening
+  /// kinds reduce a (fractional-lmul) i16 source into an i32 accumulator via
+  /// vwredsum; the plain kinds use vred{sum,min,max}. Unknown kinds fail the
+  /// match so the body falls back to the legacy validators unchanged.
+  static std::optional<llvm::StringRef>
+  standaloneReductionMnemonic(llvm::StringRef kind) {
+    if (kind == "add")
+      return llvm::StringRef("vredsum");
+    if (kind == "min")
+      return llvm::StringRef("vredmin");
+    if (kind == "max")
+      return llvm::StringRef("vredmax");
+    if (kind == "signed_widening_reduce_add")
+      return llvm::StringRef("vwredsum");
+    if (kind == "unsigned_widening_reduce_add")
+      return llvm::StringRef("vwredsumu");
+    return std::nullopt;
+  }
+
+  /// The inactive-lane neutral element a computed-mask reduction merges into
+  /// the masked-out source lanes before reducing, mirroring the legacy
+  /// getRVVStandaloneReductionStatementPlanInactiveNeutral table:
+  ///   add -> "0"; min -> INT_MAX (sew-sized); max -> INT_MIN (sew-sized).
+  static std::optional<llvm::StringRef>
+  maskedStandaloneReductionNeutral(llvm::StringRef kind, unsigned sew) {
+    if (kind == "add")
+      return llvm::StringRef("0");
+    if (kind == "min")
+      return sew == 64 ? llvm::StringRef("9223372036854775807")
+                       : llvm::StringRef("2147483647");
+    if (kind == "max")
+      return sew == 64 ? llvm::StringRef("(-9223372036854775807-1)")
+                       : llvm::StringRef("(-2147483647-1)");
+    return std::nullopt;
+  }
+
+  /// The standalone reduction intrinsic name:
+  ///   __riscv_v<red>_vs_<srcDtype><srcLmul>_<resultDtype>m1
+  /// For the non-widening forms srcDtype==resultDtype and srcLmul is the input
+  /// lmul (e.g. vredsum_vs_i32m2_i32m1). For the widening forms the source is a
+  /// narrower fractional-lmul vector (i16/mf2) and the result is i32/m1
+  /// (vwredsum_vs_i16mf2_i32m1). Byte-identical to the legacy
+  /// getRVVSelectedBodyStandaloneReductionIntrinsic shape.
+  static std::string standaloneReductionIntrinsicName(
+      llvm::StringRef mnemonic, llvm::StringRef srcDtype,
+      llvm::StringRef srcLmul, llvm::StringRef resultDtype) {
+    std::string name;
+    llvm::raw_string_ostream os(name);
+    os << "__riscv_" << mnemonic << "_vs_" << srcDtype << srcLmul << "_"
+       << resultDtype << "m1";
+    os.flush();
+    return name;
+  }
+
+  /// Read `buffer[0]` as a scalar then splat it into a lane-0 m1 seed vector via
+  /// vmv_v_x with VL literal 1 -- the scalar-carry primitive shared by the
+  /// pre-loop seed and the in-loop running-seed read. `resultVecType` is the
+  /// reduction RESULT vector type (always m1); its element drives the splat
+  /// intrinsic dtype/sew and the `int32_t v = base[0];` temp element. The
+  /// provenance comment carries the reduction op's source-op name/role so the
+  /// rendered C matches the legacy `vmv_v_x` step. Returns the splat result
+  /// Value, or nullptr on an unconvertible/typeless shape (caller fails match).
+  mlir::Value emitScalarSeedSplat(mlir::ConversionPatternRewriter &rewriter,
+                                  mlir::Location loc, mlir::Value buffer,
+                                  tcrvrvv::VectorType resultVecType,
+                                  llvm::StringRef sourceOpName,
+                                  llvm::StringRef sourceRole) const {
+    auto pointer = llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(buffer);
+    if (!pointer)
+      return nullptr;
+    if (!bufferPointeeMatchesVectorElement(buffer, resultVecType))
+      return nullptr;
+    mlir::Type vecType = convertVectorTypeToEmitC(resultVecType);
+    if (!vecType)
+      return nullptr;
+    if (isFloatVector(resultVecType))
+      return nullptr; // standalone reduction is the integer-accumulator slice.
+    std::string callee =
+        riscvIntrinsicName("vmv_v_x", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(sourceOpName, sourceRole, callee));
+    // base[0]: subscript -> lvalue -> load reads the first scalar element. The
+    // pointee const-ness (const int32_t* acc vs int32_t* out) flows through the
+    // lvalue value type, so the seed temp prints `const int32_t` / `int32_t` to
+    // match the legacy oracle automatically.
+    mlir::Value index =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp subscriptOp =
+        rewriter.create<emitc::SubscriptOp>(loc, pointer, index);
+    auto lvalueType =
+        llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
+    mlir::Value scalar =
+        rewriter
+            .create<emitc::LoadOp>(loc, lvalueType.getValueType(),
+                                   subscriptOp.getResult())
+            .getResult();
+    mlir::Value one =
+        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "1");
+    return rewriter
+        .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                     mlir::ValueRange{scalar, one})
+        .getResult(0);
+  }
+
+  static mlir::Type getSizeType(mlir::ConversionPatternRewriter &rewriter) {
+    return emitc::OpaqueType::get(rewriter.getContext(), "size_t");
+  }
+
+  /// Emit the pre-loop seed of a standalone reduction: out[0] = acc[0]. Reads
+  /// the accumulator-seed buffer's first element, splats it into a lane-0 m1
+  /// vector, and stores it to the output buffer BASE with VL=1. Runs between the
+  /// pre-loop full-chunk setvl and the for-loop. Returns failure (caller falls
+  /// back) on a malformed standalone body (missing/mismatched acc/out buffers,
+  /// unconvertible result type).
+  mlir::LogicalResult emitStandaloneReductionPreLoopSeed(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    mlir::Operation *reduceOp = nullptr;
+    tcrvrvv::StoreOp storeOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (isStandaloneReductionOp(&op))
+        reduceOp = &op;
+      if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op))
+        storeOp = store;
+    }
+    if (!reduceOp || !storeOp)
+      return rewriter.notifyMatchFailure(scope,
+                                         "standalone reduction body missing "
+                                         "reduce/store");
+
+    mlir::Value accSeed;
+    mlir::Value resultValue;
+    llvm::StringRef sourceOpName;
+    llvm::StringRef sourceRole;
+    if (auto standalone = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(reduceOp)) {
+      accSeed = standalone.getAccumulatorSeed();
+      resultValue = standalone.getResult();
+      sourceOpName = standalone.getTCRVEmitCLowerableSourceOpName();
+      sourceRole = standalone.getTCRVEmitCLowerableSourceRole();
+    } else {
+      auto masked = llvm::cast<tcrvrvv::MaskedStandaloneReduceOp>(reduceOp);
+      accSeed = masked.getAccumulatorSeed();
+      resultValue = masked.getResult();
+      sourceOpName = masked.getTCRVEmitCLowerableSourceOpName();
+      sourceRole = masked.getTCRVEmitCLowerableSourceRole();
+    }
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(resultValue.getType());
+    if (!resultVecType || resultVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(
+          scope, "standalone reduction result must be an m1 vector");
+
+    mlir::Value accBuffer = valueMap.lookup(accSeed);
+    mlir::Value outBuffer = valueMap.lookup(storeOp.getBuffer());
+    if (!accBuffer || !outBuffer)
+      return rewriter.notifyMatchFailure(
+          scope, "standalone reduction acc/out buffers unmapped");
+
+    // out[0] = acc[0]: splat the accumulator seed read, store to out base VL=1.
+    mlir::Value seedSplat = emitScalarSeedSplat(rewriter, loc, accBuffer,
+                                                resultVecType, sourceOpName,
+                                                sourceRole);
+    if (!seedSplat)
+      return rewriter.notifyMatchFailure(
+          scope, "standalone reduction pre-loop seed not convertible");
+    if (mlir::failed(emitStandaloneReductionScalarStore(
+            rewriter, loc, storeOp, outBuffer, seedSplat, resultVecType)))
+      return mlir::failure();
+    return mlir::success();
+  }
+
+  /// Store a lane-0 reduction vector to the output buffer BASE (no `+ i`) with
+  /// VL literal 1 -- the scalar-output store shared by the pre-loop seed and the
+  /// in-loop result. Mirrors the legacy `vse<sew>_v_<dtype>m1(out, v, 1)`.
+  mlir::LogicalResult emitStandaloneReductionScalarStore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::StoreOp store, mlir::Value outBuffer, mlir::Value value,
+      tcrvrvv::VectorType resultVecType) const {
+    if (!bufferPointeeMatchesVectorElement(outBuffer, resultVecType))
+      return rewriter.notifyMatchFailure(
+          store, "standalone reduction output buffer element mismatch");
+    if (!convertVectorTypeToEmitC(resultVecType))
+      return rewriter.notifyMatchFailure(store,
+                                         "standalone result type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vse", vectorElementWidth(resultVecType),
+                           resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(store.getTCRVEmitCLowerableSourceOpName(),
+                         store.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value one =
+        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "1");
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, callee,
+        mlir::ValueRange{outBuffer, value, one});
+    return mlir::success();
+  }
+
+  /// In-loop plain standalone reduce:
+  ///   <celt> r = out[0]; v<rd>m1 seed = vmv_v_x_<rd>m1(r, 1);
+  ///   v<rd>m1 red = __riscv_v<red>_vs_<src><srcLmul>_<rd>m1(input, seed, vl);
+  /// The output buffer is the body's store target (the scalar-carry cell). The
+  /// store itself is emitted by the store dispatch (to base, VL=1).
+  mlir::LogicalResult
+  emitStandaloneReduce(mlir::ConversionPatternRewriter &rewriter,
+                       mlir::Location loc, tcrvrvv::StandaloneReduceOp reduce,
+                       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                       mlir::Value outBuffer, mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getResult().getType());
+    auto srcVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getInput().getType());
+    if (!resultVecType || !srcVecType)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "standalone reduce types not vectors");
+    if (resultVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(
+          reduce, "standalone reduce result must be m1");
+    // The input must be an explicit vector load (no broadcast/splat seed) --
+    // mirrors the legacy reduction input-load requirement.
+    if (!reduce.getInput().getDefiningOp<tcrvrvv::LoadOp>())
+      return rewriter.notifyMatchFailure(
+          reduce, "standalone reduce input must be an explicit vector load");
+    std::optional<llvm::StringRef> mnemonic =
+        standaloneReductionMnemonic(reduce.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "unsupported standalone reduce kind");
+    mlir::Value input = valueMap.lookup(reduce.getInput());
+    if (!input)
+      return rewriter.notifyMatchFailure(reduce, "standalone reduce input "
+                                                 "unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(resultVecType);
+    if (!vecType || !convertVectorTypeToEmitC(srcVecType))
+      return rewriter.notifyMatchFailure(reduce,
+                                         "standalone reduce type not convertible");
+    // In-loop running-seed read: out[0] -> splat m1.
+    mlir::Value seed = emitScalarSeedSplat(
+        rewriter, loc, outBuffer, resultVecType,
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
+    if (!seed)
+      return rewriter.notifyMatchFailure(
+          reduce, "standalone reduce running seed not convertible");
+    std::string callee = standaloneReductionIntrinsicName(
+        *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
+        vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{input, seed, bodyVL})
+            .getResult(0);
+    valueMap[reduce.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// In-loop computed-mask standalone reduce:
+  ///   v<src><sl> neutral = vmv_v_x_<src><sl>(<NEUTRAL>, vl);  // input lmul
+  ///   v<src><sl> masked  = vmerge_vvm_<src><sl>(neutral, source, mask, vl);
+  ///   <celt> r = out[0]; v<rd>m1 seed = vmv_v_x_<rd>m1(r, 1);
+  ///   v<rd>m1 red = __riscv_v<red>_vs_<src><sl>_<rd>m1(masked, seed, vl);
+  /// The neutral fills the masked-out lanes so they don't affect the reduction.
+  mlir::LogicalResult emitMaskedStandaloneReduce(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedStandaloneReduceOp reduce,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, mlir::Value outBuffer,
+      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getResult().getType());
+    auto srcVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getInput().getType());
+    if (!resultVecType || !srcVecType)
+      return rewriter.notifyMatchFailure(
+          reduce, "masked standalone reduce types not vectors");
+    if (resultVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(
+          reduce, "masked standalone reduce result must be m1");
+    std::optional<llvm::StringRef> mnemonic =
+        standaloneReductionMnemonic(reduce.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(
+          reduce, "unsupported masked standalone reduce kind");
+    std::optional<llvm::StringRef> neutral = maskedStandaloneReductionNeutral(
+        reduce.getKind(), vectorElementWidth(srcVecType));
+    if (!neutral)
+      return rewriter.notifyMatchFailure(
+          reduce, "masked standalone reduce neutral not derivable");
+    mlir::Value mask = valueMap.lookup(reduce.getMask());
+    mlir::Value source = valueMap.lookup(reduce.getInput());
+    if (!mask || !source)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "masked standalone reduce operand "
+                                         "unmapped");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcEmitC = convertVectorTypeToEmitC(srcVecType);
+    if (!resultEmitC || !srcEmitC)
+      return rewriter.notifyMatchFailure(
+          reduce, "masked standalone reduce type not convertible");
+
+    // Neutral splat over the masked-out lanes (input lmul, running bodyVL).
+    std::string neutralCallee =
+        riscvIntrinsicName("vmv_v_x", vectorElementWidth(srcVecType),
+                           srcVecType.getLmul(), vectorDType(srcVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(),
+                         neutralCallee));
+    mlir::Value neutralLiteral =
+        rewriter.create<emitc::LiteralOp>(loc, resultIntScalarType(rewriter),
+                                          neutral->str());
+    mlir::Value neutralVec =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{srcEmitC}, neutralCallee,
+                mlir::ValueRange{neutralLiteral, bodyVL})
+            .getResult(0);
+
+    // Merge active source lanes over the neutral background.
+    std::string mergeCallee =
+        riscvIntrinsicName("vmerge", vectorElementWidth(srcVecType),
+                           srcVecType.getLmul(), vectorDType(srcVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(), mergeCallee));
+    mlir::Value masked =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{srcEmitC}, mergeCallee,
+                mlir::ValueRange{neutralVec, source, mask, bodyVL})
+            .getResult(0);
+
+    // In-loop running-seed read: out[0] -> splat m1.
+    mlir::Value seed = emitScalarSeedSplat(
+        rewriter, loc, outBuffer, resultVecType,
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
+    if (!seed)
+      return rewriter.notifyMatchFailure(
+          reduce, "masked standalone reduce running seed not convertible");
+
+    std::string callee = standaloneReductionIntrinsicName(
+        *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
+        vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         callee,
+                                         mlir::ValueRange{masked, seed, bodyVL})
+            .getResult(0);
+    valueMap[reduce.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// The C scalar literal type the neutral splat constant prints as. The neutral
+  /// is an integer literal (0 / INT_MAX / INT_MIN-shaped); emitc renders the
+  /// literal verbatim, so an opaque int placeholder suffices for the SSA type.
+  static mlir::Type resultIntScalarType(mlir::ConversionPatternRewriter &r) {
+    return emitc::OpaqueType::get(r.getContext(), "int");
   }
 
   /// store(%abi,%val,%vl) -> ptr = base + i; __riscv_vse<sew>_v_<dtype><lmul>(...)
@@ -3524,8 +3995,6 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
   typeConverter.addConversion(
       [](tcrvrvv::VectorType type) -> std::optional<mlir::Type> {
         llvm::StringRef lmul = type.getLmul();
-        if (lmul != "m1" && lmul != "m2")
-          return std::nullopt;
         if (type.getElementType().isF32()) {
           // Float grid: only f32/m1 is in scope for the compare-select family.
           if (lmul != "m1")
@@ -3533,11 +4002,24 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           return emitc::OpaqueType::get(type.getContext(), "vfloat32m1_t");
         }
         unsigned sew = 0;
-        if (type.getElementType().isSignlessInteger(32))
+        if (type.getElementType().isSignlessInteger(16))
+          sew = 16;
+        else if (type.getElementType().isSignlessInteger(32))
           sew = 32;
         else if (type.getElementType().isSignlessInteger(64))
           sew = 64;
         else
+          return std::nullopt;
+        // The widening standalone-reduce source is a FRACTIONAL-LMUL i16
+        // vector (i16/mf2 -> vint16mf2_t). The full-LMUL grid stays {m1,m2};
+        // i16 also admits its fractional mf2 rung. Other (sew, lmul) pairs are
+        // left unconverted on purpose so later families extend explicitly.
+        bool inScope = false;
+        if (sew == 16)
+          inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2";
+        else
+          inScope = lmul == "m1" || lmul == "m2";
+        if (!inScope)
           return std::nullopt;
         std::string name = ("vint" + llvm::Twine(sew) + lmul + "_t").str();
         return emitc::OpaqueType::get(type.getContext(), name);
@@ -3663,6 +4145,33 @@ bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
     });
     for (tcrv::exec::KernelOp kernel : drainedKernels)
       kernel.erase();
+
+    // Module-level tcrv.exec capability/target scaffolding (e.g. a
+    // `tcrv.exec.target @rvv_profile` provider declared at module scope and
+    // referenced by the kernel's `target = @...`) is description-source IR the
+    // legacy materializer discarded when it built its fresh emitc-only module.
+    // Once the converted kernel(s) are drained it dangles, and a leftover
+    // non-emitc top-level op makes the export handoff reject the module as
+    // not-clean and fall back to the (now-retired) string route. Drop any
+    // top-level tcrv.exec op that carries NO RVV body (the same drain criterion
+    // used for kernels), so the materialized module is the clean emitc-only
+    // shape the handoff expects. A top-level tcrv.exec op that still carries a
+    // with_vl boundary (an unconverted family) is preserved so the
+    // fullyConverted walk still reports a partial conversion.
+    llvm::SmallVector<mlir::Operation *, 1> drainedExecOps;
+    for (mlir::Operation &op : module.getBody()->getOperations()) {
+      if (op.getName().getDialectNamespace() !=
+          tcrv::exec::TCRVExecDialect::getDialectNamespace())
+        continue;
+      if (llvm::isa<tcrv::exec::KernelOp>(op))
+        continue; // kernels handled above
+      bool hasRVVBody = false;
+      op.walk([&](tcrv::rvv::WithVLOp) { hasRVVBody = true; });
+      if (!hasRVVBody)
+        drainedExecOps.push_back(&op);
+    }
+    for (mlir::Operation *op : drainedExecOps)
+      op->erase();
 
     // The materialized artifact is a STANDALONE emitc module (the legacy string
     // route built a fresh emitc-only module from scratch and discarded the
