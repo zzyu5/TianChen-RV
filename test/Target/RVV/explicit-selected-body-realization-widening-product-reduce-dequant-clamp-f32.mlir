@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=tcrv_rvv.gearbox_cross_region_handoff --implicit-check-not=tcrv_rvv.vsetvl_region_marker
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/op_kind = "widening_product_reduce_dequant_clamp_f32"/op_kind = "metadata_route"/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-OP
@@ -11,7 +11,10 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr/s//lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/rvv_selected_body_typed_compute_op/s/tcrv_rvv.gearbox_cross_region_handoff+//' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF
+// Stage 3 single-scope grouped flip: the handoff op is retired from the typed
+// compute op list; injecting a stray handoff back into the list must fail-closed
+// at manifest validation (the structural op list is checked).
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '/rvv_selected_body_typed_compute_op/s/tcrv_rvv.widening_product+/tcrv_rvv.widening_product+tcrv_rvv.gearbox_cross_region_handoff+/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF
 
 // Explicit selected-body input for the bounded Stage 2 signed i8 product ->
 // i16 product -> i32 reduction -> runtime-scale f32 dequantization -> runtime
@@ -44,60 +47,37 @@ module {
 }
 
 // REALIZED-NOT: tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body
-// REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
-// REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @explicit_rvv_wprdc
-// REALIZED-SAME: tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
-// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
-// REALIZED-SAME: phase = "grouped-product-reduce-main"
-// REALIZED-SAME: region_count = 3 : i64
-// REALIZED-SAME: region_index = 1 : i64
-// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
-// REALIZED-SAME: phase = "tail-product-reduce"
-// REALIZED-SAME: region_count = 3 : i64
-// REALIZED-SAME: region_index = 2 : i64
-// REALIZED: %[[LHS:.*]] = tcrv_rvv.load
-// REALIZED-SAME: !tcrv_rvv.vector<i8, "mf4">
-// REALIZED: %[[RHS:.*]] = tcrv_rvv.load
-// REALIZED-SAME: !tcrv_rvv.vector<i8, "mf4">
-// REALIZED: %[[PRODUCT:.*]] = tcrv_rvv.widening_product %[[LHS]], %[[RHS]], %[[VL]]
-// REALIZED-SAME: product_relation = "signed-i8mf4xi8mf4-to-i16mf2"
-// REALIZED-SAME: -> !tcrv_rvv.vector<i16, "mf2">
-// REALIZED: %[[REDUCED:.*]] = tcrv_rvv.standalone_reduce %[[PRODUCT]], %{{.*}}, %[[VL]]
-// REALIZED-SAME: kind = "signed_widening_reduce_add"
-// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
-// REALIZED: %[[HANDOFF:.*]] = tcrv_rvv.gearbox_cross_region_handoff %[[REDUCED]], %[[VL]], %{{[0-9]+}}
-// REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
-// REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
-// REALIZED-SAME: from_phase = "tail-product-reduce"
-// REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
-// REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
-// REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
-// REALIZED-SAME: primitive_source_signedness = "signed"
-// REALIZED-SAME: region_count = 3 : i64
-// REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
-// REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
-// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
-// REALIZED-SAME: phase = "dequant-store"
-// REALIZED-SAME: region_count = 3 : i64
-// REALIZED-SAME: region_index = 3 : i64
-// REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[HANDOFF]], %{{[0-9]+}}, %[[VL]]
-// REALIZED-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
-// REALIZED-SAME: -> !tcrv_rvv.vector<f32, "m1">
-// REALIZED: %[[LOWER:.*]] = tcrv_rvv.splat
-// REALIZED: %[[UPPER:.*]] = tcrv_rvv.splat
-// REALIZED: %[[LOWER_MASK:.*]] = tcrv_rvv.compare %[[DEQUANT]], %[[LOWER]], %[[VL]]
-// REALIZED: %[[LOWER_CLAMPED:.*]] = tcrv_rvv.select %[[LOWER_MASK]], %[[LOWER]], %[[DEQUANT]], %[[VL]]
-// REALIZED: %[[UPPER_MASK:.*]] = tcrv_rvv.compare %[[UPPER]], %[[LOWER_CLAMPED]], %[[VL]]
-// REALIZED: %[[CLAMPED:.*]] = tcrv_rvv.select %[[UPPER_MASK]], %[[UPPER]], %[[LOWER_CLAMPED]], %[[VL]]
-// REALIZED: tcrv_rvv.store %{{.*}}, %[[CLAMPED]], %[[VL]]
+// Stage 3 single-scope grouped flip: the realized body is one tcrv_rvv.with_vl
+// scope carrying a plain typed tcrv_rvv.widening_product head + the inline dequant
+// chain + the f32 splat/compare/select clamp epilogue, with NO
+// tcrv_rvv.gearbox_cross_region_handoff carrier and NO tcrv_rvv.vsetvl_region_marker
+// placeholders. The structural unroll_factor (=2) the conversion reads is stamped on
+// with_vl; the resource facts survive on the single scope.
+// REALIZED-DAG: selected_variant = @explicit_rvv_wprdc
+// REALIZED-DAG: tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
+// REALIZED-DAG: tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.realized_unroll_factor = 2 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
+// REALIZED-DAG: unroll_factor = 2 : i64
+// REALIZED-DAG: %[[PRODUCT:.*]] = tcrv_rvv.widening_product %{{[^,]+}}, %{{[^,]+}}, %{{[^ ]+}}
+// REALIZED-DAG: product_relation = "signed-i8mf4xi8mf4-to-i16mf2"
+// REALIZED-DAG: tcrv_rvv.standalone_reduce
+// REALIZED-DAG: kind = "signed_widening_reduce_add"
+// REALIZED-DAG: tcrv_rvv.dequantize
+// REALIZED-DAG: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
+// REALIZED-DAG: tcrv_rvv.splat
+// REALIZED-DAG: tcrv_rvv.compare
+// REALIZED-DAG: tcrv_rvv.select
+// REALIZED-DAG: tcrv_rvv.store
+// The deleted two-scope carrier/markers are genuinely absent across the WHOLE
+// realized body (the REALIZED RUN line's --implicit-check-not enforces this globally).
 // REALIZED-NOT: tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_dequant_clamp_f32"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"}
@@ -164,6 +144,6 @@ module {
 // STALE-BINDING: tcrv_rvv.route_operand_binding_operands
 // STALE-BINDING-SAME: lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel
 
-// STALE-HANDOFF: RVV construction manifest invalid
-// STALE-HANDOFF: rvv_selected_body_typed_compute_op
-// STALE-HANDOFF-SAME: tcrv_rvv.gearbox_cross_region_handoff
+// STALE-HANDOFF: manifest invalid
+// STALE-HANDOFF-SAME: rvv_selected_body_typed_compute_op
+// STALE-HANDOFF-SAME: tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select

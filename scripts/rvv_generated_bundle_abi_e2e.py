@@ -14584,12 +14584,13 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
         in loop_block
     )
-    # Stage 3 single-scope packed-i4 flip: the realized body has no
-    # gearbox_cross_region_handoff carrier and emits the unified vector epilogue
-    # (same as grouped), unlike the legacy two-scope packed-i4 scalar epilogue.
+    # Stage 3 single-scope flip: a realized body with no
+    # gearbox_cross_region_handoff carrier emits the unified vector clamp epilogue
+    # (both splats up-front, then compare/select/compare/select/store) for BOTH the
+    # packed-i4 and the grouped candidate, unlike the legacy two-scope interleaved
+    # splat/compare/select epilogue.
     single_scope_packed_i4_epilogue = (
-        uses_packed_i4_resource
-        and "tcrv_rvv.gearbox_cross_region_handoff" not in text
+        "tcrv_rvv.gearbox_cross_region_handoff" not in text
     )
     packed_i4_statement_payload: dict[str, Any] = {}
     if uses_packed_i4_resource:
@@ -14677,6 +14678,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"(?://[^\n]*\n\s*)*"
             rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
             rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
+            rf"(?://[^\n]*\n\s*)*"
             rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
             rf"(?P<reduced>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
@@ -18004,30 +18006,50 @@ def verify_materialized_selected_body(
                     "materialized selected-body MLIR Gearbox resource decision",
                 )
             else:
-                # Single-scope packed-i4 flip: the two-scope carrier/scope split is
-                # gone. Assert it is genuinely absent (fail-closed: a stray handoff
-                # or marker would mean an incomplete flip), and assert the typed
-                # nibble head + structural unroll_factor are present instead.
+                # Single-scope flip (Stage 3): the two-scope carrier/scope split is
+                # gone for BOTH dequant candidates. Assert it is genuinely absent
+                # (fail-closed: a stray handoff or marker would mean an incomplete
+                # flip), and assert the typed product head + structural unroll_factor
+                # are present instead. packed-i4 -> nibble-unpack head + unroll=1;
+                # grouped -> plain widening head + unroll=2 (the conversion expands
+                # the ONE typed slice twice + adds the scalar tail loop).
                 require_not_contains(
                     text,
                     "tcrv_rvv.gearbox_cross_region_handoff",
-                    "single-scope packed-i4 body has no Gearbox handoff carrier",
+                    "single-scope body has no Gearbox handoff carrier",
                 )
                 require_not_contains(
                     text,
                     "tcrv_rvv.vsetvl_region_marker",
-                    "single-scope packed-i4 body has no vsetvl region markers",
+                    "single-scope body has no vsetvl region markers",
                 )
-                require_contains(
-                    text,
-                    "tcrv_rvv.packed_i4_nibble_unpack_product",
-                    "single-scope packed-i4 body typed nibble-unpack product head",
-                )
-                require_contains(
-                    text,
-                    "unroll_factor = 1 : i64",
-                    "single-scope packed-i4 body structural unroll factor",
-                )
+                if uses_packed_i4_resource:
+                    require_contains(
+                        text,
+                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "single-scope packed-i4 body typed nibble-unpack product head",
+                    )
+                    require_contains(
+                        text,
+                        "unroll_factor = 1 : i64",
+                        "single-scope packed-i4 body structural unroll factor",
+                    )
+                else:
+                    require_contains(
+                        text,
+                        "tcrv_rvv.widening_product",
+                        "single-scope grouped body typed widening product head",
+                    )
+                    require_not_contains(
+                        text,
+                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "single-scope grouped body has no packed-i4 nibble head",
+                    )
+                    require_contains(
+                        text,
+                        "unroll_factor = 2 : i64",
+                        "single-scope grouped body structural unroll factor",
+                    )
             require_contains(
                 text,
                 f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',

@@ -4,7 +4,9 @@
 // body converts through the real DialectConversion. Same unroll-2 main + scalar
 // tail accumulator structure as the plain dequantize, but the epilogue clamps
 // the scaled f32 lane-0 result to [lower, upper] via splat/compare(vmflt)/
-// select(vmerge) at VL=1 before storing.
+// select(vmerge) at VL=1 before storing. The body carries exactly ONE typed
+// product/reduce slice; the conversion expands it unroll_factor (=2) times in
+// the main loop and synthesizes the scalar tail loop from the structural attr.
 
 module {
   tcrv.exec.kernel @grouped_clamp_kernel {
@@ -24,11 +26,7 @@ module {
         %r0 = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
         %p0 = tcrv_rvv.widening_product %l0, %r0, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
         %red0 = tcrv_rvv.standalone_reduce %p0, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %l1 = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
-        %r1 = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
-        %p1 = tcrv_rvv.widening_product %l1, %r1, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
-        %red1 = tcrv_rvv.standalone_reduce %p1, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %deq = tcrv_rvv.dequantize %red1, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        %deq = tcrv_rvv.dequantize %red0, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         %ls = tcrv_rvv.splat %lower, %vl : f32, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         %us = tcrv_rvv.splat %upper, %vl : f32, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         %lcmp = tcrv_rvv.compare %deq, %ls, %vl {kind = "slt"} : !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<f32, "m1">

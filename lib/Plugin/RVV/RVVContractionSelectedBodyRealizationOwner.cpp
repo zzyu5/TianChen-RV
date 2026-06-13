@@ -2007,19 +2007,27 @@ realizePreRealizedRVVSelectedContractionFamily(
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;
   mlir::Value compareRHSValue;
-  // The packed-i4 candidate realizes as a SINGLE-scope typed body (Stage 3 flip):
-  // a tcrv_rvv.packed_i4_nibble_unpack_product head, the dequant/clamp chain
-  // inlined in the one with_vl scope, NO vsetvl_region_marker placeholders, NO
-  // gearbox_cross_region_handoff, NO consumer with_vl. The grouped/unpacked
-  // candidate keeps the legacy two-scope realization until its bounded multi-slice
-  // analysis support lands. The compute structure is typed; the conversion walks
-  // it without reading operand_form/unpack_intent mirror strings.
+  // Both dequant candidates realize as a SINGLE-scope typed body (Stage 3 flip):
+  // the typed product/reduce slice + the dequant/clamp chain inlined in the one
+  // with_vl scope, NO vsetvl_region_marker placeholders, NO
+  // gearbox_cross_region_handoff, NO consumer with_vl. The packed-i4 candidate
+  // emits a tcrv_rvv.packed_i4_nibble_unpack_product head with unroll_factor=1;
+  // the grouped candidate emits a plain tcrv_rvv.widening_product head with
+  // unroll_factor=2 -- ONE typed product/reduce slice that the conversion expands
+  // unroll_factor times into the legacy unrolled grouped C. The compute structure
+  // is typed; the conversion walks it without reading operand_form/unpack_intent
+  // mirror strings.
   const bool realizesSingleScopePackedI4Dequant =
       plan.usesProductReductionDequantization && selectedResourceCandidate &&
       isRVVLowPrecisionResourcePackedI4CandidateID(
           selectedResourceCandidate->candidateID);
-  if (plan.usesProductReductionDequantization &&
-      !realizesSingleScopePackedI4Dequant) {
+  const bool realizesSingleScopeGroupedDequant =
+      plan.usesProductReductionDequantization && selectedResourceCandidate &&
+      isRVVLowPrecisionResourceGroupedCandidateID(
+          selectedResourceCandidate->candidateID);
+  const bool realizesSingleScopeDequant =
+      realizesSingleScopePackedI4Dequant || realizesSingleScopeGroupedDequant;
+  if (plan.usesProductReductionDequantization && !realizesSingleScopeDequant) {
     const llvm::StringRef resourceDecision =
         getRVVLowPrecisionContractionResourceRealizationDecision(
             selectedResourceCandidate->candidateID);
@@ -2103,7 +2111,8 @@ realizePreRealizedRVVSelectedContractionFamily(
             ? llvm::StringRef(selectedResourceCandidate->primitiveResultLayout)
             : llvm::StringRef(lowPrecisionPrimitiveFacts->resultLayout);
     // The packed-i4 single-scope flip emits a typed nibble-unpack product head;
-    // every other candidate keeps the typed widening_product head.
+    // the grouped single-scope flip and every other candidate keep the typed
+    // widening_product head.
     mlir::Value productResult;
     if (realizesSingleScopePackedI4Dequant) {
       auto nibbleProduct =
@@ -2128,12 +2137,16 @@ realizePreRealizedRVVSelectedContractionFamily(
     if (!plan.usesProductReductionDequantization) {
       createRealizedGenericStore(builder, loc, plan.out, reduced.getResult(),
                                  setvl.getVl());
-    } else if (realizesSingleScopePackedI4Dequant) {
-      // Single-scope packed-i4: inline the dequant(/clamp) chain in the producer
+    } else if (realizesSingleScopeDequant) {
+      // Single-scope dequant: inline the dequant(/clamp) chain in the producer
       // with_vl -- no handoff, no consumer scope. The i32 carry feeds dequantize
-      // directly. Stamp the bare structural `unroll_factor` (=1) the conversion
-      // reads to size the chunk loop.
-      withVL->setAttr("unroll_factor", builder.getI64IntegerAttr(1));
+      // directly. Stamp the bare structural `unroll_factor` the conversion reads
+      // to size the chunk loop: 1 for packed-i4 (one slice, one plain loop), 2
+      // for grouped (the conversion expands the ONE typed slice twice in the main
+      // loop and adds the scalar tail loop). The factor is the selected Gearbox
+      // candidate's structural unroll, not a mirror string the conversion reads.
+      withVL->setAttr("unroll_factor", builder.getI64IntegerAttr(
+                                           selectedResourceCandidate->unrollFactor));
       auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
           createRealizedGenericDequantizeCompute(
               builder, loc, plan.dequantizationRelation, reduced.getResult(),

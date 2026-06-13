@@ -1485,15 +1485,23 @@ private:
       return rewriter.notifyMatchFailure(scope,
                                          "dequant body buffers unmapped");
 
-    // unroll_factor (structural op attr): the main loop carries this many slices
-    // and steps by vlmax * unroll_factor; absent or 1 == a single plain loop.
+    // unroll_factor (structural op attr): the main loop carries this many copies
+    // of the single typed product/reduce slice and steps by vlmax * unroll_factor;
+    // absent or 1 == a single plain loop. The body carries exactly ONE typed slice
+    // (the template); the conversion expands it `unroll` times. Each expanded copy
+    // is byte-identical except for its sliceIndex-derived pointer offset and VL,
+    // computed below -- so a single-slice unroll=2 body emits exactly the legacy
+    // two-slice grouped C.
     int64_t unroll = 1;
     if (auto u = scope->getAttrOfType<mlir::IntegerAttr>("unroll_factor"))
       unroll = u.getInt();
-    if (unroll < 1 ||
-        static_cast<size_t>(unroll) != slices.size())
+    if (unroll < 1)
       return rewriter.notifyMatchFailure(
-          scope, "dequant unroll_factor must match the number of slices");
+          scope, "dequant unroll_factor must be a positive integer");
+    if (slices.size() != 1)
+      return rewriter.notifyMatchFailure(
+          scope, "dequant body must carry exactly one typed product/reduce slice "
+                 "(unrolled via the with_vl unroll_factor attr)");
 
     llvm::StringRef reduceOpName =
         slices.front().reduce.getTCRVEmitCLowerableSourceOpName();
@@ -1546,7 +1554,12 @@ private:
       mlir::OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(mainLoop.getBody());
       mlir::Value inductionVar = mainLoop.getInductionVar();
-      for (auto [sliceIndex, slice] : llvm::enumerate(slices)) {
+      const DequantSlice &slice = slices.front();
+      // Expand the single typed slice `unroll` times. The per-copy pointer offset
+      // and VL derive from sliceIndex (not from any slice's own ops), so emitting
+      // slices.front() with sliceIndex 0..unroll-1 reproduces the legacy unrolled
+      // grouped C byte-for-byte.
+      for (int64_t sliceIndex = 0; sliceIndex < unroll; ++sliceIndex) {
         // The slice's runtime VL is setvl(n - i - sliceIndex*vlmax); the second
         // unroll slice loads at (base + i + vlmax) and its VL excludes the first
         // slice's lanes.
@@ -1555,10 +1568,10 @@ private:
             rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
         if (sliceIndex > 0) {
           // base + i + sliceIndex*vlmax ; remaining -= sliceIndex*vlmax (via vl)
-          for (size_t k = 0; k < sliceIndex; ++k)
+          for (int64_t k = 0; k < sliceIndex; ++k)
             sliceOffset =
                 rewriter.create<emitc::AddOp>(loc, sizeType, sliceOffset, vlmax);
-          for (size_t k = 0; k < sliceIndex; ++k)
+          for (int64_t k = 0; k < sliceIndex; ++k)
             remaining =
                 rewriter.create<emitc::SubOp>(loc, sizeType, remaining, vlmax);
         }
