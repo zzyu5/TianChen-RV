@@ -292,138 +292,6 @@ buildTensorExtLiteFragmentProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-llvm::Expected<bool>
-variantRequiresTensorExtLiteFragment(tcrv::exec::VariantOp variant,
-                           const support::TargetCapabilitySet &capabilities) {
-  auto requiresAttr =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiresAttr)
-    return makeTensorExtLitePluginError(
-        "materialized TensorExtLite variant requires structured 'requires' metadata");
-
-  for (mlir::Attribute requiredCapability : requiresAttr) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return makeTensorExtLitePluginError(
-          "materialized TensorExtLite variant requires only capability symbol "
-          "references");
-
-    const support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      continue;
-
-    if (capability->satisfiesID(kTensorExtLiteFragmentCapabilityID))
-      return true;
-  }
-
-  return false;
-}
-
-llvm::Error verifyTensorExtLiteVariantMetadata(
-    tcrv::exec::VariantOp variant,
-    const TensorExtLiteFragmentCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
-    return error;
-
-  const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
-      tensorext_lite::getTensorExtLiteConstructionManifest();
-  auto fragmentABI =
-      variant->getAttrOfType<mlir::StringAttr>(kTensorExtLiteFragmentABIAttrName);
-  if (!fragmentABI || fragmentABI.getValue().trim().empty())
-    return makeTensorExtLitePluginError(llvm::Twine("materialized TensorExtLite variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_tensorext_lite.fragment_abi' metadata");
-  if (fragmentABI.getValue() != capabilityView.fragmentABI)
-    return makeTensorExtLitePluginError(llvm::Twine("materialized TensorExtLite variant @") +
-                              variant.getSymName() +
-                              " fragment ABI metadata is not satisfied by "
-                              "preserved capability property 'fragment_abi'");
-
-  auto handoffKind =
-      variant->getAttrOfType<mlir::StringAttr>(kTensorExtLiteHandoffKindAttrName);
-  if (!handoffKind || handoffKind.getValue().trim().empty())
-    return makeTensorExtLitePluginError(llvm::Twine("materialized TensorExtLite variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_tensorext_lite.handoff_kind' metadata");
-  if (handoffKind.getValue() != capabilityView.handoffKind)
-    return makeTensorExtLitePluginError(llvm::Twine("materialized TensorExtLite variant @") +
-                              variant.getSymName() +
-                              " handoff kind metadata is not satisfied by "
-                              "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kTensorExtLiteConstructionProtocolAttrName + "'");
-
-  auto archetype =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kTensorExtLiteConstructionArchetypeAttrName + "'");
-
-  auto roleGraph =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteSemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kTensorExtLiteSemanticRoleGraphAttrName + "'");
-
-  auto interfaces =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != tensorext_lite::getTensorExtLiteConstructionInterfaceRealization())
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kTensorExtLiteCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary())
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kTensorExtLiteTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kTensorExtLiteEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTensorExtLiteEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kTensorExtLiteEvidenceProfileAttrName + "'");
-
-  return llvm::Error::success();
-}
 
 mlir::FlatSymbolRefAttr makeTensorExtLiteSymbolRef(mlir::MLIRContext *context,
                                                    llvm::StringRef symbol) {
@@ -792,35 +660,13 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
 
 llvm::Error TensorExtLiteExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  if (!variant)
-    return makeTensorExtLitePluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
-
-  auto originAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!originAttr || originAttr.getValue() != kTensorExtLitePluginName)
-    return makeTensorExtLitePluginError(
-        "materialized TensorExtLite variant must be owned by origin 'tensorext-lite-plugin'");
-
-  llvm::Expected<TensorExtLiteFragmentCapabilityView> capabilityView =
-      buildTensorExtLiteFragmentCapabilityView(request.getCapabilities());
-  if (!capabilityView)
-    return capabilityView.takeError();
-
-  llvm::Expected<bool> requiresTensorExtLite =
-      variantRequiresTensorExtLiteFragment(variant, request.getCapabilities());
-  if (!requiresTensorExtLite)
-    return requiresTensorExtLite.takeError();
-
-  if (!*requiresTensorExtLite)
-    return makeTensorExtLitePluginError(
-        "materialized TensorExtLite variant must require capability id 'tensorext_lite.tile_mma'");
-
-  if (llvm::Error error = verifyTensorExtLiteVariantMetadata(variant, *capabilityView))
-    return error;
-
-  return llvm::Error::success();
+  // The legality predicate (capability conformance + variant
+  // metadata-vs-manifest) is owned by the construction-protocol lib so the
+  // typed-emission backend driver can share the EXACT authority (its
+  // convert-set must equal this success-set). This emits the fail-closed
+  // diagnostic; the driver declines on the same error.
+  return tensorext_lite::verifyTensorExtLiteSelectedVariantLegality(
+      request.getVariant(), request.getKernel(), request.getCapabilities());
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(

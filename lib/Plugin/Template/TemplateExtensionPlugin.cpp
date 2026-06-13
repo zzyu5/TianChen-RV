@@ -291,136 +291,6 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-llvm::Expected<bool>
-variantRequiresTemplateExtension(tcrv::exec::VariantOp variant,
-                           const support::TargetCapabilitySet &capabilities) {
-  auto requiresAttr =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiresAttr)
-    return makeTemplatePluginError(
-        "materialized Template variant requires structured 'requires' metadata");
-
-  for (mlir::Attribute requiredCapability : requiresAttr) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return makeTemplatePluginError(
-          "materialized Template variant requires only capability symbol "
-          "references");
-
-    const support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      continue;
-
-    if (capability->satisfiesID(kTemplateExtensionCapabilityID))
-      return true;
-  }
-
-  return false;
-}
-
-llvm::Error verifyTemplateVariantMetadata(
-    tcrv::exec::VariantOp variant,
-    const TemplateExtensionCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
-    return error;
-
-  const template_ext::TemplateConstructionManifest &manifest =
-      template_ext::getTemplateConstructionManifest();
-  auto integrationContract =
-      variant->getAttrOfType<mlir::StringAttr>(kTemplateIntegrationContractAttrName);
-  if (!integrationContract || integrationContract.getValue().trim().empty())
-    return makeTemplatePluginError(llvm::Twine("materialized Template variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_template.integration_contract' metadata");
-  if (integrationContract.getValue() != capabilityView.integrationContract)
-    return makeTemplatePluginError(llvm::Twine("materialized Template variant @") +
-                              variant.getSymName() +
-                              " integration contract metadata is not "
-                              "satisfied by preserved capability property "
-                              "'integration_contract'");
-
-  auto handoffKind =
-      variant->getAttrOfType<mlir::StringAttr>(kTemplateHandoffKindAttrName);
-  if (!handoffKind || handoffKind.getValue().trim().empty())
-    return makeTemplatePluginError(llvm::Twine("materialized Template variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_template.handoff_kind' metadata");
-  if (handoffKind.getValue() != capabilityView.handoffKind)
-    return makeTemplatePluginError(llvm::Twine("materialized Template variant @") +
-                              variant.getSymName() +
-                              " handoff kind metadata is not satisfied by "
-                              "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kTemplateConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kTemplateConstructionProtocolAttrName + "'");
-
-  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kTemplateConstructionArchetypeAttrName + "'");
-
-  auto roleGraph = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateSemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kTemplateSemanticRoleGraphAttrName + "'");
-
-  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() !=
-          template_ext::getTemplateConstructionInterfaceRealization())
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kTemplateCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() !=
-          template_ext::getTemplateTypedRoleRealizationSummary())
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kTemplateTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kTemplateEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kTemplateEvidenceProfileAttrName + "'");
-
-  return llvm::Error::success();
-}
-
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
 }
@@ -592,36 +462,13 @@ llvm::Error TemplateExtensionPlugin::collectVariantProposals(
 
 llvm::Error TemplateExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  if (!variant)
-    return makeTemplatePluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
-
-  auto originAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!originAttr || originAttr.getValue() != kTemplatePluginName)
-    return makeTemplatePluginError(
-        "materialized Template variant must be owned by origin 'template-plugin'");
-
-  llvm::Expected<TemplateExtensionCapabilityView> capabilityView =
-      buildTemplateExtensionCapabilityView(request.getCapabilities());
-  if (!capabilityView)
-    return capabilityView.takeError();
-
-  llvm::Expected<bool> requiresTemplate =
-      variantRequiresTemplateExtension(variant, request.getCapabilities());
-  if (!requiresTemplate)
-    return requiresTemplate.takeError();
-
-  if (!*requiresTemplate)
-    return makeTemplatePluginError(
-        "materialized Template variant must require capability id "
-        "'template.extension'");
-
-  if (llvm::Error error = verifyTemplateVariantMetadata(variant, *capabilityView))
-    return error;
-
-  return llvm::Error::success();
+  // The legality predicate (capability conformance + variant
+  // metadata-vs-manifest) is owned by the construction-protocol lib so the
+  // typed-emission backend driver can share the EXACT authority (its
+  // convert-set must equal this success-set). This emits the fail-closed
+  // diagnostic; the driver declines on the same error.
+  return template_ext::verifyTemplateSelectedVariantLegality(
+      request.getVariant(), request.getKernel(), request.getCapabilities());
 }
 
 llvm::Error TemplateExtensionPlugin::estimateVariantCost(

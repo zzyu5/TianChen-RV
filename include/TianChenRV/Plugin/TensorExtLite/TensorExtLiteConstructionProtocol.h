@@ -13,7 +13,27 @@ namespace mlir {
 class Operation;
 } // namespace mlir
 
+namespace tianchenrv::tcrv::exec {
+class VariantOp;
+class KernelOp;
+} // namespace tianchenrv::tcrv::exec
+
+namespace tianchenrv::support {
+class TargetCapabilitySet;
+} // namespace tianchenrv::support
+
 namespace tianchenrv::plugin::tensorext_lite {
+
+/// Verifies that a selected TensorExtLite variant is legal to emit: capability
+/// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
+/// conformance (incl. the `emitc_route_mapping` eligibility declaration). This
+/// is the single legality authority shared by the extension plugin (which emits
+/// the fail-closed diagnostic) and the typed-emission backend driver (which
+/// declines on error so the plugin still owns the diagnostic) — keeping the
+/// driver's convert-set equal to the plugin route-build's success-set.
+llvm::Error verifyTensorExtLiteSelectedVariantLegality(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities);
 
 using TensorExtLiteConstructionSemanticRole =
     tianchenrv::plugin::construction::SemanticRole;
