@@ -8,9 +8,7 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCElementwiseRouteFamilyPlanOwners.cpp
   RVVLowPrecisionPerformancePolicy.cpp
   RVVEmitCMAccRouteFamilyPlanOwners.cpp
-  RVVEmitCResidualStatementPlanOwners.cpp
   RVVEmitCSegment2RouteFamilyPlanOwners.cpp
-  RVVEmitCStatementPlanOwners.cpp
 
   DEPENDS
   TianChenRVPassesIncGen

@@ -47,5 +47,6 @@ module {
   }
 }
 
-// RETIRED: low-precision product-reduction dequant bodies lower through the RVV->emitc DialectConversion
-// RETIRED-SAME: the legacy statement-plan dequant emission is retired
+// RETIRED: selected RVV body does not fully lower through the RVV->emitc DialectConversion
+// RETIRED-SAME: the legacy statement-plan string route is retired
+// RETIRED-SAME: no legal materialized route remains for operation 'widening_product_reduce_dequantize_f32'

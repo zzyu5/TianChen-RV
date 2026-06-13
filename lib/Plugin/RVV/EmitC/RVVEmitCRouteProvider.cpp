@@ -10,410 +10,34 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
-
-#include <cstddef>
-#include <optional>
-#include <string>
-#include <utility>
 
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-constexpr llvm::StringLiteral
-    kEmitCLowerableOpInterfaceName("TCRVEmitCLowerableOpInterface");
-
-llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
-getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
-  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
-    return std::move(error);
-
-  auto lowerable =
-      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
-  if (!lowerable)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("operation '") + op->getName().getStringRef() +
-        "' must implement " + kEmitCLowerableOpInterfaceName +
-        " before RVV EmitC route construction");
-
-  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
-  if (sourceRole != expectedRole)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("operation '") + op->getName().getStringRef() +
-        "' reports EmitC source role '" + sourceRole +
-        "' but RVV route expected '" + expectedRole + "'");
-
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
-  source.role = sourceRole.str();
-  source.opInterface = kEmitCLowerableOpInterfaceName.str();
-  return source;
-}
-
-bool runtimeABIParameterEquals(const support::RuntimeABIParameter &lhs,
-                               const support::RuntimeABIParameter &rhs) {
-  return lhs.cName == rhs.cName && lhs.cType == rhs.cType &&
-         lhs.role == rhs.role && lhs.ownership == rhs.ownership;
-}
-
-llvm::Error addSegment2RouteHeadersFromProviderPlan(
-    conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
-    llvm::StringRef context) {
-  if (plan.requiredHeaders.empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " segment2 route construction requires owner-built header facts "
-        "before creating TCRVEmitCLowerableRoute");
-  for (llvm::StringRef header : plan.requiredHeaders)
-    route.addHeader(header);
-  return llvm::Error::success();
-}
-
-llvm::Error addSegment2RouteTypeMappingsFromProviderPlan(
-    conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
-    llvm::StringRef context) {
-  if (plan.vlTypeName.empty() || plan.vlCType.empty() ||
-      plan.vectorTypeName.empty() || plan.vectorCType.empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " segment2 route construction requires owner-built VL/vector type "
-        "mapping facts before creating TCRVEmitCLowerableRoute");
-  route.addTypeMapping(plan.vlTypeName, plan.vlCType);
-  route.addTypeMapping(plan.vectorTypeName, plan.vectorCType);
-  if (plan.plansComputedMaskSegment2LoadUnitStore ||
-      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
-      plan.plansComputedMaskSegment2StoreUnitLoad ||
-      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
-      plan.plansComputedMaskSegment2UpdateUnitLoad) {
-    if (plan.maskTypeName.empty() || plan.maskCType.empty())
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " computed-mask segment2 route construction requires owner-built "
-          "mask type mapping facts before creating TCRVEmitCLowerableRoute");
-    route.addTypeMapping(plan.maskTypeName, plan.maskCType);
-  }
-  return llvm::Error::success();
-}
-
-llvm::Error appendSegment2RouteABIParameter(
-    llvm::SmallVectorImpl<const support::RuntimeABIParameter *> &parameters,
-    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
-    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
-    llvm::StringRef context) {
-  if (!parameter)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " segment2 route construction requires owner-built ABI binding for '" +
-        logicalName + "' before creating TCRVEmitCLowerableRoute for family '" +
-        plan.selectedBodyFamilyName + "'");
-  parameters.push_back(parameter);
-  return llvm::Error::success();
-}
-
-llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
-    conversion::emitc::TCRVEmitCLowerableRoute &route,
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    const RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
-    llvm::StringRef context) {
-  llvm::SmallVector<const support::RuntimeABIParameter *, 6> parameters;
-  if (plan.plansComputedMaskSegment2LoadUnitStore ||
-      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
-      plan.plansComputedMaskSegment2StoreUnitLoad ||
-      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
-      plan.plansComputedMaskSegment2UpdateUnitLoad) {
-    if (plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
-        plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad) {
-      if (llvm::Error error = appendSegment2RouteABIParameter(
-              parameters, plan.compareLhsABI, "lhs", plan, context))
-        return error;
-      if (llvm::Error error = appendSegment2RouteABIParameter(
-              parameters, plan.rhsScalarABI, "rhs_scalar", plan, context))
-        return error;
-    } else {
-      if (llvm::Error error = appendSegment2RouteABIParameter(
-              parameters, plan.compareLhsABI, "cmp_lhs", plan, context))
-        return error;
-      if (llvm::Error error = appendSegment2RouteABIParameter(
-              parameters, plan.compareRhsABI, "cmp_rhs", plan, context))
-        return error;
-    }
-  }
-
-  if (plan.plansPlainSegment2DeinterleaveUnitStore ||
-      plan.plansComputedMaskSegment2LoadUnitStore ||
-      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore) {
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.sourceABI, "src", plan, context))
-      return error;
-  }
-
-  if (plan.plansPlainSegment2DeinterleaveUnitStore ||
-      plan.plansComputedMaskSegment2LoadUnitStore ||
-      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore) {
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.field0ABI, "out0", plan, context))
-      return error;
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.field1ABI, "out1", plan, context))
-      return error;
-  } else {
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.field0ABI, "src0", plan, context))
-      return error;
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.field1ABI, "src1", plan, context))
-      return error;
-  }
-
-  if (plan.plansPlainSegment2InterleaveUnitLoad ||
-      plan.plansComputedMaskSegment2StoreUnitLoad ||
-      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
-      plan.plansComputedMaskSegment2UpdateUnitLoad) {
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.destinationABI, "dst", plan, context))
-      return error;
-  }
-
-  if (llvm::Error error = appendSegment2RouteABIParameter(
-          parameters, plan.runtimeElementCountABI, "n", plan, context))
-    return error;
-
-  if (parameters.size() != description.runtimeABIParameters.size())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " segment2 route construction ABI order from owner-built provider "
-        "plan has " +
-        llvm::Twine(parameters.size()) + " entries but route description has " +
-        llvm::Twine(description.runtimeABIParameters.size()) +
-        " entries before creating TCRVEmitCLowerableRoute");
-
-  for (std::size_t index = 0; index < parameters.size(); ++index) {
-    const support::RuntimeABIParameter &expected =
-        *parameters[index];
-    const support::RuntimeABIParameter &described =
-        description.runtimeABIParameters[index];
-    if (!runtimeABIParameterEquals(expected, described))
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " segment2 route construction ABI order from owner-built provider "
-          "plan disagrees with selected route ABI mirror at index " +
-          llvm::Twine(index) + " for family '" + plan.selectedBodyFamilyName +
-          "'");
-    route.addABIValueMapping(expected, expected.cName);
-  }
-  return llvm::Error::success();
-}
-
-static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  RVVSelectedBodyRouteSlice *slice = &analysis.slice;
-  const RVVSelectedBodyEmitCRouteDescription &description =
-      analysis.description;
-  if (llvm::Error error = verifyRVVSelectedBodyRouteFamilyProviderPlans(
-          analysis, "selected RVV EmitC route construction"))
-    return error;
-  llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
-      materializationFactsOrError =
-          getRVVSelectedBodyRouteMaterializationFacts(
-              analysis, "selected RVV EmitC route construction");
-  if (!materializationFactsOrError)
-    return materializationFactsOrError.takeError();
-  const RVVSelectedBodyRouteMaterializationFacts &materializationFacts =
-      *materializationFactsOrError;
-  llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
-      elementwiseSelectOperandBindingFactsOrError =
-          getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
-              analysis, "selected RVV EmitC route construction");
-  if (!elementwiseSelectOperandBindingFactsOrError)
-    return elementwiseSelectOperandBindingFactsOrError.takeError();
-  const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-      &elementwiseSelectOperandBindingFacts =
-          *elementwiseSelectOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
-      memoryOperandBindingFactsOrError =
-          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
-              analysis, "selected RVV EmitC route construction");
-  if (!memoryOperandBindingFactsOrError)
-    return memoryOperandBindingFactsOrError.takeError();
-  const RVVSelectedBodyMemoryRouteOperandBindingFacts
-      &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
-      mathOperandBindingFactsOrError =
-          getRVVSelectedBodyMathRouteOperandBindingFacts(
-              analysis, "selected RVV EmitC route construction");
-  if (!mathOperandBindingFactsOrError)
-    return mathOperandBindingFactsOrError.takeError();
-  const RVVSelectedBodyMathRouteOperandBindingFacts
-      &mathOperandBindingFacts = *mathOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
-      residualOperandBindingFactsOrError =
-          getRVVSelectedBodyResidualRouteOperandBindingFacts(
-              analysis, "selected RVV EmitC route construction");
-  if (!residualOperandBindingFactsOrError)
-    return residualOperandBindingFactsOrError.takeError();
-  const RVVSelectedBodyResidualRouteOperandBindingFacts
-      &residualOperandBindingFacts = *residualOperandBindingFactsOrError;
-
-  const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
-      materializationFacts.typedConfigFacts;
-
-  llvm::StringRef vlCType = typedConfigFacts.vlCType;
-  llvm::StringRef resultVectorTypeName =
-      materializationFacts.resultVectorTypeName;
-  llvm::StringRef resultVectorCType = materializationFacts.resultVectorCType;
-  llvm::StringRef sourceVectorTypeName =
-      materializationFacts.sourceVectorTypeName;
-  llvm::StringRef sourceVectorCType = materializationFacts.sourceVectorCType;
-  llvm::StringRef maskTypeName = materializationFacts.maskTypeName;
-  llvm::StringRef maskCType = materializationFacts.maskCType;
-
-  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
-          analysis.routeOperandBindingPlan, description,
-          "selected RVV EmitC route construction"))
-    return error;
-
-  RVVSelectedBodyBaseMemoryMovementRouteProviderPlan
-      baseMemoryRouteConstructionPlan;
-  if (isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description)) {
-    llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
-        baseMemoryRouteConstructionPlanOrError =
-            getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                "selected RVV EmitC route construction");
-    if (!baseMemoryRouteConstructionPlanOrError)
-      return baseMemoryRouteConstructionPlanOrError.takeError();
-    if (!baseMemoryRouteConstructionPlanOrError->plansBaseMemoryMovementRoute)
-      return makeRVVEmitCRouteProviderError(
-          "selected RVV EmitC route construction requires the matched base "
-          "memory movement planning owner to produce a provider plan before "
-          "constructing TCRVEmitCLowerableRoute");
-    baseMemoryRouteConstructionPlan =
-        *baseMemoryRouteConstructionPlanOrError;
-  }
-
-  std::optional<RVVSelectedBodySegment2RouteFamilyProviderPlan>
-      segment2RouteConstructionPlan;
-  if (isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(description)) {
-    llvm::Expected<RVVSelectedBodySegment2RouteFamilyProviderPlan>
-        segment2RouteConstructionPlanOrError =
-            getRVVSelectedBodySegment2RouteFamilyProviderPlan(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                "selected RVV EmitC route construction");
-    if (!segment2RouteConstructionPlanOrError)
-      return segment2RouteConstructionPlanOrError.takeError();
-    if (!segment2RouteConstructionPlanOrError->plansSegment2MemoryRoute)
-      return makeRVVEmitCRouteProviderError(
-          "selected RVV EmitC route construction requires the matched "
-          "segment2 route-family planning owner to produce a provider plan "
-          "before constructing TCRVEmitCLowerableRoute");
-    segment2RouteConstructionPlan =
-        *segment2RouteConstructionPlanOrError;
-  }
-
-  llvm::Expected<RVVSelectedBodyRouteStatementPlanOwnerSelection>
-      statementPlanOwnerSelection =
-          getRVVSelectedBodyRouteStatementPlanOwnerSelection(
-              analysis, materializationFacts,
-              elementwiseSelectOperandBindingFacts,
-              memoryOperandBindingFacts, mathOperandBindingFacts,
-              residualOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!statementPlanOwnerSelection)
-    return statementPlanOwnerSelection.takeError();
-  if (llvm::Error error =
-          verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
-              analysis, materializationFacts,
-              elementwiseSelectOperandBindingFacts,
-              residualOperandBindingFacts, *statementPlanOwnerSelection,
-              "selected RVV EmitC route construction"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
-              analysis, materializationFacts, memoryOperandBindingFacts,
-              baseMemoryRouteConstructionPlan, *statementPlanOwnerSelection,
-              "selected RVV EmitC route construction"))
-    return error;
-  if (segment2RouteConstructionPlan) {
-    if (llvm::Error error =
-            verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                *segment2RouteConstructionPlan, *statementPlanOwnerSelection,
-                "selected RVV EmitC route construction"))
-      return error;
-  }
-  conversion::emitc::TCRVEmitCLowerableRoute route(
-      segment2RouteConstructionPlan ? segment2RouteConstructionPlan->emitCRouteID
-                                    : analysis.description.emitCRouteID,
-      "extension-family-ops-to-emitc-call-opaque");
-  if (segment2RouteConstructionPlan) {
-    if (llvm::Error error = addSegment2RouteHeadersFromProviderPlan(
-            route, *segment2RouteConstructionPlan,
-            "selected RVV EmitC route construction"))
-      return error;
-  } else if (!materializationFacts.requiredHeaders.empty()) {
-    for (llvm::StringRef header : materializationFacts.requiredHeaders)
-      route.addHeader(header);
-  } else {
-    route.addHeader("stddef.h");
-    route.addHeader("stdint.h");
-    route.addHeader("riscv_vector.h");
-  }
-  if (segment2RouteConstructionPlan) {
-    if (llvm::Error error = addSegment2RouteTypeMappingsFromProviderPlan(
-            route, *segment2RouteConstructionPlan,
-            "selected RVV EmitC route construction"))
-      return error;
-    if (llvm::Error error = addSegment2RouteABIMappingsFromProviderPlan(
-            route, description, *segment2RouteConstructionPlan,
-            "selected RVV EmitC route construction"))
-      return error;
-  } else {
-    route.addTypeMapping("!tcrv_rvv.vl", vlCType);
-    route.addTypeMapping(resultVectorTypeName, resultVectorCType);
-    if (!description.indexVectorTypeName.empty())
-      route.addTypeMapping(typedConfigFacts.indexVectorTypeName,
-                           typedConfigFacts.indexVectorCType);
-    if (!sourceVectorTypeName.empty() &&
-        sourceVectorTypeName != resultVectorTypeName)
-      route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
-    if (!description.productVectorTypeName.empty())
-      route.addTypeMapping(description.productVectorTypeName,
-                           description.productVectorCType);
-    if (description.operation ==
-            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-        description.operation ==
-            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
-      route.addTypeMapping("!tcrv_rvv.vector<i32, \"m1\">", "vint32m1_t");
-    if (!maskTypeName.empty())
-      route.addTypeMapping(maskTypeName, maskCType);
-    for (const support::RuntimeABIParameter &parameter :
-         description.runtimeABIParameters)
-      route.addABIValueMapping(parameter, parameter.cName);
-  }
-
-  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> withVLSource =
-      getEmitCSourceProvenance(slice->withVL.getOperation(), "scope");
-  if (!withVLSource)
-    return withVLSource.takeError();
-  route.addSourceOpProvenance(std::move(*withVLSource));
-
-  if (llvm::Error error = attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
-          route, std::move(*statementPlanOwnerSelection),
-          "selected RVV EmitC route construction"))
-    return error;
-  out = std::move(route);
-  return llvm::Error::success();
+// Stage 3 换心 retirement (I7). The RVV body-emission string machine (the
+// per-family + residual statement-plan owners that synthesized std::string C
+// expressions, plus the route-CONSTRUCTION half that dispatched into them) has
+// been deleted: every covered RVV family now lowers through the real
+// RVV->emitc DialectConversion (`conversion::rvv::convertRVVModuleToEmitC`),
+// which is the authority. A selected RVV body that does NOT fully convert (a
+// retired legacy form such as the two-scope Gearbox cross-region-handoff dequant
+// body) therefore has no legal materialized route. Refuse it fail-closed with a
+// bounded diagnostic carrying the op token, instead of resurrecting any string
+// synthesis. This is the single chokepoint both the public route builder and
+// the description's verified-route branch funnel through.
+llvm::Error refuseRetiredRVVSelectedBodyStringRoute(
+    RVVSelectedBodyOperationKind operation, llvm::StringRef context) {
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " selected RVV body does not fully lower through the RVV->emitc "
+      "DialectConversion and the legacy statement-plan string route is "
+      "retired; no legal materialized route remains for operation '" +
+      stringifyRVVSelectedBodyOperationKind(operation) + "'");
 }
 
 } // namespace
@@ -450,9 +74,15 @@ describeRVVSelectedBodyEmitCRoute(
   if (!analysis)
     return analysis.takeError();
 
+  // A non-null verifiedRoute requested a constructed string route. That
+  // construction path (the per-family statement-plan owners) is retired, so a
+  // body that reaches here without fully converting is refused fail-closed; the
+  // converted families never pass a non-null verifiedRoute (they take the
+  // description-only path gated by rvvSelectedBodyFullyConvertsToEmitC).
   if (verifiedRoute)
-    if (llvm::Error error = buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
-            *analysis, *verifiedRoute))
+    if (llvm::Error error = refuseRetiredRVVSelectedBodyStringRoute(
+            analysis->description.operation,
+            "selected RVV EmitC route construction"))
       return std::move(error);
 
   return analysis->description;
@@ -461,11 +91,14 @@ describeRVVSelectedBodyEmitCRoute(
 llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
+  (void)out;
   llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
       analyzeRVVSelectedBodyRoute(request);
   if (!analysis)
     return analysis.takeError();
-  return buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(*analysis, out);
+  return refuseRetiredRVVSelectedBodyStringRoute(
+      analysis->description.operation,
+      "selected RVV EmitC route construction");
 }
 
 } // namespace tianchenrv::plugin::rvv

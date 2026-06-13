@@ -2154,9 +2154,13 @@ materializeSelectedEmitCArtifactModule(
     }
   }
 
-  // FALLBACK (non-converted families only): build the legacy string route and
-  // materialize from it. The string route — and therefore the per-family
-  // statement-plan owners it dispatches into — is reachable ONLY here.
+  // FALLBACK (non-converted families only): build the configured route and
+  // materialize it through the generic TCRVEmitCLowerableMaterializer. After the
+  // Stage 3 换心 RVV statement-plan-owner retirement this path serves the non-RVV
+  // families (Toy / Template / TensorExtLite) whose route builders still produce
+  // a route; the RVV route builder now fails closed (no string statement-plan
+  // owners remain), so a malformed RVV body is refused upstream and never
+  // reaches this materializer.
   llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
       buildSelectedEmitCArtifactRoute(*target, config);
   if (!route)
