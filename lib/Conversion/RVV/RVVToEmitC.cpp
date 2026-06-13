@@ -863,6 +863,22 @@ public:
       return mlir::success();
     }
 
+    // The STANDALONE i32->f32 runtime-scale dequant body (load -> dequantize ->
+    // store, no product/reduce/accumulator) owns a dedicated Gearbox-unrolled
+    // two-slice setvl loop emitter -- the same VL-loop machinery, expanded
+    // `tcrv_rvv.gearbox.unroll` times. It is NOT the product-reduce dequant
+    // path (no accumulator) nor the single-slice emitScopeForLoop (which the
+    // emitDequantize guard would refuse). Detect and emit it here.
+    if (isStandaloneDequantBody(scope)) {
+      if (mlir::failed(emitStandaloneDequantBody(
+              rewriter, loc, scope, preLoopSetVL, avlArg, vlmax, sizeType,
+              setvlCallee, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     // Standalone reduction pre-loop seed: out[0] = acc[0]. Runs BEFORE the loop
     // (between the pre-loop full-chunk setvl and the for-loop), seeding the
     // scalar accumulator carried through the output cell across runtime chunks.
@@ -1627,6 +1643,185 @@ private:
                                epilogueOps, accVar, accVecType, valueMap);
   }
 
+  /// True iff `scope` is the STANDALONE i32->f32 runtime-scale dequant body: a
+  /// with_vl scope whose ONLY compute is a single load -> dequantize -> store
+  /// (no product / reduce / accumulator / clamp). Structurally: exactly one
+  /// tcrv_rvv.load producing an i32 vector, exactly one tcrv_rvv.dequantize
+  /// (kind `i32_to_f32_scaled`, i32->f32) sourcing that load, exactly one
+  /// tcrv_rvv.store of the f32 result, and nothing else. This is the dequant
+  /// shape the legacy string materializer Gearbox-unrolls (u2) into a two-slice
+  /// runtime-avl setvl loop; `emitStandaloneDequantBody` reproduces that loop.
+  /// Any extra op, a different dtype/kind, or a missing piece returns false so
+  /// the body falls to the (guarded) emitScopeForLoop path and then the legacy
+  /// materializer -- no mislower.
+  static bool isStandaloneDequantBody(tcrvrvv::WithVLOp scope) {
+    tcrvrvv::LoadOp load;
+    tcrvrvv::DequantizeOp dequant;
+    tcrvrvv::StoreOp store;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto l = llvm::dyn_cast<tcrvrvv::LoadOp>(op)) {
+        if (load)
+          return false; // more than one load is not the standalone shape
+        load = l;
+      } else if (auto d = llvm::dyn_cast<tcrvrvv::DequantizeOp>(op)) {
+        if (dequant)
+          return false;
+        dequant = d;
+      } else if (auto s = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
+        if (store)
+          return false;
+        store = s;
+      } else {
+        return false; // any other op (product/reduce/select/...) excludes it
+      }
+    }
+    if (!load || !dequant || !store)
+      return false;
+    // The dequantize must source the load and feed the store, kind/dtype pinned.
+    if (dequant.getKind() != "i32_to_f32_scaled")
+      return false;
+    if (dequant.getSource() != load.getLoaded())
+      return false;
+    if (store.getValue() != dequant.getResult())
+      return false;
+    auto srcVec =
+        llvm::dyn_cast<tcrvrvv::VectorType>(load.getLoaded().getType());
+    auto resVec =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dequant.getResult().getType());
+    if (!srcVec || !resVec)
+      return false;
+    if (!srcVec.getElementType().isSignlessInteger(32) ||
+        !resVec.getElementType().isF32())
+      return false;
+    return true;
+  }
+
+  /// Emit the standalone i32->f32 runtime-scale dequant body as the legacy
+  /// Gearbox-unrolled (u<unroll>) two-slice runtime-avl setvl loop, byte-
+  /// identical to the legacy string materializer:
+  ///   v5 = setvl(n);  v6 = v5 * unroll;
+  ///   for (i = 0; i < n; i += v6) {
+  ///     <slice 0>  setvl(n - i)               load(base+i) -> dequant -> store
+  ///     <slice 1>  setvl((n - i) - vl0)        load(base+i+vl0) -> ... -> store
+  ///     ...
+  ///   }
+  /// Each slice k recomputes the remaining AVL FRESH from (n - i) and subtracts
+  /// the runtime VLs of the prior slices in this iteration; the pointer offset
+  /// for slice k>0 is the running sum of prior slice VLs (one extra pointer add
+  /// per accumulated VL, matching the legacy `v18=base+i; v19=v18+vl0` form).
+  /// The two-slice remaining-VL setvl covers the tail naturally -- there is NO
+  /// separate scalar tail loop (unlike the product-reduce dequant routine).
+  /// The unroll factor is read from the realized scope's `tcrv_rvv.gearbox.unroll`
+  /// attribute (the Gearbox schedule fact); absent or non-positive fails the
+  /// match so the body falls back to the legacy materializer unchanged.
+  mlir::LogicalResult emitStandaloneDequantBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg,
+      mlir::Value vlmax, mlir::Type sizeType, llvm::StringRef setvlCallee,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // Resolve the single load/dequantize/store template ops.
+    tcrvrvv::LoadOp load;
+    tcrvrvv::DequantizeOp dequant;
+    tcrvrvv::StoreOp store;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto l = llvm::dyn_cast<tcrvrvv::LoadOp>(op))
+        load = l;
+      else if (auto d = llvm::dyn_cast<tcrvrvv::DequantizeOp>(op))
+        dequant = d;
+      else if (auto s = llvm::dyn_cast<tcrvrvv::StoreOp>(op))
+        store = s;
+    }
+    if (!load || !dequant || !store)
+      return rewriter.notifyMatchFailure(
+          scope, "standalone dequant body missing load/dequantize/store");
+
+    mlir::Value scale = valueMap.lookup(dequant.getScale());
+    if (!scale)
+      return rewriter.notifyMatchFailure(scope,
+                                         "standalone dequant scale unmapped");
+
+    // The Gearbox unroll factor (schedule fact carried on the realized scope).
+    // The simple two-slice expansion below reproduces the legacy u<unroll> loop;
+    // require it present and >= 1 so an un-scheduled body falls back.
+    int64_t unroll = 0;
+    if (auto u =
+            scope->getAttrOfType<mlir::IntegerAttr>("tcrv_rvv.gearbox.unroll"))
+      unroll = u.getInt();
+    if (unroll < 1)
+      return rewriter.notifyMatchFailure(
+          scope, "standalone dequant body missing positive "
+                 "tcrv_rvv.gearbox.unroll schedule fact");
+
+    // v6 = v5 * unroll (the unrolled loop step). For unroll == 1 the step is
+    // plain vlmax (no literal multiply, matching the un-unrolled single loop).
+    mlir::Value step = vlmax;
+    if (unroll > 1) {
+      mlir::Value unrollLit = rewriter.create<emitc::LiteralOp>(
+          loc, sizeType, llvm::Twine(unroll).str());
+      step = rewriter.create<emitc::MulOp>(loc, sizeType, vlmax, unrollLit);
+    }
+
+    // for (size_t i = 0; i < n; i += step) { <unroll slices> }
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, step,
+                                               /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(forOp.getBody());
+      mlir::Value inductionVar = forOp.getInductionVar();
+
+      // priorVLSum accumulates the runtime VLs of the prior slices in this
+      // iteration: slice 0 sees null (offset 0), slice k>0 sees the sum of
+      // vl0..vl(k-1). For u2 this is exactly vl0, matching the legacy golden.
+      mlir::Value priorVLSum;
+      for (int64_t sliceIndex = 0; sliceIndex < unroll; ++sliceIndex) {
+        // Remaining AVL for this slice: recompute (n - i) FRESH, then subtract
+        // the prior slices' VLs one at a time (the legacy golden subtracts vl0
+        // for the second slice via a dedicated `v16 = v15 - v9`).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+                             preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+                             setvlCallee));
+        mlir::Value remaining =
+            rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+        if (priorVLSum)
+          remaining =
+              rewriter.create<emitc::SubOp>(loc, sizeType, remaining,
+                                            priorVLSum);
+        mlir::Value sliceVL =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                             setvlCallee,
+                                             mlir::ValueRange{remaining})
+                .getResult(0);
+
+        // load(base + i [+ priorVLSum]) -> dequant chain -> store(out + i [+ ...])
+        if (mlir::failed(emitLoad(rewriter, loc, load, valueMap, inductionVar,
+                                  sliceVL, priorVLSum)))
+          return mlir::failure();
+        mlir::Value source = valueMap.lookup(load.getLoaded());
+        if (!source)
+          return rewriter.notifyMatchFailure(
+              scope, "standalone dequant load result unmapped");
+        if (mlir::failed(emitDequantizeChain(rewriter, loc, dequant, source,
+                                             scale, valueMap, sliceVL)))
+          return mlir::failure();
+        if (mlir::failed(emitStore(rewriter, loc, store, valueMap, inductionVar,
+                                   sliceVL, priorVLSum)))
+          return mlir::failure();
+
+        // Accumulate this slice's VL for the NEXT slice's offset/remaining. The
+        // final slice has no successor, so skip the (otherwise dead) add to stay
+        // byte-identical to the legacy golden (no trailing `vl0 + vl1`).
+        if (sliceIndex + 1 < unroll)
+          priorVLSum = priorVLSum ? rewriter.create<emitc::AddOp>(
+                                        loc, sizeType, priorVLSum, sliceVL)
+                                  : sliceVL;
+      }
+    }
+    return mlir::success();
+  }
+
   /// Emit the dequant epilogue once: extract the accumulator's lane-0 scalar
   /// (vmv_x_s), convert to f32, multiply by the runtime scale, then either store
   /// the scalar f32 (the plain dequant), or run the f32 clamp (splat/compare/
@@ -1887,11 +2082,16 @@ private:
   }
 
   /// load(%abi, %vl) -> ptr = base + i; __riscv_vle<sew>_v_<dtype><lmul>(ptr, vl)
+  /// When `extraOffset` is set, a SECOND pointer add is emitted after the
+  /// `base + i` add: ptr2 = ptr + extraOffset (mirroring the legacy unrolled
+  /// `v18 = base + i; v19 = v18 + priorVL` two-add form for the second u2 slice).
+  /// Existing single-slice callers pass the default null and emit one add.
   mlir::LogicalResult
   emitLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
            tcrvrvv::LoadOp load,
            llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-           mlir::Value inductionVar, mlir::Value bodyVL) const {
+           mlir::Value inductionVar, mlir::Value bodyVL,
+           mlir::Value extraOffset = {}) const {
     auto vectorType =
         llvm::dyn_cast<tcrvrvv::VectorType>(load.getLoaded().getType());
     if (!vectorType)
@@ -1918,6 +2118,8 @@ private:
                          load.getTCRVEmitCLowerableSourceRole(), callee));
     mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
                                                     inductionVar);
+    if (extraOffset)
+      ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), ptr, extraOffset);
     mlir::Value loaded =
         rewriter
             .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
@@ -2904,11 +3106,16 @@ private:
   }
 
   /// store(%abi,%val,%vl) -> ptr = base + i; __riscv_vse<sew>_v_<dtype><lmul>(...)
+  /// When `extraOffset` is set, a SECOND pointer add is emitted after the
+  /// `base + i` add: ptr2 = ptr + extraOffset (mirroring the legacy unrolled
+  /// `v23 = base + i; v24 = v23 + priorVL` two-add form for the second u2 slice).
+  /// Existing single-slice callers pass the default null and emit one add.
   mlir::LogicalResult
   emitStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
             tcrvrvv::StoreOp store,
             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-            mlir::Value inductionVar, mlir::Value storeVL) const {
+            mlir::Value inductionVar, mlir::Value storeVL,
+            mlir::Value extraOffset = {}) const {
     auto vectorType =
         llvm::dyn_cast<tcrvrvv::VectorType>(store.getValue().getType());
     if (!vectorType)
@@ -2931,6 +3138,8 @@ private:
                          store.getTCRVEmitCLowerableSourceRole(), callee));
     mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
                                                     inductionVar);
+    if (extraOffset)
+      ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), ptr, extraOffset);
     rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee,
                                          mlir::ValueRange{ptr, value, storeVL});
     return mlir::success();
@@ -3193,16 +3402,36 @@ private:
     if (!bodyHasSelect)
       return rewriter.notifyMatchFailure(
           dequantize, "standalone dequantize (no select) is out of scope");
-    auto resultVecType =
-        llvm::dyn_cast<tcrvrvv::VectorType>(dequantize.getResult().getType());
-    if (!resultVecType || !isFloatVector(resultVecType))
-      return rewriter.notifyMatchFailure(dequantize,
-                                         "dequantize result not f32 vector");
     mlir::Value source = valueMap.lookup(dequantize.getSource());
     mlir::Value scale = valueMap.lookup(dequantize.getScale());
     if (!source || !scale)
       return rewriter.notifyMatchFailure(dequantize,
                                          "dequantize operand unmapped");
+    return emitDequantizeChain(rewriter, loc, dequantize, source, scale,
+                               valueMap, bodyVL);
+  }
+
+  /// The bare vfcvt+vfmul dequant chain shared by the clamp epilogue
+  /// (`emitDequantize`) and the standalone load->dequantize->store body
+  /// (`emitStandaloneDequantBody`):
+  ///   converted = __riscv_vfcvt_f_x_v_<dtype><lmul>(source, vl);
+  ///   result    = __riscv_vfmul_vf_<dtype><lmul>(converted, scale, vl);
+  /// `source`/`scale` are the already-mapped EmitC values; the result vector
+  /// type (f32) drives the intrinsic suffix. Sets valueMap[result] so the
+  /// downstream store lookup resolves. Fails closed (notifyMatchFailure) on a
+  /// non-f32 result or an unconvertible vector type so a malformed body rolls
+  /// back to the legacy materializer unchanged (no mislower).
+  mlir::LogicalResult
+  emitDequantizeChain(mlir::ConversionPatternRewriter &rewriter,
+                      mlir::Location loc, tcrvrvv::DequantizeOp dequantize,
+                      mlir::Value source, mlir::Value scale,
+                      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dequantize.getResult().getType());
+    if (!resultVecType || !isFloatVector(resultVecType))
+      return rewriter.notifyMatchFailure(dequantize,
+                                         "dequantize result not f32 vector");
     mlir::Type vecType = convertVectorTypeToEmitC(resultVecType);
     if (!vecType)
       return rewriter.notifyMatchFailure(dequantize,
