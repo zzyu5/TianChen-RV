@@ -85,7 +85,7 @@ module {
     tcrv.exec.target @parse_only_anchor {arch = "riscv64"}
     tcrv.exec.capability @toolchain_available {id = "generic.toolchain", kind = "toolchain"}
     tcrv.exec.capability @runtime_unavailable {id = "portable.runtime", kind = "runtime-offload", status = "unavailable"}
-    tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", availability = "disabled"}
+    tcrv.exec.capability @linker_disabled {id = "generic.linker", kind = "toolchain", status = "disabled"}
     tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
     tcrv.exec.target @rvv_profile {
       id = "rvv.profile.rv64gcv",
@@ -204,7 +204,7 @@ module {
 
   if (int result = expect(!capabilities.isCapabilityAvailableByID(
                               "generic.linker"),
-                          "availability attribute disabled is unavailable"))
+                          "disabled status is unavailable"))
     return result;
   if (int result = expect(!capabilities.isCapabilityAvailableByID(
                               "runtime.probe"),

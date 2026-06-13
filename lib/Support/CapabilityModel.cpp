@@ -9,12 +9,12 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <optional>
 #include <utility>
 
 namespace tianchenrv::support {
@@ -38,14 +38,12 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
 }
 
 llvm::StringRef getCapabilityStatus(mlir::Operation *op) {
-  if (llvm::StringRef status = getStringAttr(op, "status"); !status.empty())
-    return status;
-  return getStringAttr(op, "availability");
+  return getStringAttr(op, "status");
 }
 
 bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
   return attrName == "sym_name" || attrName == "id" || attrName == "kind" ||
-         attrName == "status" || attrName == "availability" ||
+         attrName == "status" ||
          attrName == kCapabilityProvidersAttrName;
 }
 
@@ -475,12 +473,18 @@ TargetCapabilitySet::availabilityFromStatus(llvm::StringRef status) {
 }
 
 bool TargetCapabilitySet::isUnavailableStatus(llvm::StringRef status) {
-  std::string normalized = status.trim().lower();
-  return llvm::StringSwitch<bool>(normalized)
-      .Case("unavailable", true)
-      .Case("disabled", true)
-      .Case("missing", true)
-      .Default(false);
+  // Availability is driven by the ODS-defined CapabilityStatus enum (the single
+  // source of truth for the closed status value set). Only the typed
+  // `available` keyword is available; the `unavailable`/`disabled`/`missing`
+  // keywords are the distinct unavailable spellings. The capability/target
+  // verifier rejects any unrecognized status, so on those ops this never sees
+  // an unknown value; for any other (legacy/synthetic) caller an unrecognized
+  // status remains non-unavailable, preserving the prior default.
+  std::optional<tcrv::exec::CapabilityStatus> typed =
+      tcrv::exec::symbolizeCapabilityStatus(status.trim());
+  if (!typed)
+    return false;
+  return *typed != tcrv::exec::CapabilityStatus::Available;
 }
 
 llvm::Error TargetCapabilitySet::tryAddCapability(

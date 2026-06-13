@@ -12,6 +12,8 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.h.inc"
 
+#include "TianChenRV/Dialect/Exec/IR/ExecEnums.h.inc"
+
 #define GET_ATTRDEF_CLASSES
 #include "TianChenRV/Dialect/Exec/IR/ExecAttrs.h.inc"
 

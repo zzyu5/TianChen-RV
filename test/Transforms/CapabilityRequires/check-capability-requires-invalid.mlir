@@ -63,7 +63,7 @@ tcrv.exec.kernel @unavailable_fallback attributes {} {
   tcrv.exec.capability @portable_runtime {
     id = "portable.runtime",
     kind = "runtime-offload",
-    availability = "unavailable"
+    status = "unavailable"
   }
   tcrv.exec.variant @available_case_path attributes {
     origin = "portable-plugin",

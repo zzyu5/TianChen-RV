@@ -133,6 +133,30 @@ tcrv.exec.kernel @empty_capability_kind attributes {} {
 
 // -----
 
+// Behavior tightening (Stage-2 Phase-B.2): capability status is a closed,
+// ODS-defined value set; an unknown status keyword is now a verifier error
+// (previously it was silently treated as Available).
+tcrv.exec.kernel @capability_unknown_status attributes {} {
+  // expected-error @+1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got "bogus"}}
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "bogus"}
+}
+
+// -----
+
+// An empty status is likewise rejected (previously silently Available).
+tcrv.exec.kernel @capability_empty_status attributes {} {
+  // expected-error @+1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got ""}}
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = ""}
+}
+
+// -----
+
+// The same closed status set is enforced on capability-provider targets.
+tcrv.exec.target @target_unknown_status {id = "rvv.profile", kind = "profile", status = "bogus", relations = #tcrv.capability_relations<provides = ["rvv"]>}
+// expected-error @-1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got "bogus"}}
+
+// -----
+
 tcrv.exec.kernel @target_profile_missing_kind attributes {} {
   // expected-error @+1 {{requires capability-provider target profiles to specify both non-empty string attributes 'id' and 'kind'}}
   tcrv.exec.target @rvv_profile {id = "rvv.profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}

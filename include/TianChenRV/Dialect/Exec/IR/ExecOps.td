@@ -2,6 +2,7 @@
 #define TIANCHENRV_DIALECT_EXEC_IR_EXECOPS_TD
 
 include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 
@@ -26,6 +27,33 @@ def TCRV_Exec_Dialect : Dialect {
 class TCRVExec_Attr<string name, string attrMnemonic, list<Trait> traits = []>
     : AttrDef<TCRV_Exec_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
+}
+
+// Closed, ODS-defined set of capability/target `status` values. This is the
+// single source of truth for capability status: a capability is available
+// only when its status is exactly `available`; `unavailable`/`disabled`/
+// `missing` are the distinct unavailable spellings. The status attribute keeps
+// its quoted StringAttr textual form (status = "available"), so the IR text and
+// the C++ diagnostics that round-trip the raw spelling are unchanged; the enum
+// supplies the typed, closed value set and the canonical availability mapping.
+// `genSpecializedAttr = 0` emits only the C++ enum plus symbolize/stringify
+// converters (no attribute storage class), so the attribute remains a plain
+// StringAttr in the IR while becoming typed/closed in C++.
+def TCRVExec_CapabilityStatusAvailable
+    : I32EnumAttrCase<"Available", 0, "available">;
+def TCRVExec_CapabilityStatusUnavailable
+    : I32EnumAttrCase<"Unavailable", 1, "unavailable">;
+def TCRVExec_CapabilityStatusDisabled
+    : I32EnumAttrCase<"Disabled", 2, "disabled">;
+def TCRVExec_CapabilityStatusMissing
+    : I32EnumAttrCase<"Missing", 3, "missing">;
+
+def TCRVExec_CapabilityStatus : I32EnumAttr<
+    "CapabilityStatus", "closed capability/target availability status",
+    [TCRVExec_CapabilityStatusAvailable, TCRVExec_CapabilityStatusUnavailable,
+     TCRVExec_CapabilityStatusDisabled, TCRVExec_CapabilityStatusMissing]> {
+  let cppNamespace = "::tianchenrv::tcrv::exec";
+  let genSpecializedAttr = 0;
 }
 
 def TCRVExec_CapabilityRelationsAttr

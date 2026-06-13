@@ -22,6 +22,8 @@ namespace exec = tianchenrv::tcrv::exec;
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
 
+#include "TianChenRV/Dialect/Exec/IR/ExecEnums.cpp.inc"
+
 #define GET_ATTRDEF_CLASSES
 #include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
 
@@ -85,6 +87,26 @@ using diagnostic::kTargetAttrName;
 bool isMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return !attr || attr.getValue().trim().empty();
+}
+
+// Enforce the closed, ODS-defined capability `status` value set on
+// capability/target ops. When present, the status must be one of the typed
+// CapabilityStatus keywords (available/unavailable/disabled/missing). This
+// tightens the prior behavior where any unknown or empty status was silently
+// treated as Available: such a status is now a verifier error.
+mlir::LogicalResult requireTypedCapabilityStatusWhenPresent(
+    mlir::Operation *op) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (!attr)
+    return mlir::success();
+  if (exec::symbolizeCapabilityStatus(attr.getValue()))
+    return mlir::success();
+  return op->emitOpError()
+         << "requires attribute '" << kStatusAttrName
+         << "' to be one of the typed capability status values "
+            "\"available\", \"unavailable\", \"disabled\", or \"missing\"; got "
+            "\""
+         << attr.getValue() << "\"";
 }
 
 bool isPresentButEmptyStringAttr(mlir::Operation *op,
@@ -580,6 +602,9 @@ mlir::LogicalResult TargetOp::verify() {
                                                       kKindAttrName)))
     return mlir::failure();
 
+  if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
+    return mlir::failure();
+
   if (getOperation()->hasAttr(kCapabilityProvidersAttrName)) {
     if (!exec::isCapabilityProviderTarget(*this))
       return emitOpError()
@@ -605,6 +630,9 @@ mlir::LogicalResult CapabilityOp::verify() {
   if (isMissingOrEmptyStringAttr(getOperation(), kKindAttrName))
     return emitOpError()
            << "requires non-empty string attribute '" << kKindAttrName << "'";
+
+  if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
+    return mlir::failure();
 
   return mlir::success();
 }
