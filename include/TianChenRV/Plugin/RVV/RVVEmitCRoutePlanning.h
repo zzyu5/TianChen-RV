@@ -1530,25 +1530,13 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
-struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
-  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
-      nullptr;
-  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
-      *computedMaskMemoryPlan = nullptr;
-
-  bool plansSegment2MemoryRoute = false;
-  bool plansPlainSegment2DeinterleaveUnitStore = false;
-  bool plansPlainSegment2InterleaveUnitLoad = false;
-  bool plansComputedMaskSegment2LoadUnitStore = false;
-  bool plansRuntimeScalarComputedMaskSegment2LoadUnitStore = false;
-  bool plansComputedMaskSegment2StoreUnitLoad = false;
-  bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
-  bool plansComputedMaskSegment2UpdateUnitLoad = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
+// RVVSelectedBodySegment2MemoryRouteStatementPlan retired (Stage 3 换心): the
+// Segment2 memory string statement-plan struct is deleted together with its
+// owner builder + the whole RVVEmitCMemoryStatementPlanOwners.cpp helper file —
+// the family converts through the real DialectConversion (RVVToEmitC.cpp). The
+// route-family provider plan RVVSelectedBodySegment2RouteFamilyProviderPlan below
+// stays as the description/provider source of truth shared with the route
+// provider.
 
 struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =

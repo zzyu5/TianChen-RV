@@ -273,30 +273,21 @@ bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
 // RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp) stays as the
 // description/provider source of truth.
 
-bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
-  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskSegment2LoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
-  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
-  default:
-    return false;
-  }
-}
+// isRVVSelectedBodySegment2MemoryStatementPlanConsumer retired (Stage 3 换心):
+// the Segment2 memory family (plain interleave/deinterleave + computed-mask /
+// runtime-scalar-cmp masked segment2 load/store/update over tuple types) now
+// converts through the real DialectConversion (RVVToEmitC.cpp) — the tuple
+// TypeConverter-free vint32m1x2_t emission, vlseg2/vsseg2, vcreate/vget, and the
+// masked _tumu/_m forms are byte-identical to the legacy string-plan oracle (all
+// 7 segment2 fixtures diff-clean). The shared gate
+// rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so no segment2
+// body ever reaches this string statement-plan dispatch. Its dispatch consumer
+// predicate + owner builder + the whole RVVEmitCMemoryStatementPlanOwners.cpp
+// helper file are deleted. The route-family planning consumer
+// (isRVVSelectedBodySegment2RouteFamilyPlanningConsumer) +
+// getRVVSelectedBodySegment2RouteFamilyProviderPlan +
+// verifyRVVSelectedBodySegment2MemoryRouteProviderFacts stay as the
+// description/provider source of truth shared with the route provider.
 
 bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -358,10 +349,18 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
       // verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts) stays as the
       // description/provider source of truth shared with the route provider; the
       // gather-MAcc-scatter compound is still owned by the segment/MAcc paths.
-      {"segment2 memory",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::Segment2Memory,
-       isRVVSelectedBodySegment2MemoryStatementPlanConsumer,
-       buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan},
+      // Segment2Memory retired (Stage 3 换心): the whole Segment2 family (plain
+      // interleave/deinterleave + computed-mask / runtime-scalar-cmp masked
+      // segment2 load/store/update over the vint32m1x2_t tuple) converts through
+      // the real DialectConversion (RVVToEmitC.cpp) and the shared gate
+      // rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so no
+      // segment2 body ever reaches this string statement-plan dispatch. The
+      // owner builder + this dispatch entry + the consumer predicate + the whole
+      // RVVEmitCMemoryStatementPlanOwners.cpp helper file are deleted. The
+      // route-family provider machine
+      // (getRVVSelectedBodySegment2RouteFamilyProviderPlan,
+      // verifyRVVSelectedBodySegment2MemoryRouteProviderFacts) stays as the
+      // description/provider source of truth shared with the route provider.
       {"computed-mask accumulation",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::
            ComputedMaskAccumulation,

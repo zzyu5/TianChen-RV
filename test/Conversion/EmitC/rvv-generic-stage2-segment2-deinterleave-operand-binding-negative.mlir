@@ -1,4 +1,23 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+
+// Stage 3 换心 re-target: this section used to assert the legacy string-route
+// runtime-ABI-name contract — "RVV selected-body runtime ABI contract invalid;
+// expected src, out0, out1, n for the bounded int32_t segment2 deinterleave
+// route" — a c_name convention check. With the Segment2 string-plan owner
+// retired, the real RVV->emitc DialectConversion lowers the actual typed
+// dataflow: it binds the interleaved source segment2_load, the two field
+// move/vget extracts, and the two unit-stride field stores by SSA Value and ABI
+// ROLE (lhs-input-buffer is the interleaved source; the two
+// segment-field{0,1}-output-buffer roles are the deinterleaved destinations),
+// not by the ABI c_name spelling. The c_names here are deliberately swapped (the
+// interleaved source buffer is spelled "out0", the first destination "src"), but
+// the typed body is well-formed: the source is segment-loaded into one tuple,
+// the two fields are extracted with __riscv_vget_v_i32m1x2_i32m1, and each lands
+// in its output-role buffer with a unit-stride store. The rendered parameters
+// are positional, so the swap is cosmetic and the body MATERIALIZES,
+// byte-identical to the well-named segment2 deinterleave route, rather than
+// hitting the deleted legacy c_name contract check (I5: executable facts come
+// from the typed body, not ABI strings).
 
 module {
   tcrv.exec.kernel @rvv_segment2_deinterleave_reject_source_output_name_swap {
@@ -20,5 +39,9 @@ module {
   }
 }
 
-// CHECK: RVV selected-body runtime ABI contract invalid
-// CHECK-SAME: src, out0, out1, n for the bounded int32_t segment2 deinterleave route
+// CHECK: emitc.func @tcrv_emitc_rvv_segment2_deinterleave_reject_source_output_name_swap_rvv_segment2_deinterleave_swapped_names
+// CHECK: callee=__riscv_vlseg2e32_v_i32m1x2
+// CHECK: callee=__riscv_vget_v_i32m1x2_i32m1
+// CHECK: callee=__riscv_vget_v_i32m1x2_i32m1
+// CHECK: callee=__riscv_vse32_v_i32m1
+// CHECK: callee=__riscv_vse32_v_i32m1

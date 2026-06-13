@@ -86,8 +86,11 @@ bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
 // isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer retired (Stage 3
 // 换心): the computed-mask memory string statement-plan owner is deleted (the
 // whole family converts through the real DialectConversion).
-bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
+// isRVVSelectedBodySegment2MemoryStatementPlanConsumer retired (Stage 3 换心):
+// the Segment2 memory string statement-plan owner is deleted (the whole family,
+// over the vint32m1x2_t tuple, converts through the real DialectConversion). The
+// route-family planning consumer isRVVSelectedBodySegment2RouteFamilyPlanningConsumer
+// stays as the description/provider source of truth.
 bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
@@ -174,13 +177,12 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
 // verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts in the route-family
 // provider).
 
-llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
-getRVVSelectedBodySegment2MemoryRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
+// getRVVSelectedBodySegment2MemoryRouteStatementPlan retired (Stage 3 换心): the
+// Segment2 memory string statement-plan owner is deleted — the whole family (over
+// the vint32m1x2_t tuple) converts through the real DialectConversion. The
+// route-family provider plan getRVVSelectedBodySegment2RouteFamilyProviderPlan +
+// verifyRVVSelectedBodySegment2MemoryRouteProviderFacts stay as the
+// description/provider source of truth in the route-family provider.
 
 llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
 getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
@@ -281,17 +283,12 @@ buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan(
 // shared gate decouples every valid body, so the migrated string-plan dispatch
 // is never reached.
 
-llvm::Error buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+// buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan retired (Stage 3
+// 换心): the Segment2 memory string statement-plan owner builder + the whole
+// RVVEmitCMemoryStatementPlanOwners.cpp helper file are deleted — the family
+// (over the vint32m1x2_t tuple) converts through the real DialectConversion and
+// the shared gate decouples every valid body, so the migrated string-plan
+// dispatch is never reached.
 
 llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
 getRVVSelectedBodyMigratedRouteStatementPlanOwners();

@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv {
 namespace transforms {
@@ -304,6 +305,122 @@ std::string riscvMaskedIndexedStoreIntrinsicName(unsigned indexEEW,
   std::string name;
   llvm::raw_string_ostream os(name);
   os << "__riscv_vsoxei" << indexEEW << "_v_" << dtype << lmul << "_m";
+  os.flush();
+  return name;
+}
+
+//===----------------------------------------------------------------------===//
+// Segment2 (interleaved 2-field) intrinsic + tuple-type name manglers. The
+// segment2 memory family carries a TUPLE C type (`vint<sew>m<lmul>x2_t`) that
+// the field vectors are packed into (interleave/store) and extracted from
+// (deinterleave/load). The tuple type and segment intrinsics are byte-identical
+// to the legacy segment2 string-plan oracle:
+//   tuple type:        vint<sew>m<lmul>x2_t        (e.g. vint32m1x2_t)
+//   tuple create:      __riscv_vcreate_v_<dtype><lmul>x2(f0, f1)
+//   field extract:     __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, idx)
+//   segment load:      __riscv_vlseg2e<sew>_v_<dtype><lmul>x2(ptr, vl)
+//   segment store:     __riscv_vsseg2e<sew>_v_<dtype><lmul>x2(ptr, tuple, vl)
+//   masked seg load:   __riscv_vlseg2e<sew>_v_<dtype><lmul>x2_tumu(mask, pass, ptr, vl)
+//   masked seg store:  __riscv_vsseg2e<sew>_v_<dtype><lmul>x2_m(mask, ptr, tuple, vl)
+//===----------------------------------------------------------------------===//
+
+/// The segment2 tuple C type spelling: `vint<sew>m<lmul>x2_t` (the bounded i32
+/// slice -> vint32m1x2_t). Only the signed-integer grid the slice uses is
+/// named; an element the converter cannot name returns "" so the caller fails
+/// the match and the body falls back.
+std::string riscvSegment2TupleCType(unsigned sew, llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "vint" << sew << lmul << "x2_t";
+  os.flush();
+  return name;
+}
+
+/// The segment2 tuple-create intrinsic name:
+///   __riscv_vcreate_v_<dtype><lmul>x2
+/// Packs the two field vectors into one segment2 tuple value (the
+/// interleave/store and masked-store/load passthrough path). Byte-identical to
+/// the legacy segment2 oracle (`__riscv_vcreate_v_i32m1x2`).
+std::string riscvSegment2TupleCreateIntrinsicName(llvm::StringRef dtype,
+                                                  llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vcreate_v_" << dtype << lmul << "x2";
+  os.flush();
+  return name;
+}
+
+/// The segment2 field-extract intrinsic name:
+///   __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>
+/// Extracts one field vector (index 0 or 1) from a segment2 tuple value (the
+/// deinterleave/load path). Byte-identical to the legacy segment2 oracle
+/// (`__riscv_vget_v_i32m1x2_i32m1`).
+std::string riscvSegment2FieldExtractIntrinsicName(llvm::StringRef dtype,
+                                                   llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vget_v_" << dtype << lmul << "x2_" << dtype << lmul;
+  os.flush();
+  return name;
+}
+
+/// The segment2 unit-stride interleaved load intrinsic name:
+///   __riscv_vlseg2e<sew>_v_<dtype><lmul>x2
+/// Loads the two interleaved fields from the interleaved source into one
+/// segment2 tuple value. Byte-identical to the legacy segment2 oracle
+/// (`__riscv_vlseg2e32_v_i32m1x2`). Call order is (ptr, vl).
+std::string riscvSegment2LoadIntrinsicName(unsigned sew, llvm::StringRef lmul,
+                                           llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vlseg2e" << sew << "_v_" << dtype << lmul << "x2";
+  os.flush();
+  return name;
+}
+
+/// The segment2 unit-stride interleaved store intrinsic name:
+///   __riscv_vsseg2e<sew>_v_<dtype><lmul>x2
+/// Stores one segment2 tuple value into the interleaved destination.
+/// Byte-identical to the legacy segment2 oracle
+/// (`__riscv_vsseg2e32_v_i32m1x2`). Call order is (ptr, tuple, vl).
+std::string riscvSegment2StoreIntrinsicName(unsigned sew, llvm::StringRef lmul,
+                                            llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vsseg2e" << sew << "_v_" << dtype << lmul << "x2";
+  os.flush();
+  return name;
+}
+
+/// The masked segment2 interleaved load intrinsic name:
+///   __riscv_vlseg2e<sew>_v_<dtype><lmul>x2_tumu
+/// The masked segment2 load reads the two interleaved fields but only writes
+/// active (mask-true) lanes; inactive/tail lanes keep the passthrough tuple via
+/// the _tumu policy form -- byte-identical to the legacy computed-mask segment2
+/// load oracle (`__riscv_vlseg2e32_v_i32m1x2_tumu`). Call order is
+/// (mask, passthrough_tuple, ptr, vl).
+std::string riscvMaskedSegment2LoadIntrinsicName(unsigned sew,
+                                                 llvm::StringRef lmul,
+                                                 llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vlseg2e" << sew << "_v_" << dtype << lmul << "x2_tumu";
+  os.flush();
+  return name;
+}
+
+/// The masked segment2 interleaved store intrinsic name:
+///   __riscv_vsseg2e<sew>_v_<dtype><lmul>x2_m
+/// The masked segment2 store writes only active (mask-true) lanes; inactive/tail
+/// lanes keep their interleaved memory contents -- byte-identical to the legacy
+/// computed-mask segment2 store oracle (`__riscv_vsseg2e32_v_i32m1x2_m`). Call
+/// order is (mask, ptr, tuple, vl).
+std::string riscvMaskedSegment2StoreIntrinsicName(unsigned sew,
+                                                  llvm::StringRef lmul,
+                                                  llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vsseg2e" << sew << "_v_" << dtype << lmul << "x2_m";
   os.flush();
   return name;
 }
@@ -616,6 +733,12 @@ public:
     for (auto [index, param] : llvm::enumerate(params))
       valueMap[param.op.getResult()] = entry->getArgument(index);
 
+    // segment2 deinterleave: maps a segment2_load field result SSA value to the
+    // (loaded tuple value, field index). The downstream tcrv_rvv.move that
+    // sources the field emits the __riscv_vget extract from this tuple.
+    llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
+        segmentFieldMap;
+
     rewriter.setInsertionPointToStart(entry);
 
     // Vector/VL/AVL config facts from the typed scope and types.
@@ -780,7 +903,31 @@ public:
                                                  bodyVL)))
             return mlir::failure();
         } else if (auto move = llvm::dyn_cast<tcrvrvv::MoveOp>(op)) {
-          if (mlir::failed(emitMove(rewriter, loc, move, valueMap)))
+          if (mlir::failed(
+                  emitMove(rewriter, loc, move, valueMap, segmentFieldMap)))
+            return mlir::failure();
+        } else if (auto segLoad =
+                       llvm::dyn_cast<tcrvrvv::Segment2LoadOp>(op)) {
+          if (mlir::failed(emitSegment2Load(rewriter, loc, segLoad, valueMap,
+                                            segmentFieldMap, inductionVar,
+                                            bodyVL)))
+            return mlir::failure();
+        } else if (auto segStore =
+                       llvm::dyn_cast<tcrvrvv::Segment2StoreOp>(op)) {
+          if (mlir::failed(emitSegment2Store(rewriter, loc, segStore, valueMap,
+                                             inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedSegLoad =
+                       llvm::dyn_cast<tcrvrvv::MaskedSegment2LoadOp>(op)) {
+          if (mlir::failed(emitMaskedSegment2Load(rewriter, loc, maskedSegLoad,
+                                                  valueMap, inductionVar,
+                                                  bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedSegStore =
+                       llvm::dyn_cast<tcrvrvv::MaskedSegment2StoreOp>(op)) {
+          if (mlir::failed(emitMaskedSegment2Store(rewriter, loc,
+                                                   maskedSegStore, valueMap,
+                                                   inductionVar, bodyVL)))
             return mlir::failure();
         } else if (auto compare = llvm::dyn_cast<tcrvrvv::CompareOp>(op)) {
           if (mlir::failed(emitCompare(rewriter, loc, compare, valueMap,
@@ -1899,18 +2046,430 @@ private:
     return mlir::success();
   }
 
-  /// move{copy}(%src,%vl) -> passthrough. The base-memory movement family marks
-  /// the loaded vector as the store value with a no-op copy move (structural
-  /// body authority). The copy carries no compute, so it maps the result SSA
-  /// value to the same emitc Value -- the legacy oracle emits NO call for it.
+  /// Resolve the segment2 field-vector (sew, lmul, dtype) facts plus the tuple C
+  /// type and per-field emitc vector type. Returns false (the caller fails the
+  /// match) for any element/lmul outside the named grid so a non-i32 / non-{m1}
+  /// segment2 body falls back unconverted rather than being mislowered.
+  struct Segment2Facts {
+    unsigned sew = 0;
+    llvm::StringRef lmul;
+    llvm::StringRef dtype;
+    mlir::Type fieldVecType;
+    mlir::Type tupleType;
+  };
+  bool resolveSegment2Facts(mlir::ConversionPatternRewriter &rewriter,
+                            tcrvrvv::VectorType fieldType,
+                            Segment2Facts &out) const {
+    // Only the signed-integer field grid is in scope for the bounded segment2
+    // slice (the tuple type spelling is vint<sew>m<lmul>x2_t). A float field
+    // would need a different tuple/intrinsic family.
+    if (isFloatVector(fieldType))
+      return false;
+    out.sew = vectorElementWidth(fieldType);
+    out.lmul = fieldType.getLmul();
+    out.dtype = vectorDType(fieldType);
+    if (out.dtype.empty() || out.sew == 0)
+      return false;
+    // The per-field vector type must lower through the bounded converter grid;
+    // reject otherwise so a non-beachhead (sew, lmul) falls back.
+    out.fieldVecType = convertVectorTypeToEmitC(fieldType);
+    if (!out.fieldVecType)
+      return false;
+    out.tupleType = emitc::OpaqueType::get(
+        rewriter.getContext(), riscvSegment2TupleCType(out.sew, out.lmul));
+    return true;
+  }
+
+  /// The interleaved segment2 base pointer: `base + (i * 2)`. The interleaved
+  /// memory holds the two fields adjacent per element, so the segment base
+  /// advances by 2*chunk -- byte-identical to the legacy segment2 oracle
+  /// (`size_t off = i * 2; ptr = base + off`).
+  mlir::Value emitSegment2InterleavedPointer(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value base, mlir::Value inductionVar) const {
+    mlir::Value two = rewriter.create<emitc::LiteralOp>(
+        loc, inductionVar.getType(), "2");
+    mlir::Value off = rewriter.create<emitc::MulOp>(
+        loc, inductionVar.getType(), inductionVar, two);
+    return rewriter.create<emitc::AddOp>(loc, base.getType(), base, off);
+  }
+
+  /// segment2_load(%src,%vl) -> field0, field1. The interleaved deinterleave
+  /// load reads one segment2 tuple from the interleaved source, then the two
+  /// tcrv_rvv.move ops extract the fields (emitSegment2FieldExtract via
+  /// emitMove). Here we emit ONLY the tuple load and record (tuple, index) for
+  /// each field result so the move-sourced vget can resolve it:
+  ///   ptr = src + (i * 2);
+  ///   vint<sew>m<lmul>x2_t tuple = __riscv_vlseg2e<sew>_v_<dtype><lmul>x2(ptr, vl)
+  mlir::LogicalResult emitSegment2Load(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::Segment2LoadOp segLoad,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
+          &segmentFieldMap,
+      mlir::Value inductionVar, mlir::Value bodyVL) const {
+    if (segLoad.getSegmentCount() != 2)
+      return rewriter.notifyMatchFailure(segLoad,
+                                         "only segment_count = 2 is in scope");
+    if (segLoad.getSourceMemoryForm() != "segment2-interleaved-unit-stride-load")
+      return rewriter.notifyMatchFailure(
+          segLoad, "segment2_load source memory form outside the slice");
+    auto field0Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segLoad.getField0().getType());
+    auto field1Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segLoad.getField1().getType());
+    if (!field0Type || !field1Type || field0Type != field1Type)
+      return rewriter.notifyMatchFailure(
+          segLoad, "segment2_load fields must be matching typed vectors");
+    Segment2Facts facts;
+    if (!resolveSegment2Facts(rewriter, field0Type, facts))
+      return rewriter.notifyMatchFailure(
+          segLoad, "segment2_load field vector type not convertible");
+    mlir::Value base = valueMap.lookup(segLoad.getSource());
+    if (!base)
+      return rewriter.notifyMatchFailure(segLoad,
+                                         "segment2_load source not an ABI param");
+    if (!bufferPointeeMatchesVectorElement(base, field0Type))
+      return rewriter.notifyMatchFailure(
+          segLoad, "segment2_load source C type disagrees with field element");
+
+    std::string callee =
+        riscvSegment2LoadIntrinsicName(facts.sew, facts.lmul, facts.dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
+                         segLoad.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value ptr =
+        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+    mlir::Value tuple =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
+                                         callee, mlir::ValueRange{ptr, bodyVL})
+            .getResult(0);
+    // The two move ops sourced from these field results emit the vget extracts.
+    segmentFieldMap[segLoad.getField0()] = {tuple, 0};
+    segmentFieldMap[segLoad.getField1()] = {tuple, 1};
+    return mlir::success();
+  }
+
+  /// segment2_store(%dst,%field0,%field1,%vl). The interleave store packs the
+  /// two field vectors into one tuple, then stores it to the interleaved
+  /// destination (TWO emitted steps, byte-identical to the legacy oracle):
+  ///   vint<sew>m<lmul>x2_t tuple = __riscv_vcreate_v_<dtype><lmul>x2(f0, f1);
+  ///   ptr = dst + (i * 2);
+  ///   __riscv_vsseg2e<sew>_v_<dtype><lmul>x2(ptr, tuple, vl)
+  mlir::LogicalResult
+  emitSegment2Store(mlir::ConversionPatternRewriter &rewriter,
+                    mlir::Location loc, tcrvrvv::Segment2StoreOp segStore,
+                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                    mlir::Value inductionVar, mlir::Value bodyVL) const {
+    if (segStore.getSegmentCount() != 2)
+      return rewriter.notifyMatchFailure(segStore,
+                                         "only segment_count = 2 is in scope");
+    if (segStore.getDestinationMemoryForm() !=
+        "segment2-interleaved-unit-stride-store")
+      return rewriter.notifyMatchFailure(
+          segStore, "segment2_store destination memory form outside the slice");
+    auto field0Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segStore.getField0().getType());
+    auto field1Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segStore.getField1().getType());
+    if (!field0Type || !field1Type || field0Type != field1Type)
+      return rewriter.notifyMatchFailure(
+          segStore, "segment2_store fields must be matching typed vectors");
+    Segment2Facts facts;
+    if (!resolveSegment2Facts(rewriter, field0Type, facts))
+      return rewriter.notifyMatchFailure(
+          segStore, "segment2_store field vector type not convertible");
+    mlir::Value base = valueMap.lookup(segStore.getDestination());
+    mlir::Value field0 = valueMap.lookup(segStore.getField0());
+    mlir::Value field1 = valueMap.lookup(segStore.getField1());
+    if (!base || !field0 || !field1)
+      return rewriter.notifyMatchFailure(segStore,
+                                         "segment2_store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, field0Type))
+      return rewriter.notifyMatchFailure(
+          segStore, "segment2_store dst C type disagrees with field element");
+    // Field-binding guard: the interleave field0/field1 operands must bind the
+    // field0/field1 input loads (structural authority via the load buffer role).
+    // A body that swaps them (segment2_store %dst, %field1, %field0) is the
+    // operand-binding negative the legacy provider rejects -- fall back so it is
+    // not silently mislowered.
+    if (!fieldVectorBindsLoadRole(segStore.getField0(),
+                                  segStore.getField0Role()) ||
+        !fieldVectorBindsLoadRole(segStore.getField1(),
+                                  segStore.getField1Role()))
+      return rewriter.notifyMatchFailure(
+          segStore, "segment2_store must consume matching field0/field1 load "
+                    "results bound to the field0/field1 input roles");
+
+    // Step 1: pack the two fields into one tuple.
+    std::string createCallee =
+        riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
+                         segStore.getTCRVEmitCLowerableSourceRole(),
+                         createCallee));
+    mlir::Value tuple =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
+                                         createCallee,
+                                         mlir::ValueRange{field0, field1})
+            .getResult(0);
+
+    // Step 2: store the tuple to the interleaved destination.
+    std::string storeCallee =
+        riscvSegment2StoreIntrinsicName(facts.sew, facts.lmul, facts.dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
+                         segStore.getTCRVEmitCLowerableSourceRole(),
+                         storeCallee));
+    mlir::Value ptr =
+        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, storeCallee,
+                                         mlir::ValueRange{ptr, tuple, bodyVL});
+    return mlir::success();
+  }
+
+  /// masked_segment2_load(%src,%mask,%pass0,%pass1,%vl) -> field0, field1. The
+  /// computed-mask segment2 load packs the two old-destination passthroughs into
+  /// a tuple, masked-loads the interleaved source into a result tuple, then
+  /// extracts the two fields (FOUR emitted steps, byte-identical to the legacy
+  /// computed-mask segment2 load oracle):
+  ///   pass = __riscv_vcreate_v_<dtype><lmul>x2(old0, old1);
+  ///   ptr = src + (i * 2);
+  ///   tuple = __riscv_vlseg2e<sew>_v_<dtype><lmul>x2_tumu(mask, pass, ptr, vl);
+  ///   field0 = __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, 0);
+  ///   field1 = __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, 1)
+  /// The mask MUST come from a compare in the same scope (the computed-mask
+  /// family authority); refuse any other producer so a malformed body falls
+  /// back to the legacy validator.
+  mlir::LogicalResult emitMaskedSegment2Load(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedSegment2LoadOp segLoad,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value inductionVar, mlir::Value bodyVL) const {
+    if (segLoad.getSegmentCount() != 2)
+      return rewriter.notifyMatchFailure(segLoad,
+                                         "only segment_count = 2 is in scope");
+    if (segLoad.getSourceMemoryForm() !=
+            "segment2-interleaved-unit-stride-load" ||
+        segLoad.getInactiveLanePolicy() !=
+            "preserve-passthrough-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          segLoad, "masked_segment2_load form/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(segLoad.getMask()))
+      return rewriter.notifyMatchFailure(
+          segLoad, "masked_segment2_load mask must come from a compare in the "
+                   "same scope");
+    auto field0Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segLoad.getField0().getType());
+    auto field1Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segLoad.getField1().getType());
+    if (!field0Type || !field1Type || field0Type != field1Type)
+      return rewriter.notifyMatchFailure(
+          segLoad, "masked_segment2_load fields must be matching typed vectors");
+    Segment2Facts facts;
+    if (!resolveSegment2Facts(rewriter, field0Type, facts))
+      return rewriter.notifyMatchFailure(
+          segLoad, "masked_segment2_load field vector type not convertible");
+    mlir::Value base = valueMap.lookup(segLoad.getSource());
+    mlir::Value mask = valueMap.lookup(segLoad.getMask());
+    mlir::Value pass0 = valueMap.lookup(segLoad.getPassthrough0());
+    mlir::Value pass1 = valueMap.lookup(segLoad.getPassthrough1());
+    if (!base || !mask || !pass0 || !pass1)
+      return rewriter.notifyMatchFailure(segLoad,
+                                         "masked_segment2_load operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, field0Type))
+      return rewriter.notifyMatchFailure(
+          segLoad, "masked_segment2_load src C type disagrees with field "
+                   "element");
+
+    // Step 1: pack the two passthroughs into the passthrough tuple.
+    std::string createCallee =
+        riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
+                         segLoad.getTCRVEmitCLowerableSourceRole(),
+                         createCallee));
+    mlir::Value passTuple =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
+                                         createCallee,
+                                         mlir::ValueRange{pass0, pass1})
+            .getResult(0);
+
+    // Step 2: masked tuple load from the interleaved source.
+    std::string loadCallee =
+        riscvMaskedSegment2LoadIntrinsicName(facts.sew, facts.lmul, facts.dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
+                         segLoad.getTCRVEmitCLowerableSourceRole(), loadCallee));
+    mlir::Value ptr =
+        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+    mlir::Value tuple =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{facts.tupleType}, loadCallee,
+                mlir::ValueRange{mask, passTuple, ptr, bodyVL})
+            .getResult(0);
+
+    // Steps 3 & 4: extract the two field vectors.
+    std::string getCallee =
+        riscvSegment2FieldExtractIntrinsicName(facts.dtype, facts.lmul);
+    mlir::Value field0 = emitSegment2FieldExtract(
+        rewriter, loc, segLoad.getTCRVEmitCLowerableSourceOpName(),
+        segLoad.getTCRVEmitCLowerableSourceRole(), getCallee, tuple,
+        facts.fieldVecType, 0);
+    mlir::Value field1 = emitSegment2FieldExtract(
+        rewriter, loc, segLoad.getTCRVEmitCLowerableSourceOpName(),
+        segLoad.getTCRVEmitCLowerableSourceRole(), getCallee, tuple,
+        facts.fieldVecType, 1);
+    valueMap[segLoad.getField0()] = field0;
+    valueMap[segLoad.getField1()] = field1;
+    return mlir::success();
+  }
+
+  /// masked_segment2_store(%dst,%mask,%field0,%field1,%vl). The computed-mask
+  /// segment2 store packs the two payload fields into a tuple, then
+  /// masked-stores it to the interleaved destination (TWO emitted steps,
+  /// byte-identical to the legacy computed-mask segment2 store oracle):
+  ///   tuple = __riscv_vcreate_v_<dtype><lmul>x2(f0, f1);
+  ///   ptr = dst + (i * 2);
+  ///   __riscv_vsseg2e<sew>_v_<dtype><lmul>x2_m(mask, ptr, tuple, vl)
+  /// The mask MUST come from a compare in the same scope; refuse otherwise.
+  mlir::LogicalResult emitMaskedSegment2Store(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedSegment2StoreOp segStore,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value inductionVar, mlir::Value bodyVL) const {
+    if (segStore.getSegmentCount() != 2)
+      return rewriter.notifyMatchFailure(segStore,
+                                         "only segment_count = 2 is in scope");
+    if (segStore.getDestinationMemoryForm() !=
+            "segment2-interleaved-unit-stride-store" ||
+        segStore.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          segStore, "masked_segment2_store form/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(segStore.getMask()))
+      return rewriter.notifyMatchFailure(
+          segStore, "masked_segment2_store mask must come from a compare in the "
+                    "same scope");
+    auto field0Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segStore.getField0().getType());
+    auto field1Type =
+        llvm::dyn_cast<tcrvrvv::VectorType>(segStore.getField1().getType());
+    if (!field0Type || !field1Type || field0Type != field1Type)
+      return rewriter.notifyMatchFailure(
+          segStore,
+          "masked_segment2_store fields must be matching typed vectors");
+    Segment2Facts facts;
+    if (!resolveSegment2Facts(rewriter, field0Type, facts))
+      return rewriter.notifyMatchFailure(
+          segStore, "masked_segment2_store field vector type not convertible");
+    mlir::Value base = valueMap.lookup(segStore.getDestination());
+    mlir::Value mask = valueMap.lookup(segStore.getMask());
+    mlir::Value field0 = valueMap.lookup(segStore.getField0());
+    mlir::Value field1 = valueMap.lookup(segStore.getField1());
+    if (!base || !mask || !field0 || !field1)
+      return rewriter.notifyMatchFailure(segStore,
+                                         "masked_segment2_store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, field0Type))
+      return rewriter.notifyMatchFailure(
+          segStore, "masked_segment2_store dst C type disagrees with field "
+                    "element");
+
+    // Step 1: pack the two payload fields into one tuple.
+    std::string createCallee =
+        riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
+                         segStore.getTCRVEmitCLowerableSourceRole(),
+                         createCallee));
+    mlir::Value tuple =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
+                                         createCallee,
+                                         mlir::ValueRange{field0, field1})
+            .getResult(0);
+
+    // Step 2: masked tuple store to the interleaved destination.
+    std::string storeCallee =
+        riscvMaskedSegment2StoreIntrinsicName(facts.sew, facts.lmul,
+                                              facts.dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
+                         segStore.getTCRVEmitCLowerableSourceRole(),
+                         storeCallee));
+    mlir::Value ptr =
+        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, storeCallee,
+        mlir::ValueRange{mask, ptr, tuple, bodyVL});
+    return mlir::success();
+  }
+
+  /// Emit one __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, idx) field
+  /// extract, with the step provenance comment carrying the (op name, role) of
+  /// the segment op that owns the extract.
+  mlir::Value emitSegment2FieldExtract(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef callee,
+      mlir::Value tuple, mlir::Type fieldVecType, unsigned index) const {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+    mlir::Value indexLiteral = rewriter.create<emitc::LiteralOp>(
+        loc, rewriter.getIndexType(), llvm::Twine(index).str());
+    return rewriter
+        .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{fieldVecType}, callee,
+                                     mlir::ValueRange{tuple, indexLiteral})
+        .getResult(0);
+  }
+
+  /// move{copy}(%src,%vl) -> passthrough OR segment2 field extract. Two shapes:
+  ///
+  ///  (a) base-memory movement family: the loaded vector is marked as the store
+  ///      value with a no-op copy move (structural body authority). The copy
+  ///      carries no compute, so it maps the result SSA value to the same emitc
+  ///      Value -- the legacy oracle emits NO call for it.
+  ///
+  ///  (b) segment2 deinterleave family: the move's source is a tcrv_rvv.move-
+  ///      observed segment2_load field result. The legacy oracle emits a
+  ///      __riscv_vget_v_<dtype><lmul>x2_<dtype><lmul>(tuple, idx) extract at the
+  ///      move's position (role=compute). Detect the segmentFieldMap entry and
+  ///      emit the vget; otherwise the plain identity copy.
+  ///
   /// Only kind = "copy" is in this bounded slice; any other movement kind falls
   /// back so a semantically meaningful move is never silently dropped.
   mlir::LogicalResult
   emitMove(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
            tcrvrvv::MoveOp move,
-           llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+           llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+           llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
+               &segmentFieldMap) const {
     if (move.getKind() != "copy")
       return rewriter.notifyMatchFailure(move, "unsupported move kind");
+    // segment2 deinterleave: the move sources a segment2_load field result.
+    auto segIt = segmentFieldMap.find(move.getSource());
+    if (segIt != segmentFieldMap.end()) {
+      auto vectorType =
+          llvm::dyn_cast<tcrvrvv::VectorType>(move.getResult().getType());
+      if (!vectorType)
+        return rewriter.notifyMatchFailure(
+            move, "segment2 move result not a typed vector");
+      Segment2Facts facts;
+      if (!resolveSegment2Facts(rewriter, vectorType, facts))
+        return rewriter.notifyMatchFailure(
+            move, "segment2 move field vector type not convertible");
+      mlir::Value tuple = segIt->second.first;
+      unsigned index = segIt->second.second;
+      std::string callee =
+          riscvSegment2FieldExtractIntrinsicName(facts.dtype, facts.lmul);
+      mlir::Value field = emitSegment2FieldExtract(
+          rewriter, loc, move.getTCRVEmitCLowerableSourceOpName(),
+          move.getTCRVEmitCLowerableSourceRole(), callee, tuple,
+          facts.fieldVecType, index);
+      valueMap[move.getResult()] = field;
+      return mlir::success();
+    }
     mlir::Value source = valueMap.lookup(move.getSource());
     if (!source)
       return rewriter.notifyMatchFailure(move, "move source unmapped");
@@ -2800,6 +3359,27 @@ private:
   static bool isMaskFromMaskLoadOrCompare(mlir::Value mask) {
     mlir::Operation *def = mask.getDefiningOp();
     return llvm::isa_and_present<tcrvrvv::MaskLoadOp, tcrvrvv::CompareOp>(def);
+  }
+
+  /// True iff a segment2 store's field operand binds the EXPECTED field role,
+  /// resolved structurally from the field vector's defining tcrv_rvv.load buffer
+  /// ABI role. The interleave family carries the two field input loads as the
+  /// segment2_store field0/field1 operands; a body that swaps them
+  /// (segment2_store %dst, %field1, %field0) binds the wrong field role and is a
+  /// malformed body the legacy provider rejects ("segment2_store to consume
+  /// matching field0 and field1 load results"). Resolving the binding from the
+  /// typed load buffer role (not the ABI c_name) honors I5. When the field
+  /// operand is NOT a plain load (e.g. a computed-mask update's add result), the
+  /// caller does not apply this guard.
+  static bool fieldVectorBindsLoadRole(mlir::Value fieldVector,
+                                       llvm::StringRef expectedRole) {
+    auto load = fieldVector.getDefiningOp<tcrvrvv::LoadOp>();
+    if (!load)
+      return false;
+    auto abi = load.getBuffer().getDefiningOp<tcrvrvv::RuntimeABIValueOp>();
+    if (!abi)
+      return false;
+    return abi.getRole() == expectedRole;
   }
 
   /// Byte-stride scaled pointer: ptr = (elem_t*)((uint8_t*)base + i * stride).
