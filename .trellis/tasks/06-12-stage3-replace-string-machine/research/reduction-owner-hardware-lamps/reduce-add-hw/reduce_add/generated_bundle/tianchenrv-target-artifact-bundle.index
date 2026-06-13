@@ -1,0 +1,405 @@
+tianchenrv.target_artifact_bundle.version: 1
+bundle_status: "complete"
+artifact_count: 2
+artifact[0]:
+  file_name: "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+  component_group: "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+  component_role: "object"
+  external_abi_name: "rvv-generic-reduce-add-callable-c-abi.v1"
+  selected_variant: @explicit_selected_body_rvv_reduce_add
+  role: "dispatch case"
+  component[0]:
+    selected_variant: @explicit_selected_body_rvv_reduce_add
+    role: "dispatch case"
+  artifact_kind: "riscv-elf-relocatable-object"
+  route: "rvv-generic-typed-body-emitc-route-family"
+  owner: "rvv-plugin"
+  runtime_abi: "rvv-generic-reduce-add-callable-c-abi.v1"
+  runtime_abi_kind: "plugin-owned-runtime-abi"
+  runtime_abi_name: "rvv-generic-reduce-add-callable-c-abi.v1"
+  runtime_abi_parameter_count: 4
+  runtime_abi_parameter[0]:
+    c_name: "lhs"
+    c_type: "const int32_t *"
+    role: "lhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[1]:
+    c_name: "rhs"
+    c_type: "const int32_t *"
+    role: "rhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[2]:
+    c_name: "out"
+    c_type: "int32_t *"
+    role: "output-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[3]:
+    c_name: "n"
+    c_type: "size_t"
+    role: "runtime-element-count"
+    ownership: "target-export-abi-owned"
+  artifact_metadata[0]:
+    key: "rvv_emitc_lowerable_route"
+    value: "rvv-generic-reduce-add-emitc-route"
+  artifact_metadata[1]:
+    key: "rvv_selected_body_operation"
+    value: "reduce_add"
+  artifact_metadata[2]:
+    key: "rvv_selected_body_typed_compute_op"
+    value: "tcrv_rvv.reduce"
+  artifact_metadata[3]:
+    key: "rvv_source_ops"
+    value: "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+  artifact_metadata[4]:
+    key: "rvv_source_roles"
+    value: "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+  artifact_metadata[5]:
+    key: "rvv_source_op_interface"
+    value: "TCRVEmitCLowerableOpInterface"
+  artifact_metadata[6]:
+    key: "rvv_construction_protocol"
+    value: "extension-family-construction-protocol.v1"
+  artifact_metadata[7]:
+    key: "rvv_extension_archetype"
+    value: "rvv-generic-typed-body"
+  artifact_metadata[8]:
+    key: "rvv_semantic_role_graph"
+    value: "runtime_abi->configure->scope->load->compute->store"
+  artifact_metadata[9]:
+    key: "rvv_common_interface_realization"
+    value: "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+  artifact_metadata[10]:
+    key: "rvv_typed_role_realization"
+    value: "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+  artifact_metadata[11]:
+    key: "rvv_emitc_route_mapping"
+    value: "rvv-generic-typed-body-emitc-route-family"
+  artifact_metadata[12]:
+    key: "rvv_target_artifact_route"
+    value: "rvv-generic-typed-body-emitc-route-family"
+  artifact_metadata[13]:
+    key: "rvv_target_artifact_kind"
+    value: "riscv-elf-relocatable-object"
+  artifact_metadata[14]:
+    key: "rvv_evidence_profile"
+    value: "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+  artifact_metadata[15]:
+    key: "rvv_runtime_abi_name"
+    value: "rvv-generic-reduce-add-callable-c-abi.v1"
+  artifact_metadata[16]:
+    key: "rvv_runtime_abi_contract"
+    value: "rvv-generic-reduce-add-callable-c-abi"
+  artifact_metadata[17]:
+    key: "rvv_bundle_component_group"
+    value: "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+  artifact_metadata[18]:
+    key: "rvv_object_handoff"
+    value: "materialized-emitc-cpp-rvv-intrinsic-object"
+  artifact_metadata[19]:
+    key: "tcrv_rvv.config_contract"
+    value: "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+  artifact_metadata[20]:
+    key: "tcrv_rvv.element_type"
+    value: "i32"
+  artifact_metadata[21]:
+    key: "tcrv_rvv.sew"
+    value: "32"
+  artifact_metadata[22]:
+    key: "tcrv_rvv.lmul"
+    value: "m1"
+  artifact_metadata[23]:
+    key: "tcrv_rvv.tail_policy"
+    value: "agnostic"
+  artifact_metadata[24]:
+    key: "tcrv_rvv.mask_policy"
+    value: "agnostic"
+  artifact_metadata[25]:
+    key: "tcrv_rvv.runtime_control_plan"
+    value: "rvv-runtime-avl-vl-control-plan.v1"
+  artifact_metadata[26]:
+    key: "tcrv_rvv.memory_form"
+    value: "vector-rhs-load"
+  artifact_metadata[27]:
+    key: "tcrv_rvv.runtime_vl_contract"
+    value: "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+  artifact_metadata[28]:
+    key: "tcrv_rvv.runtime_avl_source"
+    value: "runtime_abi:n"
+  artifact_metadata[29]:
+    key: "tcrv_rvv.vl_def"
+    value: "tcrv_rvv.setvl"
+  artifact_metadata[30]:
+    key: "tcrv_rvv.vl_scope"
+    value: "tcrv_rvv.with_vl"
+  artifact_metadata[31]:
+    key: "tcrv_rvv.vl_uses"
+    value: "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+  artifact_metadata[32]:
+    key: "tcrv_rvv.runtime_abi_order"
+    value: "lhs,rhs,out,n"
+  artifact_metadata[33]:
+    key: "tcrv_rvv.runtime_avl_abi_parameter"
+    value: "n"
+  artifact_metadata[34]:
+    key: "tcrv_rvv.target_capability_provider_mirror"
+    value: "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+  artifact_metadata[35]:
+    key: "tcrv_rvv.target_capability_legality_mirror"
+    value: "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+  artifact_metadata[36]:
+    key: "tcrv_rvv.selected_dispatch_case_mirror"
+    value: "selected_dispatch_case_mirror:@explicit_selected_body_rvv_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-reduce-case"
+  artifact_metadata[37]:
+    key: "tcrv_rvv.selected_dispatch_fallback_mirror"
+    value: "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-fallback-envelope"
+  artifact_metadata[38]:
+    key: "tcrv_rvv.route_operand_binding_plan"
+    value: "rvv-route-operand-binding:reduce_add.v1"
+  artifact_metadata[39]:
+    key: "tcrv_rvv.route_operand_binding_operands"
+    value: "rvv-route-operand-binding:reduce_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|reduction-input-call;rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-accumulator-load-base|reduction-accumulator-call;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|reduction-result-store|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+  artifact_metadata[40]:
+    key: "tcrv_rvv.emitc_loop"
+    value: "emitc.for"
+  artifact_metadata[41]:
+    key: "tcrv_rvv.loop_induction"
+    value: "offset"
+  artifact_metadata[42]:
+    key: "tcrv_rvv.loop_step"
+    value: "full_chunk_vl"
+  artifact_metadata[43]:
+    key: "tcrv_rvv.remaining_avl"
+    value: "n-offset"
+  artifact_metadata[44]:
+    key: "tcrv_rvv.pointer_advance"
+    value: "offset"
+  artifact_metadata[45]:
+    key: "tcrv_rvv.bounded_slice"
+    value: "multi-vl-selected-body-sew32-lmul-m1"
+  artifact_metadata[46]:
+    key: "tcrv_rvv.multi_vl"
+    value: "supported"
+  artifact_metadata[47]:
+    key: "tcrv_rvv.target_leaf_profile"
+    value: "rvv-v1-typed-vector-reduction-leaf-profile.v1"
+  artifact_metadata[48]:
+    key: "tcrv_rvv.provider_supported_mirror"
+    value: "provider_supported_mirror:rvv-vector-reduction-plan-validated"
+  artifact_metadata[49]:
+    key: "tcrv_rvv.required_header_declarations"
+    value: "stddef.h,stdint.h,riscv_vector.h"
+  artifact_metadata[50]:
+    key: "tcrv_rvv.c_type_mapping"
+    value: "vl:size_t,lhs/rhs-seed/result:signed-e32m1"
+  artifact_metadata[51]:
+    key: "tcrv_rvv.reduction_accumulator_layout"
+    value: "rhs-vector-seed-lane0-per-vl-chunk"
+  artifact_metadata[52]:
+    key: "tcrv_rvv.reduction_result_layout"
+    value: "store-reduction-lane0-to-output-chunk-base"
+  artifact_metadata[53]:
+    key: "tcrv_rvv.reduction_store_vl"
+    value: "1"
+  handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
+  evidence_role: "relocatable-object"
+artifact[1]:
+  file_name: "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h"
+  component_group: "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+  component_role: "header"
+  external_abi_name: "rvv-generic-reduce-add-callable-c-abi.v1"
+  selected_variant: @explicit_selected_body_rvv_reduce_add
+  role: "dispatch case"
+  component[0]:
+    selected_variant: @explicit_selected_body_rvv_reduce_add
+    role: "dispatch case"
+  artifact_kind: "runtime-callable-c-header"
+  route: "rvv-generic-typed-body-emitc-route-family.header"
+  owner: "rvv-plugin"
+  runtime_abi: "rvv-generic-reduce-add-callable-c-abi.v1"
+  runtime_abi_kind: "plugin-owned-runtime-abi"
+  runtime_abi_name: "rvv-generic-reduce-add-callable-c-abi.v1"
+  runtime_abi_parameter_count: 4
+  runtime_abi_parameter[0]:
+    c_name: "lhs"
+    c_type: "const int32_t *"
+    role: "lhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[1]:
+    c_name: "rhs"
+    c_type: "const int32_t *"
+    role: "rhs-input-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[2]:
+    c_name: "out"
+    c_type: "int32_t *"
+    role: "output-buffer"
+    ownership: "target-export-abi-owned"
+  runtime_abi_parameter[3]:
+    c_name: "n"
+    c_type: "size_t"
+    role: "runtime-element-count"
+    ownership: "target-export-abi-owned"
+  artifact_metadata[0]:
+    key: "rvv_emitc_lowerable_route"
+    value: "rvv-generic-reduce-add-emitc-route"
+  artifact_metadata[1]:
+    key: "rvv_selected_body_operation"
+    value: "reduce_add"
+  artifact_metadata[2]:
+    key: "rvv_selected_body_typed_compute_op"
+    value: "tcrv_rvv.reduce"
+  artifact_metadata[3]:
+    key: "rvv_source_ops"
+    value: "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+  artifact_metadata[4]:
+    key: "rvv_source_roles"
+    value: "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+  artifact_metadata[5]:
+    key: "rvv_source_op_interface"
+    value: "TCRVEmitCLowerableOpInterface"
+  artifact_metadata[6]:
+    key: "rvv_construction_protocol"
+    value: "extension-family-construction-protocol.v1"
+  artifact_metadata[7]:
+    key: "rvv_extension_archetype"
+    value: "rvv-generic-typed-body"
+  artifact_metadata[8]:
+    key: "rvv_semantic_role_graph"
+    value: "runtime_abi->configure->scope->load->compute->store"
+  artifact_metadata[9]:
+    key: "rvv_common_interface_realization"
+    value: "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+  artifact_metadata[10]:
+    key: "rvv_typed_role_realization"
+    value: "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+  artifact_metadata[11]:
+    key: "rvv_emitc_route_mapping"
+    value: "rvv-generic-typed-body-emitc-route-family"
+  artifact_metadata[12]:
+    key: "rvv_target_artifact_route"
+    value: "rvv-generic-typed-body-emitc-route-family"
+  artifact_metadata[13]:
+    key: "rvv_target_artifact_kind"
+    value: "riscv-elf-relocatable-object"
+  artifact_metadata[14]:
+    key: "rvv_evidence_profile"
+    value: "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+  artifact_metadata[15]:
+    key: "rvv_runtime_abi_name"
+    value: "rvv-generic-reduce-add-callable-c-abi.v1"
+  artifact_metadata[16]:
+    key: "rvv_runtime_abi_contract"
+    value: "rvv-generic-reduce-add-callable-c-abi"
+  artifact_metadata[17]:
+    key: "rvv_bundle_component_group"
+    value: "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+  artifact_metadata[18]:
+    key: "rvv_object_handoff"
+    value: "materialized-emitc-cpp-rvv-intrinsic-object"
+  artifact_metadata[19]:
+    key: "tcrv_rvv.config_contract"
+    value: "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+  artifact_metadata[20]:
+    key: "tcrv_rvv.element_type"
+    value: "i32"
+  artifact_metadata[21]:
+    key: "tcrv_rvv.sew"
+    value: "32"
+  artifact_metadata[22]:
+    key: "tcrv_rvv.lmul"
+    value: "m1"
+  artifact_metadata[23]:
+    key: "tcrv_rvv.tail_policy"
+    value: "agnostic"
+  artifact_metadata[24]:
+    key: "tcrv_rvv.mask_policy"
+    value: "agnostic"
+  artifact_metadata[25]:
+    key: "tcrv_rvv.runtime_control_plan"
+    value: "rvv-runtime-avl-vl-control-plan.v1"
+  artifact_metadata[26]:
+    key: "tcrv_rvv.memory_form"
+    value: "vector-rhs-load"
+  artifact_metadata[27]:
+    key: "tcrv_rvv.runtime_vl_contract"
+    value: "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+  artifact_metadata[28]:
+    key: "tcrv_rvv.runtime_avl_source"
+    value: "runtime_abi:n"
+  artifact_metadata[29]:
+    key: "tcrv_rvv.vl_def"
+    value: "tcrv_rvv.setvl"
+  artifact_metadata[30]:
+    key: "tcrv_rvv.vl_scope"
+    value: "tcrv_rvv.with_vl"
+  artifact_metadata[31]:
+    key: "tcrv_rvv.vl_uses"
+    value: "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+  artifact_metadata[32]:
+    key: "tcrv_rvv.runtime_abi_order"
+    value: "lhs,rhs,out,n"
+  artifact_metadata[33]:
+    key: "tcrv_rvv.runtime_avl_abi_parameter"
+    value: "n"
+  artifact_metadata[34]:
+    key: "tcrv_rvv.target_capability_provider_mirror"
+    value: "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+  artifact_metadata[35]:
+    key: "tcrv_rvv.target_capability_legality_mirror"
+    value: "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+  artifact_metadata[36]:
+    key: "tcrv_rvv.selected_dispatch_case_mirror"
+    value: "selected_dispatch_case_mirror:@explicit_selected_body_rvv_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-reduce-case"
+  artifact_metadata[37]:
+    key: "tcrv_rvv.selected_dispatch_fallback_mirror"
+    value: "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-fallback-envelope"
+  artifact_metadata[38]:
+    key: "tcrv_rvv.route_operand_binding_plan"
+    value: "rvv-route-operand-binding:reduce_add.v1"
+  artifact_metadata[39]:
+    key: "tcrv_rvv.route_operand_binding_operands"
+    value: "rvv-route-operand-binding:reduce_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|reduction-input-call;rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-accumulator-load-base|reduction-accumulator-call;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|reduction-result-store|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+  artifact_metadata[40]:
+    key: "tcrv_rvv.emitc_loop"
+    value: "emitc.for"
+  artifact_metadata[41]:
+    key: "tcrv_rvv.loop_induction"
+    value: "offset"
+  artifact_metadata[42]:
+    key: "tcrv_rvv.loop_step"
+    value: "full_chunk_vl"
+  artifact_metadata[43]:
+    key: "tcrv_rvv.remaining_avl"
+    value: "n-offset"
+  artifact_metadata[44]:
+    key: "tcrv_rvv.pointer_advance"
+    value: "offset"
+  artifact_metadata[45]:
+    key: "tcrv_rvv.bounded_slice"
+    value: "multi-vl-selected-body-sew32-lmul-m1"
+  artifact_metadata[46]:
+    key: "tcrv_rvv.multi_vl"
+    value: "supported"
+  artifact_metadata[47]:
+    key: "tcrv_rvv.target_leaf_profile"
+    value: "rvv-v1-typed-vector-reduction-leaf-profile.v1"
+  artifact_metadata[48]:
+    key: "tcrv_rvv.provider_supported_mirror"
+    value: "provider_supported_mirror:rvv-vector-reduction-plan-validated"
+  artifact_metadata[49]:
+    key: "tcrv_rvv.required_header_declarations"
+    value: "stddef.h,stdint.h,riscv_vector.h"
+  artifact_metadata[50]:
+    key: "tcrv_rvv.c_type_mapping"
+    value: "vl:size_t,lhs/rhs-seed/result:signed-e32m1"
+  artifact_metadata[51]:
+    key: "tcrv_rvv.reduction_accumulator_layout"
+    value: "rhs-vector-seed-lane0-per-vl-chunk"
+  artifact_metadata[52]:
+    key: "tcrv_rvv.reduction_result_layout"
+    value: "store-reduction-lane0-to-output-chunk-base"
+  artifact_metadata[53]:
+    key: "tcrv_rvv.reduction_store_vl"
+    value: "1"
+  handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
+  evidence_role: "header-declaration"

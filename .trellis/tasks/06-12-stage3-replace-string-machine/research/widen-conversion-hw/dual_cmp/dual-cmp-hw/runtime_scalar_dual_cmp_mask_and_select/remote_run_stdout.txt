@@ -1,0 +1,22 @@
+runtime_scalar_dual_cmp_mask_and_select case n=1 ok rhs_scalar_a=-37 rhs_scalar_b=-37 mask_a_true=1 mask_b_true=1 composed_true=1 single_mask_only=0 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=7 ok rhs_scalar_a=-37 rhs_scalar_b=-37 mask_a_true=3 mask_b_true=3 composed_true=2 single_mask_only=2 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=16 ok rhs_scalar_a=-37 rhs_scalar_b=-37 mask_a_true=6 mask_b_true=6 composed_true=3 single_mask_only=6 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=17 ok rhs_scalar_a=-37 rhs_scalar_b=-37 mask_a_true=6 mask_b_true=6 composed_true=3 single_mask_only=6 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=257 ok rhs_scalar_a=-37 rhs_scalar_b=-37 mask_a_true=86 mask_b_true=86 composed_true=43 single_mask_only=86 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=1 ok rhs_scalar_a=-37 rhs_scalar_b=91 mask_a_true=1 mask_b_true=1 composed_true=1 single_mask_only=0 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=7 ok rhs_scalar_a=-37 rhs_scalar_b=91 mask_a_true=3 mask_b_true=5 composed_true=3 single_mask_only=2 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=16 ok rhs_scalar_a=-37 rhs_scalar_b=91 mask_a_true=6 mask_b_true=11 composed_true=6 single_mask_only=5 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=17 ok rhs_scalar_a=-37 rhs_scalar_b=91 mask_a_true=6 mask_b_true=12 composed_true=6 single_mask_only=6 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=257 ok rhs_scalar_a=-37 rhs_scalar_b=91 mask_a_true=86 mask_b_true=172 composed_true=86 single_mask_only=86 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=1 ok rhs_scalar_a=91 rhs_scalar_b=-37 mask_a_true=1 mask_b_true=1 composed_true=1 single_mask_only=0 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=7 ok rhs_scalar_a=91 rhs_scalar_b=-37 mask_a_true=6 mask_b_true=3 composed_true=3 single_mask_only=3 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=16 ok rhs_scalar_a=91 rhs_scalar_b=-37 mask_a_true=14 mask_b_true=6 composed_true=6 single_mask_only=8 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=17 ok rhs_scalar_a=91 rhs_scalar_b=-37 mask_a_true=15 mask_b_true=6 composed_true=6 single_mask_only=9 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=257 ok rhs_scalar_a=91 rhs_scalar_b=-37 mask_a_true=215 mask_b_true=86 composed_true=86 single_mask_only=129 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=1 ok rhs_scalar_a=91 rhs_scalar_b=91 mask_a_true=1 mask_b_true=1 composed_true=1 single_mask_only=0 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=7 ok rhs_scalar_a=91 rhs_scalar_b=91 mask_a_true=6 mask_b_true=5 composed_true=5 single_mask_only=1 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=16 ok rhs_scalar_a=91 rhs_scalar_b=91 mask_a_true=14 mask_b_true=11 composed_true=11 single_mask_only=3 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=17 ok rhs_scalar_a=91 rhs_scalar_b=91 mask_a_true=15 mask_b_true=12 composed_true=12 single_mask_only=3 tail_preserved
+runtime_scalar_dual_cmp_mask_and_select case n=257 ok rhs_scalar_a=91 rhs_scalar_b=91 mask_a_true=215 mask_b_true=172 composed_true=172 single_mask_only=43 tail_preserved
+tcrv_rvv_generated_bundle_abi_runtime_scalar_dual_cmp_mask_and_select_ok counts=1,7,16,17,257 rhs_scalar_a_values=-37,91 rhs_scalar_b_values=-37,91
+PASS op=runtime_scalar_dual_cmp_mask_and_select counts=1,7,16,17,257 rhs_scalar_a_values=-37,91 rhs_scalar_b_values=-37,91

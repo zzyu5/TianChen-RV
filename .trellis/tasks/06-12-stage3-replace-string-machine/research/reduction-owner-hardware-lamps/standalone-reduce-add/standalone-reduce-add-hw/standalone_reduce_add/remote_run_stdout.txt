@@ -1,0 +1,22 @@
+standalone_reduce_add case n=0 seed=-11 pattern=0 ok scalar_out=-11 tail_preserved source_preserved
+standalone_reduce_add case n=1 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved
+standalone_reduce_add case n=16 seed=-11 pattern=0 ok scalar_out=5 tail_preserved source_preserved
+standalone_reduce_add case n=17 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved
+standalone_reduce_add case n=257 seed=-11 pattern=0 ok scalar_out=1128 tail_preserved source_preserved
+standalone_reduce_add case n=0 seed=-11 pattern=1 ok scalar_out=-11 tail_preserved source_preserved
+standalone_reduce_add case n=1 seed=-11 pattern=1 ok scalar_out=-30 tail_preserved source_preserved
+standalone_reduce_add case n=16 seed=-11 pattern=1 ok scalar_out=-213 tail_preserved source_preserved
+standalone_reduce_add case n=17 seed=-11 pattern=1 ok scalar_out=-216 tail_preserved source_preserved
+standalone_reduce_add case n=257 seed=-11 pattern=1 ok scalar_out=-2423 tail_preserved source_preserved
+standalone_reduce_add case n=0 seed=17 pattern=0 ok scalar_out=17 tail_preserved source_preserved
+standalone_reduce_add case n=1 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved
+standalone_reduce_add case n=16 seed=17 pattern=0 ok scalar_out=33 tail_preserved source_preserved
+standalone_reduce_add case n=17 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved
+standalone_reduce_add case n=257 seed=17 pattern=0 ok scalar_out=1156 tail_preserved source_preserved
+standalone_reduce_add case n=0 seed=17 pattern=1 ok scalar_out=17 tail_preserved source_preserved
+standalone_reduce_add case n=1 seed=17 pattern=1 ok scalar_out=-2 tail_preserved source_preserved
+standalone_reduce_add case n=16 seed=17 pattern=1 ok scalar_out=-185 tail_preserved source_preserved
+standalone_reduce_add case n=17 seed=17 pattern=1 ok scalar_out=-188 tail_preserved source_preserved
+standalone_reduce_add case n=257 seed=17 pattern=1 ok scalar_out=-2395 tail_preserved source_preserved
+tcrv_rvv_generated_bundle_abi_standalone_reduce_add_ok counts=0,1,16,17,257 seeds=-11,17 patterns=0,1
+PASS op=standalone_reduce_add counts=0,1,16,17,257 seeds=-11,17 patterns=0,1

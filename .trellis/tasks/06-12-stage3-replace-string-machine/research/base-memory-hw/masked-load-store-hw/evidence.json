@@ -1,0 +1,180 @@
+{
+  "artifact_dir": "/tmp/bm.artifacts/masked-load-store-hw",
+  "completed_at": "2026-06-12T22:05:58Z",
+  "created_at": "2026-06-12T22:05:53Z",
+  "dry_run": false,
+  "input_mode": "explicit-selected-body",
+  "lmul_m2_selected_body": false,
+  "op_kinds": [
+    "masked_unit_load_store"
+  ],
+  "op_results": {
+    "masked_unit_load_store": {
+      "artifact_dir": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store",
+      "compare_select_predicate_boundary": {},
+      "computed_masked_macc_boundary": {},
+      "computed_masked_widening_dot_reduce_boundary": {},
+      "conversion_sew_policy_boundary": {},
+      "correctness_oracle": {
+        "boundary": "external C ABI consumer of generated header and object only",
+        "element_c_type": "int32_t",
+        "expected_expression": "(mask[index] != 0 ? src[index] : old_dst[index])",
+        "lhs_initializer": "(int32_t)(900 + (int32_t)(index * 13))",
+        "pass_marker": "tcrv_rvv_generated_bundle_abi_masked_unit_load_store_ok",
+        "rhs_initializer": "(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ]
+      },
+      "dequant_clamp_epilogue_boundary": {},
+      "dequantization_boundary": {},
+      "generated_bundle": {
+        "header": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "header_prototype": "void tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);",
+        "index": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/generated_bundle/tianchenrv-target-artifact-bundle.index",
+        "object": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+      },
+      "generated_rvv_cpp": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/materialized_rvv_emitc.cpp",
+      "harness": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness.c",
+      "mask_tail_policy_boundary": {},
+      "materialized_selected_body": "/tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/materialized_selected_body.mlir",
+      "multiply_accumulate_boundary": {},
+      "pass_marker": "tcrv_rvv_generated_bundle_abi_masked_unit_load_store_ok",
+      "reduction_accumulation_boundary": {},
+      "runtime_avl_vl_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);",
+          "runtime_parameter_count": 4
+        },
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "emitted_cpp": {},
+        "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+        "materialized_setvl": {
+          "lmul": "m1",
+          "policy": "explicit-tcrv-rvv-policy",
+          "runtime_avl_abi_parameter": "n",
+          "runtime_avl_source": "runtime_abi:n",
+          "runtime_avl_value": "%3",
+          "setvl_consumes_runtime_avl": true,
+          "setvl_result": "%4",
+          "sew": "32",
+          "with_vl_consumes_setvl": true
+        },
+        "route_metadata": {
+          "tcrv_rvv.emitc_loop": "emitc.for",
+          "tcrv_rvv.loop_induction": "offset",
+          "tcrv_rvv.loop_step": "full_chunk_vl",
+          "tcrv_rvv.multi_vl": "supported",
+          "tcrv_rvv.pointer_advance": "offset",
+          "tcrv_rvv.remaining_avl": "n-offset",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:masked_unit_load_store.v1",
+          "tcrv_rvv.runtime_abi_order": "src,mask,dst,n",
+          "tcrv_rvv.runtime_avl_abi_parameter": "n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+          "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_vl_authority": true,
+        "selected_runtime_abi": {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        },
+        "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+      },
+      "runtime_counts": [
+        0,
+        1,
+        16,
+        17,
+        257
+      ],
+      "selected_dispatch_bundle_boundary": {},
+      "selected_input": "test/Target/RVV/explicit-selected-body-artifact-masked-unit-load-store.mlir",
+      "ssh_evidence": true,
+      "ssh_execution_summary": {
+        "compile_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness'\"'\"''",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+        },
+        "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness",
+        "remote_compile_succeeded": true,
+        "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store",
+        "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness.c",
+        "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "remote_output": "masked_unit_load_store case n=0 ok active_lanes=0 inactive_lanes=0 inactive_preserved_lanes=0 tail_preserved\nmasked_unit_load_store case n=1 ok active_lanes=1 inactive_lanes=0 inactive_preserved_lanes=0 tail_preserved\nmasked_unit_load_store case n=16 ok active_lanes=7 inactive_lanes=9 inactive_preserved_lanes=9 tail_preserved\nmasked_unit_load_store case n=17 ok active_lanes=7 inactive_lanes=10 inactive_preserved_lanes=10 tail_preserved\nmasked_unit_load_store case n=257 ok active_lanes=103 inactive_lanes=154 inactive_preserved_lanes=154 tail_preserved\ntcrv_rvv_generated_bundle_abi_masked_unit_load_store_ok counts=0,1,16,17,257\nPASS op=masked_unit_load_store counts=0,1,16,17,257\n",
+        "remote_run_succeeded": true,
+        "run_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness'",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "masked_unit_load_store case n=0 ok active_lanes=0 inactive_lanes=0 inactive_preserved_lanes=0 tail_preserved\nmasked_unit_load_store case n=1 ok active_lanes=1 inactive_lanes=0 inactive_preserved_lanes=0 tail_preserved\nmasked_unit_load_store case n=16 ok active_lanes=7 inactive_lanes=9 inactive_preserved_lanes=9 tail_preserved\nmasked_unit_load_store case n=17 ok active_lanes=7 inactive_lanes=10 inactive_preserved_lanes=10 tail_preserved\nmasked_unit_load_store case n=257 ok active_lanes=103 inactive_lanes=154 inactive_preserved_lanes=154 tail_preserved\ntcrv_rvv_generated_bundle_abi_masked_unit_load_store_ok counts=0,1,16,17,257\nPASS op=masked_unit_load_store counts=0,1,16,17,257\n"
+        },
+        "scp_command": {
+          "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/bm.artifacts/masked-load-store-hw/masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_masked-load-store-hw_masked_unit_load_store/",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "ssh_target": "rvv"
+      },
+      "status": "success",
+      "typed_config_artifact_closure": {
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        "element_c_type": "int32_t",
+        "element_type": "i32",
+        "intrinsics": [],
+        "lmul": "m1",
+        "required_header": "riscv_vector.h",
+        "sew": "32",
+        "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "vector_c_type": ""
+      },
+      "vector_reduction_boundary": {},
+      "widening_dot_reduction_boundary": {},
+      "widening_macc_boundary": {},
+      "widening_product_reduction_boundary": {}
+    }
+  },
+  "pre_realized_selected_body": false,
+  "rhs_broadcast_selected_body": false,
+  "run_id": "masked-load-store-hw",
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "vector_source_front_door": false
+}

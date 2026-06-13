@@ -1,0 +1,1208 @@
+{
+  "artifact_dir": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add",
+  "bundle_checks": {
+    "header": {
+      "extern_c_guard": true,
+      "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+      "prototype": "void tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);",
+      "sha256": "a48b5d046bae1df37e99f2b13315250a7afdecf2ad4aae37f2de4d3f5b970ac7",
+      "size": 6963
+    },
+    "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "index": {
+      "parsed": {
+        "artifact_count": "2",
+        "bundle_status": "complete",
+        "records": [
+          {
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-standalone-reduce-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "standalone_reduce_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.standalone_reduce"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-standalone-reduce-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "unit-stride-standalone-reduction"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_standalone_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-standalone-reduce-add-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-standalone-reduce-add-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_route_family_plan",
+                "value": "rvv-standalone-reduction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_source_vector_type",
+                "value": "!tcrv_rvv.vector<i32, \"m1\">"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_source_vector_c_type",
+                "value": "vint32m1_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_c_type",
+                "value": "int32_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
+                "value": "!tcrv_rvv.vector<i32, \"m1\">"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
+                "value": "vint32m1_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+                "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-typed-standalone-reduction-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector"
+              },
+              {
+                "key": "tcrv_rvv.reduction_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.reduction_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.reduction_kind",
+                "value": "add"
+              },
+              {
+                "key": "tcrv_rvv.reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.vector_load_intrinsic",
+                "value": "__riscv_vle32_v_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.source_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.reduction_intrinsic",
+                "value": "__riscv_vredsum_vs_i32m1_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_result_store_intrinsic",
+                "value": "__riscv_vse32_v_i32m1"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "object",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_standalone_reduce_add"
+              }
+            ],
+            "evidence_role": "relocatable-object",
+            "external_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "file_name": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family",
+            "runtime_abi": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "4",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_standalone_reduce_add"
+          },
+          {
+            "artifact_kind": "runtime-callable-c-header",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-standalone-reduce-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "standalone_reduce_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.standalone_reduce"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-standalone-reduce-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "unit-stride-standalone-reduction"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_standalone_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-standalone-reduce-add-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-standalone-reduce-add-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_route_family_plan",
+                "value": "rvv-standalone-reduction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_source_vector_type",
+                "value": "!tcrv_rvv.vector<i32, \"m1\">"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_source_vector_c_type",
+                "value": "vint32m1_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_c_type",
+                "value": "int32_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_type",
+                "value": "!tcrv_rvv.vector<i32, \"m1\">"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type",
+                "value": "vint32m1_t"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+                "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-typed-standalone-reduction-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector"
+              },
+              {
+                "key": "tcrv_rvv.reduction_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.reduction_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.reduction_kind",
+                "value": "add"
+              },
+              {
+                "key": "tcrv_rvv.reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.vector_load_intrinsic",
+                "value": "__riscv_vle32_v_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.source_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.reduction_intrinsic",
+                "value": "__riscv_vredsum_vs_i32m1_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_result_store_intrinsic",
+                "value": "__riscv_vse32_v_i32m1"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "header",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_standalone_reduce_add"
+              }
+            ],
+            "evidence_role": "header-declaration",
+            "external_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "file_name": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family.header",
+            "runtime_abi": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "4",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_standalone_reduce_add"
+          }
+        ],
+        "version": "1"
+      },
+      "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/tianchenrv-target-artifact-bundle.index",
+      "sha256": "bc021df910a6591bf59aaf5d5e21e29d693abe5d0f10398600685f1cd30c9ccb",
+      "size": 20453
+    },
+    "object": {
+      "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+      "readobj": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj -h /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:37Z",
+        "started_at": "2026-06-13T00:43:37Z",
+        "stderr": "",
+        "stdout": "\nFile: /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o\nFormat: elf64-littleriscv\nArch: riscv64\nAddressSize: 64bit\nLoadName: <Not found>\nElfHeader {\n  Ident {\n    Magic: (7F 45 4C 46)\n    Class: 64-bit (0x2)\n    DataEncoding: LittleEndian (0x1)\n    FileVersion: 1\n    OS/ABI: SystemV (0x0)\n    ABIVersion: 0\n    Unused: (00 00 00 00 00 00 00)\n  }\n  Type: Relocatable (0x1)\n  Machine: EM_RISCV (0xF3)\n  Version: 1\n  Entry: 0x0\n  ProgramHeaderOffset: 0x0\n  SectionHeaderOffset: 0x380\n  Flags [ (0x5)\n    EF_RISCV_FLOAT_ABI_DOUBLE (0x4)\n    EF_RISCV_RVC (0x1)\n  ]\n  HeaderSize: 64\n  ProgramHeaderEntrySize: 0\n  ProgramHeaderCount: 0\n  SectionHeaderEntrySize: 64\n  SectionHeaderCount: 9\n  StringTableSectionIndex: 1\n}\n"
+      },
+      "sha256": "e5809fcdaa76292cfdb6f7a6aae0efd7b8a0ab19ddcd9b9610bd513e8fad91c2",
+      "size": 1472,
+      "symbols": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj --symbols /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "selected_symbol": "tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add",
+        "unmangled_selected_symbol": true
+      }
+    },
+    "object_file": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+  },
+  "completed_at": "2026-06-13T00:43:42Z",
+  "created_at": "2026-06-13T00:43:37Z",
+  "dry_run": false,
+  "emitted_rvv_cpp_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle32_v_i32m1",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vredsum_vs_i32m1_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "multiply_accumulate_boundary": {},
+    "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_rvv_emitc.cpp",
+    "reduction_accumulation_boundary": {
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "accumulator_seed_abi_parameter": "v2",
+      "initial_accumulator_vector": "v7",
+      "initial_seed_scalar": "v6",
+      "lhs_abi_parameter": "v1",
+      "loop_accumulator_reads_previous_scalar_result": true,
+      "loop_accumulator_scalar": "v13",
+      "loop_accumulator_vector": "v14",
+      "out_abi_parameter": "v3",
+      "reduction_kind": "add",
+      "reduction_uses_loaded_source": true,
+      "reduction_uses_loop_vl": true,
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "result_vector": "v15",
+      "runtime_avl_vl_control": {
+        "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+        "full_chunk_vl": "v5",
+        "loop_remaining_avl": "v4 - v8",
+        "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+        "loop_vl": "v10",
+        "offset_induction": "v8",
+        "remaining_avl": "v9",
+        "runtime_abi_parameter": "v4",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_intrinsics": true,
+        "uses_runtime_remaining_avl": true
+      },
+      "scalar_result_vector_c_type": "vint32m1_t",
+      "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "seed_store_initializes_empty_count_result": true,
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "source_load_intrinsic": "__riscv_vle32_v_i32m1",
+      "source_pointer": "v11",
+      "source_vector": "v12",
+      "source_vector_c_type": "vint32m1_t",
+      "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "store_uses_reduction_result": true,
+      "store_vl": "1"
+    },
+    "required_header": "riscv_vector.h",
+    "runtime_avl_vl_boundary": {
+      "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+      "full_chunk_vl": "v5",
+      "loop_remaining_avl": "v4 - v8",
+      "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+      "loop_vl": "v10",
+      "offset_induction": "v8",
+      "remaining_avl": "v9",
+      "runtime_abi_parameter": "v4",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_intrinsics": true,
+      "uses_runtime_remaining_avl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "sew": "32",
+    "sha256": "e3eb26f2720566baebed255722abc2df35e167649abe19e8f733176f9dcfb80e",
+    "size": 1971,
+    "vector_c_type": "",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {}
+  },
+  "expected_function": "tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add",
+  "expected_runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+  "expected_selected_variant": "explicit_selected_body_rvv_standalone_reduce_add",
+  "harness": {
+    "boundary": "external C ABI consumer of generated header and object only",
+    "pass_marker": "tcrv_rvv_generated_bundle_abi_standalone_reduce_add_ok",
+    "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c",
+    "reduction_contract": "signed i32 add reduction combines input lanes with the scalar accumulator seed",
+    "scalar_result_contract": "only out[0] is written and non-scalar output slots preserve sentinels",
+    "sha256": "e2cc312ae09cbac99d6aa86ecebca89b4f442a0c5dac654ce00ed0afa9e39c5a",
+    "source_pattern_contract": "two signed input patterns and two scalar seeds prove source contribution, seed contribution, source preservation, and multi-VL runtime n behavior"
+  },
+  "input": "test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir",
+  "input_mode": "explicit-selected-body",
+  "local_bundle_generation": {
+    "emitted_rvv_cpp": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_rvv_emitc.cpp",
+    "front_door": "explicit-selected-tcrv-exec-rvv-body",
+    "input_mode": "explicit-selected-body",
+    "materialized_selected_body": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir",
+    "materializer": "none-selected-body-already-explicit",
+    "pipeline": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir && build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir -o /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_rvv_emitc.cpp && build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir",
+    "source_seed": false,
+    "target_export": "tcrv-export-target-artifact-bundle",
+    "tcrv_opt": {
+      "command": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T00:43:37Z",
+      "started_at": "2026-06-13T00:43:37Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_rvv_emitc_cpp": {
+      "command": "build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir -o /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_rvv_emitc.cpp",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T00:43:37Z",
+      "started_at": "2026-06-13T00:43:37Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_translate": {
+      "command": "build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T00:43:37Z",
+      "started_at": "2026-06-13T00:43:37Z",
+      "stderr": "",
+      "stdout": "tianchenrv.target_artifact_bundle_export: complete\nindex_file: \"tianchenrv-target-artifact-bundle.index\"\n"
+    }
+  },
+  "materialized_selected_body_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "contains_with_vl": true,
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "explicit_compound_body_consumed": false,
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "memory_form": "unit-stride-standalone-reduction",
+    "multiply_accumulate_boundary": {},
+    "path": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/materialized_selected_body.mlir",
+    "pre_realized_body_consumed": false,
+    "reduction_accumulation_boundary": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "reduction_kind": "add",
+      "result_binding": "output-buffer lane0 scalar result",
+      "result_element_type": "i32",
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%3",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%4",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "scalar_seed_abi_role": "accumulator-input-buffer",
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "store_vl": "1",
+      "typed_compute_op": "tcrv_rvv.standalone_reduce"
+    },
+    "runtime_avl_vl_boundary": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%3",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%4",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "selected_variant": "explicit_selected_body_rvv_standalone_reduce_add",
+    "sha256": "3e0307c8b1340d3b60d30a3021e5b93fcdfb6a42c0a087a30dda399eeda424a7",
+    "source_front_door_family_contract": {},
+    "typed_compute_op": "tcrv_rvv.standalone_reduce",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {}
+  },
+  "op_kind": "standalone_reduce_add",
+  "reduction_accumulation_boundary": {
+    "accumulator_type_policy": {
+      "abi_role": "accumulator-input-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "vector_c_type": "vint32m1_t",
+      "vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+    },
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_abi_order": "lhs,acc,out,n",
+      "scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
+    },
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "authority": "provider-derived typed tcrv_rvv reduction/accumulation body/config/runtime facts",
+    "emitted_cpp": {
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "accumulator_seed_abi_parameter": "v2",
+      "initial_accumulator_vector": "v7",
+      "initial_seed_scalar": "v6",
+      "lhs_abi_parameter": "v1",
+      "loop_accumulator_reads_previous_scalar_result": true,
+      "loop_accumulator_scalar": "v13",
+      "loop_accumulator_vector": "v14",
+      "out_abi_parameter": "v3",
+      "reduction_kind": "add",
+      "reduction_uses_loaded_source": true,
+      "reduction_uses_loop_vl": true,
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "result_vector": "v15",
+      "runtime_avl_vl_control": {
+        "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+        "full_chunk_vl": "v5",
+        "loop_remaining_avl": "v4 - v8",
+        "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+        "loop_vl": "v10",
+        "offset_induction": "v8",
+        "remaining_avl": "v9",
+        "runtime_abi_parameter": "v4",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_intrinsics": true,
+        "uses_runtime_remaining_avl": true
+      },
+      "scalar_result_vector_c_type": "vint32m1_t",
+      "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "seed_store_initializes_empty_count_result": true,
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "source_load_intrinsic": "__riscv_vle32_v_i32m1",
+      "source_pointer": "v11",
+      "source_vector": "v12",
+      "source_vector_c_type": "vint32m1_t",
+      "standalone_reduce_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "store_uses_reduction_result": true,
+      "store_vl": "1"
+    },
+    "empty_count_behavior": "pre-loop scalar seed store initializes out[0] before the runtime loop",
+    "materialized_body": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "reduction_kind": "add",
+      "result_binding": "output-buffer lane0 scalar result",
+      "result_element_type": "i32",
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%3",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%4",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "scalar_seed_abi_role": "accumulator-input-buffer",
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "store_vl": "1",
+      "typed_compute_op": "tcrv_rvv.standalone_reduce"
+    },
+    "reduction_kind": "add",
+    "reduction_store_vl": "1",
+    "result_type_policy": {
+      "abi_role": "output-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "scalar_slot": "out[0]",
+      "vector_c_type": "vint32m1_t",
+      "vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+    },
+    "route_metadata": {
+      "tcrv_rvv.c_type_mapping": "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector",
+      "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+      "tcrv_rvv.element_type": "i32",
+      "tcrv_rvv.lmul": "m1",
+      "tcrv_rvv.mask_policy": "agnostic",
+      "tcrv_rvv.memory_form": "unit-stride-standalone-reduction",
+      "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-standalone-reduction-plan-validated",
+      "tcrv_rvv.reduction_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "tcrv_rvv.reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "tcrv_rvv.reduction_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "tcrv_rvv.reduction_store_vl": "1",
+      "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:standalone_reduce_add.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.scalar_result_store_intrinsic": "__riscv_vse32_v_i32m1",
+      "tcrv_rvv.scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "tcrv_rvv.sew": "32",
+      "tcrv_rvv.standalone_reduction_route_family_plan": "rvv-standalone-reduction-route-family-plan.v1",
+      "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1",
+      "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type": "vint32m1_t",
+      "tcrv_rvv.standalone_reduction_scalar_result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "tcrv_rvv.standalone_reduction_source_vector_c_type": "vint32m1_t",
+      "tcrv_rvv.standalone_reduction_source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "tcrv_rvv.tail_policy": "agnostic",
+      "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-standalone-reduction-leaf-profile.v1",
+      "tcrv_rvv.vector_load_intrinsic": "__riscv_vle32_v_i32m1"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_reduction_authority": true,
+    "scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1",
+    "selected_source_abi": {
+      "acc": "accumulator-input-buffer",
+      "lhs": "lhs-input-buffer",
+      "n": "runtime-element-count",
+      "out": "output-buffer"
+    },
+    "source": "typed tcrv_rvv standalone reduction body/config -> RVV realization -> standalone route-family facts -> math operand-binding facts -> RVV-owned statement plan -> emitted horizontal reduction intrinsics",
+    "source_type_policy": {
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "lmul": "m1",
+      "sew": "32",
+      "vector_c_type": "vint32m1_t",
+      "vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+    },
+    "statement_plan": {
+      "family": "standalone reduction",
+      "loop_accumulator_source": "out[0]",
+      "loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vmv_v_x_i32m1",
+        "__riscv_vredsum_vs_i32m1_i32m1",
+        "__riscv_vse32_v_i32m1"
+      ],
+      "pre_loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vmv_v_x_i32m1",
+        "__riscv_vse32_v_i32m1"
+      ],
+      "reduction_operand_order": "source,accumulator,vl",
+      "seed_source": "acc[0]",
+      "store_pointer": "out",
+      "store_vl": "1"
+    }
+  },
+  "remote": {
+    "commands": {
+      "cleanup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:42Z",
+        "started_at": "2026-06-13T00:43:41Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "compile": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:40Z",
+        "started_at": "2026-06-13T00:43:38Z",
+        "stderr": "",
+        "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+      },
+      "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add",
+      "run": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness'",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:41Z",
+        "started_at": "2026-06-13T00:43:40Z",
+        "stderr": "",
+        "stdout": "standalone_reduce_add case n=0 seed=-11 pattern=0 ok scalar_out=-11 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=-11 pattern=0 ok scalar_out=5 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=-11 pattern=0 ok scalar_out=1128 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=-11 pattern=1 ok scalar_out=-11 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=-11 pattern=1 ok scalar_out=-30 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=-11 pattern=1 ok scalar_out=-213 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=-11 pattern=1 ok scalar_out=-216 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=-11 pattern=1 ok scalar_out=-2423 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=17 pattern=0 ok scalar_out=17 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=17 pattern=0 ok scalar_out=33 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=17 pattern=0 ok scalar_out=1156 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=17 pattern=1 ok scalar_out=17 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=17 pattern=1 ok scalar_out=-2 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=17 pattern=1 ok scalar_out=-185 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=17 pattern=1 ok scalar_out=-188 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=17 pattern=1 ok scalar_out=-2395 tail_preserved source_preserved\ntcrv_rvv_generated_bundle_abi_standalone_reduce_add_ok counts=0,1,16,17,257 seeds=-11,17 patterns=0,1\nPASS op=standalone_reduce_add counts=0,1,16,17,257 seeds=-11,17 patterns=0,1\n"
+      },
+      "scp": {
+        "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:38Z",
+        "started_at": "2026-06-13T00:43:38Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "setup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add && mkdir -p /tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T00:43:38Z",
+        "started_at": "2026-06-13T00:43:37Z",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    "op_kind": "standalone_reduce_add",
+    "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness",
+    "remote_compile_succeeded": true,
+    "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add",
+    "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c",
+    "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_standalone-reduce-add-hw_standalone_reduce_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+    "remote_output": "standalone_reduce_add case n=0 seed=-11 pattern=0 ok scalar_out=-11 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=-11 pattern=0 ok scalar_out=5 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=-11 pattern=0 ok scalar_out=-12 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=-11 pattern=0 ok scalar_out=1128 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=-11 pattern=1 ok scalar_out=-11 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=-11 pattern=1 ok scalar_out=-30 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=-11 pattern=1 ok scalar_out=-213 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=-11 pattern=1 ok scalar_out=-216 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=-11 pattern=1 ok scalar_out=-2423 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=17 pattern=0 ok scalar_out=17 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=17 pattern=0 ok scalar_out=33 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=17 pattern=0 ok scalar_out=16 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=17 pattern=0 ok scalar_out=1156 tail_preserved source_preserved\nstandalone_reduce_add case n=0 seed=17 pattern=1 ok scalar_out=17 tail_preserved source_preserved\nstandalone_reduce_add case n=1 seed=17 pattern=1 ok scalar_out=-2 tail_preserved source_preserved\nstandalone_reduce_add case n=16 seed=17 pattern=1 ok scalar_out=-185 tail_preserved source_preserved\nstandalone_reduce_add case n=17 seed=17 pattern=1 ok scalar_out=-188 tail_preserved source_preserved\nstandalone_reduce_add case n=257 seed=17 pattern=1 ok scalar_out=-2395 tail_preserved source_preserved\ntcrv_rvv_generated_bundle_abi_standalone_reduce_add_ok counts=0,1,16,17,257 seeds=-11,17 patterns=0,1\nPASS op=standalone_reduce_add counts=0,1,16,17,257 seeds=-11,17 patterns=0,1\n",
+    "remote_run_succeeded": true,
+    "ssh_target": "rvv"
+  },
+  "run_id": "standalone-reduce-add-hw",
+  "runtime_avl_vl_boundary": {
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_parameter_count": 4
+    },
+    "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "emitted_cpp": {
+      "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+      "full_chunk_vl": "v5",
+      "loop_remaining_avl": "v4 - v8",
+      "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+      "loop_vl": "v10",
+      "offset_induction": "v8",
+      "remaining_avl": "v9",
+      "runtime_abi_parameter": "v4",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_intrinsics": true,
+      "uses_runtime_remaining_avl": true
+    },
+    "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+    "materialized_setvl": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%3",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%4",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "route_metadata": {
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:standalone_reduce_add.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+      "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_vl_authority": true,
+    "selected_runtime_abi": {
+      "c_name": "n",
+      "c_type": "size_t",
+      "ownership": "target-export-abi-owned",
+      "role": "runtime-element-count"
+    },
+    "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+  },
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "selected_input": {
+    "copy": "/tmp/sr.artifacts/standalone-reduce-add-hw/standalone_reduce_add/selected_body_input.mlir",
+    "mode": "explicit-selected-body",
+    "path": "test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir",
+    "sha256": "316b0ba4b66366d38ba5f639f4485a7728c219ded5a061b75b362132c5bb5527",
+    "source_seed": false
+  },
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "typed_config_artifact_closure": {
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle32_v_i32m1",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vredsum_vs_i32m1_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "required_header": "riscv_vector.h",
+    "sew": "32",
+    "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "vector_c_type": ""
+  }
+}

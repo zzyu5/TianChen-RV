@@ -1,0 +1,2 @@
+tcrv_rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_ok counts=16,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05
+PASS op=widening_product_reduce_dequantize_f32 counts=16,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05

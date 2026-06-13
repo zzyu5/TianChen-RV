@@ -1,0 +1,11 @@
+{
+  "task": "06-12-stage3-replace-string-machine (contraction owner / unsigned-u8 + Gearbox dequant)",
+  "op_kinds": ["unsigned_widening_product", "unsigned_widening_product_reduce_add"],
+  "conversion_path": "lib/Conversion/RVV/RVVToEmitC.cpp DialectConversion (gate rvvSelectedBodyFullyConvertsToEmitC now decouples the unsigned bodies from the owner)",
+  "intrinsics": ["__riscv_vle8_v_u8mf4", "__riscv_vwmulu_vv_u16mf2", "__riscv_vse16_v_u16mf2", "__riscv_vmv_v_x_u32m1", "__riscv_vwredsumu_vs_u16mf2_u32m1", "__riscv_vse32_v_u32m1"],
+  "byte_identical_to_legacy_oracle": true,
+  "ssh_evidence": true,
+  "target": "riscv64 (ssh rvv), clang 18 -march=rv64gcv",
+  "status": "success",
+  "result": "ALL PASS — unsigned widening product (n=257, byte-exact vs unsigned C ref) + unsigned widening product-reduce-add (out=4190857==ref, seeded acc carried)"
+}

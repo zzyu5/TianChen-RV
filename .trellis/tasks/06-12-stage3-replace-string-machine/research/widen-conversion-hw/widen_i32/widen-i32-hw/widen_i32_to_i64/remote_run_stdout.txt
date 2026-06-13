@@ -1,0 +1,12 @@
+widen_i32_to_i64 case n=1 pattern=0 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=1 pattern=1 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=7 pattern=0 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=7 pattern=1 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=16 pattern=0 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=16 pattern=1 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=17 pattern=0 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=17 pattern=1 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=257 pattern=0 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+widen_i32_to_i64 case n=257 pattern=1 ok sign_extension_checked wide_magnitude_checked tail_preserved two_input_patterns_checked
+tcrv_rvv_generated_bundle_abi_widen_i32_to_i64_ok counts=1,7,16,17,257
+PASS op=widen_i32_to_i64 counts=1,7,16,17,257

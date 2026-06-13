@@ -1,0 +1,3 @@
+PASS unsigned_widening_product (n=257)
+PASS unsigned_widening_product_reduce_add out=4190857 ref=4190857
+ALL PASS

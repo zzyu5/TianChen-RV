@@ -1,0 +1,7 @@
+reduce_add case n=0 ok
+reduce_add case n=1 ok
+reduce_add case n=16 ok
+reduce_add case n=17 ok
+reduce_add case n=257 ok
+tcrv_rvv_generated_bundle_abi_reduce_add_ok counts=0,1,16,17,257
+PASS op=reduce_add counts=0,1,16,17,257

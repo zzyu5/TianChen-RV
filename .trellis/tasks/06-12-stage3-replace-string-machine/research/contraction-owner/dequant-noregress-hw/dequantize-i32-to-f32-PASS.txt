@@ -1,0 +1,2 @@
+tcrv_rvv_generated_bundle_abi_dequantize_i32_to_f32_ok counts=16,257 patterns=0,1 scales=0.375,-0.125 tolerance=1e-05
+PASS op=dequantize_i32_to_f32 counts=16,257 patterns=0,1 scales=0.375,-0.125 tolerance=1e-05

@@ -1,0 +1,12 @@
+Stage 3 换心 — MAcc family RVV->emitc DialectConversion: ssh rvv hardware evidence
+HEAD base: 5ebbacd8 (reduce_add rung). Conversion: lib/Conversion/RVV/RVVToEmitC.cpp.
+Binaries fresh-linked (rm + ninja) before each run.
+
+PASS op=macc_add counts=0,1,16,17,257 patterns=0,1
+PASS op=scalar_broadcast_macc_add counts=0,1,16,17,257 rhs_scalars=-37,91
+PASS op=computed_masked_macc_add counts=0,1,16,17,257 patterns=0,1
+
+Oracle (from --op-kind macc_add dry-run, byte-identical to legacy):
+  macc_intrinsic = __riscv_vmacc_vv_i32m1
+  macc_operand_order = acc,lhs,rhs,vl   (fused vmacc writes the accumulator)
+  computed-mask: vmacc_vv(acc,lhs,rhs,vl) then vmerge_vvm(acc,active,mask,vl)

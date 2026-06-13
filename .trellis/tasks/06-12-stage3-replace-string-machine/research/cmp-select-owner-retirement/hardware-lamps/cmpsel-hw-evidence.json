@@ -1,0 +1,302 @@
+{
+  "artifact_dir": "/tmp/cmpsel.artifacts/cmpsel-hw",
+  "completed_at": "2026-06-12T19:28:39Z",
+  "created_at": "2026-06-12T19:28:34Z",
+  "dry_run": false,
+  "input_mode": "explicit-selected-body",
+  "lmul_m2_selected_body": false,
+  "op_kinds": [
+    "cmp_select"
+  ],
+  "op_results": {
+    "cmp_select": {
+      "artifact_dir": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select",
+      "compare_select_predicate_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);",
+          "runtime_abi_order": "lhs,rhs,out,n"
+        },
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts",
+        "compare_predicate_kind": "eq",
+        "emitted_cpp": {
+          "compare_intrinsic": "__riscv_vmseq_vv_i32m1_b32",
+          "compare_predicate_kind": "eq",
+          "compare_uses_loop_vl": true,
+          "emitted_vmerge_false_operand": "v12",
+          "emitted_vmerge_true_operand": "v10",
+          "lhs_abi_parameter": "v1",
+          "lhs_pointer": "v9",
+          "lhs_vector": "v10",
+          "out_abi_parameter": "v3",
+          "out_pointer": "v15",
+          "predicate_mask": "v13",
+          "predicate_mask_type": "vbool32_t",
+          "rhs_abi_parameter": "v2",
+          "rhs_pointer": "v11",
+          "rhs_vector": "v12",
+          "runtime_avl_vl_control": {
+            "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+            "full_chunk_vl": "v5",
+            "loop_remaining_avl": "v4 - v6",
+            "loop_setvl": "__riscv_vsetvl_e32m1(v7)",
+            "loop_vl": "v8",
+            "offset_induction": "v6",
+            "remaining_avl": "v7",
+            "runtime_abi_parameter": "v4",
+            "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+            "uses_loop_vl_for_intrinsics": true,
+            "uses_runtime_remaining_avl": true
+          },
+          "select_false_vector": "v12",
+          "select_intrinsic": "__riscv_vmerge_vvm_i32m1",
+          "select_layout": "select-lhs-when-mask-else-rhs",
+          "select_true_vector": "v10",
+          "select_uses_loop_vl": true,
+          "selected_result_vector": "v14",
+          "store_intrinsic": "__riscv_vse32_v_i32m1",
+          "store_uses_selected_result": true
+        },
+        "materialized_body": {
+          "compare_predicate_kind": "eq",
+          "memory_form": "vector-rhs-load",
+          "output_role": "output-buffer",
+          "pre_realized_body_consumed": false,
+          "predicate_source": "compare-produced-mask-same-vl-scope",
+          "predicate_type": "!tcrv_rvv.mask<i32, \"m1\">",
+          "realized_compare_op": "tcrv_rvv.compare",
+          "realized_select_op": "tcrv_rvv.select",
+          "select_false_operand_role": "rhs-input-buffer",
+          "select_layout": "select-lhs-when-mask-else-rhs",
+          "select_true_operand_role": "lhs-input-buffer",
+          "typed_body_source": "tcrv_rvv.typed_compare_select_pre_realized_body"
+        },
+        "predicate_memory_form": "compare-produced-mask",
+        "predicate_role": "predicate-mask-produced-by-compare",
+        "predicate_source": "compare-produced-mask-same-vl-scope",
+        "route_metadata": {
+          "tcrv_rvv.c_type_mapping": "vl:size_t,lhs/rhs:typed-vector,mask:typed-mask,result:typed-vector",
+          "tcrv_rvv.compare_predicate_kind": "eq",
+          "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+          "tcrv_rvv.destination_memory_form": "unit-stride-store",
+          "tcrv_rvv.element_type": "i32",
+          "tcrv_rvv.lmul": "m1",
+          "tcrv_rvv.mask_memory_form": "compare-produced-mask",
+          "tcrv_rvv.mask_policy": "agnostic",
+          "tcrv_rvv.mask_role": "predicate-mask-produced-by-compare",
+          "tcrv_rvv.mask_source": "compare-produced-mask-same-vl-scope",
+          "tcrv_rvv.memory_form": "vector-rhs-load",
+          "tcrv_rvv.plain_compare_select_route_family_plan": "rvv-plain-compare-select-route-family-plan.v1",
+          "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-plain-compare-select-plan-validated",
+          "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:cmp_select.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|select-true-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|select-false-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:cmp_select.v1",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.select_layout": "select-lhs-when-mask-else-rhs",
+          "tcrv_rvv.sew": "32",
+          "tcrv_rvv.source_memory_form": "unit-stride-load",
+          "tcrv_rvv.tail_policy": "agnostic",
+          "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-plain-compare-select-leaf-profile.v1"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_predicate_authority": true,
+        "select_layout": "select-lhs-when-mask-else-rhs",
+        "selected_value_operands": {
+          "false_value": "rhs",
+          "output": "out",
+          "true_value": "lhs"
+        },
+        "source": "typed tcrv_rvv compare/select body/config -> RVV realization -> route-family facts -> operand-binding facts -> statement plan -> emitted compare/select intrinsics"
+      },
+      "computed_masked_macc_boundary": {},
+      "computed_masked_widening_dot_reduce_boundary": {},
+      "conversion_sew_policy_boundary": {},
+      "correctness_oracle": {
+        "boundary": "external C ABI consumer of generated header and object only",
+        "element_c_type": "int32_t",
+        "expected_expression": "(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
+        "lhs_initializer": "(int32_t)(41 + (int32_t)(index * 9))",
+        "pass_marker": "tcrv_rvv_generated_bundle_abi_cmp_select_ok",
+        "rhs_initializer": "(int32_t)(((index % 4) == 0) ? (int32_t)(41 + (int32_t)(index * 9)) : (int32_t)(-300 - (int32_t)(index * 7)))",
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ]
+      },
+      "dequant_clamp_epilogue_boundary": {},
+      "dequantization_boundary": {},
+      "generated_bundle": {
+        "header": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "header_prototype": "void tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);",
+        "index": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/generated_bundle/tianchenrv-target-artifact-bundle.index",
+        "object": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+      },
+      "generated_rvv_cpp": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/materialized_rvv_emitc.cpp",
+      "harness": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c",
+      "mask_tail_policy_boundary": {},
+      "materialized_selected_body": "/tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/materialized_selected_body.mlir",
+      "multiply_accumulate_boundary": {},
+      "pass_marker": "tcrv_rvv_generated_bundle_abi_cmp_select_ok",
+      "reduction_accumulation_boundary": {},
+      "runtime_avl_vl_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);",
+          "runtime_parameter_count": 4
+        },
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "emitted_cpp": {
+          "full_chunk_setvl": "__riscv_vsetvl_e32m1(v4)",
+          "full_chunk_vl": "v5",
+          "loop_remaining_avl": "v4 - v6",
+          "loop_setvl": "__riscv_vsetvl_e32m1(v7)",
+          "loop_vl": "v8",
+          "offset_induction": "v6",
+          "remaining_avl": "v7",
+          "runtime_abi_parameter": "v4",
+          "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+          "uses_loop_vl_for_intrinsics": true,
+          "uses_runtime_remaining_avl": true
+        },
+        "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+        "materialized_setvl": {
+          "lmul": "m1",
+          "policy": "explicit-tcrv-rvv-policy",
+          "runtime_avl_abi_parameter": "n",
+          "runtime_avl_source": "runtime_abi:n",
+          "runtime_avl_value": "%3",
+          "setvl_consumes_runtime_avl": true,
+          "setvl_result": "%4",
+          "sew": "32",
+          "with_vl_consumes_setvl": true
+        },
+        "route_metadata": {
+          "tcrv_rvv.emitc_loop": "emitc.for",
+          "tcrv_rvv.loop_induction": "offset",
+          "tcrv_rvv.loop_step": "full_chunk_vl",
+          "tcrv_rvv.multi_vl": "supported",
+          "tcrv_rvv.pointer_advance": "offset",
+          "tcrv_rvv.remaining_avl": "n-offset",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:cmp_select.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|select-true-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|select-false-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:cmp_select.v1",
+          "tcrv_rvv.runtime_abi_order": "lhs,rhs,out,n",
+          "tcrv_rvv.runtime_avl_abi_parameter": "n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+          "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_vl_authority": true,
+        "selected_runtime_abi": {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        },
+        "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+      },
+      "runtime_counts": [
+        0,
+        1,
+        16,
+        17,
+        257
+      ],
+      "selected_dispatch_bundle_boundary": {},
+      "selected_input": "test/Target/RVV/explicit-selected-body-artifact-cmp-select.mlir",
+      "ssh_evidence": true,
+      "ssh_execution_summary": {
+        "compile_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/rvv_generated_bundle_abi_cmp_select_harness'\"'\"''",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+        },
+        "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/rvv_generated_bundle_abi_cmp_select_harness",
+        "remote_compile_succeeded": true,
+        "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select",
+        "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c",
+        "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "remote_output": "cmp_select case n=0 ok predicate_true_lanes=0 predicate_false_lanes=0 tail_preserved\ncmp_select case n=1 ok predicate_true_lanes=1 predicate_false_lanes=0 tail_preserved\ncmp_select case n=16 ok predicate_true_lanes=4 predicate_false_lanes=12 tail_preserved\ncmp_select case n=17 ok predicate_true_lanes=5 predicate_false_lanes=12 tail_preserved\ncmp_select case n=257 ok predicate_true_lanes=65 predicate_false_lanes=192 tail_preserved\ntcrv_rvv_generated_bundle_abi_cmp_select_ok counts=0,1,16,17,257\nPASS op=cmp_select counts=0,1,16,17,257\n",
+        "remote_run_succeeded": true,
+        "run_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/rvv_generated_bundle_abi_cmp_select_harness'",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "cmp_select case n=0 ok predicate_true_lanes=0 predicate_false_lanes=0 tail_preserved\ncmp_select case n=1 ok predicate_true_lanes=1 predicate_false_lanes=0 tail_preserved\ncmp_select case n=16 ok predicate_true_lanes=4 predicate_false_lanes=12 tail_preserved\ncmp_select case n=17 ok predicate_true_lanes=5 predicate_false_lanes=12 tail_preserved\ncmp_select case n=257 ok predicate_true_lanes=65 predicate_false_lanes=192 tail_preserved\ntcrv_rvv_generated_bundle_abi_cmp_select_ok counts=0,1,16,17,257\nPASS op=cmp_select counts=0,1,16,17,257\n"
+        },
+        "scp_command": {
+          "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/cmpsel.artifacts/cmpsel-hw/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_cmpsel-hw_cmp_select/",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "ssh_target": "rvv"
+      },
+      "status": "success",
+      "typed_config_artifact_closure": {
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        "element_c_type": "int32_t",
+        "element_type": "i32",
+        "intrinsics": [
+          "__riscv_vsetvl_e32m1",
+          "__riscv_vle32_v_i32m1",
+          "__riscv_vmseq_vv_i32m1_b32",
+          "__riscv_vmerge_vvm_i32m1",
+          "__riscv_vse32_v_i32m1"
+        ],
+        "lmul": "m1",
+        "required_header": "riscv_vector.h",
+        "sew": "32",
+        "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "vector_c_type": "vint32m1_t"
+      },
+      "vector_reduction_boundary": {},
+      "widening_dot_reduction_boundary": {},
+      "widening_macc_boundary": {},
+      "widening_product_reduction_boundary": {}
+    }
+  },
+  "pre_realized_selected_body": false,
+  "rhs_broadcast_selected_body": false,
+  "run_id": "cmpsel-hw",
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "vector_source_front_door": false
+}

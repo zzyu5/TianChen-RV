@@ -1,0 +1,1322 @@
+{
+  "artifact_dir": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add",
+  "bundle_checks": {
+    "header": {
+      "extern_c_guard": true,
+      "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+      "prototype": "void tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "sha256": "76e3deb912f4d268ce046714faaa41c441b2e9f514bbc26fef7fea038a9f28cd",
+      "size": 8141
+    },
+    "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "index": {
+      "parsed": {
+        "artifact_count": "2",
+        "bundle_status": "complete",
+        "records": [
+          {
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-computed-masked-macc-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "computed_masked_macc_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.masked_macc"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-computed-masked-macc-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "computed-mask-unit-stride-macc"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_computed_masked_macc_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-computed-mask-macc-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-computed-mask-macc-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:computed_masked_macc_add.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_route_family_plan",
+                "value": "rvv-computed-mask-accumulation-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_compute_suffix",
+                "value": "vector-masked-macc-add"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_mask_producer_source",
+                "value": "vector-compare-rhs-load"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_accumulator_contract",
+                "value": "vector-accumulator-input-preserves-inactive-lanes"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_result_contract",
+                "value": "vector-macc-result-stored-to-output-buffer"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector"
+              },
+              {
+                "key": "tcrv_rvv.mask_role",
+                "value": "predicate-mask-produced-by-compare"
+              },
+              {
+                "key": "tcrv_rvv.mask_source",
+                "value": "compare-produced-mask-same-vl-scope"
+              },
+              {
+                "key": "tcrv_rvv.mask_memory_form",
+                "value": "compare-produced-mask"
+              },
+              {
+                "key": "tcrv_rvv.inactive_lane_contract",
+                "value": "masked-macc-false-lanes-preserve-accumulator"
+              },
+              {
+                "key": "tcrv_rvv.masked_passthrough_layout",
+                "value": "accumulator-vector-preserves-inactive-lanes"
+              },
+              {
+                "key": "tcrv_rvv.source_memory_form",
+                "value": "unit-stride-load"
+              },
+              {
+                "key": "tcrv_rvv.destination_memory_form",
+                "value": "unit-stride-store"
+              },
+              {
+                "key": "tcrv_rvv.indexed_memory_layout",
+                "value": "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi"
+              },
+              {
+                "key": "tcrv_rvv.macc_arithmetic_kind",
+                "value": "add"
+              },
+              {
+                "key": "tcrv_rvv.macc_accumulator_layout",
+                "value": "separate-i32-vector-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.macc_result_layout",
+                "value": "store-multiply-accumulate-result-to-output-buffer"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "object",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add"
+              }
+            ],
+            "evidence_role": "relocatable-object",
+            "external_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "file_name": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family",
+            "runtime_abi": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "7",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "cmp_lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "cmp_rhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "dot-lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "dot-rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add"
+          },
+          {
+            "artifact_kind": "runtime-callable-c-header",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-computed-masked-macc-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "computed_masked_macc_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.masked_macc"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-computed-masked-macc-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "computed-mask-unit-stride-macc"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_computed_masked_macc_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-computed-mask-macc-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-computed-mask-macc-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:computed_masked_macc_add.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_route_family_plan",
+                "value": "rvv-computed-mask-accumulation-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_compute_suffix",
+                "value": "vector-masked-macc-add"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_mask_producer_source",
+                "value": "vector-compare-rhs-load"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_accumulator_contract",
+                "value": "vector-accumulator-input-preserves-inactive-lanes"
+              },
+              {
+                "key": "tcrv_rvv.accumulation_result_contract",
+                "value": "vector-macc-result-stored-to-output-buffer"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector"
+              },
+              {
+                "key": "tcrv_rvv.mask_role",
+                "value": "predicate-mask-produced-by-compare"
+              },
+              {
+                "key": "tcrv_rvv.mask_source",
+                "value": "compare-produced-mask-same-vl-scope"
+              },
+              {
+                "key": "tcrv_rvv.mask_memory_form",
+                "value": "compare-produced-mask"
+              },
+              {
+                "key": "tcrv_rvv.inactive_lane_contract",
+                "value": "masked-macc-false-lanes-preserve-accumulator"
+              },
+              {
+                "key": "tcrv_rvv.masked_passthrough_layout",
+                "value": "accumulator-vector-preserves-inactive-lanes"
+              },
+              {
+                "key": "tcrv_rvv.source_memory_form",
+                "value": "unit-stride-load"
+              },
+              {
+                "key": "tcrv_rvv.destination_memory_form",
+                "value": "unit-stride-store"
+              },
+              {
+                "key": "tcrv_rvv.indexed_memory_layout",
+                "value": "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi"
+              },
+              {
+                "key": "tcrv_rvv.macc_arithmetic_kind",
+                "value": "add"
+              },
+              {
+                "key": "tcrv_rvv.macc_accumulator_layout",
+                "value": "separate-i32-vector-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.macc_result_layout",
+                "value": "store-multiply-accumulate-result-to-output-buffer"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "header",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add"
+              }
+            ],
+            "evidence_role": "header-declaration",
+            "external_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "file_name": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family.header",
+            "runtime_abi": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "7",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "cmp_lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "cmp_rhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "lhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "dot-lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "dot-rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add"
+          }
+        ],
+        "version": "1"
+      },
+      "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/tianchenrv-target-artifact-bundle.index",
+      "sha256": "25a377bb99137f3fc4438e6520fb8686d36763b623265266abe84c56f6e9ad61",
+      "size": 21965
+    },
+    "object": {
+      "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+      "readobj": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj -h .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:24Z",
+        "started_at": "2026-06-12T21:11:24Z",
+        "stderr": "",
+        "stdout": "\nFile: .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o\nFormat: elf64-littleriscv\nArch: riscv64\nAddressSize: 64bit\nLoadName: <Not found>\nElfHeader {\n  Ident {\n    Magic: (7F 45 4C 46)\n    Class: 64-bit (0x2)\n    DataEncoding: LittleEndian (0x1)\n    FileVersion: 1\n    OS/ABI: SystemV (0x0)\n    ABIVersion: 0\n    Unused: (00 00 00 00 00 00 00)\n  }\n  Type: Relocatable (0x1)\n  Machine: EM_RISCV (0xF3)\n  Version: 1\n  Entry: 0x0\n  ProgramHeaderOffset: 0x0\n  SectionHeaderOffset: 0x390\n  Flags [ (0x5)\n    EF_RISCV_FLOAT_ABI_DOUBLE (0x4)\n    EF_RISCV_RVC (0x1)\n  ]\n  HeaderSize: 64\n  ProgramHeaderEntrySize: 0\n  ProgramHeaderCount: 0\n  SectionHeaderEntrySize: 64\n  SectionHeaderCount: 9\n  StringTableSectionIndex: 1\n}\n"
+      },
+      "sha256": "997e2d01bd6ef45c368f44f5178f0b551f0731d063ea4cec6457e83c5ffb43eb",
+      "size": 1488,
+      "symbols": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj --symbols .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "selected_symbol": "tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add",
+        "unmangled_selected_symbol": true
+      }
+    },
+    "object_file": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+  },
+  "completed_at": "2026-06-12T21:11:29Z",
+  "computed_masked_macc_boundary": {
+    "accumulator_type_policy": {
+      "abi_role": "accumulator-input-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "separate-i32-vector-accumulator-input"
+    },
+    "active_lane_contract": "accumulator + lhs * rhs where compare mask is true",
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_abi_order": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
+    },
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "authority": "provider-derived typed tcrv_rvv computed-mask multiply-accumulate body/config/runtime facts",
+    "compare_predicate_kind": "slt",
+    "emitted_cpp": {
+      "accumulator_abi_parameter": "v5",
+      "accumulator_layout": "separate-i32-vector-accumulator-input",
+      "accumulator_pointer": "v20",
+      "accumulator_vector": "v21",
+      "active_macc_vector": "v23",
+      "cmp_lhs_abi_parameter": "v1",
+      "cmp_rhs_abi_parameter": "v2",
+      "compare_intrinsic": "__riscv_vmslt_vv_i32m1_b32",
+      "compare_lhs_pointer": "v12",
+      "compare_lhs_vector": "v13",
+      "compare_predicate_kind": "slt",
+      "compare_rhs_pointer": "v14",
+      "compare_rhs_source": "vector-compare-rhs-load",
+      "compare_rhs_vector": "v15",
+      "inactive_lanes_preserve_accumulator": true,
+      "lhs_abi_parameter": "v3",
+      "lhs_pointer": "v16",
+      "lhs_vector": "v17",
+      "load_intrinsic": "__riscv_vle32_v_i32m1",
+      "macc_intrinsic": "__riscv_vmacc_vv_i32m1",
+      "macc_operand_order": "acc,lhs,rhs,vl",
+      "mask_c_type": "vbool32_t",
+      "mask_memory_form": "compare-produced-mask",
+      "mask_role": "predicate-mask-produced-by-compare",
+      "mask_source": "compare-produced-mask-same-vl-scope",
+      "mask_vector": "v22",
+      "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+      "merge_operand_order": "acc,active_macc,mask,vl",
+      "out_abi_parameter": "v6",
+      "out_pointer": "v25",
+      "result_layout": "store-multiply-accumulate-result-to-output-buffer",
+      "result_vector": "v24",
+      "rhs_abi_parameter": "v4",
+      "rhs_pointer": "v18",
+      "rhs_scalar_abi_parameter": "",
+      "rhs_scalar_splat_intrinsic": "",
+      "rhs_scalar_splat_vector": "",
+      "rhs_vector": "v19",
+      "runtime_avl_vl_control": {
+        "full_chunk_setvl": "__riscv_vsetvl_e32m1(v7)",
+        "full_chunk_vl": "v8",
+        "loop_remaining_avl": "v7 - v9",
+        "loop_setvl": "__riscv_vsetvl_e32m1(v10)",
+        "loop_vl": "v11",
+        "offset_induction": "v9",
+        "remaining_avl": "v10",
+        "runtime_abi_parameter": "v7",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_intrinsics": true,
+        "uses_runtime_remaining_avl": true
+      },
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "store_advances_by_loop_induction": true,
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "store_uses_merged_result": true,
+      "vector_c_type": "vint32m1_t"
+    },
+    "empty_count_behavior": "runtime loop skipped; output tail sentinel preserved",
+    "inactive_lane_contract": "masked-macc-false-lanes-preserve-accumulator",
+    "macc_kind": "add",
+    "mask_memory_form": "compare-produced-mask",
+    "mask_role": "predicate-mask-produced-by-compare",
+    "mask_source": "compare-produced-mask-same-vl-scope",
+    "masked_passthrough_layout": "accumulator-vector-preserves-inactive-lanes",
+    "materialized_body": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "separate-i32-vector-accumulator-input",
+      "compare_predicate_kind": "slt",
+      "compare_producer": "tcrv_rvv.compare",
+      "lhs_element_type": "i32",
+      "mask_memory_form": "compare-produced-mask",
+      "mask_role": "predicate-mask-produced-by-compare",
+      "mask_source": "compare-produced-mask-same-vl-scope",
+      "result_element_type": "i32",
+      "result_layout": "store-multiply-accumulate-result-to-output-buffer",
+      "rhs_element_type": "i32",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%6",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%7",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "cmp_lhs": "lhs-input-buffer",
+        "cmp_rhs": "rhs-input-buffer",
+        "lhs": "dot-lhs-input-buffer",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "dot-rhs-input-buffer"
+      },
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "typed_compute_op": "tcrv_rvv.masked_macc"
+    },
+    "result_type_policy": {
+      "abi_role": "output-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "store-multiply-accumulate-result-to-output-buffer"
+    },
+    "route_metadata": {
+      "tcrv_rvv.accumulation_accumulator_contract": "vector-accumulator-input-preserves-inactive-lanes",
+      "tcrv_rvv.accumulation_compute_suffix": "vector-masked-macc-add",
+      "tcrv_rvv.accumulation_mask_producer_source": "vector-compare-rhs-load",
+      "tcrv_rvv.accumulation_result_contract": "vector-macc-result-stored-to-output-buffer",
+      "tcrv_rvv.accumulation_route_family_plan": "rvv-computed-mask-accumulation-route-family-plan.v1",
+      "tcrv_rvv.c_type_mapping": "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:typed-vector,mask:typed-mask,result:typed-vector",
+      "tcrv_rvv.compare_predicate_kind": "slt",
+      "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+      "tcrv_rvv.destination_memory_form": "unit-stride-store",
+      "tcrv_rvv.element_type": "i32",
+      "tcrv_rvv.inactive_lane_contract": "masked-macc-false-lanes-preserve-accumulator",
+      "tcrv_rvv.indexed_memory_layout": "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi",
+      "tcrv_rvv.lmul": "m1",
+      "tcrv_rvv.macc_accumulator_layout": "separate-i32-vector-accumulator-input",
+      "tcrv_rvv.macc_result_layout": "store-multiply-accumulate-result-to-output-buffer",
+      "tcrv_rvv.mask_memory_form": "compare-produced-mask",
+      "tcrv_rvv.mask_policy": "agnostic",
+      "tcrv_rvv.mask_role": "predicate-mask-produced-by-compare",
+      "tcrv_rvv.mask_source": "compare-produced-mask-same-vl-scope",
+      "tcrv_rvv.masked_passthrough_layout": "accumulator-vector-preserves-inactive-lanes",
+      "tcrv_rvv.memory_form": "computed-mask-unit-stride-macc",
+      "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated",
+      "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:computed_masked_macc_add.v1",
+      "tcrv_rvv.runtime_abi_order": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.sew": "32",
+      "tcrv_rvv.source_memory_form": "unit-stride-load",
+      "tcrv_rvv.tail_policy": "agnostic",
+      "tcrv_rvv.target_leaf_profile": "rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_macc_or_mask_authority": true,
+    "runtime_scalar_compare_rhs": {},
+    "selected_source_abi": {
+      "acc": "accumulator-input-buffer",
+      "cmp_lhs": "lhs-input-buffer",
+      "cmp_rhs": "rhs-input-buffer",
+      "lhs": "dot-lhs-input-buffer",
+      "n": "runtime-element-count",
+      "out": "output-buffer",
+      "rhs": "dot-rhs-input-buffer"
+    },
+    "source": "typed tcrv_rvv.masked_macc body/config/runtime facts -> computed-mask accumulation family plan -> math operand-binding facts -> route-control provider plan -> RVV-owned statement plan -> emitted compare, active MAcc, merge, and store",
+    "source_type_policy": {
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "lmul": "m1",
+      "mask_c_type": "vbool32_t",
+      "sew": "32",
+      "vector_c_type": "vint32m1_t",
+      "vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+    },
+    "statement_plan": {
+      "compare_operand_order": "cmp_lhs,cmp_rhs,vl",
+      "family": "computed-mask accumulation MAcc",
+      "loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vmslt_vv_i32m1_b32",
+        "__riscv_vmacc_vv_i32m1",
+        "__riscv_vmerge_vvm_i32m1",
+        "__riscv_vse32_v_i32m1"
+      ],
+      "macc_operand_order": "acc,lhs,rhs,vl",
+      "merge_operand_order": "acc,active_macc,mask,vl",
+      "pre_loop_callees": [
+        "__riscv_vsetvl_e32m1"
+      ],
+      "route_operand_binding_operands": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "route_operand_binding_plan": "rvv-route-operand-binding:computed_masked_macc_add.v1",
+      "store_pointer": "out + loop_induction"
+    }
+  },
+  "created_at": "2026-06-12T21:11:24Z",
+  "dry_run": false,
+  "emitted_rvv_cpp_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {
+      "accumulator_abi_parameter": "v5",
+      "accumulator_layout": "separate-i32-vector-accumulator-input",
+      "accumulator_pointer": "v20",
+      "accumulator_vector": "v21",
+      "active_macc_vector": "v23",
+      "cmp_lhs_abi_parameter": "v1",
+      "cmp_rhs_abi_parameter": "v2",
+      "compare_intrinsic": "__riscv_vmslt_vv_i32m1_b32",
+      "compare_lhs_pointer": "v12",
+      "compare_lhs_vector": "v13",
+      "compare_predicate_kind": "slt",
+      "compare_rhs_pointer": "v14",
+      "compare_rhs_source": "vector-compare-rhs-load",
+      "compare_rhs_vector": "v15",
+      "inactive_lanes_preserve_accumulator": true,
+      "lhs_abi_parameter": "v3",
+      "lhs_pointer": "v16",
+      "lhs_vector": "v17",
+      "load_intrinsic": "__riscv_vle32_v_i32m1",
+      "macc_intrinsic": "__riscv_vmacc_vv_i32m1",
+      "macc_operand_order": "acc,lhs,rhs,vl",
+      "mask_c_type": "vbool32_t",
+      "mask_memory_form": "compare-produced-mask",
+      "mask_role": "predicate-mask-produced-by-compare",
+      "mask_source": "compare-produced-mask-same-vl-scope",
+      "mask_vector": "v22",
+      "masked_merge_intrinsic": "__riscv_vmerge_vvm_i32m1",
+      "merge_operand_order": "acc,active_macc,mask,vl",
+      "out_abi_parameter": "v6",
+      "out_pointer": "v25",
+      "result_layout": "store-multiply-accumulate-result-to-output-buffer",
+      "result_vector": "v24",
+      "rhs_abi_parameter": "v4",
+      "rhs_pointer": "v18",
+      "rhs_scalar_abi_parameter": "",
+      "rhs_scalar_splat_intrinsic": "",
+      "rhs_scalar_splat_vector": "",
+      "rhs_vector": "v19",
+      "runtime_avl_vl_control": {
+        "full_chunk_setvl": "__riscv_vsetvl_e32m1(v7)",
+        "full_chunk_vl": "v8",
+        "loop_remaining_avl": "v7 - v9",
+        "loop_setvl": "__riscv_vsetvl_e32m1(v10)",
+        "loop_vl": "v11",
+        "offset_induction": "v9",
+        "remaining_avl": "v10",
+        "runtime_abi_parameter": "v7",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_intrinsics": true,
+        "uses_runtime_remaining_avl": true
+      },
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "store_advances_by_loop_induction": true,
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "store_uses_merged_result": true,
+      "vector_c_type": "vint32m1_t"
+    },
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle32_v_i32m1",
+      "__riscv_vmslt_vv_i32m1_b32",
+      "__riscv_vmacc_vv_i32m1",
+      "__riscv_vmerge_vvm_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "multiply_accumulate_boundary": {},
+    "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_rvv_emitc.cpp",
+    "reduction_accumulation_boundary": {},
+    "required_header": "riscv_vector.h",
+    "runtime_avl_vl_boundary": {
+      "full_chunk_setvl": "__riscv_vsetvl_e32m1(v7)",
+      "full_chunk_vl": "v8",
+      "loop_remaining_avl": "v7 - v9",
+      "loop_setvl": "__riscv_vsetvl_e32m1(v10)",
+      "loop_vl": "v11",
+      "offset_induction": "v9",
+      "remaining_avl": "v10",
+      "runtime_abi_parameter": "v7",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_intrinsics": true,
+      "uses_runtime_remaining_avl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "sew": "32",
+    "sha256": "70ad5f60d05814af556a590d52d5ebfedb7f1ff272b61642b550232c66f79533",
+    "size": 2709,
+    "vector_c_type": "vint32m1_t",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {}
+  },
+  "expected_function": "tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add",
+  "expected_runtime_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+  "expected_selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add",
+  "harness": {
+    "accumulator_contract": "inactive lanes preserve the explicit accumulator input while active lanes compute accumulator + lhs * rhs",
+    "boundary": "external C ABI consumer of generated header and object only",
+    "macc_distinguishing_contract": "active-lane checks distinguish fused multiply-add accumulation from add-only or multiply-only behavior",
+    "mask_coverage_contract": "multi-lane computed_masked_macc_add cases require compare-produced active and inactive mask lanes",
+    "pass_marker": "tcrv_rvv_generated_bundle_abi_computed_masked_macc_add_ok",
+    "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c",
+    "sha256": "2156a897a37fa2917f1623d167864e653b79312d789e95ba53ee0c2005a926a2",
+    "tail_lane_contract": "runtime n controls active lanes and output tail sentinels are preserved"
+  },
+  "input": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir",
+  "input_mode": "explicit-selected-body",
+  "local_bundle_generation": {
+    "emitted_rvv_cpp": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_rvv_emitc.cpp",
+    "front_door": "explicit-selected-tcrv-exec-rvv-body",
+    "input_mode": "explicit-selected-body",
+    "materialized_selected_body": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir",
+    "materializer": "none-selected-body-already-explicit",
+    "pipeline": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir --tcrv-materialize-emission-plans -o .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir && build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir -o .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_rvv_emitc.cpp && build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=.trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir",
+    "source_seed": false,
+    "target_export": "tcrv-export-target-artifact-bundle",
+    "tcrv_opt": {
+      "command": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir --tcrv-materialize-emission-plans -o .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-12T21:11:24Z",
+      "started_at": "2026-06-12T21:11:24Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_rvv_emitc_cpp": {
+      "command": "build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir -o .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_rvv_emitc.cpp",
+      "exit_code": 0,
+      "finished_at": "2026-06-12T21:11:24Z",
+      "started_at": "2026-06-12T21:11:24Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_translate": {
+      "command": "build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=.trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-12T21:11:24Z",
+      "started_at": "2026-06-12T21:11:24Z",
+      "stderr": "",
+      "stdout": "tianchenrv.target_artifact_bundle_export: complete\nindex_file: \"tianchenrv-target-artifact-bundle.index\"\n"
+    }
+  },
+  "materialized_selected_body_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "separate-i32-vector-accumulator-input",
+      "compare_predicate_kind": "slt",
+      "compare_producer": "tcrv_rvv.compare",
+      "lhs_element_type": "i32",
+      "mask_memory_form": "compare-produced-mask",
+      "mask_role": "predicate-mask-produced-by-compare",
+      "mask_source": "compare-produced-mask-same-vl-scope",
+      "result_element_type": "i32",
+      "result_layout": "store-multiply-accumulate-result-to-output-buffer",
+      "rhs_element_type": "i32",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%6",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%7",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "cmp_lhs": "lhs-input-buffer",
+        "cmp_rhs": "rhs-input-buffer",
+        "lhs": "dot-lhs-input-buffer",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "dot-rhs-input-buffer"
+      },
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "typed_compute_op": "tcrv_rvv.masked_macc"
+    },
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "contains_with_vl": true,
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "explicit_compound_body_consumed": false,
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "memory_form": "computed-mask-unit-stride-macc",
+    "multiply_accumulate_boundary": {},
+    "path": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/materialized_selected_body.mlir",
+    "pre_realized_body_consumed": false,
+    "reduction_accumulation_boundary": {},
+    "runtime_avl_vl_boundary": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%6",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%7",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add",
+    "sha256": "71c78773f6a5834fdc710abd07db711d8a27a27dc745062cd007490c327b582b",
+    "source_front_door_family_contract": {},
+    "typed_compute_op": "tcrv_rvv.masked_macc",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {}
+  },
+  "op_kind": "computed_masked_macc_add",
+  "remote": {
+    "commands": {
+      "cleanup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:29Z",
+        "started_at": "2026-06-12T21:11:28Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "compile": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:27Z",
+        "started_at": "2026-06-12T21:11:26Z",
+        "stderr": "",
+        "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+      },
+      "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add",
+      "run": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness'",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:28Z",
+        "started_at": "2026-06-12T21:11:27Z",
+        "stderr": "",
+        "stdout": "computed_masked_macc_add case n=0 pattern=0 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved\ncomputed_masked_macc_add case n=0 pattern=1 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved\ncomputed_masked_macc_add case n=1 pattern=0 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved\ncomputed_masked_macc_add case n=1 pattern=1 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved\ncomputed_masked_macc_add case n=16 pattern=0 ok computed_mask macc active_lanes=8 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved\ncomputed_masked_macc_add case n=16 pattern=1 ok computed_mask macc active_lanes=7 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=7 mul_only_distinguishing=7 signed_products=7 source_preserved tail_preserved\ncomputed_masked_macc_add case n=17 pattern=0 ok computed_mask macc active_lanes=9 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=9 mul_only_distinguishing=9 signed_products=9 source_preserved tail_preserved\ncomputed_masked_macc_add case n=17 pattern=1 ok computed_mask macc active_lanes=8 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved\ncomputed_masked_macc_add case n=257 pattern=0 ok computed_mask macc active_lanes=129 inactive_lanes=128 inactive_acc_preserved=128 add_only_distinguishing=129 mul_only_distinguishing=129 signed_products=129 source_preserved tail_preserved\ncomputed_masked_macc_add case n=257 pattern=1 ok computed_mask macc active_lanes=104 inactive_lanes=153 inactive_acc_preserved=153 add_only_distinguishing=104 mul_only_distinguishing=104 signed_products=104 source_preserved tail_preserved\ntcrv_rvv_generated_bundle_abi_computed_masked_macc_add_ok counts=0,1,16,17,257 patterns=0,1\nPASS op=computed_masked_macc_add counts=0,1,16,17,257 patterns=0,1\n"
+      },
+      "scp": {
+        "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h .trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:26Z",
+        "started_at": "2026-06-12T21:11:25Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "setup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add && mkdir -p /tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-12T21:11:25Z",
+        "started_at": "2026-06-12T21:11:24Z",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    "op_kind": "computed_masked_macc_add",
+    "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness",
+    "remote_compile_succeeded": true,
+    "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add",
+    "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c",
+    "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_computed_masked_macc_add-hw_computed_masked_macc_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+    "remote_output": "computed_masked_macc_add case n=0 pattern=0 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved\ncomputed_masked_macc_add case n=0 pattern=1 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved\ncomputed_masked_macc_add case n=1 pattern=0 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved\ncomputed_masked_macc_add case n=1 pattern=1 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved\ncomputed_masked_macc_add case n=16 pattern=0 ok computed_mask macc active_lanes=8 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved\ncomputed_masked_macc_add case n=16 pattern=1 ok computed_mask macc active_lanes=7 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=7 mul_only_distinguishing=7 signed_products=7 source_preserved tail_preserved\ncomputed_masked_macc_add case n=17 pattern=0 ok computed_mask macc active_lanes=9 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=9 mul_only_distinguishing=9 signed_products=9 source_preserved tail_preserved\ncomputed_masked_macc_add case n=17 pattern=1 ok computed_mask macc active_lanes=8 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved\ncomputed_masked_macc_add case n=257 pattern=0 ok computed_mask macc active_lanes=129 inactive_lanes=128 inactive_acc_preserved=128 add_only_distinguishing=129 mul_only_distinguishing=129 signed_products=129 source_preserved tail_preserved\ncomputed_masked_macc_add case n=257 pattern=1 ok computed_mask macc active_lanes=104 inactive_lanes=153 inactive_acc_preserved=153 add_only_distinguishing=104 mul_only_distinguishing=104 signed_products=104 source_preserved tail_preserved\ntcrv_rvv_generated_bundle_abi_computed_masked_macc_add_ok counts=0,1,16,17,257 patterns=0,1\nPASS op=computed_masked_macc_add counts=0,1,16,17,257 patterns=0,1\n",
+    "remote_run_succeeded": true,
+    "ssh_target": "rvv"
+  },
+  "run_id": "computed_masked_macc_add-hw",
+  "runtime_avl_vl_boundary": {
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_parameter_count": 7
+    },
+    "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "emitted_cpp": {
+      "full_chunk_setvl": "__riscv_vsetvl_e32m1(v7)",
+      "full_chunk_vl": "v8",
+      "loop_remaining_avl": "v7 - v9",
+      "loop_setvl": "__riscv_vsetvl_e32m1(v10)",
+      "loop_vl": "v11",
+      "offset_induction": "v9",
+      "remaining_avl": "v10",
+      "runtime_abi_parameter": "v7",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_intrinsics": true,
+      "uses_runtime_remaining_avl": true
+    },
+    "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+    "materialized_setvl": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%6",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%7",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "route_metadata": {
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:computed_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:computed_masked_macc_add.v1",
+      "tcrv_rvv.runtime_abi_order": "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+      "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_vl_authority": true,
+    "selected_runtime_abi": {
+      "c_name": "n",
+      "c_type": "size_t",
+      "ownership": "target-export-abi-owned",
+      "role": "runtime-element-count"
+    },
+    "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+  },
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "selected_input": {
+    "copy": ".trellis/tasks/06-12-stage3-replace-string-machine/research/rvv-macc-hw/computed_masked_macc_add-hw/computed_masked_macc_add/selected_body_input.mlir",
+    "mode": "explicit-selected-body",
+    "path": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir",
+    "sha256": "47a3768421296c8df662dc2f3835bdd0497f376b1f5bce43f7a91200af5f592b",
+    "source_seed": false
+  },
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "typed_config_artifact_closure": {
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle32_v_i32m1",
+      "__riscv_vmslt_vv_i32m1_b32",
+      "__riscv_vmacc_vv_i32m1",
+      "__riscv_vmerge_vvm_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "required_header": "riscv_vector.h",
+    "sew": "32",
+    "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "vector_c_type": "vint32m1_t"
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "artifact_dir": "/tmp/bm.artifacts/indexed-gather-hw",
+  "completed_at": "2026-06-12T22:05:21Z",
+  "created_at": "2026-06-12T22:05:16Z",
+  "dry_run": false,
+  "input_mode": "explicit-selected-body",
+  "lmul_m2_selected_body": false,
+  "op_kinds": [
+    "indexed_gather_unit_store"
+  ],
+  "op_results": {
+    "indexed_gather_unit_store": {
+      "artifact_dir": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store",
+      "compare_select_predicate_boundary": {},
+      "computed_masked_macc_boundary": {},
+      "computed_masked_widening_dot_reduce_boundary": {},
+      "conversion_sew_policy_boundary": {},
+      "correctness_oracle": {
+        "boundary": "external C ABI consumer of generated header and object only",
+        "element_c_type": "int32_t",
+        "expected_expression": "data[indices[index]]",
+        "lhs_initializer": "(int32_t)(101 + (int32_t)(index * 9))",
+        "pass_marker": "tcrv_rvv_generated_bundle_abi_indexed_gather_unit_store_ok",
+        "rhs_initializer": "unused",
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ]
+      },
+      "dequant_clamp_epilogue_boundary": {},
+      "dequantization_boundary": {},
+      "generated_bundle": {
+        "header": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "header_prototype": "void tcrv_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store(const int32_t *data, const uint32_t *index, int32_t *out, size_t n);",
+        "index": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/generated_bundle/tianchenrv-target-artifact-bundle.index",
+        "object": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+      },
+      "generated_rvv_cpp": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/materialized_rvv_emitc.cpp",
+      "harness": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness.c",
+      "mask_tail_policy_boundary": {},
+      "materialized_selected_body": "/tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/materialized_selected_body.mlir",
+      "multiply_accumulate_boundary": {},
+      "pass_marker": "tcrv_rvv_generated_bundle_abi_indexed_gather_unit_store_ok",
+      "reduction_accumulation_boundary": {},
+      "runtime_avl_vl_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_explicit_selected_body_indexed_gather_unit_store_kernel_explicit_selected_body_rvv_indexed_gather_unit_store(const int32_t *data, const uint32_t *index, int32_t *out, size_t n);",
+          "runtime_parameter_count": 4
+        },
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "emitted_cpp": {},
+        "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+        "materialized_setvl": {
+          "lmul": "m1",
+          "policy": "explicit-tcrv-rvv-policy",
+          "runtime_avl_abi_parameter": "n",
+          "runtime_avl_source": "runtime_abi:n",
+          "runtime_avl_value": "%3",
+          "setvl_consumes_runtime_avl": true,
+          "setvl_result": "%4",
+          "sew": "32",
+          "with_vl_consumes_setvl": true
+        },
+        "route_metadata": {
+          "tcrv_rvv.emitc_loop": "emitc.for",
+          "tcrv_rvv.loop_induction": "offset",
+          "tcrv_rvv.loop_step": "full_chunk_vl",
+          "tcrv_rvv.multi_vl": "supported",
+          "tcrv_rvv.pointer_advance": "offset",
+          "tcrv_rvv.remaining_avl": "n-offset",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:abi|materialized-indexed-data-base|indexed-load-base|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:indexed_gather_unit_store.v1",
+          "tcrv_rvv.runtime_abi_order": "data,index,out,n",
+          "tcrv_rvv.runtime_avl_abi_parameter": "n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+          "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_vl_authority": true,
+        "selected_runtime_abi": {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        },
+        "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+      },
+      "runtime_counts": [
+        0,
+        1,
+        16,
+        17,
+        257
+      ],
+      "selected_dispatch_bundle_boundary": {},
+      "selected_input": "test/Target/RVV/explicit-selected-body-artifact-indexed-gather-unit-store.mlir",
+      "ssh_evidence": true,
+      "ssh_execution_summary": {
+        "compile_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness'\"'\"''",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+        },
+        "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness",
+        "remote_compile_succeeded": true,
+        "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store",
+        "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness.c",
+        "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "remote_output": "indexed_gather_unit_store case n=0 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=0 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=1 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=1 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=16 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=14 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=16 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=16 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=17 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=17 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=17 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=16 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=257 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=257 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=257 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=257 unit_store_output tail_preserved runtime_n_avl_honored\ntcrv_rvv_generated_bundle_abi_indexed_gather_unit_store_ok counts=0,1,16,17,257 index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\nPASS op=indexed_gather_unit_store counts=0,1,16,17,257 index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\n",
+        "remote_run_succeeded": true,
+        "run_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness'",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "indexed_gather_unit_store case n=0 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=0 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=1 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=1 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=0 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=16 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=14 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=16 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=16 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=17 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=17 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=17 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=16 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=257 pattern=0 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=257 unit_store_output tail_preserved runtime_n_avl_honored\nindexed_gather_unit_store case n=257 pattern=1 ok non_monotonic_indexed_gather element_offset_indices output_order_distinguishing_lanes=257 unit_store_output tail_preserved runtime_n_avl_honored\ntcrv_rvv_generated_bundle_abi_indexed_gather_unit_store_ok counts=0,1,16,17,257 index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\nPASS op=indexed_gather_unit_store counts=0,1,16,17,257 index_patterns=2 element_offset_indices unit_store_output tail_preserved runtime_n_avl_honored\n"
+        },
+        "scp_command": {
+          "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/bm.artifacts/indexed-gather-hw/indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_indexed-gather-hw_indexed_gather_unit_store/",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "ssh_target": "rvv"
+      },
+      "status": "success",
+      "typed_config_artifact_closure": {
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        "element_c_type": "int32_t",
+        "element_type": "i32",
+        "intrinsics": [],
+        "lmul": "m1",
+        "required_header": "riscv_vector.h",
+        "sew": "32",
+        "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "vector_c_type": ""
+      },
+      "vector_reduction_boundary": {},
+      "widening_dot_reduction_boundary": {},
+      "widening_macc_boundary": {},
+      "widening_product_reduction_boundary": {}
+    }
+  },
+  "pre_realized_selected_body": false,
+  "rhs_broadcast_selected_body": false,
+  "run_id": "indexed-gather-hw",
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "vector_source_front_door": false
+}

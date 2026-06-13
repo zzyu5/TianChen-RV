@@ -1,0 +1,1204 @@
+{
+  "artifact_dir": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add",
+  "bundle_checks": {
+    "header": {
+      "extern_c_guard": true,
+      "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+      "prototype": "void tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "sha256": "ea12cc5e94737f8d96c4705be763853563409927cca902db0d8a8a8d25a94926",
+      "size": 6886
+    },
+    "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "index": {
+      "parsed": {
+        "artifact_count": "2",
+        "bundle_status": "complete",
+        "records": [
+          {
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-widening-dot-reduce-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "widening_dot_reduce_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.widening_dot_reduce"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-widening-dot-reduce-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "vector-rhs-load"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,rhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_widening_dot_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-widening-dot-reduce-add-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-widening-dot-reduce-add-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:widening_dot_reduce.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.contraction_route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"
+              },
+              {
+                "key": "tcrv_rvv.source_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.source_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_result_layout",
+                "value": "store-dot-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_relation",
+                "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_reduction_store_vl",
+                "value": "1"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "object",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add"
+              }
+            ],
+            "evidence_role": "relocatable-object",
+            "external_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "file_name": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family",
+            "runtime_abi": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "5",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int16_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int16_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add"
+          },
+          {
+            "artifact_kind": "runtime-callable-c-header",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-widening-dot-reduce-add-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "widening_dot_reduce_add"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.widening_dot_reduce"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-widening-dot-reduce-add-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "vector-rhs-load"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,rhs,acc,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@explicit_selected_body_rvv_widening_dot_reduce_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-selected-body-widening-dot-reduce-add-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@explicit_selected_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-selected-body-widening-dot-reduce-add-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:widening_dot_reduce.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.contraction_route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"
+              },
+              {
+                "key": "tcrv_rvv.source_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.source_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_result_layout",
+                "value": "store-dot-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_relation",
+                "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.widening_dot_reduction_store_vl",
+                "value": "1"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "header",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add"
+              }
+            ],
+            "evidence_role": "header-declaration",
+            "external_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "file_name": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family.header",
+            "runtime_abi": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "5",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int16_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int16_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "out",
+                "c_type": "int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add"
+          }
+        ],
+        "version": "1"
+      },
+      "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/tianchenrv-target-artifact-bundle.index",
+      "sha256": "64085c60cb1a3fd3f885fce4cc64dc87d4c5c116a27fd2e9297270190351f707",
+      "size": 19345
+    },
+    "object": {
+      "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+      "readobj": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj -h /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:52Z",
+        "started_at": "2026-06-13T01:13:52Z",
+        "stderr": "",
+        "stdout": "\nFile: /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o\nFormat: elf64-littleriscv\nArch: riscv64\nAddressSize: 64bit\nLoadName: <Not found>\nElfHeader {\n  Ident {\n    Magic: (7F 45 4C 46)\n    Class: 64-bit (0x2)\n    DataEncoding: LittleEndian (0x1)\n    FileVersion: 1\n    OS/ABI: SystemV (0x0)\n    ABIVersion: 0\n    Unused: (00 00 00 00 00 00 00)\n  }\n  Type: Relocatable (0x1)\n  Machine: EM_RISCV (0xF3)\n  Version: 1\n  Entry: 0x0\n  ProgramHeaderOffset: 0x0\n  SectionHeaderOffset: 0x398\n  Flags [ (0x5)\n    EF_RISCV_FLOAT_ABI_DOUBLE (0x4)\n    EF_RISCV_RVC (0x1)\n  ]\n  HeaderSize: 64\n  ProgramHeaderEntrySize: 0\n  ProgramHeaderCount: 0\n  SectionHeaderEntrySize: 64\n  SectionHeaderCount: 9\n  StringTableSectionIndex: 1\n}\n"
+      },
+      "sha256": "73a225a224f4dc3a00bf116a5bcc8d184423912587d4ae8b6300663f9fbbaa58",
+      "size": 1496,
+      "symbols": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj --symbols /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "selected_symbol": "tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add",
+        "unmangled_selected_symbol": true
+      }
+    },
+    "object_file": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+  },
+  "completed_at": "2026-06-13T01:13:57Z",
+  "created_at": "2026-06-13T01:13:52Z",
+  "dry_run": false,
+  "emitted_rvv_cpp_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle16_v_i16mf2",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vwmul_vv_i32m1",
+      "__riscv_vredsum_vs_i32m1_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "multiply_accumulate_boundary": {},
+    "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_rvv_emitc.cpp",
+    "reduction_accumulation_boundary": {},
+    "required_header": "riscv_vector.h",
+    "runtime_avl_vl_boundary": {
+      "runtime_abi_order": "lhs,rhs,acc,out,n",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "store_uses_scalar_result_vl": true,
+      "uses_loop_vl_for_source_load_product_reduction": true,
+      "uses_runtime_n_avl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "sew": "32",
+    "sha256": "0e716e1574a41612899c3997a93b05fc562b058f7892ed77e2644d9140f66864",
+    "size": 2423,
+    "vector_c_type": "vint32m1_t",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {
+      "product_intrinsic": "__riscv_vwmul_vv_i32m1",
+      "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "result_vector_c_type": "vint32m1_t",
+      "runtime_avl_vl_control": {
+        "runtime_abi_order": "lhs,rhs,acc,out,n",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "store_uses_scalar_result_vl": true,
+        "uses_loop_vl_for_source_load_product_reduction": true,
+        "uses_runtime_n_avl": true
+      },
+      "seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+      "source_vector_c_type": "vint16mf2_t",
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+    },
+    "widening_product_reduction_boundary": {}
+  },
+  "expected_function": "tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add",
+  "expected_runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+  "expected_selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add",
+  "harness": {
+    "boundary": "external C ABI consumer of generated header and object only",
+    "dot_distinguishing_contract": "multi-lane cases include mixed-sign products and products outside int16 range so the oracle distinguishes true widening dot-reduce from add-only, mul-only/no-seed, non-widening, and wrong sign-extension behavior",
+    "dot_reduction_contract": "signed i16*i16 widening products contribute to the i32 scalar seed through a horizontal dot-reduction",
+    "pass_marker": "tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok",
+    "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c",
+    "scalar_result_contract": "only out[0] is written and tail/non-scalar output slots preserve sentinels",
+    "sha256": "24bbe707bf78ff532f640ebf5a2f4ec25cec29c46395c54ff60055caa9997cab"
+  },
+  "input": "test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir",
+  "input_mode": "explicit-selected-body",
+  "local_bundle_generation": {
+    "emitted_rvv_cpp": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_rvv_emitc.cpp",
+    "front_door": "explicit-selected-tcrv-exec-rvv-body",
+    "input_mode": "explicit-selected-body",
+    "materialized_selected_body": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir",
+    "materializer": "none-selected-body-already-explicit",
+    "pipeline": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir && build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir -o /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_rvv_emitc.cpp && build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir",
+    "source_seed": false,
+    "target_export": "tcrv-export-target-artifact-bundle",
+    "tcrv_opt": {
+      "command": "build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir --tcrv-materialize-emission-plans -o /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T01:13:52Z",
+      "started_at": "2026-06-13T01:13:52Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_rvv_emitc_cpp": {
+      "command": "build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir -o /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_rvv_emitc.cpp",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T01:13:52Z",
+      "started_at": "2026-06-13T01:13:52Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_translate": {
+      "command": "build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-13T01:13:52Z",
+      "started_at": "2026-06-13T01:13:52Z",
+      "stderr": "",
+      "stdout": "tianchenrv.target_artifact_bundle_export: complete\nindex_file: \"tianchenrv-target-artifact-bundle.index\"\n"
+    }
+  },
+  "materialized_selected_body_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "contains_with_vl": true,
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {},
+    "explicit_compound_body_consumed": false,
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "memory_form": "vector-rhs-load",
+    "multiply_accumulate_boundary": {},
+    "path": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/materialized_selected_body.mlir",
+    "pre_realized_body_consumed": false,
+    "reduction_accumulation_boundary": {},
+    "runtime_avl_vl_boundary": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%4",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%5",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add",
+    "sha256": "05d57747beb801a56831de8eff4bb43be313073a65f88b356d8607232012db45",
+    "source_front_door_family_contract": {},
+    "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "dot_product_relation": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32",
+      "result_element_type": "i32",
+      "result_layout": "store-dot-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%4",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%5",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "lhs": "lhs-input-buffer",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "rhs-input-buffer"
+      },
+      "source_element_type": "i16",
+      "source_lmul": "mf2",
+      "source_sew": "16",
+      "source_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">",
+      "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+      "uses_strided_inputs": false
+    },
+    "widening_product_reduction_boundary": {}
+  },
+  "op_kind": "widening_dot_reduce_add",
+  "remote": {
+    "commands": {
+      "cleanup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:57Z",
+        "started_at": "2026-06-13T01:13:57Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "compile": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:56Z",
+        "started_at": "2026-06-13T01:13:54Z",
+        "stderr": "",
+        "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+      },
+      "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add",
+      "run": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness'",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:57Z",
+        "started_at": "2026-06-13T01:13:56Z",
+        "stderr": "",
+        "stdout": "widening_dot_reduce_add case n=0 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=0 add_only_distinguishing=0 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=0 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=0 add_only_distinguishing=0 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=1 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=1 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=1 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=1 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=16 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=16 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=16 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=16 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=17 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=17 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=17 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=17 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=257 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=257 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=257 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=257 add_only_distinguishing=1 mul_only_distinguishing=1\ntcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,17,257 patterns=0,1\nPASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1\n"
+      },
+      "scp": {
+        "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:54Z",
+        "started_at": "2026-06-13T01:13:53Z",
+        "stderr": "",
+        "stdout": ""
+      },
+      "setup": {
+        "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'rm -rf /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add && mkdir -p /tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add'\"'\"''",
+        "exit_code": 0,
+        "finished_at": "2026-06-13T01:13:53Z",
+        "started_at": "2026-06-13T01:13:52Z",
+        "stderr": "",
+        "stdout": ""
+      }
+    },
+    "op_kind": "widening_dot_reduce_add",
+    "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness",
+    "remote_compile_succeeded": true,
+    "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add",
+    "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c",
+    "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_widening-dot-reduce-hw_widening_dot_reduce_add/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+    "remote_output": "widening_dot_reduce_add case n=0 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=0 add_only_distinguishing=0 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=0 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=0 add_only_distinguishing=0 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=1 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=1 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=1 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=1 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=16 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=16 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=16 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=16 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=17 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=17 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=17 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=17 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=257 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=257 add_only_distinguishing=1 mul_only_distinguishing=1\nwidening_dot_reduce_add case n=257 ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=257 add_only_distinguishing=1 mul_only_distinguishing=1\ntcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,17,257 patterns=0,1\nPASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1\n",
+    "remote_run_succeeded": true,
+    "ssh_target": "rvv"
+  },
+  "run_id": "widening-dot-reduce-hw",
+  "runtime_avl_vl_boundary": {
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_parameter_count": 5
+    },
+    "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "emitted_cpp": {
+      "runtime_abi_order": "lhs,rhs,acc,out,n",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "store_uses_scalar_result_vl": true,
+      "uses_loop_vl_for_source_load_product_reduction": true,
+      "uses_runtime_n_avl": true
+    },
+    "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+    "materialized_setvl": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%4",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%5",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "route_metadata": {
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widening_dot_reduce.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,rhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+      "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_vl_authority": true,
+    "selected_runtime_abi": {
+      "c_name": "n",
+      "c_type": "size_t",
+      "ownership": "target-export-abi-owned",
+      "role": "runtime-element-count"
+    },
+    "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+  },
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "selected_input": {
+    "copy": "/tmp/contraction.hw/widening-dot-reduce-hw/widening_dot_reduce_add/selected_body_input.mlir",
+    "mode": "explicit-selected-body",
+    "path": "test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir",
+    "sha256": "e6eed842143394068e40199b6230bec4565753ec6c4047003e0d4de748c50bfb",
+    "source_seed": false
+  },
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "typed_config_artifact_closure": {
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+    "element_c_type": "int32_t",
+    "element_type": "i32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle16_v_i16mf2",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vwmul_vv_i32m1",
+      "__riscv_vredsum_vs_i32m1_i32m1",
+      "__riscv_vse32_v_i32m1"
+    ],
+    "lmul": "m1",
+    "required_header": "riscv_vector.h",
+    "sew": "32",
+    "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "vector_c_type": "vint32m1_t"
+  },
+  "widening_dot_reduction_boundary": {
+    "accumulator_type_policy": {
+      "abi_role": "accumulator-input-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "lmul": "m1",
+      "loop_carry_source": "out[0]",
+      "seed_source": "acc[0]",
+      "sew": "32"
+    },
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);",
+      "runtime_abi_order": "lhs,rhs,acc,out,n"
+    },
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "authority": "provider-derived typed tcrv_rvv widening dot-reduction body/config/runtime facts",
+    "contraction_kind": "widening_dot_reduce_add",
+    "direct_pre_realized_route_entry_supported": false,
+    "dot_product_relation": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32",
+    "emitted_cpp": {
+      "product_intrinsic": "__riscv_vwmul_vv_i32m1",
+      "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "result_vector_c_type": "vint32m1_t",
+      "runtime_avl_vl_control": {
+        "runtime_abi_order": "lhs,rhs,acc,out,n",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "store_uses_scalar_result_vl": true,
+        "uses_loop_vl_for_source_load_product_reduction": true,
+        "uses_runtime_n_avl": true
+      },
+      "seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+      "source_vector_c_type": "vint16mf2_t",
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+    },
+    "empty_count_behavior": "runtime loop skipped after seed store; tail/non-scalar output sentinels preserved",
+    "materialized_body": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "dot_product_relation": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32",
+      "result_element_type": "i32",
+      "result_layout": "store-dot-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%4",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%5",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "lhs": "lhs-input-buffer",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "rhs-input-buffer"
+      },
+      "source_element_type": "i16",
+      "source_lmul": "mf2",
+      "source_sew": "16",
+      "source_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">",
+      "typed_compute_op": "tcrv_rvv.widening_dot_reduce",
+      "uses_strided_inputs": false
+    },
+    "memory_form": "vector-rhs-load",
+    "provider_route_facts": {
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "accumulator_lmul": "m1",
+      "accumulator_sew": "32",
+      "c_type_mapping": "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32",
+      "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+      "dot_product_relation": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32",
+      "effective_source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+      "provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+      "reduction_store_vl": "1",
+      "required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "result_layout": "store-dot-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "route_operand_binding_operands": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "route_operand_binding_plan": "rvv-route-operand-binding:widening_dot_reduce.v1",
+      "runtime_abi_order": "lhs,rhs,acc,out,n",
+      "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "source_lmul": "mf2",
+      "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+      "source_sew": "16",
+      "store_intrinsic": "__riscv_vse32_v_i32m1",
+      "strided_input_facts": "rejected-if-present",
+      "target_leaf_profile": "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1",
+      "widening_product_intrinsic": "__riscv_vwmul_vv_i32m1"
+    },
+    "result_type_policy": {
+      "abi_role": "output-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "store-dot-reduction-lane0-to-output-scalar",
+      "lmul": "m1",
+      "scalar_store_vl": "1",
+      "sew": "32"
+    },
+    "route_metadata": {
+      "tcrv_rvv.accumulator_lmul": "m1",
+      "tcrv_rvv.accumulator_sew": "32",
+      "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32",
+      "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+      "tcrv_rvv.contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+      "tcrv_rvv.element_type": "i32",
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.lmul": "m1",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.mask_policy": "agnostic",
+      "tcrv_rvv.memory_form": "vector-rhs-load",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "tcrv_rvv.result_lmul": "m1",
+      "tcrv_rvv.result_sew": "32",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widening_dot_reduce.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,rhs,acc,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.sew": "32",
+      "tcrv_rvv.source_lmul": "mf2",
+      "tcrv_rvv.source_sew": "16",
+      "tcrv_rvv.tail_policy": "agnostic",
+      "tcrv_rvv.target_leaf_profile": "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1",
+      "tcrv_rvv.widening_dot_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "tcrv_rvv.widening_dot_reduction_store_vl": "1",
+      "tcrv_rvv.widening_dot_relation": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32",
+      "tcrv_rvv.widening_dot_result_layout": "store-dot-reduction-lane0-to-output-scalar",
+      "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1"
+    },
+    "runtime_counts": [
+      0,
+      1,
+      16,
+      17,
+      257
+    ],
+    "runtime_counts_are_execution_cases_not_widening_dot_authority": true,
+    "selected_source_abi": {
+      "acc": "accumulator-input-buffer",
+      "lhs": "lhs-input-buffer",
+      "n": "runtime-element-count",
+      "out": "output-buffer",
+      "rhs": "rhs-input-buffer"
+    },
+    "source": "typed tcrv_rvv.widening_dot_reduce body/config/runtime facts -> contraction route-family plan -> target-owned dot-reduction validator -> neutral EmitC materializer -> generated RVV C artifact",
+    "source_type_policy": {
+      "element_c_type": "int16_t",
+      "element_type": "i16",
+      "lmul": "mf2",
+      "sew": "16",
+      "vector_c_type": "vint16mf2_t",
+      "vector_type": "!tcrv_rvv.vector<i16, \"mf2\">"
+    },
+    "statement_plan": {
+      "family": "widening dot-reduction contraction",
+      "loop_accumulator_source": "out[0]",
+      "loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle16_v_i16mf2",
+        "__riscv_vle16_v_i16mf2",
+        "__riscv_vwmul_vv_i32m1",
+        "__riscv_vmv_v_x_i32m1",
+        "__riscv_vredsum_vs_i32m1_i32m1",
+        "__riscv_vse32_v_i32m1"
+      ],
+      "pre_loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vmv_v_x_i32m1",
+        "__riscv_vse32_v_i32m1"
+      ],
+      "product_operand_order": "lhs,rhs,vl",
+      "reduction_operand_order": "products,current_out0,vl",
+      "scalar_store_vl": "1",
+      "seed_source": "acc[0]"
+    },
+    "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer",
+    "target_validator_consumed_facts": [
+      "runtime ABI order and roles",
+      "route operand binding plan and exact binding summary",
+      "dot-product relation",
+      "accumulator/result layout",
+      "source/result dtype relation",
+      "source load form",
+      "strided fact presence or absence",
+      "low-precision resource selection mirrors",
+      "setvl/VL control and scalar store VL",
+      "required headers and C type mapping",
+      "mirror-only candidate metadata",
+      "stale non-family fact rejection"
+    ],
+    "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+  }
+}

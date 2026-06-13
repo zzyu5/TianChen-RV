@@ -1,0 +1,779 @@
+{
+  "artifact_dir": "/tmp/dqclamp.artifacts/dqclamp-hw4",
+  "completed_at": "2026-06-12T19:30:57Z",
+  "created_at": "2026-06-12T19:30:50Z",
+  "dequant_float_abs_tolerance": 1e-05,
+  "dequant_scale_contract": {
+    "finite": true,
+    "minimum_scale_cases": 2,
+    "nonzero": true,
+    "scale_values_are_runtime_cases_not_dequant_authority": true
+  },
+  "dequant_scale_values": [
+    -0.125,
+    0.375
+  ],
+  "dry_run": false,
+  "f32_clamp_bound_pairs": [
+    {
+      "lower_bound": -1.5,
+      "upper_bound": 2.25
+    },
+    {
+      "lower_bound": -8.0,
+      "upper_bound": -0.75
+    }
+  ],
+  "f32_clamp_contract": {
+    "bound_pairs_are_runtime_cases_not_bound_authority": true,
+    "minimum_bound_pair_cases": 2,
+    "ordered_bounds": true
+  },
+  "f32_clamp_float_abs_tolerance": 1e-05,
+  "input_mode": "pre-realized-selected-body",
+  "lmul_m2_selected_body": false,
+  "op_kinds": [
+    "dequant_clamp_f32_epilogue"
+  ],
+  "op_results": {
+    "dequant_clamp_f32_epilogue": {
+      "artifact_dir": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue",
+      "compare_select_predicate_boundary": {},
+      "computed_masked_macc_boundary": {},
+      "computed_masked_widening_dot_reduce_boundary": {},
+      "conversion_sew_policy_boundary": {},
+      "correctness_oracle": {
+        "boundary": "external C ABI consumer of generated header and object only",
+        "dequant_scale_values": [
+          -0.125,
+          0.375
+        ],
+        "element_c_type": "float",
+        "expected_expression": "scaled < lower_bound ? lower_bound : (scaled > upper_bound ? upper_bound : scaled)",
+        "f32_abs_tolerance": 1e-05,
+        "f32_clamp_bound_pairs": [
+          {
+            "lower_bound": -1.5,
+            "upper_bound": 2.25
+          },
+          {
+            "lower_bound": -8.0,
+            "upper_bound": -0.75
+          }
+        ],
+        "lhs_initializer": "(int32_t)(((index % 6) == 0) ? -24 : ((index % 6) == 1 ? -12 : ((index % 6) == 2 ? -4 : ((index % 6) == 3 ? 0 : ((index % 6) == 4 ? 8 : 32)))))",
+        "output_tail_sentinel": "-76543.25f",
+        "pass_marker": "tcrv_rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_ok",
+        "rhs_initializer": "unused",
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "source_preservation_required": true,
+        "tail_sentinel_preservation_required": true
+      },
+      "dequant_clamp_epilogue_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_pre_realized_rvv_dequant_clamp_f32_epilogue(const int32_t *lhs, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+          "runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "runtime_parameters": [
+            {
+              "c_name": "lhs",
+              "c_type": "const int32_t *",
+              "ownership": "target-export-abi-owned",
+              "role": "lhs-input-buffer"
+            },
+            {
+              "c_name": "scale",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "dequant-scale-value"
+            },
+            {
+              "c_name": "lower_bound",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "lower-bound-scalar-value"
+            },
+            {
+              "c_name": "upper_bound",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "upper-bound-scalar-value"
+            },
+            {
+              "c_name": "out",
+              "c_type": "float *",
+              "ownership": "target-export-abi-owned",
+              "role": "output-buffer"
+            },
+            {
+              "c_name": "n",
+              "c_type": "size_t",
+              "ownership": "target-export-abi-owned",
+              "role": "runtime-element-count"
+            }
+          ]
+        },
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "authority": "provider-derived typed tcrv_rvv dequant-clamp body/config/runtime scale/runtime bound facts",
+        "clamp_relation": "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds",
+        "clamp_route_metadata": {
+          "tcrv_rvv.bound_order": "lower-bound-before-upper-bound",
+          "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float,lower:float,upper:float,mask:f32m1-predicate,result:f32m1",
+          "tcrv_rvv.clamp_relation": "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds",
+          "tcrv_rvv.compare_predicate_kind": "slt",
+          "tcrv_rvv.computed_mask_select_mask_producer_source": "i32-to-f32-dequant-then-two-compare-two-select-f32-clamp-same-vl-scope",
+          "tcrv_rvv.computed_mask_select_route_family_plan": "rvv-dequant-clamp-f32-epilogue-route-family-plan.v1",
+          "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+          "tcrv_rvv.destination_memory_form": "unit-stride-store",
+          "tcrv_rvv.element_type": "f32",
+          "tcrv_rvv.lmul": "m1",
+          "tcrv_rvv.lower_bound_c_type": "float",
+          "tcrv_rvv.lower_bound_role": "lower-bound-scalar-value",
+          "tcrv_rvv.mask_memory_form": "two-dequantized-f32-compare-produced-masks",
+          "tcrv_rvv.mask_policy": "agnostic",
+          "tcrv_rvv.mask_role": "predicate-mask-produced-by-dequantized-f32-bound-compare",
+          "tcrv_rvv.mask_source": "dequantized-f32-lower-upper-bound-compare-produced-masks",
+          "tcrv_rvv.memory_form": "unit-stride-dequant-clamp-f32-epilogue",
+          "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-dequant-clamp-f32-epilogue-plan-validated",
+          "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|lcmp|lselF|hdr;scale=dequant-scale-value:scale:abi|scale|sf32|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|dequant-result|res-f32m1|i32-f32-scale|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.secondary_compare_predicate_kind": "slt",
+          "tcrv_rvv.select_layout": "clamp-lower-then-upper",
+          "tcrv_rvv.sew": "32",
+          "tcrv_rvv.source_memory_form": "unit-stride-load",
+          "tcrv_rvv.tail_policy": "agnostic",
+          "tcrv_rvv.target_leaf_profile": "rvv-v1-i32m1-to-f32m1-runtime-scale-lower-upper-clamp-select-leaf-profile.v1",
+          "tcrv_rvv.upper_bound_c_type": "float",
+          "tcrv_rvv.upper_bound_role": "upper-bound-scalar-value"
+        },
+        "dequant_route_metadata": {
+          "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float,lower:float,upper:float,mask:f32m1-predicate,result:f32m1",
+          "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+          "tcrv_rvv.dequant_scale_c_type": "float",
+          "tcrv_rvv.dequant_scale_name": "scale",
+          "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+          "tcrv_rvv.dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "tcrv_rvv.dequantize_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+          "tcrv_rvv.dequantize_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+          "tcrv_rvv.destination_memory_form": "unit-stride-store",
+          "tcrv_rvv.element_type": "f32",
+          "tcrv_rvv.lmul": "m1",
+          "tcrv_rvv.mask_policy": "agnostic",
+          "tcrv_rvv.memory_form": "unit-stride-dequant-clamp-f32-epilogue",
+          "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-dequant-clamp-f32-epilogue-plan-validated",
+          "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|lcmp|lselF|hdr;scale=dequant-scale-value:scale:abi|scale|sf32|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|dequant-result|res-f32m1|i32-f32-scale|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1",
+          "tcrv_rvv.runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.sew": "32",
+          "tcrv_rvv.source_memory_form": "unit-stride-load",
+          "tcrv_rvv.tail_policy": "agnostic",
+          "tcrv_rvv.target_leaf_profile": "rvv-v1-i32m1-to-f32m1-runtime-scale-lower-upper-clamp-select-leaf-profile.v1"
+        },
+        "dequant_scale_values": [
+          -0.125,
+          0.375
+        ],
+        "dequant_scale_values_required_minimum": 2,
+        "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+        "emitted_cpp": {
+          "clamp_relation": "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds",
+          "compare_intrinsic": "__riscv_vmflt_vv_f32m1_b32",
+          "compare_select_predicate_boundary": {
+            "compare_predicate_kind": "slt",
+            "compare_uses_loop_vl": true,
+            "input_abi_parameter": "v1",
+            "input_vector": "v14",
+            "lower_bound_abi_parameter": "v3",
+            "lower_bound_vector": "v15",
+            "lower_clamped_vector": "v18",
+            "lower_predicate_mask": "v17",
+            "lower_select_false_vector": "v14",
+            "lower_select_true_vector": "v15",
+            "out_abi_parameter": "v5",
+            "predicate_mask_type": "vbool32_t",
+            "runtime_avl_vl_control": {
+              "full_chunk_setvl": "__riscv_vsetvl_e32m1(v6)",
+              "full_chunk_vl": "v7",
+              "loop_remaining_avl": "v6 - v8",
+              "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+              "loop_vl": "v10",
+              "offset_induction": "v8",
+              "remaining_avl": "v9",
+              "runtime_abi_parameter": "v6",
+              "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+              "uses_loop_vl_for_intrinsics": true,
+              "uses_runtime_remaining_avl": true
+            },
+            "secondary_compare_predicate_kind": "slt",
+            "select_layout": "clamp-lower-then-upper",
+            "select_uses_loop_vl": true,
+            "selected_result_vector": "v20",
+            "store_uses_selected_result": true,
+            "upper_bound_abi_parameter": "v4",
+            "upper_bound_vector": "v16",
+            "upper_predicate_mask": "v19",
+            "upper_select_false_vector": "v18",
+            "upper_select_true_vector": "v16"
+          },
+          "convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+          "converted_vector": "v13",
+          "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "lhs_abi_parameter": "v1",
+          "lower_bound_abi_parameter": "v3",
+          "lower_bound_vector": "v15",
+          "lower_clamped_vector": "v18",
+          "lower_predicate_mask": "v17",
+          "out_abi_parameter": "v5",
+          "out_pointer": "v21",
+          "runtime_avl_vl_control": {
+            "full_chunk_setvl": "__riscv_vsetvl_e32m1(v6)",
+            "full_chunk_vl": "v7",
+            "loop_remaining_avl": "v6 - v8",
+            "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+            "loop_vl": "v10",
+            "offset_induction": "v8",
+            "remaining_avl": "v9",
+            "runtime_abi_parameter": "v6",
+            "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+            "uses_loop_vl_for_intrinsics": true,
+            "uses_runtime_remaining_avl": true
+          },
+          "runtime_n_abi_parameter": "v6",
+          "scale_abi_parameter": "v2",
+          "scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+          "scaled_vector": "v14",
+          "select_intrinsic": "__riscv_vmerge_vvm_f32m1",
+          "selected_result_vector": "v20",
+          "source_load_intrinsic": "__riscv_vle32_v_i32m1",
+          "source_pointer": "v11",
+          "source_vector": "v12",
+          "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+          "store_intrinsic": "__riscv_vse32_v_f32m1",
+          "upper_bound_abi_parameter": "v4",
+          "upper_bound_vector": "v16",
+          "upper_predicate_mask": "v19"
+        },
+        "f32_abs_tolerance": 1e-05,
+        "materialized_body": {
+          "bound_order": "lower-bound-before-upper-bound",
+          "clamp_relation": "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds",
+          "compare_predicate_kind": "slt",
+          "compare_select_predicate_boundary": {
+            "clamp_relation": "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds",
+            "input_vector": "dequantized-scaled-f32-vector",
+            "lower_bound_role": "lower-bound-scalar-value",
+            "pre_realized_body_consumed": true,
+            "predicate_type": "!tcrv_rvv.mask<f32, \"m1\">",
+            "realized_compare_op": "tcrv_rvv.compare",
+            "realized_select_op": "tcrv_rvv.select",
+            "select_layout": "clamp-lower-then-upper",
+            "typed_body_source": "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+            "upper_bound_role": "upper-bound-scalar-value"
+          },
+          "conversion_kind": "i32_to_f32_scaled",
+          "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "lower_bound_role": "lower-bound-scalar-value",
+          "memory_form": "unit-stride-dequant-clamp-f32-epilogue",
+          "pre_realized_body_consumed": true,
+          "predicate_type": "!tcrv_rvv.mask<f32, \"m1\">",
+          "realized_bound_splat_op": "tcrv_rvv.splat",
+          "realized_compare_op": "tcrv_rvv.compare",
+          "realized_dequant_op": "tcrv_rvv.dequantize",
+          "realized_load_op": "tcrv_rvv.load",
+          "realized_select_op": "tcrv_rvv.select",
+          "realized_store_op": "tcrv_rvv.store",
+          "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">",
+          "secondary_compare_predicate_kind": "slt",
+          "select_layout": "clamp-lower-then-upper",
+          "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+          "typed_body_source": "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+          "upper_bound_role": "upper-bound-scalar-value"
+        },
+        "runtime_bound_pairs": [
+          {
+            "lower_bound": -1.5,
+            "upper_bound": 2.25
+          },
+          {
+            "lower_bound": -8.0,
+            "upper_bound": -0.75
+          }
+        ],
+        "runtime_bound_pairs_required_minimum": 2,
+        "runtime_bound_roles": {
+          "lower_bound": "lower-bound-scalar-value",
+          "upper_bound": "upper-bound-scalar-value"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_scale_values_and_bounds_are_execution_cases_not_route_authority": true,
+        "selected_source_abi": {
+          "lhs": "lhs-input-buffer",
+          "lower_bound": "lower-bound-scalar-value",
+          "n": "runtime-element-count",
+          "out": "output-buffer",
+          "scale": "dequant-scale-value",
+          "upper_bound": "upper-bound-scalar-value"
+        },
+        "source": "selected tcrv.exec RVV variant -> typed pre-realized dequant-clamp tcrv_rvv body -> RVV plugin-local realization -> provider-derived dequant plus lower/upper clamp route facts -> common EmitC materialization -> generated object/header bundle -> external ABI harness",
+        "source_preservation_required": true,
+        "statement_plan": {
+          "conversion_operand_order": "loaded_i32_source, vl",
+          "family": "runtime-scale i32-to-f32 dequantization plus f32 clamp epilogue",
+          "loop_callees": [
+            "__riscv_vsetvl_e32m1",
+            "__riscv_vle32_v_i32m1",
+            "__riscv_vfcvt_f_x_v_f32m1",
+            "__riscv_vfmul_vf_f32m1",
+            "__riscv_vfmv_v_f_f32m1",
+            "__riscv_vfmv_v_f_f32m1",
+            "__riscv_vmflt_vv_f32m1_b32",
+            "__riscv_vmerge_vvm_f32m1",
+            "__riscv_vmflt_vv_f32m1_b32",
+            "__riscv_vmerge_vvm_f32m1",
+            "__riscv_vse32_v_f32m1"
+          ],
+          "lower_compare_operand_order": "scaled_f32, lower_bound_splat, vl",
+          "lower_select_operand_order": "lower_mask, lower_bound, scaled_f32, vl",
+          "pre_loop_callees": [
+            "__riscv_vsetvl_e32m1"
+          ],
+          "scale_operand_order": "converted_f32_vector, scale, vl",
+          "source_load_operand_order": "lhs + loop_induction, vl",
+          "store_operand_order": "out + loop_induction, clamped_f32_vector, vl",
+          "upper_compare_operand_order": "upper_bound_splat, lower_clamped, vl",
+          "upper_select_operand_order": "upper_mask, upper_bound, lower_clamped, vl"
+        },
+        "tail_sentinel_preservation_required": true,
+        "typed_body_source": "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+        "typed_compute_chain": [
+          "tcrv_rvv.load",
+          "tcrv_rvv.dequantize",
+          "tcrv_rvv.splat(lower_bound)",
+          "tcrv_rvv.splat(upper_bound)",
+          "tcrv_rvv.compare(lower)",
+          "tcrv_rvv.select(lower)",
+          "tcrv_rvv.compare(upper)",
+          "tcrv_rvv.select(upper)",
+          "tcrv_rvv.store"
+        ]
+      },
+      "dequantization_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_pre_realized_rvv_dequant_clamp_f32_epilogue(const int32_t *lhs, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+          "runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "runtime_parameters": [
+            {
+              "c_name": "lhs",
+              "c_type": "const int32_t *",
+              "ownership": "target-export-abi-owned",
+              "role": "lhs-input-buffer"
+            },
+            {
+              "c_name": "scale",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "dequant-scale-value"
+            },
+            {
+              "c_name": "lower_bound",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "lower-bound-scalar-value"
+            },
+            {
+              "c_name": "upper_bound",
+              "c_type": "float",
+              "ownership": "target-export-abi-owned",
+              "role": "upper-bound-scalar-value"
+            },
+            {
+              "c_name": "out",
+              "c_type": "float *",
+              "ownership": "target-export-abi-owned",
+              "role": "output-buffer"
+            },
+            {
+              "c_name": "n",
+              "c_type": "size_t",
+              "ownership": "target-export-abi-owned",
+              "role": "runtime-element-count"
+            }
+          ]
+        },
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "authority": "provider-derived typed tcrv_rvv dequantization body/config/runtime scale facts",
+        "conversion_kind": null,
+        "dequant_scale_values": [
+          -0.125,
+          0.375
+        ],
+        "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+        "emitted_cpp": {
+          "conversion_kind": "i32_to_f32_scaled",
+          "converted_vector": "v13",
+          "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "result_element_type": "f32",
+          "result_lmul": "m1",
+          "result_sew": "32",
+          "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">",
+          "runtime_avl_vl_control": {
+            "full_chunk_setvl": "__riscv_vsetvl_e32m1(v6)",
+            "full_chunk_vl": "v7",
+            "loop_remaining_avl": "v6 - v8",
+            "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+            "loop_vl": "v10",
+            "offset_induction": "v8",
+            "remaining_avl": "v9",
+            "runtime_abi_parameter": "v6",
+            "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+            "uses_loop_vl_for_intrinsics": true,
+            "uses_runtime_remaining_avl": true
+          },
+          "scale_abi_role": "dequant-scale-value",
+          "scale_c_type": "float",
+          "scaled_vector": "v14",
+          "source_element_type": "i32",
+          "source_lmul": "m1",
+          "source_sew": "32",
+          "source_vector": "v12",
+          "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+          "typed_compute_op": "tcrv_rvv.dequantize"
+        },
+        "f32_abs_tolerance": 1e-05,
+        "gearbox_preflight": {
+          "candidate_set": null,
+          "checked_before_runtime": true,
+          "emitted_cpp_loop_step": null,
+          "emitted_cpp_second_loop_vl": null,
+          "schedule_id": null,
+          "second_slice_statement_count": 5,
+          "selected_candidate": null,
+          "unroll": null,
+          "vl_policy": null
+        },
+        "materialized_body": {
+          "conversion_kind": "i32_to_f32_scaled",
+          "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "result_element_type": "f32",
+          "result_lmul": "m1",
+          "result_sew": "32",
+          "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">",
+          "runtime_avl_vl_control": {
+            "lmul": "m1",
+            "policy": "explicit-tcrv-rvv-policy",
+            "runtime_avl_abi_parameter": "n",
+            "runtime_avl_source": "runtime_abi:n",
+            "runtime_avl_value": "%5",
+            "setvl_consumes_runtime_avl": true,
+            "setvl_result": "%6",
+            "sew": "32",
+            "with_vl_consumes_setvl": true
+          },
+          "scale_abi_role": "dequant-scale-value",
+          "scale_c_type": "float",
+          "source_element_type": "i32",
+          "source_lmul": "m1",
+          "source_sew": "32",
+          "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+          "typed_compute_op": "tcrv_rvv.dequantize"
+        },
+        "memory_form": "unit-stride-dequant-clamp-f32-epilogue",
+        "provider_route_facts": {
+          "c_type_mapping": "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float,lower:float,upper:float,mask:f32m1-predicate,result:f32m1",
+          "convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+          "gearbox_candidate_set": null,
+          "gearbox_legality_scope": null,
+          "gearbox_schedule_id": null,
+          "gearbox_selected_candidate": null,
+          "gearbox_selection_reason": null,
+          "gearbox_unroll": null,
+          "gearbox_vl_policy": null,
+          "provider_supported_mirror": "provider_supported_mirror:rvv-dequant-clamp-f32-epilogue-plan-validated",
+          "route_operand_binding_operands": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|lcmp|lselF|hdr;scale=dequant-scale-value:scale:abi|scale|sf32|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|dequant-result|res-f32m1|i32-f32-scale|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+          "route_operand_binding_plan": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1",
+          "runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+          "source_load_intrinsic": "__riscv_vle32_v_i32m1",
+          "store_intrinsic": "__riscv_vse32_v_f32m1",
+          "target_leaf_profile": "rvv-v1-i32m1-to-f32m1-runtime-scale-lower-upper-clamp-select-leaf-profile.v1"
+        },
+        "result_type_policy": {
+          "element_c_type": "float",
+          "element_type": "f32",
+          "lmul": "m1",
+          "sew": "32",
+          "vector_c_type": "vfloat32m1_t",
+          "vector_type": "!tcrv_rvv.vector<f32, \"m1\">"
+        },
+        "route_metadata": {
+          "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float,lower:float,upper:float,mask:f32m1-predicate,result:f32m1",
+          "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+          "tcrv_rvv.dequant_scale_c_type": "float",
+          "tcrv_rvv.dequant_scale_name": "scale",
+          "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+          "tcrv_rvv.dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+          "tcrv_rvv.dequantize_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+          "tcrv_rvv.dequantize_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+          "tcrv_rvv.destination_memory_form": "unit-stride-store",
+          "tcrv_rvv.element_type": "f32",
+          "tcrv_rvv.lmul": "m1",
+          "tcrv_rvv.mask_policy": "agnostic",
+          "tcrv_rvv.memory_form": "unit-stride-dequant-clamp-f32-epilogue",
+          "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-dequant-clamp-f32-epilogue-plan-validated",
+          "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|lcmp|lselF|hdr;scale=dequant-scale-value:scale:abi|scale|sf32|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|dequant-result|res-f32m1|i32-f32-scale|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1",
+          "tcrv_rvv.runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.sew": "32",
+          "tcrv_rvv.source_memory_form": "unit-stride-load",
+          "tcrv_rvv.tail_policy": "agnostic",
+          "tcrv_rvv.target_leaf_profile": "rvv-v1-i32m1-to-f32m1-runtime-scale-lower-upper-clamp-select-leaf-profile.v1"
+        },
+        "runtime_bound_pairs": [],
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_and_scale_values_are_execution_cases_not_dequant_authority": true,
+        "runtime_scale_c_type": "float",
+        "runtime_scale_name": "scale",
+        "runtime_scale_role": "dequant-scale-value",
+        "selected_source_abi": {
+          "lhs": "lhs-input-buffer source-load dequant-src",
+          "lower_bound": "lower-bound-scalar-value runtime-clamp-bound",
+          "n": "runtime-element-count setvl-avl loop",
+          "out": "output-buffer result-store dequant-clamp-result",
+          "scale": "dequant-scale-value runtime-scale scale-f32",
+          "upper_bound": "upper-bound-scalar-value runtime-clamp-bound"
+        },
+        "source": "selected tcrv.exec RVV variant -> typed dequant-clamp tcrv_rvv body/config/runtime-scale/runtime-bound facts -> RVV plugin-local realization -> provider route facts -> statement plan -> emitted conversion, scale, lower/upper clamp/select, and store intrinsics -> runtime-callable artifact ABI",
+        "source_type_policy": {
+          "element_c_type": "int32_t",
+          "element_type": "i32",
+          "lmul": "m1",
+          "sew": "32",
+          "vector_c_type": "vint32m1_t",
+          "vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+        },
+        "statement_plan": {
+          "conversion_operand_order": "loaded_i32_source, vl",
+          "family": "runtime-scale i32-to-f32 dequantization plus f32 clamp epilogue",
+          "loop_callees": [
+            "__riscv_vsetvl_e32m1",
+            "__riscv_vle32_v_i32m1",
+            "__riscv_vfcvt_f_x_v_f32m1",
+            "__riscv_vfmul_vf_f32m1",
+            "__riscv_vfmv_v_f_f32m1",
+            "__riscv_vfmv_v_f_f32m1",
+            "__riscv_vmflt_vv_f32m1_b32",
+            "__riscv_vmerge_vvm_f32m1",
+            "__riscv_vmflt_vv_f32m1_b32",
+            "__riscv_vmerge_vvm_f32m1",
+            "__riscv_vse32_v_f32m1"
+          ],
+          "lower_compare_operand_order": "scaled_f32, lower_bound_splat, vl",
+          "lower_select_operand_order": "lower_mask, lower_bound, scaled_f32, vl",
+          "pre_loop_callees": [
+            "__riscv_vsetvl_e32m1"
+          ],
+          "scale_operand_order": "converted_f32_vector, scale, vl",
+          "source_load_operand_order": "lhs + loop_induction, vl",
+          "store_operand_order": "out + loop_induction, clamped_f32_vector, vl",
+          "upper_compare_operand_order": "upper_bound_splat, lower_clamped, vl",
+          "upper_select_operand_order": "upper_mask, upper_bound, lower_clamped, vl"
+        },
+        "typed_compute_op": "tcrv_rvv.dequantize"
+      },
+      "generated_bundle": {
+        "header": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "header_prototype": "void tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_pre_realized_rvv_dequant_clamp_f32_epilogue(const int32_t *lhs, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+        "index": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/generated_bundle/tianchenrv-target-artifact-bundle.index",
+        "object": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+      },
+      "generated_rvv_cpp": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/materialized_rvv_emitc.cpp",
+      "harness": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness.c",
+      "mask_tail_policy_boundary": {},
+      "materialized_selected_body": "/tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/materialized_selected_body.mlir",
+      "multiply_accumulate_boundary": {},
+      "pass_marker": "tcrv_rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_ok",
+      "reduction_accumulation_boundary": {},
+      "runtime_avl_vl_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_pre_realized_rvv_dequant_clamp_f32_epilogue(const int32_t *lhs, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+          "runtime_parameter_count": 6
+        },
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "emitted_cpp": {
+          "full_chunk_setvl": "__riscv_vsetvl_e32m1(v6)",
+          "full_chunk_vl": "v7",
+          "loop_remaining_avl": "v6 - v8",
+          "loop_setvl": "__riscv_vsetvl_e32m1(v9)",
+          "loop_vl": "v10",
+          "offset_induction": "v8",
+          "remaining_avl": "v9",
+          "runtime_abi_parameter": "v6",
+          "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+          "uses_loop_vl_for_intrinsics": true,
+          "uses_runtime_remaining_avl": true
+        },
+        "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+        "materialized_setvl": {
+          "lmul": "m1",
+          "policy": "explicit-tcrv-rvv-policy",
+          "runtime_avl_abi_parameter": "n",
+          "runtime_avl_source": "runtime_abi:n",
+          "runtime_avl_value": "%5",
+          "setvl_consumes_runtime_avl": true,
+          "setvl_result": "%6",
+          "sew": "32",
+          "with_vl_consumes_setvl": true
+        },
+        "route_metadata": {
+          "tcrv_rvv.emitc_loop": "emitc.for",
+          "tcrv_rvv.loop_induction": "offset",
+          "tcrv_rvv.loop_step": "full_chunk_vl",
+          "tcrv_rvv.multi_vl": "supported",
+          "tcrv_rvv.pointer_advance": "offset",
+          "tcrv_rvv.remaining_avl": "n-offset",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|lcmp|lselF|hdr;scale=dequant-scale-value:scale:abi|scale|sf32|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|dequant-result|res-f32m1|i32-f32-scale|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1",
+          "tcrv_rvv.runtime_abi_order": "lhs,scale,lower_bound,upper_bound,out,n",
+          "tcrv_rvv.runtime_avl_abi_parameter": "n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+          "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+        },
+        "runtime_counts": [
+          0,
+          1,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_vl_authority": true,
+        "selected_runtime_abi": {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        },
+        "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+      },
+      "runtime_counts": [
+        0,
+        1,
+        16,
+        17,
+        257
+      ],
+      "selected_dispatch_bundle_boundary": {},
+      "selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue.mlir",
+      "ssh_evidence": true,
+      "ssh_execution_summary": {
+        "compile_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness'\"'\"''",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+        },
+        "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness",
+        "remote_compile_succeeded": true,
+        "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue",
+        "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness.c",
+        "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "remote_output": "dequant_clamp_f32_epilogue case n=0 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=1 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=1 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=1 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=1 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=16 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=2 inside_bound_lanes=11 above_bound...<truncated>",
+        "remote_run_succeeded": true,
+        "run_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness'",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "dequant_clamp_f32_epilogue case n=0 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=0 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=0 pattern=1 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=1 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=0 inside_bound_lanes=0 above_bound_lanes=1 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=0 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=1 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=-0.125 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=0 signed_positive_lanes=1 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=0.375 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=1 pattern=1 scale=0.375 bounds=[-8,-0.75] ok tolerance=9.99999975e-06 below_bound_lanes=1 inside_bound_lanes=0 above_bound_lanes=0 signed_negative_lanes=1 signed_positive_lanes=0 source_preserved tail_preserved\ndequant_clamp_f32_epilogue case n=16 pattern=0 scale=-0.125 bounds=[-1.5,2.25] ok tolerance=9.99999975e-06 below_bound_lanes=2 inside_bound_lanes=11 above_bound...<truncated>"
+        },
+        "scp_command": {
+          "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 /tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o /tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h /tmp/dqclamp.artifacts/dqclamp-hw4/dequant_clamp_f32_epilogue/rvv_generated_bundle_abi_dequant_clamp_f32_epilogue_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_dqclamp-hw4_dequant_clamp_f32_epilogue/",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "ssh_target": "rvv"
+      },
+      "status": "success",
+      "typed_config_artifact_closure": {
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        "element_c_type": "float",
+        "element_type": "f32",
+        "intrinsics": [
+          "__riscv_vsetvl_e32m1",
+          "__riscv_vle32_v_i32m1",
+          "__riscv_vfcvt_f_x_v_f32m1",
+          "__riscv_vfmul_vf_f32m1",
+          "__riscv_vfmv_v_f_f32m1",
+          "__riscv_vmflt_vv_f32m1_b32",
+          "__riscv_vmerge_vvm_f32m1",
+          "__riscv_vse32_v_f32m1"
+        ],
+        "lmul": "m1",
+        "required_header": "riscv_vector.h",
+        "sew": "32",
+        "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "vector_c_type": "vfloat32m1_t"
+      },
+      "vector_reduction_boundary": {},
+      "widening_dot_reduction_boundary": {},
+      "widening_macc_boundary": {},
+      "widening_product_reduction_boundary": {}
+    }
+  },
+  "pre_realized_selected_body": true,
+  "rhs_broadcast_selected_body": false,
+  "run_id": "dqclamp-hw4",
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    0,
+    1,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "vector_source_front_door": false
+}

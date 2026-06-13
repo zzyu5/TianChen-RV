@@ -1,0 +1,12 @@
+computed_masked_macc_add case n=0 pattern=0 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved
+computed_masked_macc_add case n=0 pattern=1 ok computed_mask macc active_lanes=0 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=0 mul_only_distinguishing=0 signed_products=0 source_preserved tail_preserved
+computed_masked_macc_add case n=1 pattern=0 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved
+computed_masked_macc_add case n=1 pattern=1 ok computed_mask macc active_lanes=1 inactive_lanes=0 inactive_acc_preserved=0 add_only_distinguishing=1 mul_only_distinguishing=1 signed_products=1 source_preserved tail_preserved
+computed_masked_macc_add case n=16 pattern=0 ok computed_mask macc active_lanes=8 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved
+computed_masked_macc_add case n=16 pattern=1 ok computed_mask macc active_lanes=7 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=7 mul_only_distinguishing=7 signed_products=7 source_preserved tail_preserved
+computed_masked_macc_add case n=17 pattern=0 ok computed_mask macc active_lanes=9 inactive_lanes=8 inactive_acc_preserved=8 add_only_distinguishing=9 mul_only_distinguishing=9 signed_products=9 source_preserved tail_preserved
+computed_masked_macc_add case n=17 pattern=1 ok computed_mask macc active_lanes=8 inactive_lanes=9 inactive_acc_preserved=9 add_only_distinguishing=8 mul_only_distinguishing=8 signed_products=8 source_preserved tail_preserved
+computed_masked_macc_add case n=257 pattern=0 ok computed_mask macc active_lanes=129 inactive_lanes=128 inactive_acc_preserved=128 add_only_distinguishing=129 mul_only_distinguishing=129 signed_products=129 source_preserved tail_preserved
+computed_masked_macc_add case n=257 pattern=1 ok computed_mask macc active_lanes=104 inactive_lanes=153 inactive_acc_preserved=153 add_only_distinguishing=104 mul_only_distinguishing=104 signed_products=104 source_preserved tail_preserved
+tcrv_rvv_generated_bundle_abi_computed_masked_macc_add_ok counts=0,1,16,17,257 patterns=0,1
+PASS op=computed_masked_macc_add counts=0,1,16,17,257 patterns=0,1

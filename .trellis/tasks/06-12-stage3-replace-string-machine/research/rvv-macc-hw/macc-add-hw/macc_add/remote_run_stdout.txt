@@ -1,0 +1,12 @@
+macc_add case n=0 pattern=0 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=0 pattern=1 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=1 pattern=0 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=1 pattern=1 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=16 pattern=0 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=16 pattern=1 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=17 pattern=0 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=17 pattern=1 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=257 pattern=0 ok explicit_accumulator signed_products source_preserved tail_preserved
+macc_add case n=257 pattern=1 ok explicit_accumulator signed_products source_preserved tail_preserved
+tcrv_rvv_generated_bundle_abi_macc_add_ok counts=0,1,16,17,257 patterns=0,1
+PASS op=macc_add counts=0,1,16,17,257 patterns=0,1

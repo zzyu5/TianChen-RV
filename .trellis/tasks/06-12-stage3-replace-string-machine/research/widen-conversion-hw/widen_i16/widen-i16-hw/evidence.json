@@ -1,0 +1,336 @@
+{
+  "artifact_dir": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw",
+  "completed_at": "2026-06-13T03:05:24Z",
+  "created_at": "2026-06-13T03:05:19Z",
+  "dry_run": false,
+  "input_mode": "pre-realized-selected-body",
+  "lmul_m2_selected_body": false,
+  "op_kinds": [
+    "widen_i16_to_i32"
+  ],
+  "op_results": {
+    "widen_i16_to_i32": {
+      "artifact_dir": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32",
+      "compare_select_predicate_boundary": {},
+      "computed_masked_macc_boundary": {},
+      "computed_masked_widening_dot_reduce_boundary": {},
+      "conversion_sew_policy_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32(const int16_t *lhs, int32_t *out, size_t n);",
+          "runtime_abi_order": "lhs,out,n"
+        },
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "authority": "provider-derived typed tcrv_rvv conversion body/config/runtime facts",
+        "conversion_kind": "sign_extend_widen_vf2",
+        "conversion_relation": "signed-i16mf2-to-i32m1",
+        "direct_pre_realized_route_entry_supported": false,
+        "emitted_cpp": {
+          "conversion_intrinsic": "__riscv_vwcvt_x_x_v_i32m1",
+          "conversion_kind": "sign_extend_widen_vf2",
+          "conversion_relation": "signed-i16mf2-to-i32m1",
+          "conversion_uses_loaded_source": true,
+          "conversion_uses_loop_vl": true,
+          "dest_lmul": "m1",
+          "dest_sew": "32",
+          "lhs_abi_parameter": "v1",
+          "lhs_pointer": "v8",
+          "out_abi_parameter": "v2",
+          "out_pointer": "v11",
+          "result_vector": "v10",
+          "result_vector_c_type": "vint32m1_t",
+          "runtime_avl_vl_control": {
+            "full_chunk_setvl": "__riscv_vsetvl_e32m1(v3)",
+            "full_chunk_vl": "v4",
+            "loop_remaining_avl": "v3 - v5",
+            "loop_setvl": "__riscv_vsetvl_e32m1(v6)",
+            "loop_vl": "v7",
+            "offset_induction": "v5",
+            "remaining_avl": "v6",
+            "runtime_abi_parameter": "v3",
+            "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+            "uses_loop_vl_for_intrinsics": true,
+            "uses_runtime_remaining_avl": true
+          },
+          "source_lmul": "mf2",
+          "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+          "source_sew": "16",
+          "source_vector": "v9",
+          "source_vector_c_type": "vint16mf2_t",
+          "store_intrinsic": "__riscv_vse32_v_i32m1",
+          "store_uses_converted_result": true
+        },
+        "mask_policy": "agnostic",
+        "materialized_body": {
+          "conversion_kind": "sign_extend_widen_vf2",
+          "conversion_op": "tcrv_rvv.widening_convert",
+          "conversion_relation": "signed-i16mf2-to-i32m1",
+          "dest_lmul": "m1",
+          "dest_sew": "32",
+          "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+          "runtime_vl": "tcrv_rvv.setvl -> tcrv_rvv.with_vl",
+          "source_lmul": "mf2",
+          "source_sew": "16",
+          "source_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">"
+        },
+        "memory_form": "unit-stride-conversion",
+        "provider_route_facts": {
+          "c_type_mapping": "vl:size_t,source:signed-e16mf2,result:signed-e32m1",
+          "conversion_intrinsic": "__riscv_vwcvt_x_x_v_i32m1",
+          "provider_supported_mirror": "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated",
+          "route_operand_binding_operands": "rvv-route-operand-binding:widen_i16_to_i32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i16mf2|relation-signed-i16mf2-to-i32m1|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i32m1|relation-signed-i16mf2-to-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+          "route_operand_binding_plan": "rvv-route-operand-binding:widen_i16_to_i32.v1",
+          "runtime_abi_order": "lhs,out,n",
+          "runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+          "store_intrinsic": "__riscv_vse32_v_i32m1",
+          "target_leaf_profile": "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1"
+        },
+        "result_type_policy": {
+          "element_c_type": "int32_t",
+          "element_type": "i32",
+          "lmul": "m1",
+          "sew": "32",
+          "vector_c_type": "vint32m1_t"
+        },
+        "route_metadata": {
+          "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e16mf2,result:signed-e32m1",
+          "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+          "tcrv_rvv.conversion_relation": "signed-i16mf2-to-i32m1",
+          "tcrv_rvv.dest_lmul": "m1",
+          "tcrv_rvv.dest_sew": "32",
+          "tcrv_rvv.element_type": "i32",
+          "tcrv_rvv.lmul": "m1",
+          "tcrv_rvv.mask_policy": "agnostic",
+          "tcrv_rvv.memory_form": "unit-stride-conversion",
+          "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated",
+          "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widen_i16_to_i32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i16mf2|relation-signed-i16mf2-to-i32m1|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i32m1|relation-signed-i16mf2-to-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widen_i16_to_i32.v1",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.sew": "32",
+          "tcrv_rvv.source_lmul": "mf2",
+          "tcrv_rvv.source_sew": "16",
+          "tcrv_rvv.tail_policy": "agnostic",
+          "tcrv_rvv.target_leaf_profile": "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1",
+          "tcrv_rvv.widening_conversion_route_family_plan": "rvv-widening-conversion-route-family-plan.v1"
+        },
+        "runtime_counts": [
+          1,
+          7,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_conversion_authority": true,
+        "selected_source_abi": {
+          "lhs": "lhs-input-buffer source-load convert-src",
+          "n": "runtime-element-count setvl-avl loop",
+          "out": "output-buffer result-store convert-result"
+        },
+        "source": "typed tcrv_rvv widening conversion body/config -> RVV realization -> route-family facts -> math operand-binding facts -> RVV-owned statement plan -> emitted widening conversion intrinsics",
+        "source_type_policy": {
+          "element_c_type": "int16_t",
+          "element_type": "i16",
+          "lmul": "mf2",
+          "sew": "16",
+          "vector_c_type": "vint16mf2_t"
+        },
+        "statement_plan": {
+          "conversion_operand_order": "loaded_source, vl",
+          "family": "widening conversion",
+          "loop_callees": [
+            "__riscv_vsetvl_e32m1",
+            "__riscv_vle16_v_i16mf2",
+            "__riscv_vwcvt_x_x_v_i32m1",
+            "__riscv_vse32_v_i32m1"
+          ],
+          "pre_loop_callees": [
+            "__riscv_vsetvl_e32m1"
+          ],
+          "source_load_operand_order": "lhs + loop_induction, vl",
+          "store_operand_order": "out + loop_induction, converted_result, vl"
+        },
+        "tail_policy": "agnostic"
+      },
+      "correctness_oracle": {
+        "boundary": "external C ABI consumer of generated header and object only",
+        "element_c_type": "int32_t",
+        "expected_expression": "(int32_t)lhs[index]",
+        "lhs_initializer": "(int16_t)(((index % 2) == 0) ? -((int)(index % 127) + 1) : ((int)(index % 127) + 1))",
+        "pass_marker": "tcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok",
+        "rhs_initializer": "unused",
+        "runtime_counts": [
+          1,
+          7,
+          16,
+          17,
+          257
+        ]
+      },
+      "dequant_clamp_epilogue_boundary": {},
+      "dequantization_boundary": {},
+      "generated_bundle": {
+        "header": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "header_prototype": "void tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32(const int16_t *lhs, int32_t *out, size_t n);",
+        "index": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/generated_bundle/tianchenrv-target-artifact-bundle.index",
+        "object": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+      },
+      "generated_rvv_cpp": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/materialized_rvv_emitc.cpp",
+      "harness": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness.c",
+      "mask_tail_policy_boundary": {},
+      "materialized_selected_body": ".trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/materialized_selected_body.mlir",
+      "multiply_accumulate_boundary": {},
+      "pass_marker": "tcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok",
+      "reduction_accumulation_boundary": {},
+      "runtime_avl_vl_boundary": {
+        "artifact_abi": {
+          "prototype": "void tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32(const int16_t *lhs, int32_t *out, size_t n);",
+          "runtime_parameter_count": 3
+        },
+        "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "emitted_cpp": {
+          "full_chunk_setvl": "__riscv_vsetvl_e32m1(v3)",
+          "full_chunk_vl": "v4",
+          "loop_remaining_avl": "v3 - v5",
+          "loop_setvl": "__riscv_vsetvl_e32m1(v6)",
+          "loop_vl": "v7",
+          "offset_induction": "v5",
+          "remaining_avl": "v6",
+          "runtime_abi_parameter": "v3",
+          "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+          "uses_loop_vl_for_intrinsics": true,
+          "uses_runtime_remaining_avl": true
+        },
+        "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+        "materialized_setvl": {
+          "lmul": "m1",
+          "policy": "explicit-tcrv-rvv-policy",
+          "runtime_avl_abi_parameter": "n",
+          "runtime_avl_source": "runtime_abi:n",
+          "runtime_avl_value": "%2",
+          "setvl_consumes_runtime_avl": true,
+          "setvl_result": "%3",
+          "sew": "32",
+          "with_vl_consumes_setvl": true
+        },
+        "route_metadata": {
+          "tcrv_rvv.emitc_loop": "emitc.for",
+          "tcrv_rvv.loop_induction": "offset",
+          "tcrv_rvv.loop_step": "full_chunk_vl",
+          "tcrv_rvv.multi_vl": "supported",
+          "tcrv_rvv.pointer_advance": "offset",
+          "tcrv_rvv.remaining_avl": "n-offset",
+          "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widen_i16_to_i32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i16mf2|relation-signed-i16mf2-to-i32m1|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i32m1|relation-signed-i16mf2-to-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr",
+          "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widen_i16_to_i32.v1",
+          "tcrv_rvv.runtime_abi_order": "lhs,out,n",
+          "tcrv_rvv.runtime_avl_abi_parameter": "n",
+          "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+          "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+          "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+          "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+          "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+        },
+        "runtime_counts": [
+          1,
+          7,
+          16,
+          17,
+          257
+        ],
+        "runtime_counts_are_execution_cases_not_vl_authority": true,
+        "selected_runtime_abi": {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        },
+        "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+      },
+      "runtime_counts": [
+        1,
+        7,
+        16,
+        17,
+        257
+      ],
+      "selected_dispatch_bundle_boundary": {},
+      "selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-widen-i16-to-i32.mlir",
+      "ssh_evidence": true,
+      "ssh_execution_summary": {
+        "compile_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc '\"'\"'cd /tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32 && printf '\"'\"'\"'\"'\"'\"'\"'\"'remote_arch='\"'\"'\"'\"'\"'\"'\"'\"' && uname -m && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_path='\"'\"'\"'\"'\"'\"'\"'\"' && command -v clang && printf '\"'\"'\"'\"'\"'\"'\"'\"'clang_version='\"'\"'\"'\"'\"'\"'\"'\"' && clang --version | head -n 1 && clang -O2 -march=rv64gcv -mabi=lp64d -I. /tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness.c /tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o -o /tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness'\"'\"''",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "remote_arch=riscv64\nclang_path=/usr/bin/clang\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\n"
+        },
+        "remote_binary": "/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness",
+        "remote_compile_succeeded": true,
+        "remote_dir": "/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32",
+        "remote_harness": "/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness.c",
+        "remote_header": "/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        "remote_object": "/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "remote_output": "widen_i16_to_i32 case n=1 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=1 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=7 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=7 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=16 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=16 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=17 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=17 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=257 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=257 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\ntcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok counts=1,7,16,17,257\nPASS op=widen_i16_to_i32 counts=1,7,16,17,257\n",
+        "remote_run_succeeded": true,
+        "run_command": {
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=10 rvv 'sh -lc /tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness'",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": "widen_i16_to_i32 case n=1 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=1 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=7 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=7 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=16 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=16 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=17 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=17 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=257 pattern=0 ok sign_extension_checked two_input_patterns_checked tail_preserved\nwiden_i16_to_i32 case n=257 pattern=1 ok sign_extension_checked two_input_patterns_checked tail_preserved\ntcrv_rvv_generated_bundle_abi_widen_i16_to_i32_ok counts=1,7,16,17,257\nPASS op=widen_i16_to_i32 counts=1,7,16,17,257\n"
+        },
+        "scp_command": {
+          "command": "scp -q -o BatchMode=yes -o ConnectTimeout=10 .trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o .trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h .trellis/tasks/06-12-stage3-replace-string-machine/research/widen-conversion-hw/widen_i16/widen-i16-hw/widen_i16_to_i32/rvv_generated_bundle_abi_widen_i16_to_i32_harness.c rvv:/tmp/tianchenrv_rvv_generated_bundle_abi_widen-i16-hw_widen_i16_to_i32/",
+          "exit_code": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "ssh_target": "rvv"
+      },
+      "status": "success",
+      "typed_config_artifact_closure": {
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        "element_c_type": "int32_t",
+        "element_type": "i32",
+        "intrinsics": [
+          "__riscv_vsetvl_e32m1",
+          "__riscv_vle16_v_i16mf2",
+          "__riscv_vwcvt_x_x_v_i32m1",
+          "__riscv_vse32_v_i32m1"
+        ],
+        "lmul": "m1",
+        "required_header": "riscv_vector.h",
+        "sew": "32",
+        "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+        "vector_c_type": "vint32m1_t"
+      },
+      "vector_reduction_boundary": {},
+      "widening_dot_reduction_boundary": {},
+      "widening_macc_boundary": {},
+      "widening_product_reduction_boundary": {}
+    }
+  },
+  "pre_realized_selected_body": true,
+  "rhs_broadcast_selected_body": false,
+  "run_id": "widen-i16-hw",
+  "runtime_count_contract": {
+    "case_count": 5,
+    "max_runtime_count": 257,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    1,
+    7,
+    16,
+    17,
+    257
+  ],
+  "schema_version": 1,
+  "source_seed": false,
+  "ssh_evidence": true,
+  "status": "success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "vector_source_front_door": false
+}
