@@ -55,6 +55,7 @@ constexpr llvm::StringLiteral kVLAttrName("vl");
 constexpr llvm::StringLiteral kSEWAttrName("sew");
 constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
+constexpr llvm::StringLiteral kUnrollFactorAttrName("unroll_factor");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 constexpr llvm::StringLiteral kRoleAttrName("role");
@@ -316,7 +317,8 @@ bool isAllowedSetVLAttr(llvm::StringRef name) {
 
 bool isAllowedWithVLAttr(llvm::StringRef name) {
   return name == kSEWAttrName || name == kLMULAttrName ||
-         name == kPolicyAttrName || name == kSourceKernelAttrName ||
+         name == kPolicyAttrName || name == kUnrollFactorAttrName ||
+         name == kSourceKernelAttrName ||
          name == kSelectedVariantAttrName || name == kOriginAttrName ||
          name == kSelectedPathRoleAttrName || name == kStatusAttrName ||
          name == kRequiredCapabilitiesAttrName ||
@@ -3476,6 +3478,19 @@ bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
 
   bool hasProductReductionUse = false;
   for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    // The packed-i4 nibble-unpack product op is a structural sibling of the
+    // plain widening product over the same i8mf4 source / i16mf2 result chain:
+    // a packed source load that feeds ONLY the nibble-unpack product is a valid
+    // bounded product-reduction source load (the unpack is the op's lowering).
+    if (auto packed = llvm::dyn_cast<PackedI4NibbleUnpackProductOp>(user)) {
+      if (packed->getParentOp() != withVL.getOperation() ||
+          packed.getVl() != load.getVl() ||
+          (packed.getLhs() != load.getLoaded() &&
+           packed.getRhs() != load.getLoaded()))
+        return false;
+      hasProductReductionUse = true;
+      continue;
+    }
     auto product = llvm::dyn_cast<WideningProductOp>(user);
     if (!product || product->getParentOp() != withVL.getOperation() ||
         product.getVl() != load.getVl() ||
@@ -4105,6 +4120,16 @@ mlir::LogicalResult WithVLOp::verify() {
     return emitOpError()
            << "requires optional policy metadata to be #tcrv_rvv.policy";
 
+  // The optional structural 'unroll_factor' is the selected-body main-loop
+  // unroll count carried op-intrinsically (like the bounded SEW/LMUL config),
+  // NOT a candidate-mirror string: a value of N means the main VL loop steps by
+  // vlmax*N and emits N product/reduce slices. It must be a positive count.
+  if (auto unroll = op->getAttrOfType<mlir::IntegerAttr>(kUnrollFactorAttrName))
+    if (unroll.getInt() < 1)
+      return emitOpError()
+             << "requires optional 'unroll_factor' to be a positive structural "
+                "main-loop unroll count";
+
   if (auto setvl = getVl().getDefiningOp<SetVLOp>()) {
     if (sew && static_cast<int64_t>(setvl.getSew()) != sew.getInt())
       return emitOpError()
@@ -4281,20 +4306,41 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires source-producing tcrv_rvv.standalone_reduce to be "
               "in the same producer tcrv_rvv.with_vl body as the handoff";
-  auto product = reduction.getInput().getDefiningOp<WideningProductOp>();
-  if (!product)
+  // The reduce input is either a plain widening product or the signed packed-i4
+  // nibble-unpack widening product (the Stage-3 typed packed-i4 surface). Both
+  // are bounded i8mf4 -> i16mf2 signed product chains feeding the i32 reduce.
+  mlir::Operation *productOp = reduction.getInput().getDefiningOp();
+  llvm::StringRef productKind;
+  llvm::StringRef productRelation;
+  mlir::Value productVL;
+  bool productKindOK = false;
+  if (auto packed =
+          llvm::dyn_cast_or_null<PackedI4NibbleUnpackProductOp>(productOp)) {
+    productKind = packed.getKind();
+    productRelation = packed.getProductRelation();
+    productVL = packed.getVl();
+    productKindOK = productKind == "signed_packed_i4_nibble_unpack_product";
+  } else if (auto product =
+                 llvm::dyn_cast_or_null<WideningProductOp>(productOp)) {
+    productKind = product.getKind();
+    productRelation = product.getProductRelation();
+    productVL = product.getVl();
+    productKindOK = productKind == "signed_widening_product";
+  } else {
     return emitOpError()
            << "requires source-producing tcrv_rvv.standalone_reduce to "
-              "consume a bounded tcrv_rvv.widening_product result";
-  if (product.getKind() != "signed_widening_product" ||
-      product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+              "consume a bounded tcrv_rvv.widening_product or "
+              "tcrv_rvv.packed_i4_nibble_unpack_product result";
+  }
+  if (!productKindOK ||
+      productRelation != "signed-i8mf4xi8mf4-to-i16mf2")
     return emitOpError()
-           << "requires source-producing tcrv_rvv.widening_product to carry "
+           << "requires source-producing product to carry "
               "the bounded signed i8mf4 to i16mf2 product relation";
-  if (product.getVl() != getVl() ||
-      product->getParentOp() != producerWithVL.getOperation())
+  if (productVL != getVl() ||
+      productOp->getParentOp() != producerWithVL.getOperation())
     return emitOpError()
-           << "requires source-producing tcrv_rvv.widening_product to be in "
+           << "requires source-producing product to be in "
               "the same producer tcrv_rvv.with_vl body and consume the same "
               "!tcrv_rvv.vl token as the handoff";
 
@@ -4933,7 +4979,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductRelationAttrName,
           getPrimitiveWideningProductRelation(),
-          product.getProductRelation())))
+          productRelation)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductRelationAttrName,
@@ -13281,6 +13327,70 @@ mlir::LogicalResult WideningProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult PackedI4NibbleUnpackProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.packed_i4_nibble_unpack_product keeps source/"
+                "result SEW/LMUL/policy on typed vector values and "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "signed_packed_i4_nibble_unpack_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"signed_packed_i4_nibble_unpack_product\" for the bounded "
+              "Stage 3 packed-i4 nibble-unpack widening-product typed surface";
+  if (getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+    return emitOpError()
+           << "requires product_relation "
+              "\"signed-i8mf4xi8mf4-to-i16mf2\" for the bounded packed-i4 "
+              "nibble-unpack widening-product route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two i8 LMUL mf4 packed source operands, one "
+              "!tcrv_rvv.vl operand, and one i16 LMUL mf2 result";
+  if (!isGenericRVVVectorSignedI8MF4(getLhs().getType()) ||
+      !isGenericRVVVectorSignedI8MF4(getRhs().getType()))
+    return emitOpError()
+           << "requires lhs and rhs source vectors to have type "
+              "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded packed-i4 "
+              "nibble-unpack widening-product route";
+  if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded packed-i4 "
+              "nibble-unpack widening-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for packed-i4 nibble-unpack widening product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -13609,26 +13719,37 @@ mlir::LogicalResult DequantizeOp::verify() {
                 "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
   }
   if (sourceReduction) {
-    auto product =
-        sourceReduction.getInput().getDefiningOp<WideningProductOp>();
-    if (!product)
+    // The reduce input is either a plain widening product or the signed packed-i4
+    // nibble-unpack widening product (the Stage-3 typed packed-i4 surface). Both
+    // are bounded i8mf4 -> i16mf2 signed product chains feeding the i32 reduce.
+    mlir::Operation *productOp = sourceReduction.getInput().getDefiningOp();
+    auto product = llvm::dyn_cast_or_null<WideningProductOp>(productOp);
+    auto packed =
+        llvm::dyn_cast_or_null<PackedI4NibbleUnpackProductOp>(productOp);
+    if (!product && !packed)
       return emitOpError()
              << "requires source-producing tcrv_rvv.standalone_reduce to "
-                "consume a bounded tcrv_rvv.widening_product result for the "
+                "consume a bounded tcrv_rvv.widening_product or "
+                "tcrv_rvv.packed_i4_nibble_unpack_product result for the "
                 "low-precision product-reduction dequantization route";
+    const bool productKindOK =
+        product ? product.getKind() == "signed_widening_product"
+                : packed.getKind() == "signed_packed_i4_nibble_unpack_product";
     if (sourceReduction.getKind() != "signed_widening_reduce_add" ||
-        product.getKind() != "signed_widening_product")
+        !productKindOK)
       return emitOpError()
              << "requires source-producing product-reduction chain to use "
-                "signed_widening_product followed by "
+                "signed_widening_product or "
+                "signed_packed_i4_nibble_unpack_product followed by "
                 "signed_widening_reduce_add";
-    if (sourceReduction.getVl() != getVl() || product.getVl() != getVl())
+    mlir::Value productVL = product ? product.getVl() : packed.getVl();
+    if (sourceReduction.getVl() != getVl() || productVL != getVl())
       return emitOpError()
-             << "requires source-producing tcrv_rvv.widening_product and "
+             << "requires source-producing product and "
                 "tcrv_rvv.standalone_reduce to consume the same "
                 "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
     if (sourceReduction->getParentOp() != op->getParentOp() ||
-        product->getParentOp() != op->getParentOp())
+        productOp->getParentOp() != op->getParentOp())
       return emitOpError()
              << "requires source-producing product-reduction chain to be in "
                 "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
@@ -13639,13 +13760,22 @@ mlir::LogicalResult DequantizeOp::verify() {
       return emitOpError()
              << "requires source-producing Gearbox handoff to consume a "
                 "tcrv_rvv.standalone_reduce result";
-    auto product = reduction.getInput().getDefiningOp<WideningProductOp>();
-    if (!product)
+    // The reduce input is either a plain widening product or the signed
+    // packed-i4 nibble-unpack widening product (the Stage-3 typed packed-i4
+    // surface); both feed the i32 reduce -> handoff -> dequant chain.
+    mlir::Operation *productOp = reduction.getInput().getDefiningOp();
+    if (!llvm::isa_and_nonnull<WideningProductOp,
+                               PackedI4NibbleUnpackProductOp>(productOp))
       return emitOpError()
              << "requires source-producing Gearbox handoff reduction to "
-                "consume a bounded tcrv_rvv.widening_product result";
+                "consume a bounded tcrv_rvv.widening_product or "
+                "tcrv_rvv.packed_i4_nibble_unpack_product result";
+    mlir::Value productVL =
+        llvm::isa<WideningProductOp>(productOp)
+            ? llvm::cast<WideningProductOp>(productOp).getVl()
+            : llvm::cast<PackedI4NibbleUnpackProductOp>(productOp).getVl();
     if (sourceHandoff.getVl() != getVl() || reduction.getVl() != getVl() ||
-        product.getVl() != getVl())
+        productVL != getVl())
       return emitOpError()
              << "requires source-producing Gearbox handoff, product, and "
                 "standalone reduction to consume the same !tcrv_rvv.vl token "
@@ -13654,7 +13784,7 @@ mlir::LogicalResult DequantizeOp::verify() {
         llvm::dyn_cast_or_null<WithVLOp>(sourceHandoff->getParentOp());
     if (!producerWithVL ||
         reduction->getParentOp() != producerWithVL.getOperation() ||
-        product->getParentOp() != producerWithVL.getOperation() ||
+        productOp->getParentOp() != producerWithVL.getOperation() ||
         (!isAncestorWithVL(producerWithVL, op) &&
          producerWithVL.getOperation() != op->getParentOp()))
       return emitOpError()

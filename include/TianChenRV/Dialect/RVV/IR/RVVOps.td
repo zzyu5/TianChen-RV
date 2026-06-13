@@ -323,7 +323,8 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
     OptionalAttr<StrAttr>:$status,
     OptionalAttr<ArrayAttr>:$required_capabilities,
     OptionalAttr<StrAttr>:$rvv_construction_protocol,
-    OptionalAttr<StrAttr>:$rvv_emitc_route_mapping
+    OptionalAttr<StrAttr>:$rvv_emitc_route_mapping,
+    OptionalAttr<I64Attr>:$unroll_factor
   );
   let regions = (region SizedRegion<1>:$body);
 
@@ -3648,6 +3649,50 @@ def WideningProductOp : TCRVRVV_Op<"widening_product",
     ABI strings, artifact names, status fields, exact intrinsic spellings,
     q8/q4 names, and common EmitC/export code must not infer or choose
     widening product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def PackedI4NibbleUnpackProductOp
+    : TCRVRVV_Op<"packed_i4_nibble_unpack_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV signed packed-i4 nibble-unpack widening product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV signed packed-i4 nibble-unpack
+    widening product dataflow step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes two typed i8 LMUL mf4 !tcrv_rvv.vector source
+    operands -- each i8 element packing two signed 4-bit nibbles -- and the
+    active !tcrv_rvv.vl token. It carries an explicit operation kind and product
+    relation, and produces ONE widened i16 LMUL mf2 !tcrv_rvv.vector result
+    holding the sum of the low-nibble and high-nibble signed widening products.
+
+    This op makes the i4-nibble sign-extend / unpack STRUCTURE first-class in the
+    typed body: the low nibble of each i8 is sign-extended (shift-left then
+    arithmetic-shift-right), widening-multiplied, and rescaled; the high nibble
+    is arithmetic-shift-right sign-extended and accumulated via a high-nibble
+    widening multiply-accumulate. The fixed intrinsic chain
+    (vsll/vsra over i8mf4, vwmul/vsra over i16mf2, vwmacc over i16mf2) is the
+    op's lowering, NOT a candidate-mirror string read in the conversion. For the
+    bounded Stage 3 surface kind is limited to
+    signed_packed_i4_nibble_unpack_product and product_relation to
+    "signed-i8mf4xi8mf4-to-i16mf2". Source/result dtype/config, VL, and the
+    nibble-unpack structure are structural in the selected RVV body. Route ids,
+    helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand-packing mirror strings, and common EmitC/export code must
+    not infer or choose packed-i4 nibble-unpack product semantics.
   }];
 
   let arguments = (ins

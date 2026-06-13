@@ -585,6 +585,33 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
   return text;
 }
 
+// Function-scoped local variable declaration provenance (the i32 dequant
+// accumulator carried across runtime VL chunks), byte-equivalent to the legacy
+// `// tcrv_emitc.local_variable=...` line so the e2e harness provenance parser
+// reads the same `loop_accumulator_source` fact off the converted C.
+std::string localVariableComment(llvm::StringRef varName, llvm::StringRef opName,
+                                 llvm::StringRef role) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc.local_variable=" << varName << " source_op=" << opName
+     << " role=" << role << " op_interface=" << kOpInterface;
+  os.flush();
+  return text;
+}
+
+// Function-scoped local variable assignment provenance (seed and per-slice
+// accumulator reassignment), byte-equivalent to the legacy
+// `// tcrv_emitc.assign target=...` line.
+std::string assignComment(llvm::StringRef target, llvm::StringRef opName,
+                          llvm::StringRef role) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc.assign target=" << target << " source_op=" << opName
+     << " role=" << role << " op_interface=" << kOpInterface;
+  os.flush();
+  return text;
+}
+
 //===----------------------------------------------------------------------===//
 // VariantOp -> emitc.func driver.
 //
@@ -822,6 +849,20 @@ public:
                                          setvlCallee, mlir::ValueRange{avlArg})
             .getResult(0);
 
+    // The low-precision Gearbox product-reduce-dequantize body owns a dedicated
+    // routine: a function-scoped i32 accumulator variable carried across the
+    // main (unroll-N) + scalar tail loops, then the dequant epilogue. It is NOT
+    // the single-scope `out[0]`-memory-carry standalone reduction path.
+    if (isLowPrecisionDequantBody(scope)) {
+      if (mlir::failed(emitLowPrecisionDequantBody(
+              rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
+              sizeType, setvlCallee, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     // Standalone reduction pre-loop seed: out[0] = acc[0]. Runs BEFORE the loop
     // (between the pre-loop full-chunk setvl and the for-loop), seeding the
     // scalar accumulator carried through the output cell across runtime chunks.
@@ -832,6 +873,38 @@ public:
         return mlir::failure();
     }
 
+    // Emit the scope's runtime VL for-loop (setvl-tail chunk loop) + body walk.
+    // Extracted into a reusable per-scope helper so a multi-scope body (the
+    // Gearbox dequant producer/tail/consumer scopes) can drive it once per
+    // scope; the single-scope families call it exactly once, unchanged.
+    if (mlir::failed(emitScopeForLoop(rewriter, loc, variant, scope,
+                                      preLoopSetVL, avlArg, vlmax, sizeType,
+                                      setvlCallee, valueMap, segmentFieldMap,
+                                      standaloneReduction)))
+      return mlir::failure();
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(variant);
+    return mlir::success();
+  }
+
+private:
+  /// Emit one selected-body VL scope as a runtime setvl-tail chunk loop:
+  ///   for (size_t i = 0; i < n; i += vlmax) { vl = setvl(n - i); <body> }
+  /// walking the scope's typed dataflow ops in (reorder-adjusted) IR order.
+  /// This is the per-scope emission shared by single-scope families (called
+  /// once) and the multi-scope Gearbox dequant body (called per scope). It does
+  /// NOT emit the function epilogue/return; the caller owns that.
+  mlir::LogicalResult emitScopeForLoop(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
+      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      mlir::Type sizeType, llvm::StringRef setvlCallee,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      llvm::DenseMap<mlir::Value, std::pair<mlir::Value, unsigned>>
+          &segmentFieldMap,
+      bool standaloneReduction) const {
     // for (size_t i = 0; i < n; i += vlmax) { ... }
     mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
     auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
@@ -1210,9 +1283,445 @@ public:
       }
     }
 
-    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+    return mlir::success();
+  }
 
-    rewriter.eraseOp(variant);
+  /// True iff `scope` is a low-precision Gearbox product-reduce-dequantize body:
+  /// it dequantizes an i32 accumulator built from a signed widening or packed-i4
+  /// nibble-unpack product reduced over i8mf4 sources, then stores the f32
+  /// result. Structurally: the scope carries at least one tcrv_rvv.dequantize
+  /// whose source is a tcrv_rvv.standalone_reduce of a tcrv_rvv.widening_product
+  /// or tcrv_rvv.packed_i4_nibble_unpack_product, plus a store. This is the
+  /// dequant family the dedicated multi-loop + function-scoped accumulator
+  /// routine owns; every other body falls to the single-scope emitScopeForLoop.
+  static bool isLowPrecisionDequantBody(tcrvrvv::WithVLOp scope) {
+    bool sawDequantChain = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      auto dequant = llvm::dyn_cast<tcrvrvv::DequantizeOp>(op);
+      if (!dequant)
+        continue;
+      mlir::Operation *reduceDef = dequant.getSource().getDefiningOp();
+      auto reduce = llvm::dyn_cast_or_null<tcrvrvv::StandaloneReduceOp>(
+          reduceDef);
+      if (!reduce)
+        return false;
+      mlir::Operation *productDef = reduce.getInput().getDefiningOp();
+      if (!llvm::isa_and_nonnull<tcrvrvv::WideningProductOp,
+                                 tcrvrvv::PackedI4NibbleUnpackProductOp>(
+              productDef))
+        return false;
+      sawDequantChain = true;
+    }
+    return sawDequantChain;
+  }
+
+  /// Emit one product/reduce slice into the function-scoped accumulator variable
+  /// `accVar`: load lhs/rhs at the given pointer offset, widening (or packed-i4
+  /// nibble-unpack) product, then reduce into the accumulator (reading the
+  /// variable as the running seed and reassigning it). `lhsBuffer`/`rhsBuffer`
+  /// are the ABI pointer params; `loadVL` is the slice's runtime VL; `offset`
+  /// (may be null) is added to the induction var for the second unroll slice.
+  mlir::LogicalResult emitDequantProductReduceSlice(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::LoadOp lhsLoad, tcrvrvv::LoadOp rhsLoad,
+      mlir::Operation *productOp, tcrvrvv::StandaloneReduceOp reduce,
+      mlir::Value lhsBuffer, mlir::Value rhsBuffer, mlir::Value sliceOffset,
+      mlir::Value accVar, tcrvrvv::VectorType accVecType, mlir::Value loadVL,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // Load both i8mf4 sources at (base + offset).
+    if (mlir::failed(emitLoad(rewriter, loc, lhsLoad, valueMap, sliceOffset,
+                              loadVL)))
+      return mlir::failure();
+    if (mlir::failed(emitLoad(rewriter, loc, rhsLoad, valueMap, sliceOffset,
+                              loadVL)))
+      return mlir::failure();
+    // The product (plain widening, or the packed-i4 nibble-unpack chain).
+    if (auto product = llvm::dyn_cast<tcrvrvv::WideningProductOp>(productOp)) {
+      if (mlir::failed(
+              emitWideningProduct(rewriter, loc, product, valueMap, loadVL)))
+        return mlir::failure();
+    } else if (auto packed =
+                   llvm::dyn_cast<tcrvrvv::PackedI4NibbleUnpackProductOp>(
+                       productOp)) {
+      if (mlir::failed(emitPackedI4NibbleUnpackProduct(rewriter, loc, packed,
+                                                       valueMap, loadVL)))
+        return mlir::failure();
+    } else {
+      return rewriter.notifyMatchFailure(productOp,
+                                         "unsupported dequant product op");
+    }
+    // Reduce into the running accumulator variable: seed = dot_acc_vec;
+    // dot_acc_vec = vwredsum(product, seed, vl).
+    mlir::Value product = valueMap.lookup(reduce.getInput());
+    if (!product)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "dequant reduce input unmapped");
+    auto srcVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getInput().getType());
+    if (!srcVecType)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "dequant reduce input not a vector");
+    std::optional<llvm::StringRef> mnemonic =
+        standaloneReductionMnemonic(reduce.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(reduce,
+                                         "unsupported dequant reduce kind");
+    mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
+    if (!accEmitC || !convertVectorTypeToEmitC(srcVecType))
+      return rewriter.notifyMatchFailure(reduce,
+                                         "dequant reduce type not convertible");
+    mlir::Value seed =
+        rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
+    std::string callee = standaloneReductionIntrinsicName(
+        *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
+        vectorDType(accVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value reduced =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{accEmitC}, callee,
+                                         mlir::ValueRange{product, seed, loadVL})
+            .getResult(0);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, assignComment("dot_acc_vec",
+                           reduce.getTCRVEmitCLowerableSourceOpName(),
+                           reduce.getTCRVEmitCLowerableSourceRole()));
+    rewriter.create<emitc::AssignOp>(loc, accVar, reduced);
+    valueMap[reduce.getResult()] = reduced;
+    return mlir::success();
+  }
+
+  /// One product/reduce slice in the typed dequant body, grouped for emission:
+  /// the i8mf4 lhs/rhs loads, the (widening or packed-i4) product op, and the
+  /// standalone reduce that folds the product into the accumulator.
+  struct DequantSlice {
+    tcrvrvv::LoadOp lhsLoad;
+    tcrvrvv::LoadOp rhsLoad;
+    mlir::Operation *productOp = nullptr;
+    tcrvrvv::StandaloneReduceOp reduce;
+  };
+
+  /// Emit the low-precision Gearbox product-reduce-dequantize body as a real
+  /// emitc function body: a function-scoped i32 accumulator variable seeded from
+  /// acc[0], a main chunk loop carrying `unroll_factor` product/reduce slices
+  /// (step = vlmax * unroll_factor), a scalar tail loop over the remainder when
+  /// unrolled, then the dequant epilogue (scalar extract -> f32 -> *scale ->
+  /// store; with an optional clamp via splat/compare/select). The caller has
+  /// already emitted the function entry, the runtime-ABI valueMap, the scope
+  /// provenance comment, and the pre-loop full-chunk setvl (`vlmax`).
+  mlir::LogicalResult emitLowPrecisionDequantBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
+      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      mlir::Type sizeType, llvm::StringRef setvlCallee,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // Walk the scope into ordered product/reduce slices + the dequant epilogue.
+    llvm::SmallVector<DequantSlice, 2> slices;
+    tcrvrvv::DequantizeOp dequant;
+    tcrvrvv::StoreOp storeOp;
+    llvm::SmallVector<mlir::Operation *, 4> epilogueOps;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto load = llvm::dyn_cast<tcrvrvv::LoadOp>(op)) {
+        // Group lhs/rhs loads with the product/reduce they feed; the first load
+        // of each slice opens a new DequantSlice.
+        if (slices.empty() || slices.back().reduce)
+          slices.push_back(DequantSlice{});
+        if (!slices.back().lhsLoad)
+          slices.back().lhsLoad = load;
+        else
+          slices.back().rhsLoad = load;
+      } else if (llvm::isa<tcrvrvv::WideningProductOp,
+                           tcrvrvv::PackedI4NibbleUnpackProductOp>(op)) {
+        if (slices.empty())
+          return rewriter.notifyMatchFailure(scope,
+                                             "dequant product before its loads");
+        slices.back().productOp = &op;
+      } else if (auto reduce = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(op)) {
+        if (slices.empty() || !slices.back().productOp)
+          return rewriter.notifyMatchFailure(scope,
+                                             "dequant reduce before its product");
+        slices.back().reduce = reduce;
+      } else if (auto deq = llvm::dyn_cast<tcrvrvv::DequantizeOp>(op)) {
+        dequant = deq;
+        epilogueOps.push_back(&op);
+      } else if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
+        storeOp = store;
+        epilogueOps.push_back(&op);
+      } else if (llvm::isa<tcrvrvv::SplatOp, tcrvrvv::CompareOp,
+                           tcrvrvv::SelectOp>(op)) {
+        epilogueOps.push_back(&op);
+      } else {
+        // Any unexpected op (e.g. a leftover vsetvl_region_marker, the gearbox
+        // handoff) means this is not the fully-typed dequant body the routine
+        // owns yet -- fall back to legacy so nothing is mislowered.
+        return rewriter.notifyMatchFailure(
+            &op, "unsupported op in low-precision dequant body");
+      }
+    }
+    if (slices.empty() || !dequant || !storeOp)
+      return rewriter.notifyMatchFailure(
+          scope, "dequant body missing product/reduce slices or epilogue");
+    for (const DequantSlice &slice : slices)
+      if (!slice.lhsLoad || !slice.rhsLoad || !slice.productOp || !slice.reduce)
+        return rewriter.notifyMatchFailure(scope,
+                                           "incomplete dequant product slice");
+
+    // The accumulator vector type (i32 m1) and the acc[0] seed buffer.
+    auto accVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(slices.front().reduce.getType());
+    if (!accVecType || accVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(scope,
+                                         "dequant accumulator not an m1 vector");
+    mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
+    if (!accEmitC)
+      return rewriter.notifyMatchFailure(
+          scope, "dequant accumulator type not convertible");
+    mlir::Value lhsBuffer = valueMap.lookup(slices.front().lhsLoad.getBuffer());
+    mlir::Value rhsBuffer = valueMap.lookup(slices.front().rhsLoad.getBuffer());
+    mlir::Value accBuffer =
+        valueMap.lookup(slices.front().reduce.getAccumulatorSeed());
+    if (!lhsBuffer || !rhsBuffer || !accBuffer)
+      return rewriter.notifyMatchFailure(scope,
+                                         "dequant body buffers unmapped");
+
+    // unroll_factor (structural op attr): the main loop carries this many slices
+    // and steps by vlmax * unroll_factor; absent or 1 == a single plain loop.
+    int64_t unroll = 1;
+    if (auto u = scope->getAttrOfType<mlir::IntegerAttr>("unroll_factor"))
+      unroll = u.getInt();
+    if (unroll < 1 ||
+        static_cast<size_t>(unroll) != slices.size())
+      return rewriter.notifyMatchFailure(
+          scope, "dequant unroll_factor must match the number of slices");
+
+    llvm::StringRef reduceOpName =
+        slices.front().reduce.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef reduceRole =
+        slices.front().reduce.getTCRVEmitCLowerableSourceRole();
+
+    // Function-scoped i32 accumulator variable: vint32m1_t dot_acc_vec;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("dot_acc_vec", reduceOpName, reduceRole));
+    auto accLValueType = emitc::LValueType::get(accEmitC);
+    auto accVar = rewriter.create<emitc::VariableOp>(
+        loc, accLValueType,
+        emitc::OpaqueAttr::get(rewriter.getContext(), ""));
+
+    // Optional grouped tail bound: tail_start = (n / (vlmax*2)) * (vlmax*2).
+    mlir::Value tailStart;
+    if (unroll > 1) {
+      mlir::Value unrollLit = rewriter.create<emitc::LiteralOp>(
+          loc, sizeType, llvm::Twine(unroll).str());
+      mlir::Value step =
+          rewriter.create<emitc::MulOp>(loc, sizeType, vlmax, unrollLit);
+      mlir::Value chunks =
+          rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, step);
+      tailStart = rewriter.create<emitc::MulOp>(loc, sizeType, chunks, step);
+    }
+
+    // Seed the accumulator from acc[0]: dot_acc_vec = vmv_v_x(acc[0], 1).
+    mlir::Value seedSplat = emitScalarSeedSplat(rewriter, loc, accBuffer,
+                                                accVecType, reduceOpName,
+                                                reduceRole);
+    if (!seedSplat)
+      return rewriter.notifyMatchFailure(scope,
+                                         "dequant accumulator seed not convertible");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, assignComment("dot_acc_vec", reduceOpName, reduceRole));
+    rewriter.create<emitc::AssignOp>(loc, accVar, seedSplat);
+
+    // The main chunk loop: for (i = 0; i < <bound>; i += vlmax*unroll).
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    mlir::Value mainBound = tailStart ? tailStart : avlArg;
+    mlir::Value mainStep = vlmax;
+    if (unroll > 1) {
+      mlir::Value unrollLit = rewriter.create<emitc::LiteralOp>(
+          loc, sizeType, llvm::Twine(unroll).str());
+      mainStep = rewriter.create<emitc::MulOp>(loc, sizeType, vlmax, unrollLit);
+    }
+    auto mainLoop = rewriter.create<emitc::ForOp>(loc, zero, mainBound, mainStep,
+                                                  /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(mainLoop.getBody());
+      mlir::Value inductionVar = mainLoop.getInductionVar();
+      for (auto [sliceIndex, slice] : llvm::enumerate(slices)) {
+        // The slice's runtime VL is setvl(n - i - sliceIndex*vlmax); the second
+        // unroll slice loads at (base + i + vlmax) and its VL excludes the first
+        // slice's lanes.
+        mlir::Value sliceOffset = inductionVar;
+        mlir::Value remaining =
+            rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+        if (sliceIndex > 0) {
+          // base + i + sliceIndex*vlmax ; remaining -= sliceIndex*vlmax (via vl)
+          for (size_t k = 0; k < sliceIndex; ++k)
+            sliceOffset =
+                rewriter.create<emitc::AddOp>(loc, sizeType, sliceOffset, vlmax);
+          for (size_t k = 0; k < sliceIndex; ++k)
+            remaining =
+                rewriter.create<emitc::SubOp>(loc, sizeType, remaining, vlmax);
+        }
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+                             preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+                             setvlCallee));
+        mlir::Value sliceVL =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                             setvlCallee,
+                                             mlir::ValueRange{remaining})
+                .getResult(0);
+        if (mlir::failed(emitDequantProductReduceSlice(
+                rewriter, loc, slice.lhsLoad, slice.rhsLoad, slice.productOp,
+                slice.reduce, lhsBuffer, rhsBuffer, sliceOffset, accVar,
+                accVecType, sliceVL, valueMap)))
+          return mlir::failure();
+      }
+    }
+
+    // The scalar tail loop (only when unrolled): one slice over the remainder,
+    // for (i = tail_start; i < n; i += vlmax).
+    if (unroll > 1) {
+      auto tailLoop = rewriter.create<emitc::ForOp>(loc, tailStart, avlArg,
+                                                    vlmax, /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(tailLoop.getBody());
+      mlir::Value inductionVar = tailLoop.getInductionVar();
+      mlir::Value remaining =
+          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+                           setvlCallee));
+      mlir::Value sliceVL =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                           setvlCallee,
+                                           mlir::ValueRange{remaining})
+              .getResult(0);
+      const DequantSlice &slice = slices.front();
+      if (mlir::failed(emitDequantProductReduceSlice(
+              rewriter, loc, slice.lhsLoad, slice.rhsLoad, slice.productOp,
+              slice.reduce, lhsBuffer, rhsBuffer, inductionVar, accVar,
+              accVecType, sliceVL, valueMap)))
+        return mlir::failure();
+    }
+
+    // Dequant epilogue (run once after the loops): scalar extract -> f32 ->
+    // *scale -> splat -> store; optionally clamped via splat/compare/select.
+    return emitDequantEpilogue(rewriter, loc, variant, dequant, storeOp,
+                               epilogueOps, accVar, accVecType, valueMap);
+  }
+
+  /// Emit the dequant epilogue once: extract the accumulator's lane-0 scalar
+  /// (vmv_x_s), convert to f32, multiply by the runtime scale, then either store
+  /// the scalar f32 (the plain dequant), or run the f32 clamp (splat/compare/
+  /// select against the lower/upper bounds) before storing. The accumulator is
+  /// read from the function-scoped variable, not any in-loop SSA value.
+  mlir::LogicalResult emitDequantEpilogue(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrv::exec::VariantOp variant, tcrvrvv::DequantizeOp dequant,
+      tcrvrvv::StoreOp storeOp, llvm::ArrayRef<mlir::Operation *> epilogueOps,
+      mlir::Value accVar, tcrvrvv::VectorType accVecType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    bool hasClamp = llvm::any_of(epilogueOps, [](mlir::Operation *op) {
+      return llvm::isa<tcrvrvv::SelectOp>(op);
+    });
+    mlir::Value scale = valueMap.lookup(dequant.getScale());
+    mlir::Value outBuffer = valueMap.lookup(storeOp.getBuffer());
+    if (!scale || !outBuffer)
+      return rewriter.notifyMatchFailure(dequant,
+                                         "dequant epilogue operands unmapped");
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dequant.getResult().getType());
+    if (!resultVecType || !isFloatVector(resultVecType))
+      return rewriter.notifyMatchFailure(dequant,
+                                         "dequant result not an f32 vector");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
+    if (!resultEmitC || !accEmitC)
+      return rewriter.notifyMatchFailure(dequant,
+                                         "dequant epilogue type not convertible");
+    llvm::StringRef opName = dequant.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = dequant.getTCRVEmitCLowerableSourceRole();
+    unsigned resSEW = vectorElementWidth(resultVecType);
+    llvm::StringRef resLmul = resultVecType.getLmul();
+    llvm::StringRef resDtype = vectorDType(resultVecType);
+    mlir::Type sizeType = getSizeType(rewriter);
+
+    // int32_t dot_acc_scalar = __riscv_vmv_x_s_i32m1_i32(dot_acc_vec);
+    mlir::Value accValue =
+        rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
+    std::string extractCallee =
+        ("__riscv_vmv_x_s_" + vectorDType(accVecType) + accVecType.getLmul() +
+         "_" + vectorDType(accVecType))
+            .str();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, extractCallee));
+    mlir::Type i32Type = emitc::OpaqueType::get(rewriter.getContext(), "int32_t");
+    mlir::Value scalar =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
+                                         extractCallee,
+                                         mlir::ValueRange{accValue})
+            .getResult(0);
+    // float f = (float) dot_acc_scalar; float scaled = f * scale;
+    mlir::Type floatType =
+        emitc::OpaqueType::get(rewriter.getContext(), "float");
+    mlir::Value asFloat =
+        rewriter.create<emitc::CastOp>(loc, floatType, scalar).getResult();
+    mlir::Value scaled =
+        rewriter.create<emitc::MulOp>(loc, floatType, asFloat, scale);
+
+    // The scaled f32 lane-0 result splat: vfmv_v_f(scaled, 1). Both the plain
+    // dequant store and the clamp's compare inputs consume this lane-0 vector.
+    std::string splatCallee =
+        riscvIntrinsicName("vfmv_v_f", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, splatCallee));
+    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+    mlir::Value dequantSplat =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         splatCallee,
+                                         mlir::ValueRange{scaled, one})
+            .getResult(0);
+    valueMap[dequant.getResult()] = dequantSplat;
+
+    mlir::Value valueToStore = dequantSplat;
+    if (hasClamp) {
+      // The f32 clamp runs on the lane-0 vector at VL=1: splat lower/upper
+      // bounds, compare (vmflt), and select (vmerge) against the dequant result,
+      // reusing the already-converted Splat/Compare/Select handlers. The store
+      // target is the final selected value.
+      for (mlir::Operation *epOp : epilogueOps) {
+        if (auto splat = llvm::dyn_cast<tcrvrvv::SplatOp>(epOp)) {
+          if (mlir::failed(emitSplat(rewriter, loc, splat, valueMap, one)))
+            return mlir::failure();
+        } else if (auto compare = llvm::dyn_cast<tcrvrvv::CompareOp>(epOp)) {
+          if (mlir::failed(emitCompare(rewriter, loc, compare, valueMap, one)))
+            return mlir::failure();
+        } else if (auto select = llvm::dyn_cast<tcrvrvv::SelectOp>(epOp)) {
+          if (mlir::failed(emitSelect(rewriter, loc, select, valueMap, one)))
+            return mlir::failure();
+          valueToStore = valueMap.lookup(select.getSelected());
+        }
+      }
+      if (!valueToStore)
+        return rewriter.notifyMatchFailure(
+            variant, "dequant-clamp select result unmapped");
+    }
+
+    // vse32 store the lane-0 result to out base (VL=1).
+    std::string storeCallee =
+        riscvIntrinsicName("vse", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(storeOp.getTCRVEmitCLowerableSourceOpName(),
+                         storeOp.getTCRVEmitCLowerableSourceRole(), storeCallee));
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, storeCallee,
+        mlir::ValueRange{outBuffer, valueToStore, one});
     return mlir::success();
   }
 
@@ -2033,6 +2542,114 @@ private:
                                          mlir::ValueRange{lhs, rhs, bodyVL})
             .getResult(0);
     valueMap[product.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// packed_i4_nibble_unpack_product(%lhs,%rhs,%vl) lowers to the FIXED signed
+  /// i4-nibble sign-extend + widening-product intrinsic chain (each i8 packs two
+  /// signed 4-bit nibbles), byte-equivalent to the legacy packed-i4 oracle:
+  ///   // low nibble: shift the i4 into the high nibble (vsll 4), widen-multiply,
+  ///   // arithmetic-shift the i16 product back down (vsra 8) -- this both
+  ///   // sign-extends the low nibble and rescales the product.
+  ///   v8  lhs_low = vsll_vx_i8mf4(lhs, 4, vl);
+  ///   v8  rhs_low = vsll_vx_i8mf4(rhs, 4, vl);
+  ///   v16 low_p   = vwmul_vv_i16mf2(lhs_low, rhs_low, vl);
+  ///   v16 product = vsra_vx_i16mf2(low_p, 8, vl);
+  ///   // high nibble: arithmetic-shift sign-extends the high nibble in place,
+  ///   // then a widening multiply-accumulate adds its product.
+  ///   v8  lhs_high = vsra_vx_i8mf4(lhs, 4, vl);
+  ///   v8  rhs_high = vsra_vx_i8mf4(rhs, 4, vl);
+  ///   v16 product  = vwmacc_vv_i16mf2(product, lhs_high, rhs_high, vl);
+  /// The op carries the nibble-unpack STRUCTURE typed; the conversion never
+  /// reads operand_form / unpack_intent candidate-mirror strings to choose it.
+  mlir::LogicalResult emitPackedI4NibbleUnpackProduct(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::PackedI4NibbleUnpackProductOp packed,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(packed.getResult().getType());
+    auto srcVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(packed.getLhs().getType());
+    if (!resultVecType || !srcVecType)
+      return rewriter.notifyMatchFailure(packed,
+                                         "packed-i4 product types not vectors");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcEmitC = convertVectorTypeToEmitC(srcVecType);
+    if (!resultEmitC || !srcEmitC)
+      return rewriter.notifyMatchFailure(
+          packed, "packed-i4 product type not convertible");
+    mlir::Value lhs = valueMap.lookup(packed.getLhs());
+    mlir::Value rhs = valueMap.lookup(packed.getRhs());
+    if (!lhs || !rhs)
+      return rewriter.notifyMatchFailure(packed,
+                                         "packed-i4 product operand unmapped");
+    llvm::StringRef opName = packed.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = packed.getTCRVEmitCLowerableSourceRole();
+    unsigned srcSEW = vectorElementWidth(srcVecType);
+    llvm::StringRef srcLmul = srcVecType.getLmul();
+    llvm::StringRef srcDtype = vectorDType(srcVecType);
+    unsigned resSEW = vectorElementWidth(resultVecType);
+    llvm::StringRef resLmul = resultVecType.getLmul();
+    llvm::StringRef resDtype = vectorDType(resultVecType);
+    mlir::Type u8Type = emitc::OpaqueType::get(rewriter.getContext(), "uint8_t");
+
+    // Shift-by-immediate intrinsics spell as __riscv_<mnemonic>_<dtype><lmul>
+    // (the `vx` form is part of the mnemonic), distinct from the `_vv_` form
+    // riscvIntrinsicName builds for the binary product intrinsics.
+    auto shiftCallee = [](llvm::StringRef mnemonic, llvm::StringRef dtype,
+                          llvm::StringRef lmul) -> std::string {
+      return ("__riscv_" + mnemonic + "_" + dtype + lmul).str();
+    };
+    auto shift = [&](llvm::StringRef mnemonic, llvm::StringRef dtype,
+                     llvm::StringRef lmul, mlir::Type vecType, mlir::Value src,
+                     llvm::StringRef amount) -> mlir::Value {
+      std::string callee = shiftCallee(mnemonic, dtype, lmul);
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+      mlir::Value amt =
+          rewriter.create<emitc::LiteralOp>(loc, u8Type, amount.str());
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                       mlir::ValueRange{src, amt, bodyVL})
+          .getResult(0);
+    };
+    (void)srcSEW;
+    (void)resSEW;
+
+    // Low nibble: vsll(4) both sources into the high nibble.
+    mlir::Value lhsLow =
+        shift("vsll_vx", srcDtype, srcLmul, srcEmitC, lhs, "4");
+    mlir::Value rhsLow =
+        shift("vsll_vx", srcDtype, srcLmul, srcEmitC, rhs, "4");
+    // vwmul widening product of the shifted low nibbles.
+    std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
+    mlir::Value lowProduct =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         mulCallee,
+                                         mlir::ValueRange{lhsLow, rhsLow, bodyVL})
+            .getResult(0);
+    // vsra(8) rescales the i16 product (sign-extends + undoes the 2x4 shift).
+    mlir::Value product =
+        shift("vsra_vx", resDtype, resLmul, resultEmitC, lowProduct, "8");
+    // High nibble: vsra(4) sign-extends the high nibble of each source in place.
+    mlir::Value lhsHigh =
+        shift("vsra_vx", srcDtype, srcLmul, srcEmitC, lhs, "4");
+    mlir::Value rhsHigh =
+        shift("vsra_vx", srcDtype, srcLmul, srcEmitC, rhs, "4");
+    // vwmacc adds the high-nibble widening product into the accumulator.
+    std::string maccCallee =
+        riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, maccCallee));
+    mlir::Value pairSum =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, maccCallee,
+                mlir::ValueRange{product, lhsHigh, rhsHigh, bodyVL})
+            .getResult(0);
+    valueMap[packed.getResult()] = pairSum;
     return mlir::success();
   }
 
