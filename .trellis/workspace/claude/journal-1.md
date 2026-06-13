@@ -563,3 +563,38 @@ Completed the RVV codegen 去除字符串 (the audit's 病灶). Flipped the last
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Modular backend-emission base + re-parser deleted (no string machine in production)
+
+**Date**: 2026-06-14
+**Task**: Modular backend-emission base + re-parser deleted (no string machine in production)
+**Branch**: `main`
+
+### Summary
+
+Directives 1+3: built a TypedBackendEmissionDriver base + table-driven BackendEmissionRegistry (mirrors the plugin registry → a future RVM backend is one-line, zero core edits), removed the 2 hardcoded convertRVVModuleToEmitC call sites. Migrated the non-RVV skeleton families (Toy/Template/TensorExtLite) off the generic string re-parser onto typed emitc emission via the base (byte-identical), then DELETED the re-parser TCRVEmitCLowerableMaterializer (the 自写C表达式 re-parser 病灶, 1269+35 lines) + its unit test + 5 test-consumer excisions; both production fallbacks now FAIL-CLOSED (every family must have a typed driver — no string-route escape hatch). 28 negatives re-targeted (fail-closed preserved, variant-specific, no-synthesis guard). All behavior-preserving / byte-identical, full-clean-rebuild + fresh-link, 589 tests / 3 environmental reds. DEFERRED (separate description-engine ADR): the TCRVEmitCLowerableRoute struct + its std::string expression 病灶 fields remain, coupled to the live ~57k RVV route-planning/cost/header-evidence cascade (PLAN/HEADER asserted by ~167 fixtures). FOLLOW-UPS for directive 2: surface the typed drivers' notifyMatchFailure reasons (the 28 negatives' specific diagnostics coarsened); delete ProviderPlanVerifier dead fields. Directive 4 pending: ~290 redundant/smoke test fixtures + metadata-mirror consolidation per the test inventory.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `128af6ee` | (see git log) |
+| `850902a6` | (see git log) |
+| `767c76ac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
