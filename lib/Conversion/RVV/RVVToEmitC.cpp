@@ -440,10 +440,38 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
   return 0;
 }
 
-/// The C dtype token ("i32"/"i64"/"f32") for the vector element, used by the
-/// load/store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` /
-/// `vfloat<sew>m<lmul>_t` opaque type.
+/// True iff the vector element is an UNSIGNED integer (`ui8`/`ui16`/`ui32`).
+/// The unsigned low-precision widening-product/reduce family (vwmulu/vwredsumu)
+/// keys its intrinsic dtype token and vector C type on this; signed/signless
+/// integers and floats are not unsigned.
+bool isUnsignedVector(tcrvrvv::VectorType type) {
+  auto intType = llvm::dyn_cast<mlir::IntegerType>(type.getElementType());
+  return intType && intType.getSignedness() ==
+                        mlir::IntegerType::SignednessSemantics::Unsigned;
+}
+
+/// The C dtype token ("i32"/"i64"/"f32", or the "u8"/"u16"/"u32" unsigned
+/// rungs) for the vector element, used by the load/store/arithmetic intrinsic
+/// suffix and the `vint<sew>m<lmul>_t` / `vuint<sew>m<lmul>_t` /
+/// `vfloat<sew>m<lmul>_t` opaque type. The unsigned rung mirrors the legacy
+/// unsigned widening-product oracle (u8mf4 -> __riscv_vle8_v_u8mf4 /
+/// __riscv_vwmulu_vv_u16mf2).
 llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
+  if (isUnsignedVector(type)) {
+    auto intType = llvm::cast<mlir::IntegerType>(type.getElementType());
+    switch (intType.getWidth()) {
+    case 8:
+      return "u8";
+    case 16:
+      return "u16";
+    case 32:
+      return "u32";
+    case 64:
+      return "u64";
+    default:
+      return "";
+    }
+  }
   if (type.getElementType().isSignlessInteger(8))
     return "i8";
   if (type.getElementType().isSignlessInteger(16))
@@ -468,6 +496,21 @@ bool isFloatVector(tcrvrvv::VectorType type) {
 /// "int64_t", f32 -> "float". Returns "" for an element the converter cannot
 /// name (so the caller fails the match).
 llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
+  if (isUnsignedVector(type)) {
+    auto intType = llvm::cast<mlir::IntegerType>(type.getElementType());
+    switch (intType.getWidth()) {
+    case 8:
+      return "uint8_t";
+    case 16:
+      return "uint16_t";
+    case 32:
+      return "uint32_t";
+    case 64:
+      return "uint64_t";
+    default:
+      return "";
+    }
+  }
   if (type.getElementType().isSignlessInteger(8))
     return "int8_t";
   if (type.getElementType().isSignlessInteger(16))
@@ -1943,9 +1986,19 @@ private:
     if (!resultVecType || !lhsVecType)
       return rewriter.notifyMatchFailure(product,
                                          "widening product types not vectors");
-    if (product.getKind() != "signed_widening_product")
+    // The signed rung emits vwmul; the unsigned low-precision rung (ui8 source ->
+    // ui16 result, kind=unsigned_widening_product) emits vwmulu, byte-identical
+    // to the legacy unsigned widening-product oracle. Both must agree: a signed
+    // kind on unsigned vectors (or vice versa) is a malformed body -> fall back.
+    const bool unsignedProduct =
+        product.getKind() == "unsigned_widening_product";
+    if (product.getKind() != "signed_widening_product" && !unsignedProduct)
       return rewriter.notifyMatchFailure(
-          product, "only the signed widening product is convertible");
+          product, "only the signed/unsigned widening product is convertible");
+    if (unsignedProduct != isUnsignedVector(resultVecType) ||
+        unsignedProduct != isUnsignedVector(lhsVecType))
+      return rewriter.notifyMatchFailure(
+          product, "widening product kind/signedness mismatch with vector types");
     mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
     if (!resultEmitC || !convertVectorTypeToEmitC(lhsVecType))
       return rewriter.notifyMatchFailure(
@@ -1956,9 +2009,9 @@ private:
       return rewriter.notifyMatchFailure(product,
                                          "widening product operand unmapped");
     // The widened product intrinsic dtype/lmul derive from the RESULT vector.
-    std::string callee =
-        riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
-                           resultVecType.getLmul(), vectorDType(resultVecType));
+    std::string callee = riscvIntrinsicName(
+        unsignedProduct ? "vwmulu" : "vwmul", vectorElementWidth(resultVecType),
+        resultVecType.getLmul(), vectorDType(resultVecType));
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(product.getTCRVEmitCLowerableSourceOpName(),
                          product.getTCRVEmitCLowerableSourceRole(), callee));
@@ -4408,6 +4461,27 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           if (lmul != "m1")
             return std::nullopt;
           return emitc::OpaqueType::get(type.getContext(), "vfloat32m1_t");
+        }
+        // Unsigned low-precision rung: ui8/mf4, ui16/mf2, ui32/m1 ->
+        // vuint<sew>m<lmul>_t (the legacy unsigned widening-product/reduce oracle
+        // loads u8 sources into vuint8mf4_t, widens to vuint16mf2_t, and reduces
+        // into vuint32m1_t). Only the grid those families use is in scope.
+        if (isUnsignedVector(type)) {
+          auto intType = llvm::cast<mlir::IntegerType>(type.getElementType());
+          unsigned uSew = intType.getWidth();
+          bool inScope = false;
+          if (uSew == 8)
+            inScope = lmul == "mf4";
+          else if (uSew == 16)
+            inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2";
+          else if (uSew == 32)
+            inScope = lmul == "m1" || lmul == "m2";
+          else if (uSew == 64)
+            inScope = lmul == "m1" || lmul == "m2";
+          if (!inScope)
+            return std::nullopt;
+          std::string name = ("vuint" + llvm::Twine(uSew) + lmul + "_t").str();
+          return emitc::OpaqueType::get(type.getContext(), name);
         }
         unsigned sew = 0;
         if (type.getElementType().isSignlessInteger(8))
