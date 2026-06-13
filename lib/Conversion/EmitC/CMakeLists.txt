@@ -2,6 +2,8 @@ add_mlir_library(TianChenRVConversionEmitC
   TCRVEmitCLowerableMaterializer.cpp
   TCRVEmitCLowerableOpInterface.cpp
   TCRVEmitCLowerableInterface.cpp
+  TypedBackendEmissionDriver.cpp
+  BackendEmissionRegistry.cpp
 
   DEPENDS
   MLIRTCRVEmitCLowerableOpInterfaceIncGen
@@ -11,4 +13,8 @@ add_mlir_library(TianChenRVConversionEmitC
   MLIREmitCDialect
   MLIRIR
   MLIRSupport
+  MLIRTransforms
+  MLIRTransformUtils
 )
+
+add_subdirectory(Builtin)

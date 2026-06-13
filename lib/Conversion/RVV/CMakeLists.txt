@@ -7,6 +7,7 @@ add_mlir_library(TianChenRVConversionRVV
   MLIRExecOpsIncGen
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVRVVDialect
   TianChenRVExecDialect
   MLIREmitCDialect

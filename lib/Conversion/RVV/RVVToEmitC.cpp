@@ -1,5 +1,8 @@
 #include "TianChenRV/Conversion/RVV/RVVToEmitC.h"
 
+#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "TianChenRV/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "TianChenRV/Conversion/RVV/RVVBackendEmissionDriver.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -5518,48 +5521,79 @@ void populateRVVElementwiseToEmitCPatterns(mlir::TypeConverter &typeConverter,
   patterns.add<VariantToEmitCFunc>(typeConverter, patterns.getContext());
 }
 
-bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
-  mlir::MLIRContext *context = module.getContext();
+//===----------------------------------------------------------------------===//
+// RVV typed-emission backend driver. This is the RVV implementation of the
+// shared `TypedBackendEmissionDriver` seam: it supplies ONLY the RVV-specific
+// pieces (type conversions, target legality, patterns, the post-conversion
+// kernel drain, the RVV-body pre/post-check), while the generic harness
+// `convertModuleWithBackendEmitter` owns the boilerplate. A future RVM family
+// adds a sibling driver and registers it — no core edit. `convertRVVModuleToEmitC`
+// stays the same entry point (pass + plugin probe still call it directly), now
+// implemented by delegating to the shared harness with this driver.
+//===----------------------------------------------------------------------===//
 
-  // The conversion patterns construct emitc ops/types. When this driver runs
-  // outside the pass framework (the live artifact-export materialization seam),
-  // the EmitC dialect is only registered, not loaded, in the translate context
-  // -- so eagerly load it here. This mirrors the `--tcrv-rvv-lower-to-emitc`
-  // pass's `dependentDialects` and makes the driver self-sufficient for both
-  // callers. Loading is idempotent.
-  context->loadDialect<mlir::emitc::EmitCDialect>();
+namespace {
 
-  mlir::TypeConverter typeConverter;
-  // Identity for any type the beachhead conversions do not rewrite, so the
-  // pass never illegalizes unrelated IR.
-  typeConverter.addConversion([](mlir::Type type) { return type; });
-  populateRVVToEmitCTypeConversions(typeConverter);
+class RVVBackendEmissionDriver final
+    : public ::tianchenrv::conversion::emitc::TypedBackendEmissionDriver {
+public:
+  llvm::StringRef getBackendName() const override { return "rvv"; }
 
-  mlir::ConversionTarget target(*context);
-  // emitc is the lowering destination dialect.
-  target.addLegalDialect<mlir::emitc::EmitCDialect>();
-  // A tcrv.exec.variant that carries a tcrv_rvv.with_vl selected-lowering
-  // boundary is illegal and must be converted into an emitc.func. Variants
-  // without a with_vl scope (e.g. scalar fallbacks) stay legal so unconverted
-  // families fall through unchanged.
-  target.addDynamicallyLegalOp<tcrv::exec::VariantOp>(
-      [](tcrv::exec::VariantOp variant) {
-        for (mlir::Operation &op : variant.getBody().front())
-          if (llvm::isa<tcrv::rvv::WithVLOp>(op))
-            return false;
-        return true;
-      });
-  // Everything else (kernels, dispatch, capabilities, other dialects) stays
-  // legal; the beachhead conversion rewrites the variant subtree atomically.
-  target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+  void
+  populateTypeConversions(mlir::TypeConverter &typeConverter) const override {
+    populateRVVToEmitCTypeConversions(typeConverter);
+  }
 
-  mlir::RewritePatternSet patterns(context);
-  populateRVVElementwiseToEmitCPatterns(typeConverter, patterns);
+  void configureConversionTarget(mlir::ConversionTarget &target) const override {
+    // A tcrv.exec.variant that carries a tcrv_rvv.with_vl selected-lowering
+    // boundary is illegal and must be converted into an emitc.func. Variants
+    // without a with_vl scope (e.g. scalar fallbacks) stay legal so unconverted
+    // families fall through unchanged.
+    target.addDynamicallyLegalOp<tcrv::exec::VariantOp>(
+        [](tcrv::exec::VariantOp variant) {
+          for (mlir::Operation &op : variant.getBody().front())
+            if (llvm::isa<tcrv::rvv::WithVLOp>(op))
+              return false;
+          return true;
+        });
+    // Everything else (kernels, dispatch, capabilities, other dialects) stays
+    // legal; the beachhead conversion rewrites the variant subtree atomically.
+    target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+  }
 
-  if (mlir::failed(
-          mlir::applyPartialConversion(module, target, std::move(patterns))))
-    return false;
+  void
+  populateLoweringPatterns(mlir::TypeConverter &typeConverter,
+                           mlir::RewritePatternSet &patterns) const override {
+    populateRVVElementwiseToEmitCPatterns(typeConverter, patterns);
+  }
 
+  llvm::LogicalResult postConversionCleanup(mlir::ModuleOp module) const override;
+
+  bool moduleHasBackendBody(mlir::ModuleOp module) const override {
+    // The module carries an RVV body if any op is a tcrv_rvv op OR still carries
+    // a tcrv_rvv-typed operand/result (a half-converted op). This is both the
+    // registry pre-check and the harness's per-backend "no RVV leftover" gate.
+    auto isRVVType = [](mlir::Type type) {
+      return type.getDialect().getNamespace() ==
+             tcrvrvv::TCRVRVVDialect::getDialectNamespace();
+    };
+    bool hasRVV = false;
+    module.walk([&](mlir::Operation *op) {
+      if (op->getName().getDialectNamespace() ==
+              tcrvrvv::TCRVRVVDialect::getDialectNamespace() ||
+          llvm::any_of(op->getOperandTypes(), isRVVType) ||
+          llvm::any_of(op->getResultTypes(), isRVVType)) {
+        hasRVV = true;
+        return mlir::WalkResult::interrupt();
+      }
+      return mlir::WalkResult::advance();
+    });
+    return hasRVV;
+  }
+};
+
+llvm::LogicalResult
+RVVBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
   // The beachhead conversion lowers the selected variant body into a
   // standalone emitc.func + headers. Once a function was produced, drop the
   // now-emptied tcrv.exec scaffolding (kernel/capability/dispatch) for that
@@ -5631,46 +5665,33 @@ bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
       op->erase();
   }
 
-  // Strangler-fig gate: report a FULL legalization only when this driver
-  // ACTUALLY materialized an emitc.func from an RVV body. A body with no RVV
-  // content (a non-RVV family — toy/template/tensorext-lite, or a scalar
-  // fallback variant) has no with_vl boundary, so the variant is already legal
-  // and `applyPartialConversion` trivially succeeds WITHOUT producing any
-  // function. Returning success in that case would tell every caller (the PATH
-  // R materialization gate, the export seam, the emission-plan/validation/
-  // boundary gates, the --tcrv-rvv-lower-to-emitc pass) that the UNCHANGED body
-  // is the "materialized" module — broken/unmaterialized output for every
-  // non-RVV family. So a no-emitc.func conversion is NEVER a full conversion:
-  // gate on `producedFunc` so those callers all fall through to the legacy path
-  // UNCHANGED.
-  if (!producedFunc)
-    return false;
+  // The strangler-fig success gate (producedFunc + no RVV leftover op/type + no
+  // unrealized_conversion_cast) is owned by the shared harness
+  // (convertModuleWithBackendEmitter): `producedFunc` and the unrealized-cast
+  // check are dialect-agnostic, and the RVV-leftover check is supplied by this
+  // driver's `moduleHasBackendBody`. Cleanup itself never fails.
+  return llvm::success();
+}
 
-  // Additionally, report a full legalization only when no RVV dataflow op, no
-  // `tcrv_rvv` leftover TYPE (a half-converted op whose operand/result still
-  // carries `!tcrv_rvv.*`), and no unrealized_conversion_cast survives. A
-  // partial conversion (a func produced but RVV leftovers remain — e.g. a
-  // not-yet-covered op in the same body) returns false so the export seam falls
-  // back to the legacy string path unchanged.
-  auto carriesRVVType = [](mlir::Operation *op) {
-    auto isRVV = [](mlir::Type type) {
-      return type.getDialect().getNamespace() ==
-             tcrvrvv::TCRVRVVDialect::getDialectNamespace();
-    };
-    return llvm::any_of(op->getOperandTypes(), isRVV) ||
-           llvm::any_of(op->getResultTypes(), isRVV);
-  };
-  bool fullyConverted = true;
-  module.walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() ==
-            tcrvrvv::TCRVRVVDialect::getDialectNamespace() ||
-        llvm::isa<mlir::UnrealizedConversionCastOp>(op) || carriesRVVType(op)) {
-      fullyConverted = false;
-      return mlir::WalkResult::interrupt();
-    }
-    return mlir::WalkResult::advance();
-  });
-  return fullyConverted;
+} // namespace
+
+void registerRVVBackendEmitter(
+    ::tianchenrv::conversion::emitc::BackendEmissionRegistry &registry) {
+  // Function-local static: owned by this translation unit, outlives the
+  // registry, no global-init-order hazard.
+  static const RVVBackendEmissionDriver driver;
+  registry.registerBackend(driver);
+}
+
+bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
+  // The RVV->emitc conversion is now the shared `TypedBackendEmissionDriver`
+  // harness parameterized by the RVV driver. The `--tcrv-rvv-lower-to-emitc`
+  // pass and the plugin route probe still call this entry point directly (they
+  // need the in-place gate, not the registry's clone-and-try). The behavior is
+  // IDENTICAL to the pre-extraction monolithic driver.
+  static const RVVBackendEmissionDriver driver;
+  return ::tianchenrv::conversion::emitc::convertModuleWithBackendEmitter(module,
+                                                                          driver);
 }
 
 } // namespace rvv

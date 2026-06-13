@@ -1,6 +1,6 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
-#include "TianChenRV/Conversion/RVV/RVVToEmitC.h"
+#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
@@ -288,33 +288,25 @@ private:
       return target.takeError();
 
     // Stage 3 换心 decouple (PATH R, emitc-lowerable-route materialization).
-    // FIRST attempt the real RVV->emitc DialectConversion on a CLONE of the
-    // module — the same `convertRVVModuleToEmitC` driver the
-    // `--tcrv-rvv-lower-to-emitc` pass and the artifact-export seam run. If the
-    // patterns FULLY legalize the selected body (a converted family), the
+    // FIRST attempt the real typed-body->emitc DialectConversion on a CLONE of
+    // the module — via the table-driven backend-emission registry (mirrors the
+    // plugin ExtensionPlugin registry: zero core branch per family). The
+    // registry iterates every registered typed-emission backend (RVV today; a
+    // future RVM family is a one-line table add), skips those whose ops the
+    // module does not carry, and tries the shared conversion harness on a clone
+    // for each candidate. If a backend FULLY legalizes the selected body, the
     // materialized module IS the conversion output (the hardware-validated
     // authority); the legacy string route — and the per-family statement-plan
-    // owner it dispatches into — is NEVER built. If the conversion does not
-    // fully legalize (a family the patterns do not yet cover, e.g. cmp-select),
-    // it leaves the clone partially mutated, so probe the clone and only keep
-    // it on full success; otherwise fall through to the legacy string route
-    // path UNCHANGED. Zero family-name branch — purely "did the conversion
-    // legalize this body."
-    {
-      mlir::OwningOpRef<mlir::ModuleOp> convertedModule(module.clone());
-      bool fullyConverted = false;
-      {
-        mlir::ScopedDiagnosticHandler quietTry(
-            convertedModule->getContext(),
-            [](mlir::Diagnostic &) { return mlir::success(); });
-        fullyConverted =
-            tianchenrv::conversion::rvv::convertRVVModuleToEmitC(
-                *convertedModule);
-      }
-      if (fullyConverted)
-        return replaceModuleBodyWithMaterializedEmitC(
-            module, std::move(convertedModule));
-    }
+    // owner it dispatches into — is NEVER built. If no backend fully legalizes
+    // (a family the patterns do not yet cover, e.g. cmp-select), the registry
+    // returns null and we fall through to the legacy string route path
+    // UNCHANGED. The clone protects the live IR; only a full conversion keeps
+    // it. Zero family-name branch — purely "did a registered backend legalize
+    // this body."
+    if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
+            conversion::emitc::tryConvertModuleWithRegisteredBackend(module))
+      return replaceModuleBodyWithMaterializedEmitC(
+          module, std::move(convertedModule));
 
     llvm::Expected<TargetCapabilitySet> capabilities =
         TargetCapabilitySet::buildFromKernelChecked(target->kernel);
