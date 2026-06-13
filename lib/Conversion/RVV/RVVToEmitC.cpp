@@ -87,6 +87,12 @@ std::string riscvIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
   } else if (mnemonic == "vfcvt_f_x_v") {
     // int->float convert: __riscv_vfcvt_f_x_v_<dtype><lmul>
     os << "_" << dtype << lmul;
+  } else if (mnemonic == "vwcvt_x_x_v") {
+    // signed integer widening convert: __riscv_vwcvt_x_x_v_<dtype><lmul>, where
+    // <dtype><lmul> is the WIDENED RESULT type (i32m1 for i16mf2->i32m1, i64m2
+    // for i32m1->i64m2) -- byte-identical to the legacy widening-conversion
+    // oracle (__riscv_vwcvt_x_x_v_i32m1 / __riscv_vwcvt_x_x_v_i64m2).
+    os << "_" << dtype << lmul;
   } else if (mnemonic == "vfmul_vf") {
     // scalar-vector float multiply: __riscv_vfmul_vf_<dtype><lmul>
     os << "_" << dtype << lmul;
@@ -1082,6 +1088,11 @@ public:
         } else if (auto maskAnd = llvm::dyn_cast<tcrvrvv::MaskAndOp>(op)) {
           if (mlir::failed(emitMaskAnd(rewriter, loc, maskAnd, valueMap,
                                        bodyVL)))
+            return mlir::failure();
+        } else if (auto widenConvert =
+                       llvm::dyn_cast<tcrvrvv::WideningConvertOp>(op)) {
+          if (mlir::failed(emitWideningConvert(rewriter, loc, widenConvert,
+                                               valueMap, bodyVL)))
             return mlir::failure();
         } else if (auto dequantize =
                        llvm::dyn_cast<tcrvrvv::DequantizeOp>(op)) {
@@ -2597,6 +2608,80 @@ private:
                 mlir::ValueRange{converted, scale, bodyVL})
             .getResult(0);
     valueMap[dequantize.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// widening_convert(%source,%vl){kind} lowers to ONE call, byte-identical to
+  /// the legacy signed widening-conversion oracle:
+  ///   result = __riscv_vwcvt_x_x_v_<resultDtype><resultLmul>(source, vl);
+  /// The widened RESULT vector type (i32/m1 for i16mf2->i32m1, i64/m2 for
+  /// i32m1->i64m2) drives the intrinsic suffix; the source is the loaded narrow
+  /// vector. Only the two bounded SIGNED widening kinds the op verifier accepts
+  /// (`sign_extend_widen_vf2` i16mf2->i32m1 and `widen_i32_to_i64` i32m1->i64m2)
+  /// are convertible; both map to the same signed `vwcvt_x_x_v` callee. Any
+  /// other kind or an unexpected source/result type pairing fails the match so
+  /// the body falls back to the legacy validator unchanged (no mislower -- the
+  /// unsigned widening convert would need `vwcvtu`, which this does NOT emit).
+  mlir::LogicalResult
+  emitWideningConvert(mlir::ConversionPatternRewriter &rewriter,
+                      mlir::Location loc, tcrvrvv::WideningConvertOp convert,
+                      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                      mlir::Value bodyVL) const {
+    llvm::StringRef kind = convert.getKind();
+    if (kind != "sign_extend_widen_vf2" && kind != "widen_i32_to_i64")
+      return rewriter.notifyMatchFailure(
+          convert, "unsupported widening_convert kind");
+
+    auto sourceVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(convert.getSource().getType());
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(convert.getResult().getType());
+    if (!sourceVecType || !resultVecType)
+      return rewriter.notifyMatchFailure(
+          convert, "widening_convert source/result not typed vector");
+
+    // Bounded (source,result) grid the signed vwcvt_x_x_v oracle covers. Refuse
+    // any other pairing (including unsigned, which would need vwcvtu) so a
+    // malformed/out-of-grid body falls back instead of mislowering.
+    auto isSignedIntVec = [](tcrvrvv::VectorType vec, unsigned sew,
+                             llvm::StringRef lmul) {
+      return vec.getElementType().isSignlessInteger(sew) &&
+             vec.getLmul() == lmul;
+    };
+    bool gridOk = false;
+    if (kind == "sign_extend_widen_vf2")
+      gridOk = isSignedIntVec(sourceVecType, 16, "mf2") &&
+               isSignedIntVec(resultVecType, 32, "m1");
+    else // widen_i32_to_i64
+      gridOk = isSignedIntVec(sourceVecType, 32, "m1") &&
+               isSignedIntVec(resultVecType, 64, "m2");
+    if (!gridOk)
+      return rewriter.notifyMatchFailure(
+          convert, "widening_convert source/result outside the bounded signed "
+                   "widening grid");
+
+    mlir::Value source = valueMap.lookup(convert.getSource());
+    if (!source)
+      return rewriter.notifyMatchFailure(convert,
+                                         "widening_convert source unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(resultVecType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(
+          convert, "widening_convert result type not convertible");
+
+    // The callee suffix is the WIDENED RESULT type (i32m1 / i64m2).
+    std::string callee = riscvIntrinsicName(
+        "vwcvt_x_x_v", vectorElementWidth(resultVecType),
+        resultVecType.getLmul(), vectorDType(resultVecType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(convert.getTCRVEmitCLowerableSourceOpName(),
+                         convert.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{source, bodyVL})
+            .getResult(0);
+    valueMap[convert.getResult()] = result;
     return mlir::success();
   }
 
