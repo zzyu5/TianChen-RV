@@ -665,3 +665,39 @@ Closed out the post-去除字符串 directives. Directive 3 (modular): the Typed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: File-modularization: the 3 giant monoliths (33k/14k/11k) split into per-concern files — no 10k+ file remains
+
+**Date**: 2026-06-14
+**Task**: File-modularization: the 3 giant monoliths (33k/14k/11k) split into per-concern files — no 10k+ file remains
+**Branch**: `main`
+
+### Summary
+
+Behavior-preserving file-modularization (审美/maturity) of the survivor monoliths, all relocation-only (byte-identical bodies, lit 589/3 + zero fixtures moved throughout, each verified by full-clean-rebuild). RVVEmitCRoutePlanning.cpp 33,148 -> 6 files (largest RouteAnalysis 9,006, floored by the single 4,771-line collectRVVSelectedBodyRouteSlice). RVVDialect.cpp 14,426 -> 9 files (ODR-critical .inc/initialize/registration stays in the 3,682-line core; op verifiers split per category, largest 3,751). RVVEmitCContractionRouteFamilyPlanOwners.cpp 10,906 -> 5 files (largest the N3 low-precision-resource cluster 4,729, relocated untouched). Each split uses a co-located implementation-private internal-API header (NOT under include/) for the cross-TU decls + promoted-from-static helpers; public headers unchanged. Result: NO source file over ~9k (was 33k); the 5-9k survivors are reasonable for a compiler. The one genuine remaining maturity smell is the 4,771-line collectRVVSelectedBodyRouteSlice single function — decomposing it is a behavior-CHANGING logic refactor (riskier than relocation), noted for a possible follow-up.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5728f39d` | (see git log) |
+| `62bb1e09` | (see git log) |
+| `26b5f995` | (see git log) |
+| `cb71a4ee` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
