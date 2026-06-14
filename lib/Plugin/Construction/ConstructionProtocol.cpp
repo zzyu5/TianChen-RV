@@ -280,34 +280,6 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
   return llvm::Error::success();
 }
 
-void printQuoted(llvm::raw_ostream &os, llvm::StringRef value) {
-  os << "\"";
-  for (char character : value) {
-    switch (character) {
-    case '\\':
-      os << "\\\\";
-      break;
-    case '"':
-      os << "\\\"";
-      break;
-    case '\t':
-      os << "\\t";
-      break;
-    default:
-      os << character;
-      break;
-    }
-  }
-  os << "\"";
-}
-
-void printField(llvm::raw_ostream &os, llvm::StringRef name,
-                llvm::StringRef value) {
-  os << name << ": ";
-  printQuoted(os, value);
-  os << "\n";
-}
-
 } // namespace
 
 bool hasEvidence(llvm::StringRef profile, llvm::StringRef evidence) {

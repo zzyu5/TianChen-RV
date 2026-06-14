@@ -1,6 +1,5 @@
 add_mlir_library(TianChenRVConversionEmitC
   TCRVEmitCLowerableOpInterface.cpp
-  TCRVEmitCLowerableInterface.cpp
   TypedBackendEmissionDriver.cpp
   BackendEmissionRegistry.cpp
 

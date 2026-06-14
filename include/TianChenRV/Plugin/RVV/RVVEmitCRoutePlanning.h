@@ -1686,12 +1686,9 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
@@ -1760,12 +1757,9 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyElementwiseSelectRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyElementwiseSelectRouteFamilyOwner>
@@ -1779,12 +1773,9 @@ llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyCompareSelectMaskRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyCompareSelectMaskRouteFamilyOwner>
@@ -1798,12 +1789,9 @@ llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
@@ -1838,12 +1826,9 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner>
@@ -1858,12 +1843,9 @@ verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<
@@ -1879,12 +1861,9 @@ verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyRouteFamilyProviderOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyRouteFamilyProviderOwner>

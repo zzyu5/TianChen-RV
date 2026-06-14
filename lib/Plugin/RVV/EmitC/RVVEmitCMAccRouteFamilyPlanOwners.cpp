@@ -3223,11 +3223,11 @@ llvm::Error verifyRVVSelectedBodyMAccRouteDescriptionMirrors(
 
 bool isRVVSelectedBodyMAccRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
-  // Stage 3 换心: the MAcc route-family provider-plan registry (the
-  // verifyProviderPlan column) was the retired route-construction layer and is
-  // deleted; this live family-classification predicate is decoupled from the
-  // dead table and expressed directly as the disjunction of its leaf consumer
-  // classifiers (byte-faithful to the former isConsumer column).
+  // Stage 3 换心: the MAcc route-family provider-plan registry (the retired
+  // route-construction layer) is deleted; this live family-classification
+  // predicate is decoupled from the dead table and expressed directly as the
+  // disjunction of its leaf consumer classifiers (byte-faithful to the former
+  // isConsumer column).
   return isRVVSelectedBodyPlainMAccRouteFamilyConsumer(operation) ||
          isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(operation) ||
          isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(

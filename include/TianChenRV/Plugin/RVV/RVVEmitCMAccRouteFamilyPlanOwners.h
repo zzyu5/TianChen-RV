@@ -13,12 +13,9 @@ namespace tianchenrv::plugin::rvv {
 
 struct RVVSelectedBodyMAccRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>

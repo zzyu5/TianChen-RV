@@ -2188,10 +2188,10 @@ bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
 bool isRVVSelectedBodyContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   // Stage 3 换心: the contraction route-family provider-plan registry (the
-  // verifyProviderPlan column) was the retired route-construction layer and is
-  // deleted; this live family-classification predicate is decoupled from the
-  // dead table and expressed directly as the disjunction of its leaf consumer
-  // classifiers (byte-faithful to the former isConsumer column).
+  // retired route-construction layer) is deleted; this live
+  // family-classification predicate is decoupled from the dead table and
+  // expressed directly as the disjunction of its leaf consumer classifiers
+  // (byte-faithful to the former isConsumer column).
   return isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
              operation) ||
          isRVVSelectedBodyWideningProductContractionRouteFamilyConsumer(
