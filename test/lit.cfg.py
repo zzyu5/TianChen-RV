@@ -170,6 +170,7 @@ llvm_config.add_tool_substitutions(
         "tianchenrv-emission-readiness-test",
         "tianchenrv-offload-extension-plugin-test",
         "tianchenrv-rvv-dialect-test",
+        "tianchenrv-rvv-low-precision-lmul-selection-test",
         "tianchenrv-rvv-extension-plugin-test",
         "tianchenrv-scalar-extension-plugin-test",
         "tianchenrv-target-artifact-export-test",

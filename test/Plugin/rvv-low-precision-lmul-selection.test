@@ -1,0 +1,12 @@
+# RUN: tianchenrv-rvv-low-precision-lmul-selection-test | FileCheck %s
+
+# The N3 resource-aware max-legal-LMUL selection: the candidate space is DERIVED
+# from the vector-register-budget resource fact and PRUNED (the prune binds when
+# the budget shrinks), and the selected rung is the measured ssh-rvv winner
+# (i8/m2 -> i16/m4 -> i32/m8) under the full 32-vreg budget.
+
+# CHECK: N3 LMUL register footprint arithmetic correct
+# CHECK: N3 max-legal-LMUL selection picks i8m2->i16m4->i32m8 winner under the 32-vreg budget
+# CHECK: N3 vreg-budget prune binds: a 12-vreg budget prunes i32/m8 and selects i32/m4
+# CHECK: N3 selection is fail-closed: an infeasible budget yields no legal rung
+# CHECK: RVV N3 resource-aware LMUL selection tests passed

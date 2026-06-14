@@ -205,6 +205,16 @@ target_link_libraries(tianchenrv-rvv-dialect-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-rvv-low-precision-lmul-selection-test
+  Plugin/RVVLowPrecisionLMULSelectionTest.cpp
+)
+
+target_link_libraries(tianchenrv-rvv-low-precision-lmul-selection-test
+  PRIVATE
+  TianChenRVRVVPlugin
+  MLIRSupport
+)
+
 add_executable(tianchenrv-variant-materialization-test
   Transforms/VariantMaterialization/VariantMaterializationTest.cpp
 )
@@ -301,6 +311,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-emission-readiness-test
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
+  tianchenrv-rvv-low-precision-lmul-selection-test
   tianchenrv-scalar-extension-plugin-test
   tianchenrv-template-extension-plugin-test
   tianchenrv-toy-extension-plugin-test

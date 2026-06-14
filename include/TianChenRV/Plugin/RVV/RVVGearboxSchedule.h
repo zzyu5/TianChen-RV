@@ -1875,6 +1875,134 @@ inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {
          name == kRVVCompositeResourceRejectionReasonAttrName;
 }
 
+//===----------------------------------------------------------------------===//
+// N3 resource-aware max-legal-LMUL selection for the low-precision widening
+// product-reduction contraction (i8 -> i16 product -> i32 deferred accumulator).
+//
+// This is the budget-DERIVED candidate space the P-B step-2 research mandates:
+// enumerate the legal accumulator-LMUL rungs, PRUNE each by the real
+// vector-register-file budget fact (acc_regs + product_regs + reserve <= the
+// architectural vreg count), and SELECT the widest legal rung with a SINGLE
+// accumulator (A=1, since the ssh-rvv sweep measured A>1 to buy nothing). The
+// per-rung register cost is pure LMUL arithmetic; the budget is the
+// VLEN-independent 32-vector-register architectural fact (not a magic constant
+// hand-picked per shape). The measured winner on real ssh rvv (var_v_m2_a1.c) is
+// the i8/m2 -> i16/m4 -> i32/m8 chain, and this enumeration derives exactly that
+// rung from the budget: it is the widest whose 8+4+reserve fits 32 vregs.
+//
+// NOTE (honest scope): this selection logic is unit-tested standalone. It is NOT
+// yet wired into the live realization path -- the realized typed body + its
+// stamped primitive facts (RVVContractionSelectedBodyRealizationOwner.cpp) are
+// still pinned to the narrow i8mf4 per-iteration-vwredsum chain, so selecting a
+// wide rung today would not realize a faithful body. Live-wiring (the dialect
+// verifier + realization-owner generalization) is the remaining lift; see the
+// 06-14 task report's gap map.
+//===----------------------------------------------------------------------===//
+
+/// One enumerated accumulator-LMUL rung for the widening product-reduction
+/// contraction, with the register-cost facts the prune reasons over.
+struct RVVLowPrecisionLMULRung {
+  llvm::StringRef sourceLMUL;       // i8 strip-mine load LMUL (mf4..m2).
+  llvm::StringRef productLMUL;      // i16 product LMUL (mf2..m4), 2x source EMUL.
+  llvm::StringRef accumulatorLMUL;  // i32 vector accumulator LMUL (m1..m8), 2x.
+  std::int64_t accumulatorRegisterCost = 0; // vregs held by one i32 accumulator.
+  std::int64_t productRegisterCost = 0;     // vregs held by the live i16 product.
+  std::int64_t reserveRegisterCost = 0;     // load/temp reserve (budget headroom).
+  bool isLegal = false;                     // fits the vreg-file budget at A=1.
+};
+
+/// The vregs a vector group at the given LMUL occupies: 1 for fractional rungs
+/// (mf8/mf4/mf2) and the integer LMUL otherwise (m1=1, m2=2, m4=4, m8=8).
+inline std::int64_t getRVVLMULRegisterFootprint(llvm::StringRef lmul) {
+  if (lmul == "m1" || lmul == "mf2" || lmul == "mf4" || lmul == "mf8")
+    return 1;
+  if (lmul == "m2")
+    return 2;
+  if (lmul == "m4")
+    return 4;
+  if (lmul == "m8")
+    return 8;
+  return 0;
+}
+
+/// The i16 product LMUL is the i8 source LMUL widened one step (EMUL 2x); the
+/// i32 accumulator LMUL is the i16 product LMUL widened one more step. Returns
+/// empty if the widened LMUL would exceed the m8 architectural cap.
+inline llvm::StringRef getRVVNextWiderLMUL(llvm::StringRef lmul) {
+  if (lmul == "mf4")
+    return "mf2";
+  if (lmul == "mf2")
+    return "m1";
+  if (lmul == "m1")
+    return "m2";
+  if (lmul == "m2")
+    return "m4";
+  if (lmul == "m4")
+    return "m8";
+  return {}; // m8 has no wider rung (LMUL caps at 8).
+}
+
+/// Enumerate the candidate accumulator-LMUL rungs of the i8 -> i16 -> i32
+/// widening product-reduction chain and PRUNE each by the vector-register
+/// budget. `vectorRegisterBudget` is the architectural vreg-file size (32 for
+/// RVV), `reserveRegisterCost` is the load/temp headroom the strip loop keeps
+/// live. A rung is legal iff (A=1) acc_regs + product_regs + reserve <= budget,
+/// and the widening chain stays within the m8 LMUL cap. Returns the rungs in
+/// ascending LMUL-width order (narrowest first).
+inline llvm::SmallVector<RVVLowPrecisionLMULRung, 4>
+enumerateRVVLowPrecisionAccumulatorLMULRungs(std::int64_t vectorRegisterBudget,
+                                             std::int64_t reserveRegisterCost) {
+  llvm::SmallVector<RVVLowPrecisionLMULRung, 4> rungs;
+  // The i8 source strip rungs, narrowest first. Each widens to an i16 product
+  // (EMUL 2x) and an i32 accumulator (EMUL 4x). The narrowest (mf4) is the
+  // legacy under-vectorized rung; m2 is the widest whose i32/m8 accumulator
+  // exists (m4 source would need an i32/m16 accumulator, beyond the m8 cap).
+  static constexpr llvm::StringLiteral kSourceRungs[] = {"mf4", "mf2", "m1",
+                                                         "m2"};
+  for (llvm::StringRef sourceLMUL : kSourceRungs) {
+    llvm::StringRef productLMUL = getRVVNextWiderLMUL(sourceLMUL);
+    if (productLMUL.empty())
+      continue;
+    llvm::StringRef accumulatorLMUL = getRVVNextWiderLMUL(productLMUL);
+    if (accumulatorLMUL.empty())
+      continue; // i32 accumulator would exceed the m8 LMUL cap -> not a rung.
+    RVVLowPrecisionLMULRung rung;
+    rung.sourceLMUL = sourceLMUL;
+    rung.productLMUL = productLMUL;
+    rung.accumulatorLMUL = accumulatorLMUL;
+    rung.accumulatorRegisterCost = getRVVLMULRegisterFootprint(accumulatorLMUL);
+    rung.productRegisterCost = getRVVLMULRegisterFootprint(productLMUL);
+    rung.reserveRegisterCost = reserveRegisterCost;
+    const std::int64_t totalRegisterCost = rung.accumulatorRegisterCost +
+                                           rung.productRegisterCost +
+                                           rung.reserveRegisterCost;
+    rung.isLegal = totalRegisterCost <= vectorRegisterBudget;
+    rungs.push_back(rung);
+  }
+  return rungs;
+}
+
+/// SELECT the widest legal accumulator-LMUL rung (single accumulator, A=1) from
+/// the budget-pruned enumeration: the resource-optimal config on a board where
+/// the accumulate-chain latency is hidden by the vector length alone, so wider
+/// LMUL is monotone-better and the extra accumulators an A>1 schedule would add
+/// are pure vreg waste. Returns nullopt if every rung was pruned (no legal rung
+/// fits the budget). This replaces the legacy max-unroll tiebreak with a cost
+/// rule that reasons over the register-budget resource fact.
+inline std::optional<RVVLowPrecisionLMULRung>
+selectRVVLowPrecisionMaxLegalAccumulatorLMULRung(
+    llvm::ArrayRef<RVVLowPrecisionLMULRung> rungs) {
+  std::optional<RVVLowPrecisionLMULRung> best;
+  for (const RVVLowPrecisionLMULRung &rung : rungs) {
+    if (!rung.isLegal)
+      continue;
+    if (!best ||
+        rung.accumulatorRegisterCost > best->accumulatorRegisterCost)
+      best = rung;
+  }
+  return best;
+}
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H
