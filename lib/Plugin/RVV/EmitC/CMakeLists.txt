@@ -10,6 +10,10 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp
   RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp
   RVVEmitCContractionRouteFamilyPlanOwners.cpp
+  RVVEmitCContractionRouteFamilyCommon.cpp
+  RVVEmitCContractionRouteFamilyPreRealizedValidators.cpp
+  RVVEmitCContractionRouteFamilyLowPrecisionResource.cpp
+  RVVEmitCContractionRouteFamilyValidation.cpp
   RVVEmitCControlPolicyPlanOwners.cpp
   RVVEmitCElementwiseRouteFamilyPlanOwners.cpp
   RVVLowPrecisionPerformancePolicy.cpp
