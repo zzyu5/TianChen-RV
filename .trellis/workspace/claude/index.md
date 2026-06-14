@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-06-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~703 | Active |
+| `journal-1.md` | ~737 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-06-14 | Maturity: both giant functions decomposed (4.7k + 3.2k) — no monolith file or function remains | `2456955a`, `0eab0a2c` | `main` |
 | 7 | 2026-06-14 | File-modularization: the 3 giant monoliths (33k/14k/11k) split into per-concern files — no 10k+ file remains | `5728f39d`, `62bb1e09`, `26b5f995`, `cb71a4ee` | `main` |
 | 6 | 2026-06-14 | Directive 2/3/4 finish: dead-code swept, modular base done, test suite + description engine validated | `5e67adbc`, `fe33faca` | `main` |
 | 5 | 2026-06-14 | Description-engine retirement: std::string struct deleted (MOVE 1); resource metadata kept as N3 evidence (MOVE 2A reverted) | `fc9aa69f` | `main` |

@@ -701,3 +701,37 @@ Behavior-preserving file-modularization (审美/maturity) of the survivor monoli
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Maturity: both giant functions decomposed (4.7k + 3.2k) — no monolith file or function remains
+
+**Date**: 2026-06-14
+**Task**: Maturity: both giant functions decomposed (4.7k + 3.2k) — no monolith file or function remains
+**Branch**: `main`
+
+### Summary
+
+Decomposed the two genuine giant functions via EXTRACT-METHOD (verbatim statement relocation into phase helpers taking shared state by ref; NO logic rewrite/reorder; lit-green + zero-fixtures-moved verified after EACH of the ~56 total extractions, not batched). collectRVVSelectedBodyRouteSlice 4,771 -> 796 orchestrator + 8 phase helpers (gearbox-resolve / generic-op-collect / shape-guards / op-count / memory-ABI-bind / out-ABI-resolve / epilogue-ABI / shape-dispatch). buildRVVSelectedBodyExecutableRoleSteps 3,159 -> 1,104 orchestrator + 46 append*RoleSteps helpers (one per operation family). Both left an irreducible ~54-bool predicate spine inline (extracting it would force an isX->flags struct rewrite = a logic change, forbidden); two cohesive if/else-if chains (validateRVVSelectedBodyShapeDispatch 1531, shape-guards 1175) left whole because splitting an else-if into a fresh if changes mutual-exclusion semantics. Verified: no awk-flagged other giants are real (1830/2352 were span-to-next-anchored artifacts; actual fns 125/157). Net maturity state: NO source file over ~9k (was 33k), NO function over ~1.6k (was 4.7k), all behavior-preserving. The 1.5-1.6k survivors (shape-dispatch, analyzeRVVSelectedBodyRoute) are normal compiler sizes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2456955a` | (see git log) |
+| `0eab0a2c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
