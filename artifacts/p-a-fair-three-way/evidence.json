@@ -1,0 +1,292 @@
+{
+  "schema_version": "rvv-fair-three-way-measure.v1",
+  "tool": "rvv_fair_three_way_measure",
+  "created_at": "2026-06-14T15:37:12Z",
+  "ssh_target": "rvv",
+  "dry_run": false,
+  "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)",
+  "counts": [
+    257,
+    4096,
+    65536
+  ],
+  "scale": 0.0125,
+  "warmups": 3,
+  "repeats": 9,
+  "iters": 16,
+  "rdcycle_probe": {
+    "command_record": {
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=20 rvv 'sh -lc '\"'\"'rm -rf /tmp/tcrv_rdcycle_probe && mkdir -p /tmp/tcrv_rdcycle_probe && cd /tmp/tcrv_rdcycle_probe && cat > probe.c <<'\"'\"'\"'\"'\"'\"'\"'\"'EOF'\"'\"'\"'\"'\"'\"'\"'\"'\n\n#include <stdio.h>\n#include <stdint.h>\nstatic uint64_t rdcycle(void){uint64_t v;__asm__ volatile(\"rdcycle %0\":\"=r\"(v));return v;}\nstatic uint64_t rdtime(void){uint64_t v;__asm__ volatile(\"rdtime %0\":\"=r\"(v));return v;}\nint main(void){\n  uint64_t c0=rdcycle(); for(volatile int i=0;i<100000;++i); uint64_t c1=rdcycle();\n  uint64_t t0=rdtime(); uint64_t t1=rdtime();\n  printf(\"RDCYCLE_OK delta_cycles=%llu\\n\",(unsigned long long)(c1-c0));\n  printf(\"RDTIME_OK delta_time=%llu\\n\",(unsigned long long)(t1-t0));\n  return 0;\n}\n\nEOF\nclang -O2 -march=rv64gcv -mabi=lp64d probe.c -o probe 2>probe_build.err && (./probe 2>probe_run.err; echo RDPROBE_EXIT=$?) ; rm -rf /tmp/tcrv_rdcycle_probe'\"'\"''",
+      "started_at": "2026-06-14T15:36:55Z",
+      "finished_at": "2026-06-14T15:36:58Z",
+      "exit_code": 0,
+      "stdout": "RDCYCLE_OK delta_cycles=800177\nRDTIME_OK delta_time=1\nRDPROBE_EXIT=0\n",
+      "stderr": ""
+    },
+    "rdcycle_available": true,
+    "rdtime_available": true,
+    "stdout": "RDCYCLE_OK delta_cycles=800177\nRDTIME_OK delta_time=1\nRDPROBE_EXIT=0\n"
+  },
+  "results": [
+    {
+      "kernel": "grouped-u2",
+      "op_kind": "widening_product_reduce_dequantize_f32",
+      "packed_i4": false,
+      "tuned_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
+      "tuned_object_sha256": "2c0e1a486d2c336efa532e6f3a3345ea8cf7dab8185d4853a731532ea30ba48f",
+      "tuned_header_sha256": "c3c5bd890980e0c36f455c2590de11e3e08f101a641312674d20b9f2a5eadb91",
+      "selected_input": "artifacts/gate4-candidate-feedback-ssh/gate4-candidate-feedback-ssh/grouped-u2/widening_product_reduce_dequantize_f32/pre_realized_selected_body_input.mlir",
+      "scalar_function": "ref_scalar_byte",
+      "naive_function": "naive_rvv_byte",
+      "harness_path": "artifacts/p-a-fair-three-way/grouped-u2/harness.c",
+      "status": "measured",
+      "ssh_evidence": true,
+      "ssh_target": "rvv",
+      "scalar_objdump": {
+        "vector_ops_found": [],
+        "is_genuinely_scalar": true,
+        "objdump_available": true
+      },
+      "target_profile": "remote_arch=riscv64\nremote_uname=Linux ubuntu 6.12.23 #1 SMP Thu Apr 17 11:46:50 EDT 2025 riscv64 riscv64 riscv64 GNU/Linux\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\nlscpu_begin\nArchitecture:                         riscv64\nByte Order:                           Little Endian\nCPU(s):                               64\nOn-line CPU(s) list:                  0-63\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-63\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          Not affected\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Not affected\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Not affected\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Not affected\nVulnerability Spectre v1:             Not affected\nVulnerability Spectre v2:             Not affected\nVulnerability Srbds:                  Not affected\nVulnerability Tsx async abort:        Not affected\nlscpu_end\n",
+      "summaries": [
+        {
+          "variant": "genuine-scalar",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 621.25
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 243.75
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 472.5
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 418.75
+        },
+        {
+          "variant": "genuine-scalar",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 9485.0
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 2830.0
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 4776.25
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 5821.25
+        },
+        {
+          "variant": "genuine-scalar",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 151806.25
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 45477.5
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 75887.5
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 93398.75
+        }
+      ],
+      "ratios": [
+        {
+          "n": 257,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 1.483582,
+          "tuned_vs_naive": 1.128358,
+          "naive_vs_scalar": 1.314815,
+          "autovec_vs_scalar": 2.548718
+        },
+        {
+          "n": 4096,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 1.629375,
+          "tuned_vs_naive": 0.820485,
+          "naive_vs_scalar": 1.985868,
+          "autovec_vs_scalar": 3.35159
+        },
+        {
+          "n": 65536,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 1.625356,
+          "tuned_vs_naive": 0.812511,
+          "naive_vs_scalar": 2.000412,
+          "autovec_vs_scalar": 3.338052
+        }
+      ],
+      "classification": {
+        "verdict": "partial",
+        "tuned_vs_scalar_range": "1.4836..1.6294",
+        "tuned_vs_naive_range": "0.8125..1.1284",
+        "tuned_vs_scalar_median": 1.6254,
+        "tuned_vs_naive_median": 0.8205,
+        "beats_genuine_scalar": true,
+        "beats_naive_rvv": false
+      }
+    },
+    {
+      "kernel": "packed-i4",
+      "op_kind": "widening_product_reduce_dequantize_f32",
+      "packed_i4": true,
+      "tuned_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
+      "tuned_object_sha256": "64f88b123fc20c2a736af7a0137c3827f121b92005261fd555346a21fd6a567c",
+      "tuned_header_sha256": "f0344b49efdcf115559067e95c454a5cfe143757205868dee06624fc701b2f9e",
+      "selected_input": "artifacts/gate4-candidate-feedback-ssh/gate4-candidate-feedback-ssh/packed-i4/widening_product_reduce_dequantize_f32/pre_realized_selected_body_input.mlir",
+      "scalar_function": "ref_scalar_packed_i4",
+      "naive_function": "naive_rvv_packed_i4",
+      "harness_path": "artifacts/p-a-fair-three-way/packed-i4/harness.c",
+      "status": "measured",
+      "ssh_evidence": true,
+      "ssh_target": "rvv",
+      "scalar_objdump": {
+        "vector_ops_found": [],
+        "is_genuinely_scalar": true,
+        "objdump_available": true
+      },
+      "target_profile": "remote_arch=riscv64\nremote_uname=Linux ubuntu 6.12.23 #1 SMP Thu Apr 17 11:46:50 EDT 2025 riscv64 riscv64 riscv64 GNU/Linux\nclang_version=Ubuntu clang version 18.1.3 (1ubuntu1)\nlscpu_begin\nArchitecture:                         riscv64\nByte Order:                           Little Endian\nCPU(s):                               64\nOn-line CPU(s) list:                  0-63\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-63\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          Not affected\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Not affected\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Not affected\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Not affected\nVulnerability Spectre v1:             Not affected\nVulnerability Spectre v2:             Not affected\nVulnerability Srbds:                  Not affected\nVulnerability Tsx async abort:        Not affected\nlscpu_end\n",
+      "summaries": [
+        {
+          "variant": "genuine-scalar",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 3561.25
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 956.25
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 982.5
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 257,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 1057.5
+        },
+        {
+          "variant": "genuine-scalar",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 56347.5
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 13867.5
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 13128.75
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 4096,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 12996.25
+        },
+        {
+          "variant": "genuine-scalar",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 850197.5
+        },
+        {
+          "variant": "autovec-scalar",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 207962.5
+        },
+        {
+          "variant": "naive-rvv",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 198076.25
+        },
+        {
+          "variant": "tuned-rvv",
+          "n": 65536,
+          "scale": 0.0125000002,
+          "best_per_iter_ns": 204425.0
+        }
+      ],
+      "ratios": [
+        {
+          "n": 257,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 3.367612,
+          "tuned_vs_naive": 0.929078,
+          "naive_vs_scalar": 3.624682,
+          "autovec_vs_scalar": 3.724183
+        },
+        {
+          "n": 4096,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 4.335674,
+          "tuned_vs_naive": 1.010195,
+          "naive_vs_scalar": 4.291917,
+          "autovec_vs_scalar": 4.063277
+        },
+        {
+          "n": 65536,
+          "scale": 0.0125000002,
+          "tuned_vs_scalar": 4.15897,
+          "tuned_vs_naive": 0.968943,
+          "naive_vs_scalar": 4.292274,
+          "autovec_vs_scalar": 4.088225
+        }
+      ],
+      "classification": {
+        "verdict": "partial",
+        "tuned_vs_scalar_range": "3.3676..4.3357",
+        "tuned_vs_naive_range": "0.9291..1.0102",
+        "tuned_vs_scalar_median": 4.159,
+        "tuned_vs_naive_median": 0.9689,
+        "beats_genuine_scalar": true,
+        "beats_naive_rvv": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "command_record": {
+    "command": "ssh -o BatchMode=yes -o ConnectTimeout=20 rvv 'sh -lc '\"'\"'rm -rf /tmp/tcrv_rdcycle_probe && mkdir -p /tmp/tcrv_rdcycle_probe && cd /tmp/tcrv_rdcycle_probe && cat > probe.c <<'\"'\"'\"'\"'\"'\"'\"'\"'EOF'\"'\"'\"'\"'\"'\"'\"'\"'\n\n#include <stdio.h>\n#include <stdint.h>\nstatic uint64_t rdcycle(void){uint64_t v;__asm__ volatile(\"rdcycle %0\":\"=r\"(v));return v;}\nstatic uint64_t rdtime(void){uint64_t v;__asm__ volatile(\"rdtime %0\":\"=r\"(v));return v;}\nint main(void){\n  uint64_t c0=rdcycle(); for(volatile int i=0;i<100000;++i); uint64_t c1=rdcycle();\n  uint64_t t0=rdtime(); uint64_t t1=rdtime();\n  printf(\"RDCYCLE_OK delta_cycles=%llu\\n\",(unsigned long long)(c1-c0));\n  printf(\"RDTIME_OK delta_time=%llu\\n\",(unsigned long long)(t1-t0));\n  return 0;\n}\n\nEOF\nclang -O2 -march=rv64gcv -mabi=lp64d probe.c -o probe 2>probe_build.err && (./probe 2>probe_run.err; echo RDPROBE_EXIT=$?) ; rm -rf /tmp/tcrv_rdcycle_probe'\"'\"''",
+    "started_at": "2026-06-14T15:36:55Z",
+    "finished_at": "2026-06-14T15:36:58Z",
+    "exit_code": 0,
+    "stdout": "RDCYCLE_OK delta_cycles=800177\nRDTIME_OK delta_time=1\nRDPROBE_EXIT=0\n",
+    "stderr": ""
+  },
+  "rdcycle_available": true,
+  "rdtime_available": true,
+  "stdout": "RDCYCLE_OK delta_cycles=800177\nRDTIME_OK delta_time=1\nRDPROBE_EXIT=0\n"
+}

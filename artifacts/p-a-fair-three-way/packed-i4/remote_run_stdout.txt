@@ -1,0 +1,20 @@
+CONFIG variants=genuine-scalar,autovec-scalar,naive-rvv,tuned-rvv counts=257,4096,65536 warmups=3 repeats=9 iters=16 timing=clock_gettime(CLOCK_MONOTONIC_RAW)
+CORRECTNESS n=257 scale=0.0125000002 ok oracle=12.9000006
+SUMMARY variant=genuine-scalar n=257 scale=0.0125000002 best_per_iter_ns=3561.250
+SUMMARY variant=autovec-scalar n=257 scale=0.0125000002 best_per_iter_ns=956.250
+SUMMARY variant=naive-rvv n=257 scale=0.0125000002 best_per_iter_ns=982.500
+SUMMARY variant=tuned-rvv n=257 scale=0.0125000002 best_per_iter_ns=1057.500
+RATIO n=257 scale=0.0125000002 tuned_vs_scalar=3.367612 tuned_vs_naive=0.929078 naive_vs_scalar=3.624682 autovec_vs_scalar=3.724183
+CORRECTNESS n=4096 scale=0.0125000002 ok oracle=220.887497
+SUMMARY variant=genuine-scalar n=4096 scale=0.0125000002 best_per_iter_ns=56347.500
+SUMMARY variant=autovec-scalar n=4096 scale=0.0125000002 best_per_iter_ns=13867.500
+SUMMARY variant=naive-rvv n=4096 scale=0.0125000002 best_per_iter_ns=13128.750
+SUMMARY variant=tuned-rvv n=4096 scale=0.0125000002 best_per_iter_ns=12996.250
+RATIO n=4096 scale=0.0125000002 tuned_vs_scalar=4.335674 tuned_vs_naive=1.010195 naive_vs_scalar=4.291917 autovec_vs_scalar=4.063277
+CORRECTNESS n=65536 scale=0.0125000002 ok oracle=3548.88745
+SUMMARY variant=genuine-scalar n=65536 scale=0.0125000002 best_per_iter_ns=850197.500
+SUMMARY variant=autovec-scalar n=65536 scale=0.0125000002 best_per_iter_ns=207962.500
+SUMMARY variant=naive-rvv n=65536 scale=0.0125000002 best_per_iter_ns=198076.250
+SUMMARY variant=tuned-rvv n=65536 scale=0.0125000002 best_per_iter_ns=204425.000
+RATIO n=65536 scale=0.0125000002 tuned_vs_scalar=4.158970 tuned_vs_naive=0.968943 naive_vs_scalar=4.292274 autovec_vs_scalar=4.088225
+PASS three-way measurement counts=257,4096,65536 sink=2224212.87

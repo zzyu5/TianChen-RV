@@ -1,0 +1,46 @@
+
+/tmp/tcrv_fair3way_packed-i4_p-a/scalar.o:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000000000000 <ref_scalar_packed_i4>:
+       0: 83 28 06 00  	lw	a7, 0x0(a2)
+       4: 01 c3        	beqz	a4, 0x4 <ref_scalar_packed_i4+0x4>
+       6: 33 88 e5 00  	add	a6, a1, a4
+
+000000000000000a <.LBB0_2>:
+       a: 03 46 05 00  	lbu	a2, 0x0(a0)
+       e: 83 c3 05 00  	lbu	t2, 0x0(a1)
+      12: 13 13 86 03  	slli	t1, a2, 0x38
+      16: 93 92 83 03  	slli	t0, t2, 0x38
+      1a: 93 77 f6 00  	andi	a5, a2, 0xf
+      1e: 13 b7 87 00  	sltiu	a4, a5, 0x8
+      22: 7d 17        	addi	a4, a4, -0x1
+      24: 41 9b        	andi	a4, a4, -0x10
+      26: 33 ee e7 00  	or	t3, a5, a4
+      2a: 93 f7 f3 00  	andi	a5, t2, 0xf
+      2e: 13 b7 87 00  	sltiu	a4, a5, 0x8
+      32: 7d 17        	addi	a4, a4, -0x1
+      34: 41 9b        	andi	a4, a4, -0x10
+      36: 5d 8f        	or	a4, a4, a5
+      38: 33 0e c7 03  	mul	t3, a4, t3
+      3c: 11 82        	srli	a2, a2, 0x4
+      3e: 93 57 f3 43  	srai	a5, t1, 0x3f
+      42: c1 9b        	andi	a5, a5, -0x10
+      44: 5d 8e        	or	a2, a2, a5
+      46: 93 d7 43 00  	srli	a5, t2, 0x4
+      4a: 13 d7 f2 43  	srai	a4, t0, 0x3f
+      4e: 41 9b        	andi	a4, a4, -0x10
+      50: 5d 8f        	or	a4, a4, a5
+      52: 33 06 c7 02  	mul	a2, a4, a2
+      56: 46 96        	add	a2, a2, a7
+      58: b3 08 ce 00  	add	a7, t3, a2
+      5c: 85 05        	addi	a1, a1, 0x1
+      5e: 05 05        	addi	a0, a0, 0x1
+      60: 63 90 05 01  	bne	a1, a6, 0x60 <.LBB0_2+0x56>
+
+0000000000000064 <.LBB0_3>:
+      64: d3 f7 08 d0  	fcvt.s.w	fa5, a7
+      68: d3 f7 a7 10  	fmul.s	fa5, fa5, fa0
+      6c: 27 a0 f6 00  	fsw	fa5, 0x0(a3)
+      70: 82 80        	ret

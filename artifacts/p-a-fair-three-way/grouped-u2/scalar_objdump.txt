@@ -1,0 +1,24 @@
+
+/tmp/tcrv_fair3way_grouped-u2_p-a/scalar.o:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000000000000 <ref_scalar_byte>:
+       0: 10 42        	lw	a2, 0x0(a2)
+       2: 01 c3        	beqz	a4, 0x2 <ref_scalar_byte+0x2>
+       4: 33 88 e5 00  	add	a6, a1, a4
+
+0000000000000008 <.LBB0_2>:
+       8: 83 07 05 00  	lb	a5, 0x0(a0)
+       c: 03 87 05 00  	lb	a4, 0x0(a1)
+      10: 33 07 f7 02  	mul	a4, a4, a5
+      14: 3a 96        	add	a2, a2, a4
+      16: 85 05        	addi	a1, a1, 0x1
+      18: 05 05        	addi	a0, a0, 0x1
+      1a: 63 90 05 01  	bne	a1, a6, 0x1a <.LBB0_2+0x12>
+
+000000000000001e <.LBB0_3>:
+      1e: d3 77 06 d0  	fcvt.s.w	fa5, a2
+      22: d3 f7 a7 10  	fmul.s	fa5, fa5, fa0
+      26: 27 a0 f6 00  	fsw	fa5, 0x0(a3)
+      2a: 82 80        	ret
