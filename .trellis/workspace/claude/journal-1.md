@@ -631,3 +631,37 @@ Engine-first (user: 两个都做引擎优先). MOVE 1 (committed fc9aa69f): dele
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Directive 2/3/4 finish: dead-code swept, modular base done, test suite + description engine validated
+
+**Date**: 2026-06-14
+**Task**: Directive 2/3/4 finish: dead-code swept, modular base done, test suite + description engine validated
+**Branch**: `main`
+
+### Summary
+
+Closed out the post-去除字符串 directives. Directive 3 (modular): the TypedBackendEmissionDriver base + table-driven registry is the RVM-ready seam; the construction-protocol already has a shared base (ConstructionProtocol.cpp) + Template intentionally mirrors Toy as the worked example, so the construction-manifest 'base' was correctly LEFT (don't factor intentional duplication). Directive 4 (test cleanup): conservative curation found 0 safe-to-archive — no byte-identical dups, no superseded intermediates; the per-op-kind×per-path×per-width parallelism is load-bearing coverage (115 fixtures are by-path inputs to the e2e harness), so 'complex/redundant' is actually comprehensive coverage; a reduction needs per-cluster policy calls (user's). Directive 2 (删除失效) dead-code-only sweeps: ProviderPlanVerifier typedef+field (18 sites), the -Wunused residue (printField/printQuoted + the dead artifact-bridge test scaffolding + 11 orphaned constants + ScopedTempPath), the empty TCRVEmitCLowerableInterface.cpp TU, and the 9 fully-dead route-family Owner struct+getter pairs (-84) — all grep+full-link certified, lit unchanged at exactly 3 environmental reds throughout. Remaining minor/noted follow-ups: surface the typed drivers' notifyMatchFailure reasons (the 26 fail-closed negatives' diagnostics coarsened to generic — a maturity refinement, not a regression that breaks anything); per-cluster test-reduction is a user policy decision.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5e67adbc` | (see git log) |
+| `fe33faca` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
