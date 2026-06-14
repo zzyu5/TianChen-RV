@@ -11,16 +11,6 @@
 
 namespace tianchenrv::plugin::rvv {
 
-struct RVVSelectedBodyContractionRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyContractionRouteFamilyOwner>
-getRVVSelectedBodyContractionRouteFamilyOwners();
-
 bool isRVVSelectedBodyContractionRouteOperation(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyContractionDotReduction(

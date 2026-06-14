@@ -9,9 +9,6 @@
 
 namespace tianchenrv::plugin::rvv {
 
-llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
-getRVVSelectedBodyComputedMaskMemoryRouteFamilyOwners();
-
 bool isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 

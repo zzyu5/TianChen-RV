@@ -1684,16 +1684,6 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 // RVVSelectedBodyDirectContractionRouteProviderPlan above stays as the shared
 // description/provider source of truth.
 
-struct RVVSelectedBodyMemoryRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
-getRVVSelectedBodyMemoryRouteFamilyOwners();
-
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
@@ -1755,47 +1745,17 @@ bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-struct RVVSelectedBodyElementwiseSelectRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyElementwiseSelectRouteFamilyOwner>
-getRVVSelectedBodyElementwiseSelectRouteFamilyOwners();
-
 bool isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-struct RVVSelectedBodyCompareSelectMaskRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyCompareSelectMaskRouteFamilyOwner>
-getRVVSelectedBodyCompareSelectMaskRouteFamilyOwners();
-
 bool isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-struct RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
-getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners();
 
 bool isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
@@ -1824,33 +1784,12 @@ bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-struct RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwner>
-getRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyOwners();
-
 bool isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error
 verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-struct RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<
-    RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
-getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
 
 bool isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);

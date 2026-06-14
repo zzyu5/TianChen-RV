@@ -11,16 +11,6 @@
 
 namespace tianchenrv::plugin::rvv {
 
-struct RVVSelectedBodyMAccRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMAccRouteFamilyOwner>
-getRVVSelectedBodyMAccRouteFamilyOwners();
-
 bool isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
