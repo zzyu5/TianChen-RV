@@ -200,9 +200,18 @@ mlir::LogicalResult StoreOp::verify() {
       getValue().getDefiningOp<MaskedStandaloneReduceOp>())
     return verifyStandaloneReductionScalarResultVectorForWithVL(
         op, getValue(), "stored standalone reduction result");
-  if (getValue().getDefiningOp<DequantizeOp>())
+  if (auto dequant = getValue().getDefiningOp<DequantizeOp>()) {
+    // Deferred-wide dequant store (N3 max-legal-LMUL schedule): the dequant
+    // sources the trailing standalone_reduce whose input is the i32m8
+    // widening_accumulate. The stored f32m1 result type is the SAME as the
+    // narrow path; only the enclosing with_vl is the strip config (SEW8/m2), so
+    // the SEW32 pin does not apply. PARALLEL branch on the structural marker.
+    if (auto reduce = dequant.getSource().getDefiningOp<StandaloneReduceOp>())
+      if (reduce.getInput().getDefiningOp<WideningAccumulateOp>())
+        return mlir::success();
     return verifyDequantizeResultVectorForWithVL(
         op, getValue(), "stored dequantization result");
+  }
   return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
 }
 

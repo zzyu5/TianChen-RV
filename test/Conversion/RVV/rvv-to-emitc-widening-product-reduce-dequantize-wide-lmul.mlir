@@ -1,44 +1,21 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// XFAIL: *
 //
-// XFAIL RATIONALE (target documentation; NOT yet reachable):
-// This file documents the EMISSION TARGET of the N3 resource-aware max-legal-
-// LMUL low-precision contraction -- the deferred wide-LMUL chain that the
-// measured ssh-rvv winner (var_v_m2_a1.c) realizes and that the resource-aware
-// LMUL selection (RVVGearboxSchedule.h enumerate/prune/select, unit-tested in
-// test/Plugin/RVVLowPrecisionLMULSelectionTest.cpp) is designed to pick.
+// The N3 resource-aware max-legal-LMUL low-precision contraction -- the DEFERRED
+// wide-LMUL chain that the measured ssh-rvv winner (var_v_m2_a1.c) realizes and
+// that the resource-aware LMUL selection (RVVGearboxSchedule.h enumerate/prune/
+// select) is designed to pick. The deferred-wide algorithm is modeled FIRST-
+// CLASS in the typed body via tcrv_rvv.widening_accumulate (the i32m8 deferred
+// vector accumulate); emission follows that op's identity, NOT metadata (I5).
 //
-// It is XFAIL because the wide chain does not yet VERIFY: the dialect verifiers
-// (tcrv_rvv.setvl sew8/m2 first-slice config; tcrv_rvv.widening_product
-// product_relation "signed-i8m2xi8m2-to-i16m4" + i8m2/i16m4 types;
-// tcrv_rvv.standalone_reduce i16m4 scalar-result config) and the bounded-chain
-// recognizers are pinned to the narrow i8mf4->i16mf2->i32m1 shape. The body
-// here also still declares the i32m1 standalone_reduce (its true semantic type),
-// so an emitter producing the deferred vwadd.wv+single-vredsum structure would
-// have its emission DIVERGE from the body's declared reduction -- the body must
-// gain an explicit deferred-mode marker/op to keep emission body-determined
-// (I4/I5). Generalizing the verifiers + the realization owner + the narrow
-// primitive-fact strings (and adding the deferred-mode body marker) is the
-// remaining cross-file lift that lights the N3 灯 end-to-end. The CHECK lines
-// below record the intended emitted C (the var_v_m2_a1.c structure) as the
-// target; they do not run today.
-
-// The N3 resource-aware Gearbox max-legal-LMUL widening-product-reduce-
-// dequantize-f32 selected body. The typed body carries the WIDE LMUL chain the
-// budget-derived schedule selects (the measured ssh-rvv winner var_v_m2_a1.c):
-//   load i8/m2  ->  vwmul i16/m4 product  ->  DEFERRED accumulate into an i32/m8
-//   vector accumulator (vwadd.wv)  ->  one trailing vredsum in the epilogue.
-//
-// The conversion DERIVES the schedule from the typed body's PRODUCT LMUL (I5):
-// the i16/m4 wide product (from the i8/m2 max-legal-LMUL load) triggers the
-// deferred wide path; the standalone_reduce keeps its true i32/m1 scalar-lane
-// result type and the dequant relation stays i32m1->f32m1 (the wide i32/m8
-// vector accumulator is conversion-internal, double the i16/m4 product LMUL).
-// The deferred path seeds the i32 vector accumulator to ZERO (not acc[0]), uses
-// vwadd.wv per iteration (NO per-iteration vwredsum), folds with a single
-// vredsum after the loop, and adds the acc[0] seed as a SCALAR. This is the
-// algorithmically-distinct deferred reduction the wide schedule needs -- a
-// per-iteration vwredsum at wide LMUL was NOT the measured winner.
+// The typed body (the measured winner's structure):
+//   load i8/m2  ->  vwmul i16/m4 product  ->  tcrv_rvv.widening_accumulate
+//   (DEFERRED vwadd.wv into an i32/m8 vector accumulator)  ->  ONE trailing
+//   tcrv_rvv.standalone_reduce (i32m8 -> i32m1 vredsum) + scalar acc[0] add ->
+//   i32->f32 dequant. The enclosing with_vl is the strip config SEW8/m2; the
+//   i32m8 vector accumulator is zero-seeded (NOT splatted from acc[0]); acc[0]
+//   is added as a SCALAR after the single vredsum. There is NO per-iteration
+//   vwredsum -- a per-iteration vwredsum at wide LMUL was NOT the measured
+//   winner.
 
 module {
   tcrv.exec.kernel @wide_dequantize_kernel {
@@ -55,7 +32,8 @@ module {
         %l0 = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
         %r0 = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m2">
         %p0 = tcrv_rvv.widening_product %l0, %r0, %vl {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vector<i8, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m4">
-        %red0 = tcrv_rvv.standalone_reduce %p0, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "m4">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %a0 = tcrv_rvv.widening_accumulate %p0, %vl {accumulate_relation = "signed-i16m4-into-i32m8-deferred-add", kind = "signed_widening_accumulate_add"} : !tcrv_rvv.vector<i16, "m4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m8">
+        %red0 = tcrv_rvv.standalone_reduce %a0, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i32, "m8">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %deq = tcrv_rvv.dequantize %red0, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         tcrv_rvv.store %out, %deq, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
@@ -85,6 +63,6 @@ module {
 // CHECK: call_opaque "__riscv_vredsum_vs_i32m8_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // CHECK: add
-// Scalar-extract dequant epilogue (vfcvt -> *scale -> store).
+// Scalar-extract dequant epilogue (vfmv -> *scale -> store).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m1"
 // CHECK: call_opaque "__riscv_vse32_v_f32m1"

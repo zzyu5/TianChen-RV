@@ -3665,6 +3665,54 @@ def WideningProductOp : TCRVRVV_Op<"widening_product",
   let hasVerifier = 1;
 }
 
+def WideningAccumulateOp : TCRVRVV_Op<"widening_accumulate",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV deferred wide-LMUL widening accumulate dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV DEFERRED widening accumulate
+    dataflow step: the per-iteration `vwadd.wv` that widens an i16 LMUL m4
+    product into a loop-carried i32 LMUL m8 vector accumulator WITHOUT reducing
+    to a scalar. This is the structurally-distinct algorithm the N3
+    resource-aware max-legal-LMUL Gearbox schedule selects (the measured
+    `ssh rvv` winner var_v_m2_a1.c): an i8m2 strip-load -> i16m4 widening
+    product -> i32m8 deferred vector accumulate (vwadd.wv) per iteration, then
+    ONE trailing vredsum + scalar epilogue after the loop -- replacing the
+    narrow per-iteration vwredsum-into-scalar-i32m1 body.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes the i16 LMUL m4
+    widening product and the active !tcrv_rvv.vl token, and produces ONE wider
+    i32 LMUL m8 !tcrv_rvv.vector result. The loop-carried i32m8 accumulator is
+    zero-seeded at its own VLMAX before the loop and threaded across iterations
+    by the conversion (a function-scoped emitc.variable, mirroring the narrow
+    path's scalar accumulator carry); the acc[0] runtime seed is added as a
+    SCALAR after the single trailing reduction. This makes the deferred-wide
+    accumulate the FIRST-CLASS structural marker (I5): emission is determined
+    by op identity (in-loop vwadd.wv) and the explicit i16m4 -> i32m8 type
+    relation, never inferred from candidate-mirror metadata.
+
+    For the bounded N3 deferred-wide surface kind is limited to
+    "signed_widening_accumulate_add" and accumulate_relation to
+    "signed-i16m4-into-i32m8-deferred-add". Source/result dtype/config, VL, and
+    the deferred-accumulate structure are structural in the selected RVV body.
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    deferred widening accumulate semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$product,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$accumulate_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$product `,` $vl attr-dict `:` type($product) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def PackedI4NibbleUnpackProductOp
     : TCRVRVV_Op<"packed_i4_nibble_unpack_product",
     [TCRVEmitCLowerableOpInterface]> {

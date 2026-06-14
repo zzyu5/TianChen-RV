@@ -128,6 +128,98 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
              << attr.getName() << "'";
   }
 
+  // Deferred-wide trailing reduce (N3 max-legal-LMUL schedule, the measured
+  // ssh-rvv winner): the single trailing vredsum that folds the loop-carried
+  // i32m8 vector accumulator (produced by tcrv_rvv.widening_accumulate) into an
+  // i32m1 scalar lane, then the scalar epilogue adds acc[0]. This is a PARALLEL
+  // verifier branch keyed on the structural marker (the i32m8 input comes from a
+  // widening_accumulate); the narrow i16mf2->i32m1 widening-reduce branch below
+  // is unchanged. The enclosing with_vl is the strip config (SEW8 LMUL m2), so
+  // the SEW32/m1 narrow config checks do NOT apply here.
+  if (auto wideAccumulate =
+          getInput().getDefiningOp<WideningAccumulateOp>()) {
+    if (getKind() != "add")
+      return emitOpError()
+             << "requires kind \"add\" for the deferred-wide trailing "
+                "standalone reduction (folds the i32m8 accumulator with one "
+                "vredsum)";
+    if (getAccumulatorLayout() !=
+        "scalar-i32-seed-lane0-from-accumulator-input")
+      return emitOpError()
+             << "requires accumulator_layout "
+                "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+                "deferred-wide trailing standalone reduction";
+    if (!isSupportedGenericStandaloneReduceResultLayout(getResultLayout()))
+      return emitOpError()
+             << "requires result_layout "
+                "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
+                "deferred-wide trailing standalone reduction";
+    if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+      return emitOpError()
+             << "requires one i32 LMUL m8 input vector operand, one scalar "
+                "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
+                "operand, and one i32 LMUL m1 vector result";
+    if (!isGenericRVVVectorI32M8(getInput().getType()))
+      return emitOpError()
+             << "requires deferred-wide trailing reduction source vector to "
+                "have type !tcrv_rvv.vector<i32, \"m8\">";
+    if (!isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires deferred-wide trailing reduction result vector to "
+                "have type !tcrv_rvv.vector<i32, \"m1\">";
+    if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
+      return emitOpError()
+             << "requires accumulator seed operand to have "
+                "!tcrv_rvv.runtime_abi_value type";
+    if (mlir::failed(verifyRuntimeABIValueOperandRole(
+            op, getAccumulatorSeed(), "accumulator seed",
+            {tianchenrv::support::RuntimeABIParameterRole::
+                 AccumulatorInputBuffer})))
+      return mlir::failure();
+    RuntimeABIValueOp seedBinding =
+        getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
+    if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+      return emitOpError()
+             << "requires accumulator seed operand C type 'const int32_t *' "
+                "for the deferred-wide trailing standalone reduction route";
+    if (!llvm::isa<VLType>(getVl().getType()))
+      return emitOpError() << "requires runtime VL operand to have "
+                              "!tcrv_rvv.vl type";
+    if (wideAccumulate.getVl() != getVl())
+      return emitOpError()
+             << "requires the deferred-wide tcrv_rvv.widening_accumulate to "
+                "consume the same !tcrv_rvv.vl token as the trailing "
+                "tcrv_rvv.standalone_reduce";
+    if (wideAccumulate->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires the deferred-wide tcrv_rvv.widening_accumulate to be "
+                "in the same tcrv_rvv.with_vl body as the trailing "
+                "tcrv_rvv.standalone_reduce";
+    auto withVL = verifyNestedDataflowOp(op);
+    if (mlir::failed(withVL))
+      return mlir::failure();
+    if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+      return mlir::failure();
+    auto expectedSEW =
+        (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+    auto expectedLMUL =
+        (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+    if (!expectedSEW || !expectedLMUL)
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+                "SEW/LMUL metadata for the deferred-wide trailing reduction";
+    if (expectedSEW.getInt() != getRVVSEW8Bits() ||
+        expectedLMUL.getValue() != getRVVLMULM2())
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m2 "
+                "(the strip config) for the deferred-wide trailing reduction";
+    if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+                "metadata for the deferred-wide trailing reduction";
+    return mlir::success();
+  }
+
   if (!isSupportedGenericStandaloneReduceKind(getKind()))
     return emitOpError()
            << "currently supports only kind \"add\", \"min\", \"max\", or "

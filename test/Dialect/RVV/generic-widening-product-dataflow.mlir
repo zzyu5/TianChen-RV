@@ -50,7 +50,7 @@ module {
     %rhs = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<i8, "mf4">
     %vl = tcrv_rvv.setvl %avl {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} {
-      // expected-error@+1 {{currently supports only product_relation "signed-i8mf4xi8mf4-to-i16mf2" or "unsigned-u8mf4xu8mf4-to-u16mf2" for the bounded Stage 2 low-precision widening-product typed surface}}
+      // expected-error@+1 {{currently supports only product_relation "signed-i8mf4xi8mf4-to-i16mf2", "unsigned-u8mf4xu8mf4-to-u16mf2", or "signed-i8m2xi8m2-to-i16m4" (the deferred-wide max-legal-LMUL rung) for the bounded Stage 2 low-precision widening-product typed surface}}
       %product = tcrv_rvv.widening_product %lhs, %rhs, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i32m1"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
     } : !tcrv_rvv.vl
   }

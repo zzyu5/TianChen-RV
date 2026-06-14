@@ -20,6 +20,11 @@ constexpr llvm::StringLiteral kRVVLMULMF4("mf4");
 constexpr llvm::StringLiteral kRVVLMULMF2("mf2");
 constexpr llvm::StringLiteral kRVVLMULM1("m1");
 constexpr llvm::StringLiteral kRVVLMULM2("m2");
+// The deferred-wide low-precision contraction (N3 max-legal-LMUL schedule) loads
+// i8 at m2, widens to i16m4 product, and defers into an i32m8 vector accumulator.
+constexpr llvm::StringLiteral kRVVLMULM4("m4");
+constexpr llvm::StringLiteral kRVVLMULM8("m8");
+constexpr std::int64_t kRVVSEW32Bits = 32;
 constexpr llvm::StringLiteral kRVVSelectedBodyI16MF2ConfigContract(
     "rvv-selected-body-sew16-lmul-mf2-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyM1ConfigContract(
@@ -297,6 +302,12 @@ llvm::StringRef getRVVLMULM1() { return kRVVLMULM1; }
 
 llvm::StringRef getRVVLMULM2() { return kRVVLMULM2; }
 
+llvm::StringRef getRVVLMULM4() { return kRVVLMULM4; }
+
+llvm::StringRef getRVVLMULM8() { return kRVVLMULM8; }
+
+std::int64_t getRVVSEW32Bits() { return kRVVSEW32Bits; }
+
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI16MF2ConfigVLContract() {
   return kRVVSelectedBodyI16MF2ConfigVLContract;
@@ -371,6 +382,14 @@ bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul) {
   if (sew == kRVVFirstSliceSEWBits)
     return lmul == kRVVLMULM1 || lmul == kRVVLMULM2;
   return sew == kRVVSEW64Bits && (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
+}
+
+bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul) {
+  // The deferred-wide max-legal-LMUL schedule (N3) strip config: i8 loads at
+  // LMUL m2 (8-bit SEW), widened to i16m4 product and an i32m8 deferred
+  // accumulator. This is a PARALLEL config admitted only on the deferred-wide
+  // setvl/with_vl scope; it does NOT loosen isRVVFirstSliceDataflowConfig.
+  return sew == kRVVSEW8Bits && lmul == kRVVLMULM2;
 }
 
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {

@@ -75,6 +75,7 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedWideningDotReduceSourceLoad(*this, withVL) ||
         isBoundedWideningStandaloneReduceSourceLoad(*this, withVL) ||
         isBoundedWideningProductSourceLoad(*this, withVL) ||
+        isBoundedDeferredWideProductSourceLoad(*this, withVL) ||
         isBoundedWideningProductReductionChainSourceLoad(*this, withVL) ||
         isBoundedWideningProductReductionChainSourceLoadCandidate(*this,
                                                                   withVL))

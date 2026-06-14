@@ -1860,7 +1860,26 @@ bool isSupportedGenericWideningDotProductRelation(llvm::StringRef relation) {
 
 bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
   return relation == "signed-i8mf4xi8mf4-to-i16mf2" ||
-         relation == "unsigned-u8mf4xu8mf4-to-u16mf2";
+         relation == "unsigned-u8mf4xu8mf4-to-u16mf2" ||
+         // The deferred-wide max-legal-LMUL schedule (N3) wide product rung.
+         relation == "signed-i8m2xi8m2-to-i16m4";
+}
+
+bool isSupportedGenericWideningProductWideDeferredRelation(
+    llvm::StringRef relation) {
+  return relation == "signed-i8m2xi8m2-to-i16m4";
+}
+
+bool isAllowedWideningAccumulateAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulateRelationAttrName;
+}
+
+bool isSupportedGenericWideningAccumulateKind(llvm::StringRef kind) {
+  return kind == "signed_widening_accumulate_add";
+}
+
+bool isSupportedGenericWideningAccumulateRelation(llvm::StringRef relation) {
+  return relation == "signed-i16m4-into-i32m8-deferred-add";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -2646,6 +2665,24 @@ bool isGenericRVVVectorSignedI16MF2(mlir::Type type) {
       type, getRVVSEW16Bits(), getRVVLMULMF2());
 }
 
+// The deferred-wide low-precision contraction (N3 max-legal-LMUL schedule) types:
+// i8m2 strip-load -> i16m4 widening product -> i32m8 deferred vector accumulator.
+// These are a PARALLEL surface for the wide deferred path only; the narrow
+// i8mf4/i16mf2/i32m1 predicates above are unchanged.
+bool isGenericRVVVectorSignedI8M2(mlir::Type type) {
+  return isGenericRVVSignedOrSignlessIntegerVectorType(
+      type, getRVVSEW8Bits(), getRVVLMULM2());
+}
+
+bool isGenericRVVVectorSignedI16M4(mlir::Type type) {
+  return isGenericRVVSignedOrSignlessIntegerVectorType(
+      type, getRVVSEW16Bits(), getRVVLMULM4());
+}
+
+bool isGenericRVVVectorI32M8(mlir::Type type) {
+  return isGenericRVVVectorType(type, getRVVSEW32Bits(), getRVVLMULM8());
+}
+
 bool isGenericRVVVectorUnsignedI8MF4(mlir::Type type) {
   return isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
                                                getRVVLMULMF4());
@@ -3176,6 +3213,37 @@ bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL) {
     hasWideningProductUse = true;
   }
   return hasWideningProductUse;
+}
+
+bool isBoundedDeferredWideProductSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The deferred-wide strip config is SEW8 LMUL m2.
+  if (sew.getInt() != getRVVSEW8Bits() || lmul.getValue() != getRVVLMULM2())
+    return false;
+  if (!isGenericRVVVectorSignedI8M2(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<WideningProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getLhs() != load.getLoaded() &&
+         product.getRhs() != load.getLoaded()))
+      return false;
+    if (product.getKind() != "signed_widening_product" ||
+        !isSupportedGenericWideningProductWideDeferredRelation(
+            product.getProductRelation()))
+      return false;
+    hasWideProductUse = true;
+  }
+  return hasWideProductUse;
 }
 
 bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,

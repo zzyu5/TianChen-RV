@@ -55,11 +55,14 @@ struct RVVConfigContractDiagnostic {
 std::int64_t getRVVFirstSliceSEWBits();
 std::int64_t getRVVSEW8Bits();
 std::int64_t getRVVSEW16Bits();
+std::int64_t getRVVSEW32Bits();
 std::int64_t getRVVSEW64Bits();
 llvm::StringRef getRVVLMULMF4();
 llvm::StringRef getRVVLMULMF2();
 llvm::StringRef getRVVLMULM1();
 llvm::StringRef getRVVLMULM2();
+llvm::StringRef getRVVLMULM4();
+llvm::StringRef getRVVLMULM8();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI16MF2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
@@ -86,6 +89,7 @@ void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
                                         PolicyAttr policy);
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);

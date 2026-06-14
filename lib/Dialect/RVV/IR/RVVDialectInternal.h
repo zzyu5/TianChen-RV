@@ -107,6 +107,8 @@ inline constexpr llvm::StringLiteral kMAccRelationAttrName("macc_relation");
 inline constexpr llvm::StringLiteral kDotProductRelationAttrName(
     "dot_product_relation");
 inline constexpr llvm::StringLiteral kProductRelationAttrName("product_relation");
+inline constexpr llvm::StringLiteral kAccumulateRelationAttrName(
+    "accumulate_relation");
 inline constexpr llvm::StringLiteral kProductSEWAttrName("product_sew");
 inline constexpr llvm::StringLiteral kProductLMULAttrName("product_lmul");
 inline constexpr llvm::StringLiteral kProductReductionChainRelationAttrName(
@@ -467,6 +469,19 @@ bool isAllowedWideningMAccAttr(llvm::StringRef name);
 bool isAllowedWideningDotReduceAttr(llvm::StringRef name);
 
 bool isAllowedWideningProductAttr(llvm::StringRef name);
+
+// The deferred-wide widening accumulate op (N3 max-legal-LMUL schedule) carries
+// only 'kind' and 'accumulate_relation'.
+bool isAllowedWideningAccumulateAttr(llvm::StringRef name);
+
+bool isSupportedGenericWideningAccumulateKind(llvm::StringRef kind);
+
+bool isSupportedGenericWideningAccumulateRelation(llvm::StringRef relation);
+
+// True iff the relation is the deferred-wide max-legal-LMUL widening-product
+// rung (i8m2 x i8m2 -> i16m4), as opposed to the narrow i8mf4 -> i16mf2 rung.
+bool isSupportedGenericWideningProductWideDeferredRelation(
+    llvm::StringRef relation);
 
 bool isAllowedMaskedWideningDotReduceAttr(llvm::StringRef name);
 
@@ -1212,6 +1227,18 @@ bool isGenericRVVVectorSignedI8MF4(mlir::Type type);
 
 bool isGenericRVVVectorSignedI16MF2(mlir::Type type);
 
+// Deferred-wide low-precision contraction (the N3 resource-aware max-legal-LMUL
+// schedule, the measured ssh-rvv winner var_v_m2_a1.c): a PARALLEL i8m2 ->
+// i16m4 -> i32m8 deferred-accumulate chain. These predicates are used ONLY by
+// the deferred-wide verifier branches (tcrv_rvv.widening_accumulate and the
+// deferred-mode standalone_reduce); the narrow i8mf4 -> i16mf2 -> i32m1 path is
+// untouched (no byte-identity regression).
+bool isGenericRVVVectorSignedI8M2(mlir::Type type);
+
+bool isGenericRVVVectorSignedI16M4(mlir::Type type);
+
+bool isGenericRVVVectorI32M8(mlir::Type type);
+
 bool isGenericRVVVectorUnsignedI8MF4(mlir::Type type);
 
 bool isGenericRVVVectorUnsignedI16MF2(mlir::Type type);
@@ -1257,6 +1284,11 @@ bool isBoundedWideningStandaloneReduceSourceLoad(LoadOp load,
                                                  WithVLOp withVL);
 
 bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL);
+
+// The deferred-wide max-legal-LMUL schedule (N3) source load: an i8 LMUL m2
+// strip load (with_vl SEW8 LMUL m2) feeding a signed-i8m2xi8m2-to-i16m4 widening
+// product. A PARALLEL matcher for the wide deferred path only.
+bool isBoundedDeferredWideProductSourceLoad(LoadOp load, WithVLOp withVL);
 
 bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
                                                    WithVLOp withVL);
