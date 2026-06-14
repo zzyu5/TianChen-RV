@@ -598,3 +598,36 @@ Directives 1+3: built a TypedBackendEmissionDriver base + table-driven BackendEm
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Description-engine retirement: std::string struct deleted (MOVE 1); resource metadata kept as N3 evidence (MOVE 2A reverted)
+
+**Date**: 2026-06-14
+**Task**: Description-engine retirement: std::string struct deleted (MOVE 1); resource metadata kept as N3 evidence (MOVE 2A reverted)
+**Branch**: `main`
+
+### Summary
+
+Engine-first (user: 两个都做引擎优先). MOVE 1 (committed fc9aa69f): deleted the TCRVEmitCLowerableRoute std::string carrier + 10 sub-structs + 4 route-builders + the ExtensionPlugin::buildVariantEmitCLowerableRoute virtual, swapping the build-and-discard validation gates to conversion-success validation — the LAST std::string-expression 病灶 gone, -1431 lines, artifacts byte-identical, behavior-preserving. MOVE 2A (attempted, REVERTED): tried to delete ~15k lines of low_precision_resource.* synthesis + shrink the shipped .h (user-approved under a 'vestigial' premise), but careful staged execution disproved the premise — the metadata is N3 gearbox-tune-measurement evidence: the e2e harness gate4 (the '实测胜出' tune-measurement gate) consumes ~27 candidate/measurement keys with NO typed survivor, and the packed-i4 numerical oracle gated on selected_candidate (re-sourceable from the typed nibble-op, but gate4 not). Reverted to protect N3 (user owns the tune). Saved the finding to project memory (low-precision-resource-is-n3-evidence) so no future session re-deletes it as vestigial. Lesson: Target/RVV lit 178/178 is INSUFFICIENT verification — it doesn't exercise the harness oracle/measurement gating. Net description-engine outcome: the genuinely-vestigial std::string struct removed; the I4-looking-but-actually-N3 resource metadata kept. Remaining: directive 4 (test cleanup) + bounded directive-2 (ProviderPlanVerifier dead fields, diagnostics-coarsening, construction-manifest base).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fc9aa69f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
