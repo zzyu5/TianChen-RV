@@ -735,3 +735,36 @@ Decomposed the two genuine giant functions via EXTRACT-METHOD (verbatim statemen
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Trellis close-out: both tasks finished + archived; clean workspace
+
+**Date**: 2026-06-14
+**Task**: Trellis close-out: both tasks finished + archived; clean workspace
+**Branch**: `main`
+
+### Summary
+
+Per the user's request, ran the trellis finish flow to clean the workspace for next actions. trellis-check final quality gate PASSED: full clean rebuild green + fresh-link + zero new warnings; 589/586/3 (the 3 reds proven red-at-baseline + independent of the session, even reproduced on b270dcb3~1 — they are local dry-run/self-consistency asserts, NOT regressions); I5/I7/I8 spot-checks pass; the audit's headline '0 ConversionPattern / not real DialectConversion' red flag is CLOSED (TypedBackendEmissionDriver runs a genuine mlir::applyPartialConversion). Spec needed NO update (it is abstract invariants, already accurate — the code now COMPLIES with I5; status lives in journal not spec, per spec discipline). Archived both tasks to archive/2026-06/: 06-12-stage3-replace-string-machine (criteria 1-4 met; criterion 5 partial-by-design = the intentional strangler-fig STOPs documented in its prd) and 06-12-stage2-typify-capability-attr (capability relations/resolution/status typed; Phase-B/C deferred per prd). Current task pointer cleared; 0 active tasks; git tree fully clean.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `71af66cd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
