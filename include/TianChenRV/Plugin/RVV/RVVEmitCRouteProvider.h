@@ -16,10 +16,6 @@
 #include <optional>
 #include <string>
 
-namespace tianchenrv::conversion::emitc {
-class TCRVEmitCLowerableRoute;
-} // namespace tianchenrv::conversion::emitc
-
 namespace tianchenrv::plugin {
 class VariantEmitCLowerableRequest;
 } // namespace tianchenrv::plugin
@@ -2058,9 +2054,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
 
 llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
 describeRVVSelectedBodyEmitCRoute(
-    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute =
-        nullptr);
+    const tianchenrv::plugin::VariantEmitCLowerableRequest &request);
 
 /// Stage 3 换心 strangler-fig gate. Returns true iff the request's selected
 /// typed RVV body FULLY lowers to emitc through the real RVV->emitc
@@ -2081,9 +2075,16 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::StringRef context);
 
-llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
-    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
+// Stage 1 (description-engine retirement) fail-closed gate. The legacy string
+// statement-plan route is retired: a selected RVV body that does NOT fully
+// lower through the RVV->emitc DialectConversion has no legal materialized
+// route. This refuses such a body with a bounded diagnostic carrying the op
+// token (the same diagnostic the former route builder produced), without ever
+// constructing a string route. A body that fully converts is validated by the
+// conversion itself (`rvvSelectedBodyFullyConvertsToEmitC`) and never reaches
+// this gate.
+llvm::Error refuseRetiredRVVSelectedBodyStringRoute(
+    const tianchenrv::plugin::VariantEmitCLowerableRequest &request);
 
 } // namespace tianchenrv::plugin::rvv
 

@@ -410,197 +410,12 @@ llvm::Error verifyConformance(
   return construction::verifyConstructionConformanceGate(gate);
 }
 
-llvm::Error verifySelectedBoundary(mlir::Operation *boundary,
-                                   mlir::ArrayAttr requiredCapabilities,
-                                   VariantEmissionRole role) {
-  const llvm::StringRef pathRole =
-      tianchenrv::plugin::stringifyVariantEmissionRole(role);
-  llvm::SmallVector<mlir::Operation *, 1> operations = {boundary};
-  llvm::SmallVector<unsigned, 1> operationOrders = {0};
-
-  construction::SelectedExecutableRoleSequenceSpec sequence;
-  sequence.selectedPathDescription =
-      "TemplateConsumer selected role sequence";
-  sequence.missingRoleDescription =
-      "TemplateConsumer selected role sequence";
-  sequence.roleOrderDescription =
-      "TemplateConsumer selected role sequence";
-  sequence.selectedVariantSymbol = kVariantName;
-  sequence.pathRole = pathRole;
-  sequence.semanticRoleGraph = kSemanticRoleGraph;
-  sequence.roleSteps = kExecutableRoleSteps;
-  sequence.orderedRoleOperations = operations;
-  sequence.orderedRoleOperationOrders = operationOrders;
-  sequence.requireRoleStepAttributes = true;
-
-  llvm::Expected<llvm::SmallVector<construction::SelectedExecutableRoleStep, 4>>
-      selected = construction::collectSelectedExecutableRoleSequence(sequence);
-  if (!selected)
-    return selected.takeError();
-
-  const construction::SelectedBoundaryStringAttrExpectation extraAttrs[] = {
-      {"typed_role", kTypedRoleID},
-      {"source_role", "compute"},
-      {"role_specific_interface", kRoleSpecificInterface},
-  };
-  construction::SelectedLoweringBoundaryConformanceSpec boundarySpec;
-  boundarySpec.boundaryDescription =
-      "TemplateConsumer selected compute boundary";
-  boundarySpec.selectedVariantSymbol = kVariantName;
-  boundarySpec.sourceKernelSymbol = kSourceKernel;
-  boundarySpec.originPlugin = kPluginName;
-  boundarySpec.pathRole = pathRole;
-  boundarySpec.status = kRoleOpBoundaryStatus;
-  boundarySpec.requiredCapabilities = requiredCapabilities;
-  boundarySpec.extraStringAttributes = extraAttrs;
-  return construction::verifySelectedLoweringBoundaryConformance(boundary,
-                                                                 boundarySpec);
-}
-
-emitc::TCRVEmitCLowerableRoute buildRoute() {
-  emitc::TCRVEmitCLowerableRoute route(
-      kRouteID, "extension-family-construction-template-consumer-to-emitc");
-  route.addHeader("stdint.h");
-  route.addFunctionDeclaration(kCallee, kResultCType);
-
-  emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = kComputeOperationName.str();
-  source.role = "compute";
-  source.opInterface = kSourceOpInterfaceName.str();
-  route.addSourceOpProvenance(source);
-
-  emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = source;
-  step.callee = kCallee.str();
-  step.result =
-      emitc::TCRVEmitCCallOpaqueResult{kResultName.str(), kResultCType.str()};
-  route.addCallOpaqueStep(std::move(step));
-  return route;
-}
-
-emitc::TCRVEmitCLowerableRoute buildRouteWithoutRouteProvenance() {
-  emitc::TCRVEmitCLowerableRoute route(
-      kRouteID, "extension-family-construction-template-consumer-to-emitc");
-  route.addHeader("stdint.h");
-  route.addFunctionDeclaration(kCallee, kResultCType);
-
-  emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = kComputeOperationName.str();
-  source.role = "compute";
-  source.opInterface = kSourceOpInterfaceName.str();
-
-  emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = source;
-  step.callee = kCallee.str();
-  step.result =
-      emitc::TCRVEmitCCallOpaqueResult{kResultName.str(), kResultCType.str()};
-  route.addCallOpaqueStep(std::move(step));
-  return route;
-}
-
 llvm::Error makeTemplateConsumerArtifactError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV TemplateConsumer materialized artifact bridge "
                   "failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-bool hasSelectedVariantAndRole(mlir::Operation *op,
-                               llvm::StringRef selectedVariant,
-                               llvm::StringRef role) {
-  if (!op)
-    return false;
-  auto selected =
-      op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-  auto roleAttr = op->getAttrOfType<mlir::StringAttr>("role");
-  return selected && selected.getValue() == selectedVariant && roleAttr &&
-         roleAttr.getValue() == role;
-}
-
-llvm::Expected<mlir::Operation *> findSelectedArtifactBoundary(
-    const VariantEmitCLowerableRequest &request) {
-  tianchenrv::tcrv::exec::KernelOp kernel = request.getKernel();
-  tianchenrv::tcrv::exec::VariantOp variant = request.getVariant();
-  if (!kernel)
-    return makeTemplateConsumerArtifactError(
-        "artifact route construction requires an enclosing tcrv.exec.kernel");
-  if (!variant)
-    return makeTemplateConsumerArtifactError(
-        "artifact route construction requires a selected tcrv.exec.variant");
-  if (kernel.getBody().empty())
-    return makeTemplateConsumerArtifactError(
-        "artifact route construction requires a materialized kernel body");
-
-  llvm::StringRef role =
-      tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole());
-  mlir::Operation *selectedBoundary = nullptr;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    if (op.getName().getStringRef() != kComputeOperationName)
-      continue;
-    if (!hasSelectedVariantAndRole(&op, variant.getSymName(), role))
-      continue;
-    if (selectedBoundary)
-      return makeTemplateConsumerArtifactError(
-          llvm::Twine("requires exactly one selected ") +
-          kComputeOperationName + " boundary for @" + variant.getSymName());
-    selectedBoundary = &op;
-  }
-
-  if (!selectedBoundary)
-    return makeTemplateConsumerArtifactError(
-        llvm::Twine("requires one selected ") + kComputeOperationName +
-        " boundary for @" + variant.getSymName());
-  return selectedBoundary;
-}
-
-llvm::Error buildArtifactRouteFromSelectedPath(
-    const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCLowerableRoute &out) {
-  if (llvm::Error error = verifyConformance(kManifest, kTypedRoleRealization,
-                                            kConstructionMetadata))
-    return error;
-
-  llvm::Expected<mlir::Operation *> boundary =
-      findSelectedArtifactBoundary(request);
-  if (!boundary)
-    return boundary.takeError();
-
-  auto requiredCapabilities =
-      (*boundary)->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
-  if (!requiredCapabilities)
-    return makeTemplateConsumerArtifactError(
-        "selected boundary requires required_capabilities before route "
-        "construction");
-  if (llvm::Error error =
-          verifySelectedBoundary(*boundary, requiredCapabilities,
-                                 request.getRole()))
-    return error;
-
-  out = buildRoute();
-  return llvm::Error::success();
-}
-
-llvm::Error buildArtifactRouteWithoutRouteProvenance(
-    const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCLowerableRoute &out) {
-  llvm::Expected<mlir::Operation *> boundary =
-      findSelectedArtifactBoundary(request);
-  if (!boundary)
-    return boundary.takeError();
-  auto requiredCapabilities =
-      (*boundary)->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
-  if (!requiredCapabilities)
-    return makeTemplateConsumerArtifactError(
-        "selected boundary requires required_capabilities before route "
-        "construction");
-  if (llvm::Error error =
-          verifySelectedBoundary(*boundary, requiredCapabilities,
-                                 request.getRole()))
-    return error;
-
-  out = buildRouteWithoutRouteProvenance();
-  return llvm::Error::success();
 }
 
 llvm::Error validateTargetArtifactCandidate(
@@ -658,7 +473,6 @@ getSelectedArtifactConfig(bool validateCandidate) {
       "TemplateConsumer materialized EmitC object artifact bridge";
   if (validateCandidate)
     config.candidateValidationFn = validateTargetArtifactCandidate;
-  config.routeBuilderFn = buildArtifactRouteFromSelectedPath;
   return config;
 }
 
@@ -1078,25 +892,6 @@ public:
     return verifyConformance(manifest, realization, metadata);
   }
 
-  llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      emitc::TCRVEmitCLowerableRoute &out) const override {
-    (void)request;
-    if (llvm::Error error = verifyExecutableConstructionConformance())
-      return error;
-    if (!selectedBoundary || !requiredCapabilities)
-      return llvm::make_error<llvm::StringError>(
-          "TemplateConsumer route construction requires a selected boundary "
-          "fixture",
-          llvm::errc::invalid_argument);
-    if (llvm::Error error =
-            verifySelectedBoundary(selectedBoundary, requiredCapabilities, role))
-      return error;
-
-    out = buildRoute();
-    return llvm::Error::success();
-  }
-
 private:
   Mode mode = Mode::Valid;
   mlir::Operation *selectedBoundary = nullptr;
@@ -1104,30 +899,6 @@ private:
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
-
-mlir::Operation *createSelectedBoundary(mlir::OpBuilder &builder,
-                                        mlir::ModuleOp module,
-                                        mlir::ArrayAttr requiredCapabilities) {
-  builder.setInsertionPointToStart(module.getBody());
-  mlir::OperationState state(builder.getUnknownLoc(), kComputeOperationName);
-  state.addAttribute("source_kernel", builder.getStringAttr(kSourceKernel));
-  state.addAttribute(
-      "selected_variant",
-      mlir::FlatSymbolRefAttr::get(builder.getContext(), kVariantName));
-  state.addAttribute("origin", builder.getStringAttr(kPluginName));
-  state.addAttribute(
-      "role",
-      builder.getStringAttr(tianchenrv::plugin::stringifyVariantEmissionRole(
-          VariantEmissionRole::DirectVariant)));
-  state.addAttribute("status", builder.getStringAttr(kRoleOpBoundaryStatus));
-  state.addAttribute("required_capabilities", requiredCapabilities);
-  state.addAttribute("typed_role", builder.getStringAttr(kTypedRoleID));
-  state.addAttribute("role_order", builder.getI64IntegerAttr(0));
-  state.addAttribute("source_role", builder.getStringAttr("compute"));
-  state.addAttribute("role_specific_interface",
-                     builder.getStringAttr(kRoleSpecificInterface));
-  return builder.create(state);
-}
 
 int runValidWorkflowTest() {
   ExtensionPluginRegistry registry;
@@ -1138,36 +909,7 @@ int runValidWorkflowTest() {
     return result;
   if (registry.size() != 1)
     return fail("TemplateConsumer registry should contain one plugin");
-
-  mlir::MLIRContext context;
-  context.allowUnregisteredDialects();
-  mlir::OpBuilder builder(&context);
-  mlir::OwningOpRef<mlir::ModuleOp> module =
-      mlir::ModuleOp::create(builder.getUnknownLoc());
-  mlir::ArrayAttr requiredCapabilities = builder.getArrayAttr(
-      {mlir::FlatSymbolRefAttr::get(&context, kCapabilitySymbol)});
-  mlir::Operation *boundary =
-      createSelectedBoundary(builder, *module, requiredCapabilities);
-
-  TemplateConsumerPlugin routePlugin(TemplateConsumerPlugin::Mode::Valid,
-                                     boundary, requiredCapabilities);
-  emitc::TCRVEmitCLowerableRoute route;
-  tianchenrv::support::TargetCapabilitySet capabilities;
-  VariantEmitCLowerableRequest request(
-      tianchenrv::tcrv::exec::VariantOp(),
-      tianchenrv::tcrv::exec::KernelOp(), capabilities,
-      VariantEmissionRole::DirectVariant);
-  if (int result = expectSuccess(
-          routePlugin.buildVariantEmitCLowerableRoute(request, route),
-          "TemplateConsumer builds plugin-owned EmitC lowerable route from "
-          "selected boundary fixture"))
-    return result;
-  if (route.getRouteID() != kRouteID)
-    return fail("TemplateConsumer route id must come from plugin-owned route "
-                "mapping");
-
-  return expectSuccess(
-      route.verify(), "TemplateConsumer EmitC lowerable route verifies");
+  return 0;
 }
 
 int runFailClosedRegistryTest() {

@@ -29,10 +29,6 @@ namespace tianchenrv::target {
 class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
-namespace tianchenrv::conversion::emitc {
-class TCRVEmitCLowerableRoute;
-} // namespace tianchenrv::conversion::emitc
-
 namespace tianchenrv::plugin {
 
 class ExtensionBundle;
@@ -688,9 +684,6 @@ public:
       VariantLoweringBoundaryResult &out) const;
   virtual llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const;
-  virtual llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      conversion::emitc::TCRVEmitCLowerableRoute &out) const;
   virtual llvm::Error
   configureTargetSupportExtensionBundle(ExtensionBundle &bundle) const;
   virtual llvm::Error registerTargetSupportTranslateRoutes(
@@ -752,9 +745,6 @@ public:
       VariantLoweringBoundaryResult &out) const;
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const;
-  llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      conversion::emitc::TCRVEmitCLowerableRoute &out) const;
   llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
   llvm::Error
   checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,

@@ -511,13 +511,13 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
-              routeRequest, route)) {
+          template_ext::validateTemplateComputeSkeletonEmitCRouteReadiness(
+              routeRequest, source)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kTemplatePluginName, request.getVariant().getSymName(), diagnostic);
@@ -526,7 +526,7 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kTemplatePluginName, request.getVariant().getSymName(),
-      route.getRouteID());
+      template_ext::getTemplateEmitCConstructionRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -550,25 +550,19 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
-              routeRequest, route))
+          template_ext::validateTemplateComputeSkeletonEmitCRouteReadiness(
+              routeRequest, source))
     return error;
-  if (route.getSourceOpProvenance().empty())
-    return makeTemplatePluginError(
-        "Template target artifact emission plan requires route source-op "
-        "provenance before artifact export");
 
   const template_ext::TemplateConstructionManifest &manifest =
       template_ext::getTemplateConstructionManifest();
   const template_ext::TemplateEmitCConstructionRoute &constructionRoute =
       template_ext::getTemplateEmitCConstructionRoute();
-  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
-      route.getSourceOpProvenance().front();
 
   out = VariantEmissionPlan::getSupported(
       kTemplatePluginName, request.getKernel().getSymName(),
@@ -586,7 +580,7 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       template_ext::getTemplateRuntimeABIParameters());
   out.addArtifactMetadata(
       template_ext::getTemplateEmitCRouteMappingMetadataName(),
-      route.getRouteID());
+      constructionRoute.routeID);
   out.addArtifactMetadata(template_ext::getTemplateSourceOpMetadataName(),
                           source.opName);
   out.addArtifactMetadata(template_ext::getTemplateSourceRoleMetadataName(),
@@ -715,25 +709,6 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
 
   return llvm::Error::success();
-}
-
-llvm::Error TemplateExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeTemplatePluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeTemplatePluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  return template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
-      request, out);
 }
 
 llvm::Error TemplateExtensionPlugin::configureTargetSupportExtensionBundle(

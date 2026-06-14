@@ -1384,22 +1384,6 @@ struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
   const support::RuntimeABIParameter *destinationStrideABI = nullptr;
 };
 
-struct RVVRuntimeScalarComputedMaskMemorySplatProviderContract {
-  bool required = false;
-  llvm::StringRef consumerLabel;
-  llvm::StringRef rhsScalarSplatIntrinsic;
-  llvm::StringRef materializedRHSScalarSplatLeaf;
-  llvm::StringRef runtimeABIOrder;
-  llvm::StringRef providerSupportedMirror;
-  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
-  bool bindsRuntimeScalarComputedMaskMemory = false;
-};
-
-llvm::Error verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
-    const RVVRuntimeScalarComputedMaskMemorySplatProviderContract &contract,
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueStep> statementSteps,
-    llvm::StringRef context);
-
 struct RVVSelectedBodyMathRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
 
@@ -1699,40 +1683,6 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 // converts through the real DialectConversion. The provider plan
 // RVVSelectedBodyDirectContractionRouteProviderPlan above stays as the shared
 // description/provider source of truth.
-
-enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
-  None,
-  ElementwiseArithmetic,
-  CompareSelect,
-  WideningConversion,
-  Dequantization,
-  RuntimeScalarSplatStore,
-  Reduction,
-  StandaloneReduction,
-  PlainMAcc,
-  BaseMemoryMovement,
-  ComputedMaskMemory,
-  Segment2Memory,
-  ComputedMaskAccumulation,
-};
-
-struct RVVSelectedBodyMigratedRouteStatementPlan {
-  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
-      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
-
-  bool plansMigratedRoute = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCLocalVariable, 2>
-      localVariables;
-  conversion::emitc::TCRVEmitCForLoop loop;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCForLoop, 1> extraLoops;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
-      postLoopSteps;
-  llvm::SmallVector<conversion::emitc::TCRVEmitCAssignStep, 2>
-      postLoopAssignments;
-};
 
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);

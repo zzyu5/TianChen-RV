@@ -294,9 +294,6 @@ llvm::Error validateConstructionTemplateArtifactAdapterConfig(
   if (!config.selectedRoute.candidateValidationFn)
     return makeConstructionTemplateAdapterError(
         "selected object route requires a route-local candidate validator");
-  if (!config.selectedRoute.routeBuilderFn)
-    return makeConstructionTemplateAdapterError(
-        "selected object route requires a plugin-owned EmitC route builder");
   if (!config.objectPackagerFn)
     return makeConstructionTemplateAdapterError(
         "object export requires a route-local object packager callback");

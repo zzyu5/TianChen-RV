@@ -380,8 +380,7 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
                                             request.getRole());
   if (rvv::rvvSelectedBodyFullyConvertsToEmitC(routeRequest))
     return llvm::Error::success();
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  return rvv::buildRVVSelectedBodyEmitCLowerableRoute(routeRequest, route);
+  return rvv::refuseRetiredRVVSelectedBodyStringRoute(routeRequest);
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -597,26 +596,17 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest))
     return error;
 
-  // Stage 3 换心 decouple (C1, emission-plan). The emission plan is built
-  // ENTIRELY from the route DESCRIPTION (runtimeABIName + the construction /
-  // config artifact metadata below); the `route` itself is discarded. For a
-  // converted family the legacy string statement-plan owner that
-  // `describeRVVSelectedBodyEmitCRoute(req, &route)` dispatches into is
-  // redundant — the route's can-build consistency is already guaranteed by the
-  // conversion fully legalizing the body (and the boundary is independently
-  // validated at validateSelectedRVVSelectedBodyBoundary above). So gate the
-  // owner-building route on the try-convert: a converted family takes the
-  // description-only (nullptr) path with NO string route; a not-yet-converted
-  // family keeps building its route through its owner. Zero family-name branch
-  // — the gate is purely "did the conversion legalize this body."
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  // Stage 1 (description-engine retirement). The emission plan is built ENTIRELY
+  // from the route DESCRIPTION (runtimeABIName + the construction / config
+  // artifact metadata below); no string route is ever materialized. A
+  // not-yet-converted (retired legacy) body has already been refused
+  // fail-closed by validateSelectedRVVSelectedBodyBoundary above (its convert
+  // gate), so a body that reaches here is describable from the typed body alone.
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
-  conversion::emitc::TCRVEmitCLowerableRoute *ownerRoute =
-      rvvSelectedBodyFullyConvertsToEmitC(routeRequest) ? nullptr : &route;
   llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
-      describeRVVSelectedBodyEmitCRoute(routeRequest, ownerRoute);
+      describeRVVSelectedBodyEmitCRoute(routeRequest);
   if (!routeDescription)
     return routeDescription.takeError();
 
@@ -702,33 +692,6 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   return validateSelectedRVVSelectedBodyBoundary(request);
-}
-
-llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeRVVPluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeRVVPluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  mlir::OpBuilder builder(request.getVariant().getContext());
-  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
-          VariantLoweringBoundaryRequest(
-              request.getVariant(), request.getKernel(),
-              request.getCapabilities(), request.getRole(), builder));
-  if (!selectedBoundary)
-    return selectedBoundary.takeError();
-
-  return buildRVVSelectedBodyEmitCLowerableRoute(request, out);
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(

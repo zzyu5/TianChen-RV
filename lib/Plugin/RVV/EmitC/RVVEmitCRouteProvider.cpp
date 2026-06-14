@@ -30,7 +30,7 @@ namespace {
 // bounded diagnostic carrying the op token, instead of resurrecting any string
 // synthesis. This is the single chokepoint both the public route builder and
 // the description's verified-route branch funnel through.
-llvm::Error refuseRetiredRVVSelectedBodyStringRoute(
+llvm::Error refuseRetiredRVVSelectedBodyStringRouteForOperation(
     RVVSelectedBodyOperationKind operation, llvm::StringRef context) {
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(context) +
@@ -67,36 +67,22 @@ bool rvvSelectedBodyFullyConvertsToEmitC(
 
 llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
 describeRVVSelectedBodyEmitCRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute) {
+    const VariantEmitCLowerableRequest &request) {
   llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
       analyzeRVVSelectedBodyRoute(request);
   if (!analysis)
     return analysis.takeError();
-
-  // A non-null verifiedRoute requested a constructed string route. That
-  // construction path (the per-family statement-plan owners) is retired, so a
-  // body that reaches here without fully converting is refused fail-closed; the
-  // converted families never pass a non-null verifiedRoute (they take the
-  // description-only path gated by rvvSelectedBodyFullyConvertsToEmitC).
-  if (verifiedRoute)
-    if (llvm::Error error = refuseRetiredRVVSelectedBodyStringRoute(
-            analysis->description.operation,
-            "selected RVV EmitC route construction"))
-      return std::move(error);
 
   return analysis->description;
 }
 
-llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  (void)out;
+llvm::Error refuseRetiredRVVSelectedBodyStringRoute(
+    const VariantEmitCLowerableRequest &request) {
   llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
       analyzeRVVSelectedBodyRoute(request);
   if (!analysis)
     return analysis.takeError();
-  return refuseRetiredRVVSelectedBodyStringRoute(
+  return refuseRetiredRVVSelectedBodyStringRouteForOperation(
       analysis->description.operation,
       "selected RVV EmitC route construction");
 }

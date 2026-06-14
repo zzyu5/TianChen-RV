@@ -101,7 +101,6 @@ llvm::Error requireCandidateMetadataMirror(
 }
 
 struct RVVSelectedVariantRouteValidation {
-  conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::rvv::RVVSelectedBodyEmitCRouteDescription description;
 };
 
@@ -343,49 +342,6 @@ resolveCandidateSelectedVariant(const TargetArtifactCandidate &candidate) {
       "artifact route cross-check");
 }
 
-llvm::Error validateRVVRouteSourceProvenance(
-    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
-  if (route.getSourceOpProvenance().size() != 1)
-    return makeRVVTargetRouteError(
-        "materialized EmitC route must carry exactly one RVV route "
-        "source-op provenance entry");
-
-  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
-      route.getSourceOpProvenance().front();
-  if (source.opName != plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName() ||
-      source.role != "scope" ||
-      source.opInterface != plugin::rvv::getRVVEmitCLowerableOpInterfaceName())
-    return makeRVVTargetRouteError(
-        "materialized EmitC route source-op provenance must identify "
-        "tcrv_rvv.with_vl as the selected scope boundary through "
-        "TCRVEmitCLowerableOpInterface");
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateRVVRouteABIMappings(
-    const TargetArtifactCandidate &candidate,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> routeParameters;
-  for (const conversion::emitc::TCRVEmitCABIValueMapping &mapping :
-       route.getABIMappings()) {
-    if (mapping.valueName != mapping.parameter.cName)
-      return makeRVVTargetRouteError(
-          llvm::Twine("materialized EmitC route ABI mapping for '") +
-          mapping.parameter.cName +
-          "' must use the same selected callable value name");
-    routeParameters.push_back(mapping.parameter);
-  }
-
-  if (!support::runtimeABIParametersEqual(routeParameters,
-                                          candidate.runtimeABIParameters))
-    return makeRVVTargetRouteError(
-        "materialized EmitC route ABI mappings must match the selected "
-        "candidate runtime ABI parameters");
-
-  return llvm::Error::success();
-}
-
 llvm::Expected<RVVSelectedVariantRouteValidation>
 validateRVVSelectedVariantRouteAgreesWithCandidate(
     const TargetArtifactCandidate &candidate) {
@@ -457,39 +413,19 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
     return validation;
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
-      description =
-          plugin::rvv::describeRVVSelectedBodyEmitCRoute(request, &route);
-  if (!description) {
-    llvm::Error error = description.takeError();
-    std::string message = llvm::toString(std::move(error));
-    return makeRVVTargetRouteError(
-        llvm::Twine("selected typed RVV body could not build the "
-                    "materialized EmitC route before candidate metadata "
-                    "validation: ") +
-        message);
-  }
-  if (llvm::Error error = route.verify()) {
-    std::string message = llvm::toString(std::move(error));
-    return makeRVVTargetRouteError(
-        llvm::Twine("rebuilt materialized EmitC route failed verification: ") +
-        message);
-  }
-
-  if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
-          candidate, route.getRouteID(), *description))
-    return std::move(error);
-
-  if (llvm::Error error = validateRVVRouteSourceProvenance(route))
-    return std::move(error);
-  if (llvm::Error error = validateRVVRouteABIMappings(candidate, route))
-    return std::move(error);
-
-  RVVSelectedVariantRouteValidation validation;
-  validation.route = std::move(route);
-  validation.description = std::move(*description);
-  return validation;
+  // Stage 1 (description-engine retirement): a selected RVV body that does NOT
+  // fully convert through the RVV->emitc DialectConversion has no legal
+  // materialized route. The legacy string statement-plan route is retired, so
+  // refuse it fail-closed here (the same fail-closed decision the former route
+  // build-and-verify enforced), preserving the original diagnostic framing.
+  llvm::Error refusal =
+      plugin::rvv::refuseRetiredRVVSelectedBodyStringRoute(request);
+  std::string message = llvm::toString(std::move(refusal));
+  return makeRVVTargetRouteError(
+      llvm::Twine("selected typed RVV body could not build the "
+                  "materialized EmitC route before candidate metadata "
+                  "validation: ") +
+      message);
 }
 
 llvm::Error rejectForbiddenRVVArtifactMetadata(
@@ -1796,8 +1732,6 @@ SelectedEmitCArtifactRouteConfig getRVVSelectedBodyArtifactConfig() {
                             "selected-body slice";
   config.candidateValidationFn =
       validateRVVSelectedBodyTargetArtifactCandidate;
-  config.routeBuilderFn =
-      plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute;
   return config;
 }
 

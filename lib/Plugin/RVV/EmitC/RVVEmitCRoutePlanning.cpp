@@ -2143,69 +2143,6 @@ getRVVRuntimeAVLVLSelectedBoundaryContract(
   return contract;
 }
 
-llvm::Error verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
-    const RVVRuntimeScalarComputedMaskMemorySplatProviderContract &contract,
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueStep> statementSteps,
-    llvm::StringRef context) {
-  if (!contract.required)
-    return llvm::Error::success();
-
-  const llvm::StringRef consumerLabel =
-      contract.consumerLabel.empty()
-          ? llvm::StringRef("runtime scalar computed-mask memory")
-          : contract.consumerLabel;
-  if (contract.runtimeABIOrder.empty() ||
-      contract.providerSupportedMirror.empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires provider-owned runtime ABI order "
-        "and provider-supported mirror facts before creating "
-        "TCRVEmitCLowerableRoute");
-  if (!contract.bindsRuntimeScalarComputedMaskMemory)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires operand-binding facts to mark "
-        "the route as runtime-scalar computed-mask memory before creating "
-        "TCRVEmitCLowerableRoute");
-  if (!contract.rhsScalarABI)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires rhs_scalar ABI binding facts "
-        "before creating TCRVEmitCLowerableRoute");
-  if (contract.rhsScalarABI->role !=
-      support::RuntimeABIParameterRole::RHSScalarValue)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires rhs_scalar ABI role '" +
-        support::stringifyRuntimeABIParameterRole(
-            support::RuntimeABIParameterRole::RHSScalarValue) +
-        "' before creating TCRVEmitCLowerableRoute, but saw '" +
-        support::stringifyRuntimeABIParameterRole(contract.rhsScalarABI->role) +
-        "'");
-  if (contract.rhsScalarSplatIntrinsic.empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires a provider-owned rhs_scalar "
-        "splat intrinsic before creating TCRVEmitCLowerableRoute");
-  if (contract.materializedRHSScalarSplatLeaf !=
-      contract.rhsScalarSplatIntrinsic)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " " + consumerLabel +
-        " splat provider contract requires materialization facts to carry "
-        "the provider-owned rhs_scalar splat leaf before creating "
-        "TCRVEmitCLowerableRoute");
-
-  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-       statementSteps)
-    if (step.callee == contract.rhsScalarSplatIntrinsic)
-      return llvm::Error::success();
-
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) + " " + consumerLabel +
-      " splat provider contract requires the RVV-owned statement plan to "
-      "emit the rhs_scalar splat leaf before creating "
-      "TCRVEmitCLowerableRoute");
-}
 
 llvm::Error verifyRVVRuntimeAVLVLControlPlan(
     const RVVRuntimeAVLVLControlPlan &plan, llvm::StringRef context) {

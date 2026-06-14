@@ -98,10 +98,6 @@ llvm::Error makeTensorExtLitePluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-llvm::Error verifyTensorExtLiteConstructionProtocolReady() {
-  return tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
-}
-
 bool hasAvailableTensorExtLiteFragmentCapability(
     const VariantProposalRequest &request) {
   if (!request.getKernel())
@@ -376,12 +372,13 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
             construction::verifySelectedExecutableRoleSequenceComplete(
                 spec, *inspection))
       return error;
-    conversion::emitc::TCRVEmitCLowerableRoute route;
+    llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
     VariantEmitCLowerableRequest routeRequest(
         request.getVariant(), request.getKernel(), request.getCapabilities(),
         request.getRole());
-    return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
-        routeRequest, route);
+    return tensorext_lite::
+        validateTensorExtLiteFragmentMmaEmitCRouteReadiness(routeRequest,
+                                                            sources);
   }
 
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
@@ -403,12 +400,12 @@ llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
       return error;
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
-  return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
-      routeRequest, route);
+  return tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
+      routeRequest, sources);
 }
 
 bool isSelectedTensorExtLiteLoweringBoundary(
@@ -709,13 +706,13 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
-              routeRequest, route)) {
+          tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
+              routeRequest, sources)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kTensorExtLitePluginName, request.getVariant().getSymName(),
@@ -725,7 +722,8 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kTensorExtLitePluginName, request.getVariant().getSymName(),
-      route.getRouteID());
+      tensorext_lite::getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+          .routeID);
   return llvm::Error::success();
 }
 
@@ -749,13 +747,13 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
-              routeRequest, route))
+          tensorext_lite::validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
+              routeRequest, sources))
     return error;
 
   const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
@@ -783,18 +781,18 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
   llvm::SmallVector<support::ArtifactMetadataEntry, 12> artifactMetadata;
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteEmitCLowerableRouteMetadataName(),
-      route.getRouteID()));
+      constructionRoute.routeID));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteRoleSequenceMetadataName(),
       manifest.semanticRoleGraph));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
-      joinTensorExtLiteRouteSourceOps(route.getSourceOpProvenance())));
+      joinTensorExtLiteRouteSourceOps(sources)));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
-      joinTensorExtLiteRouteSourceRoles(route.getSourceOpProvenance())));
+      joinTensorExtLiteRouteSourceRoles(sources)));
   llvm::Expected<std::string> sourceOpInterface =
-      getTensorExtLiteRouteSourceOpInterface(route.getSourceOpProvenance());
+      getTensorExtLiteRouteSourceOpInterface(sources);
   if (!sourceOpInterface)
     return sourceOpInterface.takeError();
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
@@ -908,25 +906,6 @@ llvm::Error TensorExtLiteExtensionPlugin::validateSelectedLoweringBoundary(
   spec.requiredCapabilitiesAttrName = kRequiredCapabilitiesAttrName;
   return construction::verifySelectedLoweringBoundaryConformance(
       boundary.getOperation(), spec);
-}
-
-llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeTensorExtLitePluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeTensorExtLitePluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
-      request, out);
 }
 
 llvm::Error

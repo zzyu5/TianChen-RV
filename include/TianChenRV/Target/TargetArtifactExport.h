@@ -29,10 +29,6 @@ class PluginTargetArtifactExporterRegistry;
 
 } // namespace tianchenrv::target
 
-namespace tianchenrv::conversion::emitc {
-class TCRVEmitCLowerableRoute;
-} // namespace tianchenrv::conversion::emitc
-
 namespace tianchenrv::plugin {
 class ExtensionBundleRegistry;
 class ExtensionPluginRegistry;
@@ -59,9 +55,6 @@ using TargetArtifactCompositeRuntimeABIParametersFn =
     std::function<llvm::Expected<
         llvm::SmallVector<support::RuntimeABIParameter, 5>>(
         llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
-using SelectedEmitCArtifactRouteBuilderFn = llvm::Error (*)(
-    const plugin::VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out);
 using SelectedEmitCArtifactFunctionNameFn =
     std::string (*)(tcrv::exec::KernelOp kernel,
                     tcrv::exec::VariantOp variant);
@@ -135,7 +128,6 @@ struct SelectedEmitCArtifactRouteConfig {
   llvm::StringRef originPlugin;
   llvm::StringRef routeDescription;
   TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
-  SelectedEmitCArtifactRouteBuilderFn routeBuilderFn = nullptr;
   SelectedEmitCArtifactFunctionNameFn functionNameFn = nullptr;
 };
 

@@ -1104,10 +1104,6 @@ llvm::Error validateSelectedEmitCArtifactRouteConfig(
     return makeSelectedEmitCArtifactError(
         routeDescription,
         "requires a non-empty selected emission-plan origin plugin");
-  if (!config.routeBuilderFn)
-    return makeSelectedEmitCArtifactError(
-        routeDescription,
-        "requires a plugin-owned EmitC lowerable route builder callback");
   return llvm::Error::success();
 }
 
@@ -1207,30 +1203,6 @@ selectSelectedEmitCArtifactTargetImpl(
   return target;
 }
 
-llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute>
-buildSelectedEmitCArtifactRoute(
-    const SelectedEmitCArtifactTarget &target,
-    const SelectedEmitCArtifactRouteConfig &config) {
-  llvm::StringRef routeDescription =
-      config.routeDescription.empty() ? config.routeID : config.routeDescription;
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(target.kernel);
-  if (!capabilities)
-    return capabilities.takeError();
-
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  plugin::VariantEmitCLowerableRequest request(
-      target.variant, target.kernel, *capabilities, target.role);
-  if (llvm::Error error = config.routeBuilderFn(request, route))
-    return std::move(error);
-  if (llvm::Error error = route.verify())
-    return std::move(error);
-  if (route.getRouteID().trim().empty())
-    return makeSelectedEmitCArtifactError(
-        routeDescription, "plugin-owned EmitC lowerable route id is empty");
-  return std::move(route);
-}
-
 llvm::Error requireMaterializedEmitCModule(
     mlir::ModuleOp module, llvm::StringRef routeDescription) {
   bool foundEmitCOp = false;
@@ -1269,44 +1241,6 @@ llvm::Error requireMaterializedEmitCModule(
         "requires an already materialized EmitC module with an EmitC function "
         "boundary");
   return llvm::Error::success();
-}
-
-std::string formatRouteSourceProvenanceComment(
-    const conversion::emitc::TCRVEmitCSourceOpProvenance &source) {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  stream << "// tcrv_emitc.route_source_op=" << source.opName
-         << " role=" << source.role;
-  if (!source.opInterface.empty())
-    stream << " op_interface=" << source.opInterface;
-  stream.flush();
-  return text;
-}
-
-std::string formatStepProvenanceComment(
-    const conversion::emitc::TCRVEmitCCallOpaqueStep &step) {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  stream << "// tcrv_emitc.source_op=" << step.sourceOp.opName
-         << " role=" << step.sourceOp.role;
-  if (!step.sourceOp.opInterface.empty())
-    stream << " op_interface=" << step.sourceOp.opInterface;
-  stream << " callee=" << step.callee;
-  stream.flush();
-  return text;
-}
-
-bool materializedEmitCModuleContainsVerbatim(mlir::ModuleOp module,
-                                             llvm::StringRef value) {
-  bool found = false;
-  module->walk([&](mlir::emitc::VerbatimOp verbatim) {
-    if (verbatim.getValue() == value) {
-      found = true;
-      return mlir::WalkResult::interrupt();
-    }
-    return mlir::WalkResult::advance();
-  });
-  return found;
 }
 
 // Stage 3 换心: the converted-path materialized-handoff validator.
@@ -1360,69 +1294,6 @@ llvm::Error requireConvertedSelectedEmitCMaterializedHandoff(
   return llvm::Error::success();
 }
 
-llvm::Error requireSelectedEmitCMaterializedHandoff(
-    mlir::ModuleOp module,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    llvm::StringRef routeDescription) {
-  if (llvm::Error error =
-          requireMaterializedEmitCModule(module, routeDescription))
-    return error;
-
-  if (route.getSourceOpProvenance().empty())
-    return makeSelectedEmitCArtifactError(
-        routeDescription,
-        "requires at least one route source-op provenance entry in the "
-        "materialized EmitC handoff before target artifact packaging");
-
-  for (const conversion::emitc::TCRVEmitCSourceOpProvenance &source :
-       route.getSourceOpProvenance()) {
-    std::string expected = formatRouteSourceProvenanceComment(source);
-    if (!materializedEmitCModuleContainsVerbatim(module, expected))
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          llvm::Twine("materialized EmitC handoff is missing route "
-                      "source-op provenance '") +
-              expected + "'");
-  }
-
-  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-       route.getCallOpaqueSteps()) {
-    std::string expected = formatStepProvenanceComment(step);
-    if (!materializedEmitCModuleContainsVerbatim(module, expected))
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          llvm::Twine("materialized EmitC handoff is missing call "
-                      "source-op provenance '") +
-              expected + "'");
-  }
-  for (const conversion::emitc::TCRVEmitCForLoop &loop :
-       route.getForLoops()) {
-    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         loop.bodySteps) {
-      std::string expected = formatStepProvenanceComment(step);
-      if (!materializedEmitCModuleContainsVerbatim(module, expected))
-        return makeSelectedEmitCArtifactError(
-            routeDescription,
-            llvm::Twine("materialized EmitC loop handoff is missing call "
-                        "source-op provenance '") +
-                expected + "'");
-    }
-  }
-  if (!route.getForLoops().empty()) {
-    bool foundFor = false;
-    module->walk([&](mlir::emitc::ForOp) {
-      foundFor = true;
-      return mlir::WalkResult::interrupt();
-    });
-    if (!foundFor)
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          "materialized EmitC handoff is missing the structured emitc.for "
-          "loop required by the selected route");
-  }
-
-  return llvm::Error::success();
-}
 
 llvm::StringRef lookupArtifactMetadataValue(
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,

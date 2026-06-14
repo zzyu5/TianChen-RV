@@ -179,8 +179,6 @@ getTensorExtLiteSelectedEmitCArtifactConfig(bool validateCandidate) {
       "TensorExtLite fragment MMA materialized EmitC object artifact bridge";
   if (validateCandidate)
     config.candidateValidationFn = validateTensorExtLiteSelectedObjectCandidate;
-  config.routeBuilderFn =
-      plugin::tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute;
   return config;
 }
 

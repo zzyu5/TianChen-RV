@@ -53,9 +53,6 @@ public:
       VariantLoweringBoundaryResult &out) const override;
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const override;
-  llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
   llvm::Error
   configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;

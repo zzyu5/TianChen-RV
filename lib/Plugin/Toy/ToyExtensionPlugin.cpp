@@ -112,10 +112,6 @@ llvm::Error makeToyPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-llvm::Error verifyToyConstructionProtocolReady() {
-  return toy::verifyToyConstructionProtocolReady();
-}
-
 bool hasAvailableToyTemplateCapability(
     const VariantProposalRequest &request) {
   if (!request.getKernel())
@@ -534,12 +530,12 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route)) {
+          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kToyPluginName, request.getVariant().getSymName(), diagnostic);
@@ -547,7 +543,8 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
   }
 
   out = VariantEmissionStatus::getSupported(
-      kToyPluginName, request.getVariant().getSymName(), route.getRouteID());
+      kToyPluginName, request.getVariant().getSymName(),
+      toy::getToyTemplateEmitCConstructionRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -571,24 +568,18 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route))
+          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source))
     return error;
-  if (route.getSourceOpProvenance().empty())
-    return makeToyPluginError(
-        "Toy target artifact emission plan requires route source-op "
-        "provenance before artifact export");
 
   const toy::ToyConstructionManifest &manifest =
       toy::getToyConstructionManifest();
   const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
       toy::getToyTemplateEmitCConstructionRoute();
-  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
-      route.getSourceOpProvenance().front();
 
   out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
@@ -604,7 +595,8 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
   out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(toy::getToyTemplateRuntimeABIParameters());
-  out.addArtifactMetadata(kToyRouteArtifactMetadataKey, route.getRouteID());
+  out.addArtifactMetadata(kToyRouteArtifactMetadataKey,
+                          constructionRoute.routeID);
   out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source.opName);
   out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source.role);
   out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
@@ -732,24 +724,6 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
 
   return llvm::Error::success();
-}
-
-llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeToyPluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeToyPluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  return toy::buildToyTemplateEmitCLowerableRoute(request, out);
 }
 
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
