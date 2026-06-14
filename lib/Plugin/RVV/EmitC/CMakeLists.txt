@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVEmitCRoutePlanning.cpp
+  RVVEmitCRoutePlanningPrimitives.cpp
   RVVEmitCRouteProvider.cpp
   RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp
   RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp
