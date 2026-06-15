@@ -1,0 +1,8 @@
+Negative control (proves the harness genuinely discriminates, not a no-op):
+On ssh rvv, perturbing the ggml reference inner sum by +1
+  (sumi0 += v0*q8[j]  ->  sumi0 += v0*q8[j] + 1)
+makes ALL 4005 blocks FAIL:
+  FAIL [random#3999]: ref=-2301 tcrv=-2317
+  INC-1 byte-exact check: 4005 blocks checked, 4005 failures
+  RESULT: FAIL
+=> the PASS in ssh_rvv_stdout.txt is a real byte-exact match, not a trivially-passing test.

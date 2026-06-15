@@ -3810,6 +3810,65 @@ def PackedI4NibbleUnpackProductOp
   let hasVerifier = 1;
 }
 
+def PackedI4OffsetBinaryXI8ProductOp
+    : TCRVRVV_Op<"packed_i4_offset_binary_x_i8_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV asymmetric offset-binary packed-i4 x plain-i8 product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV ASYMMETRIC offset-binary
+    packed-i4 x plain-i8 widening product dataflow step. This is the integer
+    core of the ggml Q4_0 x Q8_0 dot-product: ONLY the packed-i4 weight operand
+    is nibble-decoded; the two int8 activation operands stay plain. The op is
+    nested directly under tcrv_rvv.with_vl, consumes ONE typed i8 LMUL mf4
+    !tcrv_rvv.vector packed-i4 weight operand (each i8 packing two offset-binary
+    4-bit nibbles), TWO typed i8 LMUL mf4 !tcrv_rvv.vector PLAIN-int8 activation
+    operands (the q8 low half paired with the low nibbles and the q8 high half
+    paired with the high nibbles), and the active !tcrv_rvv.vl token. It carries
+    an explicit operation kind and product relation, and produces ONE widened
+    i16 LMUL mf2 !tcrv_rvv.vector result holding the sum of the low-nibble and
+    high-nibble asymmetric widening products.
+
+    This op makes the offset-binary nibble decode + ONE-SIDED unpack +
+    asymmetric i8(decoded) x i8(plain) product + low/high <-> q8 half split
+    pairing first-class STRUCTURE in the typed body, distinct from the SYMMETRIC
+    two's-complement tcrv_rvv.packed_i4_nibble_unpack_product (which unpacks
+    BOTH operands). The offset-binary decode is ggml's `(nibble - 8)` mapping
+    (0 -> -8, 8 -> 0, 15 -> +7), realized as an xor-0x88 bias that turns each
+    offset-binary nibble into a two's-complement 4-bit lane, then the existing
+    low/high sign-extend. The packed weight low nibble pairs with the FIRST
+    plain-i8 activation operand and the high nibble with the SECOND; the int8
+    activations are NOT nibble-unpacked. The fixed intrinsic chain (vxor.vx 0x88
+    over i8mf4; vsll/vsra sign-extend over i8mf4; vwmul over i16mf2 against the
+    plain low activation; vwmacc over i16mf2 against the plain high activation)
+    is the op's lowering, NOT a candidate-mirror string read in the conversion.
+    For the bounded Stage 4 surface kind is limited to
+    signed_packed_i4_offset_binary_x_i8_product and product_relation to
+    "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2". Source/result dtype/config, VL,
+    the offset-binary decode and the one-sided unpack structure are structural
+    in the selected RVV body. Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand-packing mirror
+    strings, q8/q4 names, and common EmitC/export code must not infer or choose
+    asymmetric offset-binary packed-i4 x i8 product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight,
+    AnyType:$activation_low,
+    AnyType:$activation_high,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight `,` $activation_low `,` $activation_high `,` $vl attr-dict `:` "
+    "type($weight) `,` type($activation_low) `,` type($activation_high) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

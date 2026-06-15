@@ -705,6 +705,79 @@ mlir::LogicalResult PackedI4NibbleUnpackProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.packed_i4_offset_binary_x_i8_product keeps source/"
+                "result SEW/LMUL/policy on typed vector values and "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "signed_packed_i4_offset_binary_x_i8_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"signed_packed_i4_offset_binary_x_i8_product\" for the bounded "
+              "Stage 4 asymmetric offset-binary packed-i4 x plain-i8 "
+              "widening-product typed surface";
+  if (getProductRelation() != "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2")
+    return emitOpError()
+           << "requires product_relation "
+              "\"offset-binary-i4mf4-x-i8mf4x2-to-i16mf2\" for the bounded "
+              "asymmetric offset-binary packed-i4 x plain-i8 widening-product "
+              "route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one i8 LMUL mf4 packed-i4 weight operand, two i8 LMUL "
+              "mf4 plain-int8 activation operands, one !tcrv_rvv.vl operand, "
+              "and one i16 LMUL mf2 result";
+  if (!isGenericRVVVectorSignedI8MF4(getWeight().getType()))
+    return emitOpError()
+           << "requires the packed-i4 weight source vector to have type "
+              "!tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric offset-binary "
+              "packed-i4 x plain-i8 widening-product route";
+  if (!isGenericRVVVectorSignedI8MF4(getActivationLow().getType()) ||
+      !isGenericRVVVectorSignedI8MF4(getActivationHigh().getType()))
+    return emitOpError()
+           << "requires the low and high plain-int8 activation source vectors "
+              "to have type !tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric "
+              "offset-binary packed-i4 x plain-i8 widening-product route";
+  if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i16, \"mf2\"> for the asymmetric offset-binary "
+              "packed-i4 x plain-i8 widening-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for asymmetric offset-binary packed-i4 x plain-i8 "
+              "widening product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

@@ -1267,6 +1267,11 @@ private:
           if (mlir::failed(emitWideningProduct(rewriter, loc, wproduct,
                                                valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto offsetBinaryProduct = llvm::dyn_cast<
+                       tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
+          if (mlir::failed(emitPackedI4OffsetBinaryXI8Product(
+                  rewriter, loc, offsetBinaryProduct, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto wmacc =
                        llvm::dyn_cast<tcrvrvv::WideningMAccOp>(op)) {
           if (mlir::failed(
@@ -3330,14 +3335,20 @@ private:
     // widening-product-reduce family chains the reduction directly onto the
     // tcrv_rvv.widening_product result (load -> load -> vwmul -> vwredsum), so a
     // widening_product input is the OTHER convertible producer: it is a real
-    // typed vector dataflow value, not a broadcast/splat scalar seed.
+    // typed vector dataflow value, not a broadcast/splat scalar seed. The
+    // asymmetric offset-binary packed-i4 x plain-i8 product (ggml Q4_0 x Q8_0
+    // integer core) chains the SAME way (load x3 -> one-sided decode + vwmul/
+    // vwmacc -> vwredsum), so its i16mf2 result is likewise a real typed vector
+    // producer for the reduction.
     {
       mlir::Operation *inputDef = reduce.getInput().getDefiningOp();
       if (!inputDef ||
-          !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp>(inputDef))
+          !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp,
+                     tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(inputDef))
         return rewriter.notifyMatchFailure(
-            reduce, "standalone reduce input must be an explicit vector load or "
-                    "widening_product result");
+            reduce, "standalone reduce input must be an explicit vector load, "
+                    "widening_product, or packed-i4 offset-binary x i8 product "
+                    "result");
     }
     std::optional<llvm::StringRef> mnemonic =
         standaloneReductionMnemonic(reduce.getKind());
@@ -3643,6 +3654,114 @@ private:
             .create<emitc::CallOpaqueOp>(
                 loc, mlir::TypeRange{resultEmitC}, maccCallee,
                 mlir::ValueRange{product, lhsHigh, rhsHigh, bodyVL})
+            .getResult(0);
+    valueMap[packed.getResult()] = pairSum;
+    return mlir::success();
+  }
+
+  /// packed_i4_offset_binary_x_i8_product(%weight,%act_low,%act_high,%vl) lowers
+  /// to the ASYMMETRIC offset-binary one-sided decode + plain-i8 widening
+  /// product/accumulate chain (the integer core of ggml Q4_0 x Q8_0). ONLY the
+  /// packed-i4 weight is nibble-decoded; the two int8 activations stay plain:
+  ///   // offset-binary -> two's-complement: ggml's (nibble - 8) equals the
+  ///   // signed 4-bit value of (nibble XOR 0x8). XOR-ing both nibbles of every
+  ///   // byte with 0x88 converts each offset-binary nibble into a
+  ///   // two's-complement 4-bit lane, decoded by the existing sign-extend.
+  ///   v8  w_xor = vxor_vx_i8mf4(weight, 0x88, vl);    // (cast to int literal)
+  ///   // low nibble: shift the i4 into the high nibble (vsll 4), arithmetic
+  ///   // shift back (vsra 4) to sign-extend it into a plain [-8,7] i8 lane.
+  ///   v8  w_low_sh = vsll_vx_i8mf4(w_xor, 4, vl);
+  ///   v8  v0       = vsra_vx_i8mf4(w_low_sh, 4, vl);   // decoded low nibble i8
+  ///   // high nibble: arithmetic-shift sign-extends it in place.
+  ///   v8  v1 = vsra_vx_i8mf4(w_xor, 4, vl);            // decoded high nibble i8
+  ///   // asymmetric widening product: i8(decoded) x i8(plain activation) -> i16.
+  ///   v16 product = vwmul_vv_i16mf2(v0, act_low, vl);  // low half  <-> q8[0..15]
+  ///   v16 product = vwmacc_vv_i16mf2(product, v1, act_high, vl); // high half
+  /// The plain int8 activations are NOT shifted and there is NO vsra(product,8)
+  /// rescale -- v0/v1 are real signed i8 lanes, distinct from the symmetric
+  /// packed-i4 path which shifts BOTH operands and rescales the product. The op
+  /// carries the offset-binary one-sided unpack STRUCTURE typed; the conversion
+  /// never reads operand_form / mirror strings to choose it.
+  mlir::LogicalResult emitPackedI4OffsetBinaryXI8Product(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::PackedI4OffsetBinaryXI8ProductOp packed,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(packed.getResult().getType());
+    auto srcVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(packed.getWeight().getType());
+    if (!resultVecType || !srcVecType)
+      return rewriter.notifyMatchFailure(
+          packed, "offset-binary packed-i4 x i8 product types not vectors");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcEmitC = convertVectorTypeToEmitC(srcVecType);
+    if (!resultEmitC || !srcEmitC)
+      return rewriter.notifyMatchFailure(
+          packed, "offset-binary packed-i4 x i8 product type not convertible");
+    mlir::Value weight = valueMap.lookup(packed.getWeight());
+    mlir::Value actLow = valueMap.lookup(packed.getActivationLow());
+    mlir::Value actHigh = valueMap.lookup(packed.getActivationHigh());
+    if (!weight || !actLow || !actHigh)
+      return rewriter.notifyMatchFailure(
+          packed, "offset-binary packed-i4 x i8 product operand unmapped");
+    llvm::StringRef opName = packed.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = packed.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef srcDtype = vectorDType(srcVecType);
+    llvm::StringRef srcLmul = srcVecType.getLmul();
+    unsigned resSEW = vectorElementWidth(resultVecType);
+    llvm::StringRef resLmul = resultVecType.getLmul();
+    llvm::StringRef resDtype = vectorDType(resultVecType);
+    mlir::Type i32Type = emitc::OpaqueType::get(rewriter.getContext(), "int");
+    mlir::Type u8Type = emitc::OpaqueType::get(rewriter.getContext(), "uint8_t");
+
+    // Scalar-immediate intrinsics spell __riscv_<mnemonic>_<dtype><lmul> (the
+    // `vx` form is part of the mnemonic), as in the symmetric packed-i4 emitter.
+    auto immCallee = [](llvm::StringRef mnemonic, llvm::StringRef dtype,
+                        llvm::StringRef lmul) -> std::string {
+      return ("__riscv_" + mnemonic + "_" + dtype + lmul).str();
+    };
+    auto immOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                     llvm::StringRef amount,
+                     mlir::Type amtType) -> mlir::Value {
+      std::string callee = immCallee(mnemonic, srcDtype, srcLmul);
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+      mlir::Value amt =
+          rewriter.create<emitc::LiteralOp>(loc, amtType, amount.str());
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcEmitC}, callee,
+                                       mlir::ValueRange{src, amt, bodyVL})
+          .getResult(0);
+    };
+
+    // Offset-binary -> two's-complement: xor both nibbles of every packed byte
+    // with 0x88 (the vxor.vx scalar is a signed int).
+    mlir::Value weightXor = immOp("vxor_vx", weight, "0x88", i32Type);
+    // Low nibble: shift into the high nibble then arithmetic-shift back to
+    // sign-extend it into a plain signed [-8,7] i8 lane.
+    mlir::Value weightLowShifted = immOp("vsll_vx", weightXor, "4", u8Type);
+    mlir::Value v0 = immOp("vsra_vx", weightLowShifted, "4", u8Type);
+    // High nibble: arithmetic-shift sign-extends it in place.
+    mlir::Value v1 = immOp("vsra_vx", weightXor, "4", u8Type);
+
+    // Asymmetric widening product: decoded i8 weight x plain i8 activation.
+    std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
+    mlir::Value lowProduct =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
+                                         mulCallee,
+                                         mlir::ValueRange{v0, actLow, bodyVL})
+            .getResult(0);
+    // vwmacc accumulates the high-nibble x high-activation widening product.
+    std::string maccCallee =
+        riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, maccCallee));
+    mlir::Value pairSum =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{resultEmitC}, maccCallee,
+                mlir::ValueRange{lowProduct, v1, actHigh, bodyVL})
             .getResult(0);
     valueMap[packed.getResult()] = pairSum;
     return mlir::success();

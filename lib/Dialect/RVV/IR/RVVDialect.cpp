@@ -3408,6 +3408,22 @@ bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
       hasProductReductionUse = true;
       continue;
     }
+    // The asymmetric offset-binary packed-i4 x plain-i8 product (ggml Q4_0 x
+    // Q8_0 integer core) is also a structural sibling over the same i8mf4
+    // source / i16mf2 result chain: a source load that feeds ONLY this product
+    // as the packed weight or one of the two plain activation operands is a
+    // valid bounded product-reduction source load.
+    if (auto offsetBinary =
+            llvm::dyn_cast<PackedI4OffsetBinaryXI8ProductOp>(user)) {
+      if (offsetBinary->getParentOp() != withVL.getOperation() ||
+          offsetBinary.getVl() != load.getVl() ||
+          (offsetBinary.getWeight() != load.getLoaded() &&
+           offsetBinary.getActivationLow() != load.getLoaded() &&
+           offsetBinary.getActivationHigh() != load.getLoaded()))
+        return false;
+      hasProductReductionUse = true;
+      continue;
+    }
     auto product = llvm::dyn_cast<WideningProductOp>(user);
     if (!product || product->getParentOp() != withVL.getOperation() ||
         product.getVl() != load.getVl() ||

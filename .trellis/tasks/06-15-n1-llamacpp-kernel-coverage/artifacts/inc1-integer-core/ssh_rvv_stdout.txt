@@ -1,0 +1,4 @@
+=== BUILD EXIT: 0 ===
+INC-1 byte-exact check: 4005 blocks checked, 0 failures
+RESULT: PASS (sumi exactly equal vs ggml _generic for all blocks)
+=== RUN EXIT: 0 ===
