@@ -1,0 +1,40 @@
+########## VALIDATE (1000 random arrays) FLAG=default [clang: <none>] ##########
+NEGATIVE CONTROL PASS: a 1-bit scale flip changed *s, ours still tracks ggml on the perturbed data, and the bitwise check REPORTS MISMATCH on divergent inputs (the equality check is non-vacuous).
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+
+########## STRESS (5859 adversarial cases) FLAG=default [clang: <none>] ##########
+NEGATIVE CONTROL PASS: flip changed *s, ours still tracks ggml on perturbed data, bitwise check REPORTS MISMATCH (non-vacuous).
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+
+########## VALIDATE (1000 random arrays) FLAG=on [clang: -ffp-contract=on] ##########
+NEGATIVE CONTROL PASS: a 1-bit scale flip changed *s, ours still tracks ggml on the perturbed data, and the bitwise check REPORTS MISMATCH on divergent inputs (the equality check is non-vacuous).
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+
+########## STRESS (5859 adversarial cases) FLAG=on [clang: -ffp-contract=on] ##########
+NEGATIVE CONTROL PASS: flip changed *s, ours still tracks ggml on perturbed data, bitwise check REPORTS MISMATCH (non-vacuous).
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+
+########## VALIDATE (1000 random arrays) FLAG=off [clang: -ffp-contract=off] ##########
+NEGATIVE CONTROL PASS: a 1-bit scale flip changed *s, ours still tracks ggml on the perturbed data, and the bitwise check REPORTS MISMATCH on divergent inputs (the equality check is non-vacuous).
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+
+########## STRESS (5859 adversarial cases) FLAG=off [clang: -ffp-contract=off] ##########
+NEGATIVE CONTROL PASS: flip changed *s, ours still tracks ggml on perturbed data, bitwise check REPORTS MISMATCH (non-vacuous).
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+
+########## VALIDATE (1000 random arrays) FLAG=fast [clang: -ffp-contract=fast] ##########
+NEGATIVE CONTROL PASS: a 1-bit scale flip changed *s, ours still tracks ggml on the perturbed data, and the bitwise check REPORTS MISMATCH on divergent inputs (the equality check is non-vacuous).
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+
+########## STRESS (5859 adversarial cases) FLAG=fast [clang: -ffp-contract=fast] ##########
+NEGATIVE CONTROL PASS: flip changed *s, ours still tracks ggml on perturbed data, bitwise check REPORTS MISMATCH (non-vacuous).
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+

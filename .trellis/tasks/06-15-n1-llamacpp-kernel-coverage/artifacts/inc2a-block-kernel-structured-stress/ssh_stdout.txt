@@ -1,0 +1,43 @@
+=== compile OK (-ffp-contract=off, -march=rv64gcv_zfh_zfhmin) ===
+=== INC-2a adversarial numeric edge-stress ===
+EVIDENCE [bign_large_pos_~1.4e17] n=32000: ours=0x5bf9c181 (1.40600058e+17) [real_eq=1 generic_eq=1]
+EVIDENCE [bign_large_neg] n=32000: ours=0xdbf7cdb1 (-1.39500959e+17) [real_eq=1 generic_eq=1]
+EVIDENCE [bign_sign_alternating_cancellation] n=32000: ours=0x00000000 (0) [real_eq=1 generic_eq=1]
+EVIDENCE [bign_mid_accumulation] n=32000: ours=0xd9af9cad (-6.17879847e+15) [real_eq=1 generic_eq=1]
+EVIDENCE [lane_ramp_distinct_per_lane] n=32: ours=0x422c0000 (43) [real_eq=1 generic_eq=1]
+EVIDENCE [lane_ramp_distinct_per_lane] n=64: ours=0x42346548 (45.0989075) [real_eq=1 generic_eq=1]
+EVIDENCE [lane_ramp_distinct_per_lane] n=96: ours=0x41f871e8 (31.0556183) [real_eq=1 generic_eq=1]
+EVIDENCE [lane_ramp_distinct_per_lane] n=320: ours=0xc38461c5 (-264.763824) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0001_y=0x0001] n=32: ours=0xab700000 (-8.52651283e-13) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0001_y=0x03ff] n=32: ours=0xb06fc400 (-8.72262262e-10) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0001_y=0x0400] n=32: ours=0xb0700000 (-8.73114914e-10) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0001_y=0x0002] n=32: ours=0xabf00000 (-1.70530257e-12) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0001_y=0x0010] n=32: ours=0xad700000 (-1.36424205e-11) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x03ff_y=0x0001] n=32: ours=0xb06fc400 (-8.72262262e-10) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x03ff_y=0x03ff] n=32: ours=0xb56f880f (-8.92324294e-07) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x03ff_y=0x0400] n=32: ours=0xb56fc400 (-8.93196557e-07) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x03ff_y=0x0002] n=32: ours=0xb0efc400 (-1.74452452e-09) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x03ff_y=0x0010] n=32: ours=0xb26fc400 (-1.39561962e-08) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0400_y=0x0001] n=32: ours=0xb0700000 (-8.73114914e-10) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0400_y=0x03ff] n=32: ours=0xb56fc400 (-8.93196557e-07) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0400_y=0x0400] n=32: ours=0xb5700000 (-8.94069672e-07) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0400_y=0x0002] n=32: ours=0xb0f00000 (-1.74622983e-09) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0400_y=0x0010] n=32: ours=0xb2700000 (-1.39698386e-08) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0002_y=0x0001] n=32: ours=0xabf00000 (-1.70530257e-12) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0002_y=0x03ff] n=32: ours=0xb0efc400 (-1.74452452e-09) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0002_y=0x0400] n=32: ours=0xb0f00000 (-1.74622983e-09) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0002_y=0x0002] n=32: ours=0xac700000 (-3.41060513e-12) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0002_y=0x0010] n=32: ours=0xadf00000 (-2.72848411e-11) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0010_y=0x0001] n=32: ours=0xad700000 (-1.36424205e-11) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0010_y=0x03ff] n=32: ours=0xb26fc400 (-1.39561962e-08) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0010_y=0x0400] n=32: ours=0xb2700000 (-1.39698386e-08) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0010_y=0x0002] n=32: ours=0xadf00000 (-2.72848411e-11) [real_eq=1 generic_eq=1]
+EVIDENCE [tinyout_x=0x0010_y=0x0010] n=32: ours=0xaf700000 (-2.18278728e-10) [real_eq=1 generic_eq=1]
+
+--- negative control (n=320 structured) ---
+clean=-64000 pert_ours=-51200 pert_ref=-51200
+NEGATIVE CONTROL PASS: flip changed *s, ours still tracks ggml on perturbed data, bitwise check REPORTS MISMATCH (non-vacuous).
+
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+=== run exit=0 ===

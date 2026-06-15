@@ -3869,6 +3869,68 @@ def PackedI4OffsetBinaryXI8ProductOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ40Q80Op
+    : TCRVRVV_Op<"q4_0_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml Q4_0 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q4_0_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step: the AoS QK=32 block
+    loop, the per-block dual fp16 scale, the fp32 scalar accumulation, and the
+    `*s` scalar store. It builds on the INC-1 integer core
+    (tcrv_rvv.packed_i4_offset_binary_x_i8_product) by composing that core
+    STRUCTURE inside a block loop. The op is nested directly under
+    tcrv_rvv.with_vl and consumes FOUR runtime ABI value operands -- the q4_0
+    weight base pointer (vx), the q8_0 activation base pointer (vy), the fp32
+    output pointer (s), the runtime element count (n) -- plus the active
+    !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token whose
+    lowering writes the single fp32 reduction result through the output pointer.
+
+    The op makes the block-quantized dot-product STRUCTURE first-class in the
+    typed body. The structural facts -- QK=32, the AoS block strides (18 bytes
+    for block_q4_0, 34 bytes for block_q8_0), the quant payload byte offset (+2),
+    the q8 high-half byte offset (+16), and the per-block dual fp16 scale model
+    (d_x . d_y) -- are carried as typed integer/string attributes (I4 mirror
+    only). The fixed emission -- an outer emitc.for block loop over nb = n / QK,
+    per-block address arithmetic (vx + ib*18, vy + ib*34) via emitc.add/emitc.mul
+    nodes, the two scalar fp16->fp32 reads via emitc.call_opaque (the one
+    sanctioned opaque piece, exactly as INC-1 emits its intrinsics), an inner
+    strip loop that reuses INC-1's offset-binary asymmetric i4xi8 decode/product
+    chain (vxor.vx 0x88 -> vsll/vsra -> vwmul/vwmacc against the plain q8 halves)
+    + vwredsum into a per-block i32 scalar, and the left-associative fp32
+    accumulate `sumf = sumf + ((float)sumi * d_x) * d_y` (ggml's exact order) --
+    is the op's lowering, NOT a candidate-mirror string read in the conversion.
+    For the bounded surface kind is limited to "ggml_q4_0_q8_0_block_dot" and
+    scale_model to "dual-fp16-per-block-d_x.d_y". Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/q4 names, and common EmitC/export code must not infer or
+    choose block-quantized dot-product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_high_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

@@ -1,0 +1,25 @@
+=== FLAG-SENSITIVITY EXPERIMENT (documents that -ffp-contract=off is load-bearing) ===
+Same kernel.cpp + inc2a_stress.cpp, varying ONLY -ffp-contract. VERDICT = the off run.
+Board: ssh rvv, -march=rv64gcv_zfh_zfhmin, clang++ -O2.
+
+--- -ffp-contract=off  (CONTRACTUAL / VERDICT) ---
+
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+
+--- -ffp-contract=fast (also passes: both sides fuse identically) ---
+
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+
+--- -ffp-contract=on   (1036 ULP-level mismatches: the single-statement refs
+    sumf += sumi*dx*dy fuse into an FMA; our split-statement kernel
+    (v49=v48*v18; v51=v50+v49) does NOT fuse across assignments; the two ggml
+    refs STILL agree bit-for-bit with EACH OTHER => flag artifact, NOT a defect) ---
+FAIL [scale_x=0x03ff_y=0x7bff] n=96: ours=0xc69b05cc(-19842.8984) real=0xc69b05cd(-19842.9004) generic=0xc69b05cd(-19842.9004) real_eq=0 generic_eq=0
+FAIL [scale_x=0x7bff_y=0x03ff] n=96: ours=0xc69b05cc(-19842.8984) real=0xc69b05cd(-19842.9004) generic=0xc69b05cd(-19842.9004) real_eq=0 generic_eq=0
+FAIL [mixed_rep1] n=64: ours=0x42fb27b2(125.57753) real=0x42fb27b1(125.577522) generic=0x42fb27b1(125.577522) real_eq=0 generic_eq=0
+    ...
+
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 1036 FAILURES ===
+RESULT: FAIL
