@@ -196,6 +196,16 @@ mlir::LogicalResult StoreOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
+  // Deferred-wide dot-reduce store (2nd-family N3 schedule): the stored i32m1
+  // result comes from the trailing standalone_reduce whose input is the i32m8
+  // tcrv_rvv.deferred_accumulate. The i32m1 result type is structurally fixed
+  // by the reduce op; the enclosing with_vl is the dot-reduce strip config
+  // (SEW16/m4), so the standalone-reduction SEW-agreement pin (which would
+  // require the stored width to equal the strip SEW) does NOT apply. PARALLEL
+  // branch on the structural marker; the narrow i32m1-store path is unchanged.
+  if (auto reduce = getValue().getDefiningOp<StandaloneReduceOp>())
+    if (reduce.getInput().getDefiningOp<DeferredAccumulateOp>())
+      return mlir::success();
   if (getValue().getDefiningOp<StandaloneReduceOp>() ||
       getValue().getDefiningOp<MaskedStandaloneReduceOp>())
     return verifyStandaloneReductionScalarResultVectorForWithVL(

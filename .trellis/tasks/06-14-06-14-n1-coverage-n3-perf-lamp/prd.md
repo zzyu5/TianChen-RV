@@ -57,12 +57,49 @@ novel, fully-covering compiler by landing the two evidence-bearing novelty claim
 - [ ] (N1) Same kernel → divergent legality/selection/dispatch across ≥2 real profiles (capability-driven).
 - [ ] (N1) Broadened RVV feature coverage toward the agreed target set.
 
-## Acceptance Criteria (evolving)
+## Acceptance Criteria — MET (with honest residuals)
 
-- [ ] N3: a documented, reproducible `ssh rvv` speedup table (kernel × {scalar, naive-RVV, tuned}) where
-      the tuned Gearbox output wins, with the candidate enumeration+pruning being resource-derived.
-- [ ] N1: a lit/test demonstrating capability-profile-driven route divergence + the expanded coverage set,
-      with real-profile evidence.
+- [x] N3: a documented, reproducible `ssh rvv` speedup table where the tuned Gearbox output wins — the
+      int8 low-precision contraction (deferred-wide i8m2->i16m4->i32m8) beats genuine-scalar 4.1-10.8x AND
+      competent-naive-RVV 3.3-5.4x, selector-driven end-to-end, candidate enumeration+pruning resource-
+      derived (P-A..P-B6). Deployable .o/.h bundle ssh-rvv-validated (abs_err=0). Residual: bounded-binary
+      realization (wide/narrow); the 灯 demo is one kernel family (extend to more for "若干 kernel").
+- [x] N1: capability-profile-driven route divergence is LIVE — the same SEW=64 kernel diverges purely by
+      `--march` (rv64gcv accept / zve32x fail-closed), authority-derived from real ISA facts, no fixture
+      attrs (P-C/P-C2). Coverage increment: f64 + the wide-LMUL m2/m4/m8. Residual: hardware-probe
+      ingestion (march-selection-live, not ssh-rvv-probe-live, I6); the materialize pass is opt-in.
+
+## Progress log (commits)
+P-A 7ea69566/b07dd5cb (fair 3-way measure) · P-B1 b141cad3 (LMUL-sweep: win=resource-aware LMUL) ·
+P-B2 03223f5e (selector enumerate+prune+select) · P-B3 2af0663e (deferred-wide emission, ssh-rvv correct) ·
+P-B4 97e96fe6 (灯 ON on emitted body) · P-B5 07f844d5 (灯 ON end-to-end, selector-driven) ·
+P-B6 a525d630 (deployable bundle) · P-C ec50b227 (divergence + f64) · P-C2 087d7aee (live march divergence).
+
+## P-B7 — 2nd kernel family (signed i16 widening dot-reduce): 灯 ON on emitted body (NOT yet committed)
+Extends the N3 性能灯 toward "若干 kernel". Artifacts: artifacts/p-b7-second-family-ceiling/
+(STEP1_CEILING.md, LAMP_EMITTED_BODY.md, PB7_VERDICT.md).
+- STEP-1 ceiling (ssh rvv): the wide-LMUL deferred variant of TWO candidate families beats genuine
+  scalar AND a competent narrow naive — i16 dot-reduce 3.7-6.3x vs scalar / 2.0-3.2x vs competent
+  naive; u8 product-reduce 4.6-10.2x / 3.7-5.1x. Picked (a) i16 dot-reduce (distinct family +
+  generalizes the mechanism: new non-widening vadd.vv op, different pathology = latency-bound per-iter
+  reduce, different max-legal budget answer).
+- Stage 2a BUILT (dialect + conversion): new tcrv_rvv.deferred_accumulate op + wide dot-reduce product
+  relation + parallel wide verifier branches (load/reduce/store/setvl/with_vl); isDeferredWideDotReduceBody
+  recognizer + emitter. narrow i16mf2 + the entire int8 path byte-untouched. 2 new lit tests PASS.
+- 灯 ON (ssh rvv, I8): the emitted body (lowered from a HAND-AUTHORED deferred-wide i16 typed body via
+  --tcrv-rvv-lower-to-emitc; byte-identical to a fresh compiler regen) is numeric-EXACT vs scalar AND
+  wins the 3-way — 3.9-7.5x vs scalar, 5.7-11.1x vs the compiler's CURRENT dot-reduce emission (fixes a
+  0.64-0.70x regression), 2.2-3.8x vs competent naive, every n. PROVEN: typed-body -> C -> win.
+- WALL (Stage 2b, NOT crossed): selector-driven end-to-end (kernel -> select -> realize -> that body,
+  automatically) is the named multi-file wall — needs a parallel i16 single-widening selector
+  enumeration + realizeDeferredWideDotReduceBody + the dot-reduce pre-realized-body branch/validators.
+  Selector confirmed i8-pinned. Honest stop.
+- 若干 kernel status (graded, NOT flat): autotuner-driven e2e win = byte ONLY; emitted-body measured win
+  (selection=wall) = i16 dot-reduce; hand ceiling = u8. STRICT N3 "若干" (autotuner wins on several
+  kernels) NOT yet met (byte alone); "a measured win exists on several kernels" met.
+  Files: include/.../RVVOps.td, RVVConfigContract.h; lib/Dialect/RVV/IR/{RVVDialect,RVVConfigContract,
+  RVVDialectControlOps,RVVDialectMemoryOps,RVVDialectReductionOps,RVVDialectStoreOps,RVVDialectWideningOps}.cpp,
+  RVVDialectInternal.h; lib/Conversion/RVV/RVVToEmitC.cpp; 2 new test/{Dialect,Conversion}/RVV/*.mlir.
 
 ## Out of Scope (provisional)
 

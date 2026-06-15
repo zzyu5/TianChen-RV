@@ -316,6 +316,55 @@ mlir::LogicalResult WideningProductOp::verify() {
                 "metadata for widening product";
     return mlir::success();
   }
+  // The 2nd-family (i16 dot-reduce) deferred-wide rung: i16m4 x i16m4 -> i32m8,
+  // a SINGLE widening step where the widened product already equals the i32
+  // accumulator width. Feeds a NON-widening tcrv_rvv.deferred_accumulate
+  // (vadd.vv). PARALLEL signed branch -- the byte i8m2 and narrow i8mf4 branches
+  // are unchanged.
+  const bool isWideDotReduceProduct =
+      getKind() == "signed_widening_product" &&
+      isSupportedGenericWideningProductWideDotReduceRelation(
+          getProductRelation());
+  if (isWideDotReduceProduct) {
+    if (!isGenericRVVVectorSignedI16M4(getLhs().getType()) ||
+        !isGenericRVVVectorSignedI16M4(getRhs().getType()))
+      return emitOpError()
+             << "requires lhs and rhs source vectors to have type "
+                "!tcrv_rvv.vector<i16, \"m4\"> for the deferred-wide "
+                "dot-reduce max-legal-LMUL widening-product rung";
+    if (!isGenericRVVVectorI32M8(getResult().getType()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<i32, \"m8\"> for the deferred-wide "
+                "dot-reduce max-legal-LMUL widening-product rung";
+    if (!llvm::isa<VLType>(getVl().getType()))
+      return emitOpError() << "requires runtime VL operand to have "
+                              "!tcrv_rvv.vl type";
+    auto withVL = verifyNestedDataflowOp(op);
+    if (mlir::failed(withVL))
+      return mlir::failure();
+    if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+      return mlir::failure();
+    auto expectedSEW =
+        (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+    auto expectedLMUL =
+        (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+    if (!expectedSEW || !expectedLMUL)
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+                "SEW/LMUL metadata for the deferred-wide dot-reduce product";
+    if (expectedSEW.getInt() != getRVVSEW16Bits() ||
+        expectedLMUL.getValue() != getRVVLMULM4())
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL m4 "
+                "for the deferred-wide dot-reduce max-legal-LMUL "
+                "widening-product rung";
+    if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+                "metadata for widening product";
+    return mlir::success();
+  }
   if (isUnsignedProduct) {
     if (getProductRelation() != "unsigned-u8mf4xu8mf4-to-u16mf2")
       return emitOpError()
@@ -486,6 +535,108 @@ mlir::LogicalResult WideningAccumulateOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for the deferred-wide widening accumulate";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult DeferredAccumulateOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.deferred_accumulate keeps source/result SEW/LMUL/"
+                "policy on typed vector values and setvl/with_vl, runtime "
+                "n/AVL/VL in the surrounding control-plane IR, and rejects "
+                "deleted local element_count metadata";
+
+    if (!isAllowedDeferredAccumulateAttr(attrName))
+      return emitOpError()
+             << "only accepts generic deferred accumulate attributes "
+                "'kind' and 'accumulate_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericDeferredAccumulateKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind "
+              "\"signed_deferred_accumulate_add\" for the bounded N3 "
+              "deferred-wide dot-reduce accumulate route";
+  if (!isSupportedGenericDeferredAccumulateRelation(getAccumulateRelation()))
+    return emitOpError()
+           << "currently supports only accumulate_relation "
+              "\"signed-i32m8-into-i32m8-deferred-add\" for the bounded N3 "
+              "deferred-wide dot-reduce accumulate route";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one i32 LMUL m8 widening-product operand, one "
+              "!tcrv_rvv.vl operand, and one i32 LMUL m8 vector result";
+  if (!isGenericRVVVectorI32M8(getProduct().getType()))
+    return emitOpError()
+           << "requires product operand to have type "
+              "!tcrv_rvv.vector<i32, \"m8\"> for the deferred-wide dot-reduce "
+              "accumulate route";
+  if (!isGenericRVVVectorI32M8(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i32, \"m8\"> for the deferred-wide dot-reduce "
+              "accumulate route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  // The deferred-wide dot-reduce accumulate consumes a bounded i16m4 x i16m4 ->
+  // i32m8 signed widening product (the structural marker that the body is the
+  // deferred-wide dot-reduce algorithm). This keeps emission body-determined
+  // (I5): the conversion follows op identity, not metadata.
+  auto product = getProduct().getDefiningOp<WideningProductOp>();
+  if (!product)
+    return emitOpError()
+           << "requires product operand to be produced by a bounded "
+              "tcrv_rvv.widening_product inside the selected RVV typed body";
+  if (product.getKind() != "signed_widening_product" ||
+      !isSupportedGenericWideningProductWideDotReduceRelation(
+          product.getProductRelation()))
+    return emitOpError()
+           << "requires product-producing tcrv_rvv.widening_product to use "
+              "kind \"signed_widening_product\" and product_relation "
+              "\"signed-i16m4xi16m4-to-i32m8\" for the deferred-wide dot-reduce "
+              "accumulate route";
+  if (product.getVl() != getVl())
+    return emitOpError()
+           << "requires product-producing tcrv_rvv.widening_product to consume "
+              "the same !tcrv_rvv.vl token as tcrv_rvv.deferred_accumulate";
+  if (product->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires product-producing tcrv_rvv.widening_product to be in "
+              "the same tcrv_rvv.with_vl body as tcrv_rvv.deferred_accumulate";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW/LMUL "
+              "metadata for the deferred-wide dot-reduce accumulate";
+  if (expectedSEW.getInt() != getRVVSEW16Bits() ||
+      expectedLMUL.getValue() != getRVVLMULM4())
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL m4 "
+              "for the deferred-wide dot-reduce max-legal-LMUL accumulate route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the deferred-wide dot-reduce accumulate";
 
   return mlir::success();
 }

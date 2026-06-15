@@ -1,0 +1,13 @@
+COMPILE_OK
+n=0 emitted=-137 reference=-137 OK
+n=1 emitted=-2097 reference=-2097 OK
+n=7 emitted=2056 reference=2056 OK
+n=31 emitted=1320 reference=1320 OK
+n=257 emitted=-50381 reference=-50381 OK
+n=256 emitted=-39182 reference=-39182 OK
+n=1024 emitted=325816 reference=325816 OK
+n=4096 emitted=-519741 reference=-519741 OK
+n=16384 emitted=-503356 reference=-503356 OK
+n=65536 emitted=-3062020 reference=-3062020 OK
+DEFERRED_WIDE_DOT_REDUCE_ALL_PASS
+EXIT=0

@@ -90,6 +90,8 @@ void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
+                                           llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);

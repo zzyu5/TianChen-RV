@@ -198,12 +198,15 @@ mlir::LogicalResult SetVLOp::verify() {
       // The deferred-wide max-legal-LMUL schedule (N3) strip config (SEW8 m2) is
       // a parallel admitted config; it does not loosen the first-slice set.
       !isRVVDeferredWideStripConfig(static_cast<std::int64_t>(getSew()),
-                                    getLmul()))
+                                    getLmul()) &&
+      // The 2nd-family (i16 dot-reduce) deferred-wide strip config (SEW16 m4).
+      !isRVVDeferredWideDotReduceStripConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
-              "\"m1\" or \"m2\", or the deferred-wide SEW8 LMUL \"m2\" strip "
-              "config";
+              "\"m1\" or \"m2\", or a deferred-wide strip config (SEW8 LMUL "
+              "\"m2\" or SEW16 LMUL \"m4\")";
 
   if (!getPolicy())
     return emitOpError()
@@ -257,12 +260,13 @@ mlir::LogicalResult WithVLOp::verify() {
   auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (sew && lmul &&
       !isRVVFirstSliceDataflowConfig(sew.getInt(), lmul.getValue()) &&
-      !isRVVDeferredWideStripConfig(sew.getInt(), lmul.getValue()))
+      !isRVVDeferredWideStripConfig(sew.getInt(), lmul.getValue()) &&
+      !isRVVDeferredWideDotReduceStripConfig(sew.getInt(), lmul.getValue()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
-              "\"m1\" or \"m2\", or the deferred-wide SEW8 LMUL \"m2\" strip "
-              "config";
+              "\"m1\" or \"m2\", or a deferred-wide strip config (SEW8 LMUL "
+              "\"m2\" or SEW16 LMUL \"m4\")";
   if (sew && !lmul)
     return emitOpError()
            << "requires optional 'lmul' metadata when optional 'sew' "

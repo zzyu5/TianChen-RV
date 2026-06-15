@@ -3713,6 +3713,59 @@ def WideningAccumulateOp : TCRVRVV_Op<"widening_accumulate",
   let hasVerifier = 1;
 }
 
+def DeferredAccumulateOp : TCRVRVV_Op<"deferred_accumulate",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV deferred wide-LMUL NON-widening accumulate dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV DEFERRED non-widening accumulate
+    dataflow step for the 2nd kernel family (signed i16 widening dot-reduce): the
+    per-iteration `vadd.vv` that adds an i32 LMUL m8 widened product into a
+    loop-carried i32 LMUL m8 vector accumulator WITHOUT reducing to a scalar.
+
+    Unlike tcrv_rvv.widening_accumulate (the byte kernel's i16m4 -> i32m8
+    WIDENING vwadd.wv), here the product is ALREADY i32m8 -- the i16 dot-reduce
+    widens once (i16m4 x i16m4 -> i32m8 in the product) so the deferred
+    accumulate is a SAME-WIDTH vadd.vv, not a widening accumulate. This op is the
+    structurally-distinct algorithm the N3 resource-aware max-legal-LMUL Gearbox
+    schedule selects for the dot-reduce family (the measured ssh-rvv winner
+    dot_wide_deferred): an i16m4 strip-load -> i32m8 widening product -> i32m8
+    DEFERRED vector accumulate (vadd.vv) per iteration, then ONE trailing vredsum
+    + scalar epilogue after the loop -- replacing the narrow per-iteration
+    vredsum-into-scalar dot-reduce body.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes the i32 LMUL m8
+    widening product and the active !tcrv_rvv.vl token, and produces ONE i32
+    LMUL m8 !tcrv_rvv.vector result. The loop-carried i32m8 accumulator is
+    zero-seeded at its own VLMAX before the loop and threaded across iterations
+    by the conversion; the acc[0] runtime seed is added as a SCALAR after the
+    single trailing reduction. This makes the deferred accumulate the FIRST-CLASS
+    structural marker (I5): emission is determined by op identity (in-loop
+    vadd.vv) and the explicit i32m8 -> i32m8 type relation, never inferred from
+    candidate-mirror metadata.
+
+    For the bounded N3 deferred-wide dot-reduce surface kind is limited to
+    "signed_deferred_accumulate_add" and accumulate_relation to
+    "signed-i32m8-into-i32m8-deferred-add". Source/result dtype/config, VL, and
+    the deferred-accumulate structure are structural in the selected RVV body.
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    deferred non-widening accumulate semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$product,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$accumulate_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$product `,` $vl attr-dict `:` type($product) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def PackedI4NibbleUnpackProductOp
     : TCRVRVV_Op<"packed_i4_nibble_unpack_product",
     [TCRVEmitCLowerableOpInterface]> {

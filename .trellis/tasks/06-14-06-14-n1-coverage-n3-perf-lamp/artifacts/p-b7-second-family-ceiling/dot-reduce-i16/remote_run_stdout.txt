@@ -1,0 +1,38 @@
+CONFIG family=signed-i16-widening-dot-reduce variants=genuine-scalar,per-iter-reduce,narrow-deferred,wide-deferred warmups=3 repeats=11 iters=16 timing=clock_gettime(MONOTONIC_RAW)
+CORRECTNESS n=257 ok oracle=-50381
+SUMMARY variant=genuine-scalar n=257 best_per_iter_ns=598.750
+SUMMARY variant=per-iter-reduce n=257 best_per_iter_ns=930.000
+SUMMARY variant=narrow-deferred n=257 best_per_iter_ns=430.000
+SUMMARY variant=wide-deferred n=257 best_per_iter_ns=151.250
+RATIO n=257 wide_vs_scalar=3.958678 wide_vs_periter=6.148760 wide_vs_narrow=2.842975 narrow_vs_scalar=1.392442 periter_vs_scalar=0.643817
+CORRECTNESS n=256 ok oracle=-39182
+SUMMARY variant=genuine-scalar n=256 best_per_iter_ns=595.000
+SUMMARY variant=per-iter-reduce n=256 best_per_iter_ns=868.750
+SUMMARY variant=narrow-deferred n=256 best_per_iter_ns=323.750
+SUMMARY variant=wide-deferred n=256 best_per_iter_ns=112.500
+RATIO n=256 wide_vs_scalar=5.288889 wide_vs_periter=7.722222 wide_vs_narrow=2.877778 narrow_vs_scalar=1.837838 periter_vs_scalar=0.684892
+CORRECTNESS n=1024 ok oracle=325816
+SUMMARY variant=genuine-scalar n=1024 best_per_iter_ns=2302.500
+SUMMARY variant=per-iter-reduce n=1024 best_per_iter_ns=3400.000
+SUMMARY variant=narrow-deferred n=1024 best_per_iter_ns=1177.500
+SUMMARY variant=wide-deferred n=1024 best_per_iter_ns=386.250
+RATIO n=1024 wide_vs_scalar=5.961165 wide_vs_periter=8.802589 wide_vs_narrow=3.048544 narrow_vs_scalar=1.955414 periter_vs_scalar=0.677206
+CORRECTNESS n=4096 ok oracle=-519741
+SUMMARY variant=genuine-scalar n=4096 best_per_iter_ns=9156.250
+SUMMARY variant=per-iter-reduce n=4096 best_per_iter_ns=13531.250
+SUMMARY variant=narrow-deferred n=4096 best_per_iter_ns=4617.500
+SUMMARY variant=wide-deferred n=4096 best_per_iter_ns=1483.750
+RATIO n=4096 wide_vs_scalar=6.171019 wide_vs_periter=9.119629 wide_vs_narrow=3.112047 narrow_vs_scalar=1.982945 periter_vs_scalar=0.676674
+CORRECTNESS n=16384 ok oracle=-503356
+SUMMARY variant=genuine-scalar n=16384 best_per_iter_ns=36823.750
+SUMMARY variant=per-iter-reduce n=16384 best_per_iter_ns=54053.750
+SUMMARY variant=narrow-deferred n=16384 best_per_iter_ns=18433.750
+SUMMARY variant=wide-deferred n=16384 best_per_iter_ns=7810.000
+RATIO n=16384 wide_vs_scalar=4.714949 wide_vs_periter=6.921095 wide_vs_narrow=2.360275 narrow_vs_scalar=1.997627 periter_vs_scalar=0.681243
+CORRECTNESS n=65536 ok oracle=-3062020
+SUMMARY variant=genuine-scalar n=65536 best_per_iter_ns=146810.000
+SUMMARY variant=per-iter-reduce n=65536 best_per_iter_ns=216103.750
+SUMMARY variant=narrow-deferred n=65536 best_per_iter_ns=81551.250
+SUMMARY variant=wide-deferred n=65536 best_per_iter_ns=39860.000
+RATIO n=65536 wide_vs_scalar=3.683141 wide_vs_periter=5.421569 wide_vs_narrow=2.045942 narrow_vs_scalar=1.800218 periter_vs_scalar=0.679350
+PASS dot-reduce-i16 ceiling sink=-2755786624

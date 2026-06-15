@@ -483,6 +483,24 @@ bool isSupportedGenericWideningAccumulateRelation(llvm::StringRef relation);
 bool isSupportedGenericWideningProductWideDeferredRelation(
     llvm::StringRef relation);
 
+// True iff the relation is the deferred-wide max-legal-LMUL dot-reduce
+// widening-product rung (i16m4 x i16m4 -> i32m8, a SINGLE widening step where
+// the widened product type already equals the i32 accumulator type). This is
+// the 2nd kernel family (signed i16 widening dot-reduce) analogue of the byte
+// kernel's i8m2 x i8m2 -> i16m4 rung; it feeds a NON-widening deferred
+// accumulate (vadd.vv), not the byte path's widening vwadd.wv.
+bool isSupportedGenericWideningProductWideDotReduceRelation(
+    llvm::StringRef relation);
+
+// The deferred-wide NON-widening accumulate op (i32m8 + i32m8 -> i32m8 via
+// vadd.vv) for the i16 dot-reduce family carries only 'kind' and
+// 'accumulate_relation'.
+bool isAllowedDeferredAccumulateAttr(llvm::StringRef name);
+
+bool isSupportedGenericDeferredAccumulateKind(llvm::StringRef kind);
+
+bool isSupportedGenericDeferredAccumulateRelation(llvm::StringRef relation);
+
 bool isAllowedMaskedWideningDotReduceAttr(llvm::StringRef name);
 
 bool isAllowedWideningConvertAttr(llvm::StringRef name);
@@ -1289,6 +1307,11 @@ bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL);
 // strip load (with_vl SEW8 LMUL m2) feeding a signed-i8m2xi8m2-to-i16m4 widening
 // product. A PARALLEL matcher for the wide deferred path only.
 bool isBoundedDeferredWideProductSourceLoad(LoadOp load, WithVLOp withVL);
+
+// The 2nd-family (i16 dot-reduce) deferred-wide source load: an i16 LMUL m4
+// strip load (with_vl SEW16 LMUL m4) feeding a signed-i16m4xi16m4-to-i32m8
+// widening product. A PARALLEL matcher for the wide dot-reduce deferred path.
+bool isBoundedDeferredWideDotReduceSourceLoad(LoadOp load, WithVLOp withVL);
 
 bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
                                                    WithVLOp withVL);

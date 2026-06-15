@@ -882,6 +882,23 @@ public:
     // VLMAX, a strip loop that defers the i16m4 widening product into it via
     // vwadd.wv, ONE trailing vredsum + scalar acc[0] add, then the dequant
     // epilogue. The structural marker is tcrv_rvv.widening_accumulate.
+    // The 2nd-family (i16 dot-reduce) DEFERRED-WIDE schedule (N3 resource-aware
+    // max-legal-LMUL, the measured ssh-rvv winner dot_wide_deferred) owns a
+    // dedicated routine: a function-scoped i32m8 vector accumulator zero-seeded
+    // at its own VLMAX, a strip loop that defers the i32m8 widening product into
+    // it via NON-widening vadd.vv, ONE trailing vredsum + scalar acc[0] add,
+    // then an i32 lane-0 store (NO dequant). The structural marker is
+    // tcrv_rvv.deferred_accumulate.
+    if (isDeferredWideDotReduceBody(scope)) {
+      if (mlir::failed(emitDeferredWideDotReduceBody(
+              rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
+              sizeType, setvlCallee, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     if (isDeferredWideDequantBody(scope)) {
       if (mlir::failed(emitDeferredWideDequantBody(
               rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
@@ -1389,6 +1406,30 @@ private:
       if (!reduce)
         return false;
       if (!reduce.getInput().getDefiningOp<tcrvrvv::WideningAccumulateOp>())
+        return false;
+      sawDeferredChain = true;
+    }
+    return sawDeferredChain;
+  }
+
+  /// True iff `scope` is the 2nd-family (i16 dot-reduce) DEFERRED-WIDE body: a
+  /// tcrv_rvv.store whose stored value is a tcrv_rvv.standalone_reduce (i32m8 ->
+  /// i32m1) whose input is a tcrv_rvv.deferred_accumulate (the i32m8 NON-widening
+  /// vadd.vv deferred accumulate). The deferred_accumulate op is the STRUCTURAL
+  /// marker (I5): emission follows op identity. Disjoint from the byte path
+  /// (which has a WideningAccumulateOp + a DequantizeOp) and from the narrow
+  /// per-iter dot-reduce (which has a WideningDotReduceOp, no deferred_accumulate).
+  static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
+    bool sawDeferredChain = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op);
+      if (!store)
+        continue;
+      auto reduce =
+          store.getValue().getDefiningOp<tcrvrvv::StandaloneReduceOp>();
+      if (!reduce)
+        return false;
+      if (!reduce.getInput().getDefiningOp<tcrvrvv::DeferredAccumulateOp>())
         return false;
       sawDeferredChain = true;
     }
@@ -2057,6 +2098,327 @@ private:
     rewriter.create<emitc::CallOpaqueOp>(
         loc, mlir::TypeRange{}, storeCallee,
         mlir::ValueRange{outBuffer, dequantSplat, one});
+    return mlir::success();
+  }
+
+  /// Emit the 2nd-family (i16 dot-reduce) deferred-wide body as a real RVV
+  /// strip loop (the measured ssh-rvv winner dot_wide_deferred):
+  ///   size_t vlmax_acc = __riscv_vsetvlmax_e32m8();
+  ///   vint32m8_t dot_acc_vec = __riscv_vmv_v_x_i32m8(0, vlmax_acc);
+  ///   for (i = 0; i < n; i += vlmax) {
+  ///     size_t vl = __riscv_vsetvl_e16m4(n - i);
+  ///     vint16m4_t a = __riscv_vle16_v_i16m4(lhs + i, vl);
+  ///     vint16m4_t b = __riscv_vle16_v_i16m4(rhs + i, vl);
+  ///     vint32m8_t p = __riscv_vwmul_vv_i32m8(a, b, vl);   // SINGLE widening
+  ///     dot_acc_vec = __riscv_vadd_vv_i32m8(dot_acc_vec, p, vl); // NON-widening
+  ///   }
+  ///   // ONE trailing vredsum + scalar acc[0] add + i32 lane-0 store.
+  /// The structural marker is tcrv_rvv.deferred_accumulate (I5).
+  mlir::LogicalResult emitDeferredWideDotReduceBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrv::exec::VariantOp variant, tcrvrvv::WithVLOp scope,
+      tcrvrvv::SetVLOp preLoopSetVL, mlir::Value avlArg, mlir::Value vlmax,
+      mlir::Type sizeType, llvm::StringRef setvlCallee,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::LoadOp lhsLoad;
+    tcrvrvv::LoadOp rhsLoad;
+    tcrvrvv::WideningProductOp product;
+    tcrvrvv::DeferredAccumulateOp accumulate;
+    tcrvrvv::StandaloneReduceOp reduce;
+    tcrvrvv::StoreOp storeOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto load = llvm::dyn_cast<tcrvrvv::LoadOp>(op)) {
+        if (!lhsLoad)
+          lhsLoad = load;
+        else if (!rhsLoad)
+          rhsLoad = load;
+        else
+          return rewriter.notifyMatchFailure(
+              scope, "deferred-wide dot-reduce body carries more than two loads");
+      } else if (auto p = llvm::dyn_cast<tcrvrvv::WideningProductOp>(op)) {
+        product = p;
+      } else if (auto a = llvm::dyn_cast<tcrvrvv::DeferredAccumulateOp>(op)) {
+        accumulate = a;
+      } else if (auto r = llvm::dyn_cast<tcrvrvv::StandaloneReduceOp>(op)) {
+        reduce = r;
+      } else if (auto s = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
+        storeOp = s;
+      } else {
+        return rewriter.notifyMatchFailure(
+            &op, "unsupported op in deferred-wide dot-reduce body");
+      }
+    }
+    if (!lhsLoad || !rhsLoad || !product || !accumulate || !reduce || !storeOp)
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce body missing a load/product/"
+                 "accumulate/reduce/store step");
+
+    auto accVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(accumulate.getResult().getType());
+    if (!accVecType || accVecType.getLmul() != "m8")
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce accumulator not an i32m8 vector");
+    mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
+    if (!accEmitC)
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce accumulator type not convertible");
+    auto reduceVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getResult().getType());
+    if (!reduceVecType || reduceVecType.getLmul() != "m1")
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce trailing reduction result not m1");
+    mlir::Type reduceEmitC = convertVectorTypeToEmitC(reduceVecType);
+    if (!reduceEmitC)
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce trailing reduction not convertible");
+
+    mlir::Value lhsBuffer = valueMap.lookup(lhsLoad.getBuffer());
+    mlir::Value rhsBuffer = valueMap.lookup(rhsLoad.getBuffer());
+    mlir::Value accBuffer = valueMap.lookup(reduce.getAccumulatorSeed());
+    mlir::Value outBuffer = valueMap.lookup(storeOp.getBuffer());
+    if (!lhsBuffer || !rhsBuffer || !accBuffer || !outBuffer)
+      return rewriter.notifyMatchFailure(
+          scope, "deferred-wide dot-reduce body buffers unmapped");
+
+    llvm::StringRef accOpName = accumulate.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef accRole = accumulate.getTCRVEmitCLowerableSourceRole();
+    unsigned accSEW = vectorElementWidth(accVecType);
+    llvm::StringRef accLmul = accVecType.getLmul();
+    llvm::StringRef accDtype = vectorDType(accVecType);
+
+    // Function-scoped i32m8 accumulator: vint32m8_t dot_acc_vec;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("dot_acc_vec", accOpName, accRole));
+    auto accLValueType = emitc::LValueType::get(accEmitC);
+    auto accVar = rewriter.create<emitc::VariableOp>(
+        loc, accLValueType, emitc::OpaqueAttr::get(rewriter.getContext(), ""));
+
+    // The accumulator's own VLMAX: vlmax_acc = __riscv_vsetvlmax_e32m8();
+    std::string accVsetvlmaxCallee =
+        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + accLmul).str();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(accOpName, accRole, accVsetvlmaxCallee));
+    mlir::Value accVlmax =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                         accVsetvlmaxCallee, mlir::ValueRange{})
+            .getResult(0);
+
+    // Zero-seed: dot_acc_vec = __riscv_vmv_v_x_i32m8(0, vlmax_acc);
+    std::string accZeroSplatCallee =
+        riscvIntrinsicName("vmv_v_x", accSEW, accLmul, accDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(accOpName, accRole, accZeroSplatCallee));
+    mlir::Value zeroLit =
+        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
+    mlir::Value accSeed =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{accEmitC},
+                                         accZeroSplatCallee,
+                                         mlir::ValueRange{zeroLit, accVlmax})
+            .getResult(0);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, assignComment("dot_acc_vec", accOpName, accRole));
+    rewriter.create<emitc::AssignOp>(loc, accVar, accSeed);
+
+    // The strip loop: for (i = 0; i < n; i += vlmax).
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    auto mainLoop = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
+                                                  /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(mainLoop.getBody());
+      mlir::Value inductionVar = mainLoop.getInductionVar();
+      mlir::Value remaining =
+          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+                           setvlCallee));
+      mlir::Value sliceVL =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                           setvlCallee,
+                                           mlir::ValueRange{remaining})
+              .getResult(0);
+      // Wide i16m4 loads at base + i, the i32m8 SINGLE-step widening product
+      // (both reuse the narrow emitters -- they derive <dtype><lmul> from the
+      // wide typed vectors, so they emit vle16_v_i16m4 / vwmul_vv_i32m8).
+      if (mlir::failed(emitLoad(rewriter, loc, lhsLoad, valueMap, inductionVar,
+                                sliceVL)))
+        return mlir::failure();
+      if (mlir::failed(emitLoad(rewriter, loc, rhsLoad, valueMap, inductionVar,
+                                sliceVL)))
+        return mlir::failure();
+      if (mlir::failed(
+              emitWideningProduct(rewriter, loc, product, valueMap, sliceVL)))
+        return mlir::failure();
+      mlir::Value productValue = valueMap.lookup(product.getResult());
+      if (!productValue)
+        return rewriter.notifyMatchFailure(accumulate,
+                                           "deferred-wide dot-reduce product "
+                                           "unmapped");
+      // DEFERRED NON-widening accumulate: dot_acc_vec =
+      //   __riscv_vadd_vv_i32m8(dot_acc_vec, p, vl). riscvIntrinsicName's
+      //   default arm appends the "_vv_<dtype><lmul>" arithmetic form.
+      std::string accumulateCallee =
+          riscvIntrinsicName("vadd", accSEW, accLmul, accDtype);
+      mlir::Value runningAcc =
+          rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(accOpName, accRole, accumulateCallee));
+      mlir::Value accumulated =
+          rewriter
+              .create<emitc::CallOpaqueOp>(
+                  loc, mlir::TypeRange{accEmitC}, accumulateCallee,
+                  mlir::ValueRange{runningAcc, productValue, sliceVL})
+              .getResult(0);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("dot_acc_vec", accOpName, accRole));
+      rewriter.create<emitc::AssignOp>(loc, accVar, accumulated);
+      valueMap[accumulate.getResult()] = accumulated;
+    }
+
+    // Trailing reduction + scalar epilogue + i32 lane-0 store.
+    return emitDeferredWideDotReduceEpilogue(
+        rewriter, loc, reduce, storeOp, accVar, accVecType, reduceVecType,
+        accVlmax, accBuffer, outBuffer, valueMap);
+  }
+
+  /// The deferred-wide dot-reduce trailing reduction + scalar acc[0] add + i32
+  /// lane-0 store (NO dequant):
+  ///   vint32m1_t vzero = __riscv_vmv_v_x_i32m1(0, vsetvlmax_e32m1());
+  ///   vint32m1_t vred  = __riscv_vredsum_vs_i32m8_i32m1(dot_acc_vec, vzero, vlmax_acc);
+  ///   int32_t sum = acc[0] + __riscv_vmv_x_s_i32m1_i32(vred);
+  ///   out[0] = vse32(__riscv_vmv_v_x_i32m1(sum, 1));
+  mlir::LogicalResult emitDeferredWideDotReduceEpilogue(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::StandaloneReduceOp reduce, tcrvrvv::StoreOp storeOp,
+      mlir::Value accVar, tcrvrvv::VectorType accVecType,
+      tcrvrvv::VectorType reduceVecType, mlir::Value accVlmax,
+      mlir::Value accBuffer, mlir::Value outBuffer,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
+    mlir::Type reduceEmitC = convertVectorTypeToEmitC(reduceVecType);
+    if (!accEmitC || !reduceEmitC)
+      return rewriter.notifyMatchFailure(
+          reduce, "deferred-wide dot-reduce epilogue type not convertible");
+
+    llvm::StringRef reduceOpName = reduce.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef reduceRole = reduce.getTCRVEmitCLowerableSourceRole();
+    mlir::Type sizeType = getSizeType(rewriter);
+    unsigned accSEW = vectorElementWidth(accVecType);
+    llvm::StringRef accLmul = accVecType.getLmul();
+    llvm::StringRef accDtype = vectorDType(accVecType);
+    llvm::StringRef reduceDtype = vectorDType(reduceVecType);
+
+    // The reduction destination m1 VLMAX + zero seed.
+    std::string redVsetvlmaxCallee =
+        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + reduceVecType.getLmul())
+            .str();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduceOpName, reduceRole, redVsetvlmaxCallee));
+    mlir::Value reduceVlmax =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                         redVsetvlmaxCallee, mlir::ValueRange{})
+            .getResult(0);
+    std::string zeroSeedCallee = riscvIntrinsicName(
+        "vmv_v_x", accSEW, reduceVecType.getLmul(), reduceDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduceOpName, reduceRole, zeroSeedCallee));
+    mlir::Value zeroLit =
+        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
+    mlir::Value reduceZero =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
+                                         zeroSeedCallee,
+                                         mlir::ValueRange{zeroLit, reduceVlmax})
+            .getResult(0);
+
+    // ONE trailing vredsum over the i32m8 accumulator.
+    std::optional<llvm::StringRef> reduceMnemonic =
+        standaloneReductionMnemonic(reduce.getKind());
+    if (!reduceMnemonic)
+      return rewriter.notifyMatchFailure(
+          reduce, "deferred-wide dot-reduce trailing reduce kind unsupported");
+    std::string reduceCallee = standaloneReductionIntrinsicName(
+        *reduceMnemonic, accDtype, accLmul, reduceDtype);
+    mlir::Value accValue =
+        rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduceOpName, reduceRole, reduceCallee));
+    mlir::Value reduced =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
+                                         reduceCallee,
+                                         mlir::ValueRange{accValue, reduceZero,
+                                                          accVlmax})
+            .getResult(0);
+    valueMap[reduce.getResult()] = reduced;
+
+    // Extract lane 0: int32_t reduced_scalar = __riscv_vmv_x_s_i32m1_i32(vred);
+    std::string extractCallee =
+        ("__riscv_vmv_x_s_" + reduceDtype + reduceVecType.getLmul() + "_" +
+         reduceDtype)
+            .str();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduceOpName, reduceRole, extractCallee));
+    mlir::Type i32Type =
+        emitc::OpaqueType::get(rewriter.getContext(), "int32_t");
+    mlir::Value reducedScalar =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
+                                         extractCallee,
+                                         mlir::ValueRange{reduced})
+            .getResult(0);
+
+    // acc[0] as a SCALAR: int32_t sum = acc[0] + reduced_scalar.
+    auto accPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(accBuffer);
+    if (!accPointer)
+      return rewriter.notifyMatchFailure(
+          reduce, "deferred-wide dot-reduce acc seed buffer not a pointer");
+    mlir::Value seedIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp seedSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, accPointer, seedIndex);
+    auto seedLValueType =
+        llvm::cast<emitc::LValueType>(seedSubscript.getResult().getType());
+    mlir::Value seedScalar =
+        rewriter
+            .create<emitc::LoadOp>(loc, seedLValueType.getValueType(),
+                                   seedSubscript.getResult())
+            .getResult();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduceOpName, reduceRole, "scalar_acc0_add"));
+    mlir::Value sum =
+        rewriter.create<emitc::AddOp>(loc, i32Type, seedScalar, reducedScalar);
+
+    // out[0] = vse32(__riscv_vmv_v_x_i32m1(sum, 1)).
+    unsigned resSEW = vectorElementWidth(reduceVecType);
+    llvm::StringRef resLmul = reduceVecType.getLmul();
+    llvm::StringRef resDtype = vectorDType(reduceVecType);
+    std::string splatCallee =
+        riscvIntrinsicName("vmv_v_x", resSEW, resLmul, resDtype);
+    llvm::StringRef storeOpName = storeOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef storeRole = storeOp.getTCRVEmitCLowerableSourceRole();
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(storeOpName, storeRole, splatCallee));
+    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+    mlir::Value storeSplat =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
+                                         splatCallee,
+                                         mlir::ValueRange{sum, one})
+            .getResult(0);
+    std::string storeCallee =
+        riscvIntrinsicName("vse", resSEW, resLmul, resDtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(storeOpName, storeRole, storeCallee));
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, storeCallee,
+        mlir::ValueRange{outBuffer, storeSplat, one});
     return mlir::success();
   }
 

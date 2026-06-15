@@ -1862,12 +1862,19 @@ bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
   return relation == "signed-i8mf4xi8mf4-to-i16mf2" ||
          relation == "unsigned-u8mf4xu8mf4-to-u16mf2" ||
          // The deferred-wide max-legal-LMUL schedule (N3) wide product rung.
-         relation == "signed-i8m2xi8m2-to-i16m4";
+         relation == "signed-i8m2xi8m2-to-i16m4" ||
+         // The 2nd-family (i16 dot-reduce) deferred-wide single-widening rung.
+         relation == "signed-i16m4xi16m4-to-i32m8";
 }
 
 bool isSupportedGenericWideningProductWideDeferredRelation(
     llvm::StringRef relation) {
   return relation == "signed-i8m2xi8m2-to-i16m4";
+}
+
+bool isSupportedGenericWideningProductWideDotReduceRelation(
+    llvm::StringRef relation) {
+  return relation == "signed-i16m4xi16m4-to-i32m8";
 }
 
 bool isAllowedWideningAccumulateAttr(llvm::StringRef name) {
@@ -1880,6 +1887,20 @@ bool isSupportedGenericWideningAccumulateKind(llvm::StringRef kind) {
 
 bool isSupportedGenericWideningAccumulateRelation(llvm::StringRef relation) {
   return relation == "signed-i16m4-into-i32m8-deferred-add";
+}
+
+bool isAllowedDeferredAccumulateAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulateRelationAttrName;
+}
+
+bool isSupportedGenericDeferredAccumulateKind(llvm::StringRef kind) {
+  return kind == "signed_deferred_accumulate_add";
+}
+
+bool isSupportedGenericDeferredAccumulateRelation(llvm::StringRef relation) {
+  // The i16 dot-reduce deferred-wide accumulate is NON-widening: the i32m8
+  // widened product is added into the loop-carried i32m8 accumulator (vadd.vv).
+  return relation == "signed-i32m8-into-i32m8-deferred-add";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -3248,6 +3269,37 @@ bool isBoundedDeferredWideProductSourceLoad(LoadOp load, WithVLOp withVL) {
       return false;
     if (product.getKind() != "signed_widening_product" ||
         !isSupportedGenericWideningProductWideDeferredRelation(
+            product.getProductRelation()))
+      return false;
+    hasWideProductUse = true;
+  }
+  return hasWideProductUse;
+}
+
+bool isBoundedDeferredWideDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The deferred-wide dot-reduce strip config is SEW16 LMUL m4.
+  if (sew.getInt() != getRVVSEW16Bits() || lmul.getValue() != getRVVLMULM4())
+    return false;
+  if (!isGenericRVVVectorSignedI16M4(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<WideningProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getLhs() != load.getLoaded() &&
+         product.getRhs() != load.getLoaded()))
+      return false;
+    if (product.getKind() != "signed_widening_product" ||
+        !isSupportedGenericWideningProductWideDotReduceRelation(
             product.getProductRelation()))
       return false;
     hasWideProductUse = true;

@@ -392,6 +392,15 @@ bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVSEW8Bits && lmul == kRVVLMULM2;
 }
 
+bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
+                                           llvm::StringRef lmul) {
+  // The 2nd-family (i16 dot-reduce) deferred-wide strip config: i16 loads at
+  // LMUL m4 (16-bit SEW), widened once to an i32m8 product == i32m8 deferred
+  // accumulator. PARALLEL config admitted only on the deferred-wide dot-reduce
+  // setvl/with_vl scope; it does NOT loosen isRVVFirstSliceDataflowConfig.
+  return sew == kRVVSEW16Bits && lmul == kRVVLMULM4;
+}
+
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVFirstSliceSEWBits && lmul == kRVVLMULM1;
 }
