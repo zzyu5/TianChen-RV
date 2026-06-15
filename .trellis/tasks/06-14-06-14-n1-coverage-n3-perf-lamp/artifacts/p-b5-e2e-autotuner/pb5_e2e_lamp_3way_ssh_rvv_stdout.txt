@@ -1,0 +1,13 @@
+CORRECTNESS n=257 ok oracle=-286.15
+SUMMARY variant=genuine-scalar n=257 best_per_iter_ns=635.000
+SUMMARY variant=naive-rvv n=257 best_per_iter_ns=511.250
+SUMMARY variant=tuned-auto n=257 best_per_iter_ns=153.750
+CORRECTNESS n=4096 ok oracle=5555.26
+SUMMARY variant=genuine-scalar n=4096 best_per_iter_ns=10952.500
+SUMMARY variant=naive-rvv n=4096 best_per_iter_ns=5507.500
+SUMMARY variant=tuned-auto n=4096 best_per_iter_ns=1013.750
+CORRECTNESS n=65536 ok oracle=-11919.4
+SUMMARY variant=genuine-scalar n=65536 best_per_iter_ns=175353.750
+SUMMARY variant=naive-rvv n=65536 best_per_iter_ns=90322.500
+SUMMARY variant=tuned-auto n=65536 best_per_iter_ns=25617.500
+SINK=-3.83054e+06

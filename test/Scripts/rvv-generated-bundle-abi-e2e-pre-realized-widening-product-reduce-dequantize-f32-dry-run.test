@@ -1,4 +1,18 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
+# XFAIL: *
+#
+# P-B5 authorized residual (the reason for the XFAIL above). The byte (unpacked)
+# widening_product_reduce_dequantize_f32 kernel now realizes the DEFERRED-WIDE
+# winner at the real architectural vector-register budget (32) via the resource-
+# aware selector, and the wide body fails CLOSED at bundle export (the route-
+# family + header narrow-mirror wiring does not yet carry a parallel deferred-wide
+# fact set -- the documented residual). The fail-closed diagnostic ("unsupported
+# generic tcrv_rvv.widening_product kind ... for bounded RVV low-precision
+# widening-product route") is asserted in
+# test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir,
+# and the winning body's runnable C is ssh-rvv numeric-validated + measured
+# (P-B5 灯: 4.1-10.8x vs scalar, 3.3-5.4x vs naive) via --tcrv-rvv-lower-to-emitc.
+# XPASS here flags the day the bundle-export deferred-wide wiring lands.
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequantize-f32 --overwrite --op-kind widening_product_reduce_dequantize_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/evidence.json

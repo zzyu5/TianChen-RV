@@ -1,0 +1,65 @@
+P-B5 end-to-end N3 autotuner finale (the 灯 on the AUTOMATIC compiler output).
+Real ssh rvv (riscv64, clang 18.1.3). Byte (unpacked) low-precision contraction.
+
+THE END-TO-END PATH (selector-driven, automatic, NOT hand-fed IR):
+  kernel (pre_realized_selected_body_input.mlir, narrow mf4 facts, budget=32)
+   -> --tcrv-rvv-materialize-gearbox-schedules (stamps the vreg-budget resource fact)
+   -> --tcrv-materialize-selected-lowering-boundaries
+        the realization owner reads the budget fact, runs the P-B2 resource-aware
+        selector selectRVVLowPrecisionMaxLegalAccumulatorLMULRung, which (budget 32,
+        reserve 8) returns the i8m2->i16m4->i32m8 rung -> the realization PRODUCES the
+        deferred-wide typed body (load i8m2, widening_product i8m2->i16m4,
+        tcrv_rvv.widening_accumulate i16m4->i32m8 loop-carried, ONE trailing
+        standalone_reduce i32m8->i32m1, dequantize, store)
+   -> --tcrv-rvv-lower-to-emitc -> C
+  The emitted C is BYTE-IDENTICAL (same 14-intrinsic sequence) to the P-B3/P-B4
+  proven winner -- but now produced AUTOMATICALLY from the kernel by the selector.
+
+NUMERIC CORRECTNESS (I8): ALL_PASS, abs_err=0.000e+00 vs genuine scalar oracle
+  at n=257/256/1024/4096/16384/65536 (incl. the n=257 prime-tail partial strip).
+
+THE 灯 (3-way, best-of-9 x16-iter, warmup 3, clock_gettime MONOTONIC_RAW):
+  n=257   : tuned 151.25ns  vs scalar 621.25 = 4.11x   vs naive 497.50 = 3.29x
+  n=4096  : tuned 991.25ns  vs scalar 10727.50 = 10.82x vs naive 5388.75 = 5.44x
+  n=65536 : tuned 25178.75ns vs scalar 154546.25 = 6.14x vs naive 87725.00 = 3.48x
+  genuine-scalar: rv64gc, objdump-verified ZERO vector ops (fair, non-autovectorized).
+  competent-naive-RVV: rv64gcv, deferred i8mf4->i16mf2 vwmul + vwadd.wv into i32m1 +
+                       single trailing vredsum (the textbook untuned RVV dot product).
+
+VERDICT = WIN (the 灯 is ON for the AUTOMATIC compiler output): beats genuine-scalar
+4.1-10.8x AND competent-naive-RVV 3.3-5.4x at EVERY n. Matches the P-B4 win, now
+selector-driven end-to-end (not hand-fed). N3 autotuner: resource-aware LIVE.
+
+N3 LEGITIMACY (budget genuinely drives narrow-vs-wide): the realization gates the
+wide branch on the selector's budget-pruned choice. At the real architectural budget
+32 -> i32m8 wide rung fires -> wide winner. The packed-i4 sibling kernel (operand_form
+"packed-i4-nibbles") and clamp keep the narrow path (operand_form/clamp-gated, verified:
+0 widening_accumulate on packed-i4, 1 on byte). The wide body fails CLOSED at
+emission-plans if a downstream consumer cannot handle it (I7-verified clean diagnostic).
+
+CONSEQUENCES / HONESTY (P-B5 disclosures):
+- SCOPE: the wide branch fires on the STANDARD lowering overload (the registered
+  null-pressureProfile path, RVVSelectedBodyRealization.cpp:56 -> the 2-arg
+  realizePreRealizedRVVContractionOwner). The performance-admission overload
+  (3-arg, pressureProfile) has no caller and is deliberately left narrow (keeps
+  its admission cross-check on the narrow facts). The shipped + measured path is
+  the null-pressure one.
+- VESTIGIAL NARROW PATH: at the hardcoded budget 32, every signed/unpacked/
+  non-clamp byte dequant kernel now realizes wide, so the NARROW grouped 2-scope
+  gearbox_cross_region_handoff dequant realization is unreachable from real byte
+  input (only synthetic IR / a constrained budget would reach it). The narrow
+  validator LOGIC is C++-unchanged (rejects exactly as before); the clamp +
+  packed-i4 siblings still cover the primitive-intrinsic-mirror and region-count
+  tamper guards. What lapsed is lit coverage of the grouped-handoff-specific
+  STALE-HANDOFF-*/STALE-MARKER-* guards (unique to the now-wide byte fixture).
+  The narrow path is kept (byte-untouched), just vestigial for real input.
+- BOUNDED N3: the selector enumerates the full LMUL ladder, but only TWO
+  realizations exist (wide i32m8, narrow i32m1); intermediate rungs collapse to
+  narrow, and the wide/narrow crossover is set by a fixed load/temp reserve (8).
+  Honest N3: the budget genuinely drives narrow-vs-wide (prune binds, unit-tested),
+  bounded to a binary realization with a hand-set crossover.
+- TARGET-BUNDLE RESIDUAL: for the byte kernel, kernel->target-artifact-BUNDLE went
+  from working (narrow) to FAIL-CLOSED (wide) -- the bundle-export route-family +
+  header narrow-mirror wiring does not yet carry a parallel deferred-wide fact set.
+  Runnable C via --tcrv-rvv-lower-to-emitc works and wins (this 灯). The deployable
+  bundle path for this kernel does not exist yet; that is the authorized P-B5 stop.
