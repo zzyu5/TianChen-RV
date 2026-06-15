@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
-- **Last Active**: 2026-06-14
+- **Total Sessions**: 10
+- **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~770 | Active |
+| `journal-1.md` | ~815 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-06-15 | N3 性能灯 ON (2 families e2e + deployable) + N1 divergence LIVE — goal novelty core achieved | `7ea69566`, `b07dd5cb`, `b141cad3`, `03223f5e`, `2af0663e`, `97e96fe6`, `07f844d5`, `a525d630`, `ec50b227`, `087d7aee`, `a5e0b4fe`, `28be2aad`, `ee455b67` | `main` |
 | 9 | 2026-06-14 | Trellis close-out: both tasks finished + archived; clean workspace | `71af66cd` | `main` |
 | 8 | 2026-06-14 | Maturity: both giant functions decomposed (4.7k + 3.2k) — no monolith file or function remains | `2456955a`, `0eab0a2c` | `main` |
 | 7 | 2026-06-14 | File-modularization: the 3 giant monoliths (33k/14k/11k) split into per-concern files — no 10k+ file remains | `5728f39d`, `62bb1e09`, `26b5f995`, `cb71a4ee` | `main` |

@@ -768,3 +768,48 @@ Per the user's request, ran the trellis finish flow to clean the workspace for n
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: N3 性能灯 ON (2 families e2e + deployable) + N1 divergence LIVE — goal novelty core achieved
+
+**Date**: 2026-06-15
+**Task**: N3 性能灯 ON (2 families e2e + deployable) + N1 divergence LIVE — goal novelty core achieved
+**Branch**: `main`
+
+### Summary
+
+Achieved the goal's two evidence-bearing novelty claims on real ssh rvv. N3 性能灯 ON: built a REAL resource-aware autotuner (selectRVVLowPrecisionMaxLegalAccumulatorLMULRung — enumerates the LMUL ladder, prunes by the vreg budget [the prune BINDS], per-family cost models: byte two-widening i8->i16->i32, i16 dot-reduce one-widening i16->i32) that produces the deferred-wide winner AUTOMATICALLY from a kernel (new tcrv_rvv.widening_accumulate + deferred_accumulate ops, I5-structural) and WINS on 2 families e2e vs genuine-scalar AND competent-naive-RVV: byte int8 contraction 4.1-10.8x scalar/3.3-5.4x naive, i16 dot-reduce 4.3-7.5x/2.1-3.8x. BOTH deployable (.o/.h bundles, ssh-rvv abs_err=0). Method: P-A fair 3-way measure (the prior '0.76x regression' was an autovectorized-baseline artifact) -> P-B1 sweep found the win is resource-aware max-LMUL selection -> P-B2 selector -> P-B3/4 emission+灯 -> P-B5 selector-driven e2e -> P-B6 deployable bundle -> P-B7/8/9 2nd family (i16) e2e+deployable. N1 覆盖增量: the capability authority derives the divergence axes from real ISA facts; the same SEW=64 kernel diverges purely by --march (rv64gcv accept/zve32x fail-closed), no fixture attrs (the research's 'zero writers' gap closed); coverage += f64 + wide-LMUL m2/m4/m8. Honest residuals (incremental/out-of-scope): N1 hardware-probe ingestion (march-selection-live, not ssh-rvv-probe-live, I6); N1 materialize pass opt-in; N3 bounded-binary realization; more RVV features (fp16/segment3-4/vrgather) asymptotic 覆盖完全. 13 commits, each ssh-rvv-validated, full-clean-rebuild-green, 601 tests/3 documented environmental reds, all narrow/existing paths byte-identical. The project moved from '通但慢' to a measured 2-family hardware win.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7ea69566` | (see git log) |
+| `b07dd5cb` | (see git log) |
+| `b141cad3` | (see git log) |
+| `03223f5e` | (see git log) |
+| `2af0663e` | (see git log) |
+| `97e96fe6` | (see git log) |
+| `07f844d5` | (see git log) |
+| `a525d630` | (see git log) |
+| `ec50b227` | (see git log) |
+| `087d7aee` | (see git log) |
+| `a5e0b4fe` | (see git log) |
+| `28be2aad` | (see git log) |
+| `ee455b67` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
