@@ -315,6 +315,61 @@ def MaterializeRVVProbedCapabilityAxes
   ];
 }
 
+def MaterializeRVVQ40Schedule
+    : Pass<"tcrv-rvv-materialize-q4-0-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q4_0 x Q8_0 block-dot shape";
+  let description = [{
+    The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block
+    dot-product. Given a selected RVV -march (a profile selection), it derives
+    the Zvl128b capability fact through the plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q4_0 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided}), PRUNES each candidate by legality (strip_elision "elided"
+    is correct only at the m1 anchor on a Zvl128b target) and by the
+    vector-register-file budget, RANKS the legal candidates by a principled,
+    CAPABILITY-BLIND structural cost (per-block reduction count, inner strip-loop
+    serialization, outer-loop latency-overlap amortized by the multi-block
+    factor), SELECTS the min-cost legal shape, and STAMPS the chosen shape knobs
+    (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q4_0_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q4_0_q8_0_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function. The SAME
+    argmin therefore DIVERGES by capability -- a full-V (rv64gcv, Zvl128b)
+    profile selects the strip-elided shape (the ~13% ggml beat), while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> N3 win, on a real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts, never inferred from ABI strings / family names /
+    route ids, and no hardware is probed (I5); a candidate that fails the
+    capability/anchor/budget prune is dropped fail-closed and if every candidate
+    is pruned the op is left untouched (I7). The pass does not lower, emit code,
+    benchmark, or claim runtime evidence; it selects the *how*, never the *what*
+    (the dot-product is byte-exact for every legal shape).
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the Zvl128b capability "
+           "fact (and thus the strip-elision legality) is derived from (e.g. "
+           "rv64gcv => Zvl128b => VLEN >= 128; rv64gc_zve32x => not Zvl128b).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for the Zvl128b derivation.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ40SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 def MaterializeRVVGearboxSchedules
     : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
   let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";

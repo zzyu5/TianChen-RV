@@ -15,6 +15,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <utility>
@@ -214,6 +215,56 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
   if (text.contains("zve") || text.contains("gcv"))
     return "mf8,mf4,mf2,m1,m2,m4,m8";
   return "";
+}
+
+// Derives whether the configured RVV target GUARANTEES Zvl128b (VLEN >= 128) as
+// a hard ISA fact. The ratified RISC-V "V" extension mandates Zvl128b, so a
+// full-V configuration (rv64gcv or a bare "v" token) guarantees VLEN >= 128. The
+// embedded zve32x / zve64x tiers mandate only Zvl32b / Zvl64b, so they do NOT
+// guarantee VLEN >= 128 unless an explicit zvl{N}b token with N >= 128 is named
+// (the conservative fallback: an embedded target that explicitly advertises
+// Zvl128b/Zvl256b/... genuinely guarantees >= 128). Mirrors deriveSupported*'s
+// march+hint tokenization. Note "zve32x"/"zve64x" contain a literal 'v', so the
+// full-V probe matches the "gcv" token or a bare "v" extension token, NOT any
+// stray 'v'.
+bool deriveHasZvl128b(llvm::StringRef selectedMarch,
+                      llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  // (1) An explicit Zvl{N}b token with N >= 128 guarantees VLEN >= 128 on any
+  // tier (full-V or embedded). Scan every "zvl" occurrence and parse its bit
+  // width; the legal Zvl widths are powers of two from 32 up (zvl32b ..
+  // zvl65536b), so any token whose parsed N >= 128 guarantees the minimum.
+  std::size_t zvlPos = text.find("zvl");
+  while (zvlPos != llvm::StringRef::npos) {
+    std::size_t digitBegin = zvlPos + 3;
+    std::size_t digitEnd = digitBegin;
+    while (digitEnd < text.size() &&
+           std::isdigit(static_cast<unsigned char>(text[digitEnd])))
+      ++digitEnd;
+    if (digitEnd > digitBegin && digitEnd < text.size() &&
+        text[digitEnd] == 'b') {
+      std::uint64_t widthBits = 0;
+      if (!text.slice(digitBegin, digitEnd).getAsInteger(10, widthBits) &&
+          widthBits >= 128)
+        return true;
+    }
+    zvlPos = text.find("zvl", zvlPos + 3);
+  }
+
+  // (2) Full "V" mandates Zvl128b by the ratified spec: rv64gcv / a "gcv" token,
+  // or a bare "v" vector extension token in the march (not a stray 'v' inside
+  // "zve32x"). Detect the full-V token by the "gcv" spelling or a "_v"/leading
+  // "v" extension token.
+  if (text.contains("gcv"))
+    return true;
+  if (text.contains("_v") || text.contains("rv64v") || text.contains("rv32v"))
+    return true;
+
+  // (3) Embedded zve32x / zve64x without an explicit Zvl128b+ token: only
+  // Zvl32b / Zvl64b mandated -> NOT guaranteed VLEN >= 128.
+  return false;
 }
 
 llvm::StringRef getRVVHartCountCapabilityID() {

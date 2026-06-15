@@ -1,0 +1,13 @@
+# n=4096 nb=128 iters=100000 reps=40  ref=-5.22822143e+12
+# correctness gate (bitwise == ggml):
+#   ggml(i8m1,serial)        -5.22822143e+12  [OK]
+#   mb1-robust(compiler)     -5.22822143e+12  [OK]
+#   mb2-robust(compiler)     -5.22822143e+12  [OK]
+#   mb4-elided(compiler)     -5.22822143e+12  [OK]
+
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          1169.14 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       1387.73 ns/call   1.187x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       1306.21 ns/call   1.117x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       1021.28 ns/call   0.874x ggml   [VLEN>=128 only (Zvl128b)]
+# sink=-7.39412e+19

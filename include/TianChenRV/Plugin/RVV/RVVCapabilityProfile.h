@@ -67,6 +67,23 @@ std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
 std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
                                          llvm::StringRef isaVectorHints);
 
+// Derives whether the configured RVV target GUARANTEES the Zvl128b minimum
+// vector length (VLEN >= 128) as a hard ISA fact, from the selected -march plus
+// the probed isa/vector hint string. This is a TARGET-CAPABILITY fact ("does
+// this configured target guarantee VLEN >= 128"), NOT a plugin-selected config
+// (I5; profiles.md). The ratified RISC-V "V" extension MANDATES Zvl128b, so any
+// full-V configuration (rv64gcv, a bare "v" token) guarantees VLEN >= 128. The
+// embedded vector tiers (zve32x / zve64x) mandate only Zvl32b / Zvl64b
+// respectively, so they do NOT guarantee VLEN >= 128 unless an explicit
+// zvl{N}b token with N >= 128 (zvl128b / zvl256b / ... / zvl65536b) is named in
+// the evidence. Returns true iff the evidence guarantees VLEN >= 128. The fact
+// is what the Q4_0 schedule's strip-elision legality prune reasons over: the
+// strip-elided shape (one vsetvl_e8m1(16) + vwredsum per half-block, no inner
+// re-strip loop) is CORRECT only at VLEN >= 128, so it is legal only on a target
+// that guarantees Zvl128b; a non-Zvl128b target must keep the robust strip loop.
+bool deriveHasZvl128b(llvm::StringRef selectedMarch,
+                      llvm::StringRef isaVectorHints);
+
 // Builds the probe-fact capability set. Relations (currently only `provides`)
 // are minted as interned CapabilityRelationsAttr from `context`; the returned
 // TargetCapabilitySet must therefore not outlive `context`. The TCRV Exec

@@ -1,0 +1,6 @@
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          1293.50 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       1387.70 ns/call   1.073x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       1306.12 ns/call   1.010x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       1021.28 ns/call   0.790x ggml   [VLEN>=128 only (Zvl128b)]
+# sink=-7.39412e+19

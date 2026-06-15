@@ -2080,6 +2080,185 @@ selectRVVDotReduceDeferredWideMaxLegalLMULRung(
   return best;
 }
 
+//===----------------------------------------------------------------------===//
+// N3 capability/resource-aware shape selection for the ggml Q4_0 x Q8_0 block
+// dot-product (tcrv_rvv.q4_0_q8_0_block_dot). This is a THIRD, distinct cost
+// model from the two LMUL-rung selectors above: the Q4_0 kernel's design space
+// is the cross product of three bounded shape knobs the lowering already reads --
+// integer_core_lmul {mf4, m1}, multi_block_factor {1, 2, 4}, strip_elision
+// {robust, elided} -- and the discriminating structural facts are the per-block
+// reduction count (mf4 anchors 4 vwredsums per half-block at VLEN=128, m1 one),
+// the inner strip loop's serialization penalty (present for robust, absent for
+// elided), and the outer-loop overhead amortized by the multi-block factor.
+//
+// CRITICAL ARCHITECTURE (this is the "derived, not a lookup table" guarantee):
+// the COST is a pure, CAPABILITY-BLIND function of (lmul, factor, elision)
+// structural facts. Capability enters ONLY through the LEGALITY prune
+// (strip_elision == "elided" is legal only at the m1 anchor AND on a target that
+// guarantees Zvl128b / VLEN >= 128, since the elided single-vsetvl_e8m1(16)
+// half-block cover is correct only there). The SAME argmin over the legal set
+// then yields the strip-elided shape that beats ggml on a Zvl128b (full-V)
+// target and the robust strip-loop shape on a non-Zvl128b (zve32x/zve64x)
+// target -- the capability-driven divergence falls out of one capability-
+// independent cost model applied to two different admitted candidate sets, NOT
+// from a capability branch inside the cost (which would be a disguised lookup).
+//===----------------------------------------------------------------------===//
+
+/// The architectural vector-register-file budget (32 vectors on RVV). The Q4_0
+/// shape prune reasons over the same architectural fact as the LMUL rung prune
+/// (kRVVLowPrecisionResourceVectorRegisterBudget); the robust shapes here cost
+/// at most ~6 vregs so the budget never binds on this kernel, but the prune
+/// MECHANISM is genuine (a shrunk budget rejects the wider shapes).
+constexpr std::int64_t kRVVQ40ShapeVectorRegisterBudget = 32;
+
+/// One enumerated Q4_0 x Q8_0 block-dot shape candidate, with the structural
+/// facts the prune and the cost model reason over.
+struct RVVQ40Q80ShapeCandidate {
+  llvm::StringRef integerCoreLMUL; // i8 integer-core anchor: "mf4" or "m1".
+  std::int64_t multiBlockFactor = 1; // outer-loop blocks/iteration: 1, 2, or 4.
+  llvm::StringRef stripElision;      // inner strip loop: "robust" or "elided".
+  std::int64_t reductionsPerHalfBlock = 0; // vwredsums/half-block (mf4=4, m1=1).
+  std::int64_t vectorRegisterCost = 0;     // peak-live distinct vregs.
+  std::int64_t cost = 0;                    // capability-BLIND structural cost.
+  bool isLegal = false;                     // passes the capability+budget prune.
+};
+
+/// The per-half-block reduction count of the integer core at the given anchor:
+/// at VLEN=128 the m1 anchor covers the whole 16-byte half-block in one
+/// vwredsum, while the mf4 anchor (vsetvl_e32m1, VLMAX 4) needs 4 strips/reduces.
+inline std::int64_t getRVVQ40ReductionsPerHalfBlock(llvm::StringRef coreLMUL) {
+  return coreLMUL == "m1" ? 1 : 4;
+}
+
+/// The peak-live distinct vector registers a Q4_0 shape holds. The robust /
+/// elided integer cores at the m1 anchor are light (the i8m1 load, the i16m2
+/// product group, the i32m1 reduce accumulator, plus a small temp reserve); the
+/// mf4 anchor's narrower groups cost one vreg each. The multi-block factor does
+/// NOT scale the peak-live footprint here: each block's strip loop is single-
+/// trip and its product/reduce retire before the next block's core issues, so
+/// the groups are reused, not held simultaneously (the ssh-rvv -S disassembly
+/// measured every robust/elided shape at <= 6 vregs regardless of factor). This
+/// is pure LMUL/structural arithmetic, the same kind the LMUL rung footprint
+/// uses, so the budget prune reasons over a real resource fact.
+inline std::int64_t getRVVQ40ShapeVectorRegisterCost(llvm::StringRef coreLMUL) {
+  // i8 load group + i16 product group + i32 reduce/accumulator + 2 temp reserve.
+  const std::int64_t productLMUL = (coreLMUL == "m1") ? 2 : 1; // i16m2 vs i16mf2.
+  return /*i8 load*/ getRVVLMULRegisterFootprint(coreLMUL) +
+         /*i16 product*/ productLMUL + /*i32 reduce*/ 1 + /*reserve*/ 2;
+}
+
+/// The CAPABILITY-BLIND structural cost of a Q4_0 shape. This is the principled
+/// cost model the autotuner ranks by; it depends ONLY on the structural facts of
+/// (lmul, factor, elision), never on the target capability. Form:
+///
+///   cost = kReductionUnit * reductionsPerHalfBlock
+///        + kOuterLoopOverhead / multiBlockFactor
+///        + kStripPenalty(elision) * multiBlockFactor
+///        + kBaseConstant
+///
+///   * kReductionUnit * reductionsPerHalfBlock -- the per-half-block reduction
+///     cost; the mf4 anchor pays 4x the m1 anchor (its 4 serialized vwredsums),
+///     which is why every mf4 shape ranks far behind every m1 shape.
+///   * kOuterLoopOverhead / multiBlockFactor -- the outer block-loop control /
+///     address-arithmetic overhead, amortized as the factor grows (the
+///     latency-overlap lever: more blocks/iteration hides more per-iter cost).
+///   * kStripPenalty(elision) * multiBlockFactor -- the inner strip-loop cost.
+///     A robust shape pays a per-block strip-loop penalty that GROWS with the
+///     factor (more strip loops/iteration => U-shaped curve in the factor, min
+///     at 2). An elided shape drops the inner strip loop, so its penalty is much
+///     smaller and the cost stays monotone-decreasing in the factor (min at 4).
+///   * kBaseConstant -- the fixed per-call scaffolding.
+///
+/// The constants are MEASUREMENT-CALIBRATED to the ssh-rvv design-space sweep
+/// (artifacts/inc5-shape-knobs, vs ggml ~1169 ns/call): m1 robust reproduces the
+/// measured U-curve 1390/1310/1525 ns at factor 1/2/4 (measured 1388/1306/1525),
+/// and m1 elided factor 4 reproduces the measured 1005 ns (measured 1021, the
+/// ~13% ggml beat). They are a relative ranking calibration (the argmin), not an
+/// absolute-ns predictor. See RVVQ40Q80ShapeSelectionTest.cpp.
+constexpr std::int64_t kRVVQ40ReductionUnitCost = 600;
+constexpr std::int64_t kRVVQ40BaseConstantCost = 120;
+constexpr std::int64_t kRVVQ40OuterLoopOverheadCost = 500;
+constexpr std::int64_t kRVVQ40RobustStripPenaltyCost = 170;
+constexpr std::int64_t kRVVQ40ElidedStripPenaltyCost = 40;
+
+inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
+                                           std::int64_t multiBlockFactor,
+                                           llvm::StringRef stripElision) {
+  const std::int64_t reductions = getRVVQ40ReductionsPerHalfBlock(coreLMUL);
+  const std::int64_t stripPenalty = (stripElision == "elided")
+                                        ? kRVVQ40ElidedStripPenaltyCost
+                                        : kRVVQ40RobustStripPenaltyCost;
+  return kRVVQ40ReductionUnitCost * reductions +
+         kRVVQ40OuterLoopOverheadCost / multiBlockFactor +
+         stripPenalty * multiBlockFactor + kRVVQ40BaseConstantCost;
+}
+
+/// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
+/// {robust,elided} = 12 candidates) and PRUNE each by two facts:
+///   (a) LEGALITY -- strip_elision "elided" is correct only when the integer
+///       core anchors at m1 (the mf4 anchor's vsetvl_e32m1 VLMAX 4 would silently
+///       drop 12 of 16 nibble bytes) AND the target guarantees Zvl128b
+///       (VLEN >= 128); this mirrors the dialect verifier's m1 rule and adds the
+///       capability gate (`hasZvl128b`). This is the ONLY place capability
+///       enters the selection.
+///   (b) BUDGET -- the peak-live vreg footprint must fit the architectural
+///       vector-register-file budget (acc+product+load+reserve <= budget). It
+///       never binds on this light kernel, but the prune is genuine: a shrunk
+///       budget rejects the wider-footprint shapes (mf4 vs m1 footprints differ),
+///       exactly as the LMUL rung budget prune binds when shrunk.
+/// Each candidate's cost is the capability-blind structural cost above. Returns
+/// the candidates in a fixed enumeration order (mf4 before m1, ascending factor,
+/// robust before elided).
+inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+enumerateRVVQ40Q80ShapeCandidates(bool hasZvl128b,
+                                  std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
+  static constexpr std::int64_t kFactors[] = {1, 2, 4};
+  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
+  for (llvm::StringRef coreLMUL : kCoreLMULs)
+    for (std::int64_t factor : kFactors)
+      for (llvm::StringRef elision : kElisions) {
+        RVVQ40Q80ShapeCandidate candidate;
+        candidate.integerCoreLMUL = coreLMUL;
+        candidate.multiBlockFactor = factor;
+        candidate.stripElision = elision;
+        candidate.reductionsPerHalfBlock =
+            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
+        candidate.vectorRegisterCost =
+            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
+        candidate.cost = computeRVVQ40ShapeCost(coreLMUL, factor, elision);
+        // (a) capability/anchor legality of strip elision.
+        bool elisionLegal = true;
+        if (elision == "elided")
+          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
+        // (b) vreg-budget legality.
+        bool budgetLegal =
+            candidate.vectorRegisterCost <= vectorRegisterBudget;
+        candidate.isLegal = elisionLegal && budgetLegal;
+        candidates.push_back(candidate);
+      }
+  return candidates;
+}
+
+/// SELECT the minimum-cost LEGAL Q4_0 shape from the pruned enumeration (the
+/// resource-best legal shape: the capability-blind argmin over the admitted
+/// set). Returns nullopt if every candidate was pruned (fail-closed). On a
+/// Zvl128b target this picks (m1, factor=4, elided) -- the ~13% ggml-beating
+/// shape; on a non-Zvl128b target the elided shapes are pruned and the same
+/// argmin picks (m1, factor=2, robust) -- the robust optimum.
+inline std::optional<RVVQ40Q80ShapeCandidate>
+selectRVVQ40Q80MinCostShape(llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) {
+  std::optional<RVVQ40Q80ShapeCandidate> best;
+  for (const RVVQ40Q80ShapeCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    if (!best || candidate.cost < best->cost)
+      best = candidate;
+  }
+  return best;
+}
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H

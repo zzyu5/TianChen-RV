@@ -786,12 +786,21 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
   // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
   // name -- is rejected fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    // The bounded block-format / shape-knob attributes, plus the N3
+    // autotuner's resource-provenance audit trail. The schedule producer pass
+    // (MaterializeRVVQ40Schedule) stamps the chosen shape knobs alongside a
+    // "tcrv_rvv.q4_0_schedule.*" provenance namespace (the candidate count, the
+    // selected cost, the Zvl128b capability fact, the vreg budget) so the choice
+    // is a PROVABLE resource-aware selection, not a manual constant. The
+    // provenance is mirror metadata (I4): it records the derivation, it does not
+    // carry executable config. Accept any attr in that bounded namespace.
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision";
+           name == "strip_elision" ||
+           name.starts_with("tcrv_rvv.q4_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();

@@ -215,6 +215,16 @@ target_link_libraries(tianchenrv-rvv-low-precision-lmul-selection-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-rvv-q4-0-q8-0-shape-selection-test
+  Plugin/RVVQ40Q80ShapeSelectionTest.cpp
+)
+
+target_link_libraries(tianchenrv-rvv-q4-0-q8-0-shape-selection-test
+  PRIVATE
+  TianChenRVRVVPlugin
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-capability-profile-divergence-test
   Plugin/RVVCapabilityProfileDivergenceTest.cpp
 )
@@ -325,6 +335,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-low-precision-lmul-selection-test
+  tianchenrv-rvv-q4-0-q8-0-shape-selection-test
   tianchenrv-rvv-capability-profile-divergence-test
   tianchenrv-scalar-extension-plugin-test
   tianchenrv-template-extension-plugin-test
