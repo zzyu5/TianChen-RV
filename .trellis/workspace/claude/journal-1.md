@@ -849,3 +849,40 @@ Pushed N1 coverage breadth to a REAL llama.cpp kernel. Research (3 primary-sourc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Compiler-driven capability-aware autotuner on real llama.cpp kernels (Q4_0 beats ggml; q8_0/q4_1 parity); cost-model limits surfaced honestly
+
+**Date**: 2026-06-16
+**Task**: Compiler-driven capability-aware autotuner on real llama.cpp kernels (Q4_0 beats ggml; q8_0/q4_1 parity); cost-model limits surfaced honestly
+**Branch**: `main`
+
+### Summary
+
+Built the mature-compiler N3 core the user mandated ('编译的高性能, not 写死内核'): the COMPILER autotunes real llama.cpp quant-dot kernels — enumerate {lmul}×{multi_block 1/2/4}×{strip_elision robust/elided} → prune by capability (deriveHasZvl128b: rv64gcv⇒V⇒Zvl128b⇒VLEN≥128, so strip-elision is correct codegen / dead strip loop for full-V; zve32x⇒robust) + vreg budget → rank by a capability-BLIND structural cost (computeBlockDotShapeCostCore in RVVGearboxSchedule.h) → select → stamp (per-kernel materialize passes). DERIVED not lookup (cost takes no capability arg; capability enters only the legality prune). N1 DIVERGENCE on real kernels: same attr-less kernel, rv64gcv→elided vs zve32x→robust strip-loop. N3: Q4_0 the compiler-emitted mb4-elided BEATS ggml's hand-written kernel ~13% (and live llama-2-7b token-identical, INC-3). INC-8: latency-aware cost — the unroll factor EMERGES from a derived structural coreLatencyDepth (base-2 + decode-prefix; q4_0=7→factor4, q8_0=2→factor2), not per-kernel constants. BREADTH: q8_0 (Family A, INC-7) + q4_1 (Family B scale+min, INC-9) both byte-exact vs ggml real+_generic, autotuner-inherited. HONEST LIMITS (the credible result, kept verbatim, not sanded off): the q4_0 beat does NOT generalize — q8_0 lands at parity (ggml's q8_0 is already optimal m2-elided, the compiler derives it) and q4_1's static pick is its WORST shape (1.58x slower; 4-scalar scale+min fold spills 49 slots under ×4 unroll = register pressure the static model can't see; measured optimum mb1-robust=parity). q4_1 is the 2nd kernel to expose a missing static-cost dimension (after q8_0's latency-saturation) — a curve-fit treadmill. The honest end-state per the N3 '实测胜出' thesis is MEASUREMENT-BACKED selection (tune-once-per-kernel,target → cache a tuning record → compile reads it; cost model demoted to prune+offline-fallback) — a scoped paper-level next phase, not yet built. All structured emitc (raw()=0), full-clean-rebuild green, 3 documented environmental reds, q4_0/q8_0/q4_1/deferred-wide byte-identical/additive.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8a7c5e36` | (see git log) |
+| `a6cdeca6` | (see git log) |
+| `8518b819` | (see git log) |
+| `3e639be1` | (see git log) |
+| `3a32d40b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

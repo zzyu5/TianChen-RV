@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-06-15
+- **Total Sessions**: 12
+- **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~851 | Active |
+| `journal-1.md` | ~888 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-06-16 | Compiler-driven capability-aware autotuner on real llama.cpp kernels (Q4_0 beats ggml; q8_0/q4_1 parity); cost-model limits surfaced honestly | `8a7c5e36`, `a6cdeca6`, `8518b819`, `3e639be1`, `3a32d40b` | `main` |
 | 11 | 2026-06-15 | N1 coverage: compiler-emitted kernel really replaces ggml_vec_dot_q4_0_q8_0 in LIVE llama-2-7b inference | `de5d5db3`, `f6f1a73a`, `6a3b384f`, `7f539a4b` | `main` |
 | 10 | 2026-06-15 | N3 性能灯 ON (2 families e2e + deployable) + N1 divergence LIVE — goal novelty core achieved | `7ea69566`, `b07dd5cb`, `b141cad3`, `03223f5e`, `2af0663e`, `97e96fe6`, `07f844d5`, `a525d630`, `ec50b227`, `087d7aee`, `a5e0b4fe`, `28be2aad`, `ee455b67` | `main` |
 | 9 | 2026-06-14 | Trellis close-out: both tasks finished + archived; clean workspace | `71af66cd` | `main` |
