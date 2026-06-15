@@ -1,0 +1,49 @@
+### n=4096 single run reps=40 (clean ggml baseline ~1168ns)
+# n=4096 nb=128 iters=100000 reps=40  ref=-5.22822143e+12
+# correctness gate (bitwise == ggml):
+#   ggml(i8m1,serial)          -5.22822143e+12  [OK]
+#   m1(strip-loop,current)     -5.22822143e+12  [OK]
+#   m1_nl(no-strip-loop)       -5.22822143e+12  [OK]
+#   sl128(CEILING)             -5.22822143e+12  [OK]
+#   mb2(2blk,vsetvl-hoist)     -5.22822143e+12  [OK]
+#   mb4(4blk,vsetvl-hoist)     -5.22822143e+12  [OK]
+#   mb2_vl(2blk,VLEN-safe)     -5.22822143e+12  [OK]
+#   mb4_vl(4blk,VLEN-safe)     -5.22822143e+12  [OK]
+#   mb8(8blk,vsetvl-hoist)     -5.22822143e+12  [OK]
+
+# timing (best-of-40 min ns/call), pinned core:
+  ggml(i8m1,serial)            1170.30 ns/call   1.000x ggml   [REFERENCE]
+  m1(strip-loop,current)       1562.85 ns/call   1.335x ggml   [shippable]
+  m1_nl(no-strip-loop)         1225.22 ns/call   1.047x ggml   [shippable@vl16,not-VLEN-robust]
+  sl128(CEILING)               1211.68 ns/call   1.035x ggml   [NOT-shippable(VLEN<128 breaks)]
+  mb2(2blk,vsetvl-hoist)       1079.09 ns/call   0.922x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+  mb4(4blk,vsetvl-hoist)       1016.10 ns/call   0.868x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+  mb2_vl(2blk,VLEN-safe)       1097.58 ns/call   0.938x ggml   [shippable]
+  mb4_vl(4blk,VLEN-safe)       1020.29 ns/call   0.872x ggml   [shippable]
+  mb8(8blk,vsetvl-hoist)       1011.37 ns/call   0.864x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+# sink=-1.47574e+20
+
+### n=8192 reps=20
+# n=8192 nb=256 iters=60000 reps=20  ref=-6.37016421e+12
+# correctness gate (bitwise == ggml):
+#   ggml(i8m1,serial)          -6.37016421e+12  [OK]
+#   m1(strip-loop,current)     -6.37016421e+12  [OK]
+#   m1_nl(no-strip-loop)       -6.37016421e+12  [OK]
+#   sl128(CEILING)             -6.37016421e+12  [OK]
+#   mb2(2blk,vsetvl-hoist)     -6.37016421e+12  [OK]
+#   mb4(4blk,vsetvl-hoist)     -6.37016421e+12  [OK]
+#   mb2_vl(2blk,VLEN-safe)     -6.37016421e+12  [OK]
+#   mb4_vl(4blk,VLEN-safe)     -6.37016421e+12  [OK]
+#   mb8(8blk,vsetvl-hoist)     -6.37016421e+12  [OK]
+
+# timing (best-of-20 min ns/call), pinned core:
+  ggml(i8m1,serial)            2320.61 ns/call   1.000x ggml   [REFERENCE]
+  m1(strip-loop,current)       3108.99 ns/call   1.340x ggml   [shippable]
+  m1_nl(no-strip-loop)         2439.07 ns/call   1.051x ggml   [shippable@vl16,not-VLEN-robust]
+  sl128(CEILING)               2421.43 ns/call   1.043x ggml   [NOT-shippable(VLEN<128 breaks)]
+  mb2(2blk,vsetvl-hoist)       2139.48 ns/call   0.922x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+  mb4(4blk,vsetvl-hoist)       2012.25 ns/call   0.867x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+  mb2_vl(2blk,VLEN-safe)       2180.00 ns/call   0.939x ggml   [shippable]
+  mb4_vl(4blk,VLEN-safe)       2016.25 ns/call   0.869x ggml   [shippable]
+  mb8(8blk,vsetvl-hoist)       2002.01 ns/call   0.863x ggml   [NOT-VLEN-robust(hoisted vsetvl)]
+# sink=-5.967e+19

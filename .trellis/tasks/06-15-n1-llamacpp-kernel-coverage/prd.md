@@ -75,7 +75,29 @@ HW-validated byte-exact and the first milestone is a REAL ggml kernel, not a syn
 MILESTONE MET: our compiler genuinely compiles (not string-pastes) a byte-exact, structurally-emitted
 drop-in for a REAL llama.cpp kernel (ggml_vec_dot_q4_0_q8_0), proven by live token-identical inference +
 a canary. This is N1 coverage **breadth** of an externally-defined kernel — NOT the N1 *divergence* bar
-(do not conflate). Open: perf-competitiveness (N3) + more kernel families.
+(do not conflate). INC-4 brought perf to ~parity (m1 anchor) but the LMUL was HAND-SET.
+
+## Next phase (2026-06-15): COMPILER-DRIVEN tune (user mandate: "编译的高性能, not 写死内核 — a mature compiler")
+The win must come from the COMPILER's autotune, not a hand-picked shape. The Gearbox is currently two
+disconnected halves (an enumerate→prune→select engine that is unit-tested but NOT live-wired, and a
+schedule→body-attr stamping path that runs only for the i8 op). The DELIVERABLE is WIRING them so the
+compiler SELECTS the Q4_0 kernel shape — the beat is a consequence, not the goal.
+
+Empirical design space (research/q4_0-winning-shape-experiment.md, ssh-rvv, vs ggml ~1168 ns/call):
+- robust shapes (VLEN<128-safe strip loop): best = mb2_robust 1.20× (~11% over the hand-set m1 anchor); none beats ggml.
+- strip-ELIDED shapes: mb4 = 0.86× (~13% FASTER than ggml), but only correct at VLEN≥128.
+
+Honesty (verified): `rv64gcv` ⇒ "V" ⇒ **Zvl128b ⇒ VLEN≥128 mandated by ISA**, so for full-V the strip loop
+is DEAD CODE and mb4-elided is correct codegen for that capability class (correct ∀VLEN≥128: vsetvl(16)
+caps at 16 when VLMAX≥16) — apples-to-apples with ggml's own VLEN≥128 assumption. The strip loop serves
+only zve32x/zve64x (VLEN may be <128). So: **one capability fact (Zvl128b) → N1 legality divergence
+(full-V: elided shape that beats ggml; zve32x: robust strip loop) → N3 win** — the thesis on a real kernel.
+
+Plan: (S1) lowering knobs multi_block_factor × strip_elision, structured + byte-exact + rigorously
+re-measured; (S2) wire the capability-aware autotuner enumerate→prune(VLEN legality + vreg budget)→
+rank(principled cost)→select→stamp (DERIVED, not a lookup table); (S3) prove the compiler SELECTS
+correctly + diverges by capability + beats ggml(full-V)/anchor(zve32x), byte-exact; then breadth (q8_0,
+q5_0, q4_1, a K-quant) INHERITS the autotuner — no hand-tuning per kernel.
 
 ## Out of Scope (this task)
 - K-quant super-blocks (q4_K/q6_K) and the IQ/ternary tail — later rungs.
