@@ -813,3 +813,39 @@ Achieved the goal's two evidence-bearing novelty claims on real ssh rvv. N3 性�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: N1 coverage: compiler-emitted kernel really replaces ggml_vec_dot_q4_0_q8_0 in LIVE llama-2-7b inference
+
+**Date**: 2026-06-15
+**Task**: N1 coverage: compiler-emitted kernel really replaces ggml_vec_dot_q4_0_q8_0 in LIVE llama-2-7b inference
+**Branch**: `main`
+
+### Summary
+
+Pushed N1 coverage breadth to a REAL llama.cpp kernel. Research (3 primary-source files) mapped ggml_vec_dot_q4_0_q8_0 (the hot Q4_0 weight-matmul; board runs llama-2-7b Q4_0): asymmetric i4xi8, offset-binary nibble decode, per-block dual fp16 scale, AoS QK=32 block loop. INC-1 (de5d5db3): new op packed_i4_offset_binary_x_i8_product — the integer core; key trick (nibble-8)==twos_complement(nibble XOR 8) so a single vxor 0x88 reuses our sign-extend path; byte-exact vs ggml _generic over 4005 blocks on ssh rvv. INC-2a (f6f1a73a): new op q4_0_q8_0_block_dot lowers the COMPLETE kernel as STRUCTURED emitc IR (emitc.for block loop + AoS addressing via add/mul + fp16 read via call_opaque + INC-1 core + emitc.expression fp32 accumulate). CRITICAL PROCESS: the first INC-2a attempt emitted the kernel as raw() C-string blobs (the string-machine I5 rejects) — I caught it, reverted, and rebuilt structurally (advisor-confirmed); zero raw(), every value an emitc node. Byte-exact vs ggml's REAL RVV kernel AND _generic over ~5900 adversarial cases under ALL -ffp-contract flags (the emitc.expression wrap fixed a 1-ULP =on FMA-fusion gap). INC-3 (6a3b384f): dropped the compiler-emitted kernel into llama.cpp's ggml_vec_dot_q4_0_q8_0 dispatch on the board; LIVE llama-2-7b greedy inference token-for-token IDENTICAL to stock; a canary (wrong kernel -> garbage tokens, 113M delegations counted) proves it's the live hot path, not bypassed by repack. Verified via adversarial 3-dim workflow + trellis-check (all invariants I4/I5/I7/I8 PASS). HONEST: this is N1 coverage BREADTH (a real external kernel genuinely compiled byte-exact), NOT the N1 divergence novelty bar; and our kernel is correct-but-~1.7x-slower (i8mf4 vs ggml's i8m1 LMUL anchor) -> N3 perf is the open competitive step. First time our compiler stands in for an actual llama.cpp kernel byte-for-byte in a real model.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de5d5db3` | (see git log) |
+| `f6f1a73a` | (see git log) |
+| `6a3b384f` | (see git log) |
+| `7f539a4b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
