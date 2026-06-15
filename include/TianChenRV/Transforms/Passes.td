@@ -273,6 +273,48 @@ def MaterializeSelectedLoweringBoundaries
   ];
 }
 
+def MaterializeRVVProbedCapabilityAxes
+    : Pass<"tcrv-rvv-materialize-probed-capability-axes", "::mlir::ModuleOp"> {
+  let summary = "Materialize probe/profile-derived RVV divergence axes onto in-IR capability providers";
+  let description = [{
+    Mirrors the RVV plugin-local capability authority's derived target-support
+    axes onto the in-kernel tcrv.exec.capability / tcrv.exec.target provider ops
+    that the legality gate already queries. Given a selected RVV -march (and an
+    optional probed isa/vector-hint string), the pass calls the same plugin-local
+    authority the probe->capability conversion uses
+    (deriveSupportedSEWAllowList / deriveSupportedLMULAllowList) and stamps the
+    derived supported_sew / supported_lmul allow-lists onto each RVV-kind
+    capability provider that does not already carry them.
+
+    This closes the live probe->gate seam: a real profile selection (e.g.
+    --march=rv64gcv vs --march=rv64gc_zve32x) drives the in-IR capability gate
+    divergence automatically, with no hand-authored supported_sew / supported_lmul
+    fixture attributes. The materialized values are a TARGET-CAPABILITY support
+    allow-list, not a plugin-selected compile-time SEW/LMUL (I5): the typed body
+    still owns its single chosen config, and the gate queries the typed
+    capability object the pass writes (I1/I4), never inferring from ABI strings
+    or family names (I5). The pass derives nothing from clang/cmake/compile-run
+    toolchain facts and probes no hardware; it does not lower, emit code, claim
+    runtime or performance evidence, or fabricate selected config. Capability
+    providers that already declare an axis are left untouched, so it never
+    clobbers hand-authored fixtures.
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the support allow-lists "
+           "are derived from (e.g. rv64gcv, rv64gc_zve32x).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for axis derivation.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVProbedCapabilityAxesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
 def MaterializeRVVGearboxSchedules
     : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
   let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";

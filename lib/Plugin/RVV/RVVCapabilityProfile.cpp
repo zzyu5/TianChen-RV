@@ -127,6 +127,43 @@ bool hasRVVVectorHint(llvm::StringRef hints) {
   return false;
 }
 
+bool isHexDigest(llvm::StringRef digest) {
+  if (digest.empty())
+    return true;
+  if (digest.size() != 64)
+    return false;
+  return llvm::all_of(digest, [](char character) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    return std::isxdigit(byte);
+  });
+}
+
+llvm::Error addAvailableCapability(mlir::MLIRContext &context,
+                                   support::TargetCapabilitySet &capabilities,
+                                   llvm::StringRef symbolName,
+                                   llvm::StringRef id, llvm::StringRef kind,
+                                   CapabilityProperties properties = {},
+                                   llvm::ArrayRef<std::string> providedIDs =
+                                       {}) {
+  tcrv::exec::CapabilityRelationsAttr relations;
+  if (!providedIDs.empty()) {
+    llvm::SmallVector<mlir::StringAttr, 4> provides;
+    provides.reserve(providedIDs.size());
+    for (const std::string &providedID : providedIDs)
+      provides.push_back(mlir::StringAttr::get(&context, providedID));
+    relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
+                                                         /*implies=*/{},
+                                                         /*conflicts=*/{});
+  }
+  return capabilities.tryAddCapability(support::CapabilityDescriptor(
+      symbolName, id, kind, kAvailableStatus,
+      support::CapabilityAvailability::Available, std::move(properties),
+      relations),
+      "RVV probe capability construction");
+}
+
+} // namespace
+
 // Derives the RVV element-width (SEW) SUPPORT allow-list from the validated ISA
 // evidence (selected -march plus the probed isa/vector hint string). This is a
 // TARGET-CAPABILITY fact ("what element widths this configured target supports"),
@@ -178,43 +215,6 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
     return "mf8,mf4,mf2,m1,m2,m4,m8";
   return "";
 }
-
-bool isHexDigest(llvm::StringRef digest) {
-  if (digest.empty())
-    return true;
-  if (digest.size() != 64)
-    return false;
-  return llvm::all_of(digest, [](char character) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    return std::isxdigit(byte);
-  });
-}
-
-llvm::Error addAvailableCapability(mlir::MLIRContext &context,
-                                   support::TargetCapabilitySet &capabilities,
-                                   llvm::StringRef symbolName,
-                                   llvm::StringRef id, llvm::StringRef kind,
-                                   CapabilityProperties properties = {},
-                                   llvm::ArrayRef<std::string> providedIDs =
-                                       {}) {
-  tcrv::exec::CapabilityRelationsAttr relations;
-  if (!providedIDs.empty()) {
-    llvm::SmallVector<mlir::StringAttr, 4> provides;
-    provides.reserve(providedIDs.size());
-    for (const std::string &providedID : providedIDs)
-      provides.push_back(mlir::StringAttr::get(&context, providedID));
-    relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
-                                                         /*implies=*/{},
-                                                         /*conflicts=*/{});
-  }
-  return capabilities.tryAddCapability(support::CapabilityDescriptor(
-      symbolName, id, kind, kAvailableStatus,
-      support::CapabilityAvailability::Available, std::move(properties),
-      relations),
-      "RVV probe capability construction");
-}
-
-} // namespace
 
 llvm::StringRef getRVVHartCountCapabilityID() {
   return kRVVHartCountCapabilityID;
