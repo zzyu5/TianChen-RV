@@ -1,0 +1,103 @@
+P-B6: deferred-wide byte low-precision contraction -> DEPLOYABLE target-artifact
+BUNDLE (.o/.h), end to end. The N3 deployable residual from P-B5 is CLOSED.
+
+THE GAP (P-B5 authorized stop): the byte deferred-wide kernel's runnable C won the
+灯 (--tcrv-rvv-lower-to-emitc), but kernel->target-artifact-BUNDLE FAILED CLOSED:
+the bundle-export description engine (RVVEmitCRouteAnalysis/Description/Metadata +
+the route-family owners + RVVTargetSupportBundle + the header mirror) expected the
+NARROW i8mf4 facts and rejected the deferred-wide body.
+
+WHAT P-B6 DID: extended the kept I4-mirror description/bundle-export engine to
+RECOGNIZE the deferred-wide body and produce a PARALLEL deferred-wide fact set,
+mirroring the structural ops (I5; facts derived from the typed body, not invented):
+  - a distinct RVVSelectedBodyOperationKind (WideningProductDeferredAccumulate /
+    ...ReduceAdd / ...ReduceDequantizeF32) so every downstream consumer opts into
+    the wide config structurally (the compiler enumerated the remaining sites);
+  - RouteAnalysis: accept the wide signed product relation (signed-i8m2xi8m2-to-
+    i16m4) + a new widening_accumulate recorder + thread the reduce/dequant chain
+    through the i32m8 accumulate carrier (reduceInputSlotResult);
+  - config-binding/route-family: the deferred-wide route carries TWO structural
+    configs -- the loop/strip config (sew8/m2, drives the runtime AVL/VL control
+    plan + setvl) and the i32m1/f32m1 RESULT config (drives result typing / c-type
+    mapping / header). The narrow route asserts these equal; the wide route asserts
+    each against its own structural source. The description is normalized to the
+    result config for the profile/c-type/header, with the loop fields strip;
+  - the wide primitive facts (i8m2->i16m4 product, __riscv_vwmul_vv_i16m4, the
+    deferred __riscv_vwadd_wv_i32m8, the trailing __riscv_vredsum_vs_i32m8_i32m1,
+    the wide relations) derived from the realized ops; the route IDENTITY (leaf
+    profile rvv-v1-i8mf4-..., the logical c_type_mapping) stays narrow-named (the
+    wide-ness is an internal realization, the route is the same logical op);
+  - construction-protocol: accept the deferred-wide typed-compute chain
+    (widening_product+widening_accumulate+standalone_reduce+dequantize), the role-
+    step + canonical-role-order with the inserted widening_accumulate step;
+  - HONEST ASYMMETRY (the blessed boundary): the wide single-scope body emits NO
+    low_precision_resource.* gearbox tuning-decision block and NO
+    gearbox_cross_region_handoff/scope facts (those are the narrow grouped two-
+    scope candidate artifacts). The wide path emits ONLY the structurally-derivable
+    primitive/route facts -- not fabricated to force any test green (I4/I7).
+
+THE BUNDLE EXPORTS: kernel --tcrv-rvv-materialize-gearbox-schedules
+--tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans
+| tcrv-translate --tcrv-export-target-header-artifact -> a valid PLAN + HEADER, and
+the e2e harness generates a generated_bundle/ with:
+  - artifact-0-...-relocatable-object...o  : ELF 64-bit RISC-V relocatable
+    (UCB RISC-V, RVC, double-float ABI), wide winning intrinsics
+    (vle8_v_i8m2, vwmul_vv_i16m4, vmv_v_x_i32m8, vwadd_wv_i32m8,
+    vredsum_vs_i32m8_i32m1)
+  - artifact-1-...-callable-c-header...h    : void tcrv_emitc_..._product_reduce_
+    dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float
+    scale, float *out, size_t n);
+
+DEPLOYED-BUNDLE CORRECTNESS (I8, real ssh rvv riscv64 / clang 18.1.3): compile the
+generated .o + call via the generated .h prototype + link + run vs a GENUINE scalar
+oracle. DEPLOYED_BUNDLE_ALL_PASS: abs_err=0.000e+00 at n=0/1/16/17/256/257/1024/
+4096/16384/65536 (incl. the n=257 prime-tail partial strip) x scale {-0.125,0.375}
+x acc0 {0,7,-19}. The deployable bundle path -- not the runnable C -- runs
+numerically correct.
+
+TESTS RESTORED:
+  - rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-
+    f32-dry-run.test: UN-XFAIL'd (PASS). WPRD-DAG re-baselined to the wide facts
+    (deferred chain, src-i8m2, i32m8 deferred carry) + --implicit-check-not guards
+    that fail-close on a stale narrow resource/handoff fact leak.
+  - rvv-generated-bundle-same-target-measure-gate4-dry-run.test: byte op-kind +
+    grouped-u2 candidate UN-CARVED (PASS). The grouped-u2 candidate feedback is the
+    deferred-wide honest record (no resource-selection block).
+  - pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir:
+    re-baselined from FAIL-CLOSED to PLAN+HEADER export assertions (wide facts).
+  - pre-realized-selected-body-realize-deferred-wide-autotuner-e2e.mlir: re-baselined
+    from FAIL-CLOSED to PLAN export assertions.
+
+NARROW PATH INTACT: packed-i4 + clamp realize narrow, byte-identical through
+emission-plans AND header export AND both harnesses (abi_e2e + same_target_measure
+dry-runs dry_run_success). All wide branches are gated (distinct op kind / wide
+relation / widening_accumulate presence), so the narrow path is untouched.
+
+BUILD/LIT: full clean rebuild GREEN. Full lit 598 tests, 3 reds -- ALL PRE-EXISTING
+(verified failing on the original HEAD script with the P-B6 edits stashed):
+  - rvv-generated-bundle-abi-e2e-self-test.test (the self-test fake bundle expects
+    the retired grouped two-scope form)
+  - the two computed-masked-strided-input-widening-dot-reduce-add dry-runs
+The XFAIL'd e2e is now a PASS (un-XFAIL'd, not XPASS-by-force); no new reds.
+
+VERIFICATION CLOSURE (post clean rebuild):
+  - FULL CLEAN REBUILD: cmake --build build --clean-first (all targets from
+    scratch) + rebuilt tcrv-opt/tcrv-translate -> GREEN. Full lit on the
+    clean-built tools: 598 tests, 3 reds (the same 3 pre-existing environmental
+    reds; verified pre-existing by stashing the P-B6 script edits and reproducing
+    the failures on the original HEAD scripts). The earlier 593->598 delta is lit
+    discovery (more REQUIRES: tianchenrv-local-rvv-object-clang tests now runnable
+    after the bundle-export landing), not added/dropped tests.
+  - DEPLOYED-BUNDLE PROVENANCE: regenerated the wide bundle from the freshly
+    clean-built tcrv-opt/tcrv-translate; the .o disassembly is byte-identical to
+    the earlier-validated one (only the embedded object path differs in the sha).
+    Re-ran the ssh-rvv deployed-bundle driver against the FRESH .o:
+    DEPLOYED_BUNDLE_ALL_PASS (abs_err=0 incl. n=257 prime-tail, n=65536). The I8
+    evidence is from the final clean-built compiler.
+  - GATE4 N3 EVIDENCE INTACT: the packed-i4 (and clamp) candidates still carry the
+    full low_precision_resource.* selection block (candidate feedback
+    status=ready-for-same-target-measurement, candidate_set/selected_candidate
+    fields present) -- the gate4 N3 tune-measurement evidence consumption is intact
+    via the narrow candidates. The byte deferred-wide candidate honestly emits NO
+    resource-selection block (the blessed asymmetry) and adds its primitive-facts
+    evidence instead; nothing required was deleted.

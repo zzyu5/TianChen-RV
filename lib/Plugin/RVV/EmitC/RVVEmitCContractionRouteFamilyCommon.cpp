@@ -371,13 +371,26 @@ llvm::StringRef getContractionWideningProductRelation(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     bool isUnsigned) {
-  if (sourceSEW != tcrv::rvv::getRVVSEW8Bits() ||
-      sourceLMUL != tcrv::rvv::getRVVLMULMF4() ||
-      resultSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      resultLMUL != tcrv::rvv::getRVVLMULMF2())
+  // The deferred-wide (N3) realization widens the product strip to i8m2 -> i16m4
+  // (vs the narrow i8mf4 -> i16mf2). Admit that PARALLEL signed wide relation
+  // additively -- the narrow combination below is byte-untouched, and the wide
+  // ladder is always signed (no unsigned deferred-wide path). The relation string
+  // mirrors the realized product op types (I5).
+  const bool isNarrowProduct =
+      sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
+      resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULMF2();
+  const bool isDeferredWideProduct =
+      !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULM4();
+  if (!isNarrowProduct && !isDeferredWideProduct)
     return {};
-  if (!isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL,
-                                                resultSEW, resultLMUL))
+  if (isNarrowProduct &&
+      !isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL, resultSEW,
+                                                resultLMUL))
     return {};
   if (isUnsigned)
     return internContractionDerivedText(
@@ -397,12 +410,25 @@ llvm::StringRef getContractionProductReductionChainRelation(
     std::int64_t productSEW, llvm::StringRef productLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     bool isUnsigned) {
-  if (sourceSEW != tcrv::rvv::getRVVSEW8Bits() ||
-      sourceLMUL != tcrv::rvv::getRVVLMULMF4() ||
-      productSEW != tcrv::rvv::getRVVSEW16Bits() ||
-      productLMUL != tcrv::rvv::getRVVLMULMF2() ||
-      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      resultLMUL != tcrv::rvv::getRVVLMULM1())
+  // The narrow chain is i8mf4 -> i16mf2 -> i32m1; the deferred-wide (N3) chain is
+  // i8m2 -> i16m4 -> (i32m8 deferred accumulate) -> i32m1. Admit the parallel
+  // signed wide source/product ladder additively (result is i32m1 in both). The
+  // relation string mirrors the realized product/reduce op types (I5).
+  const bool isNarrowChain =
+      sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
+      productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      productLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULM1();
+  const bool isDeferredWideChain =
+      !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      resultLMUL == tcrv::rvv::getRVVLMULM1();
+  if (!isNarrowChain && !isDeferredWideChain)
     return {};
   if (isUnsigned)
     return internContractionDerivedText(
@@ -636,6 +662,8 @@ bool isContractionDotReductionOperation(RVVSelectedBodyOperationKind op) {
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
@@ -657,6 +685,8 @@ llvm::StringRef getContractionRuntimeABIOrder(
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
     return kRVVWideningProductReductionChainRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
     return kRVVWideningProductReductionDequantizeRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
     return kRVVWideningProductReductionDequantClampF32RuntimeABIOrder;

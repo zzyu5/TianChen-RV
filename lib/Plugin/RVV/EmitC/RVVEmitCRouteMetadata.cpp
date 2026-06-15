@@ -929,7 +929,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       description.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32) {
     metadata.push_back(
         {"tcrv_rvv.source_sew",
          llvm::Twine(primitivePayload.hasPayload ? primitivePayload.sourceSEW
@@ -1017,7 +1020,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     if (description.operation ==
             RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
         description.operation ==
-            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::
+                WideningProductDeferredAccumulateReduceDequantizeF32) {
       metadata.push_back({"tcrv_rvv.dequantization_relation",
                           description.dequantizationRelation});
       metadata.push_back({"tcrv_rvv.dequant_scale_role",

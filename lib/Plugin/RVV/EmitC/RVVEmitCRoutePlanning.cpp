@@ -2083,7 +2083,12 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
   if (!plan.policy)
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) + " requires explicit RVV policy");
-  if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul))
+  // The deferred-wide (N3) product-reduce-dequant route runs its runtime AVL/VL
+  // loop at the wide strip config (sew8/m2) -- the structural setvl config of
+  // the i8m2 -> i16m4 -> i32m8 winner. Admit that parallel config alongside the
+  // first-slice dataflow configs (I5: it is the realized setvl config).
+  if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul) &&
+      !tcrv::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " requires a supported typed RVV SEW/LMUL config");
@@ -3643,6 +3648,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (llvm::Error error =
           validateRVVSelectedBodyTypedConfigFacts(*slice, config))
     return std::move(error);
+  // The deferred-wide (N3) product-reduce-dequant realization carries its SOURCE
+  // strip config (sew8/m2) on the setvl, but the route's LOGICAL profile is the
+  // i32m1/f32m1 RESULT config -- identical to the narrow dequant route (whose
+  // setvl coincidentally carries that result config). The typed config facts were
+  // already validated against the structural source/product/accumulate/result
+  // types above; here the route description/configContract are normalized to the
+  // result config so the dequant route profile derivation, c-type mapping, and
+  // header mirror match the narrow path (I5: the result type is structural in the
+  // reduce/dequant ops, not inferred from a name).
+  if (slice->arithmeticKind ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32) {
+    config.sew = tcrv::rvv::getRVVSEW32Bits();
+    config.lmul = tcrv::rvv::getRVVLMULM1();
+  }
   const auto &configContract =
       tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.sew, config.lmul,
                                                     config.policy);
@@ -4323,7 +4343,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       routeProfile->operation.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       routeProfile->operation.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      routeProfile->operation.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   if (isDequantTypedComputeChain) {
     analysis.description.typedComputeOpName =
         getRVVSelectedBodyDequantTypedComputeOpChain(

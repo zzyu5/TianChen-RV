@@ -81,6 +81,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedMAccOp maskedMAccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
   tcrv::rvv::WideningProductOp wideningProductOp;
+  tcrv::rvv::WideningAccumulateOp wideningAccumulateOp;
   tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
@@ -291,6 +292,27 @@ inline bool productSlotIsUnsigned(const RVVSelectedBodyRouteSlice &slice) {
   return false;
 }
 
+// The deferred-wide chain (the N3 resource-aware max-legal-LMUL winner) inserts a
+// tcrv_rvv.widening_accumulate between the widening_product and the trailing
+// standalone_reduce: i8m2 product -> i16m4 -> i32m8 deferred vector accumulate ->
+// ONE trailing reduce. When the slice carries a widening_accumulate the i32 vector
+// that feeds the standalone_reduce is the accumulate result (NOT the product
+// result), so the reduce/dequant chain reads through this accessor. Structural,
+// I5: presence + the carried value are read directly from the typed op.
+inline bool hasDeferredWideAccumulate(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.wideningAccumulateOp);
+}
+
+// The i32 vector value that the trailing standalone_reduce consumes: the deferred
+// i32m8 accumulate result when the wide accumulate is present, else the narrow
+// product head result.
+inline mlir::Value
+reduceInputSlotResult(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningAccumulateOp accumulate = slice.wideningAccumulateOp)
+    return accumulate.getResult();
+  return productSlotResult(slice);
+}
+
 // The PLAN/HEADER `rvv_selected_body_typed_compute_op` chain for a low-precision
 // product-reduction dequant(/clamp) selected body, derived from the ACTUAL
 // realized structure of the slice: the typed product head (widening_product for
@@ -328,8 +350,13 @@ getRVVSelectedBodyDequantTypedComputeOpChain(
   static constexpr llvm::StringLiteral kNibbleClamp(
       "tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce+"
       "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kDeferredWideDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
+      "tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize");
   if (handoff)
     return isClamp ? kWideningHandoffClamp : kWideningHandoffDequant;
+  if (static_cast<bool>(slice.wideningAccumulateOp))
+    return kDeferredWideDequant;
   if (nibble)
     return isClamp ? kNibbleClamp : kNibbleDequant;
   return isClamp ? kWideningClamp : kWideningDequant;

@@ -47,7 +47,10 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       plan.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      plan.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isProductReductionDequantClamp =
       plan.operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
@@ -137,11 +140,36 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "contraction route-family typed config snapshot requires element bit "
         "width to match result SEW");
-  if (plan.sew != plan.runtimeControlPlan.sew ||
-      plan.lmul != plan.runtimeControlPlan.lmul ||
-      plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
-      plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
-      plan.configContractID != plan.runtimeControlPlan.configContractID)
+  const bool isDeferredWideProductReductionDequantization =
+      plan.operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32;
+  if (isDeferredWideProductReductionDequantization) {
+    // The deferred-wide route legitimately carries TWO structural configs: the
+    // loop/strip config (sew8/m2, the setvl driving the runtime AVL/VL control
+    // plan) and the i32m1/f32m1 RESULT config (plan.sew/lmul, driving result
+    // typing). The narrow route asserts these are equal; the wide route asserts
+    // each against its own structural source (I5: both are realized configs).
+    if (plan.runtimeControlPlan.sew != tcrv::rvv::getRVVSEW8Bits() ||
+        plan.runtimeControlPlan.lmul != tcrv::rvv::getRVVLMULM2())
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide contraction route-family plan requires the runtime "
+          "AVL/VL control plan to run at the realized i8m2 strip config");
+    if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+        plan.lmul != tcrv::rvv::getRVVLMULM1())
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide contraction route-family plan requires the result "
+          "config to be the realized i32m1/f32m1 result config");
+    if (plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+        plan.maskPolicy != plan.runtimeControlPlan.maskPolicy)
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide contraction route-family plan requires the result and "
+          "strip configs to share the realized tail/mask policy");
+  } else if (plan.sew != plan.runtimeControlPlan.sew ||
+             plan.lmul != plan.runtimeControlPlan.lmul ||
+             plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+             plan.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+             plan.configContractID != plan.runtimeControlPlan.configContractID)
     return makeRVVEmitCRouteProviderError(
         "contraction route-family typed config snapshot must mirror runtime "
         "AVL/VL control plan result SEW/LMUL/policy/config facts");
@@ -154,13 +182,27 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "contraction route-family source typed snapshot requires source "
         "element bit width to match source SEW");
-  const bool supportsProductReductionChain =
+  const bool supportsNarrowProductReductionChain =
       plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
       plan.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
       plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
       plan.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
       plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       plan.lmul == tcrv::rvv::getRVVLMULM1();
+  // The deferred-wide (N3) chain runs the parallel wide ladder: source i8m2,
+  // product i16m4, result i32m1 (the i32m8 deferred accumulate is the structural
+  // intermediate between product and reduce). Derived structurally (I5).
+  const bool supportsDeferredWideProductReductionChain =
+      isDeferredWideProductReductionDequantization &&
+      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      plan.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == tcrv::rvv::getRVVLMULM1();
+  const bool supportsProductReductionChain =
+      supportsNarrowProductReductionChain ||
+      supportsDeferredWideProductReductionChain;
   if (isProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("contraction route-family plan does not support "
@@ -886,10 +928,15 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   const bool isProductReductionDequantClamp =
       operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isDeferredWideProductReductionDequantization =
+      operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isProductReductionDequantization =
       operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      isProductReductionDequantClamp;
+      isProductReductionDequantClamp ||
+      isDeferredWideProductReductionDequantization;
   const bool isProductReductionChain =
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       isProductReductionDequantization;
@@ -925,8 +972,11 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   std::optional<RVVContractionVectorFacts> productFacts;
   std::optional<RVVContractionVectorFacts> reductionResultFacts;
   if (isProductReductionChain) {
+    // In the deferred-wide chain the trailing standalone_reduce consumes the
+    // i32m8 accumulate result; reduceInputSlotResult returns that wide carrier
+    // when present, else the narrow product result (I5).
     if (analysis.slice.standaloneReduceOp.getInput() !=
-        productSlotResult(analysis.slice))
+        reduceInputSlotResult(analysis.slice))
       return makeRVVEmitCRouteProviderError(
           "product-reduction contraction route-family plan requires "
           "tcrv_rvv.standalone_reduce input to consume the selected "
@@ -1236,10 +1286,18 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         getContractionWideningProductIntrinsic(
             plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
             plan.productLMUL, plan.wideningProductRelation);
+    // The deferred-wide chain reduces the i32m8 deferred accumulate with a PLAIN
+    // same-width vredsum (not the narrow widening vwredsum of the i16 product);
+    // its trailing reduce is __riscv_vredsum_vs_i32m8_i32m1 (I5, derived from the
+    // realized i32m8 accumulate -> i32m1 reduce, mirroring the primitive fact).
     plan.contractionComputeIntrinsic =
-        getContractionWideningReductionIntrinsic(
-            plan.productSEW, plan.productLMUL, typedConfig.sew,
-            typedConfig.lmul, plan.productReductionChainRelation);
+        plan.operation ==
+                RVVSelectedBodyOperationKind::
+                    WideningProductDeferredAccumulateReduceDequantizeF32
+            ? llvm::StringRef("__riscv_vredsum_vs_i32m8_i32m1")
+            : getContractionWideningReductionIntrinsic(
+                  plan.productSEW, plan.productLMUL, typedConfig.sew,
+                  typedConfig.lmul, plan.productReductionChainRelation);
     plan.scalarSeedSplatIntrinsic =
         getContractionScalarSeedSplatIntrinsic(typedConfig.sew,
                                                typedConfig.lmul,
@@ -1388,6 +1446,28 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyContractionRuntimeAVLVLControlPlanToDescription(
       plan.runtimeControlPlan, description);
+  // For the deferred-wide (N3) route the runtime control plan runs at the i8m2
+  // STRIP config, but the route description's LOGICAL config is the i32m1/f32m1
+  // RESULT config (plan.sew/lmul). Restore the result config + its config/VL
+  // contract IDs (which the control-plan application overwrote with the strip
+  // config) so the route profile / c-type mapping / header mirror key off the
+  // result config. The narrow route's control plan == result config, so this is a
+  // no-op there. The runtime-AVL/loop fields (control plan id, setvl intrinsic)
+  // stay strip-config (the loop genuinely runs at i8m2).
+  if (plan.operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32) {
+    description.sew = plan.sew;
+    description.lmul = plan.lmul;
+    const tcrv::rvv::RVVSelectedBodyConfigVLContract &resultContract =
+        tcrv::rvv::getRVVSelectedBodyConfigVLContract(
+            plan.sew, plan.lmul, plan.runtimeControlPlan.policy);
+    description.configContractID = resultContract.configContractID;
+    description.runtimeVLContractID = resultContract.runtimeVLContractID;
+    description.runtimeAVLASource = resultContract.runtimeAVLASource;
+    description.boundedSlice = resultContract.boundedSlice;
+    description.multiVL = resultContract.multiVL;
+  }
   description.elementTypeName = plan.elementTypeName;
   description.resultElementTypeName = plan.elementTypeName;
   description.contractionRouteFamilyPlanID = plan.familyPlanID;
@@ -1563,7 +1643,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   const bool usesProductReductionDequantization =
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      usesProductReductionDequantClamp;
+      usesProductReductionDequantClamp ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool usesProductReductionChain =
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
@@ -1600,13 +1683,28 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           context, "runtime ABI order", description.runtimeABIOrder,
           getRVVSelectedBodyContractionRuntimeABIOrder(description.operation)))
     return error;
-  const bool supportsProductReductionChain =
+  const bool supportsNarrowProductReductionChain =
       description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
       description.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
       description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
       description.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
       description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       description.lmul == tcrv::rvv::getRVVLMULM1();
+  // The deferred-wide (N3) chain runs i8m2 -> i16m4 -> i32m1 (the i32m8 deferred
+  // accumulate is the structural intermediate). Mirror the plan-level support.
+  const bool supportsDeferredWideProductReductionChain =
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32 &&
+      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1();
+  const bool supportsProductReductionChain =
+      supportsNarrowProductReductionChain ||
+      supportsDeferredWideProductReductionChain;
   if (usesProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2395,6 +2493,8 @@ getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
     return kRVVWideningProductReductionChainOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
     return kRVVWideningProductReductionDequantizeOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
     return kRVVWideningProductReductionDequantClampF32OperandBindingPlanID;
@@ -2610,6 +2710,30 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
     addContractionRouteOperandBinding(
         plan, "rhs", slice.rhsABI,
         {"abi", "src-load", "wprod-rhs", "src-i8mf4", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI, {"abi", "seed", "wred", "i32", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "scale", slice.dequantScaleABI,
+        {"abi", "runtime-scale", "scale-f32", "dequant", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "dequant-result", "store", "res-f32m1", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
+    // Same logical dequant route; the deferred-wide realization widens the
+    // source strip to i8m2 (vs narrow i8mf4) feeding the i32m8 deferred
+    // accumulate. The src-i8m2 marker mirrors the realized wide strip (I5).
+    context = "widening_product_reduce_dequantize_f32 route";
+    addContractionRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "src-load", "wprod-lhs", "src-i8m2", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "src-load", "wprod-rhs", "src-i8m2", "hdr"});
     addContractionRouteOperandBinding(
         plan, "acc", slice.accumulatorABI, {"abi", "seed", "wred", "i32", "hdr"});
     addContractionRouteOperandBinding(

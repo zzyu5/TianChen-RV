@@ -2,7 +2,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | FileCheck %s --check-prefix=GEARBOX-SCHEDULE-PRIMITIVE
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL-CLOSED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"/accumulator_carry_boundary = "metadata-carry-boundary"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-ACC
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=DTYPE-CHAIN
@@ -20,15 +21,14 @@
 // i32m8 accumulator LMUL is realized into the typed body from the budget-pruned
 // selector choice (structural, I5).
 //
-// HONEST RESIDUAL (authorized P-B5 stop): the wide body fails CLOSED at
-// emission-plans / bundle export (FAIL-CLOSED below) because the downstream
-// route-family + header narrow-mirror wiring does not yet carry a parallel
-// deferred-wide fact set. End-to-end RUNNABLE-C coverage of the wide winner goes
-// through --tcrv-rvv-lower-to-emitc (EMITC below + the ssh-rvv P-B5 evidence);
-// narrow bundle-export coverage lives in the packed-i4 sibling fixture (which
-// keeps the narrow nibble-unpack path). The narrow byte realization is now only
-// reachable from synthetic constrained-budget IR, so its old bundle-export
-// assertions were retired here rather than kept stale.
+// DEPLOYABLE BUNDLE (P-B6): the description/bundle-export engine now RECOGNIZES the
+// deferred-wide body and produces a PARALLEL deferred-wide fact set (the
+// widening_accumulate compute step, the i8m2/i16m4/i32m8 wide ladder, the
+// i32m1/f32m1 result config, the wide-strip route operand binding), so the wide
+// byte kernel exports a valid target-artifact bundle (.o + .h). The PLAN/HEADER
+// checks below assert the deferred-wide facts (I5: the wide body is authority). The
+// EMITC + ssh-rvv P-B5 evidence still cover the runnable-C winner; the packed-i4
+// sibling keeps the narrow nibble-unpack bundle path byte-identical.
 
 module {
   tcrv.exec.kernel @pre_realized_body_product_reduce_dequantize_kernel {
@@ -103,9 +103,31 @@ module {
 // MISSING-RESOURCE-PASS: requires pass-produced low-precision direct-contraction resource fact
 // MISSING-RESOURCE-PASS-SAME: tcrv_rvv.low_precision_resource.candidate_set
 
-// FAIL-CLOSED (authorized residual): the deferred-wide body is rejected -- not
-// silently mis-lowered -- at emission-plans (I7-clean diagnostic).
-// FAIL-CLOSED: unsupported generic tcrv_rvv.widening_product kind 'signed_widening_product' for bounded RVV low-precision widening-product route
+// The deferred-wide body now DESCRIBES + EXPORTS a deployable bundle. The PLAN
+// metadata carries the deferred-wide typed-compute chain (widening_product ->
+// widening_accumulate -> standalone_reduce -> dequantize), the honest wide strip
+// ladder on the primitive facts (source_lmul=m2, product_lmul=m4), the i32m1/f32m1
+// RESULT config (sew32/m1), and the same logical product-reduction-dequantization
+// route identity/leaf profile + ABI as the narrow path. The route operand binding
+// honestly mirrors the wide strip (src-i8m2).
+// PLAN-DAG: "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"
+// PLAN-DAG: "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+// PLAN-DAG: "tcrv_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+// PLAN-DAG: "tcrv_rvv.sew", value = "32"
+// PLAN-DAG: "tcrv_rvv.lmul", value = "m1"
+// PLAN-DAG: "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8m2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8m2|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+// PLAN-DAG: "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
+// PLAN-DAG: "tcrv_rvv.low_precision_primitive.source_lmul", value = "m2"
+// PLAN-DAG: "tcrv_rvv.low_precision_primitive.product_lmul", value = "m4"
+// PLAN-DAG: "tcrv_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
+
+// The deployable header artifact: the same callable C ABI prototype as the narrow
+// path (the deferred-wide realization is an internal config; the runtime ABI is
+// unchanged), exported from the wide bundle.
+// HEADER: tianchenrv.rvv.selected_route: rvv-generic-typed-body-emitc-route-family
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1
+// HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
 // MISSING-SCALE: runtime scale
 // MISSING-SCALE-SAME: dequant-scale-value

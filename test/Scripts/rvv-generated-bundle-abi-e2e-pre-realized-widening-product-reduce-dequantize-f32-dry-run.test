@@ -1,22 +1,24 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
-# XFAIL: *
 #
-# P-B5 authorized residual (the reason for the XFAIL above). The byte (unpacked)
-# widening_product_reduce_dequantize_f32 kernel now realizes the DEFERRED-WIDE
-# winner at the real architectural vector-register budget (32) via the resource-
-# aware selector, and the wide body fails CLOSED at bundle export (the route-
-# family + header narrow-mirror wiring does not yet carry a parallel deferred-wide
-# fact set -- the documented residual). The fail-closed diagnostic ("unsupported
-# generic tcrv_rvv.widening_product kind ... for bounded RVV low-precision
-# widening-product route") is asserted in
-# test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir,
-# and the winning body's runnable C is ssh-rvv numeric-validated + measured
-# (P-B5 灯: 4.1-10.8x vs scalar, 3.3-5.4x vs naive) via --tcrv-rvv-lower-to-emitc.
-# XPASS here flags the day the bundle-export deferred-wide wiring lands.
+# P-B6 (the deferred-wide bundle-export landing; un-XFAIL'd from P-B5). The byte
+# (unpacked) widening_product_reduce_dequantize_f32 kernel realizes the DEFERRED-
+# WIDE winner at the real architectural vector-register budget (32) via the
+# resource-aware selector, and the description/bundle-export engine now RECOGNIZES
+# the deferred-wide body (the widening_accumulate compute step + the i8m2/i16m4/
+# i32m8 wide ladder) and produces the PARALLEL deferred-wide fact set, so the wide
+# byte kernel exports a valid target-artifact bundle (.o + .h). The WPRD-DAG block
+# below asserts the honest WIDE facts (the deferred chain, the wide strip ladder
+# src-i8m2, the i32m8 deferred accumulate carry). The same-logical route identity /
+# leaf profile / ABI prototype are unchanged. The wide single-scope body emits NO
+# low_precision_resource.* selection block and NO gearbox_cross_region_handoff
+# (those are the narrow grouped two-scope candidate artifacts) -- the wide path's
+# facts are the primitive-facts ladder, asserted honestly here (I5: the wide body
+# is authority). The runnable-C winner is ssh-rvv numeric-validated + measured
+# (P-B5 灯: 4.1-10.8x vs scalar, 3.3-5.4x vs naive).
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequantize-f32 --overwrite --op-kind widening_product_reduce_dequantize_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/evidence.json
-# RUN: FileCheck %s --check-prefix=WPRD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/widening_product_reduce_dequantize_f32/evidence.json
+# RUN: FileCheck %s --check-prefix=WPRD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" --implicit-check-not="low_precision_resource.selected_candidate" --implicit-check-not="gearbox_cross_region_handoff" --implicit-check-not="gearbox.producer_scope" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/widening_product_reduce_dequantize_f32/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/widening_product_reduce_dequantize_f32/rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -43,13 +45,13 @@
 # WPRD-DAG: "key": "rvv_selected_body_operation"
 # WPRD-DAG: "value": "widening_product_reduce_dequantize_f32"
 # WPRD-DAG: "key": "rvv_selected_body_typed_compute_op"
-# WPRD-DAG: "value": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+# WPRD-DAG: "value": "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
 # WPRD-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # WPRD-DAG: "value": "lhs,rhs,acc,scale,out,n"
 # WPRD-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
 # WPRD-DAG: "value": "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1"
 # WPRD-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
-# WPRD-DAG: "value": "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# WPRD-DAG: "value": "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8m2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8m2|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # WPRD-DAG: "key": "tcrv_rvv.contraction_route_family_plan"
 # WPRD-DAG: "value": "rvv-contraction-route-family-plan.v1"
 # WPRD-DAG: "key": "tcrv_rvv.target_leaf_profile"
@@ -60,37 +62,34 @@
 # WPRD-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
 # WPRD-DAG: "key": "tcrv_rvv.c_type_mapping"
 # WPRD-DAG: "value": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat:float-e32m1,scale:float"
+# The product head config is the WIDE strip ladder (i16m4 product, src-i8m2);
+# the result config + route identity / leaf-profile / c_type_mapping stay the
+# narrow-named logical-route strings.
 # WPRD-DAG: "key": "tcrv_rvv.product_vector_c_type"
-# WPRD-DAG: "value": "vint16mf2_t"
+# WPRD-DAG: "value": "vint16m4_t"
 # WPRD-DAG: "key": "tcrv_rvv.widening_product_relation"
-# WPRD-DAG: "value": "signed-i8mf4xi8mf4-to-i16mf2"
+# WPRD-DAG: "value": "signed-i8m2xi8m2-to-i16m4"
 # WPRD-DAG: "key": "tcrv_rvv.product_reduction_chain_relation"
-# WPRD-DAG: "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+# WPRD-DAG: "value": "signed-i8m2xi8m2-to-i16m4-reduce-plus-i32-scalar-to-i32"
 # WPRD-DAG: "key": "tcrv_rvv.dequantization_relation"
 # WPRD-DAG: "value": "signed-i32m1-to-f32m1-scale-f32"
 # WPRD-DAG: "key": "tcrv_rvv.rhs_broadcast_intrinsic"
 # WPRD-DAG: "value": "__riscv_vfmv_v_f_f32m1"
-# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.selected_candidate"
-# WPRD-DAG: "value": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
-# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.memory_form"
-# WPRD-DAG: "value": "unit-stride-widening-product-reduce-dequantize-f32"
-# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.runtime_abi_order"
-# WPRD-DAG: "value": "lhs,rhs,acc,scale,out,n"
-# WPRD-DAG: "key": "tcrv_rvv.gearbox.producer_scope"
-# WPRD-DAG: "value": "gearbox-scope:product-reduction"
-# WPRD-DAG: "key": "tcrv_rvv.gearbox.consumer_scope"
-# WPRD-DAG: "value": "gearbox-scope:dequant-store"
+# The deferred-wide single-scope body emits NO low_precision_resource.* selection
+# block and NO gearbox.producer/consumer_scope / gearbox_cross_region_handoff
+# facts (those are the narrow grouped two-scope candidate artifacts); the
+# --implicit-check-not lines below fail-close if a stale narrow resource/handoff
+# fact leaks into the wide evidence.
 # WPRD-DAG: "widening_product_reduction_boundary"
+# WPRD-DAG: "deferred_wide_accumulate": true
 # WPRD-DAG: "loop_accumulator_source": "dot_acc_vec"
 # WPRD-DAG: "loop_updates_vector_carry": true
+# WPRD-DAG: "loop_deferred_accumulate_intrinsic": "__riscv_vwadd_wv_i32m8"
+# WPRD-DAG: "post_loop_single_reduce_intrinsic": "__riscv_vredsum_vs_i32m8_i32m1"
 # WPRD-DAG: "post_loop_scalar_extract": "v{{[0-9]+}}"
-# WPRD-DAG: "reduction_operand_order": "products,current_dot_acc_vec,vl"
-# WPRD-DAG: "scalar_dequant_expression": "dot_acc_scalar * scale"
+# WPRD-DAG: "scalar_dequant_expression": "(acc[0] + dot_acc_scalar) * scale"
 # WPRD-DAG: "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1"
 # WPRD-DAG: "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1"
-# WPRD-DAG: "gearbox_cross_region_handoff"
-# WPRD-DAG: "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
-# WPRD-DAG: "expected_selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 # WPRD-DAG: "dequantization_boundary"
 # WPRD-DAG: "provider_route_facts"
 # WPRD-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:product-reduction target-owned consumer"

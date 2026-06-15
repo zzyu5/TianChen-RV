@@ -288,6 +288,49 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
         standaloneReduce.getResultLayout() +
         "' for bounded RVV standalone reduction route");
   if (slice.arithmeticOp) {
+    // The trailing reduce closes one of two product-reduction chains:
+    //   - the narrow per-iteration chain: widening_product head -> reduce, OR
+    //   - the deferred-wide chain (N3 winner): widening_product ->
+    //     widening_accumulate (i32m8) -> ONE trailing reduce.
+    // In the deferred-wide case the reduce consumes the i32m8 accumulate result;
+    // its kind is the plain (non-widening) "add" because the i16->i32 widen was
+    // already performed by the accumulate, so the trailing reduce is a same-width
+    // i32m8 -> i32m1 vredsum. The accumulate-fed path is gated on the wide head
+    // being present (structural, I5).
+    const bool isDeferredWideChain = hasDeferredWideAccumulate(slice);
+    if (isDeferredWideChain) {
+      if (slice.arithmeticKind !=
+              RVVSelectedBodyOperationKind::WideningProductDeferredAccumulate ||
+          !slice.wideningProductOp ||
+          *reductionKind !=
+              RVVSelectedBodyOperationKind::StandaloneReduceAdd)
+        return makeRVVEmitCRouteProviderError(
+            "deferred-wide low-precision product-reduction RVV route requires a "
+            "signed tcrv_rvv.widening_product -> tcrv_rvv.widening_accumulate -> "
+            "tcrv_rvv.standalone_reduce add chain");
+      if (!productSlotIsSigned(slice) ||
+          standaloneReduce.getKind() != "add")
+        return makeRVVEmitCRouteProviderError(
+            "deferred-wide low-precision product-reduction RVV route requires "
+            "the trailing tcrv_rvv.standalone_reduce to be a signed i32m8 -> "
+            "i32m1 add reduction of the deferred accumulate");
+      if (standaloneReduce.getInput() != reduceInputSlotResult(slice))
+        return makeRVVEmitCRouteProviderError(
+            "deferred-wide low-precision product-reduction RVV route requires "
+            "tcrv_rvv.standalone_reduce input to consume the selected "
+            "tcrv_rvv.widening_accumulate i32m8 result");
+      slice.standaloneReduceOp = standaloneReduce;
+      slice.arithmeticOp = standaloneReduce.getOperation();
+      slice.arithmeticKind = RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceAdd;
+      slice.arithmeticLhs = productSlotLhs(slice);
+      slice.arithmeticRhs = productSlotRhs(slice);
+      slice.arithmeticAccumulator = standaloneReduce.getAccumulatorSeed();
+      slice.accumulatorBuffer = standaloneReduce.getAccumulatorSeed();
+      slice.arithmeticResult = standaloneReduce.getResult();
+      slice.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+      return llvm::Error::success();
+    }
     if (slice.arithmeticKind != RVVSelectedBodyOperationKind::WideningProduct ||
         !hasProductHead(slice) ||
         *reductionKind !=
@@ -537,7 +580,15 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   const bool isSignedProduct =
       product.getKind() == "signed_widening_product" &&
       product.getProductRelation() == "signed-i8mf4xi8mf4-to-i16mf2";
-  if (!isSignedProduct && !isUnsignedProduct)
+  // The N3 resource-aware deferred-wide winner widens the strip config from mf4
+  // to m2 (i8m2 x i8m2 -> i16m4) so it can feed an i32m8 deferred vector
+  // accumulate. Accept the wide signed relation ADDITIVELY -- the narrow branches
+  // above are byte-untouched. The relation is read structurally from the typed op
+  // (I5); a downstream widening_accumulate is required to complete the chain.
+  const bool isSignedDeferredWideProduct =
+      product.getKind() == "signed_widening_product" &&
+      product.getProductRelation() == "signed-i8m2xi8m2-to-i16m4";
+  if (!isSignedProduct && !isUnsignedProduct && !isSignedDeferredWideProduct)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.widening_product kind '") +
         product.getKind() +
@@ -548,6 +599,63 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   slice.arithmeticLhs = product.getLhs();
   slice.arithmeticRhs = product.getRhs();
   slice.arithmeticResult = product.getResult();
+  return llvm::Error::success();
+}
+
+// Record the typed deferred-wide accumulate (the N3 resource-aware
+// max-legal-LMUL winner): an i16m4 widening product feeds a loop-carried i32m8
+// vector accumulate (vwadd.wv, deferred) that is reduced ONCE after the loop. The
+// accumulate must follow the wide signed widening_product head and consume its
+// i16m4 result; kind/relation are read structurally from the typed op (I5). After
+// recording, the i32m8 accumulate result becomes the value the trailing
+// standalone_reduce consumes (reduceInputSlotResult), so the rest of the
+// product-reduce-dequant chain threads unchanged.
+llvm::Error recordRVVSelectedBodyWideningAccumulate(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::WideningAccumulateOp accumulate) {
+  if (slice.wideningAccumulateOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one "
+        "tcrv_rvv.widening_accumulate op for the deferred-wide low-precision "
+        "product-reduction chain");
+  if (slice.arithmeticKind != RVVSelectedBodyOperationKind::WideningProduct ||
+      !slice.wideningProductOp)
+    return makeRVVEmitCRouteProviderError(
+        "deferred-wide low-precision product-reduction RVV route requires "
+        "tcrv_rvv.widening_accumulate to follow the selected signed "
+        "tcrv_rvv.widening_product head");
+  if (slice.wideningProductOp.getProductRelation() !=
+      "signed-i8m2xi8m2-to-i16m4")
+    return makeRVVEmitCRouteProviderError(
+        "deferred-wide low-precision product-reduction RVV route requires the "
+        "tcrv_rvv.widening_accumulate to follow the wide "
+        "signed-i8m2xi8m2-to-i16m4 product head");
+  if (accumulate.getKind() != "signed_widening_accumulate_add")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_accumulate kind '") +
+        accumulate.getKind() +
+        "' for bounded RVV deferred-wide low-precision accumulate route");
+  if (accumulate.getAccumulateRelation() != "signed-i16m4-into-i32m8-deferred-add")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_accumulate "
+                    "accumulate_relation '") +
+        accumulate.getAccumulateRelation() +
+        "' for bounded RVV deferred-wide low-precision accumulate route");
+  if (accumulate.getProduct() != slice.wideningProductOp.getResult())
+    return makeRVVEmitCRouteProviderError(
+        "deferred-wide low-precision product-reduction RVV route requires "
+        "tcrv_rvv.widening_accumulate to consume the selected "
+        "tcrv_rvv.widening_product i16m4 result");
+  if (accumulate.getVl() != slice.wideningProductOp.getVl())
+    return makeRVVEmitCRouteProviderError(
+        "deferred-wide low-precision product-reduction RVV route requires "
+        "tcrv_rvv.widening_accumulate to consume the same !tcrv_rvv.vl token as "
+        "the selected tcrv_rvv.widening_product");
+  slice.wideningAccumulateOp = accumulate;
+  slice.arithmeticOp = accumulate.getOperation();
+  slice.arithmeticKind =
+      RVVSelectedBodyOperationKind::WideningProductDeferredAccumulate;
+  slice.arithmeticResult = accumulate.getResult();
   return llvm::Error::success();
 }
 
@@ -1101,8 +1209,12 @@ llvm::Error recordRVVSelectedBodyDequantize(
     return scaleABI.takeError();
 
   if (slice.arithmeticOp) {
-    if (slice.arithmeticKind !=
-            RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+    const bool isDeferredWideReduce =
+        slice.arithmeticKind == RVVSelectedBodyOperationKind::
+                                    WideningProductDeferredAccumulateReduceAdd;
+    if ((slice.arithmeticKind !=
+             RVVSelectedBodyOperationKind::WideningProductReduceAdd &&
+         !isDeferredWideReduce) ||
         !slice.standaloneReduceOp || !hasProductHead(slice))
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
@@ -1110,8 +1222,8 @@ llvm::Error recordRVVSelectedBodyDequantize(
           "tcrv_rvv.dequantize i32-to-f32 chain");
     // Two carriers of the i32 product-reduction result feed the dequant:
     //   - legacy two-scope: the gearbox_cross_region_handoff output (carrier);
-    //   - single-scope typed body (Stage 3 flip): the standalone_reduce result
-    //     directly (no handoff op is present).
+    //   - single-scope typed body (Stage 3 flip + the deferred-wide chain): the
+    //     standalone_reduce result directly (no handoff op is present).
     if (slice.gearboxCrossRegionHandoffOp) {
       if (dequantize.getSource() !=
           slice.gearboxCrossRegionHandoffOp.getOutput())
@@ -1129,7 +1241,10 @@ llvm::Error recordRVVSelectedBodyDequantize(
     slice.dequantizeOp = dequantize;
     slice.arithmeticOp = dequantize.getOperation();
     slice.arithmeticKind =
-        RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+        isDeferredWideReduce
+            ? RVVSelectedBodyOperationKind::
+                  WideningProductDeferredAccumulateReduceDequantizeF32
+            : RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
     slice.conversionSource = dequantize.getSource();
     slice.dequantScale = dequantize.getScale();
     slice.dequantScaleABI = *scaleABI;
@@ -1427,6 +1542,8 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
     return recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc);
   if (auto product = llvm::dyn_cast<tcrv::rvv::WideningProductOp>(op))
     return recordRVVSelectedBodyWideningProduct(slice, product);
+  if (auto accumulate = llvm::dyn_cast<tcrv::rvv::WideningAccumulateOp>(op))
+    return recordRVVSelectedBodyWideningAccumulate(slice, accumulate);
   if (auto nibbleProduct =
           llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op))
     return recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct);
@@ -1471,7 +1588,8 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
         "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
         "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
         "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
-        "tcrv_rvv.widening_product, tcrv_rvv.widening_convert, "
+        "tcrv_rvv.widening_product, tcrv_rvv.widening_accumulate, "
+        "tcrv_rvv.widening_convert, "
         "tcrv_rvv.gearbox_cross_region_handoff, "
         "tcrv_rvv.move, "
         "tcrv_rvv.widening_dot_reduce, "
@@ -1491,7 +1609,8 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
       "mask_load, segment2_load, segment2_store, binary, compare, "
       "masked_binary, select, reduce, standalone_reduce, "
       "masked_standalone_reduce, macc, masked_macc, "
-      "widening_product, packed_i4_nibble_unpack_product, widening_convert, "
+      "widening_product, widening_accumulate, "
+      "packed_i4_nibble_unpack_product, widening_convert, "
       "gearbox_cross_region_handoff, "
       "widening_dot_reduce, "
       "masked_widening_dot_reduce, move, masked_move, masked_load, "
@@ -2725,6 +2844,13 @@ llvm::Error collectGenericRouteSliceOps(
         return std::move(error);
       continue;
     }
+    if (auto accumulate =
+            llvm::dyn_cast<tcrv::rvv::WideningAccumulateOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyWideningAccumulate(slice, accumulate))
+        return std::move(error);
+      continue;
+    }
     if (auto nibbleProduct =
             llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op)) {
       if (llvm::Error error =
@@ -2806,7 +2932,8 @@ llvm::Error collectGenericRouteSliceOps(
           "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
           "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
           "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
-          "tcrv_rvv.widening_product, tcrv_rvv.widening_convert, "
+          "tcrv_rvv.widening_product, tcrv_rvv.widening_accumulate, "
+          "tcrv_rvv.widening_convert, "
           "tcrv_rvv.gearbox_cross_region_handoff, "
           "tcrv_rvv.move, "
           "tcrv_rvv.widening_dot_reduce, "
@@ -2826,7 +2953,8 @@ llvm::Error collectGenericRouteSliceOps(
         "mask_load, segment2_load, segment2_store, binary, compare, "
         "masked_binary, select, reduce, standalone_reduce, "
         "masked_standalone_reduce, macc, masked_macc, "
-        "widening_product, packed_i4_nibble_unpack_product, widening_convert, "
+        "widening_product, widening_accumulate, "
+        "packed_i4_nibble_unpack_product, widening_convert, "
       "gearbox_cross_region_handoff, "
         "widening_dot_reduce, "
         "masked_widening_dot_reduce, move, masked_move, masked_load, "
@@ -3532,9 +3660,12 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.gearboxCrossRegionHandoffOp
             ? slice.gearboxCrossRegionHandoffOp.getOutput()
             : slice.standaloneReduceOp.getResult();
+    // In the deferred-wide chain the trailing standalone_reduce consumes the
+    // i32m8 accumulate result; reduceInputSlotResult returns that wide carrier
+    // when the accumulate is present, else the narrow product result (I5).
     if (productSlotLhs(slice) != slice.lhsValue ||
         productSlotRhs(slice) != slice.rhsValue ||
-        slice.standaloneReduceOp.getInput() != productSlotResult(slice) ||
+        slice.standaloneReduceOp.getInput() != reduceInputSlotResult(slice) ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||
         (hasProductReductionDequantization &&
@@ -6802,8 +6933,13 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
        !slice.gearboxCrossRegionHandoffOp)
           ? 1u
           : 0u;
+  // The deferred-wide (N3) realization inserts one extra in-loop
+  // tcrv_rvv.widening_accumulate op between the widening_product and the trailing
+  // standalone_reduce; account for it structurally from the slice (I5).
+  const unsigned expectedDeferredWideAdjust =
+      slice.wideningAccumulateOp ? 1u : 0u;
   const unsigned expectedRVVOpsWithMarkers =
-      expectedRVVOps - expectedHandoffAdjust +
+      expectedRVVOps - expectedHandoffAdjust + expectedDeferredWideAdjust +
       slice.vsetvlRegionMarkers.size() +
       (slice.gearboxConsumerWithVL ? 1 : 0);
   if (rvvOpCount != expectedRVVOpsWithMarkers)
@@ -7241,10 +7377,20 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd;
-  const bool isWideningProductReduceDequantize =
+  // The deferred-wide terminal kind is the SAME logical product-reduce-dequant
+  // route (single-scope, no handoff) with one extra in-loop tcrv_rvv.widening_
+  // accumulate op; it shares the dequant route handling and its op count is one
+  // greater (added back below via expectedDeferredWideAdjust).
+  const bool isWideningProductDeferredAccumulateReduceDequantize =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
+  const bool isWideningProductReduceDequantize =
+      (slice.arithmeticOp &&
+       slice.arithmeticKind ==
+           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32) ||
+      isWideningProductDeferredAccumulateReduceDequantize;
   const bool isWideningProductReduceDequantClamp =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -7795,7 +7941,10 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
   const bool isWideningProductReduceDequantize =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      isWideningProductReduceDequantClamp;
+      isWideningProductReduceDequantClamp ||
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isWideningProductReduce =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
@@ -8357,16 +8506,26 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return isWideningProductReduceDequantize ? 9 : 8;
     if (op == productSlotOperation(slice))
       return isWideningProductReduceDequantize ? 10 : 9;
+    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate at order
+    // 11, between the product (10) and the trailing standalone_reduce; the reduce/
+    // dequant/store roles below shift up by one when the accumulate is present
+    // (structural, mirrors the role-step list insertion).
+    const unsigned dequantDeferredWideExtra =
+        (isWideningProductReduceDequantize && slice.wideningAccumulateOp) ? 1u
+                                                                          : 0u;
+    if (isWideningProductReduceDequantize && slice.wideningAccumulateOp &&
+        op == slice.wideningAccumulateOp.getOperation())
+      return 11;
     if (isWideningProductReduceDequantize &&
         op == slice.standaloneReduceOp.getOperation())
-      return 11;
+      return 11u + dequantDeferredWideExtra;
     if (isWideningProductReduceDequantize &&
         slice.gearboxCrossRegionHandoffOp &&
         op == slice.gearboxCrossRegionHandoffOp.getOperation())
-      return 12;
+      return 12u + dequantDeferredWideExtra;
     if (isWideningProductReduceDequantize && slice.gearboxConsumerWithVL &&
         op == slice.gearboxConsumerWithVL.getOperation())
-      return 13;
+      return 13u + dequantDeferredWideExtra;
     // Single-scope typed dequant body (Stage 3 flip): no handoff op and no
     // consumer with_vl scope, so the dequantize/store role orders close up the
     // gap (12/13) the deleted two-scope ops would have occupied, staying
@@ -8374,12 +8533,16 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     const unsigned dequantTwoScopeExtra =
         slice.gearboxCrossRegionHandoffOp ? 2u : 0u;
     if (op == slice.arithmeticOp)
-      return isWideningProductReduceDequantize ? (12u + dequantTwoScopeExtra)
-                                               : 10;
+      return isWideningProductReduceDequantize
+                 ? (12u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+                 : 10;
     if (op == slice.storeOperation)
-      return isWideningProductReduceDequantize ? (13u + dequantTwoScopeExtra)
-                                               : 11;
-    return isWideningProductReduceDequantize ? (14u + dequantTwoScopeExtra) : 12;
+      return isWideningProductReduceDequantize
+                 ? (13u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+                 : 11;
+    return isWideningProductReduceDequantize
+               ? (14u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+               : 12;
   }
   if (isComputedMaskStandaloneReduction) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -9175,7 +9338,10 @@ llvm::Error verifySelectedRVVRoleSequence(
   const bool isWideningProductReduceDequantize =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      isWideningProductReduceDequantClamp;
+      isWideningProductReduceDequantClamp ||
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isWideningProductReduce =
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||

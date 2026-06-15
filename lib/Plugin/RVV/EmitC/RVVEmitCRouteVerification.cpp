@@ -110,7 +110,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       operationProfile.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       operationProfile.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isProductReductionChainRoute =
       operationProfile.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
@@ -265,7 +268,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       description.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   if (!usesGenericBinary && !isDequantTypedComputeRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "typed compute op", description.typedComputeOpName,

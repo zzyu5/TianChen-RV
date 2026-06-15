@@ -693,7 +693,10 @@ deriveRVVSelectedBodyTargetLeafProfile(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       description.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32) {
     const bool hasExpectedMemoryForm =
         description.operation ==
                 RVVSelectedBodyOperationKind::
@@ -714,8 +717,14 @@ deriveRVVSelectedBodyTargetLeafProfile(
           getRVVSelectedBodyFloatSelectIntrinsic(configProfile.sew,
                                                  configProfile.lmul),
           configProfile.rhsBroadcastIntrinsic};
+    // The deferred-wide dequant terminal kind shares the narrow dequant leaf
+    // profile: the dequant scale splat (rhsBroadcastIntrinsic), no arithmetic /
+    // compare / select leaf (those are dedicated structural ops).
     if (description.operation ==
-        RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32)
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::
+                WideningProductDeferredAccumulateReduceDequantizeF32)
       return RVVSelectedBodyTargetLeafProfile{
           "", "", "", configProfile.rhsBroadcastIntrinsic};
     return RVVSelectedBodyTargetLeafProfile{"", "", "", ""};
@@ -1652,6 +1661,74 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
                        config)) {
       return error;
     }
+    return llvm::Error::success();
+  }
+
+  // The deferred-wide (N3 resource-aware max-legal-LMUL winner) product-reduce-
+  // dequant realization of the SAME logical op. UNLIKE the narrow path (whose
+  // setvl carries the i32m1/f32m1 RESULT config), the deferred-wide setvl carries
+  // the SOURCE strip config (sew8/m2), so the result config (sew32/m1) is derived
+  // explicitly here. The wide LMUL ladder is fixed by the structural ops: source
+  // i8m2, product i16m4, deferred accumulate i32m8, ONE trailing reduce to i32m1,
+  // dequant to f32m1. Every config below mirrors those typed result types (I5) --
+  // nothing is inferred from a name/route id.
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32) {
+    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
+    sourceConfig.lmul = tcrv::rvv::getRVVLMULM2();
+    sourceConfig.policy = config.policy;
+    tcrv::rvv::RVVCompileTimeConfig productConfig;
+    productConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    productConfig.lmul = tcrv::rvv::getRVVLMULM4();
+    productConfig.policy = config.policy;
+    tcrv::rvv::RVVCompileTimeConfig accumulateConfig;
+    accumulateConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+    accumulateConfig.lmul = tcrv::rvv::getRVVLMULM8();
+    accumulateConfig.policy = config.policy;
+    tcrv::rvv::RVVCompileTimeConfig resultConfig;
+    resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+    resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    resultConfig.policy = config.policy;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue,
+            "deferred-wide product-reduction lhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue,
+            "deferred-wide product-reduction rhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            productSlotResult(slice),
+            "deferred-wide product-reduction i16m4 product vector",
+            productConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.wideningAccumulateOp.getResult(),
+            "deferred-wide product-reduction i32m8 accumulate vector",
+            accumulateConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.standaloneReduceOp.getResult(),
+            "deferred-wide product-reduction i32m1 reduce result vector",
+            resultConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+            slice.dequantizeOp.getResult(),
+            "deferred-wide product-reduction dequantized f32m1 vector",
+            resultConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+            slice.arithmeticResult,
+            "deferred-wide product-reduction dequantized result vector",
+            resultConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+            slice.storeValue,
+            "deferred-wide product-reduction dequantized stored vector",
+            resultConfig))
+      return error;
     return llvm::Error::success();
   }
 
@@ -3441,7 +3518,10 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       slice.arithmeticKind ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isWideningProductReduceDequantClamp =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;

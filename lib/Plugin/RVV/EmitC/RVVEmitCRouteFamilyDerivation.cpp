@@ -714,6 +714,48 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
           /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
           /*isSegmentedMemoryMovement=*/false,
           /*isWideningConversion=*/false};
+  // The deferred-wide (N3 resource-aware max-legal-LMUL) realization of the same
+  // logical widening_product_reduce_dequantize_f32 op: the externally visible op
+  // kind is UNCHANGED ("widening_product_reduce_dequantize_f32") -- the deferred
+  // i32m8 accumulate is an internal realization, not a different op surface. The
+  // distinct enum kinds exist so downstream sites that must derive the wide config
+  // (m2/m4/m8) are forced to opt in structurally rather than collapse to narrow
+  // facts. The intermediate (Accumulate / ReduceAdd) kinds are transient walk
+  // states; their mnemonics name the partial chain for diagnostics.
+  static const RVVSelectedBodyOperationProfile
+      kWideningProductDeferredAccumulate = {
+          RVVSelectedBodyOperationKind::WideningProductDeferredAccumulate,
+          "widening_product_deferred_accumulate",
+          "widening_product_deferred_accumulated_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile
+      kWideningProductDeferredAccumulateReduceAdd = {
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceAdd,
+          "widening_product_deferred_accumulate_reduce_add",
+          "widening_product_deferred_accumulate_reduced_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile
+      kWideningProductDeferredAccumulateReduceDequantizeF32 = {
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32,
+          "widening_product_reduce_dequantize_f32", "dequantized_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kWideningDotReduceAdd = {
       RVVSelectedBodyOperationKind::WideningDotReduceAdd,
       "widening_dot_reduce_add", "widening_dot_reduced_vec", "",
@@ -894,6 +936,13 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kWideningProductReduceDequantizeF32;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
     return kWideningProductReduceDequantClampF32;
+  case RVVSelectedBodyOperationKind::WideningProductDeferredAccumulate:
+    return kWideningProductDeferredAccumulate;
+  case RVVSelectedBodyOperationKind::WideningProductDeferredAccumulateReduceAdd:
+    return kWideningProductDeferredAccumulateReduceAdd;
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
+    return kWideningProductDeferredAccumulateReduceDequantizeF32;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return kWideningDotReduceAdd;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -930,7 +979,10 @@ deriveRVVSelectedBodyConfigProfile(
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
   const bool isProductReductionDequantizeF32Result =
       description.operation ==
-      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isUnsignedWideningProductResult =
       (description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
        description.wideningProductRelation ==
@@ -1186,6 +1238,10 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
+  case RVVSelectedBodyOperationKind::WideningProductDeferredAccumulate:
+  case RVVSelectedBodyOperationKind::WideningProductDeferredAccumulateReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::

@@ -1963,6 +1963,12 @@ void appendWideningProductReduceDequantizeF32RoleSteps(
         "tcrv_rvv.packed_i4_nibble_unpack_product");
     const bool hasHandoff =
         typedComputeOpName.contains("tcrv_rvv.gearbox_cross_region_handoff");
+    // The deferred-wide (N3) chain carries a tcrv_rvv.widening_accumulate compute
+    // step between the widening_product head and the trailing standalone_reduce
+    // (the i32m8 deferred vector accumulate). Detected from the candidate-aware
+    // typed-compute chain (I5: read from the realized chain, not a name).
+    const bool hasDeferredWideAccumulate =
+        typedComputeOpName.contains("tcrv_rvv.widening_accumulate");
     const llvm::StringRef headOp =
         nibbleHead ? llvm::StringRef("tcrv_rvv.packed_i4_nibble_unpack_product")
                    : llvm::StringRef("tcrv_rvv.widening_product");
@@ -2004,6 +2010,11 @@ void appendWideningProductReduceDequantizeF32RoleSteps(
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface", "widening_product",
                      order++});
+    if (hasDeferredWideAccumulate)
+      steps.push_back({"compute", "tcrv_rvv.widening_accumulate",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface",
+                       "widening_product_deferred_accumulate", order++});
     steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface",
@@ -3790,8 +3801,17 @@ buildRVVSelectedBodyExecutableRoleSteps(
         ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
+    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate between
+    // the widening_product and the trailing standalone_reduce (plain dequant
+    // only; no clamp variant).
+    const std::string deferredWide =
+        isClamp ? std::string()
+                : std::string("tcrv_rvv.widening_product+"
+                              "tcrv_rvv.widening_accumulate+"
+                              "tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize");
     return typedComputeOpName == wideningHandoff ||
-           typedComputeOpName == widening || typedComputeOpName == nibble;
+           typedComputeOpName == widening || typedComputeOpName == nibble ||
+           (!deferredWide.empty() && typedComputeOpName == deferredWide);
   };
   if (isWideningProductReduceDequantizeF32 && !isLegalDequantChain(false))
     return makeRVVConstructionError(
@@ -5673,16 +5693,27 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
+    // The deferred-wide (N3) chain inserts a tcrv_rvv.widening_accumulate between
+    // the widening_product and the trailing standalone_reduce (the i32m8 deferred
+    // vector accumulate). Accept it as a bounded legal dequant chain (no clamp
+    // variant -- the deferred-wide path is the plain dequant only).
+    const std::string deferredWide =
+        ("tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
+         "tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
     if (facts.typedComputeOpName != wideningHandoff &&
         facts.typedComputeOpName != widening &&
-        facts.typedComputeOpName != nibble)
+        facts.typedComputeOpName != nibble &&
+        facts.typedComputeOpName != deferredWide)
       return makeRVVConstructionError(
           llvm::Twine(context) +
           " selected-body typed compute op for operation '" +
           facts.operationMnemonic +
           "' must be one of the bounded low-precision product-reduction "
           "dequant chains (widening_product/packed_i4_nibble_unpack_product "
-          "head, optional gearbox_cross_region_handoff), but was '" +
+          "head, optional widening_accumulate or gearbox_cross_region_handoff), "
+          "but was '" +
           facts.typedComputeOpName + "'");
     return llvm::Error::success();
   }
@@ -6751,9 +6782,17 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         ("tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
+    // The deferred-wide (N3) chain inserts tcrv_rvv.widening_accumulate between
+    // the widening_product and the trailing standalone_reduce.
+    const std::string deferredWideChain =
+        ("tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
+         "tcrv_rvv.standalone_reduce" +
+         llvm::Twine(tail))
+            .str();
     if (typedComputeOpName != wideningHandoffChain &&
         typedComputeOpName != wideningChain &&
-        typedComputeOpName != nibbleChain)
+        typedComputeOpName != nibbleChain &&
+        typedComputeOpName != deferredWideChain)
       return makeRVVConstructionError(
           llvm::Twine("selected-body typed compute op for operation '") +
           operationMnemonic +

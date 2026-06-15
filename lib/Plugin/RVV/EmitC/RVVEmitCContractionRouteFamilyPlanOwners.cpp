@@ -295,10 +295,15 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
   const bool isProductReductionDequantClamp =
       operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isDeferredWideProductReductionDequantization =
+      operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isProductReductionDequantization =
       operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      isProductReductionDequantClamp;
+      isProductReductionDequantClamp ||
+      isDeferredWideProductReductionDequantization;
   const bool isProductReductionChain =
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       isProductReductionDequantization;
@@ -307,12 +312,22 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
   if (isUnsignedProductReduction && isProductReductionDequantization)
     return std::nullopt;
 
-  constexpr std::int64_t kSourceSEW = 8;
-  constexpr llvm::StringLiteral kSourceLMUL("mf4");
-  constexpr std::int64_t kProductSEW = 16;
-  constexpr llvm::StringLiteral kProductLMUL("mf2");
-  constexpr std::int64_t kAccumulatorSEW = 32;
-  constexpr llvm::StringLiteral kAccumulatorLMUL("m1");
+  // The deferred-wide (N3) realization runs the parallel WIDE ladder (source
+  // i8m2, product i16m4) feeding the i32m8 deferred accumulate; the narrow
+  // realization runs i8mf4 -> i16mf2 -> i32m1 vwredsum. Source SEW is 8 in both
+  // (so the i8 source pointer C-type is unchanged); only the LMULs widen. The
+  // accumulator config (i32m1) is the trailing-reduce RESULT in both paths. The
+  // ladder is read structurally from the realized ops (I5).
+  const std::int64_t kSourceSEW = 8;
+  const llvm::StringRef kSourceLMUL =
+      isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
+                                                   : llvm::StringRef("mf4");
+  const std::int64_t kProductSEW = 16;
+  const llvm::StringRef kProductLMUL =
+      isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
+                                                   : llvm::StringRef("mf2");
+  const std::int64_t kAccumulatorSEW = 32;
+  const llvm::StringRef kAccumulatorLMUL("m1");
 
   const llvm::StringRef productRelation = getContractionWideningProductRelation(
       kSourceSEW, kSourceLMUL, kProductSEW, kProductLMUL,
@@ -416,11 +431,18 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
       getContractionWideningProductIntrinsic(
           kSourceSEW, kSourceLMUL, kProductSEW, kProductLMUL, productRelation)
           .str();
+  // The narrow chain reduces the i16mf2 product directly with a WIDENING
+  // vwredsum into i32m1. The deferred-wide chain instead accumulates into an
+  // i32m8 vector (vwadd.wv) and reduces it with a PLAIN same-width vredsum
+  // i32m8 -> i32m1 after the loop. The trailing reduce intrinsic is therefore
+  // derived from the deferred i32m8 accumulate, not the i16m4 product (I5).
   facts.reductionIntrinsic =
-      getContractionWideningReductionIntrinsic(
-          kProductSEW, kProductLMUL, kAccumulatorSEW, kAccumulatorLMUL,
-          chainRelation)
-          .str();
+      isDeferredWideProductReductionDequantization
+          ? "__riscv_vredsum_vs_i32m8_i32m1"
+          : getContractionWideningReductionIntrinsic(
+                kProductSEW, kProductLMUL, kAccumulatorSEW, kAccumulatorLMUL,
+                chainRelation)
+                .str();
   facts.scalarSeedSplatIntrinsic =
       getContractionScalarSeedSplatIntrinsic(kAccumulatorSEW,
                                              kAccumulatorLMUL,
@@ -449,26 +471,38 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   if (!isContractionDotReductionOperation(operation))
     return std::nullopt;
 
+  const bool isDeferredWideProductReductionDequantization =
+      operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredAccumulateReduceDequantizeF32;
   const bool isProductReductionChain =
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+      isDeferredWideProductReductionDequantization;
   const bool isProductReductionDequantClamp =
       operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
   const bool isProductReductionDequantization =
       operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-      isProductReductionDequantClamp;
+      isProductReductionDequantClamp ||
+      isDeferredWideProductReductionDequantization;
   if (isUnsignedProductReduction &&
       operation != RVVSelectedBodyOperationKind::WideningProductReduceAdd)
     return std::nullopt;
-  constexpr std::int64_t kProductSourceSEW = 8;
-  constexpr llvm::StringLiteral kProductSourceLMUL("mf4");
-  constexpr std::int64_t kProductSEW = 16;
-  constexpr llvm::StringLiteral kProductLMUL("mf2");
+  // The deferred-wide (N3) chain widens the source/product strip to i8m2 -> i16m4
+  // (vs narrow i8mf4 -> i16mf2); the result is i32m1 in both.
+  const std::int64_t kProductSourceSEW = 8;
+  const llvm::StringRef kProductSourceLMUL =
+      isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
+                                                   : llvm::StringRef("mf4");
+  const std::int64_t kProductSEW = 16;
+  const llvm::StringRef kProductLMUL =
+      isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
+                                                   : llvm::StringRef("mf2");
   constexpr std::int64_t kDotSourceSEW = 16;
   constexpr llvm::StringLiteral kDotSourceLMUL("mf2");
   constexpr std::int64_t kResultSEW = 32;
@@ -590,6 +624,8 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
         kRVVWideningProductReductionChainOperandBindingPlanID;
     break;
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
     facts.routeOperandBindingPlanID =
         kRVVWideningProductReductionDequantizeOperandBindingPlanID;
     break;
@@ -618,7 +654,9 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   }
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
   facts.typedComputeOpName =
-      isProductReductionDequantClamp
+      isDeferredWideProductReductionDequantization
+          ? "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+      : isProductReductionDequantClamp
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
       : isProductReductionDequantization
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
@@ -712,7 +750,9 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
           : getContractionVectorLoadIntrinsic(kResultSEW, kResultLMUL,
                                               usesUnsignedIntegerRoute);
   facts.reductionIntrinsic =
-      isProductReductionChain
+      isDeferredWideProductReductionDequantization
+          ? llvm::StringRef("__riscv_vredsum_vs_i32m8_i32m1")
+      : isProductReductionChain
           ? getContractionWideningReductionIntrinsic(kProductSEW, kProductLMUL,
                                                      kResultSEW, kResultLMUL,
                                                      relation)
@@ -1015,6 +1055,8 @@ bool isRVVSelectedBodyContractionRouteOperation(
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredAccumulateReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
@@ -1033,6 +1075,9 @@ bool isRVVSelectedBodyContractionDotReduction(
              RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
          operation ==
              RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
+         operation ==
+             RVVSelectedBodyOperationKind::
+                 WideningProductDeferredAccumulateReduceDequantizeF32 ||
          operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          operation ==
              RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||

@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=WIDE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL-CLOSED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 //
 // P-B5 — the N3 autotuner finale, END-TO-END from a kernel (selector-driven).
 //
@@ -16,8 +16,9 @@
 // is what gates the wide branch; packed-i4 keeps the narrow path.
 //
 // The lowered C is byte-identical to the hand-validated wide-lmul winner.
-// The wide body fails CLOSED at emission-plans (the bundle-export route-family +
-// header narrow-mirror wiring is the authorized residual; I7-clean diagnostic).
+// The wide body now DESCRIBES + EXPORTS through emission-plans: the description
+// engine recognizes the deferred-wide chain and produces the parallel wide fact
+// set (P-B6), so the selector-driven wide kernel reaches a deployable bundle.
 
 module {
   tcrv.exec.kernel @autotuner_e2e_kernel {
@@ -80,7 +81,10 @@ module {
 // EMITC-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMITC: call_opaque "__riscv_vredsum_vs_i32m8_i32m1"
 
-// The wide body fails CLOSED at emission-plans (authorized residual: the
-// bundle-export route-family/header narrow-mirror wiring does not yet carry a
-// parallel deferred-wide fact set). Clean diagnostic, no fast-wrong codegen.
-// FAIL-CLOSED: unsupported generic tcrv_rvv.widening_product kind 'signed_widening_product' for bounded RVV low-precision widening-product route
+// The wide body describes + exports through emission-plans (P-B6): the PLAN
+// metadata carries the deferred-wide typed-compute chain and the honest wide strip
+// ladder on the primitive facts.
+// PLAN-DAG: "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+// PLAN-DAG: "tcrv_rvv.low_precision_primitive.source_lmul", value = "m2"
+// PLAN-DAG: "tcrv_rvv.low_precision_primitive.product_lmul", value = "m4"
+// PLAN-DAG: "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
