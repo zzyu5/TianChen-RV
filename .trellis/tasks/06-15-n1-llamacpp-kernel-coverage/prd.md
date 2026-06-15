@@ -65,10 +65,17 @@ HW-validated byte-exact and the first milestone is a REAL ggml kernel, not a syn
 
 ## Acceptance Criteria
 
-- [ ] INC-1: a one-sided i4(offset-binary)×i8 single-block integer dot, byte-exact vs `ggml_vec_dot_q4_0_q8_0_generic` integer partial at n=32, on ssh rvv.
-- [ ] INC-2: a deployable `.o/.h` whose output equals `ggml_vec_dot_q4_0_q8_0` (`*s`) to fp32 tolerance over n ∈ {32, 64, 256, 4096, …} on ssh rvv, with real fp16 scales from real block data.
-- [ ] Full clean rebuild green; all existing narrow/byte/deferred-wide paths byte-identical; the documented environmental reds unchanged.
-- [ ] N3: a fair ssh-rvv measurement of our Q4_0 kernel vs ggml's RVV `ggml_vec_dot_q4_0_q8_0`, reported honestly.
+- [x] INC-1 (de5d5db3): one-sided i4(offset-binary)×i8 integer dot, byte-exact vs ggml `_generic` integer partial over 4005 blocks + edge cases, on ssh rvv.
+- [x] INC-2a (f6f1a73a): the COMPLETE ggml_vec_dot_q4_0_q8_0 kernel emitted as STRUCTURED emitc IR (zero raw(); I5), `*s` BITWISE-EQUAL to ggml's real RVV kernel AND `_generic` over ~5900 adversarial cases under -ffp-contract=default/on/off/fast (the emitc.expression FMA fix). Full clean rebuild green; 605/602/3 documented reds; narrow/byte/deferred-wide byte-identical.
+- [x] INC-3 LIVE integration (6a3b384f): our compiler-emitted kernel dropped into llama.cpp's Q4_0 dispatch → token-for-token IDENTICAL live llama-2-7b inference; canary (wrong kernel → garbage, 113M delegations) proves hot-path liveness. Honest verdict: really replaces ggml's kernel byte-for-byte.
+- [ ] N3 perf (OPEN): our kernel is correct but ~1.7× slower (1.6 vs 2.7 t/s) — integer core anchors i8mf4→i32m1 vs ggml's i8m1→i16m2. Generalize the LMUL to match/beat ggml → competitive drop-in + N3 lamp on a real llama.cpp kernel.
+- [ ] INC-3 breadth (OPEN): q8_0/q5_0 (Family A), q4_1/q5_1 (Family B), then K-quants.
+
+## Status (2026-06-15)
+MILESTONE MET: our compiler genuinely compiles (not string-pastes) a byte-exact, structurally-emitted
+drop-in for a REAL llama.cpp kernel (ggml_vec_dot_q4_0_q8_0), proven by live token-identical inference +
+a canary. This is N1 coverage **breadth** of an externally-defined kernel — NOT the N1 *divergence* bar
+(do not conflate). Open: perf-competitiveness (N3) + more kernel families.
 
 ## Out of Scope (this task)
 - K-quant super-blocks (q4_K/q6_K) and the IQ/ternary tail — later rungs.
