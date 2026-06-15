@@ -1,13 +1,15 @@
 # RUN: tianchenrv-rvv-q4-0-q8-0-shape-selection-test | FileCheck %s
 
-# The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block-dot:
-# the COMPILER SELECTS the kernel shape, DERIVED from capability + resource facts.
-# The cost model is capability-BLIND; capability enters ONLY through the legality
-# prune, so the SAME argmin diverges by capability -- a Zvl128b (full-V) target
-# selects the strip-elided ggml-beating shape, a non-Zvl128b target has the
-# elided shapes pruned and the same argmin selects the robust shape. Flipping
-# ONLY the Zvl128b fact flips the shape (derived, not a constant). The vreg-budget
-# prune binds when shrunk; the Zvl128b derivation is real ISA reasoning.
+# The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 and the
+# Family-A sibling Q8_0 x Q8_0 block-dots: the COMPILER SELECTS the kernel shape,
+# DERIVED from capability + resource facts. The cost model is capability-BLIND;
+# capability enters ONLY through the legality prune, so the SAME argmin diverges
+# by capability -- a Zvl128b (full-V) target selects the strip-elided shape, a
+# non-Zvl128b target has the elided shapes pruned and the same argmin selects the
+# robust shape. Flipping ONLY the Zvl128b fact flips the shape (derived, not a
+# constant). The vreg-budget prune binds when shrunk; the Zvl128b derivation is
+# real ISA reasoning. The q8_0 sibling shares the cost FORMULA + selector but is
+# fed its own per-anchor reduction count (m2 dominates -- the structural diff).
 
 # CHECK: N3 Q4_0 cost model is capability-blind + measurement-calibrated (robust U-curve min@2, elided min@4, mf4 loses)
 # CHECK: N3 Zvl128b target selects (m1, factor=4, elided) -- the ggml beat
@@ -15,4 +17,9 @@
 # CHECK: N3 flipping ONLY the Zvl128b fact flips strip_elision elided<->robust (derived, not a constant)
 # CHECK: N3 vreg-budget prune binds: a 3-vreg budget prunes all (fail-closed); a 5-vreg budget prunes the wider m1 footprint
 # CHECK: N3 Zvl128b derivation: rv64gcv=>true, zve32x/zve64x=>false, explicit zvl128b+/=>true (real ISA reasoning)
-# CHECK: RVV N3 Q4_0 capability/resource-aware shape selection tests passed
+# CHECK: N3 q8_0 cost model is capability-blind + structurally ordered (m2 dominates m1 dominates mf4; robust min@2, elided min@4)
+# CHECK: N3 q8_0 Zvl128b target selects (m2, factor=4, elided) -- ggml's shape
+# CHECK: N3 q8_0 non-Zvl128b target prunes all elided shapes and selects (m2, factor=2, robust) -- the robust optimum
+# CHECK: N3 q8_0 flipping ONLY the Zvl128b fact flips strip_elision elided<->robust (derived, not a constant)
+# CHECK: N3 q8_0 vreg-budget prune binds: a 3-vreg budget prunes all (fail-closed); an 8-vreg budget prunes the wider m2 footprint
+# CHECK: RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests passed

@@ -34,11 +34,14 @@
 
 #include <optional>
 
-using tianchenrv::plugin::rvv::RVVQ40Q80ShapeCandidate;
 using tianchenrv::plugin::rvv::computeRVVQ40ShapeCost;
+using tianchenrv::plugin::rvv::computeRVVQ80ShapeCost;
 using tianchenrv::plugin::rvv::deriveHasZvl128b;
 using tianchenrv::plugin::rvv::enumerateRVVQ40Q80ShapeCandidates;
+using tianchenrv::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
 using tianchenrv::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
+using tianchenrv::plugin::rvv::kRVVQ80ShapeVectorRegisterBudget;
+using tianchenrv::plugin::rvv::RVVQ40Q80ShapeCandidate;
 using tianchenrv::plugin::rvv::selectRVVQ40Q80MinCostShape;
 
 namespace {
@@ -214,6 +217,147 @@ int runZvl128bDerivationTest() {
   return 0;
 }
 
+//===----------------------------------------------------------------------===//
+// The Family-A SIBLING (q8_0 x q8_0): the SAME autotuner machinery selects a
+// SECOND real llama.cpp kernel's shape. q8_0's block is 32 contiguous int8 (not
+// q4_0's nibble-packed half-block), so the per-anchor reduction count shifts one
+// LMUL step up (m2->1, m1->2, mf4->8) and the elided anchor is m2 -- fed into the
+// SAME cost FORMULA (computeBlockDotShapeCostCore) and the SAME selector. These
+// tests assert the STRUCTURAL ordering + the capability divergence; the per-board
+// ns calibration lives in the ssh-rvv evidence artifact, not fabricated here.
+//===----------------------------------------------------------------------===//
+
+// The q8_0 cost is the SAME formula fed q8_0's reduction count: m2 (1 reduction)
+// dominates m1 (2) and mf4 (8); robust is U-shaped in the factor (min at 2),
+// elided monotone-decreasing (min at 4). The cost is capability-blind (no
+// capability argument), the structural "derived, not a lookup" guarantee.
+int runQ80CostModelStructureTest() {
+  std::int64_t m2RobustF1 = computeRVVQ80ShapeCost("m2", 1, "robust");
+  std::int64_t m2RobustF2 = computeRVVQ80ShapeCost("m2", 2, "robust");
+  std::int64_t m2RobustF4 = computeRVVQ80ShapeCost("m2", 4, "robust");
+  std::int64_t m2ElidedF4 = computeRVVQ80ShapeCost("m2", 4, "elided");
+  std::int64_t m1RobustF2 = computeRVVQ80ShapeCost("m1", 2, "robust");
+  std::int64_t mf4RobustF2 = computeRVVQ80ShapeCost("mf4", 2, "robust");
+
+  // robust U-curve: factor=2 is the robust minimum.
+  if (!(m2RobustF2 < m2RobustF1 && m2RobustF2 < m2RobustF4))
+    return fail("q8_0 robust cost is not U-shaped with min at factor=2");
+  // elided factor=4 is the global minimum (beats every robust shape).
+  if (!(m2ElidedF4 < m2RobustF2))
+    return fail("q8_0 elided factor=4 should be cheaper than the robust optimum");
+  // m2 (1 reduction) dominates m1 (2 reductions) and mf4 (8) -- the structural
+  // difference from q4_0 reflected in the reduction count, not a new cost branch.
+  if (!(m2RobustF2 < m1RobustF2))
+    return fail("q8_0 m2 anchor should dominate the m1 anchor (fewer reductions)");
+  if (!(m1RobustF2 < mf4RobustF2))
+    return fail("q8_0 m1 anchor should dominate the mf4 anchor (fewer reductions)");
+  llvm::outs() << "N3 q8_0 cost model is capability-blind + structurally ordered "
+                  "(m2 dominates m1 dominates mf4; robust min@2, elided min@4)\n";
+  return 0;
+}
+
+// On a Zvl128b (full-V) target the strip-elided m2 shapes are admitted and the
+// min-cost legal shape is (m2, factor=4, elided): the shape ggml hand-wrote plus
+// the multi-block unroll ggml does not use.
+int runQ80Zvl128bSelectsM2Mb4ElidedTest() {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates =
+      enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
+                                        kRVVQ80ShapeVectorRegisterBudget);
+  if (candidates.size() != 18)
+    return fail("expected the full 18-candidate q8_0 shape space, got " +
+                llvm::Twine(candidates.size()));
+  std::optional<RVVQ40Q80ShapeCandidate> selected =
+      selectRVVQ40Q80MinCostShape(candidates);
+  if (!selected)
+    return fail("q8_0 Zvl128b selection returned no legal shape");
+  if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 4 ||
+      selected->stripElision != "elided")
+    return fail("q8_0 Zvl128b should select (m2, factor=4, elided); got (" +
+                selected->integerCoreLMUL + ", factor=" +
+                llvm::Twine(selected->multiBlockFactor) + ", " +
+                selected->stripElision + ")");
+  llvm::outs()
+      << "N3 q8_0 Zvl128b target selects (m2, factor=4, elided) -- ggml's shape\n";
+  return 0;
+}
+
+// On a NON-Zvl128b target the elided shapes are PRUNED and the SAME argmin
+// selects (m2, factor=2, robust).
+int runQ80NotZvl128bSelectsM2Mb2RobustTest() {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates =
+      enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/false,
+                                        kRVVQ80ShapeVectorRegisterBudget);
+  std::optional<RVVQ40Q80ShapeCandidate> selected =
+      selectRVVQ40Q80MinCostShape(candidates);
+  if (!selected)
+    return fail("q8_0 non-Zvl128b selection returned no legal shape");
+  if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 2 ||
+      selected->stripElision != "robust")
+    return fail("q8_0 non-Zvl128b should select (m2, factor=2, robust); got (" +
+                selected->integerCoreLMUL + ", factor=" +
+                llvm::Twine(selected->multiBlockFactor) + ", " +
+                selected->stripElision + ")");
+  for (const RVVQ40Q80ShapeCandidate &candidate : candidates)
+    if (candidate.stripElision == "elided" && candidate.isLegal)
+      return fail("a q8_0 non-Zvl128b target must prune ALL elided shapes");
+  llvm::outs() << "N3 q8_0 non-Zvl128b target prunes all elided shapes and "
+                  "selects (m2, factor=2, robust) -- the robust optimum\n";
+  return 0;
+}
+
+// The DERIVATION proof for q8_0: flipping ONLY the Zvl128b boolean flips the
+// selected shape elided<->robust (same cost, only the admitted set differs).
+int runQ80Zvl128bFlipFlipsShapeTest() {
+  std::optional<RVVQ40Q80ShapeCandidate> withZvl =
+      selectRVVQ40Q80MinCostShape(enumerateRVVQ80Q80ShapeCandidates(
+          /*hasZvl128b=*/true, kRVVQ80ShapeVectorRegisterBudget));
+  std::optional<RVVQ40Q80ShapeCandidate> withoutZvl =
+      selectRVVQ40Q80MinCostShape(enumerateRVVQ80Q80ShapeCandidates(
+          /*hasZvl128b=*/false, kRVVQ80ShapeVectorRegisterBudget));
+  if (!withZvl || !withoutZvl)
+    return fail("both q8_0 Zvl128b states must yield a legal selection");
+  if (withZvl->stripElision != "elided" ||
+      withoutZvl->stripElision != "robust")
+    return fail("flipping q8_0 Zvl128b did not flip strip_elision");
+  llvm::outs() << "N3 q8_0 flipping ONLY the Zvl128b fact flips strip_elision "
+                  "elided<->robust (derived, not a constant)\n";
+  return 0;
+}
+
+// The q8_0 vreg-budget prune is GENUINE: the m2 footprint is wider than m1/mf4,
+// so a shrunk budget binds and discriminates (and an impossibly small budget
+// prunes every candidate -> fail-closed). q8_0 footprints: mf4 = 1+1+1+2=5,
+// m1 = 1+2+1+2=6, m2 = 2+4+1+2=9.
+int runQ80BudgetPruneBindsTest() {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> tiny =
+      enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
+                                        /*vectorRegisterBudget=*/3);
+  if (selectRVVQ40Q80MinCostShape(tiny))
+    return fail("a 3-vreg budget should prune every q8_0 shape (fail-closed)");
+
+  // An 8-vreg budget admits mf4 (5) and m1 (6) but prunes the wider m2 (9) --
+  // the budget prune binds and changes the legal set. The selection then falls
+  // to the cheapest legal non-m2 shape.
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> mid =
+      enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
+                                        /*vectorRegisterBudget=*/8);
+  bool sawM2Pruned = false;
+  bool sawM1Legal = false;
+  for (const RVVQ40Q80ShapeCandidate &candidate : mid) {
+    if (candidate.integerCoreLMUL == "m2" && !candidate.isLegal)
+      sawM2Pruned = true;
+    if (candidate.integerCoreLMUL == "m1" && candidate.isLegal)
+      sawM1Legal = true;
+  }
+  if (!sawM2Pruned)
+    return fail("an 8-vreg budget should prune the q8_0 m2 footprint (9 vregs)");
+  if (!sawM1Legal)
+    return fail("an 8-vreg budget should keep the q8_0 m1 footprint (6) legal");
+  llvm::outs() << "N3 q8_0 vreg-budget prune binds: a 3-vreg budget prunes all "
+                  "(fail-closed); an 8-vreg budget prunes the wider m2 footprint\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -229,7 +373,18 @@ int main() {
     return result;
   if (int result = runZvl128bDerivationTest())
     return result;
+  if (int result = runQ80CostModelStructureTest())
+    return result;
+  if (int result = runQ80Zvl128bSelectsM2Mb4ElidedTest())
+    return result;
+  if (int result = runQ80NotZvl128bSelectsM2Mb2RobustTest())
+    return result;
+  if (int result = runQ80Zvl128bFlipFlipsShapeTest())
+    return result;
+  if (int result = runQ80BudgetPruneBindsTest())
+    return result;
   llvm::outs()
-      << "RVV N3 Q4_0 capability/resource-aware shape selection tests passed\n";
+      << "RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests "
+         "passed\n";
   return 0;
 }

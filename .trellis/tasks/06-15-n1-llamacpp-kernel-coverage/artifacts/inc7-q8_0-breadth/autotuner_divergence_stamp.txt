@@ -1,0 +1,20 @@
+### Autotuner stamp divergence (the SAME attr-less q8_0 op -> different shape by --march) ###
+
+--- --march=rv64gcv (Zvl128b) ---
+integer_core_lmul = "m2"
+multi_block_factor = 4 : i64
+strip_elision = "elided"
+candidate_count = 18 : i64
+has_zvl128b = true
+legal_candidate_count = 12 : i64
+peak_live_vector_registers = 9 : i64
+producer = "rvv-q8-0-autotuner"
+selected_cost = 1005 : i64
+
+--- --march=rv64gc_zve32x (no Zvl128b) ---
+integer_core_lmul = "m2"
+multi_block_factor = 2 : i64
+strip_elision = "robust"
+has_zvl128b = false
+legal_candidate_count = 9 : i64
+selected_cost = 1310 : i64

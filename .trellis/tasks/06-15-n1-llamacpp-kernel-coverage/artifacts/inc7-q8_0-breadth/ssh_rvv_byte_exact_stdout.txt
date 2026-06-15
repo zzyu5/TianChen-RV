@@ -1,0 +1,31 @@
+### byte-exact: full-V autotuned (m2,f4,elided) ###
+--- -ffp-contract=off (CONTRACT_REFS=1) ---
+== INC-7 q8_0 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed input diverges (check non-vacuous)
+ALL q8_0 BYTE-EXACT CHECKS PASSED
+--- -ffp-contract=fast (CONTRACT_REFS=0) ---
+== INC-7 q8_0 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 631/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed input diverges (check non-vacuous)
+ALL q8_0 BYTE-EXACT CHECKS PASSED
+
+### byte-exact: zve32x autotuned (m2,f2,robust) ###
+--- -ffp-contract=off ---
+== INC-7 q8_0 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed input diverges (check non-vacuous)
+ALL q8_0 BYTE-EXACT CHECKS PASSED
+--- -ffp-contract=fast ---
+== INC-7 q8_0 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 631/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed input diverges (check non-vacuous)
+ALL q8_0 BYTE-EXACT CHECKS PASSED
+
+### ggml-rvv vs _generic cross-check (proving the =fast _generic delta is a reference artifact) ###
+ffp-contract=off: ggml-rvv vs _generic: 0/900 diverge at this -ffp-contract
+ffp-contract=fast: ggml-rvv vs _generic: 624/900 diverge at this -ffp-contract

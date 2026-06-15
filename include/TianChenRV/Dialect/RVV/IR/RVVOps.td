@@ -3970,6 +3970,97 @@ def GgmlBlockDotQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ80Q80Op
+    : TCRVRVV_Op<"q8_0_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml Q8_0 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q8_0_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step, the FAMILY-A sibling of
+    tcrv_rvv.q4_0_q8_0_block_dot: the AoS QK=32 block loop, the per-block dual
+    fp16 scale, the fp32 scalar accumulation, and the `*s` scalar store. The ONLY
+    semantic difference from the Q4_0 sibling is the per-block integer core: BOTH
+    operands here are plain block_q8_0 int8 streams (NO nibble decode, NO offset-
+    binary `-8` bias, NO low/high-half split) -- the core is a single 32-element
+    signed widening product (vle8 x2 -> vwmul_vv i8->i16 -> vwredsum -> i32 sumi).
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the q8_0 lhs base pointer (vx), the q8_0 rhs base pointer
+    (vy), the fp32 output pointer (s), the runtime element count (n) -- plus the
+    active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
+    whose lowering writes the single fp32 reduction result through the output
+    pointer.
+
+    The block-quantized dot-product STRUCTURE is first-class in the typed body.
+    The structural facts -- QK=32, the AoS block strides (34 bytes for block_q8_0
+    on BOTH operands), the quant payload byte offset (+2), and the per-block dual
+    fp16 scale model (d_x . d_y) -- are carried as typed integer/string attributes
+    (I4 mirror only). The fixed emission -- an outer emitc.for block loop over
+    nb = n / QK, per-block address arithmetic (vx + ib*34, vy + ib*34) via
+    emitc.add/emitc.mul nodes, the two scalar fp16->fp32 reads via
+    emitc.call_opaque (the one sanctioned opaque piece), an inner strip loop that
+    runs the plain signed i8 x i8 widening product/reduce chain (vle8 -> vwmul_vv
+    -> vwredsum) over the WHOLE 32-element block into a per-block i32 scalar, and
+    the fp32 accumulate `sumf = sumf + (float)sumi * (d_x * d_y)` (ggml's exact
+    q8_0 order -- the scales are multiplied FIRST, distinct from the Q4_0 sibling's
+    `(sumi*d_x)*d_y`) -- is the op's lowering, NOT a candidate-mirror string read
+    in the conversion. For the bounded surface kind is limited to
+    "ggml_q8_0_q8_0_block_dot" and scale_model to "dual-fp16-per-block-d_x.d_y".
+
+    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
+    attributes are the SAME bounded resource/scheduling shape knobs the Q4_0
+    sibling carries (the *how*, never the *what*; the dot-product is byte-exact for
+    any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). The q8_0 block is
+    32 CONTIGUOUS int8 (not the Q4_0 sibling's 16-lane nibble-packed half-block),
+    so its anchors shift one LMUL step UP:
+    - `integer_core_lmul` selects the i8 strip anchor: "m2" (the whole 32-element
+      block in ONE strip + ONE vwredsum at VLEN=128, matching ggml's
+      i8m2->i16m4->vwredsum hand-written reduction anchor), "m1" (two 16-element
+      strips), or "mf4" (eight 4-element strips). All three are byte-exact (the
+      same integer set; integer add is order-independent) and keep a VLEN-robust
+      strip loop carrying sumi across strips.
+    - `multi_block_factor` selects how many q8_0 blocks the outer loop processes
+      per iteration -- 1 (default), 2, or 4 -- unrolling several independent
+      per-block integer cores so they overlap; the loop processes nb / factor full
+      groups then a scalar `nb % factor` tail of robust single blocks, with the
+      fp32 folds always emitted in strict ascending block order.
+    - `strip_elision` selects whether the inner strip loop is kept ("robust",
+      default -- correct at any VLEN) or elided ("elided" -- a single
+      vsetvl_e8m2(32) + one vwredsum over the whole block, NO inner strip loop).
+      The elided form is correct ONLY at VLEN >= 128 (vsetvl_e8m2(32) caps the
+      active vl at 32 when VLMAX is >= 32) and therefore requires the m2 anchor
+      (m1/mf4 VLMAX at VLEN=128 would silently drop block bytes). The verifier
+      rejects the "elided" + non-m2 combination fail-closed (I7); the capability-
+      aware autotuner gates "elided" on the Zvl128b capability. The `nb % factor`
+      tail always uses the robust single-block core regardless of strip_elision.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

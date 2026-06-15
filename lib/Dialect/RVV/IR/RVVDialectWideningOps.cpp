@@ -959,6 +959,176 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotQ80Q80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // dual-fp16 scale model, and the block-format structural facts, plus the
+  // bounded shape knobs and the N3 autotuner's resource-provenance audit trail.
+  // Anything else -- a forbidden local element_count/SEW/LMUL/policy attr, or an
+  // unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" || name == "quant_byte_offset" ||
+           name == "integer_core_lmul" || name == "multi_block_factor" ||
+           name == "strip_elision" ||
+           name.starts_with("tcrv_rvv.q8_0_schedule.");
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q8_0_q8_0_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded block dot-product attributes 'kind', "
+                "'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', and 'quant_byte_offset'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q8_0_q8_0_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q8_0_q8_0_block_dot\" for "
+              "the bounded ggml Q8_0 x Q8_0 block dot-product typed surface";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" for the "
+              "ggml Q8_0 x Q8_0 block dot-product route";
+  // ggml's externally-defined block format (ggml-common.h): QK8_0 == 32, BOTH
+  // operands are block_q8_0 (stride 34), quants at byte offset +2. There is NO
+  // high-half split here (q8_0 is a single contiguous 32-element block), so the
+  // op carries no activation_high_byte_offset.
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK8_0) for the ggml Q8_0 x "
+                            "Q8_0 block dot-product route";
+  if (getWeightBlockStride() != 34)
+    return emitOpError()
+           << "requires weight_block_stride == 34 (sizeof block_q8_0) for the "
+              "ggml Q8_0 x Q8_0 block dot-product route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml Q8_0 x Q8_0 block dot-product route";
+  if (getQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires quant_byte_offset == 2 (quants follow the inline fp16 "
+              "scale) for the ggml Q8_0 x Q8_0 block dot-product route";
+
+  // The optional integer-core LMUL is a bounded resource/scheduling fact: the
+  // per-block dot-product core anchors at "m2" (the ggml-matching
+  // one-vwredsum-per-block anchor, the whole 32-element block in one strip),
+  // "m1" (two 16-element strips), or "mf4" (eight 4-element strips). All three
+  // are byte-exact; any other spelling is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "mf4" && *coreLmul != "m1" && *coreLmul != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf4\", \"m1\", or \"m2\" (the "
+                "bounded byte-exact resource anchors for the ggml Q8_0 x Q8_0 "
+                "block dot-product integer core); got \""
+             << *coreLmul << "\"";
+  }
+
+  // The optional multi_block_factor is a bounded resource/scheduling shape knob:
+  // the outer block loop processes 1 (default), 2, or 4 blocks per iteration. It
+  // is byte-exact (the per-block fp32 folds stay in strict ascending order; only
+  // the independent integer cores overlap). Any other count is rejected
+  // fail-closed (I7).
+  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
+  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
+    return emitOpError()
+           << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
+              "byte-exact block-unroll factors for the ggml Q8_0 x Q8_0 block "
+              "dot-product outer loop); got "
+           << multiBlockFactor;
+
+  // The optional strip_elision is a bounded resource/scheduling shape knob: the
+  // inner strip loop is kept ("robust", default -- correct at any VLEN) or
+  // elided ("elided" -- a single vsetvl_e8m2(32) + one vwredsum over the whole
+  // block, correct ONLY at VLEN >= 128). Any other spelling is rejected
+  // fail-closed (I7).
+  if (std::optional<llvm::StringRef> stripElision = getStripElision()) {
+    if (*stripElision != "robust" && *stripElision != "elided")
+      return emitOpError()
+             << "only accepts strip_elision \"robust\" or \"elided\" (the "
+                "bounded inner-strip-loop shape knobs for the ggml Q8_0 x Q8_0 "
+                "block dot-product); got \""
+             << *stripElision << "\"";
+    // The elided form drops the inner strip loop and emits a single
+    // vsetvl_e8m2(32) per block; it is correct only when the integer core
+    // anchors at m2 (m1's vsetvl_e8m1 VLMAX is 16 at VLEN=128, mf4's
+    // vsetvl_e32m1 VLMAX is 4 -- either would silently drop block bytes). Reject
+    // the silently-wrong combination fail-closed (I7) so the autotuner cannot
+    // request it.
+    if (*stripElision == "elided" &&
+        getIntegerCoreLmul().value_or("mf4") != "m2")
+      return emitOpError()
+             << "strip_elision \"elided\" requires integer_core_lmul \"m2\" "
+                "(the single-vsetvl_e8m2(32) whole-block cover is correct only "
+                "at the m2 anchor; the m1/mf4 anchors' VLMAX would drop block "
+                "bytes)";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one lhs base pointer, one rhs base pointer, one output "
+              "pointer, one runtime element-count runtime ABI operand, one "
+              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three buffer operands and the element count are runtime ABI values; the
+  // lhs/rhs bases address the AoS block_q8_0 byte arrays as const uint8_t *, the
+  // output is a float *, and the element count carries n. Their C types pin the
+  // ggml ABI byte layout the emission depends on.
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the lhs base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the AoS block_q8_0 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the rhs base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the AoS block_q8_0 byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q8_0 x Q8_0 block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q8_0 x Q8_0 block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

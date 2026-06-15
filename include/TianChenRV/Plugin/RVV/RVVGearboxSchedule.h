@@ -2181,16 +2181,30 @@ constexpr std::int64_t kRVVQ40OuterLoopOverheadCost = 500;
 constexpr std::int64_t kRVVQ40RobustStripPenaltyCost = 170;
 constexpr std::int64_t kRVVQ40ElidedStripPenaltyCost = 40;
 
-inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
-                                           std::int64_t multiBlockFactor,
-                                           llvm::StringRef stripElision) {
-  const std::int64_t reductions = getRVVQ40ReductionsPerHalfBlock(coreLMUL);
+/// The shared, family-agnostic block-quantized dot-product cost FORMULA. It is a
+/// pure structural function of (reductionsPerBlock, factor, elision) and the
+/// measurement-calibrated constants; it carries NO capability argument and NO
+/// kernel-family argument. The Q4_0 and Q8_0 cost models are both thin wrappers
+/// that supply their family's reduction count -- the difference between the two
+/// kernels is a STRUCTURAL fact (q8_0's plain 32-element block needs a different
+/// per-anchor reduction count than q4_0's nibble-packed half-block), fed into the
+/// SAME formula, not a separate cost branch (which would be a disguised lookup).
+inline std::int64_t computeBlockDotShapeCostCore(std::int64_t reductionsPerBlock,
+                                                 std::int64_t multiBlockFactor,
+                                                 llvm::StringRef stripElision) {
   const std::int64_t stripPenalty = (stripElision == "elided")
                                         ? kRVVQ40ElidedStripPenaltyCost
                                         : kRVVQ40RobustStripPenaltyCost;
-  return kRVVQ40ReductionUnitCost * reductions +
+  return kRVVQ40ReductionUnitCost * reductionsPerBlock +
          kRVVQ40OuterLoopOverheadCost / multiBlockFactor +
          stripPenalty * multiBlockFactor + kRVVQ40BaseConstantCost;
+}
+
+inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
+                                           std::int64_t multiBlockFactor,
+                                           llvm::StringRef stripElision) {
+  return computeBlockDotShapeCostCore(
+      getRVVQ40ReductionsPerHalfBlock(coreLMUL), multiBlockFactor, stripElision);
 }
 
 /// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
@@ -2257,6 +2271,106 @@ selectRVVQ40Q80MinCostShape(llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) 
       best = candidate;
   }
   return best;
+}
+
+//===----------------------------------------------------------------------===//
+// The Family-A SIBLING: the ggml Q8_0 x Q8_0 block-dot shape autotuner.
+//
+// q8_0's block is 32 CONTIGUOUS int8 (not the Q4_0 sibling's 16-lane nibble-
+// packed half-block), so the SAME shape space {integer_core_lmul x
+// multi_block_factor x strip_elision} maps to DIFFERENT structural facts, fed
+// into the SAME cost FORMULA (computeBlockDotShapeCostCore) and the SAME selector
+// (selectRVVQ40Q80MinCostShape) and the SAME capability fact (deriveHasZvl128b):
+//   * the whole 32-element block fits one strip at m2 (i8m2->i16m4, VLMAX 32 at
+//     VLEN=128, ONE vwredsum -- ggml's hand-written anchor), two strips at m1,
+//     eight at mf4: reductions/block m2->1, m1->2, mf4->8 (vs q4_0 m1->1/mf4->4);
+//   * the strip-ELIDED single-vsetvl whole-block cover is correct only at the m2
+//     anchor on a Zvl128b target (the ONLY place capability enters).
+// This is the structural difference reflected in the reduction count, NOT a new
+// cost branch -- the "DERIVED, not a new lookup table" guarantee for the sibling.
+// (The cost constants are SHARED with q4_0 as a structural prediction: the cost
+// SHAPE -- reduction-dominated, robust U-curve, elided monotone -- is genuinely
+// the same; the per-kernel ssh-rvv calibration is recorded in the q8_0 evidence
+// artifact, not asserted as fabricated ns here.)
+//===----------------------------------------------------------------------===//
+
+/// The architectural vreg budget for the q8_0 shape prune (same 32-vector file).
+constexpr std::int64_t kRVVQ80ShapeVectorRegisterBudget = 32;
+
+/// The per-block reduction count of the q8_0 integer core at the given anchor:
+/// at VLEN=128 the m2 anchor (i8m2, VLMAX 32) covers the whole 32-element block
+/// in ONE vwredsum, the m1 anchor (VLMAX 16) needs 2 strips/reduces, the mf4
+/// anchor (vsetvl_e32m1, VLMAX 4) needs 8. The whole block is 32 lanes (no
+/// nibble half-block), so the counts are one LMUL step "wider" than q4_0's.
+inline std::int64_t getRVVQ80ReductionsPerBlock(llvm::StringRef coreLMUL) {
+  if (coreLMUL == "m2")
+    return 1;
+  if (coreLMUL == "m1")
+    return 2;
+  return 8; // mf4
+}
+
+/// The peak-live distinct vregs a q8_0 shape holds: the i8<core> load group, the
+/// i16<wide> product group, the i32m1 reduce accumulator, plus a small temp
+/// reserve. The multi-block factor does NOT scale the peak-live footprint (each
+/// block's strip retires before the next core issues), exactly as for q4_0. Pure
+/// LMUL/structural arithmetic, so the budget prune reasons over a real fact (the
+/// m2 footprint is wider than m1/mf4, so a shrunk budget binds and discriminates).
+inline std::int64_t getRVVQ80ShapeVectorRegisterCost(llvm::StringRef coreLMUL) {
+  const llvm::StringRef productLMUL = getRVVNextWiderLMUL(coreLMUL); // i16 EMUL.
+  return /*i8 load*/ getRVVLMULRegisterFootprint(coreLMUL) +
+         /*i16 product*/ getRVVLMULRegisterFootprint(productLMUL) +
+         /*i32 reduce*/ 1 + /*reserve*/ 2;
+}
+
+/// The capability-blind structural cost of a q8_0 shape: the SAME formula as
+/// q4_0 (computeBlockDotShapeCostCore), fed q8_0's per-anchor reduction count.
+inline std::int64_t computeRVVQ80ShapeCost(llvm::StringRef coreLMUL,
+                                           std::int64_t multiBlockFactor,
+                                           llvm::StringRef stripElision) {
+  return computeBlockDotShapeCostCore(getRVVQ80ReductionsPerBlock(coreLMUL),
+                                      multiBlockFactor, stripElision);
+}
+
+/// Enumerate the full q8_0 x q8_0 shape candidate space ({mf4,m1,m2} x {1,2,4} x
+/// {robust,elided} = 18 candidates) and PRUNE each by two facts:
+///   (a) LEGALITY -- strip_elision "elided" is correct only when the integer
+///       core anchors at m2 (the m1/mf4 anchors' VLMAX would drop block bytes)
+///       AND the target guarantees Zvl128b (VLEN >= 128); this mirrors the
+///       dialect verifier's m2 rule and adds the capability gate. The ONLY place
+///       capability enters the selection.
+///   (b) BUDGET -- the peak-live vreg footprint must fit the architectural
+///       vector-register-file budget. It never binds on this light kernel, but
+///       the prune is genuine: a shrunk budget rejects the wider m2 footprint.
+/// Each candidate's cost is the shared capability-blind structural cost above.
+inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18>
+enumerateRVVQ80Q80ShapeCandidates(bool hasZvl128b,
+                                  std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates;
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1", "m2"};
+  static constexpr std::int64_t kFactors[] = {1, 2, 4};
+  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
+  for (llvm::StringRef coreLMUL : kCoreLMULs)
+    for (std::int64_t factor : kFactors)
+      for (llvm::StringRef elision : kElisions) {
+        RVVQ40Q80ShapeCandidate candidate;
+        candidate.integerCoreLMUL = coreLMUL;
+        candidate.multiBlockFactor = factor;
+        candidate.stripElision = elision;
+        candidate.reductionsPerHalfBlock = getRVVQ80ReductionsPerBlock(coreLMUL);
+        candidate.vectorRegisterCost = getRVVQ80ShapeVectorRegisterCost(coreLMUL);
+        candidate.cost = computeRVVQ80ShapeCost(coreLMUL, factor, elision);
+        // (a) capability/anchor legality of strip elision (q8_0: m2 anchor).
+        bool elisionLegal = true;
+        if (elision == "elided")
+          elisionLegal = (coreLMUL == "m2") && hasZvl128b;
+        // (b) vreg-budget legality.
+        bool budgetLegal =
+            candidate.vectorRegisterCost <= vectorRegisterBudget;
+        candidate.isLegal = elisionLegal && budgetLegal;
+        candidates.push_back(candidate);
+      }
+  return candidates;
 }
 
 } // namespace tianchenrv::plugin::rvv
