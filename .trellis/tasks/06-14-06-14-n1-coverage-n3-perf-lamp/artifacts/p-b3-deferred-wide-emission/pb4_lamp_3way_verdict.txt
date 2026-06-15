@@ -1,0 +1,15 @@
+P-B4 lamp diagnostic (3-way) on the ALREADY-EMITTED P-B3 deferred-wide body.
+Real ssh rvv (riscv64, clang 18.1.3). Byte (grouped) kernel.
+
+baselines: genuine-scalar (rv64gc, objdump-verified ZERO vector ops),
+           competent-naive-RVV (deferred i32m1 vwadd.wv + single trailing vredsum),
+           autovec-scalar (same scalar source, rv64gcv).
+tuned: P-B3 compiler-emitted deferred-wide (i8m2 -> vwmul i16m4 -> vwadd.wv i32m8
+       deferred -> single vredsum i32m8->i32m1 -> dequant).
+
+VERDICT = win (the 灯 is ON): beats genuine-scalar AND naive-RVV at EVERY n.
+  tuned_vs_scalar  4.49x .. 10.74x  (median 6.84x)
+  tuned_vs_naive   3.16x ..  5.40x  (median 3.52x)   <- the decisive wide-LMUL bar
+  autovec_vs_scalar 2.55x .. 3.35x  (so even clang autovec beats genuine scalar,
+                                     but tuned still beats autovec by ~2.5-3.3x)
+correctness: PASS at n=257/4096/65536 (tol 1e-05, scalar oracle).
