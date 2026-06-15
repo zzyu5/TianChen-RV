@@ -1,0 +1,24 @@
+=== INC-5 FULL GRID {1,2,4}x{robust,elided} byte-exact (ssh rvv, -O2 -march=rv64gcv) ===
+=== the 3 SHIPPED shapes (mb1-robust/mb2-robust/mb4-elided) + the 3 OTHER grid combos ===
+
+--- shipped 3 (be_o2_*) ---
+[off]
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+[on]
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+[fast]
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+
+--- the other 3 grid combos (grid_*: f1-elided, f2-elided, f4-robust) ---
+[off]
+INC-5 GRID-COMBO bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+[on]
+INC-5 GRID-COMBO bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+[fast]
+INC-5 GRID-COMBO bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)

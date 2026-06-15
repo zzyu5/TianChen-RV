@@ -3919,6 +3919,29 @@ def GgmlBlockDotQ40Q80Op
     vwredsum per block, matching ggml's hand-written kernel's reduction anchor).
     Both forms keep a VLEN-robust strip loop carrying sumi across strips, so a
     VLEN < 128 board re-strips correctly under either anchor.
+
+    The optional `multi_block_factor` and `strip_elision` attributes are two more
+    bounded resource/scheduling shape knobs (the *how*, never the *what*; the
+    dot-product is byte-exact for any legal combination because integer addition
+    is order-independent and the per-block fp32 fold stays in strict ascending
+    block order):
+    - `multi_block_factor` selects how many q4_0/q8_0 blocks the outer loop
+      processes per iteration -- 1 (default), 2, or 4. A factor > 1 unrolls the
+      outer block loop so several independent per-block integer cores can overlap;
+      the loop processes nb / factor full groups then a scalar `nb % factor` tail
+      of robust single blocks. The fp32 folds inside a group are emitted in strict
+      ascending block order, so byte-exactness holds for any nb.
+    - `strip_elision` selects whether the inner half-block strip loop is kept
+      ("robust", default -- correct at any VLEN by re-stripping with the
+      sumi-carry seed) or elided ("elided" -- a single vsetvl_e8m1(16) + one
+      vwredsum per half-block, NO inner strip loop). The elided form is correct
+      ONLY at VLEN >= 128 (vsetvl_e8m1(16) caps the active vl at 16 when VLMAX is
+      >= 16, covering the whole half-block in one go) and therefore requires the
+      m1 integer-core anchor (mf4's vsetvl_e32m1 VLMAX is 4 at VLEN=128, which
+      would silently drop 12 of the 16 nibble bytes). The verifier rejects the
+      "elided" + non-m1 combination fail-closed (I7); the capability-aware
+      autotuner gates "elided" on the Zvl128b capability. The `nb % factor` tail
+      always uses the robust single-block core regardless of strip_elision.
   }];
 
   let arguments = (ins
@@ -3934,7 +3957,9 @@ def GgmlBlockDotQ40Q80Op
     I64Attr:$activation_block_stride,
     I64Attr:$quant_byte_offset,
     I64Attr:$activation_high_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
   );
   let results = (outs AnyType:$result);
 

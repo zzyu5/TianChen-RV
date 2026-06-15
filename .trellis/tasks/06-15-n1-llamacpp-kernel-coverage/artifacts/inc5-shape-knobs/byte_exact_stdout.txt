@@ -1,0 +1,117 @@
+=== INC-5 shape-knob byte-exact validation (ssh rvv, clang 18.1.3) ===
+=== committed byte-exact recipe: -O2 -march=rv64gcv -mabi=lp64d ===
+=== 3 compiler-emitted shapes x {off,on,fast} x 3300 checks incl main+tail seams ===
+
+----- -ffp-contract=off -----
+PASS [mb1-robust n=32 nb=1] ours=-365.767609 == ggml_real == ggml_generic
+PASS [mb1-robust n=64 nb=2] ours=-1.86643046e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=96 nb=3] ours=16543928 == ggml_real == ggml_generic
+PASS [mb1-robust n=128 nb=4] ours=210378.422 == ggml_real == ggml_generic
+PASS [mb1-robust n=160 nb=5] ours=-6.73242931e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=192 nb=6] ours=-12629157 == ggml_real == ggml_generic
+PASS [mb1-robust n=224 nb=7] ours=-1.24611912e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=256 nb=8] ours=-74118768 == ggml_real == ggml_generic
+PASS [mb1-robust n=1024 nb=32] ours=1.91060531e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=4096 nb=128] ours=1.92041058e+11 == ggml_real == ggml_generic
+PASS [mb1-robust n=8192 nb=256] ours=1.0507919e+12 == ggml_real == ggml_generic
+PASS [mb2-robust n=32 nb=1] ours=-39897.2031 == ggml_real == ggml_generic
+PASS [mb2-robust n=64 nb=2] ours=110638296 == ggml_real == ggml_generic
+PASS [mb2-robust n=96 nb=3] ours=-223354.75 == ggml_real == ggml_generic
+PASS [mb2-robust n=128 nb=4] ours=-4492745.5 == ggml_real == ggml_generic
+PASS [mb2-robust n=160 nb=5] ours=-7.43589581e+09 == ggml_real == ggml_generic
+PASS [mb2-robust n=192 nb=6] ours=95072336 == ggml_real == ggml_generic
+PASS [mb2-robust n=224 nb=7] ours=6582674.5 == ggml_real == ggml_generic
+PASS [mb2-robust n=256 nb=8] ours=-144551328 == ggml_real == ggml_generic
+PASS [mb2-robust n=1024 nb=32] ours=-2.75237306e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=4096 nb=128] ours=3.96401738e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=8192 nb=256] ours=-5.50191825e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=32 nb=1] ours=-42.4150276 == ggml_real == ggml_generic
+PASS [mb4-elided n=64 nb=2] ours=474.199829 == ggml_real == ggml_generic
+PASS [mb4-elided n=96 nb=3] ours=5.25762509e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=128 nb=4] ours=-1.40173043e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=160 nb=5] ours=-2.23759565e+10 == ggml_real == ggml_generic
+PASS [mb4-elided n=192 nb=6] ours=65462764 == ggml_real == ggml_generic
+PASS [mb4-elided n=224 nb=7] ours=234713.688 == ggml_real == ggml_generic
+PASS [mb4-elided n=256 nb=8] ours=-147609664 == ggml_real == ggml_generic
+PASS [mb4-elided n=1024 nb=32] ours=3.94644429e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=4096 nb=128] ours=-4.7969901e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=8192 nb=256] ours=-4.13619087e+12 == ggml_real == ggml_generic
+NEGATIVE CONTROL PASS (1-bit flip changed *s; ours tracks ggml on perturbed data; bitwise check reports MISMATCH on divergent inputs).
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+
+----- -ffp-contract=on -----
+PASS [mb1-robust n=32 nb=1] ours=-365.767609 == ggml_real == ggml_generic
+PASS [mb1-robust n=64 nb=2] ours=-1.86643046e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=96 nb=3] ours=16543928 == ggml_real == ggml_generic
+PASS [mb1-robust n=128 nb=4] ours=210378.406 == ggml_real == ggml_generic
+PASS [mb1-robust n=160 nb=5] ours=-6.73242931e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=192 nb=6] ours=-12629157 == ggml_real == ggml_generic
+PASS [mb1-robust n=224 nb=7] ours=-1.24611912e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=256 nb=8] ours=-74118768 == ggml_real == ggml_generic
+PASS [mb1-robust n=1024 nb=32] ours=1.91060531e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=4096 nb=128] ours=1.92041058e+11 == ggml_real == ggml_generic
+PASS [mb1-robust n=8192 nb=256] ours=1.0507919e+12 == ggml_real == ggml_generic
+PASS [mb2-robust n=32 nb=1] ours=-39897.2031 == ggml_real == ggml_generic
+PASS [mb2-robust n=64 nb=2] ours=110638296 == ggml_real == ggml_generic
+PASS [mb2-robust n=96 nb=3] ours=-223354.75 == ggml_real == ggml_generic
+PASS [mb2-robust n=128 nb=4] ours=-4492746 == ggml_real == ggml_generic
+PASS [mb2-robust n=160 nb=5] ours=-7.43589581e+09 == ggml_real == ggml_generic
+PASS [mb2-robust n=192 nb=6] ours=95072336 == ggml_real == ggml_generic
+PASS [mb2-robust n=224 nb=7] ours=6582674.5 == ggml_real == ggml_generic
+PASS [mb2-robust n=256 nb=8] ours=-144551328 == ggml_real == ggml_generic
+PASS [mb2-robust n=1024 nb=32] ours=-2.75237306e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=4096 nb=128] ours=3.96401738e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=8192 nb=256] ours=-5.50191825e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=32 nb=1] ours=-42.4150276 == ggml_real == ggml_generic
+PASS [mb4-elided n=64 nb=2] ours=474.199829 == ggml_real == ggml_generic
+PASS [mb4-elided n=96 nb=3] ours=5.25762509e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=128 nb=4] ours=-1.40173043e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=160 nb=5] ours=-2.23759565e+10 == ggml_real == ggml_generic
+PASS [mb4-elided n=192 nb=6] ours=65462764 == ggml_real == ggml_generic
+PASS [mb4-elided n=224 nb=7] ours=234713.688 == ggml_real == ggml_generic
+PASS [mb4-elided n=256 nb=8] ours=-147609664 == ggml_real == ggml_generic
+PASS [mb4-elided n=1024 nb=32] ours=3.94644403e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=4096 nb=128] ours=-4.7969901e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=8192 nb=256] ours=-4.13619087e+12 == ggml_real == ggml_generic
+NEGATIVE CONTROL PASS (1-bit flip changed *s; ours tracks ggml on perturbed data; bitwise check reports MISMATCH on divergent inputs).
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)
+
+----- -ffp-contract=fast -----
+PASS [mb1-robust n=32 nb=1] ours=-365.767609 == ggml_real == ggml_generic
+PASS [mb1-robust n=64 nb=2] ours=-1.86643046e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=96 nb=3] ours=16543928 == ggml_real == ggml_generic
+PASS [mb1-robust n=128 nb=4] ours=210378.406 == ggml_real == ggml_generic
+PASS [mb1-robust n=160 nb=5] ours=-6.73242931e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=192 nb=6] ours=-12629157 == ggml_real == ggml_generic
+PASS [mb1-robust n=224 nb=7] ours=-1.24611912e+10 == ggml_real == ggml_generic
+PASS [mb1-robust n=256 nb=8] ours=-74118768 == ggml_real == ggml_generic
+PASS [mb1-robust n=1024 nb=32] ours=1.91060531e+09 == ggml_real == ggml_generic
+PASS [mb1-robust n=4096 nb=128] ours=1.92041058e+11 == ggml_real == ggml_generic
+PASS [mb1-robust n=8192 nb=256] ours=1.0507919e+12 == ggml_real == ggml_generic
+PASS [mb2-robust n=32 nb=1] ours=-39897.2031 == ggml_real == ggml_generic
+PASS [mb2-robust n=64 nb=2] ours=110638296 == ggml_real == ggml_generic
+PASS [mb2-robust n=96 nb=3] ours=-223354.75 == ggml_real == ggml_generic
+PASS [mb2-robust n=128 nb=4] ours=-4492746 == ggml_real == ggml_generic
+PASS [mb2-robust n=160 nb=5] ours=-7.43589581e+09 == ggml_real == ggml_generic
+PASS [mb2-robust n=192 nb=6] ours=95072336 == ggml_real == ggml_generic
+PASS [mb2-robust n=224 nb=7] ours=6582674.5 == ggml_real == ggml_generic
+PASS [mb2-robust n=256 nb=8] ours=-144551328 == ggml_real == ggml_generic
+PASS [mb2-robust n=1024 nb=32] ours=-2.75237306e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=4096 nb=128] ours=3.96401738e+11 == ggml_real == ggml_generic
+PASS [mb2-robust n=8192 nb=256] ours=-5.50191825e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=32 nb=1] ours=-42.4150276 == ggml_real == ggml_generic
+PASS [mb4-elided n=64 nb=2] ours=474.199829 == ggml_real == ggml_generic
+PASS [mb4-elided n=96 nb=3] ours=5.25762509e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=128 nb=4] ours=-1.40173043e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=160 nb=5] ours=-2.23759565e+10 == ggml_real == ggml_generic
+PASS [mb4-elided n=192 nb=6] ours=65462764 == ggml_real == ggml_generic
+PASS [mb4-elided n=224 nb=7] ours=234713.688 == ggml_real == ggml_generic
+PASS [mb4-elided n=256 nb=8] ours=-147609664 == ggml_real == ggml_generic
+PASS [mb4-elided n=1024 nb=32] ours=3.94644403e+09 == ggml_real == ggml_generic
+PASS [mb4-elided n=4096 nb=128] ours=-4.7969901e+11 == ggml_real == ggml_generic
+PASS [mb4-elided n=8192 nb=256] ours=-4.13619087e+12 == ggml_real == ggml_generic
+NEGATIVE CONTROL PASS (1-bit flip changed *s; ours tracks ggml on perturbed data; bitwise check reports MISMATCH on divergent inputs).
+INC-5 shape-knob bit-exact: 3300 checks, 0 failures
+RESULT: PASS (all 3 compiler-emitted shapes bitwise equal vs ggml REAL RVV AND _generic for every n incl. main+tail seams)

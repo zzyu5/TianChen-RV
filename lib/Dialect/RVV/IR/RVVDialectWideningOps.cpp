@@ -790,7 +790,8 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" || name == "multi_block_factor" ||
+           name == "strip_elision";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -853,6 +854,45 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
                 "byte-exact resource anchors for the ggml Q4_0 x Q8_0 block "
                 "dot-product integer core); got \""
              << *coreLmul << "\"";
+  }
+
+  // The optional multi_block_factor is a bounded resource/scheduling shape knob:
+  // the outer block loop processes 1 (default), 2, or 4 blocks per iteration. It
+  // is byte-exact (the per-block fp32 folds stay in strict ascending order; only
+  // the independent integer cores overlap). Any other count is rejected
+  // fail-closed (I7).
+  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
+  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
+    return emitOpError()
+           << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
+              "byte-exact block-unroll factors for the ggml Q4_0 x Q8_0 block "
+              "dot-product outer loop); got "
+           << multiBlockFactor;
+
+  // The optional strip_elision is a bounded resource/scheduling shape knob: the
+  // inner half-block strip loop is kept ("robust", default -- correct at any
+  // VLEN) or elided ("elided" -- a single vsetvl_e8m1(16) + one vwredsum per
+  // half-block, correct ONLY at VLEN >= 128). Any other spelling is rejected
+  // fail-closed (I7).
+  if (std::optional<llvm::StringRef> stripElision = getStripElision()) {
+    if (*stripElision != "robust" && *stripElision != "elided")
+      return emitOpError()
+             << "only accepts strip_elision \"robust\" or \"elided\" (the "
+                "bounded inner-strip-loop shape knobs for the ggml Q4_0 x Q8_0 "
+                "block dot-product); got \""
+             << *stripElision << "\"";
+    // The elided form drops the inner strip loop and emits a single
+    // vsetvl_e8m1(16) per half-block; it is correct only when the integer core
+    // anchors at m1 (mf4's vsetvl_e32m1 VLMAX is 4 at VLEN=128, which would
+    // silently drop 12 of the 16 nibble bytes). Reject the silently-wrong
+    // combination fail-closed (I7) so the autotuner cannot request it.
+    if (*stripElision == "elided" &&
+        getIntegerCoreLmul().value_or("mf4") != "m1")
+      return emitOpError()
+             << "strip_elision \"elided\" requires integer_core_lmul \"m1\" "
+                "(the single-vsetvl_e8m1(16) half-block cover is correct only at "
+                "the m1 anchor; the mf4 anchor's vsetvl_e32m1 VLMAX would drop "
+                "12 of 16 nibble bytes)";
   }
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)

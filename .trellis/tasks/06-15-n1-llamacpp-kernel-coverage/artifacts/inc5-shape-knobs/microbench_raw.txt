@@ -1,0 +1,39 @@
+=== INC-5 shape-knob RIGOROUS microbench (ssh rvv, clang 18.1.3) ===
+=== board: 64-core riscv64, VLEN=128, rv64imafdcv+zvfh ===
+=== flags: -march=rv64gcv_zfh_zvfh -mabi=lp64d -O3 -ffp-contract=fast ===
+=== methodology: taskset -c 3 pinned, best-of-40 min ns/call, warmup discarded, identical data ===
+=== shapes measured = the COMPILERS structured emission (kern_mb*.cpp, separate TUs) ===
+
+### n=4096 (3 stable runs) ###
+--- run 1 ---
+# n=4096 nb=128 iters=100000 reps=40  ref=-5.22822143e+12
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          1168.99 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       1387.67 ns/call   1.187x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       1306.18 ns/call   1.117x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       1021.26 ns/call   0.874x ggml   [VLEN>=128 only (Zvl128b)]
+--- run 2 ---
+# n=4096 nb=128 iters=100000 reps=40  ref=-5.22822143e+12
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          1169.08 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       1387.76 ns/call   1.187x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       1306.13 ns/call   1.117x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       1021.29 ns/call   0.874x ggml   [VLEN>=128 only (Zvl128b)]
+--- run 3 ---
+# n=4096 nb=128 iters=100000 reps=40  ref=-5.22822143e+12
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          1169.03 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       1387.69 ns/call   1.187x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       1306.14 ns/call   1.117x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       1021.28 ns/call   0.874x ggml   [VLEN>=128 only (Zvl128b)]
+
+### n=8192 cross-check ###
+# n=8192 nb=256 iters=50000 reps=40  ref=-6.37016421e+12
+# timing (best-of-40 min ns/call), taskset pinned, warmup discarded:
+  ggml(i8m1,serial)          2317.36 ns/call   1.000x ggml   [REFERENCE]
+  mb1-robust(compiler)       2757.44 ns/call   1.190x ggml   [shippable (current anchor)]
+  mb2-robust(compiler)       2595.63 ns/call   1.120x ggml   [shippable (VLEN-robust)]
+  mb4-elided(compiler)       2025.70 ns/call   0.874x ggml   [VLEN>=128 only (Zvl128b)]
+
+### distinct v-registers per shape (for the autotuners prune budget) ###
+  mb1-robust: 5   mb2-robust: 5   mb4-elided: 6   (all << 32 budget)
