@@ -2255,9 +2255,17 @@ constexpr std::int64_t kRVVBlockDotBaseProductReduceChain = 2;
 ///   * "nibble-offset-binary" (q4_0): the one-sided nibble unpack + offset-binary
 ///     `-8` decode chain (the emitOffsetBinaryDecodeProductValue sequence:
 ///     &0x0F / >>4 / XOR-0x88 / sign-extend / widen) that precedes the product.
+///   * "nibble-unsigned" (q4_1): the one-sided UNSIGNED nibble unpack -- the
+///     emitUnsignedNibbleDecodeProductValue sequence (vand 0x0F / vsrl 0x04, then
+///     value-identity reinterprets that are free). NO offset-binary bias and NO
+///     XOR/sign-extend, so the dependent decode chain is SHORTER than q4_0's
+///     (2 real ops vs 5). This SHORTER prefix is the structural fact, not a tuned
+///     constant; it is what the latency-depth derivation reads.
 inline std::int64_t getRVVBlockDotDecodePrefixLength(llvm::StringRef quantFormat) {
   if (quantFormat == "nibble-offset-binary")
     return 5;
+  if (quantFormat == "nibble-unsigned")
+    return 2;
   return 0; // plain-int8 and any other already-int8 stream.
 }
 
@@ -2372,6 +2380,82 @@ selectRVVQ40Q80MinCostShape(llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) 
       best = candidate;
   }
   return best;
+}
+
+//===----------------------------------------------------------------------===//
+// The Family-B SIBLING: the ggml Q4_1 x Q8_1 block-dot shape autotuner.
+//
+// q4_1 is the scale+MIN, asymmetric Family-B kernel. Its nibble half-block is
+// byte-identical in SHAPE to q4_0's (16 nibble bytes decoded into 2x16 lanes), so
+// the SAME shape space {integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x
+// strip_elision {robust,elided}} maps to the SAME structural facts as q4_0 (the
+// per-half-block reduction count, the peak-live vreg footprint, the m1-anchored
+// elision legality). The ONE structural difference fed into the SAME cost FORMULA
+// (computeBlockDotShapeCostCore) is the DERIVED latency depth: q4_1 decodes
+// UNSIGNED nibbles (vand 0x0F / vsrl 0x04, no offset-binary `-8`, no XOR/sign-
+// extend), so its decode prefix is SHORTER than q4_0's (2 vs 5) and its core
+// latency depth is 4, not 7. Both still EXCEED the unroll range {1,2,4} (depth >=
+// 4 => min(factor,depth)=factor, overflow=0), so q4_1's argmin lands at the same
+// shape q4_0's does -- but the depth is a COMPUTED structural count off the
+// format's decode chain, NOT a per-kernel constant (the "derived, not a lookup"
+// litmus: a third kernel inherits its depth for free from its format).
+//===----------------------------------------------------------------------===//
+
+/// The architectural vreg budget for the q4_1 shape prune (same 32-vector file).
+constexpr std::int64_t kRVVQ41ShapeVectorRegisterBudget = 32;
+
+/// The capability-blind structural cost of a q4_1 shape: the SAME formula as
+/// q4_0 (computeBlockDotShapeCostCore), fed q4_1's per-anchor reduction count
+/// (identical to q4_0's: the nibble half-block is the same shape) AND its DERIVED
+/// latency depth. q4_1's integer core decodes UNSIGNED nibbles -- a SHORTER
+/// decode prefix than q4_0's offset-binary chain (the "nibble-unsigned" format),
+/// a structural fact of the format, NOT a hand-set factor.
+inline std::int64_t computeRVVQ41ShapeCost(llvm::StringRef coreLMUL,
+                                           std::int64_t multiBlockFactor,
+                                           llvm::StringRef stripElision) {
+  return computeBlockDotShapeCostCore(
+      getRVVQ40ReductionsPerHalfBlock(coreLMUL), multiBlockFactor, stripElision,
+      getRVVBlockDotCoreLatencyDepth("nibble-unsigned"));
+}
+
+/// Enumerate the full Q4_1 x Q8_1 shape candidate space ({mf4,m1} x {1,2,4} x
+/// {robust,elided} = 12 candidates) and PRUNE each by the SAME two facts q4_0
+/// uses: (a) LEGALITY -- strip_elision "elided" is correct only at the m1 anchor
+/// on a Zvl128b target (the mf4 anchor's VLMAX 4 would drop nibble bytes); (b)
+/// BUDGET -- the peak-live vreg footprint must fit the vector-register-file
+/// budget. Each candidate's cost is the capability-blind q4_1 structural cost
+/// above (the SAME formula, with q4_1's derived latency depth).
+inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+enumerateRVVQ41Q81ShapeCandidates(bool hasZvl128b,
+                                  std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
+  static constexpr std::int64_t kFactors[] = {1, 2, 4};
+  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
+  for (llvm::StringRef coreLMUL : kCoreLMULs)
+    for (std::int64_t factor : kFactors)
+      for (llvm::StringRef elision : kElisions) {
+        RVVQ40Q80ShapeCandidate candidate;
+        candidate.integerCoreLMUL = coreLMUL;
+        candidate.multiBlockFactor = factor;
+        candidate.stripElision = elision;
+        candidate.reductionsPerHalfBlock =
+            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
+        candidate.vectorRegisterCost =
+            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
+        candidate.cost = computeRVVQ41ShapeCost(coreLMUL, factor, elision);
+        // (a) capability/anchor legality of strip elision (q4_1: m1 anchor, like
+        // q4_0).
+        bool elisionLegal = true;
+        if (elision == "elided")
+          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
+        // (b) vreg-budget legality.
+        bool budgetLegal =
+            candidate.vectorRegisterCost <= vectorRegisterBudget;
+        candidate.isLegal = elisionLegal && budgetLegal;
+        candidates.push_back(candidate);
+      }
+  return candidates;
 }
 
 //===----------------------------------------------------------------------===//

@@ -1,0 +1,12 @@
+=== INC-9 q4_1 FULL m1 SHAPE LADDER (ssh rvv, rv64gcv, taskset -c 3, -O3 -ffp-contract=fast) ===
+n=4096, iters=2000, reps=200 best-of-N interleaved; ggml/best > 1 => faster than ggml
+
+correctness gate: all 6 shapes bit-exact vs ggml
+shape                         best-ns   ggml/best (>1 => faster than ggml)
+ggml(real)                     9909.8   1.000x
+mb1_robust                     9989.5   0.992x
+mb2_robust                    10090.2   0.982x
+mb4_robust                    10287.2   0.963x
+mb1_elided                    10279.7   0.964x
+mb2_elided                    15458.3   0.641x
+mb4_elided(FULLV-PICK)        15642.0   0.634x

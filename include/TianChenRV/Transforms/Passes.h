@@ -71,6 +71,7 @@ createMaterializeSelectedLoweringBoundariesPass(
 std::unique_ptr<::mlir::Pass> createMaterializeRVVProbedCapabilityAxesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVQ40SchedulePass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVQ80SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ41SchedulePass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVGearboxSchedulesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(

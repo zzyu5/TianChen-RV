@@ -4061,6 +4061,117 @@ def GgmlBlockDotQ80Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ41Q81Op
+    : TCRVRVV_Op<"q4_1_q8_1_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml Q4_1 x Q8_1 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q4_1_q8_1` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step, the FAMILY-B sibling of
+    tcrv_rvv.q4_0_q8_0_block_dot (scale+MIN, asymmetric): the AoS QK=32 block
+    loop, the per-block dual fp16 scale, the per-block MIN/SUM correction term,
+    the fp32 scalar accumulation, and the `*s` scalar store. Two semantic
+    differences from the Q4_0 sibling distinguish Family B:
+
+    (1) The integer core decodes UNSIGNED nibbles [0,15] -- NO offset-binary `-8`
+        bias and NO XOR-0x88 (the q4_1 quantization is asymmetric, the bias lives
+        in the separate per-block MIN scale). The decode is `vand 0x0F` (low
+        nibble) / `vsrl 0x04` (high nibble, a LOGICAL shift) on the UNSIGNED
+        weight lane, then a value-identity reinterpret to i8, then the SAME signed
+        widening product against the plain-i8 q8_1 halves (vwmul/vwmacc) ->
+        vwredsum -> i32 `sumi`. This is the unsigned-nibble variant of the INC-1
+        offset-binary core, added CLEANLY alongside it (the offset-binary core is
+        byte-untouched).
+
+    (2) The per-block fold carries a SECOND scale on EACH operand. block_q4_1 has
+        {fp16 d; fp16 m; uint8 qs[16]} and block_q8_1 has {fp16 d; fp16 s; int8
+        qs[32]}, where `m` is the per-block MIN and `s` is the PRECOMPUTED scaled
+        activation sum (`d_y * sum(q8)`). The fold is ggml's exact statement
+        `sumf += (d_x * d_y) * sumi + m_x * s_y` (quants.c) -- the (d_x*d_y) is
+        multiplied FIRST (q8_0's order, NOT the Q4_0 sibling's (sumi*d_x)*d_y),
+        the two products (d_x*d_y)*sumi and m_x*s_y are SUMMED FIRST (the `+`
+        binds before the `+=`), then added to sumf: `sumf + ((d_x*d_y)*sumi +
+        m_x*s_y)` -- an fp-significant grouping. Both halves are read per block:
+        d_x at weight+0 and m_x at weight+2 (the +`weight_min_byte_offset`); d_y
+        at activation+0 and s_y at activation+2 (the +`activation_sum_byte_offset`).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the q4_1 weight base pointer (vx), the q8_1 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) --
+    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result
+    through the output pointer.
+
+    The block-quantized dot-product STRUCTURE is first-class in the typed body.
+    The structural facts -- QK=32, the AoS block strides (20 bytes for block_q4_1,
+    36 bytes for block_q8_1), the quant payload byte offset (+4, after the two
+    inline fp16 scales), the q8 high-half byte offset (+16), the second-scale byte
+    offsets (weight m at +2, activation s at +2), and the dual-fp16-plus-min scale
+    model -- are carried as typed integer/string attributes (I4 mirror only). The
+    fixed emission -- an outer emitc.for block loop over nb = n / QK, per-block
+    address arithmetic (vx + ib*20, vy + ib*36) via emitc.add/emitc.mul nodes, the
+    FOUR scalar fp16->fp32 reads (d_x,m_x,d_y,s_y) via emitc.call_opaque (the one
+    sanctioned opaque piece, exactly as INC-1 emits its intrinsics), an inner
+    strip loop reusing the unsigned-nibble asymmetric i4xi8 decode/product chain
+    (vand 0x0F / vsrl 0x04 -> reinterpret -> vwmul/vwmacc against the plain q8
+    halves) + vwredsum into a per-block i32 scalar, and the fp32 accumulate
+    `sumf = sumf + (d_x*d_y)*sumi + m_x*s_y` (ggml's exact order) -- is the op's
+    lowering, NOT a candidate-mirror string read in the conversion. For the
+    bounded surface kind is limited to "ggml_q4_1_q8_1_block_dot" and scale_model
+    to "dual-fp16-per-block-d_x.d_y-plus-min". Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/q4 names, and common EmitC/export code must not infer or
+    choose block-quantized dot-product semantics.
+
+    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
+    attributes are the SAME bounded resource/scheduling shape knobs the Q4_0
+    sibling carries (the *how*, never the *what*; the dot-product is byte-exact for
+    any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). Because q4_1's
+    nibble half-block is byte-identical in shape to q4_0's (16 nibble bytes,
+    decoded into 2x16 lanes), the anchors are q4_0's, NOT q8_0's:
+    - `integer_core_lmul` selects the i8 strip anchor: "m1" (i8m1 -> i16m2, ONE
+      strip + ONE vwredsum per half-block at VLEN=128, matching ggml's reduction
+      anchor) or "mf4" (the default: i8mf4 -> i16mf2, vsetvl_e32m1, 4 chunks).
+    - `multi_block_factor` selects how many q4_1/q8_1 blocks the outer loop
+      processes per iteration -- 1 (default), 2, or 4.
+    - `strip_elision` selects "robust" (default, correct at any VLEN) or "elided"
+      (a single vsetvl_e8m1(16) + one vwredsum per half-block, correct ONLY at
+      VLEN >= 128 and therefore requiring the m1 anchor). The verifier rejects the
+      "elided" + non-m1 combination fail-closed (I7); the autotuner gates "elided"
+      on the Zvl128b capability. The `nb % factor` tail always uses the robust
+      single-block core regardless of strip_elision.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    I64Attr:$weight_min_byte_offset,
+    I64Attr:$activation_sum_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

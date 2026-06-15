@@ -1,0 +1,9 @@
+=== INC-9 q4_1 microbench (ssh rvv, rv64gcv, taskset -c 3, -O3 -ffp-contract=fast) ===
+n=4096 (128 blocks/call), iters=2000, reps=200 best-of-N interleaved
+ggml/best > 1.0 => our autotuner-selected shape is FASTER than ggml
+
+correctness gate: all shapes bit-exact vs ggml on bench data
+shape                                       best-ns    mean-ns   ggml/best
+ggml(real,separate-TU)                       9945.3    10895.7   1.000x
+fullv_autotuned(m1,mb4,elided)              15647.5    17133.2   0.636x
+zve32x_autotuned(m1,mb2,robust)             10146.5    11103.1   0.980x

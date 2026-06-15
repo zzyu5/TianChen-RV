@@ -23,6 +23,12 @@
 # CHECK: N3 q8_0 flipping ONLY the Zvl128b fact flips strip_elision elided<->robust (derived, not a constant)
 # CHECK: N3 q8_0 vreg-budget prune binds: a 3-vreg budget prunes all (fail-closed); an 8-vreg budget prunes the wider m2 footprint
 # CHECK: N3 the cost-minimizing factor EMERGES from the DERIVED latency depth (shallow=>2, deep=>4); insensitive to the exact deep length (derived, not a per-kernel lookup)
-# CHECK: N3 latency depth is a DERIVED sum (base product->reduce 2 + format decode prefix): q8_0=2, q4_0=7
+# CHECK: N3 latency depth is a DERIVED sum (base product->reduce 2 + format decode prefix): q8_0=2, q4_1=4, q4_0=7
 # CHECK: N3 q4_0 costs are BYTE-identical to the pre-refactor model (deep depth 7 => overflow term inert; additive)
-# CHECK: RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests passed
+# The Family-B sibling (q4_1 x q8_1, scale+MIN): the SAME machinery selects a
+# structurally NEW kernel's shape; q4_1's depth (4) is DERIVED from its shorter
+# unsigned-nibble decode, and the picks match q4_0's (depth >= max factor).
+# CHECK: N1+N3 q4_1 (Family-B) Zvl128b selects (m1, factor=4, elided) via the SAME cost model + its derived depth 4
+# CHECK: N1 q4_1 (Family-B) non-Zvl128b prunes elided, selects (m1, factor=2, robust) -- divergence by ONE capability fact
+# CHECK: N3 q4_1 costs match the depth-blind formula (depth 4 >= max factor => overflow inert); the depth is derived, the picks match q4_0's
+# CHECK: RVV N3 Q4_0 + Q8_0 + Q4_1 capability/resource-aware shape selection tests passed

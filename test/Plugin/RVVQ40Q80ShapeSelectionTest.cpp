@@ -36,13 +36,16 @@
 
 using tianchenrv::plugin::rvv::computeBlockDotShapeCostCore;
 using tianchenrv::plugin::rvv::computeRVVQ40ShapeCost;
+using tianchenrv::plugin::rvv::computeRVVQ41ShapeCost;
 using tianchenrv::plugin::rvv::computeRVVQ80ShapeCost;
 using tianchenrv::plugin::rvv::deriveHasZvl128b;
 using tianchenrv::plugin::rvv::getRVVBlockDotCoreLatencyDepth;
 using tianchenrv::plugin::rvv::getRVVBlockDotDecodePrefixLength;
 using tianchenrv::plugin::rvv::enumerateRVVQ40Q80ShapeCandidates;
+using tianchenrv::plugin::rvv::enumerateRVVQ41Q81ShapeCandidates;
 using tianchenrv::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
 using tianchenrv::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
+using tianchenrv::plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
 using tianchenrv::plugin::rvv::kRVVQ80ShapeVectorRegisterBudget;
 using tianchenrv::plugin::rvv::RVVQ40Q80ShapeCandidate;
 using tianchenrv::plugin::rvv::selectRVVQ40Q80MinCostShape;
@@ -431,13 +434,113 @@ int runLatencyDepthIsDerivedSumTest() {
     return fail("plain int8 (q8_0) must have a zero decode prefix");
   if (getRVVBlockDotDecodePrefixLength("nibble-offset-binary") != 5)
     return fail("the q4_0 nibble offset-binary decode prefix must be 5 ops");
+  // q4_1's UNSIGNED-nibble decode is SHORTER than q4_0's offset-binary chain:
+  // vand 0x0F + vsrl 0x04 (2 real ops; the reinterprets are free), NO XOR /
+  // sign-extend / `-8` bias. This is a STRUCTURAL fact of the format, not a tuned
+  // constant.
+  if (getRVVBlockDotDecodePrefixLength("nibble-unsigned") != 2)
+    return fail("the q4_1 unsigned-nibble decode prefix must be 2 ops");
   // depth = base product->reduce chain (2) + decode prefix.
   if (getRVVBlockDotCoreLatencyDepth("plain-int8") != 2)
     return fail("q8_0 latency depth must be 2 (2 + 0 decode)");
   if (getRVVBlockDotCoreLatencyDepth("nibble-offset-binary") != 7)
     return fail("q4_0 latency depth must be 7 (2 + 5 decode)");
+  if (getRVVBlockDotCoreLatencyDepth("nibble-unsigned") != 4)
+    return fail("q4_1 latency depth must be 4 (2 + 2 decode)");
   llvm::outs() << "N3 latency depth is a DERIVED sum (base product->reduce 2 + "
-                  "format decode prefix): q8_0=2, q4_0=7\n";
+                  "format decode prefix): q8_0=2, q4_1=4, q4_0=7\n";
+  return 0;
+}
+
+// The Family-B SIBLING (q4_1 x q8_1, scale+MIN): the SAME autotuner machinery
+// selects a structurally NEW kernel's shape. q4_1's nibble half-block matches
+// q4_0's SHAPE (reductions m1->1, mf4->4; elided anchor m1), but its DERIVED
+// latency depth is 4 (the shorter unsigned-nibble decode), NOT q4_0's 7. Both
+// still EXCEED the unroll range {1,2,4}, so q4_1's argmin lands at the SAME shape
+// q4_0's does -- the proof that the depth is a COMPUTED structural count off the
+// format, not a per-kernel constant. These tests assert the structural ordering +
+// the capability divergence -- the autotuner is DETERMINISTIC and capability-driven.
+//
+// HONESTY (NOT a quality claim): these tests verify the SELECTION is derived +
+// divergent, NOT that the selected shape WINS. On real ssh rvv (artifacts/
+// inc9-q4_1-breadth/RESULTS.md §4) the full-V pick (m1,mb4,elided) is the SLOWEST
+// of the 7 shapes (0.634x ggml); the cost model is blind to q4_1's 4-scale fold's
+// scalar-register pressure (mb4_elided spills 49 vs mb1_robust's 19 slots). The
+// q4_0 win does NOT generalize to scale+MIN. Adding a fold-pressure cost term is
+// future work; do NOT read these green tests as "mb4_elided is the good shape".
+int runQ41Zvl128bSelectsMb4ElidedTest() {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+      enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/true,
+                                        kRVVQ41ShapeVectorRegisterBudget);
+  if (candidates.size() != 12)
+    return fail("expected the full 12-candidate q4_1 shape space, got " +
+                llvm::Twine(candidates.size()));
+  std::optional<RVVQ40Q80ShapeCandidate> selected =
+      selectRVVQ40Q80MinCostShape(candidates);
+  if (!selected)
+    return fail("q4_1 Zvl128b selection returned no legal shape");
+  if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 4 ||
+      selected->stripElision != "elided")
+    return fail("q4_1 Zvl128b should select (m1, factor=4, elided); got (" +
+                llvm::Twine(selected->integerCoreLMUL) +
+                ", factor=" + llvm::Twine(selected->multiBlockFactor) + ", " +
+                llvm::Twine(selected->stripElision) + ")");
+  llvm::outs() << "N1+N3 q4_1 (Family-B) Zvl128b selects (m1, factor=4, elided) "
+                  "via the SAME cost model + its derived depth 4\n";
+  return 0;
+}
+
+int runQ41NotZvl128bSelectsMb2RobustTest() {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+      enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/false,
+                                        kRVVQ41ShapeVectorRegisterBudget);
+  std::optional<RVVQ40Q80ShapeCandidate> selected =
+      selectRVVQ40Q80MinCostShape(candidates);
+  if (!selected)
+    return fail("q4_1 non-Zvl128b selection returned no legal shape");
+  // Every elided candidate must be pruned (illegal without Zvl128b).
+  for (const RVVQ40Q80ShapeCandidate &candidate : candidates)
+    if (candidate.stripElision == "elided" && candidate.isLegal)
+      return fail("q4_1 elided shape must be pruned without Zvl128b");
+  if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 2 ||
+      selected->stripElision != "robust")
+    return fail("q4_1 non-Zvl128b should select (m1, factor=2, robust); got (" +
+                llvm::Twine(selected->integerCoreLMUL) +
+                ", factor=" + llvm::Twine(selected->multiBlockFactor) + ", " +
+                llvm::Twine(selected->stripElision) + ")");
+  llvm::outs() << "N1 q4_1 (Family-B) non-Zvl128b prunes elided, selects "
+                  "(m1, factor=2, robust) -- divergence by ONE capability fact\n";
+  return 0;
+}
+
+// ADDITIVITY of the depth difference: q4_1's depth (4) still makes
+// min(factor,depth)=factor and the overflow term zero across {1,2,4} (since
+// 4 >= the max factor), so q4_1's costs equal the same depth-blind formula q4_0
+// uses -- the picks are identical, but the depth is DERIVED, not assumed.
+int runQ41CostMatchesDepthBlindTest() {
+  auto legacyCost = [](std::int64_t reductions, std::int64_t factor,
+                       bool elided) {
+    const std::int64_t kRU = 600, kBase = 120, kOLO = 500, kRob = 170, kEli = 40;
+    const std::int64_t strip = elided ? kEli : kRob;
+    return kRU * reductions + kOLO / factor + strip * factor + kBase;
+  };
+  for (std::int64_t factor : {std::int64_t(1), std::int64_t(2), std::int64_t(4)})
+    for (bool elided : {false, true})
+      for (const char *lmul : {"m1", "mf4"}) {
+        std::int64_t reductions = (llvm::StringRef(lmul) == "m1") ? 1 : 4;
+        std::int64_t now =
+            computeRVVQ41ShapeCost(lmul, factor, elided ? "elided" : "robust");
+        std::int64_t legacy = legacyCost(reductions, factor, elided);
+        if (now != legacy)
+          return fail("q4_1 cost diverges from the depth-blind formula at (" +
+                      llvm::Twine(lmul) + ", factor=" + llvm::Twine(factor) +
+                      ", " + (elided ? "elided" : "robust") +
+                      "): now=" + llvm::Twine(now) +
+                      " legacy=" + llvm::Twine(legacy));
+      }
+  llvm::outs() << "N3 q4_1 costs match the depth-blind formula (depth 4 >= max "
+                  "factor => overflow inert); the depth is derived, the picks "
+                  "match q4_0's\n";
   return 0;
 }
 
@@ -504,8 +607,14 @@ int main() {
     return result;
   if (int result = runQ40CostUnchangedByRefactorTest())
     return result;
+  if (int result = runQ41Zvl128bSelectsMb4ElidedTest())
+    return result;
+  if (int result = runQ41NotZvl128bSelectsMb2RobustTest())
+    return result;
+  if (int result = runQ41CostMatchesDepthBlindTest())
+    return result;
   llvm::outs()
-      << "RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests "
-         "passed\n";
+      << "RVV N3 Q4_0 + Q8_0 + Q4_1 capability/resource-aware shape selection "
+         "tests passed\n";
   return 0;
 }

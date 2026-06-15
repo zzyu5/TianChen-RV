@@ -1,0 +1,34 @@
+###############################################################
+# INC-9 q4_1 x q8_1 byte-exact validation (ssh rvv, rv64gcv)  #
+# board: VLEN=128, rv64imafdcv+zvfh, taskset -c 3 pinned      #
+###############################################################
+
+=== full-V (m1,factor=4,elided)  -ffp-contract=off  CONTRACT_REFS=1 ===
+== INC-9 q4_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed MIN scale diverges (the m_x*s_y term is consumed; check non-vacuous)
+ALL q4_1 BYTE-EXACT CHECKS PASSED
+
+=== full-V (m1,factor=4,elided)  -ffp-contract=fast  CONTRACT_REFS=0 ===
+== INC-9 q4_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed MIN scale diverges (the m_x*s_y term is consumed; check non-vacuous)
+ALL q4_1 BYTE-EXACT CHECKS PASSED
+
+=== zve32x (m1,factor=2,robust)  -ffp-contract=off  CONTRACT_REFS=1 ===
+(NOTE: built -march=rv64gcv to RUN on this full-V board; the kernel is the
+ zve32x-SELECTED robust strip-loop shape, byte-exact at any VLEN)
+== INC-9 q4_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed MIN scale diverges (the m_x*s_y term is consumed; check non-vacuous)
+ALL q4_1 BYTE-EXACT CHECKS PASSED
+
+=== zve32x (m1,factor=2,robust)  -ffp-contract=fast  CONTRACT_REFS=0 ===
+== INC-9 q4_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3300 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3300 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK: perturbed MIN scale diverges (the m_x*s_y term is consumed; check non-vacuous)
+ALL q4_1 BYTE-EXACT CHECKS PASSED
