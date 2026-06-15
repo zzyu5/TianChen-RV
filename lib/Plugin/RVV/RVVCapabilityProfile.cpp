@@ -127,6 +127,58 @@ bool hasRVVVectorHint(llvm::StringRef hints) {
   return false;
 }
 
+// Derives the RVV element-width (SEW) SUPPORT allow-list from the validated ISA
+// evidence (selected -march plus the probed isa/vector hint string). This is a
+// TARGET-CAPABILITY fact ("what element widths this configured target supports"),
+// NOT a plugin-selected compile-time config (the typed body owns its single
+// chosen SEW; see core-invariants I5 and capability-model/profiles.md: the probe
+// must not fabricate the SELECTED sew/lmul/tail/mask). The allow-list is the set
+// the legality gate (verifyRVVSelectedTargetCapabilityForTypedConfig /
+// checkCapabilityConfigGate) queries against the typed body's SEW. Mapping per
+// the RISC-V "V" vector spec EEW rules:
+//   * a base "v" / rv64gcv / zve64* configuration provides element widths up to
+//     64 (8/16/32/64);
+//   * an embedded zve32* configuration (no 64-bit element support) provides
+//     8/16/32 only;
+// fp16 (zvfh) is a float-width concern handled by the dtype path, not this SEW
+// integer-width allow-list. Returns "" when the evidence does not name a concrete
+// RVV element-width tier, so the capability simply declares no SEW restriction
+// (the gate then stays silent, the historical behaviour).
+std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
+                                        llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  // 64-bit-element evidence: full "V" (rv64gcv / a bare "v" extension token),
+  // or an explicit zve64* embedded vector tier.
+  bool hasElement64 = text.contains("zve64") || text.contains("gcv") ||
+                      text.contains("rv64gcv");
+  // 32-bit-element-only embedded tier: zve32* without a zve64* token.
+  bool hasElement32Only = text.contains("zve32") && !text.contains("zve64");
+
+  if (hasElement32Only)
+    return "8,16,32";
+  if (hasElement64)
+    return "8,16,32,64";
+  return "";
+}
+
+// Derives the LMUL grouping SUPPORT allow-list. Every conforming RISC-V vector
+// configuration (full "V" and the embedded zve* tiers alike) provides the same
+// LMUL grouping set; the tiers differ in supported element widths, not in the
+// LMUL multiplier grid. So when the ISA evidence names a concrete RVV tier we
+// advertise the full grouping allow-list; otherwise "" (no LMUL restriction).
+// As with SEW, this is the support set the legality gate queries, never the
+// body's single selected LMUL.
+std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
+                                         llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+  if (text.contains("zve") || text.contains("gcv"))
+    return "mf8,mf4,mf2,m1,m2,m4,m8";
+  return "";
+}
+
 bool isHexDigest(llvm::StringRef digest) {
   if (digest.empty())
     return true;
@@ -280,11 +332,28 @@ buildRVVTargetCapabilitiesFromProbeFacts(
     return std::move(error);
 
   support::TargetCapabilitySet capabilities;
+  CapabilityProperties rvvProperties = {
+      {"architecture", normalizeFactString(facts.architecture)},
+      {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}};
+  // Derive the SEW / LMUL SUPPORT allow-lists from the validated ISA evidence so
+  // a real probed RVV capability carries the divergence axes the legality gate
+  // queries (supported_sew / supported_lmul). These are target-capability facts
+  // (what the configured target supports), derived in this plugin-local C++
+  // authority -- not probe-fabricated selected config (I5; profiles.md). An
+  // embedded zve32* tier narrows supported_sew to 8,16,32 (no 64) so a SEW=64
+  // body is gated out, while a full-V tier admits it: that is the capability-
+  // driven divergence on real ISA semantics.
+  std::string supportedSEW = deriveSupportedSEWAllowList(
+      facts.selectedMarch, facts.isaVectorHints);
+  if (!supportedSEW.empty())
+    rvvProperties["supported_sew"] = supportedSEW;
+  std::string supportedLMUL = deriveSupportedLMULAllowList(
+      facts.selectedMarch, facts.isaVectorHints);
+  if (!supportedLMUL.empty())
+    rvvProperties["supported_lmul"] = supportedLMUL;
   if (llvm::Error error = addAvailableCapability(
       context, capabilities, getRVVPreferredCapabilitySymbol(),
-      getRVVCapabilityID(), getRVVCapabilityKind(),
-      {{"architecture", normalizeFactString(facts.architecture)},
-       {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}}))
+      getRVVCapabilityID(), getRVVCapabilityKind(), std::move(rvvProperties)))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
           context, capabilities, getRVVHartCountCapabilitySymbol(),

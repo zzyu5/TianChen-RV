@@ -1,0 +1,13 @@
+# RUN: tianchenrv-rvv-capability-profile-divergence-test | FileCheck %s
+
+# The N1 probe->capability authority derives the capability DIVERGENCE axes
+# (supported_sew / supported_lmul) from the real RVV probe ISA evidence, so a
+# real probed profile can reach the legality gate (not only synthetic test IR).
+# Two real probed profiles diverge on the SEW=64 axis: full-V (rv64gcv) admits
+# it, the embedded zve32x profile rejects it -- capability-driven, on real ISA
+# semantics.
+
+# CHECK: N1 full-V (rv64gcv) probe derives supported_sew=8,16,32,64 (SEW=64 admitted)
+# CHECK: N1 zve32x probe derives supported_sew=8,16,32 (SEW=64 gated out)
+# CHECK: N1 two real probed profiles DIVERGE on SEW=64: full-V admits, zve32x rejects (capability-driven)
+# CHECK: RVV N1 probe->capability divergence-axis derivation tests passed

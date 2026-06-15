@@ -30,7 +30,7 @@ module {
   }
 }
 
-// CHECK: requires runtime ABI role 'lhs-input-buffer' to use C type 'const int8_t *', 'const uint8_t *', 'const int16_t *', 'const int32_t *', 'const int64_t *', or 'const float *'
+// CHECK: requires runtime ABI role 'lhs-input-buffer' to use C type 'const int8_t *', 'const uint8_t *', 'const int16_t *', 'const int32_t *', 'const int64_t *', 'const float *', or 'const double *'
 
 // -----
 

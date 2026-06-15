@@ -507,6 +507,8 @@ llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
     return "i64";
   if (type.getElementType().isF32())
     return "f32";
+  if (type.getElementType().isF64())
+    return "f64";
   return "";
 }
 
@@ -546,6 +548,8 @@ llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
     return "int64_t";
   if (type.getElementType().isF32())
     return "float";
+  if (type.getElementType().isF64())
+    return "double";
   return "";
 }
 
@@ -2558,7 +2562,8 @@ private:
     if (!lhs || !rhs)
       return rewriter.notifyMatchFailure(binary, "binary operand unmapped");
 
-    std::optional<llvm::StringRef> mnemonic = binaryMnemonic(binary.getKind());
+    std::optional<llvm::StringRef> mnemonic =
+        binaryMnemonic(binary.getKind(), isFloatVector(vectorType));
     if (!mnemonic)
       return rewriter.notifyMatchFailure(binary, "unsupported binary kind");
     // Resolve the EmitC vector type FIRST (see emitLoad): a non-beachhead lmul
@@ -3977,7 +3982,8 @@ private:
     mlir::Value mask = valueMap.lookup(masked.getMask());
     if (!passthrough || !lhs || !rhs || !mask)
       return rewriter.notifyMatchFailure(masked, "masked operand unmapped");
-    std::optional<llvm::StringRef> mnemonic = binaryMnemonic(masked.getKind());
+    std::optional<llvm::StringRef> mnemonic =
+        binaryMnemonic(masked.getKind(), isFloatVector(vectorType));
     if (!mnemonic)
       return rewriter.notifyMatchFailure(masked, "unsupported masked kind");
     mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
@@ -5732,8 +5738,22 @@ private:
     return converted;
   }
 
+  /// The elementwise binary mnemonic. Integer kinds map to the v-prefixed forms
+  /// (vadd/vsub/vmul); float vectors (f32/f64) map to the f-prefixed forms
+  /// (vfadd/vfsub/vfmul) -- the floating-point arithmetic family the SEW=64
+  /// double-precision coverage rung needs. `isFloat` keys the f-prefix the same
+  /// way compareMnemonic does, so a single emitBinary path covers both.
   static std::optional<llvm::StringRef>
-  binaryMnemonic(llvm::StringRef kind) {
+  binaryMnemonic(llvm::StringRef kind, bool isFloat) {
+    if (isFloat) {
+      if (kind == "add")
+        return llvm::StringRef("vfadd");
+      if (kind == "sub")
+        return llvm::StringRef("vfsub");
+      if (kind == "mul")
+        return llvm::StringRef("vfmul");
+      return std::nullopt;
+    }
     if (kind == "add")
       return llvm::StringRef("vadd");
     if (kind == "sub")
@@ -5818,6 +5838,17 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           if (lmul != "m1")
             return std::nullopt;
           return emitc::OpaqueType::get(type.getContext(), "vfloat32m1_t");
+        }
+        if (type.getElementType().isF64()) {
+          // f64/m1 -> vfloat64m1_t: the SEW=64 double-precision elementwise
+          // rung. Gated to m1 (the bounded coverage increment); other LMUL
+          // widths stay unconverted so later families extend explicitly. This
+          // rung is reachable only on a capability profile whose supported_sew
+          // allow-list includes 64 (full-V); a SEW=32-capped (zve32*) profile
+          // gates the SEW=64 body out before it reaches here.
+          if (lmul != "m1")
+            return std::nullopt;
+          return emitc::OpaqueType::get(type.getContext(), "vfloat64m1_t");
         }
         // Unsigned low-precision rung: ui8/mf4, ui16/mf2, ui32/m1 ->
         // vuint<sew>m<lmul>_t (the legacy unsigned widening-product/reduce oracle

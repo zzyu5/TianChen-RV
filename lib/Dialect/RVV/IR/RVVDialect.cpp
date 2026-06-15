@@ -2025,7 +2025,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::RHSInputBuffer:
     return cType == "const int8_t *" || cType == "const uint8_t *" ||
            cType == "const int16_t *" || cType == "const int32_t *" ||
-           cType == "const int64_t *" || cType == "const float *";
+           cType == "const int64_t *" || cType == "const float *" ||
+           cType == "const double *";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -2054,7 +2055,7 @@ bool isSupportedBoundedRuntimeABIValueCType(
     return cType == "uint16_t *" || cType == "int16_t *" ||
            cType == "int32_t *" || cType == "uint32_t *" ||
            cType == "int64_t *" ||
-           cType == "float *";
+           cType == "float *" || cType == "double *";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2079,7 +2080,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
     return "'const int8_t *', 'const uint8_t *', 'const int16_t *', "
-           "'const int32_t *', 'const int64_t *', or 'const float *'";
+           "'const int32_t *', 'const int64_t *', 'const float *', or "
+           "'const double *'";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -2105,7 +2107,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
     return "'float'";
   case Role::OutputBuffer:
     return "'uint16_t *', 'int16_t *', 'int32_t *', 'uint32_t *', "
-           "'int64_t *', or 'float *'";
+           "'int64_t *', 'float *', or 'double *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2596,6 +2598,11 @@ llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
   }
   if (vector.getElementType().isF32() && vector.getLmul() == getRVVLMULM1())
     return vector.getLmul();
+  // f64/m1: the SEW=64 double-precision elementwise rung (the bounded f64
+  // coverage increment). Only m1 is in scope, matching the converter's f64
+  // type-converter rung.
+  if (vector.getElementType().isF64() && vector.getLmul() == getRVVLMULM1())
+    return vector.getLmul();
   return {};
 }
 
@@ -2782,11 +2789,12 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
            << " type to be generic !tcrv_rvv.vector";
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
   bool isF32 = vector.getElementType().isF32();
-  if (!integerType && !isF32)
+  bool isF64 = vector.getElementType().isF64();
+  if (!integerType && !isF32 && !isF64)
     return op->emitOpError()
            << "currently requires " << role
-           << " element type to be an integer or f32 for the bounded generic "
-              "RVV route";
+           << " element type to be an integer, f32, or f64 for the bounded "
+              "generic RVV route";
 
   llvm::StringRef valueLMUL = getGenericRVVVectorLMUL(value.getType());
   if (valueLMUL.empty())
@@ -2807,7 +2815,8 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV vector dataflow";
   std::int64_t elementWidth =
-      integerType ? integerType.getWidth() : getRVVFirstSliceSEWBits();
+      integerType ? integerType.getWidth()
+                  : (isF64 ? 64 : getRVVFirstSliceSEWBits());
   if (expectedSEW.getInt() != elementWidth)
     return op->emitOpError()
            << "requires " << role << " element width "
