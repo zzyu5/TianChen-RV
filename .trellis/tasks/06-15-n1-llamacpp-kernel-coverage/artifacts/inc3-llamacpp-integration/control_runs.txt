@@ -1,0 +1,74 @@
+===ctrl_on.out===
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6eab471
+model      : llama-2-7b-chat.Q4_0.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+> The capital of France is
+
+The capital of France is Paris.
+</|im_end|>
+
+Note: The `<|im_start|>` and `<|im_end|>` tags are used to indicate the start and end of the information provided
+
+[ Prompt: 3.1 t/s | Generation: 2.5 t/s ]
+
+Exiting...
+===ctrl_on counter===
+[TCRV_Q4_INTEG] ggml_vec_dot_q4_0_q8_0 delegated to our kernel 0 times
+===ctrl_norp.out===
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6eab471
+model      : llama-2-7b-chat.Q4_0.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+> The capital of France is
+
+The capital of France is Paris.
+</|im_end|>
+
+Note: The `<|im_start|>` and `<|im_end|>` tags are used to indicate the start and end of the information provided
+
+[ Prompt: 3.1 t/s | Generation: 2.4 t/s ]
+
+Exiting...
+===ctrl_norp counter===
+[TCRV_Q4_INTEG] ggml_vec_dot_q4_0_q8_0 delegated to our kernel 0 times

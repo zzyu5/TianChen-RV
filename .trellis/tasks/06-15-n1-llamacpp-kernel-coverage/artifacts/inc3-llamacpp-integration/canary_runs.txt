@@ -1,0 +1,70 @@
+===cana_on.out===
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6eab471
+model      : llama-2-7b-chat.Q4_0.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+> The capital of France is
+
+ozinitative impl DumSERTscriptstyle Lexikonbru disposalogyrev hexakult mothershipsajnableześkarycmorrowCLAREautifullyricsçaiseolislande Torжеenzaü kwietanz Lookoutheast duranstrumucharnasife Према
+
+[ Prompt: 25.2 t/s | Generation: 17.8 t/s ]
+
+Exiting...
+===cana_on counter===
+[TCRV_Q4_INTEG] ggml_vec_dot_q4_0_q8_0 delegated to our kernel 113341440 times
+
+===cana_norp.out===
+
+Loading model... 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-6eab471
+model      : llama-2-7b-chat.Q4_0.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+> The capital of France is
+
+ozinitative impl DumSERTscriptstyle Lexikonbru disposalogyrev hexakult mothershipsajnableześkarycmorrowCLAREautifullyricsçaiseolislande Torжеenzaü kwietanz Lookoutheast duranstrumucharnasife Према
+
+[ Prompt: 24.8 t/s | Generation: 18.5 t/s ]
+
+Exiting...
+===cana_norp counter===
+[TCRV_Q4_INTEG] ggml_vec_dot_q4_0_q8_0 delegated to our kernel 113341440 times
+

@@ -1,0 +1,9 @@
+=== quants.c diff vs stock ===
+9a10
+> #include "tcrv_q4_integ.h"  /* TCRV INC-3 */
+222a224
+>     TCRV_Q4_0_DELEGATE();  /* TCRV INC-3: canary / override (no-op in stock) */
+=== CMakeLists diff vs stock ===
+442a443,444
+>             ggml-cpu/arch/riscv/tcrv_q4_kernel.cpp
+>             ggml-cpu/arch/riscv/tcrv_q4_shim.cpp

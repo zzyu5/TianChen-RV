@@ -1,0 +1,13 @@
+=== Counter values across all 6 runs (identical ON vs --no-repack => --no-repack had no observable effect) ===
+ctrl_on      kernel 0 times
+ctrl_norp    kernel 0 times
+cana_on      kernel 113341440 times
+cana_norp    kernel 113341440 times
+over_on      kernel 113341440 times
+over_norp    kernel 113341440 times
+
+=== WHY: verbose model load shows Q4_0 tensors CANNOT be repacked on this fork ===
+0.00.200.012 D done_getting_tensors: tensor 'token_embd.weight' (q4_0) (and 290 others) cannot be used with preferred buffer type CPU_REPACK, using CPU instead
+
+=== stock perplexity system_info under --no-repack still shows REPACK=1 (flag did not flip reported state) ===
+0.03.696.260 I system_info: n_threads = 16 (n_threads_batch = 16) / 64 | CPU : RISCV_V = 1 | RVV_VLEN = 16 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
