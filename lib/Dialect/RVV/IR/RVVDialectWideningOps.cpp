@@ -789,7 +789,8 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
-           name == "activation_high_byte_offset";
+           name == "activation_high_byte_offset" ||
+           name == "integer_core_lmul";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -840,6 +841,19 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     return emitOpError()
            << "requires activation_high_byte_offset == 16 (q8 high half) for "
               "the ggml Q4_0 x Q8_0 block dot-product route";
+
+  // The optional integer-core LMUL is a bounded resource/scheduling fact: the
+  // per-block dot-product core anchors at "mf4" (the INC-2a default) or "m1"
+  // (the ggml-matching one-vwredsum-per-block anchor). Both are byte-exact; any
+  // other spelling is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "mf4" && *coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf4\" or \"m1\" (the bounded "
+                "byte-exact resource anchors for the ggml Q4_0 x Q8_0 block "
+                "dot-product integer core); got \""
+             << *coreLmul << "\"";
+  }
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)
     return emitOpError()

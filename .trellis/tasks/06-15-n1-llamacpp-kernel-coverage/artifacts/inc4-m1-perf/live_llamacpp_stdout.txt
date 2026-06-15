@@ -1,0 +1,14 @@
+=== INC-4 LIVE llama.cpp RAW board stdout (ssh rvv, llama-2-7b-chat.Q4_0.gguf, build b1-6eab471) ===
+prompt: "The capital of France is" -n 64 --temp 0 --seed 1 -st -t 16  (3 trials/config)
+--- STOCK (ggml hand-written RVV) ---
+  [stock trial1] Generation: 2.8 t/s  token=[France is Paris]  (stock, no counter)
+  [stock trial2] Generation: 2.7 t/s  token=[France is Paris]  (stock, no counter)
+  [stock trial3] Generation: 2.7 t/s  token=[France is Paris]  (stock, no counter)
+--- OVERRIDE-MF4 (our OLD kernel) ---
+  [mf4 trial1] Generation: 1.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times
+  [mf4 trial2] Generation: 1.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times
+  [mf4 trial3] Generation: 1.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times
+--- OVERRIDE-M1 (our NEW kernel) ---
+  [m1 trial1] Generation: 2.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times
+  [m1 trial2] Generation: 2.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times
+  [m1 trial3] Generation: 2.6 t/s  token=[France is Paris]  delegated to our kernel 120140800 times

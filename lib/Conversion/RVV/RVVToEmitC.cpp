@@ -3728,19 +3728,25 @@ private:
   ///     float d_x = (float)*(const _Float16 *)(xb);   // emitc.call_opaque
   ///     float d_y = (float)*(const _Float16 *)(yb);
   ///     int32_t sumi = 0;
-  ///     for (size_t c = 0; c < 16; c += vl) {     // mf4 strip loop (4 chunks)
-  ///       size_t vl = __riscv_vsetvl_e32m1(16 - c);
-  ///       vint8mf4_t  w  = __riscv_vle8_v_i8mf4(xb + 2 + c, vl);
-  ///       vint8mf4_t  y0 = __riscv_vle8_v_i8mf4(yb + 2 + c, vl);
-  ///       vint8mf4_t  y1 = __riscv_vle8_v_i8mf4(yb + 2 + 16 + c, vl);
-  ///       vint16mf2_t p  = <offset-binary decode/product>(w, y0, y1, vl);
+  ///     for (size_t c = 0; c < 16; c += vl) {     // strip loop, VLEN-robust
+  ///       size_t vl = __riscv_vsetvl_e<W>m1(16 - c);  // mf4: e32m1 / m1: e8m1
+  ///       vint8<L>_t  w  = __riscv_vle8_v_i8<L>(xb + 2 + c, vl);
+  ///       vint8<L>_t  y0 = __riscv_vle8_v_i8<L>(yb + 2 + c, vl);
+  ///       vint8<L>_t  y1 = __riscv_vle8_v_i8<L>(yb + 2 + 16 + c, vl);
+  ///       vint16<W>_t p  = <offset-binary decode/product>(w, y0, y1, vl);
   ///       vint32m1_t  seed = __riscv_vmv_v_x_i32m1(sumi, 1);
-  ///       vint32m1_t  red  = __riscv_vwredsum_vs_i16mf2_i32m1(p, seed, vl);
+  ///       vint32m1_t  red  = __riscv_vwredsum_vs_i16<W>_i32m1(p, seed, vl);
   ///       sumi = __riscv_vmv_x_s_i32m1_i32(red);
   ///     }
   ///     sumf = sumf + ((float)sumi * d_x) * d_y;  // ggml left-assoc order
   ///   }
   ///   *s = sumf;
+  /// The strip loop anchors at the integer_core_lmul resource fact: "mf4" (the
+  /// INC-2a default: i8mf4 -> i16mf2, vsetvl_e32m1, 4 chunks at VLEN=128) or "m1"
+  /// (i8m1 -> i16m2, vsetvl_e8m1, ONE strip + ONE vwredsum per block at VLEN=128,
+  /// matching ggml's hand-written reduction anchor). Both are byte-exact (same
+  /// integer set; integer add is order-independent) and stay VLEN-robust (a VLEN
+  /// < 128 board re-strips correctly via the sumi-carrying seed).
   /// The block format facts (QK/strides/offsets/scale model) are the op's typed
   /// attrs (I4 mirror); the emission is the op's fixed structure. The integer
   /// core reuses emitOffsetBinaryDecodeProductValue (the SAME nodes INC-1
@@ -3773,10 +3779,26 @@ private:
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
-    // The i8mf4 / i16mf2 / i32m1 vector types of the integer core (same spelling
-    // convertVectorTypeToEmitC produces; the inner work is INC-1's mf4 chain).
-    mlir::Type i8mf4Type = emitc::OpaqueType::get(ctx, "vint8mf4_t");
-    mlir::Type i16mf2Type = emitc::OpaqueType::get(ctx, "vint16mf2_t");
+
+    // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
+    // or m1 to match ggml's one-vwredsum-per-block reduction anchor). It is the
+    // *how* (vector grouping / strip width), never the *what*: the dot product is
+    // byte-exact either way (vwredsum sums the same integer set; integer add is
+    // order-independent). The chosen i8 source LMUL ("mf4"/"m1") drives the
+    // widened i16 product LMUL ("mf2"/"m2") and the i8 load/vsetvl spelling.
+    llvm::StringRef coreLmul = "mf4";
+    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
+      coreLmul = *attrLmul;
+    // i8 source LMUL -> the next-wider i16 product LMUL (the verifier bounds the
+    // source to mf4|m1, so the product is mf2|m2 respectively).
+    llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
+    std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
+    std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
+    // The i8<core> / i16<wide> / i32m1 vector types of the integer core (same
+    // spelling convertVectorTypeToEmitC produces; the inner work is INC-1's
+    // decode/product chain, re-anchored at the chosen LMUL).
+    mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, i8CoreTypeName);
+    mlir::Type i16WideType = emitc::OpaqueType::get(ctx, i16WideTypeName);
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
 
     // The block-format structural facts come straight off the typed attrs (I4).
@@ -3861,12 +3883,19 @@ private:
       rewriter.create<emitc::AssignOp>(
           loc, sumiVar, rewriter.create<emitc::LiteralOp>(loc, i32Type, "0"));
 
-      // Inner mf4 strip loop over the 16 weight bytes (4 chunks at VLEN=128),
-      // anchored on the shared vsetvl_e32m1 vl token (same as INC-1). The loop
-      // STEP is the loop-invariant mf4 VLMAX (vsetvl over the full half-block);
-      // the per-chunk active vl is recomputed inside as vsetvl(16 - c), exactly
-      // like the SoA strip loops carry vlmax as step + a remaining-AVL setvl.
-      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 32, "m1", "");
+      // Inner strip loop over the 16 weight bytes, anchored on a per-strip vl
+      // token. The loop STEP is the loop-invariant VLMAX (vsetvl over the full
+      // half-block); the per-chunk active vl is recomputed inside as
+      // vsetvl(16 - c), exactly like the SoA strip loops carry vlmax as step +
+      // a remaining-AVL setvl. The vl token's element width / LMUL is the
+      // resource anchor: the mf4 core uses vsetvl_e32m1 (the i32m1 VLMAX equals
+      // the i8mf4 source count, 4 at VLEN=128 -> 4 strips, INC-2a byte-identical)
+      // and the m1 core uses vsetvl_e8m1 (the i8m1 VLMAX, 16 at VLEN=128 -> ONE
+      // strip and ONE vwredsum per block, ggml's reduction anchor). Both stay
+      // VLEN-robust: a VLEN < 128 board re-strips correctly under either.
+      unsigned setvlSEW = (coreLmul == "m1") ? 8 : 32;
+      std::string innerSetvlCallee =
+          riscvIntrinsicName("vsetvl", setvlSEW, "m1", "");
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, innerSetvlCallee));
       mlir::Value innerVlmax =
@@ -3913,12 +3942,12 @@ private:
           return rewriter.create<emitc::CastOp>(loc, i8PtrType, full)
               .getResult();
         };
-        std::string loadCallee = riscvIntrinsicName("vle", 8, "mf4", "i8");
+        std::string loadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
         auto loadChunk = [&](mlir::Value ptr) -> mlir::Value {
           rewriter.create<emitc::VerbatimOp>(
               loc, stepComment(opName, role, loadCallee));
           return rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8mf4Type},
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
                                            loadCallee,
                                            mlir::ValueRange{ptr, vl})
               .getResult(0);
@@ -3930,11 +3959,12 @@ private:
         mlir::Value y1 = loadChunk(
             chunkPtr(yb, activationPtrType, quantOffset + highOffset));
 
-        // The offset-binary asymmetric i4xi8 decode/product (INC-1 nodes).
+        // The offset-binary asymmetric i4xi8 decode/product (INC-1 nodes),
+        // re-anchored at the chosen integer-core LMUL (mf4->mf2 / m1->m2).
         mlir::FailureOr<mlir::Value> product =
             emitOffsetBinaryDecodeProductValue(
-                rewriter, loc, w, y0, y1, vl, i8mf4Type, i16mf2Type, "i8",
-                "mf4", 16, "mf2", "i16", opName, role);
+                rewriter, loc, w, y0, y1, vl, i8CoreType, i16WideType, "i8",
+                coreLmul, 16, wideLmul, "i16", opName, role);
         if (mlir::failed(product))
           return mlir::failure();
 
@@ -3951,7 +3981,11 @@ private:
                                              seedCallee,
                                              mlir::ValueRange{sumiCur, one})
                 .getResult(0);
-        std::string reduceCallee = "__riscv_vwredsum_vs_i16mf2_i32m1";
+        // vwredsum is LMUL-independent in result: the i16<wide> source reduces
+        // into i32m1 lane 0 (the same integer sum the mf4 path produces, summed
+        // in one strip at m1). The callee tracks only the source LMUL.
+        std::string reduceCallee =
+            ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, reduceCallee));
         mlir::Value red =

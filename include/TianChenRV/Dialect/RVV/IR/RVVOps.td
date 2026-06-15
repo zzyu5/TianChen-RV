@@ -3906,6 +3906,19 @@ def GgmlBlockDotQ40Q80Op
     strings, artifact names, status fields, exact intrinsic spellings, operand
     mirror strings, q8/q4 names, and common EmitC/export code must not infer or
     choose block-quantized dot-product semantics.
+
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    fact -- it selects the LMUL the per-block integer dot-product core anchors at
+    ("mf4" or "m1"), which is purely the *how* (vector grouping / strip width),
+    NOT the *what*. The dot-product is byte-exact either way: vwredsum sums the
+    same integer set and integer addition is order-independent, so the i32 `sumi`
+    and the fp32 accumulate are unchanged. When the attribute is absent the core
+    anchors at "mf4" (the INC-2a default: i8mf4 -> i16mf2 -> i32m1, a 4-chunk
+    inner strip at VLEN=128). When it is "m1" the core anchors at "m1" (i8m1 ->
+    i16m2 -> i32m1, the whole half-block in ONE strip at VLEN=128 with a single
+    vwredsum per block, matching ggml's hand-written kernel's reduction anchor).
+    Both forms keep a VLEN-robust strip loop carrying sumi across strips, so a
+    VLEN < 128 board re-strips correctly under either anchor.
   }];
 
   let arguments = (ins
@@ -3920,7 +3933,8 @@ def GgmlBlockDotQ40Q80Op
     I64Attr:$weight_block_stride,
     I64Attr:$activation_block_stride,
     I64Attr:$quant_byte_offset,
-    I64Attr:$activation_high_byte_offset
+    I64Attr:$activation_high_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 

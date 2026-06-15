@@ -1,0 +1,19 @@
+=== INC-4 m1 byte-exact validation (ssh rvv, clang 18.1.3, -O2 -march=rv64gcv -mabi=lp64d) ===
+----- validate FLAG=[default] -----
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+----- validate FLAG=[-ffp-contract=on] -----
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+----- validate FLAG=[-ffp-contract=off] -----
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+----- validate FLAG=[-ffp-contract=fast] -----
+INC-2a bit-exact check: 1000 arrays checked, 0 failures
+RESULT: PASS (*s bitwise equal vs ggml REAL RVV kernel AND _generic for all n; negative control discriminates)
+----- stress FLAG=[-ffp-contract=on] -----
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
+----- stress FLAG=[-ffp-contract=fast] -----
+=== STRESS SUMMARY: 5859 cases checked, 5609 non-trivial (nonzero) discriminating, 0 FAILURES ===
+RESULT: PASS (bitwise-equal vs ggml REAL + _generic across ALL adversarial cases; negative control non-vacuous)
