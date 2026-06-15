@@ -1,0 +1,10 @@
+BUILD_OK
+correctness gate: all shapes bit-exact vs ggml on bench data
+shape                                       best-ns    mean-ns   best/ggml
+ggml(real,separate-TU)                       1316.0     1352.1   1.000x
+m2_mb1_elided                                1341.4     1380.1   1.019x
+m2_mb1_robust                                1748.1     1796.3   1.328x
+m2_mb2_robust(zve32x-pick)                   1664.4     1709.3   1.265x
+m2_mb2_elided                                1331.6     1368.1   1.012x
+m2_mb4_elided(OLD-pick,pre-inc8)             1397.2     1435.3   1.062x
+COMPILER-EMITTED mb2 (NEW inc8 pick)         1377.6     1415.0   1.047x

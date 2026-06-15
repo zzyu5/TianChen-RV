@@ -34,9 +34,12 @@
 
 #include <optional>
 
+using tianchenrv::plugin::rvv::computeBlockDotShapeCostCore;
 using tianchenrv::plugin::rvv::computeRVVQ40ShapeCost;
 using tianchenrv::plugin::rvv::computeRVVQ80ShapeCost;
 using tianchenrv::plugin::rvv::deriveHasZvl128b;
+using tianchenrv::plugin::rvv::getRVVBlockDotCoreLatencyDepth;
+using tianchenrv::plugin::rvv::getRVVBlockDotDecodePrefixLength;
 using tianchenrv::plugin::rvv::enumerateRVVQ40Q80ShapeCandidates;
 using tianchenrv::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
 using tianchenrv::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
@@ -227,14 +230,20 @@ int runZvl128bDerivationTest() {
 // ns calibration lives in the ssh-rvv evidence artifact, not fabricated here.
 //===----------------------------------------------------------------------===//
 
-// The q8_0 cost is the SAME formula fed q8_0's reduction count: m2 (1 reduction)
-// dominates m1 (2) and mf4 (8); robust is U-shaped in the factor (min at 2),
-// elided monotone-decreasing (min at 4). The cost is capability-blind (no
-// capability argument), the structural "derived, not a lookup" guarantee.
+// The q8_0 cost is the SAME formula fed q8_0's reduction count AND its DERIVED
+// SHALLOW latency depth (2 = plain int8 vwmul->vwredsum, no nibble decode):
+// m2 (1 reduction) dominates m1 (2) and mf4 (8); both robust and elided are
+// U-shaped in the factor with the minimum at factor=2 -- because q8_0's short
+// chain SATURATES the unroll at depth 2, so factor=4 incurs the overflow penalty
+// (the measured ssh-rvv mb4 regression, RESULTS.md: mb1 845 / mb2 844 / mb4 884).
+// This is the structural difference from q4_0's deep chain, reflected in the
+// DERIVED depth, NOT a new cost branch -- the "derived, not a lookup" guarantee.
 int runQ80CostModelStructureTest() {
   std::int64_t m2RobustF1 = computeRVVQ80ShapeCost("m2", 1, "robust");
   std::int64_t m2RobustF2 = computeRVVQ80ShapeCost("m2", 2, "robust");
   std::int64_t m2RobustF4 = computeRVVQ80ShapeCost("m2", 4, "robust");
+  std::int64_t m2ElidedF1 = computeRVVQ80ShapeCost("m2", 1, "elided");
+  std::int64_t m2ElidedF2 = computeRVVQ80ShapeCost("m2", 2, "elided");
   std::int64_t m2ElidedF4 = computeRVVQ80ShapeCost("m2", 4, "elided");
   std::int64_t m1RobustF2 = computeRVVQ80ShapeCost("m1", 2, "robust");
   std::int64_t mf4RobustF2 = computeRVVQ80ShapeCost("mf4", 2, "robust");
@@ -242,9 +251,12 @@ int runQ80CostModelStructureTest() {
   // robust U-curve: factor=2 is the robust minimum.
   if (!(m2RobustF2 < m2RobustF1 && m2RobustF2 < m2RobustF4))
     return fail("q8_0 robust cost is not U-shaped with min at factor=2");
-  // elided factor=4 is the global minimum (beats every robust shape).
-  if (!(m2ElidedF4 < m2RobustF2))
-    return fail("q8_0 elided factor=4 should be cheaper than the robust optimum");
+  // elided is ALSO U-shaped with min at factor=2 -- q8_0's shallow chain (depth 2)
+  // saturates the unroll, so factor=4 pays the overflow penalty (UNLIKE q4_0's
+  // deep chain, whose elided cost stays monotone-decreasing to factor=4). This is
+  // the depth flipping the optimum, not a per-kernel constant.
+  if (!(m2ElidedF2 < m2ElidedF1 && m2ElidedF2 < m2ElidedF4))
+    return fail("q8_0 elided cost is not U-shaped with min at factor=2");
   // m2 (1 reduction) dominates m1 (2 reductions) and mf4 (8) -- the structural
   // difference from q4_0 reflected in the reduction count, not a new cost branch.
   if (!(m2RobustF2 < m1RobustF2))
@@ -252,14 +264,18 @@ int runQ80CostModelStructureTest() {
   if (!(m1RobustF2 < mf4RobustF2))
     return fail("q8_0 m1 anchor should dominate the mf4 anchor (fewer reductions)");
   llvm::outs() << "N3 q8_0 cost model is capability-blind + structurally ordered "
-                  "(m2 dominates m1 dominates mf4; robust min@2, elided min@4)\n";
+                  "(m2 dominates m1 dominates mf4; shallow depth => robust AND "
+                  "elided min@2)\n";
   return 0;
 }
 
 // On a Zvl128b (full-V) target the strip-elided m2 shapes are admitted and the
-// min-cost legal shape is (m2, factor=4, elided): the shape ggml hand-wrote plus
-// the multi-block unroll ggml does not use.
-int runQ80Zvl128bSelectsM2Mb4ElidedTest() {
+// min-cost legal shape is (m2, factor=2, elided): the shape ggml hand-wrote
+// (i8m2->i16m4->vwredsum) plus a 2-block unroll. factor=2 (NOT 4) EMERGES because
+// q8_0's shallow integer-core latency depth (2) saturates the unroll -- the
+// measured ssh-rvv optimum cluster (RESULTS.md: mb1 845 / mb2 844 / mb4 884; the
+// old depth-blind model mis-picked mb4, ~6% slower than this mb2 optimum).
+int runQ80Zvl128bSelectsM2Mb2ElidedTest() {
   llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates =
       enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         kRVVQ80ShapeVectorRegisterBudget);
@@ -270,14 +286,15 @@ int runQ80Zvl128bSelectsM2Mb4ElidedTest() {
       selectRVVQ40Q80MinCostShape(candidates);
   if (!selected)
     return fail("q8_0 Zvl128b selection returned no legal shape");
-  if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 4 ||
+  if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 2 ||
       selected->stripElision != "elided")
-    return fail("q8_0 Zvl128b should select (m2, factor=4, elided); got (" +
+    return fail("q8_0 Zvl128b should select (m2, factor=2, elided); got (" +
                 selected->integerCoreLMUL + ", factor=" +
                 llvm::Twine(selected->multiBlockFactor) + ", " +
                 selected->stripElision + ")");
   llvm::outs()
-      << "N3 q8_0 Zvl128b target selects (m2, factor=4, elided) -- ggml's shape\n";
+      << "N3 q8_0 Zvl128b target selects (m2, factor=2, elided) -- the measured "
+         "optimum (shallow depth saturates the unroll at 2)\n";
   return 0;
 }
 
@@ -358,6 +375,104 @@ int runQ80BudgetPruneBindsTest() {
   return 0;
 }
 
+//===----------------------------------------------------------------------===//
+// The DERIVED-not-lookup proof for the latency-aware unroll term. This is the
+// exact analog of the "flip Zvl128b flips shape" derivation test, but for the
+// cost model's per-kernel structural input: flipping ONLY the coreLatencyDepth
+// (everything else -- reductions, elision, the constants -- held fixed) moves the
+// argmin factor. That is what demonstrates the optimal factor EMERGES from the
+// depth, rather than being a per-kernel constant the model looks up.
+//===----------------------------------------------------------------------===//
+
+// Feeding the SHARED formula a shallow vs a deep depth, with reductions/elision
+// fixed, flips the cost-minimizing factor 2<->4. The factor is DERIVED from the
+// depth, not written down per kernel.
+int runDepthDrivesFactorTest() {
+  // Held fixed: 1 reduction, elided. Vary ONLY the depth.
+  auto argminFactorElided = [](std::int64_t depth) {
+    std::int64_t f1 = computeBlockDotShapeCostCore(1, 1, "elided", depth);
+    std::int64_t f2 = computeBlockDotShapeCostCore(1, 2, "elided", depth);
+    std::int64_t f4 = computeBlockDotShapeCostCore(1, 4, "elided", depth);
+    if (f4 <= f2 && f4 <= f1)
+      return 4;
+    if (f2 <= f1 && f2 <= f4)
+      return 2;
+    return 1;
+  };
+  // A deep core (>= the max unroll factor) does not saturate over {1,2,4}: the
+  // cost stays monotone-decreasing and the argmin is factor=4.
+  if (argminFactorElided(/*depth=*/7) != 4)
+    return fail("a deep core (depth 7) should put the elided argmin at factor=4");
+  // A shallow core (depth 2) saturates within the range: factor=4 pays the
+  // overflow penalty and the argmin moves to factor=2.
+  if (argminFactorElided(/*depth=*/2) != 2)
+    return fail("a shallow core (depth 2) should put the elided argmin at "
+                "factor=2 (the overflow penalty binds)");
+  // The result is INSENSITIVE to the exact long-chain length: any depth >= the
+  // max unroll factor (4) yields the SAME factor=4 (the anti-overfit property --
+  // the picks do not hinge on a tuned depth value, only on whether the chain
+  // exceeds the unroll range).
+  if (argminFactorElided(/*depth=*/4) != 4 ||
+      argminFactorElided(/*depth=*/8) != 4)
+    return fail("the deep-core argmin must be factor=4 for ANY depth >= 4 "
+                "(insensitive to the exact long-chain length)");
+  llvm::outs() << "N3 the cost-minimizing factor EMERGES from the DERIVED latency "
+                  "depth (shallow=>2, deep=>4); insensitive to the exact deep "
+                  "length (derived, not a per-kernel lookup)\n";
+  return 0;
+}
+
+// The depth itself is a COMPUTED structural sum, not a per-kernel constant:
+// q8_0 (plain int8) has NO decode prefix => depth 2 (the product->reduce floor);
+// q4_0 (nibble offset-binary) adds its 5-op decode prefix => depth 7. A third
+// plain-int8 block-dot kernel would inherit depth 2 for free from its format.
+int runLatencyDepthIsDerivedSumTest() {
+  if (getRVVBlockDotDecodePrefixLength("plain-int8") != 0)
+    return fail("plain int8 (q8_0) must have a zero decode prefix");
+  if (getRVVBlockDotDecodePrefixLength("nibble-offset-binary") != 5)
+    return fail("the q4_0 nibble offset-binary decode prefix must be 5 ops");
+  // depth = base product->reduce chain (2) + decode prefix.
+  if (getRVVBlockDotCoreLatencyDepth("plain-int8") != 2)
+    return fail("q8_0 latency depth must be 2 (2 + 0 decode)");
+  if (getRVVBlockDotCoreLatencyDepth("nibble-offset-binary") != 7)
+    return fail("q4_0 latency depth must be 7 (2 + 5 decode)");
+  llvm::outs() << "N3 latency depth is a DERIVED sum (base product->reduce 2 + "
+                  "format decode prefix): q8_0=2, q4_0=7\n";
+  return 0;
+}
+
+// ADDITIVITY proof: the q4_0 path is BYTE-for-byte unchanged by the latency-aware
+// refactor. q4_0's deep depth (7) makes min(factor,depth)=factor and the overflow
+// term zero across {1,2,4}, so its costs equal the pre-change depth-blind formula
+// (kReductionUnit + kOuterLoopOverhead/factor + kStripPenalty*factor + kBase).
+// The committed q4_0 argmin/divergence is therefore preserved exactly.
+int runQ40CostUnchangedByRefactorTest() {
+  // The pre-change depth-blind formula, inlined with the (unchanged) constants.
+  auto legacyCost = [](std::int64_t reductions, std::int64_t factor,
+                       bool elided) {
+    const std::int64_t kRU = 600, kBase = 120, kOLO = 500, kRob = 170, kEli = 40;
+    const std::int64_t strip = elided ? kEli : kRob;
+    return kRU * reductions + kOLO / factor + strip * factor + kBase;
+  };
+  for (std::int64_t factor : {std::int64_t(1), std::int64_t(2), std::int64_t(4)})
+    for (bool elided : {false, true})
+      for (const char *lmul : {"m1", "mf4"}) {
+        std::int64_t reductions = (llvm::StringRef(lmul) == "m1") ? 1 : 4;
+        std::int64_t now =
+            computeRVVQ40ShapeCost(lmul, factor, elided ? "elided" : "robust");
+        std::int64_t legacy = legacyCost(reductions, factor, elided);
+        if (now != legacy)
+          return fail("q4_0 cost changed by the latency-aware refactor at (" +
+                      llvm::Twine(lmul) + ", factor=" + llvm::Twine(factor) +
+                      ", " + (elided ? "elided" : "robust") +
+                      "): now=" + llvm::Twine(now) +
+                      " legacy=" + llvm::Twine(legacy));
+      }
+  llvm::outs() << "N3 q4_0 costs are BYTE-identical to the pre-refactor model "
+                  "(deep depth 7 => overflow term inert; additive)\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -375,13 +490,19 @@ int main() {
     return result;
   if (int result = runQ80CostModelStructureTest())
     return result;
-  if (int result = runQ80Zvl128bSelectsM2Mb4ElidedTest())
+  if (int result = runQ80Zvl128bSelectsM2Mb2ElidedTest())
     return result;
   if (int result = runQ80NotZvl128bSelectsM2Mb2RobustTest())
     return result;
   if (int result = runQ80Zvl128bFlipFlipsShapeTest())
     return result;
   if (int result = runQ80BudgetPruneBindsTest())
+    return result;
+  if (int result = runDepthDrivesFactorTest())
+    return result;
+  if (int result = runLatencyDepthIsDerivedSumTest())
+    return result;
+  if (int result = runQ40CostUnchangedByRefactorTest())
     return result;
   llvm::outs()
       << "RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests "

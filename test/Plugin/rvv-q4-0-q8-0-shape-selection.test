@@ -17,9 +17,12 @@
 # CHECK: N3 flipping ONLY the Zvl128b fact flips strip_elision elided<->robust (derived, not a constant)
 # CHECK: N3 vreg-budget prune binds: a 3-vreg budget prunes all (fail-closed); a 5-vreg budget prunes the wider m1 footprint
 # CHECK: N3 Zvl128b derivation: rv64gcv=>true, zve32x/zve64x=>false, explicit zvl128b+/=>true (real ISA reasoning)
-# CHECK: N3 q8_0 cost model is capability-blind + structurally ordered (m2 dominates m1 dominates mf4; robust min@2, elided min@4)
-# CHECK: N3 q8_0 Zvl128b target selects (m2, factor=4, elided) -- ggml's shape
+# CHECK: N3 q8_0 cost model is capability-blind + structurally ordered (m2 dominates m1 dominates mf4; shallow depth => robust AND elided min@2)
+# CHECK: N3 q8_0 Zvl128b target selects (m2, factor=2, elided) -- the measured optimum (shallow depth saturates the unroll at 2)
 # CHECK: N3 q8_0 non-Zvl128b target prunes all elided shapes and selects (m2, factor=2, robust) -- the robust optimum
 # CHECK: N3 q8_0 flipping ONLY the Zvl128b fact flips strip_elision elided<->robust (derived, not a constant)
 # CHECK: N3 q8_0 vreg-budget prune binds: a 3-vreg budget prunes all (fail-closed); an 8-vreg budget prunes the wider m2 footprint
+# CHECK: N3 the cost-minimizing factor EMERGES from the DERIVED latency depth (shallow=>2, deep=>4); insensitive to the exact deep length (derived, not a per-kernel lookup)
+# CHECK: N3 latency depth is a DERIVED sum (base product->reduce 2 + format decode prefix): q8_0=2, q4_0=7
+# CHECK: N3 q4_0 costs are BYTE-identical to the pre-refactor model (deep depth 7 => overflow term inert; additive)
 # CHECK: RVV N3 Q4_0 + Q8_0 capability/resource-aware shape selection tests passed

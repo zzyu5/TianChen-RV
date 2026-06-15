@@ -54,17 +54,23 @@ module {
 }
 
 // ================= STAMPED SHAPE KNOBS (the SELECTION decision) =============
-// rv64gcv (Zvl128b): the compiler SELECTED (m2, factor=4, elided) and recorded
-// the resource provenance (capability fact + candidate counts + cost).
+// rv64gcv (Zvl128b): the compiler SELECTED (m2, factor=2, elided) and recorded
+// the resource provenance (capability fact + candidate counts + cost). factor=2
+// (NOT 4) EMERGES from q8_0's SHALLOW integer-core latency depth (2 = plain int8
+// vwmul->vwredsum, no nibble decode): the short chain saturates the multi-block
+// unroll at 2, so the latency-aware cost model puts the elided argmin at factor=2
+// -- the measured ssh-rvv optimum (RESULTS.md mb2 844 ns vs the old mb4 884 ns).
 // STAMP-FULLV: tcrv_rvv.q8_0_q8_0_block_dot
 // STAMP-FULLV-SAME: integer_core_lmul = "m2"
-// STAMP-FULLV-SAME: multi_block_factor = 4 : i64
+// STAMP-FULLV-SAME: multi_block_factor = 2 : i64
 // STAMP-FULLV-SAME: strip_elision = "elided"
 // STAMP-FULLV-SAME: tcrv_rvv.q8_0_schedule.has_zvl128b = true
 // STAMP-FULLV-SAME: tcrv_rvv.q8_0_schedule.producer = "rvv-q8-0-autotuner"
 //
 // rv64gc_zve32x (no Zvl128b): the SAME op gets (m2, factor=2, robust) -- the
-// elided shapes were pruned. The shape DIVERGES purely by the capability fact.
+// elided shapes were pruned. The shape DIVERGES purely by the capability fact
+// (elided<->robust); the factor stays 2 (the shallow-depth optimum is robust to
+// the capability flip, as it must be -- the depth is capability-blind).
 // STAMP-ZVE32X: tcrv_rvv.q8_0_q8_0_block_dot
 // STAMP-ZVE32X-SAME: integer_core_lmul = "m2"
 // STAMP-ZVE32X-SAME: multi_block_factor = 2 : i64
@@ -72,23 +78,21 @@ module {
 // STAMP-ZVE32X-SAME: tcrv_rvv.q8_0_schedule.has_zvl128b = false
 
 // =============================== FULL-V (rv64gcv) ===========================
-// The compiler SELECTED (m2, factor=4, elided): the by-4 outer loop, FOUR
+// The compiler SELECTED (m2, factor=2, elided): the by-2 outer loop, TWO
 // adjacent elided integer cores (each ONE vsetvl_e8m2 + ONE vwredsum, NO inner
-// strip for-loop), then the four folds in ascending block order, plus an nb%4
-// robust scalar tail.
+// strip for-loop), then the two folds in ascending block order, plus an nb%2
+// robust scalar tail. factor=2 (not 4) is the latency-aware autotuner's pick.
 // FULLV: emitc.func @tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0(
-// The by-4 main loop bound nb_main = nb - nb % 4.
+// The by-2 main loop bound nb_main = nb - nb % 2.
 // FULLV: %[[REM:.*]] = rem %{{.*}}, %{{.*}}
 // FULLV: %[[MAIN:.*]] = sub %{{.*}}, %[[REM]]
 // FULLV: for %[[IB:.*]] = %{{.*}} to %[[MAIN]] step
-// The four elided cores: ONE vsetvl(32) + ONE vwredsum each, NO inner strip loop.
+// The two elided cores: ONE vsetvl(32) + ONE vwredsum each, NO inner strip loop.
 // FULLV: call_opaque "__riscv_vsetvl_e8m2"
 // FULLV-NOT: for %{{.*}} = %{{.*}} to %{{.*}} step
 // FULLV: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // FULLV: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// FULLV: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// FULLV: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// The nb % 4 ROBUST scalar tail keeps the strip loop.
+// The nb % 2 ROBUST scalar tail keeps the strip loop.
 // FULLV: for %{{.*}} = %[[MAIN]] to %{{.*}} step
 // FULLV: call_opaque "__riscv_vsetvl_e8m2"
 // FULLV: for %{{.*}} = %{{.*}} to %{{.*}} step

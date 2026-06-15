@@ -5,6 +5,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 
@@ -2147,64 +2148,164 @@ inline std::int64_t getRVVQ40ShapeVectorRegisterCost(llvm::StringRef coreLMUL) {
          /*i16 product*/ productLMUL + /*i32 reduce*/ 1 + /*reserve*/ 2;
 }
 
-/// The CAPABILITY-BLIND structural cost of a Q4_0 shape. This is the principled
-/// cost model the autotuner ranks by; it depends ONLY on the structural facts of
-/// (lmul, factor, elision), never on the target capability. Form:
+/// The CAPABILITY-BLIND structural cost of a block-quantized-dot shape. This is
+/// the principled cost model the autotuner ranks by; it depends ONLY on the
+/// structural facts of (reductionsPerBlock, factor, elision, coreLatencyDepth),
+/// never on the target capability. Form:
 ///
-///   cost = kReductionUnit * reductionsPerHalfBlock
-///        + kOuterLoopOverhead / multiBlockFactor
+///   cost = kReductionUnit * reductionsPerBlock
+///        + kOuterLoopOverhead / min(multiBlockFactor, coreLatencyDepth)
+///        + kUnrollOverflowPenalty * max(0, multiBlockFactor - coreLatencyDepth)
 ///        + kStripPenalty(elision) * multiBlockFactor
 ///        + kBaseConstant
 ///
-///   * kReductionUnit * reductionsPerHalfBlock -- the per-half-block reduction
-///     cost; the mf4 anchor pays 4x the m1 anchor (its 4 serialized vwredsums),
-///     which is why every mf4 shape ranks far behind every m1 shape.
-///   * kOuterLoopOverhead / multiBlockFactor -- the outer block-loop control /
-///     address-arithmetic overhead, amortized as the factor grows (the
-///     latency-overlap lever: more blocks/iteration hides more per-iter cost).
+///   * kReductionUnit * reductionsPerBlock -- the per-block reduction cost; an
+///     anchor with N serialized vwredsums pays N units (q4_0 mf4 pays 4x its m1
+///     anchor, q8_0 m1 pays 2x its m2 anchor), which is why a wider anchor with
+///     fewer reductions dominates every narrower one.
+///   * kOuterLoopOverhead / min(multiBlockFactor, coreLatencyDepth) -- the
+///     amortizable per-iteration overhead (block-loop control + address
+///     arithmetic), reduced by overlapping independent blocks. CRUCIALLY the
+///     useful overlap SATURATES at the integer core's LATENCY-CHAIN DEPTH: once
+///     `multiBlockFactor` exceeds `coreLatencyDepth` there is no further
+///     dependent-op latency left to hide, so the divisor is clamped to the depth
+///     (no extra reward past saturation). Folding loop-control amortization into
+///     this same term is deliberate: past saturation the second-order amortization
+///     gain is dominated by the per-extra-block setup cost below.
+///   * kUnrollOverflowPenalty * max(0, multiBlockFactor - coreLatencyDepth) --
+///     the cost of unrolling BEYOND the saturation point: each extra unrolled
+///     block past the depth adds code/i-cache/strip-setup pressure with no
+///     latency-hiding payoff. This is what turns the curve UP again past the
+///     depth (the measured q8_0 mb4 regression).
 ///   * kStripPenalty(elision) * multiBlockFactor -- the inner strip-loop cost.
 ///     A robust shape pays a per-block strip-loop penalty that GROWS with the
-///     factor (more strip loops/iteration => U-shaped curve in the factor, min
-///     at 2). An elided shape drops the inner strip loop, so its penalty is much
-///     smaller and the cost stays monotone-decreasing in the factor (min at 4).
+///     factor; an elided shape drops the inner strip loop so its penalty is much
+///     smaller.
 ///   * kBaseConstant -- the fixed per-call scaffolding.
 ///
+/// The DEPTH is the structural lever that makes the optimal factor EMERGE per
+/// kernel from its op sequence (see getRVVBlockDotCoreLatencyDepth): a LONG-chain
+/// kernel (q4_0's nibble-decode + offset-binary + widening-product chain) has
+/// depth >= the unroll range {1,2,4}, so min(factor,depth)=factor and the overflow
+/// term is zero across the whole range -- the cost stays monotone-decreasing and
+/// the argmin lands at factor=4 (its measured ssh-rvv optimum). A SHORT-chain
+/// kernel (q8_0's plain widening product -> reduce, depth 2) saturates within the
+/// range, so factor=4 incurs the overflow penalty and the argmin lands at
+/// factor=2 (its measured ssh-rvv optimum). Same formula, same constants; the only
+/// per-kernel input is the DERIVED depth, NOT a per-kernel factor lookup.
+///
 /// The constants are MEASUREMENT-CALIBRATED to the ssh-rvv design-space sweep
-/// (artifacts/inc5-shape-knobs, vs ggml ~1169 ns/call): m1 robust reproduces the
-/// measured U-curve 1390/1310/1525 ns at factor 1/2/4 (measured 1388/1306/1525),
-/// and m1 elided factor 4 reproduces the measured 1005 ns (measured 1021, the
-/// ~13% ggml beat). They are a relative ranking calibration (the argmin), not an
-/// absolute-ns predictor. See RVVQ40Q80ShapeSelectionTest.cpp.
+/// (artifacts/inc5-shape-knobs + inc7/inc8, vs ggml ~1169 ns/call). For a deep
+/// core (depth >= 4) the q4_0 m1 path reproduces the measured ladder elided
+/// 1260/1050/1005 and robust 1390/1310/1525 at factor 1/2/4 (the ~13% ggml beat
+/// at elided f4). kUnrollOverflowPenalty has a WIDE working plateau (~150..400+
+/// all yield the same four required picks) -- a broad plateau, not a knife-edge,
+/// which is the anti-overfit signature. They are a relative-ranking calibration
+/// (the argmin), not an absolute-ns predictor. See RVVQ40Q80ShapeSelectionTest.cpp.
 constexpr std::int64_t kRVVQ40ReductionUnitCost = 600;
 constexpr std::int64_t kRVVQ40BaseConstantCost = 120;
 constexpr std::int64_t kRVVQ40OuterLoopOverheadCost = 500;
 constexpr std::int64_t kRVVQ40RobustStripPenaltyCost = 170;
 constexpr std::int64_t kRVVQ40ElidedStripPenaltyCost = 40;
+/// The per-extra-block cost of unrolling past the latency-chain saturation point
+/// (the lever that turns the factor curve back up once the core's dependent-op
+/// latency is fully overlapped). A SHARED calibration constant (the same class as
+/// the four above), NOT a per-kernel value; what is derived per kernel is the
+/// DEPTH it is compared against. Wide working plateau (~150..400+).
+constexpr std::int64_t kRVVQ40UnrollOverflowPenaltyCost = 250;
+
+//===----------------------------------------------------------------------===//
+// The DERIVED core-latency-chain depth (the structural lever that bounds the
+// useful multi-block unroll). It is computed as a SUM of op counts read off the
+// kernel's integer-core dependency chain -- never a per-kernel hand-set constant:
+//
+//   coreLatencyDepth = kBaseProductReduceChain + decodePrefixLength(format)
+//
+//   * kBaseProductReduceChain = 2 -- the per-block widening-product -> reduce
+//     chain (vwmul/vwmacc -> vwredsum) that EVERY block-dot kernel has. This is
+//     the minimum dependent-op depth between a block's load and its scalar reduce.
+//   * decodePrefixLength(format) -- the count of dependent decode ops the integer
+//     core runs BEFORE the product, derived from the quant format:
+//       - plain int8 (q8_0): the operand is already int8 -> 0 decode ops.
+//       - nibble-packed offset-binary (q4_0): the one-sided nibble unpack +
+//         offset-binary `-8` decode the emitter realizes via
+//         emitOffsetBinaryDecodeProductValue -- the &0x0F / >>4 / XOR-0x88 /
+//         sign-extend / widen chain that precedes the product (5 dependent ops).
+//
+// So q8_0 = 2 + 0 = 2 (vwmul -> vwredsum) and q4_0 = 2 + 5 = 7 (decode chain ->
+// vwmul -> vwmacc -> vwredsum). A THIRD block-dot kernel inherits its depth for
+// free from its format's decode-prefix length and the shared base -- the litmus
+// test for "derived, not a lookup": no per-kernel factor is ever written down.
+//
+// NOTE the result is INSENSITIVE to the exact long-chain length: any depth >= the
+// max unroll factor (4) yields bit-identical q4_0 costs (min(factor,depth)=factor,
+// overflow=0 across {1,2,4}). What is STRUCTURAL -- and all the model relies on --
+// is that q4_0's chain EXCEEDS the unroll range while q8_0's SATURATES within it;
+// the precise long-chain depth (7 vs any >= 4) is immaterial. This is the model's
+// strongest anti-overfit property: the picks do not hinge on a tuned depth value.
+//===----------------------------------------------------------------------===//
+
+/// The per-block widening-product -> reduce dependent-op chain common to EVERY
+/// block-dot kernel (vwmul/vwmacc -> vwredsum), the floor of the latency depth.
+constexpr std::int64_t kRVVBlockDotBaseProductReduceChain = 2;
+
+/// The count of dependent DECODE ops the integer core runs before the product,
+/// derived from the quant FORMAT (a structural fact of the kernel, not a factor):
+///   * "plain-int8" (q8_0): the operand is already int8 -> no decode prefix.
+///   * "nibble-offset-binary" (q4_0): the one-sided nibble unpack + offset-binary
+///     `-8` decode chain (the emitOffsetBinaryDecodeProductValue sequence:
+///     &0x0F / >>4 / XOR-0x88 / sign-extend / widen) that precedes the product.
+inline std::int64_t getRVVBlockDotDecodePrefixLength(llvm::StringRef quantFormat) {
+  if (quantFormat == "nibble-offset-binary")
+    return 5;
+  return 0; // plain-int8 and any other already-int8 stream.
+}
+
+/// The DERIVED integer-core latency-chain depth: the shared product->reduce floor
+/// plus the format's decode-prefix length. The ONLY per-kernel input to the unroll
+/// term, and it is a computed structural count, not a hand-set factor.
+inline std::int64_t
+getRVVBlockDotCoreLatencyDepth(llvm::StringRef quantFormat) {
+  return kRVVBlockDotBaseProductReduceChain +
+         getRVVBlockDotDecodePrefixLength(quantFormat);
+}
 
 /// The shared, family-agnostic block-quantized dot-product cost FORMULA. It is a
-/// pure structural function of (reductionsPerBlock, factor, elision) and the
-/// measurement-calibrated constants; it carries NO capability argument and NO
-/// kernel-family argument. The Q4_0 and Q8_0 cost models are both thin wrappers
-/// that supply their family's reduction count -- the difference between the two
-/// kernels is a STRUCTURAL fact (q8_0's plain 32-element block needs a different
-/// per-anchor reduction count than q4_0's nibble-packed half-block), fed into the
+/// pure structural function of (reductionsPerBlock, factor, elision,
+/// coreLatencyDepth) and the measurement-calibrated constants; it carries NO
+/// capability argument and NO kernel-family branch. The Q4_0 and Q8_0 cost models
+/// are both thin wrappers that supply their family's reduction count AND its
+/// DERIVED latency depth -- the difference between the two kernels is a STRUCTURAL
+/// fact (q8_0's plain 32-element block has a shallow product->reduce chain;
+/// q4_0's nibble-packed half-block has a deep decode+product chain), fed into the
 /// SAME formula, not a separate cost branch (which would be a disguised lookup).
 inline std::int64_t computeBlockDotShapeCostCore(std::int64_t reductionsPerBlock,
                                                  std::int64_t multiBlockFactor,
-                                                 llvm::StringRef stripElision) {
+                                                 llvm::StringRef stripElision,
+                                                 std::int64_t coreLatencyDepth) {
   const std::int64_t stripPenalty = (stripElision == "elided")
                                         ? kRVVQ40ElidedStripPenaltyCost
                                         : kRVVQ40RobustStripPenaltyCost;
+  // The useful overlap saturates at the latency-chain depth: clamp the unroll
+  // divisor to the depth, and charge a per-extra-block penalty beyond it.
+  const std::int64_t usefulUnroll =
+      std::min(multiBlockFactor, coreLatencyDepth);
+  const std::int64_t unrollOverflow =
+      std::max<std::int64_t>(0, multiBlockFactor - coreLatencyDepth);
   return kRVVQ40ReductionUnitCost * reductionsPerBlock +
-         kRVVQ40OuterLoopOverheadCost / multiBlockFactor +
+         kRVVQ40OuterLoopOverheadCost / usefulUnroll +
+         kRVVQ40UnrollOverflowPenaltyCost * unrollOverflow +
          stripPenalty * multiBlockFactor + kRVVQ40BaseConstantCost;
 }
 
 inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
                                            std::int64_t multiBlockFactor,
                                            llvm::StringRef stripElision) {
+  // q4_0's integer core is a DEEP chain: the one-sided nibble unpack +
+  // offset-binary `-8` decode precedes the widening product -> reduce.
   return computeBlockDotShapeCostCore(
-      getRVVQ40ReductionsPerHalfBlock(coreLMUL), multiBlockFactor, stripElision);
+      getRVVQ40ReductionsPerHalfBlock(coreLMUL), multiBlockFactor, stripElision,
+      getRVVBlockDotCoreLatencyDepth("nibble-offset-binary"));
 }
 
 /// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
@@ -2324,12 +2425,19 @@ inline std::int64_t getRVVQ80ShapeVectorRegisterCost(llvm::StringRef coreLMUL) {
 }
 
 /// The capability-blind structural cost of a q8_0 shape: the SAME formula as
-/// q4_0 (computeBlockDotShapeCostCore), fed q8_0's per-anchor reduction count.
+/// q4_0 (computeBlockDotShapeCostCore), fed q8_0's per-anchor reduction count AND
+/// its DERIVED latency depth. q8_0's operands are already plain int8 (NO nibble
+/// decode prefix), so its integer core is the SHALLOW product->reduce chain
+/// (depth 2 = vwmul -> vwredsum). That shallow depth -- a structural fact of the
+/// plain-int8 format, NOT a hand-set factor -- is what makes the cost-minimizing
+/// multi_block_factor EMERGE at 2 for q8_0 (the chain saturates within the unroll
+/// range) while it stays 4 for q4_0 (the deep decode chain exceeds the range).
 inline std::int64_t computeRVVQ80ShapeCost(llvm::StringRef coreLMUL,
                                            std::int64_t multiBlockFactor,
                                            llvm::StringRef stripElision) {
   return computeBlockDotShapeCostCore(getRVVQ80ReductionsPerBlock(coreLMUL),
-                                      multiBlockFactor, stripElision);
+                                      multiBlockFactor, stripElision,
+                                      getRVVBlockDotCoreLatencyDepth("plain-int8"));
 }
 
 /// Enumerate the full q8_0 x q8_0 shape candidate space ({mf4,m1,m2} x {1,2,4} x

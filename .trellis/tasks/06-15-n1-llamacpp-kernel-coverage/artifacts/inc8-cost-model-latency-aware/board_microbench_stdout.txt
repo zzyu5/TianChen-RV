@@ -1,0 +1,8 @@
+correctness gate: all shapes bit-exact vs ggml on bench data
+shape                                       best-ns    mean-ns   best/ggml
+ggml(real,separate-TU)                       1058.2     1513.8   1.000x
+m2_mb1_elided                                1072.4     1533.1   1.013x
+m2_mb1_robust                                1401.4     2005.7   1.324x
+m2_mb2_robust(zve32x-pick)                   1338.2     1909.1   1.265x
+m2_mb2_elided                                1070.8     1527.2   1.012x
+m2_mb4_elided(FULLV-AUTOTUNER-PICK)          1120.6     1598.3   1.059x

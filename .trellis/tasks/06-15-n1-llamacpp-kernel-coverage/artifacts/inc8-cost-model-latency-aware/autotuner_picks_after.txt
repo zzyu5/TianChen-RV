@@ -1,0 +1,26 @@
+=== Q4_0 full-V (rv64gcv) ===
+integer_core_lmul = "m1", kind
+multi_block_factor = 4
+strip_elision = "elided"
+q4_0_schedule.has_zvl128b = true
+q4_0_schedule.legal_candidate_count = 9
+q4_0_schedule.selected_cost = 1005
+=== Q4_0 zve32x ===
+integer_core_lmul = "m1", kind
+multi_block_factor = 2
+strip_elision = "robust"
+q4_0_schedule.has_zvl128b = false
+q4_0_schedule.selected_cost = 1310
+=== Q8_0 full-V (rv64gcv) ===
+integer_core_lmul = "m2", kind
+multi_block_factor = 2
+strip_elision = "elided"
+q8_0_schedule.has_zvl128b = true
+q8_0_schedule.legal_candidate_count = 12
+q8_0_schedule.selected_cost = 1050
+=== Q8_0 zve32x ===
+integer_core_lmul = "m2", kind
+multi_block_factor = 2
+strip_elision = "robust"
+q8_0_schedule.has_zvl128b = false
+q8_0_schedule.selected_cost = 1310
