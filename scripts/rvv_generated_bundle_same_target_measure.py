@@ -2375,6 +2375,50 @@ def low_precision_candidate_feedback_record(
     ):
         return {"status": "not-applicable"}
 
+    # The deferred-wide (N3) byte realization carries NO low_precision_resource.*
+    # gearbox tuning-decision block (it is a non-grouped single-scope deferred
+    # body); its candidate feedback is the primitive-facts-based honest record, not
+    # the narrow grouped/packed-i4 resource-selection block. Detected from the
+    # recorded primitive source_lmul on the bundle metadata (= m2 for the wide
+    # strip) or the boundary's deferred_wide_accumulate flag.
+    boundary_for_wide = generation_result.get(
+        "widening_product_reduction_boundary", {}
+    )
+    bundle_primitive_source_lmul = None
+    for _record in (
+        generation_result.get("bundle_checks", {})
+        .get("index", {})
+        .get("parsed", {})
+        .get("records", [])
+    ):
+        for _entry in _record.get("artifact_metadata", []):
+            if (
+                str(_entry.get("key", ""))
+                == "tcrv_rvv.low_precision_primitive.source_lmul"
+            ):
+                bundle_primitive_source_lmul = str(_entry.get("value", ""))
+    is_deferred_wide_candidate = (
+        bool(boundary_for_wide.get("deferred_wide_accumulate"))
+        or bundle_primitive_source_lmul == "m2"
+    )
+    if is_deferred_wide_candidate:
+        return {
+            "status": "deferred-wide-no-resource-selection-block",
+            "candidate_label": candidate_label,
+            "deferred_wide_accumulate": True,
+            "measurement_evidence_id": measurement_evidence_id,
+            "measurement_result_is_route_authority": False,
+            "route_support_effect": (
+                "preserve-executable-route-support; measurement evidence only "
+                "feeds policy/admission review"
+            ),
+            "note": (
+                "the deferred-wide single-scope realization emits no "
+                "low_precision_resource.* selection block; its primitive-facts "
+                "are mirrored on the route/header metadata"
+            ),
+        }
+
     target_metadata, route_metadata, provider_low_precision = (
         low_precision_resource_metadata_sources(generation_result)
     )

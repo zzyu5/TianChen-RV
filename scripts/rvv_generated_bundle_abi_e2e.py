@@ -10006,6 +10006,63 @@ def validate_low_precision_resource_metadata(
         require_equal(metadata.get(key), expected_value, f"{context} metadata {key}")
 
 
+# The deferred-wide (N3) product-reduce-dequant realization records the honest
+# wide-strip ladder (source i8m2, product i16m4) on the route-family/primitive
+# metadata, while the result config stays i32m1/f32m1 and the route identity/leaf
+# profile stay the narrow-named logical-route strings. It also emits NO
+# low_precision_resource.* selection block and NO gearbox producer/consumer scope
+# facts (those are the narrow grouped two-scope candidate artifacts). These keys
+# differ from the narrow expectation; detect the wide realization from the recorded
+# primitive source_lmul and override/skip accordingly. I5: every override mirrors
+# what the wide compiler actually emits (verified against the live PLAN/HEADER).
+DEFERRED_WIDE_METADATA_OVERRIDES = {
+    "tcrv_rvv.source_lmul": "m2",
+    "tcrv_rvv.product_lmul": "m4",
+    "tcrv_rvv.product_vector_type": '!tcrv_rvv.vector<i16, "m4">',
+    "tcrv_rvv.product_vector_c_type": "vint16m4_t",
+    "tcrv_rvv.widening_product_relation": "signed-i8m2xi8m2-to-i16m4",
+    "tcrv_rvv.product_reduction_chain_relation": (
+        "signed-i8m2xi8m2-to-i16m4-reduce-plus-i32-scalar-to-i32"
+    ),
+    "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i16m4",
+    "tcrv_rvv.widening_reduction_intrinsic": "__riscv_vredsum_vs_i32m8_i32m1",
+    "tcrv_rvv.source_vector_load_intrinsic": "__riscv_vle8_v_i8m2",
+    "tcrv_rvv.route_operand_binding_operands": (
+        "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;"
+        "lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8m2|hdr;"
+        "rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8m2|hdr;"
+        "acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;"
+        "scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;"
+        "out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;"
+        "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+    ),
+    "tcrv_rvv.low_precision_primitive.source_lmul": "m2",
+    "tcrv_rvv.low_precision_primitive.product_lmul": "m4",
+}
+
+
+def object_metadata_is_deferred_wide(object_metadata: dict[str, str]) -> bool:
+    """True when the recorded bundle metadata is the deferred-wide realization."""
+    return (
+        object_metadata.get("tcrv_rvv.low_precision_primitive.source_lmul") == "m2"
+    )
+
+
+def deferred_wide_expected_metadata(
+    key: str, expected: str, object_metadata: dict[str, str]
+) -> "str | None":
+    """Wide-aware expected metadata: returns the wide override, None to SKIP the
+    key (the wide path legitimately does not emit it), or the narrow expected."""
+    if not object_metadata_is_deferred_wide(object_metadata):
+        return expected
+    if (
+        key in LOW_PRECISION_RESOURCE_METADATA_KEYS
+        or key in GEARBOX_SCOPE_METADATA_KEYS
+    ):
+        return None
+    return DEFERRED_WIDE_METADATA_OVERRIDES.get(key, expected)
+
+
 def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     common_metadata = dict(COMMON_EXPECTED_METADATA)
     common_metadata["tcrv_rvv.runtime_abi_order"] = expectation.runtime_abi_order
@@ -12838,6 +12895,11 @@ def verify_record_metadata(
     for key, expected in expected_metadata_for(expectation).items():
         if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
             continue
+        # Deferred-wide (N3): override the wide-strip config keys and skip the
+        # resource-selection / gearbox-scope keys the wide body does not emit.
+        expected = deferred_wide_expected_metadata(key, expected, metadata)
+        if expected is None:
+            continue
         # The dequant(/clamp) typed-compute-op chain is candidate-aware: the
         # single-scope packed-i4 flip uses a packed_i4_nibble_unpack_product head
         # and has no gearbox_cross_region_handoff. Accept the realized chain
@@ -12854,13 +12916,22 @@ def verify_record_metadata(
             has_handoff = (
                 "tcrv_rvv.gearbox_cross_region_handoff" in actual_chain
             )
+            # The deferred-wide (N3) realization inserts a tcrv_rvv.widening_accumulate
+            # between the widening_product head and the trailing standalone_reduce
+            # (the i32m8 deferred accumulate). Detected from the recorded chain.
+            has_deferred_wide_accumulate = (
+                "tcrv_rvv.widening_accumulate" in actual_chain
+            )
             head = (
                 "tcrv_rvv.packed_i4_nibble_unpack_product"
                 if nibble_head
                 else "tcrv_rvv.widening_product"
             )
             tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
-            chain = head + "+tcrv_rvv.standalone_reduce"
+            chain = head
+            if has_deferred_wide_accumulate:
+                chain += "+tcrv_rvv.widening_accumulate"
+            chain += "+tcrv_rvv.standalone_reduce"
             if has_handoff:
                 chain += "+tcrv_rvv.gearbox_cross_region_handoff"
             chain += "+tcrv_rvv.dequantize" + tail
@@ -13700,14 +13771,31 @@ def verify_emitted_rvv_cpp(
             uses_packed_i4_resource
             and "tcrv_rvv.gearbox_cross_region_handoff" not in text
         )
-        intrinsics = [
-            expectation.setvl_intrinsic,
-            WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
-            WIDENING_PRODUCT_REDUCE_INTRINSIC,
-            WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
-            WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
-            "__riscv_vmv_x_s_i32m1_i32",
-        ]
+        # The deferred-wide (N3) realization emits the wide-LMUL intrinsic ladder:
+        # vsetvl_e8m2 strip, vle8_v_i8m2 loads, vwmul_vv_i16m4 product, an i32m8
+        # zero-seed + vwadd_wv_i32m8 deferred accumulate, then ONE trailing
+        # vredsum_vs_i32m8_i32m1 (NOT the narrow per-iter vwredsum). Detected from
+        # the wide accumulate intrinsic spelling (structural marker).
+        emitted_c_deferred_wide = "__riscv_vwadd_wv_i32m8" in text
+        if emitted_c_deferred_wide:
+            intrinsics = [
+                "__riscv_vsetvl_e8m2",
+                "__riscv_vle8_v_i8m2",
+                "__riscv_vwmul_vv_i16m4",
+                "__riscv_vmv_v_x_i32m8",
+                "__riscv_vwadd_wv_i32m8",
+                "__riscv_vredsum_vs_i32m8_i32m1",
+                "__riscv_vmv_x_s_i32m1_i32",
+            ]
+        else:
+            intrinsics = [
+                expectation.setvl_intrinsic,
+                WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
+                "__riscv_vmv_x_s_i32m1_i32",
+            ]
         if uses_packed_i4_resource:
             intrinsics.extend(
                 [
@@ -13759,20 +13847,45 @@ def verify_emitted_rvv_cpp(
             uses_packed_i4_resource
             and "tcrv_rvv.gearbox_cross_region_handoff" not in text
         )
-        vector_type_requirements = [
-            (
-                "vint8mf4_t",
-                "emitted RVV C/C++ product-reduction dequant source vector type",
-            ),
-            (
-                "vint16mf2_t",
-                "emitted RVV C/C++ product-reduction dequant product vector type",
-            ),
-            (
-                "vint32m1_t",
-                "emitted RVV C/C++ product-reduction dequant accumulator vector type",
-            ),
-        ]
+        # The deferred-wide (N3) realization emits the wide-LMUL ladder in C:
+        # vint8m2_t source loads, vint16m4_t products, an i32m8 deferred vector
+        # accumulate, then ONE trailing vredsum into i32m1. Detected from the wide
+        # accumulate intrinsic spelling in the emitted C (structural marker).
+        emitted_c_deferred_wide = "__riscv_vwadd_wv_i32m8" in text
+        if emitted_c_deferred_wide:
+            vector_type_requirements = [
+                (
+                    "vint8m2_t",
+                    "emitted RVV C/C++ deferred-wide product-reduction source vector type",
+                ),
+                (
+                    "vint16m4_t",
+                    "emitted RVV C/C++ deferred-wide product-reduction product vector type",
+                ),
+                (
+                    "vint32m8_t",
+                    "emitted RVV C/C++ deferred-wide product-reduction accumulate vector type",
+                ),
+                (
+                    "vint32m1_t",
+                    "emitted RVV C/C++ deferred-wide product-reduction reduce result vector type",
+                ),
+            ]
+        else:
+            vector_type_requirements = [
+                (
+                    "vint8mf4_t",
+                    "emitted RVV C/C++ product-reduction dequant source vector type",
+                ),
+                (
+                    "vint16mf2_t",
+                    "emitted RVV C/C++ product-reduction dequant product vector type",
+                ),
+                (
+                    "vint32m1_t",
+                    "emitted RVV C/C++ product-reduction dequant accumulator vector type",
+                ),
+            ]
         if not uses_packed_i4_resource or single_scope_packed_i4_epilogue:
             vector_type_requirements.append(
                 (
@@ -14449,6 +14562,190 @@ def extract_dequantization_emitc_boundary(
     }
 
 
+def _extract_deferred_wide_product_reduce_dequantize_emitc_boundary(
+    text: str,
+    expectation: OpExpectation,
+    signature: "re.Match[str]",
+    runtime_n: str,
+) -> dict[str, Any]:
+    """Verify the deferred-wide (N3) product-reduce-dequant emitted C dataflow.
+
+    The deferred-wide algorithm (the measured ssh-rvv winner) is structurally
+    distinct from the narrow per-iteration vwredsum body:
+
+      i32m8 carry, ZERO-seeded at VLMAX before the loop:
+        vint32m8_t carry;  carry = __riscv_vmv_v_x_i32m8(0, vlmax_e32m8);
+      loop (i8m2 strip): vle8_v_i8m2 x2 -> vwmul_vv_i16m4 product ->
+        vwadd_wv_i32m8(carry, product, vl) -> carry = <result>   (deferred)
+      after the loop: ONE vredsum_vs_i32m8_i32m1(carry, zero_i32m1) -> vmv_x_s,
+        then acc[0] added as a SCALAR, scalar dequant, VL=1 splat-store.
+
+    The regexes thread captured SSA names (carry/product/seed) so the seed, the
+    in-loop accumulate, the single trailing reduce, and the acc[0] scalar add are
+    each load-bearing: dropping the zero-seed, emitting the reduce in-loop, or
+    omitting the acc[0] add would fail the corresponding match (not a tautology).
+    """
+    # The i32m8 vector carry, declared then ZERO-seeded at its own VLMAX before the
+    # loop (NOT seeded from acc[0] -- acc[0] is added as a scalar post-reduce).
+    carry = require_regex(
+        text,
+        r"(?:(?://[^\n]*tcrv_emitc\.local_variable=dot_acc_vec[^\n]*\n\s*)|"
+        r"(?:/\*[^*]*tcrv_emitc\.local_variable=dot_acc_vec[^*]*\*/\s*))"
+        r'vint32m8_t (?P<carry>v[0-9]+);',
+        "emitted RVV C/C++ deferred-wide product-reduction i32m8 vector carry decl",
+    ).group("carry")
+    seed = require_regex(
+        text,
+        r"size_t (?P<vlmax>v[0-9]+) = __riscv_vsetvlmax_e32m8\(\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"vint32m8_t (?P<seed_vec>v[0-9]+) = "
+        r"__riscv_vmv_v_x_i32m8\(0, (?P=vlmax)\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        rf"{carry} = (?P<seeded>v[0-9]+);",
+        "emitted RVV C/C++ deferred-wide product-reduction i32m8 zero-seed",
+    )
+    if seed.group("seeded") != seed.group("seed_vec"):
+        raise EvidenceError(
+            "emitted RVV C/C++ deferred-wide product-reduction i32m8 carry must be "
+            "seeded from the zero-splat vector before the loop"
+        )
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = __riscv_vsetvl_e8m2\({runtime_n}\);",
+        "emitted RVV C/C++ deferred-wide product-reduction full-chunk setvl",
+    )
+    loop_block, loop_start, loop_end = extract_first_for_block(
+        text, "emitted RVV C/C++ deferred-wide product-reduction runtime loop"
+    )
+    # In-loop deferred accumulate: i8m2 loads -> i16m4 vwmul product -> read the
+    # carry -> vwadd.wv(carry, product, loop_vl) -> write back the carry. The
+    # trailing reduce must NOT be in the loop (asserted below).
+    # Allow intervening pointer-advance / comment lines (non-greedy) between the
+    # threaded statements; the captured SSA names keep the dataflow load-bearing.
+    reduction = require_regex(
+        loop_block,
+        r"vint8m2_t (?P<lhs_vec>v[0-9]+) = __riscv_vle8_v_i8m2\([^;]+, "
+        r"(?P<loop_vl>v[0-9]+)\);"
+        r"(?:[^\n]*\n\s*)*?"
+        r"vint8m2_t (?P<rhs_vec>v[0-9]+) = __riscv_vle8_v_i8m2\([^;]+, "
+        r"(?P=loop_vl)\);"
+        r"(?:[^\n]*\n\s*)*?"
+        r"vint16m4_t (?P<product>v[0-9]+) = "
+        r"__riscv_vwmul_vv_i16m4\((?P=lhs_vec), (?P=rhs_vec), (?P=loop_vl)\);"
+        r"(?:[^\n]*\n\s*)*?"
+        rf"vint32m8_t (?P<current_carry>v[0-9]+) = {carry};"
+        r"(?:[^\n]*\n\s*)*?"
+        r"vint32m8_t (?P<accumulated>v[0-9]+) = "
+        r"__riscv_vwadd_wv_i32m8\((?P=current_carry), (?P=product), (?P=loop_vl)\);\s*"
+        r"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+        rf"{carry} = (?P=accumulated);",
+        "emitted RVV C/C++ deferred-wide in-loop vwadd.wv vector accumulate",
+    )
+    for forbidden, ctx in (
+        ("__riscv_vredsum_vs_i32m8_i32m1", "trailing reduce inside loop"),
+        ("__riscv_vmv_x_s_i32m1_i32", "scalar extract inside loop"),
+        ("__riscv_vfmv_v_f_f32m1", "dequant splat inside loop"),
+        ("__riscv_vse32_v_f32m1", "f32 store inside loop"),
+    ):
+        require_not_contains(
+            loop_block,
+            forbidden,
+            f"emitted RVV C/C++ deferred-wide product-reduction loop {ctx}",
+        )
+    # After the loop: ONE vredsum i32m8 -> i32m1 of the final carry, scalar
+    # extract, then acc[0] added as a SCALAR, scalar dequant (cast * scale), and a
+    # VL=1 f32 splat-store.
+    post_loop = text[loop_end:]
+    extracted = require_regex(
+        post_loop,
+        r"size_t (?P<reduce_vlmax>v[0-9]+) = __riscv_vsetvlmax_e32m1\(\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"vint32m1_t (?P<reduce_seed>v[0-9]+) = "
+        r"__riscv_vmv_v_x_i32m1\(0, (?P=reduce_vlmax)\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        rf"vint32m8_t (?P<final_carry>v[0-9]+) = {carry};\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"vint32m1_t (?P<reduced>v[0-9]+) = "
+        r"__riscv_vredsum_vs_i32m8_i32m1\((?P=final_carry), (?P=reduce_seed), "
+        r"(?P<reduce_vl>v[0-9]+)\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"int32_t (?P<extracted>v[0-9]+) = "
+        r"__riscv_vmv_x_s_i32m1_i32\((?P=reduced)\);",
+        "emitted RVV C/C++ deferred-wide post-loop single reduce + scalar extract",
+    )
+    scalar_epilogue = require_regex(
+        post_loop,
+        rf"const int32_t (?P<acc_seed>v[0-9]+) = {signature.group('acc')}\[0\];\s*"
+        r"(?://[^\n]*\n\s*)*"
+        rf"int32_t (?P<dot_acc>v[0-9]+) = "
+        rf"(?P=acc_seed) \+ {extracted.group('extracted')};\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"float (?P<cast>v[0-9]+) = \(float\) (?P=dot_acc);\s*"
+        rf"float (?P<scaled>v[0-9]+) = (?P=cast) \* {signature.group('scale')};\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"vfloat32m1_t (?P<splat>v[0-9]+) = "
+        r"__riscv_vfmv_v_f_f32m1\((?P=scaled), 1\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        rf"__riscv_vse32_v_f32m1\({signature.group('out')}, (?P=splat), 1\);",
+        "emitted RVV C/C++ deferred-wide acc[0] scalar add + scalar dequant + "
+        "splat-store epilogue",
+    )
+    # The vector convert/scale dequant intrinsics must be ABSENT (the dequant is
+    # done as a scalar (float) cast * scale, then a single f32 splat-store).
+    for forbidden, ctx in (
+        (DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC, "vector convert"),
+        (DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC, "vector scale"),
+    ):
+        require_not_contains(
+            post_loop,
+            forbidden,
+            f"emitted RVV C/C++ deferred-wide post-loop scalar dequant {ctx}",
+        )
+    return {
+        "typed_compute_op": expectation.typed_compute_op,
+        "deferred_wide_accumulate": True,
+        "lhs_abi_parameter": signature.group("lhs"),
+        "rhs_abi_parameter": signature.group("rhs"),
+        "acc_abi_parameter": signature.group("acc"),
+        "scale_abi_parameter": signature.group("scale"),
+        "out_abi_parameter": signature.group("out"),
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk.group("full_chunk_vl"),
+            "setvl_intrinsic": "__riscv_vsetvl_e8m2",
+            "uses_runtime_n_avl": True,
+            "uses_loop_vl_for_i8m2_load_product_deferred_accumulate": True,
+            "post_loop_store_uses_scalar_result_vl": True,
+        },
+        "local_vector_carry": carry,
+        "seed_source": "zero-i32m8-vlmax",
+        "seed_vector": seed.group("seed_vec"),
+        "loop_accumulator_source": "dot_acc_vec",
+        "loop_reduction_accumulator": reduction.group("current_carry"),
+        "loop_updates_vector_carry": True,
+        "loop_deferred_accumulate_intrinsic": "__riscv_vwadd_wv_i32m8",
+        "post_loop_single_reduce_intrinsic": "__riscv_vredsum_vs_i32m8_i32m1",
+        "post_loop_scalar_extract": extracted.group("extracted"),
+        "post_loop_acc0_scalar_add": scalar_epilogue.group("dot_acc"),
+        "loop_dequantization_forbidden": True,
+        "post_loop_dequantization": {
+            "scalar_dequant_expression": "(acc[0] + dot_acc_scalar) * scale",
+            "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+            "forbids_vector_convert_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+            ),
+            "forbids_vector_scale_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+            ),
+            "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
+        },
+        "post_loop_clamp_select": {},
+        "loop_start": loop_start,
+        "loop_end": loop_end,
+    }
+
+
 def extract_widening_product_reduce_dequantize_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -14479,6 +14776,19 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             "emitted RVV C/C++ product-reduction dequant ABI parameters",
         )
     runtime_n = signature.group("runtime_n")
+    # The deferred-wide (N3) realization emits a STRUCTURALLY DISTINCT body, not a
+    # re-parametrized narrow one: an i32m8 vector carry ZERO-seeded at VLMAX before
+    # the loop, an in-loop i8m2->i16m4 vwmul + vwadd.wv accumulate into that carry,
+    # ONE trailing vredsum_vs_i32m8_i32m1 AFTER the loop, then acc[0] added as a
+    # SCALAR post-reduce, scalar dequant, and a VL=1 splat-store. (The narrow body
+    # seeds an i32m1 carry from acc[0] and reduces per-iteration with vwredsum.)
+    # Verify the wide dataflow from the algorithm it MUST be (not this run's reg
+    # numbers): the regexes thread captured SSA names so a dropped seed, an in-loop
+    # reduce, or a missing acc[0] scalar add would fail to match. Returns early.
+    if "__riscv_vwadd_wv_i32m8" in text:
+        return _extract_deferred_wide_product_reduce_dequantize_emitc_boundary(
+            text, expectation, signature, runtime_n
+        )
     # The mutable i32m1 accumulator local (dot_acc_vec). Two equivalent emission
     # forms, both seeded from acc[0] before the loop (the seed regex below is the
     # correctness-bearing check):
@@ -17551,13 +17861,21 @@ def require_materialized_typed_compute_chain(
     if "tcrv_rvv.gearbox_cross_region_handoff" in expected:
         nibble_head = "tcrv_rvv.packed_i4_nibble_unpack_product" in text
         has_handoff = "tcrv_rvv.gearbox_cross_region_handoff" in text
+        # The deferred-wide (N3) realization inserts a tcrv_rvv.widening_accumulate
+        # between the widening_product head and the trailing standalone_reduce (the
+        # i32m8 deferred vector accumulate). Detected structurally from the
+        # materialized IR (mirrors the compiler's chain derivation).
+        has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
         head = (
             "tcrv_rvv.packed_i4_nibble_unpack_product"
             if nibble_head
             else "tcrv_rvv.widening_product"
         )
         tail = expected.split("+tcrv_rvv.dequantize", 1)[1]
-        chain = head + "+tcrv_rvv.standalone_reduce"
+        chain = head
+        if has_deferred_wide_accumulate:
+            chain += "+tcrv_rvv.widening_accumulate"
+        chain += "+tcrv_rvv.standalone_reduce"
         if has_handoff:
             chain += "+tcrv_rvv.gearbox_cross_region_handoff"
         chain += "+tcrv_rvv.dequantize" + tail
@@ -17596,14 +17914,22 @@ def verify_materialized_selected_body(
         "materialized selected-body MLIR lowering boundary",
     )
     require_materialized_typed_compute_chain(text, expectation)
+    # The deferred-wide (N3) realization runs its setvl/with_vl loop at the i8m2
+    # STRIP config (sew8/m2), not the i32m1/f32m1 RESULT config the route/header
+    # carry. When the materialized body has a tcrv_rvv.widening_accumulate (the
+    # i32m8 deferred accumulate), the body-level config check expects the strip
+    # config; the route/header checks keep the result config (expectation.lmul/sew).
+    body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+    materialized_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
+    materialized_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
     require_contains(
         text,
-        f'lmul = "{expectation.lmul}"',
+        f'lmul = "{materialized_lmul}"',
         "materialized selected-body MLIR LMUL config",
     )
     require_contains(
         text,
-        f"sew = {expectation.sew} : i64",
+        f"sew = {materialized_sew} : i64",
         "materialized selected-body MLIR SEW config",
     )
     if expectation.is_plain_elementwise_arithmetic or expectation.is_masked_elementwise:
@@ -17812,14 +18138,30 @@ def verify_materialized_selected_body(
             'role = "accumulator-input-buffer"',
             "materialized selected-body MLIR product-reduction accumulator ABI role",
         )
+        # The deferred-wide (N3) realization runs the wide ladder: source i8m2,
+        # product i16m4, an i32m8 deferred accumulate, then ONE trailing same-width
+        # vredsum into i32m1. The narrow realization runs i8mf4 -> i16mf2 -> i32m1
+        # widening vwredsum. Derive the expected body structure from the realized
+        # ops (the widening_accumulate marker), so the mirror tracks the authority.
+        body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+        if body_has_deferred_wide_accumulate:
+            body_source_vec = '!tcrv_rvv.vector<i8, "m2">'
+            body_product_vec = '!tcrv_rvv.vector<i16, "m4">'
+            body_product_relation = "signed-i8m2xi8m2-to-i16m4"
+            body_reduction_kind = 'kind = "add"'
+        else:
+            body_source_vec = '!tcrv_rvv.vector<i8, "mf4">'
+            body_product_vec = '!tcrv_rvv.vector<i16, "mf2">'
+            body_product_relation = WIDENING_PRODUCT_RELATION_I8_I16
+            body_reduction_kind = 'kind = "signed_widening_reduce_add"'
         require_contains(
             text,
-            '!tcrv_rvv.vector<i8, "mf4">',
+            body_source_vec,
             "materialized selected-body MLIR product-reduction source vector type",
         )
         require_contains(
             text,
-            '!tcrv_rvv.vector<i16, "mf2">',
+            body_product_vec,
             "materialized selected-body MLIR product-reduction product vector type",
         )
         require_contains(
@@ -17827,6 +18169,22 @@ def verify_materialized_selected_body(
             '!tcrv_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR product-reduction result vector type",
         )
+        if body_has_deferred_wide_accumulate:
+            require_contains(
+                text,
+                '!tcrv_rvv.vector<i32, "m8">',
+                "materialized selected-body MLIR deferred-wide accumulate vector type",
+            )
+            require_contains(
+                text,
+                "tcrv_rvv.widening_accumulate",
+                "materialized selected-body MLIR deferred-wide accumulate op",
+            )
+            require_contains(
+                text,
+                'accumulate_relation = "signed-i16m4-into-i32m8-deferred-add"',
+                "materialized selected-body MLIR deferred-wide accumulate relation",
+            )
         require_contains(
             text,
             "tcrv_rvv.widening_product",
@@ -17839,13 +18197,13 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            f'product_relation = "{WIDENING_PRODUCT_RELATION_I8_I16}"',
+            f'product_relation = "{body_product_relation}"',
             "materialized selected-body MLIR product-reduction product relation",
         )
         require_contains(
             text,
-            'kind = "signed_widening_reduce_add"',
-            "materialized selected-body MLIR product-reduction widening reduction kind",
+            body_reduction_kind,
+            "materialized selected-body MLIR product-reduction reduction kind",
         )
         require_contains(
             text,
@@ -17866,20 +18224,21 @@ def verify_materialized_selected_body(
                 )
                 else "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
             ),
-            "source_vector_type": '!tcrv_rvv.vector<i8, "mf4">',
-            "product_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
+            "source_vector_type": body_source_vec,
+            "product_vector_type": body_product_vec,
             "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
             "source_element_type": "i8",
             "source_sew": "8",
-            "source_lmul": "mf4",
+            "source_lmul": "m2" if body_has_deferred_wide_accumulate else "mf4",
             "product_element_type": "i16",
             "product_sew": "16",
-            "product_lmul": "mf2",
+            "product_lmul": "m4" if body_has_deferred_wide_accumulate else "mf2",
             "accumulator_element_type": "i32",
+            "deferred_wide_accumulate": body_has_deferred_wide_accumulate,
             "result_element_type": expectation.element_type,
             "result_sew": expectation.sew,
             "result_lmul": expectation.lmul,
-            "product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
+            "product_relation": body_product_relation,
             "product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
             "accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
             "result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
@@ -18034,6 +18393,31 @@ def verify_materialized_selected_body(
                         "unroll_factor = 1 : i64",
                         "single-scope packed-i4 body structural unroll factor",
                     )
+                elif body_has_deferred_wide_accumulate:
+                    # The deferred-wide (N3) realization is a single-scope body with
+                    # a plain widening_product head + the i32m8 deferred accumulate +
+                    # ONE trailing reduce; unroll_factor = 1 (the conversion threads
+                    # the i32m8 accumulator across iterations, no slice duplication).
+                    require_contains(
+                        text,
+                        "tcrv_rvv.widening_product",
+                        "single-scope deferred-wide body typed widening product head",
+                    )
+                    require_contains(
+                        text,
+                        "tcrv_rvv.widening_accumulate",
+                        "single-scope deferred-wide body deferred accumulate op",
+                    )
+                    require_not_contains(
+                        text,
+                        "tcrv_rvv.packed_i4_nibble_unpack_product",
+                        "single-scope deferred-wide body has no packed-i4 nibble head",
+                    )
+                    require_contains(
+                        text,
+                        "unroll_factor = 1 : i64",
+                        "single-scope deferred-wide body structural unroll factor",
+                    )
                 else:
                     require_contains(
                         text,
@@ -18050,238 +18434,245 @@ def verify_materialized_selected_body(
                         "unroll_factor = 2 : i64",
                         "single-scope grouped body structural unroll factor",
                     )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
-                "materialized selected-body MLIR low-precision resource candidate set",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
-                "materialized selected-body MLIR low-precision selected candidate",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
-                "materialized selected-body MLIR low-precision selection reason",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
-                "materialized selected-body MLIR low-precision legality scope",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
-                "materialized selected-body MLIR low-precision memory form",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
-                "materialized selected-body MLIR low-precision operand form",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
-                "materialized selected-body MLIR low-precision source signedness",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
-                "materialized selected-body MLIR low-precision storage element width",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
-                "materialized selected-body MLIR low-precision effective element width",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
-                "materialized selected-body MLIR low-precision packing layout",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
-                "materialized selected-body MLIR low-precision unpack intent",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
-                "materialized selected-body MLIR low-precision unroll factor",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
-                "materialized selected-body MLIR low-precision accumulator count",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
-                "materialized selected-body MLIR realized Gearbox vsetvl region count",
-            )
-            require_contains(
-                text,
-                f'tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
-                "materialized selected-body MLIR realized Gearbox resource budget",
-            )
-            if uses_packed_i4_resource:
+            # The deferred-wide (N3) realization carries NO low_precision_resource.*
+            # gearbox tuning-decision block (it is a non-grouped single-scope body
+            # with a deferred i32m8 accumulate); the resource-selection facts below
+            # are the narrow grouped/packed-i4 candidate artifacts and are asserted
+            # only for the narrow realizations. The wide body's honest facts (the
+            # deferred chain + the primitive wide ladder) are asserted above.
+            if not body_has_deferred_wide_accumulate:
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.resource_cost_contract = "{resource_profile["resource_cost_contract"]}"',
-                    "materialized selected-body MLIR packed-i4 resource cost contract",
+                    f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
+                    "materialized selected-body MLIR low-precision resource candidate set",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.resource_cost_model = "{resource_profile["resource_cost_model"]}"',
-                    "materialized selected-body MLIR packed-i4 resource cost model",
+                    f'tcrv_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
+                    "materialized selected-body MLIR low-precision selected candidate",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = {resource_profile["resource_cost_loop_body_steps"]} : i64',
-                    "materialized selected-body MLIR packed-i4 resource cost loop-body steps",
+                    f'tcrv_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
+                    "materialized selected-body MLIR low-precision selection reason",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.resource_cost_blocker = "{resource_profile["resource_cost_blocker"]}"',
-                    "materialized selected-body MLIR packed-i4 resource cost blocker",
+                    f'tcrv_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
+                    "materialized selected-body MLIR low-precision legality scope",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
-                    "materialized selected-body MLIR packed-i4 performance admission decision",
+                    f'tcrv_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
+                    "materialized selected-body MLIR low-precision memory form",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
-                    "materialized selected-body MLIR packed-i4 performance admission closure",
+                    f'tcrv_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
+                    "materialized selected-body MLIR low-precision operand form",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
-                    "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
+                    f'tcrv_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
+                    "materialized selected-body MLIR low-precision source signedness",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
-                    "materialized selected-body MLIR packed-i4 beyond-local repair admission contract",
+                    f'tcrv_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
+                    "materialized selected-body MLIR low-precision storage element width",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
-                    "materialized selected-body MLIR packed-i4 beyond-local repair admission decision",
+                    f'tcrv_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
+                    "materialized selected-body MLIR low-precision effective element width",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
-                    "materialized selected-body MLIR packed-i4 beyond-local repair admission blocker",
+                    f'tcrv_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
+                    "materialized selected-body MLIR low-precision packing layout",
                 )
                 require_contains(
                     text,
-                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
-                    "materialized selected-body MLIR packed-i4 beyond-local repair admission reopen requirement",
+                    f'tcrv_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
+                    "materialized selected-body MLIR low-precision unpack intent",
                 )
-            widening_product_reduction_boundary["selected_source_abi"][
-                "scale"
-            ] = "dequant-scale-value"
-            widening_product_reduction_boundary["gearbox_cross_region_handoff"] = {
-                "op": "tcrv_rvv.gearbox_cross_region_handoff",
-                "contract": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
-                ),
-                "producer_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
-                ),
-                "consumer_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
-                ),
-                "from_phase": (
-                    resource_profile["producer_phase"]
-                ),
-                "to_phase": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
-                ),
-                "runtime_avl_source": "runtime_abi:n",
-                "region_count": int(resource_profile["vsetvl_region_count"]),
-                "resource_decision": (
-                    resource_profile["resource_decision"]
-                ),
-            }
-            widening_product_reduction_boundary["low_precision_resource"] = {
-                "candidate_set": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
-                ),
-                "selected_candidate": (
-                    resource_profile["selected_candidate"]
-                ),
-                "selection_reason": (
-                    resource_profile["selection_reason"]
-                ),
-                "legality_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
-                ),
-                "memory_form": (
-                    resource_profile["memory_form"]
-                ),
-                "operand_form": resource_profile["operand_form"],
-                "source_signedness": resource_profile["source_signedness"],
-                "storage_element_width": (
-                    resource_profile["storage_element_width"]
-                ),
-                "effective_element_width": (
-                    resource_profile["effective_element_width"]
-                ),
-                "packing_layout": resource_profile["packing_layout"],
-                "unpack_intent": resource_profile["unpack_intent"],
-                "vsetvl_region_count": int(resource_profile["vsetvl_region_count"]),
-                "peak_live_vector_groups": int(
-                    resource_profile["peak_live_vector_groups"]
-                ),
-                "vector_register_budget": 32,
-                "runtime_avl_source": "runtime_abi:n",
-            }
-            if uses_packed_i4_resource:
-                packed_i4_cost_facts = {
-                    "resource_cost_contract": resource_profile[
-                        "resource_cost_contract"
-                    ],
-                    "resource_cost_model": resource_profile[
-                        "resource_cost_model"
-                    ],
-                    "resource_cost_loop_body_steps": int(
-                        resource_profile["resource_cost_loop_body_steps"]
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
+                    "materialized selected-body MLIR low-precision unroll factor",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
+                    "materialized selected-body MLIR low-precision accumulator count",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
+                    "materialized selected-body MLIR realized Gearbox vsetvl region count",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
+                    "materialized selected-body MLIR realized Gearbox resource budget",
+                )
+                if uses_packed_i4_resource:
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.resource_cost_contract = "{resource_profile["resource_cost_contract"]}"',
+                        "materialized selected-body MLIR packed-i4 resource cost contract",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.resource_cost_model = "{resource_profile["resource_cost_model"]}"',
+                        "materialized selected-body MLIR packed-i4 resource cost model",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = {resource_profile["resource_cost_loop_body_steps"]} : i64',
+                        "materialized selected-body MLIR packed-i4 resource cost loop-body steps",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.resource_cost_blocker = "{resource_profile["resource_cost_blocker"]}"',
+                        "materialized selected-body MLIR packed-i4 resource cost blocker",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
+                        "materialized selected-body MLIR packed-i4 performance admission decision",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
+                        "materialized selected-body MLIR packed-i4 performance admission closure",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
+                        "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
+                        "materialized selected-body MLIR packed-i4 beyond-local repair admission contract",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
+                        "materialized selected-body MLIR packed-i4 beyond-local repair admission decision",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
+                        "materialized selected-body MLIR packed-i4 beyond-local repair admission blocker",
+                    )
+                    require_contains(
+                        text,
+                        f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
+                        "materialized selected-body MLIR packed-i4 beyond-local repair admission reopen requirement",
+                    )
+                widening_product_reduction_boundary["selected_source_abi"][
+                    "scale"
+                ] = "dequant-scale-value"
+                widening_product_reduction_boundary["gearbox_cross_region_handoff"] = {
+                    "op": "tcrv_rvv.gearbox_cross_region_handoff",
+                    "contract": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
                     ),
-                    "resource_cost_blocker": resource_profile[
-                        "resource_cost_blocker"
-                    ],
-                    "performance_admission_decision": resource_profile[
-                        "performance_admission_decision"
-                    ],
-                    "performance_admission_closure": resource_profile[
-                        "performance_admission_closure"
-                    ],
-                    "performance_admission_reopen_requirement": resource_profile[
-                        "performance_admission_reopen_requirement"
-                    ],
-                    "beyond_local_repair_admission_contract": resource_profile[
-                        "beyond_local_repair_admission_contract"
-                    ],
-                    "beyond_local_repair_admission_decision": resource_profile[
-                        "beyond_local_repair_admission_decision"
-                    ],
-                    "beyond_local_repair_admission_blocker": resource_profile[
-                        "beyond_local_repair_admission_blocker"
-                    ],
-                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
-                        "beyond_local_repair_admission_reopen_requirement"
-                    ],
+                    "producer_scope": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
+                    ),
+                    "consumer_scope": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
+                    ),
+                    "from_phase": (
+                        resource_profile["producer_phase"]
+                    ),
+                    "to_phase": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
+                    ),
+                    "runtime_avl_source": "runtime_abi:n",
+                    "region_count": int(resource_profile["vsetvl_region_count"]),
+                    "resource_decision": (
+                        resource_profile["resource_decision"]
+                    ),
                 }
-                widening_product_reduction_boundary[
-                    "gearbox_cross_region_handoff"
-                ].update(packed_i4_cost_facts)
-                widening_product_reduction_boundary[
-                    "low_precision_resource"
-                ].update(packed_i4_cost_facts)
+                widening_product_reduction_boundary["low_precision_resource"] = {
+                    "candidate_set": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
+                    ),
+                    "selected_candidate": (
+                        resource_profile["selected_candidate"]
+                    ),
+                    "selection_reason": (
+                        resource_profile["selection_reason"]
+                    ),
+                    "legality_scope": (
+                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
+                    ),
+                    "memory_form": (
+                        resource_profile["memory_form"]
+                    ),
+                    "operand_form": resource_profile["operand_form"],
+                    "source_signedness": resource_profile["source_signedness"],
+                    "storage_element_width": (
+                        resource_profile["storage_element_width"]
+                    ),
+                    "effective_element_width": (
+                        resource_profile["effective_element_width"]
+                    ),
+                    "packing_layout": resource_profile["packing_layout"],
+                    "unpack_intent": resource_profile["unpack_intent"],
+                    "vsetvl_region_count": int(resource_profile["vsetvl_region_count"]),
+                    "peak_live_vector_groups": int(
+                        resource_profile["peak_live_vector_groups"]
+                    ),
+                    "vector_register_budget": 32,
+                    "runtime_avl_source": "runtime_abi:n",
+                }
+                if uses_packed_i4_resource:
+                    packed_i4_cost_facts = {
+                        "resource_cost_contract": resource_profile[
+                            "resource_cost_contract"
+                        ],
+                        "resource_cost_model": resource_profile[
+                            "resource_cost_model"
+                        ],
+                        "resource_cost_loop_body_steps": int(
+                            resource_profile["resource_cost_loop_body_steps"]
+                        ),
+                        "resource_cost_blocker": resource_profile[
+                            "resource_cost_blocker"
+                        ],
+                        "performance_admission_decision": resource_profile[
+                            "performance_admission_decision"
+                        ],
+                        "performance_admission_closure": resource_profile[
+                            "performance_admission_closure"
+                        ],
+                        "performance_admission_reopen_requirement": resource_profile[
+                            "performance_admission_reopen_requirement"
+                        ],
+                        "beyond_local_repair_admission_contract": resource_profile[
+                            "beyond_local_repair_admission_contract"
+                        ],
+                        "beyond_local_repair_admission_decision": resource_profile[
+                            "beyond_local_repair_admission_decision"
+                        ],
+                        "beyond_local_repair_admission_blocker": resource_profile[
+                            "beyond_local_repair_admission_blocker"
+                        ],
+                        "beyond_local_repair_admission_reopen_requirement": resource_profile[
+                            "beyond_local_repair_admission_reopen_requirement"
+                        ],
+                    }
+                    widening_product_reduction_boundary[
+                        "gearbox_cross_region_handoff"
+                    ].update(packed_i4_cost_facts)
+                    widening_product_reduction_boundary[
+                        "low_precision_resource"
+                    ].update(packed_i4_cost_facts)
         if expectation.is_widening_product_reduce_dequant_clamp_f32:
             widening_product_reduction_boundary["selected_source_abi"][
                 "lower_bound"
@@ -21681,9 +22072,15 @@ def extract_runtime_avl_vl_materialized_boundary(
         "materialized selected-body MLIR setvl consumes runtime n",
     )
     attrs = setvl.group("attrs")
+    # The deferred-wide (N3) realization drives its setvl at the i8m2 STRIP config;
+    # the route/header keep the i32m1/f32m1 result config. Derive the strip config
+    # structurally when the body carries the i32m8 deferred accumulate.
+    body_has_deferred_wide_accumulate = "tcrv_rvv.widening_accumulate" in text
+    setvl_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
+    setvl_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
     for token, context in (
-        (f'lmul = "{expectation.lmul}"', "LMUL"),
-        (f"sew = {expectation.sew} : i64", "SEW"),
+        (f'lmul = "{setvl_lmul}"', "LMUL"),
+        (f"sew = {setvl_sew} : i64", "SEW"),
         ("policy = #tcrv_rvv.policy<", "policy"),
     ):
         require_contains(
@@ -30950,6 +31347,10 @@ def runtime_avl_vl_metadata_from_bundle(
         expected = expected_metadata_for(expectation).get(key)
         if expected is None:
             continue
+        # Deferred-wide (N3): the wide-strip route operand binding (src-i8m2).
+        expected = deferred_wide_expected_metadata(key, expected, object_metadata)
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -30988,6 +31389,11 @@ def selected_dispatch_bundle_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31017,6 +31423,11 @@ def mask_tail_policy_metadata_from_bundle(
         metadata_keys = (*metadata_keys, *COMPOSITE_RESOURCE_METADATA_KEYS)
     for key in metadata_keys:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31049,6 +31460,11 @@ def computed_mask_memory_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31077,6 +31493,11 @@ def base_memory_movement_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in BASE_MEMORY_MOVEMENT_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31109,6 +31530,11 @@ def compare_select_predicate_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31137,6 +31563,11 @@ def conversion_sew_policy_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in CONVERSION_SEW_POLICY_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31169,6 +31600,11 @@ def dequantization_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31197,6 +31633,11 @@ def reduction_accumulation_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in REDUCTION_ACCUMULATION_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31229,6 +31670,11 @@ def vector_reduction_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31257,6 +31703,11 @@ def widening_macc_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in WIDENING_MACC_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31289,6 +31740,11 @@ def multiply_accumulate_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31319,6 +31775,11 @@ def computed_masked_macc_metadata_from_bundle(
         expected = expected_metadata.get(key)
         if expected is None:
             continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
+        if expected is None:
+            continue
         require_equal(
             object_metadata.get(key),
             expected,
@@ -31347,6 +31808,11 @@ def widening_dot_reduction_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in WIDENING_DOT_REDUCTION_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31393,6 +31859,11 @@ def widening_product_reduction_metadata_from_bundle(
             metadata[key] = object_metadata.get(key, "")
             continue
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
@@ -31444,6 +31915,11 @@ def computed_masked_widening_dot_metadata_from_bundle(
     expected_metadata = expected_metadata_for(expectation)
     for key in COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS:
         expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        expected = deferred_wide_expected_metadata(
+            key, expected, object_metadata
+        )
         if expected is None:
             continue
         require_equal(
