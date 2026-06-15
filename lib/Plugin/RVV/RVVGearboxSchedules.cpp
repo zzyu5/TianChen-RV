@@ -79,6 +79,7 @@ using tianchenrv::tcrv::rvv::
     TypedWideningProductReduceDequantClampF32PreRealizedBodyOp;
 using tianchenrv::tcrv::rvv::
     TypedWideningProductReduceDequantizePreRealizedBodyOp;
+using tianchenrv::tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp;
 using tianchenrv::tcrv::rvv::VectorType;
 using tianchenrv::tcrv::rvv::WithVLOp;
 using tianchenrv::tcrv::rvv::WideningProductOp;
@@ -1191,6 +1192,31 @@ mlir::LogicalResult materializeLowPrecisionResourceForPreRealizedBody(
       body.getResultSew(), body.getResultLmul(), body.getMemoryForm());
 }
 
+// The 2nd kernel family (signed i16 dot-reduce, P-B8) carries ONLY the
+// architectural vreg-file budget resource fact -- it does not enter the
+// low-precision dequant mirror surface. The deferred-wide dot-reduce autotuner
+// (RVVContractionSelectedBodyRealizationOwner.cpp) consumes this single budget
+// fact via the i16 single-widening resource-aware selector to choose narrow
+// (i16mf2 per-iteration vredsum) vs wide (i16m4 -> i32m8 deferred-accumulate).
+// Stamping is minimal by design: keeping the dot-reduce body free of the full
+// low-precision attribute set means the narrow dot-reduce route's header/withVL
+// never inherit dequant facts that don't apply to it.
+mlir::LogicalResult materializeDeferredWideBudgetForDotReduceBody(
+    TypedWideningDotReducePreRealizedBodyOp body) {
+  // Gate to the narrow i16mf2 signed dot-reduce strip the wide selector serves
+  // (source SEW16 LMUL mf2, i32 result). Any other shape keeps its current
+  // narrow realization untouched and is not stamped.
+  if (body.getSourceSew() != 16 || body.getSourceLmul() != "mf2" ||
+      body.getResultSew() != 32 || body.getResultLmul() != "m1")
+    return mlir::success();
+  mlir::OpBuilder builder(body.getContext());
+  return requireIntegerAttr(
+      body.getOperation(), builder,
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget);
+}
+
 template <typename BodyOp>
 mlir::LogicalResult validateLowPrecisionProductDequantClampBody(BodyOp body) {
   if (body.getOpKind() != kLowPrecisionProductDequantClampOpKind ||
@@ -2297,10 +2323,15 @@ public:
         preRealizedProductDequantClampBodies;
     llvm::SmallVector<TypedWideningProductReduceDequantClampF32BodyOp, 8>
         explicitProductDequantClampBodies;
+    llvm::SmallVector<TypedWideningDotReducePreRealizedBodyOp, 8>
+        preRealizedDotReduceBodies;
     getOperation()->walk(
         [&](TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
           preRealizedProductDequantBodies.push_back(body);
         });
+    getOperation()->walk([&](TypedWideningDotReducePreRealizedBodyOp body) {
+      preRealizedDotReduceBodies.push_back(body);
+    });
     getOperation()->walk(
         [&](TypedWideningProductReduceDequantClampF32PreRealizedBodyOp body) {
           preRealizedProductDequantClampBodies.push_back(body);
@@ -2331,6 +2362,14 @@ public:
       if (mlir::failed(
               materializeLowPrecisionResourceForProductDequantClampBody(
                   body))) {
+        signalPassFailure();
+        return;
+      }
+    }
+    for (TypedWideningDotReducePreRealizedBodyOp body :
+         preRealizedDotReduceBodies) {
+      if (mlir::failed(
+              materializeDeferredWideBudgetForDotReduceBody(body))) {
         signalPassFailure();
         return;
       }

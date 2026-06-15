@@ -2003,6 +2003,83 @@ selectRVVLowPrecisionMaxLegalAccumulatorLMULRung(
   return best;
 }
 
+//===----------------------------------------------------------------------===//
+// The 2nd kernel family (signed i16 widening dot-reduce) deferred-wide
+// resource-aware selector (P-B8). DISTINCT cost model from the byte path above:
+// the i16 chain is a SINGLE widening step (i16 source -> i32 product), and the
+// product is ALREADY the i32 accumulator width, so the deferred accumulate is a
+// SAME-WIDTH vadd.vv that aliases the product into the accumulator (no second
+// widening). Therefore productLMUL == accumulatorLMUL (both i32, one EMUL step
+// off the i16 source), and the peak-live cost the prune reasons over is the i32
+// accumulator group + the load/temp reserve -- NOT the byte path's separate
+// i16-product + i32-accumulator groups (two distinct EMUL widths). Reusing the
+// byte enumerator here would be wrong: it does TWO widenings and would skip i16
+// source m4 (its product would widen to i32 m8 then the accumulator to i32 m16,
+// beyond the m8 cap), losing exactly the wide rung that wins. This is its own
+// resource-fact-derived enumeration with its own binding prune.
+//===----------------------------------------------------------------------===//
+
+/// One enumerated accumulator-LMUL rung for the i16 single-widening dot-reduce
+/// deferred-wide chain. `accumulatorLMUL == productLMUL` (the i32 product IS the
+/// deferred accumulator); `sourceLMUL` is the i16 strip-mine load LMUL.
+struct RVVDotReduceDeferredWideLMULRung {
+  llvm::StringRef sourceLMUL;       // i16 strip-mine load LMUL (mf2..m4).
+  llvm::StringRef accumulatorLMUL;  // i32 product/accumulator LMUL (m1..m8), 2x.
+  std::int64_t accumulatorRegisterCost = 0; // vregs held by one i32 accumulator.
+  std::int64_t reserveRegisterCost = 0;     // load/temp reserve (budget headroom).
+  bool isLegal = false;                     // fits the vreg-file budget at A=1.
+};
+
+/// Enumerate the candidate accumulator-LMUL rungs of the i16 -> i32 SINGLE-
+/// widening dot-reduce chain and PRUNE each by the vector-register budget. A
+/// rung is legal iff (A=1) acc_regs + reserve <= budget, and the single widening
+/// stays within the m8 LMUL cap. The i16 source rungs are {mf2, m1, m2, m4}; the
+/// i32 accumulator is the source widened ONE step (mf2->m1, m1->m2, m2->m4,
+/// m4->m8). Source m4 -> i32m8 is the widest legal accumulator (m8 has no wider
+/// rung). Returns the rungs narrowest-first.
+inline llvm::SmallVector<RVVDotReduceDeferredWideLMULRung, 4>
+enumerateRVVDotReduceDeferredWideLMULRungs(std::int64_t vectorRegisterBudget,
+                                           std::int64_t reserveRegisterCost) {
+  llvm::SmallVector<RVVDotReduceDeferredWideLMULRung, 4> rungs;
+  static constexpr llvm::StringLiteral kSourceRungs[] = {"mf2", "m1", "m2",
+                                                         "m4"};
+  for (llvm::StringRef sourceLMUL : kSourceRungs) {
+    llvm::StringRef accumulatorLMUL = getRVVNextWiderLMUL(sourceLMUL);
+    if (accumulatorLMUL.empty())
+      continue; // i32 accumulator would exceed the m8 LMUL cap -> not a rung.
+    RVVDotReduceDeferredWideLMULRung rung;
+    rung.sourceLMUL = sourceLMUL;
+    rung.accumulatorLMUL = accumulatorLMUL;
+    rung.accumulatorRegisterCost = getRVVLMULRegisterFootprint(accumulatorLMUL);
+    rung.reserveRegisterCost = reserveRegisterCost;
+    // Peak-live = the i32 accumulator (the deferred vadd aliases the product
+    // into it -- one i32 group, not two) + the load/temp reserve.
+    const std::int64_t totalRegisterCost =
+        rung.accumulatorRegisterCost + rung.reserveRegisterCost;
+    rung.isLegal = totalRegisterCost <= vectorRegisterBudget;
+    rungs.push_back(rung);
+  }
+  return rungs;
+}
+
+/// SELECT the widest legal accumulator-LMUL rung from the budget-pruned i16
+/// dot-reduce enumeration (the resource-optimal config: wider LMUL hides the
+/// per-iteration vredsum latency the narrow body suffers, so wider is monotone-
+/// better up to the budget). Returns nullopt if every rung was pruned.
+inline std::optional<RVVDotReduceDeferredWideLMULRung>
+selectRVVDotReduceDeferredWideMaxLegalLMULRung(
+    llvm::ArrayRef<RVVDotReduceDeferredWideLMULRung> rungs) {
+  std::optional<RVVDotReduceDeferredWideLMULRung> best;
+  for (const RVVDotReduceDeferredWideLMULRung &rung : rungs) {
+    if (!rung.isLegal)
+      continue;
+    if (!best ||
+        rung.accumulatorRegisterCost > best->accumulatorRegisterCost)
+      best = rung;
+  }
+  return best;
+}
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVGEARBOXSCHEDULE_H

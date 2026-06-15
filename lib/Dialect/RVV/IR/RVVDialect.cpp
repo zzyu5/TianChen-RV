@@ -384,7 +384,16 @@ bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
          name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
          name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
          name == kResultSEWAttrName || name == kResultLMULAttrName ||
-         name == kDotProductRelationAttrName || name == kPolicyAttrName;
+         name == kDotProductRelationAttrName || name == kPolicyAttrName ||
+         // The deferred-wide dot-reduce autotuner (P-B8) stamps ONLY the
+         // architectural vreg-file budget resource fact on this body -- the
+         // resource-aware selector consumes it to choose narrow-vs-wide
+         // accumulator LMUL. Minimal by design: the body carries no other
+         // low-precision mirror facts (unlike the dequant body), so the
+         // narrow dot-reduce route's header/withVL never inherit them.
+         name ==
+             tianchenrv::plugin::rvv::
+                 kRVVLowPrecisionResourceVectorRegisterBudgetAttrName;
 }
 
 bool isAllowedTypedStridedInputWideningDotReducePreRealizedBodyAttr(
