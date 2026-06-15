@@ -232,6 +232,14 @@ deriveRVVSelectedBodyTargetLeafProfile(
 
   if (description.operation ==
           RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+      // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family) shares
+      // the narrow dot-reduce leaf profile: it carries NO scalar arithmetic /
+      // compare / select / reduce leaf intrinsic -- the widening_product +
+      // deferred_accumulate + standalone_reduce chain is emitted from the
+      // dedicated structural ops, not from a derived leaf.
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredDotAccumulateReduceAdd ||
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       description.operation ==
@@ -1728,6 +1736,64 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
             slice.storeValue,
             "deferred-wide product-reduction dequantized stored vector",
             resultConfig))
+      return error;
+    return llvm::Error::success();
+  }
+
+  // The deferred-wide (N3 resource-aware max-legal-LMUL winner) realization of the
+  // SAME logical widening_dot_reduce_add op (2nd kernel family, signed i16
+  // dot-reduce). UNLIKE the narrow path (whose setvl carries the i32m1 RESULT
+  // config), the deferred-wide setvl carries the SOURCE strip config (sew16/m4),
+  // so the result config (sew32/m1) is derived explicitly here. The wide LMUL
+  // ladder is fixed by the structural ops: source i16m4, product i32m8, deferred
+  // accumulate i32m8 (same-width vadd.vv), ONE trailing reduce to i32m1, store
+  // i32m1. Every config below mirrors those typed result types (I5) -- nothing is
+  // inferred from a name/route id.
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd) {
+    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = tcrv::rvv::getRVVLMULM4();
+    sourceConfig.policy = config.policy;
+    tcrv::rvv::RVVCompileTimeConfig accumulateConfig;
+    accumulateConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+    accumulateConfig.lmul = tcrv::rvv::getRVVLMULM8();
+    accumulateConfig.policy = config.policy;
+    tcrv::rvv::RVVCompileTimeConfig resultConfig;
+    resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+    resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    resultConfig.policy = config.policy;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue,
+            "deferred-wide dot-reduction lhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue,
+            "deferred-wide dot-reduction rhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            productSlotResult(slice),
+            "deferred-wide dot-reduction i32m8 product vector",
+            accumulateConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.deferredAccumulateOp.getResult(),
+            "deferred-wide dot-reduction i32m8 accumulate vector",
+            accumulateConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.standaloneReduceOp.getResult(),
+            "deferred-wide dot-reduction i32m1 reduce result vector",
+            resultConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.arithmeticResult,
+            "deferred-wide dot-reduction result vector", resultConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue,
+            "deferred-wide dot-reduction stored vector", resultConfig))
       return error;
     return llvm::Error::success();
   }
@@ -3529,9 +3595,17 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       isWideningProductReduceDequantize;
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family) shares the
+  // narrow dot-reduce runtime-ABI shape (lhs/rhs/acc/out/n, source i16) -- its ABI
+  // is verified through the dot-reduce ABI verifier, NOT the finite-binary
+  // elementwise contract (whose source c-type is derived from the result config
+  // and would wrongly expect const int32_t *).
   const bool isWideningDotReduce =
       slice.arithmeticKind ==
-      RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+          RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredDotAccumulateReduceAdd;
   const bool isWideningProduct =
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningProduct;
   const bool isStridedInputWideningDotReduce =

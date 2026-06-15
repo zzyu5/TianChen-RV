@@ -96,7 +96,12 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
           ? RVVSelectedBodyMemoryForm::
                 UnitStrideWideningProductReduceDequantClampF32
       : isProductReductionChain ? RVVSelectedBodyMemoryForm::VectorRHSLoad
-      : plan.operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd
+      : (plan.operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+         plan.operation ==
+             RVVSelectedBodyOperationKind::
+                 WideningProductDeferredDotAccumulateReduceAdd)
+          // The deferred-wide i16 dot-reduce shares the narrow dot-reduce unit-
+          // stride VectorRHSLoad memory form (both load two i16 source vectors).
           ? RVVSelectedBodyMemoryForm::VectorRHSLoad
       : plan.operation ==
               RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd
@@ -144,6 +149,10 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.operation ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredAccumulateReduceDequantizeF32;
+  const bool isDeferredWideDotReduce =
+      plan.operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd;
   if (isDeferredWideProductReductionDequantization) {
     // The deferred-wide route legitimately carries TWO structural configs: the
     // loop/strip config (sew8/m2, the setvl driving the runtime AVL/VL control
@@ -165,6 +174,28 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "deferred-wide contraction route-family plan requires the result and "
           "strip configs to share the realized tail/mask policy");
+  } else if (isDeferredWideDotReduce) {
+    // The deferred-wide i16 dot-reduce route (2nd kernel family) carries TWO
+    // structural configs: the loop/strip config (sew16/m4, the setvl driving the
+    // runtime AVL/VL control plan over the i16m4 -> i32m8 winner) and the i32m1
+    // RESULT config (plan.sew/lmul, driving result typing/header). Assert each
+    // against its own structural source (I5: both are realized configs).
+    if (plan.runtimeControlPlan.sew != tcrv::rvv::getRVVSEW16Bits() ||
+        plan.runtimeControlPlan.lmul != tcrv::rvv::getRVVLMULM4())
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide i16 dot-reduce contraction route-family plan requires "
+          "the runtime AVL/VL control plan to run at the realized i16m4 strip "
+          "config");
+    if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+        plan.lmul != tcrv::rvv::getRVVLMULM1())
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide i16 dot-reduce contraction route-family plan requires "
+          "the result config to be the realized i32m1 result config");
+    if (plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+        plan.maskPolicy != plan.runtimeControlPlan.maskPolicy)
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide i16 dot-reduce contraction route-family plan requires "
+          "the result and strip configs to share the realized tail/mask policy");
   } else if (plan.sew != plan.runtimeControlPlan.sew ||
              plan.lmul != plan.runtimeControlPlan.lmul ||
              plan.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
@@ -210,7 +241,18 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
         llvm::Twine(plan.sourceSEW) + "/" + plan.sourceLMUL + " -> " +
         llvm::Twine(plan.productSEW) + "/" + plan.productLMUL + " -> " +
         llvm::Twine(plan.sew) + "/" + plan.lmul + "'");
-  if (!isProductReductionChain &&
+  // The deferred-wide i16 dot-reduce realized source is the wide i16m4 strip (vs
+  // the narrow i16mf2 dot-reduce); its result is i32m1. This is the structural
+  // realized wide ladder of the SAME logical dot-reduce op (I5), admitted as a
+  // parallel config (it does NOT loosen isSupportedContractionSourceResultConfig
+  // for any other route).
+  const bool supportsDeferredWideDotReduceConfig =
+      isDeferredWideDotReduce &&
+      plan.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.sourceLMUL == tcrv::rvv::getRVVLMULM4() &&
+      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == tcrv::rvv::getRVVLMULM1();
+  if (!isProductReductionChain && !supportsDeferredWideDotReduceConfig &&
       !isSupportedContractionSourceResultConfig(plan.sourceSEW,
                                                 plan.sourceLMUL, plan.sew,
                                                 plan.lmul))
@@ -940,12 +982,25 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   const bool isProductReductionChain =
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       isProductReductionDequantization;
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family): a
+  // dot-reduce route whose realized body decomposes the narrow fused
+  // tcrv_rvv.widening_dot_reduce into widening_product -> deferred_accumulate ->
+  // standalone_reduce. Its accumulator/result layouts come from the trailing
+  // tcrv_rvv.standalone_reduce, its source operands from the widening_product
+  // head. Its ROUTE IDENTITY mirrors the narrow dot-reduce (source i16mf2, result
+  // i32m1); only the realized PRIMITIVE intrinsics are wide.
+  const bool isDeferredWideDotReduce =
+      operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd;
   mlir::Value lhsSourceValue =
-      isProductReductionChain ? productSlotLhs(analysis.slice)
-                              : analysis.slice.arithmeticLhs;
+      (isProductReductionChain || isDeferredWideDotReduce)
+          ? productSlotLhs(analysis.slice)
+          : analysis.slice.arithmeticLhs;
   mlir::Value rhsSourceValue =
-      isProductReductionChain ? productSlotRhs(analysis.slice)
-                              : analysis.slice.arithmeticRhs;
+      (isProductReductionChain || isDeferredWideDotReduce)
+          ? productSlotRhs(analysis.slice)
+          : analysis.slice.arithmeticRhs;
   llvm::Expected<RVVContractionVectorFacts> lhsSourceFacts =
       deriveContractionVectorFacts(
           lhsSourceValue, "lhs", "contraction route-family plan");
@@ -1366,6 +1421,19 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
               typedConfig.lmul, plan.relation);
       plan.inactiveLaneZeroingRequirement =
           kRVVContractionMaskedInactiveLaneZeroingRequirement;
+    } else if (isDeferredWideDotReduce) {
+      // The deferred-wide i16 dot-reduce has NO fused tcrv_rvv.widening_dot_reduce
+      // op; its accumulator seed/result are carried by the trailing
+      // tcrv_rvv.standalone_reduce. The route IDENTITY layouts/relation are the
+      // narrow dot-reduce's (the logical op is unchanged): scalar i32 seed,
+      // dot-reduction store, narrow signed-i16mf2 dot relation. Read the seed
+      // structurally from the standalone_reduce (I5), use the narrow identity
+      // layout/relation constants for the route facts.
+      plan.accumulatorLayout = kRVVWideningDotProductAccumulatorLayout;
+      plan.resultLayout = kRVVWideningDotProductResultLayout;
+      plan.relation = getContractionWideningDotProductRelation(
+          lhsSourceFacts->sew, lhsSourceFacts->lmul, typedConfig.sew,
+          typedConfig.lmul);
     } else {
       plan.accumulatorLayout =
           analysis.slice.wideningDotReduceOp.getAccumulatorLayout();
@@ -1374,17 +1442,27 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           analysis.slice.wideningDotReduceOp.getDotProductRelation();
     }
 
+    // The deferred-wide i16 dot-reduce reduces the i32m8 deferred accumulate with
+    // a PLAIN same-width vredsum to i32m1 (NOT the narrow per-iteration fused
+    // dot-reduce's i32m1 vredsum); its trailing reduce is the wide
+    // __riscv_vredsum_vs_i32m8_i32m1, and its widening product is the wide
+    // __riscv_vwmul_vv_i32m8. Both mirror the realized ops (I5); the route relation
+    // stays the narrow identity relation.
     plan.contractionComputeIntrinsic =
-        plan.relation == getContractionWideningDotProductRelation(
-                             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
-                             typedConfig.lmul)
+        isDeferredWideDotReduce
+            ? llvm::StringRef("__riscv_vredsum_vs_i32m8_i32m1")
+        : plan.relation == getContractionWideningDotProductRelation(
+                               plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
+                               typedConfig.lmul)
             ? getContractionReductionIntrinsic(typedConfig.sew,
                                                typedConfig.lmul)
             : llvm::StringRef();
     plan.wideningProductIntrinsic =
-        getContractionWideningProductIntrinsic(
-            plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
-            typedConfig.lmul, plan.relation);
+        isDeferredWideDotReduce
+            ? llvm::StringRef("__riscv_vwmul_vv_i32m8")
+            : getContractionWideningProductIntrinsic(
+                  plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
+                  typedConfig.lmul, plan.relation);
     plan.scalarSeedSplatIntrinsic =
         plan.relation == getContractionWideningDotProductRelation(
                              plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
@@ -1454,9 +1532,16 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   // result config. The narrow route's control plan == result config, so this is a
   // no-op there. The runtime-AVL/loop fields (control plan id, setvl intrinsic)
   // stay strip-config (the loop genuinely runs at i8m2).
+  // The deferred-wide i16 dot-reduce route (2nd kernel family) shares the same
+  // dual-config structure: the control plan runs at the i16m4 STRIP config, but
+  // the route description's LOGICAL config is the i32m1 RESULT config. Restore it
+  // the same way the byte deferred-wide dequant route does.
   if (plan.operation ==
-      RVVSelectedBodyOperationKind::
-          WideningProductDeferredAccumulateReduceDequantizeF32) {
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredAccumulateReduceDequantizeF32 ||
+      plan.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredDotAccumulateReduceAdd) {
     description.sew = plan.sew;
     description.lmul = plan.lmul;
     const tcrv::rvv::RVVSelectedBodyConfigVLContract &resultContract =
@@ -1711,7 +1796,18 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
         " product-reduction contraction route description requires "
         "provider-derived 8-bit source -> 16-bit product -> 32-bit "
         "accumulator/result SEW/LMUL facts");
-  if (!usesProductReductionChain &&
+  // The deferred-wide i16 dot-reduce route description (2nd kernel family) carries
+  // the wide realized source i16m4 -> result i32m1; admit it as a parallel config
+  // (mirrors the plan-level supportsDeferredWideDotReduceConfig).
+  const bool supportsDeferredWideDotReduceConfig =
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredDotAccumulateReduceAdd &&
+      description.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULM4() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1();
+  if (!usesProductReductionChain && !supportsDeferredWideDotReduceConfig &&
       !isSupportedContractionSourceResultConfig(description.sourceSEW,
                                                 description.sourceLMUL,
                                                 description.sew,
@@ -2499,6 +2595,11 @@ getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
     return kRVVWideningProductReductionDequantClampF32OperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family) shares the
+  // narrow dot-reduce route identity, so it binds operands via the SAME
+  // lhs/rhs/acc/out/n dot-reduce operand-binding plan.
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
     return kRVVWideningDotReduceOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
     return kRVVStridedInputWideningDotReduceOperandBindingPlanID;
@@ -2773,6 +2874,11 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
         {"abi", "setvl-avl", "loop", "hdr"});
     break;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  // The deferred-wide i16 dot-reduce terminal kind binds the SAME lhs/rhs/acc/
+  // out/n operands as the narrow dot-reduce (route identity preserved; the wide
+  // realization is internal). Same i16 source / i32 seed+store markers.
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
     context = "widening_dot_reduce_add route";
     addContractionRouteOperandBinding(
         plan, "lhs", slice.lhsABI, {"abi", "ld", "dot-lhs", "i16", "hdr"});

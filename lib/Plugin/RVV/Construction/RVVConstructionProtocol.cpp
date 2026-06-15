@@ -2190,41 +2190,66 @@ void appendWideningDotReduceAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
+    // The deferred-wide i16 dot-reduce realization (2nd kernel family) decomposes
+    // the narrow single fused tcrv_rvv.widening_dot_reduce compute step into the
+    // structural chain widening_product -> deferred_accumulate -> standalone_reduce
+    // (3 compute ops). Detect it from the realized typed-compute-op chain and emit
+    // the parallel canonical role order; the narrow path keeps the single step.
+    const bool isDeferredWideDotChain =
+        typedComputeOpName == "tcrv_rvv.widening_product+"
+                              "tcrv_rvv.deferred_accumulate+"
+                              "tcrv_rvv.standalone_reduce";
+    int order = 1;
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "rhs", 1});
+                     "rhs", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "acc", 2});
+                     "acc", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "out", 3});
+                     "out", order++});
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "n", 4});
+                     "n", order++});
     steps.push_back({"configure", "tcrv_rvv.setvl",
                      "rvv.role.configure.setvl", "TCRVConfigOpInterface",
                      "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
-                     5});
+                     order++});
     steps.push_back({"scope", "tcrv_rvv.with_vl",
                      "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "with_vl", 6});
+                     "TCRVEmitCLowerableInterface", "with_vl", order++});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "lhs_load", 7});
+                     "lhs_load", order++});
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "rhs_load", 8});
-    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
-                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     route->operationMnemonic, 9});
+                     "rhs_load", order++});
+    if (isDeferredWideDotChain) {
+      steps.push_back({"compute", "tcrv_rvv.widening_product",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface", "widening_product",
+                       order++});
+      steps.push_back({"compute", "tcrv_rvv.deferred_accumulate",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface",
+                       "deferred_dot_accumulate", order++});
+      steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
+                       route->typedRoleID, "TCRVComputeOpInterface",
+                       "TCRVEmitCLowerableInterface", route->operationMnemonic,
+                       order++});
+    } else {
+      steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                       "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                       route->operationMnemonic, order++});
+    }
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "store", 10});
+                     "store", order++});
 }
 
 void appendStridedInputWideningDotReduceAddRoleSteps(
@@ -3828,11 +3853,26 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "tcrv_rvv.standalone_reduce, an optional "
         "tcrv_rvv.gearbox_cross_region_handoff, tcrv_rvv.dequantize, "
         "tcrv_rvv.compare, and tcrv_rvv.select");
-  if ((isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) &&
-      typedComputeOpName != "tcrv_rvv.widening_dot_reduce")
+  // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
+  // single fused tcrv_rvv.widening_dot_reduce and the deferred-wide i16 chain
+  // (2nd kernel family) widening_product + deferred_accumulate + standalone_reduce.
+  // The strided-input dot-reduce keeps only the narrow fused form.
+  const std::string deferredWideDotChain =
+      "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+      "tcrv_rvv.standalone_reduce";
+  if (isWideningDotReduceAdd &&
+      typedComputeOpName != "tcrv_rvv.widening_dot_reduce" &&
+      typedComputeOpName != deferredWideDotChain)
     return makeRVVConstructionError(
         "RVV widening dot-product reduction construction requires generic "
-        "tcrv_rvv.widening_dot_reduce");
+        "tcrv_rvv.widening_dot_reduce or the deferred-wide "
+        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+        "tcrv_rvv.standalone_reduce chain");
+  if (isStridedInputWideningDotReduceAdd &&
+      typedComputeOpName != "tcrv_rvv.widening_dot_reduce")
+    return makeRVVConstructionError(
+        "RVV strided-input widening dot-product reduction construction requires "
+        "generic tcrv_rvv.widening_dot_reduce");
   if ((isComputedMaskWideningDotReduceAdd ||
        isComputedMaskStridedInputWideningDotReduceAdd) &&
       typedComputeOpName != "tcrv_rvv.masked_widening_dot_reduce")
@@ -5717,6 +5757,26 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           facts.typedComputeOpName + "'");
     return llvm::Error::success();
   }
+  // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
+  // fused tcrv_rvv.widening_dot_reduce and the deferred-wide i16 chain
+  // widening_product + deferred_accumulate + standalone_reduce. Accept either.
+  if (route->operationMnemonic == "widening_dot_reduce_add") {
+    const llvm::StringRef narrowChain = "tcrv_rvv.widening_dot_reduce";
+    const llvm::StringRef deferredWideDotChain =
+        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+        "tcrv_rvv.standalone_reduce";
+    if (facts.typedComputeOpName != narrowChain &&
+        facts.typedComputeOpName != deferredWideDotChain)
+      return makeRVVConstructionError(
+          llvm::Twine(context) +
+          " selected-body typed compute op for operation '" +
+          facts.operationMnemonic +
+          "' must be the narrow tcrv_rvv.widening_dot_reduce or the deferred-wide "
+          "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+          "tcrv_rvv.standalone_reduce chain, but was '" +
+          facts.typedComputeOpName + "'");
+    return llvm::Error::success();
+  }
   if (!usesGenericBinary && facts.typedComputeOpName != route->typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -6799,6 +6859,27 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
           "' must be one of the bounded low-precision product-reduction "
           "dequant chains (widening_product/packed_i4_nibble_unpack_product "
           "head, optional gearbox_cross_region_handoff), but was '" +
+          typedComputeOpName + "'");
+    return llvm::Error::success();
+  }
+  // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
+  // single fused tcrv_rvv.widening_dot_reduce, and the deferred-wide i16 chain
+  // (2nd kernel family, N3 winner) that decomposes it into widening_product +
+  // deferred_accumulate + standalone_reduce. Both carry the same route identity;
+  // accept either chain (still fail-closed: any other chain is rejected).
+  if (expected.operationMnemonic == "widening_dot_reduce_add") {
+    const llvm::StringRef narrowChain = "tcrv_rvv.widening_dot_reduce";
+    const llvm::StringRef deferredWideDotChain =
+        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+        "tcrv_rvv.standalone_reduce";
+    if (typedComputeOpName != narrowChain &&
+        typedComputeOpName != deferredWideDotChain)
+      return makeRVVConstructionError(
+          llvm::Twine("selected-body typed compute op for operation '") +
+          operationMnemonic +
+          "' must be the narrow tcrv_rvv.widening_dot_reduce or the deferred-wide "
+          "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+          "tcrv_rvv.standalone_reduce chain, but was '" +
           typedComputeOpName + "'");
     return llvm::Error::success();
   }

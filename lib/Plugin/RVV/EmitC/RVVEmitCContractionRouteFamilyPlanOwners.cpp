@@ -475,6 +475,17 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
       operation ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredAccumulateReduceDequantizeF32;
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family): a
+  // dot-reduce route (NOT a product-reduction chain) whose realized body widens
+  // ONCE (i16m4 x i16m4 -> i32m8 product) and accumulates same-width before ONE
+  // trailing reduce. Its ROUTE IDENTITY mirrors the narrow dot-reduce (source
+  // i16mf2 / result i32m1 leaf profile, c-type, relation); only the PRIMITIVE
+  // intrinsics it actually emits are wide (vwmul_vv_i32m8 / vadd_vv_i32m8 /
+  // vredsum_vs_i32m8_i32m1), read from the realized ops (I5).
+  const bool isDeferredWideDotReduction =
+      operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd;
   const bool isProductReductionChain =
       operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       operation ==
@@ -634,6 +645,10 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
         kRVVWideningProductReductionDequantClampF32OperandBindingPlanID;
     break;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  // The deferred-wide i16 dot-reduce terminal kind binds via the SAME narrow
+  // dot-reduce operand-binding plan (route identity preserved).
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
     facts.routeOperandBindingPlanID = kRVVWideningDotReduceOperandBindingPlanID;
     break;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -656,6 +671,8 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.typedComputeOpName =
       isDeferredWideProductReductionDequantization
           ? "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+      : isDeferredWideDotReduction
+          ? "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+tcrv_rvv.standalone_reduce"
       : isProductReductionDequantClamp
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
       : isProductReductionDequantization
@@ -728,8 +745,15 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
                          ComputedMaskStridedInputWideningDotReduceAdd)
       facts.wideningDotSourceAccumulatorResultContract =
           kRVVComputedMaskStridedInputWideningDotSourceAccumulatorResultContract;
-    facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
-        kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
+    // The deferred-wide i16 dot-reduce realization widens the strip from mf2 to m4
+    // so the product is i32m8 (vs the narrow per-iteration fused vwmul_vv_i32m1).
+    // The PRIMITIVE product intrinsic mirrors the realized op (I5); the relation
+    // string remains the narrow route-identity relation.
+    facts.wideningProductIntrinsic =
+        isDeferredWideDotReduction
+            ? llvm::StringRef("__riscv_vwmul_vv_i32m8")
+            : getContractionWideningProductIntrinsic(
+                  kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
   }
   if (isComputedMask)
     facts.maskedWideningProductIntrinsic =
@@ -750,7 +774,8 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
           : getContractionVectorLoadIntrinsic(kResultSEW, kResultLMUL,
                                               usesUnsignedIntegerRoute);
   facts.reductionIntrinsic =
-      isDeferredWideProductReductionDequantization
+      (isDeferredWideProductReductionDequantization ||
+       isDeferredWideDotReduction)
           ? llvm::StringRef("__riscv_vredsum_vs_i32m8_i32m1")
       : isProductReductionChain
           ? getContractionWideningReductionIntrinsic(kProductSEW, kProductLMUL,
@@ -1058,6 +1083,8 @@ bool isRVVSelectedBodyContractionRouteOperation(
   case RVVSelectedBodyOperationKind::
       WideningProductDeferredAccumulateReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::

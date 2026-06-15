@@ -665,6 +665,10 @@ bool isContractionDotReductionOperation(RVVSelectedBodyOperationKind op) {
   case RVVSelectedBodyOperationKind::
       WideningProductDeferredAccumulateReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family) is a
+  // dot-reduce route (shares the narrow dot-reduce route identity).
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::
@@ -691,6 +695,10 @@ llvm::StringRef getContractionRuntimeABIOrder(
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
     return kRVVWideningProductReductionDequantClampF32RuntimeABIOrder;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family) shares the
+  // narrow dot-reduce runtime ABI order (lhs,rhs,acc,out,n).
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
     return kRVVWideningDotProductRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
     return kRVVStridedInputWideningDotProductRuntimeABIOrder;

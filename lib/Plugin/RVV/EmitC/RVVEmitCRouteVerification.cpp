@@ -272,7 +272,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       description.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredAccumulateReduceDequantizeF32;
-  if (!usesGenericBinary && !isDequantTypedComputeRoute)
+  // The deferred-wide i16 dot-reduce route (2nd kernel family) carries the
+  // structural chain typed-compute-op (widening_product+deferred_accumulate+
+  // standalone_reduce) on the description, validated against the bounded legal set
+  // by the construction-protocol layer -- it must not be mirrored against the
+  // single static narrow tcrv_rvv.widening_dot_reduce chain here.
+  const bool isDeferredWideDotReduceTypedComputeRoute =
+      description.operation ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd;
+  if (!usesGenericBinary && !isDequantTypedComputeRoute &&
+      !isDeferredWideDotReduceTypedComputeRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "typed compute op", description.typedComputeOpName,
             constructionRoute.typedComputeOpName))
@@ -2602,6 +2612,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (operationProfile.operation !=
             RVVSelectedBodyOperationKind::WideningDotReduceAdd &&
+        // The deferred-wide i16 dot-reduce (2nd kernel family) carries the same
+        // dot-reduce reduction-store-VL fact ('1') as the narrow dot-reduce.
+        operationProfile.operation !=
+            RVVSelectedBodyOperationKind::
+                WideningProductDeferredDotAccumulateReduceAdd &&
         !isProductReductionChainRoute &&
         !isStridedInputWideningDotReduce &&
         !isComputedMaskWideningDotReduce &&

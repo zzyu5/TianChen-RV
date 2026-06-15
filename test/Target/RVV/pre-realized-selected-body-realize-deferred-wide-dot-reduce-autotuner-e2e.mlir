@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=WIDE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 // RUN: sed 's/source_lmul = "mf2"/"tcrv_rvv.low_precision_resource.vector_register_budget" = 12 : i64, source_lmul = "mf2"/' %s | tcrv-opt --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=NARROW
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 //
 // P-B8 — the N3 autotuner finale for the 2nd kernel family (signed i16 widening
 // dot-reduce), END-TO-END from a kernel (selector-driven), parallel to the byte
@@ -92,3 +94,33 @@ module {
 // NARROW: tcrv_rvv.widening_dot_reduce
 // NARROW-SAME: dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 // NARROW-SAME: !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+
+// The deferred-wide i16 dot-reduce body materializes a DEPLOYABLE bundle: the
+// route-family description engine recognizes the structural chain and exports a
+// PLAN whose route IDENTITY is the narrow dot-reduce (same dot-reduce-add op,
+// same lhs/rhs/acc/out/n ABI, result config sew32/m1), while the typed-compute-op
+// chain mirrors the realized deferred-wide ops (widening_product+deferred_
+// accumulate+standalone_reduce). The wide source config (i16m4) is structural.
+// PLAN: tcrv.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_dot_reduce_add"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+tcrv_rvv.standalone_reduce"}
+// PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.sew", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i16m4-i32m1-contraction-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source:signed-e16m4,result:signed-e32m1,mask:b32"}
+// PLAN-SAME: runtime_abi_name = "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: status = "supported"
+// PLAN-SAME: target = @dot_reduce_autotuner_e2e_rvv
+
+// The deployable callable-C HEADER exports the narrow-identity ABI prototype
+// (const int16_t* lhs/rhs, const int32_t* acc, int32_t* out, size_t n).
+// HEADER: tianchenrv.rvv.selected_variant: @dot_reduce_autotuner_e2e_rvv
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-widening-dot-reduce-add-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i16m4-i32m1-contraction-leaf-profile.v1
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e16m4,result:signed-e32m1,mask:b32
+// HEADER: void tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);

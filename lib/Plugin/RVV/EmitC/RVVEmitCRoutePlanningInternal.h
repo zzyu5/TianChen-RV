@@ -985,6 +985,9 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::WideningProductDeferredAccumulateReduceAdd,
     RVVSelectedBodyOperationKind::
         WideningProductDeferredAccumulateReduceDequantizeF32,
+    RVVSelectedBodyOperationKind::WideningProductDeferredDotAccumulate,
+    RVVSelectedBodyOperationKind::
+        WideningProductDeferredDotAccumulateReduceAdd,
     RVVSelectedBodyOperationKind::WideningDotReduceAdd,
     RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
     RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,

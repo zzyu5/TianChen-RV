@@ -89,6 +89,15 @@ enum class RVVSelectedBodyOperationKind {
   WideningProductDeferredAccumulate,
   WideningProductDeferredAccumulateReduceAdd,
   WideningProductDeferredAccumulateReduceDequantizeF32,
+  // The N3 resource-aware deferred-wide realization of the i16 dot-reduce family
+  // (2nd kernel): the i16m4 x i16m4 -> i32m8 widening product feeds a SAME-WIDTH
+  // i32m8 tcrv_rvv.deferred_accumulate (vadd.vv), folded with ONE trailing
+  // standalone_reduce. Distinct from the byte deferred chain (which uses the
+  // WIDENING tcrv_rvv.widening_accumulate vwadd.wv). The DotAccumulate kind is a
+  // transient walk state (product + deferred_accumulate seen); the terminal
+  // ...DotReduceAdd kind shares the narrow WideningDotReduceAdd route identity.
+  WideningProductDeferredDotAccumulate,
+  WideningProductDeferredDotAccumulateReduceAdd,
   WideningDotReduceAdd,
   StridedInputWideningDotReduceAdd,
   ComputedMaskWideningDotReduceAdd,

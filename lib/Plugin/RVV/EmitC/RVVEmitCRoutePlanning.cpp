@@ -2085,10 +2085,13 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
         llvm::Twine(context) + " requires explicit RVV policy");
   // The deferred-wide (N3) product-reduce-dequant route runs its runtime AVL/VL
   // loop at the wide strip config (sew8/m2) -- the structural setvl config of
-  // the i8m2 -> i16m4 -> i32m8 winner. Admit that parallel config alongside the
-  // first-slice dataflow configs (I5: it is the realized setvl config).
+  // the i8m2 -> i16m4 -> i32m8 winner. The deferred-wide i16 dot-reduce route (2nd
+  // kernel family) runs its loop at the sew16/m4 strip config (i16m4 -> i32m8
+  // winner). Admit both parallel strip configs alongside the first-slice dataflow
+  // configs (I5: each is the realized setvl config of its route).
   if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul) &&
-      !tcrv::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul))
+      !tcrv::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul) &&
+      !tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sew, plan.lmul))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " requires a supported typed RVV SEW/LMUL config");
@@ -3663,6 +3666,22 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     config.sew = tcrv::rvv::getRVVSEW32Bits();
     config.lmul = tcrv::rvv::getRVVLMULM1();
   }
+  // The deferred-wide i16 dot-reduce realization (2nd kernel family) carries its
+  // SOURCE strip config (sew16/m4) on the setvl, but the route's LOGICAL profile
+  // is the i32m1 RESULT config -- identical to the narrow widening_dot_reduce
+  // route (whose setvl coincidentally carries that result config). The typed
+  // config facts were already validated against the structural
+  // source/product/accumulate/result types above; here the route
+  // description/configContract are normalized to the result config so the
+  // dot-reduce route profile derivation, c-type mapping, and header mirror match
+  // the narrow path (I5: the result type is structural in the reduce/store ops,
+  // not inferred from a name).
+  if (slice->arithmeticKind ==
+      RVVSelectedBodyOperationKind::
+          WideningProductDeferredDotAccumulateReduceAdd) {
+    config.sew = tcrv::rvv::getRVVSEW32Bits();
+    config.lmul = tcrv::rvv::getRVVLMULM1();
+  }
   const auto &configContract =
       tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.sew, config.lmul,
                                                     config.policy);
@@ -4354,6 +4373,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             routeProfile->operation.operation ==
                 RVVSelectedBodyOperationKind::
                     WideningProductReduceDequantClampF32);
+  } else if (routeProfile->operation.operation ==
+                 RVVSelectedBodyOperationKind::
+                     WideningProductDeferredDotAccumulateReduceAdd) {
+    // The deferred-wide i16 dot-reduce realized body is the structural chain
+    // widening_product -> deferred_accumulate -> standalone_reduce (no fused
+    // tcrv_rvv.widening_dot_reduce). Report that chain from the actual ops (I5),
+    // not the trailing arithmeticOp alone.
+    analysis.description.typedComputeOpName =
+        "tcrv_rvv.widening_product+tcrv_rvv.deferred_accumulate+"
+        "tcrv_rvv.standalone_reduce";
   } else {
     analysis.description.typedComputeOpName =
         (routeProfile->operation.operation ==

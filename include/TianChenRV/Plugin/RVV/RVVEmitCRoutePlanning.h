@@ -82,6 +82,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WideningMAccOp wideningMAccOp;
   tcrv::rvv::WideningProductOp wideningProductOp;
   tcrv::rvv::WideningAccumulateOp wideningAccumulateOp;
+  tcrv::rvv::DeferredAccumulateOp deferredAccumulateOp;
   tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
@@ -303,12 +304,26 @@ inline bool hasDeferredWideAccumulate(const RVVSelectedBodyRouteSlice &slice) {
   return static_cast<bool>(slice.wideningAccumulateOp);
 }
 
+// The i16 dot-reduce deferred-wide chain (the N3 resource-aware max-legal-LMUL
+// winner for the 2nd kernel family) inserts a tcrv_rvv.deferred_accumulate between
+// the i16m4 x i16m4 -> i32m8 widening_product and the trailing standalone_reduce:
+// the deferred accumulate is a SAME-WIDTH i32m8 vadd.vv (NOT the byte path's
+// widening vwadd.wv). When the slice carries a deferred_accumulate the i32 vector
+// that feeds the standalone_reduce is the deferred accumulate result. Structural,
+// I5: presence + the carried value are read directly from the typed op.
+inline bool
+hasDeferredWideDotAccumulate(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.deferredAccumulateOp);
+}
+
 // The i32 vector value that the trailing standalone_reduce consumes: the deferred
-// i32m8 accumulate result when the wide accumulate is present, else the narrow
-// product head result.
+// i32m8 accumulate result when the wide accumulate (byte vwadd.wv) OR the deferred
+// dot accumulate (i16 vadd.vv) is present, else the narrow product head result.
 inline mlir::Value
 reduceInputSlotResult(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningAccumulateOp accumulate = slice.wideningAccumulateOp)
+    return accumulate.getResult();
+  if (tcrv::rvv::DeferredAccumulateOp accumulate = slice.deferredAccumulateOp)
     return accumulate.getResult();
   return productSlotResult(slice);
 }

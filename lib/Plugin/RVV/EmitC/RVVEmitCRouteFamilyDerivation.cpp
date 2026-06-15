@@ -756,6 +756,37 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
           /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
           /*isSegmentedMemoryMovement=*/false,
           /*isWideningConversion=*/false};
+  // The deferred-wide (N3 resource-aware max-legal-LMUL) realization of the same
+  // logical widening_dot_reduce_add op (2nd kernel family, signed i16 widening
+  // dot-reduce): the externally visible terminal op kind is UNCHANGED
+  // ("widening_dot_reduce_add") -- the deferred i32m8 vadd.vv accumulate is an
+  // internal realization, not a different op surface. The distinct enum kinds
+  // exist so downstream sites that must derive the wide config (m4/m8) opt in
+  // structurally rather than collapse to narrow mf2 facts. The intermediate
+  // DotAccumulate kind is a transient walk state; its mnemonic names the partial
+  // chain for diagnostics.
+  static const RVVSelectedBodyOperationProfile
+      kWideningProductDeferredDotAccumulate = {
+          RVVSelectedBodyOperationKind::WideningProductDeferredDotAccumulate,
+          "widening_product_deferred_dot_accumulate",
+          "widening_product_deferred_dot_accumulated_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile
+      kWideningProductDeferredDotAccumulateReduceAdd = {
+          RVVSelectedBodyOperationKind::
+              WideningProductDeferredDotAccumulateReduceAdd,
+          "widening_dot_reduce_add", "widening_dot_reduced_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kWideningDotReduceAdd = {
       RVVSelectedBodyOperationKind::WideningDotReduceAdd,
       "widening_dot_reduce_add", "widening_dot_reduced_vec", "",
@@ -943,6 +974,11 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
   case RVVSelectedBodyOperationKind::
       WideningProductDeferredAccumulateReduceDequantizeF32:
     return kWideningProductDeferredAccumulateReduceDequantizeF32;
+  case RVVSelectedBodyOperationKind::WideningProductDeferredDotAccumulate:
+    return kWideningProductDeferredDotAccumulate;
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
+    return kWideningProductDeferredDotAccumulateReduceAdd;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return kWideningDotReduceAdd;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1242,6 +1278,9 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::WideningProductDeferredAccumulateReduceAdd:
   case RVVSelectedBodyOperationKind::
       WideningProductDeferredAccumulateReduceDequantizeF32:
+  case RVVSelectedBodyOperationKind::WideningProductDeferredDotAccumulate:
+  case RVVSelectedBodyOperationKind::
+      WideningProductDeferredDotAccumulateReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::
