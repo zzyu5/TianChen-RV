@@ -886,3 +886,38 @@ Built the mature-compiler N3 core the user mandated ('编译的高性能, not �
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Measurement-backed autotuner (实测胜出) + super-block K-quant q6_K byte-exact; 4 real ggml kernels covered
+
+**Date**: 2026-06-16
+**Task**: Measurement-backed autotuner (实测胜出) + super-block K-quant q6_K byte-exact; 4 real ggml kernels covered
+**Branch**: `main`
+
+### Summary
+
+INC-10: replaced the static cost model's GUESS with on-board MEASUREMENT (the genuine N3 实测胜出). Architecture = tune-once-per-(kernel,march) -> cache a human-readable tuning record (winning shape + measured_ns + audit ladder, produced by tune_block_dot.py emitting each legal candidate via the COMPILER + benchmarking on ssh rvv + byte-exact-gating) -> the materialize passes READ the record and stamp the measured-best shape (RVVBlockDotScheduleTuning.h), fail-closed-revalidated, falling back to the static cost model (now pruner+offline-fallback) when absent. This FIXED q4_1 (static picked its slowest shape m1/4/elided=0.842x; measurement crowns m1/1/elided=1.012x) and overturned the static 'more-unroll-is-better' premise (measured elided optimum is factor 1>2>4 for q8_0/q4_1, factor 4 only for q4_0 — the per-kernel truth no static model captures without a curve-fit treadmill). Honest measured results (rv64gcv -zfh, authoritative): q4_0 beats ggml ~4.5% (the no-zfh ~13% was inflated), q8_0 parity, q4_1 beats ~1.2% — all 3 at parity-or-win by the genuine measured optimum. INC-11+12 (q6_K K1+K2): first SUPER-BLOCK K-quant — a full STRUCTURED byte-exact deployable drop-in for ggml_vec_dot_q6_K_q8_K (256-elem super-block, 16 int8-scaled sub-blocks, 6-bit ql+qh unpack, per-sub-block scale in i32 -> aux32[8], then the deferred two-level fp32 fold: d=fp16(x.d)*fp32(y.d), per-lane sums[l]+=d*aux32[l] across 8 fp32 lanes, SEQUENTIAL horizontal sum into *s, no reassociation/no fma/no vector-reduce). Byte-exact *s vs ggml _generic: 0/2011 cases at -ffp-contract=off; proven via a real extern C ggml_vec_dot_q6_K_q8_K symbol. Coverage now = 4 real ggml kernels across 3 families (A: q4_0/q8_0; B scale+min: q4_1; super-block K-quant: q6_K). raw()=0 throughout; clean rebuilds green; 3 documented environmental reds; all additive. Honest residuals: q6_K VLEN>=128-pinned (no <128 re-strip); q6_K perf not yet measured (K3 = tuner inherits q6_K); more K-quants (q4_K etc.) + the broader kernel set remain (asymptote).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4c2999b9` | (see git log) |
+| `ae479367` | (see git log) |
+| `f7f90eac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
