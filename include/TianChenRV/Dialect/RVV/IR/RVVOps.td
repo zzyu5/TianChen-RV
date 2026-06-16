@@ -4694,6 +4694,112 @@ def GgmlBlockDotQ6KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ4KQ8KAux32Op
+    : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q4_K x Q8_K super-block INTEGER aux32 partial op";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_q4_K_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step --
+    the q4_K K-quant proof's K4a increment. q4_K is the most-used modern K-quant
+    (the dominant weight quant in `*_K_M` mixes). K4a is split from the fp32 fold
+    for a reliable dispatch: it isolates the genuinely-new q4_K INTEGER state --
+    (1) the 6-bit scale/min bit-dance unpack (the `get_scale_min_k4` /
+    `utmp[4]`/`kmask` cross-byte decode), and (2) the per-sub-block 4-bit dot
+    scaled into the i32 accumulator -- byte-exact vs `_generic`'s INTEGER state
+    BEFORE the fp32 `d`/`dmin` fold. The fp32 two-level fold + the `min` term
+    (`Σ bsums*mins`) + the ggml ABI are DELIBERATELY OUT OF SCOPE here -- that is
+    K4b.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FIVE runtime
+    ABI value operands -- the q4_K weight base pointer (vx), the q8_K activation
+    base pointer (vy), the i32 aux32 output pointer (the 8-lane integer-state
+    destination), the uint8 scale/min output pointer (the per-super-block 16
+    decoded bytes: 8 6-bit scales then 8 6-bit mins, mirroring _generic's
+    contiguous `utmp[4]` reinterpreted as `scales=&utmp[0]`/`mins=&utmp[2]`), the
+    runtime element count (n) -- plus the active !tcrv_rvv.vl token. It produces
+    ONE i32 LMUL m1 !tcrv_rvv.vector token whose lowering writes the
+    per-super-block aux32[8] integer state AND the 16 decoded scale/min bytes
+    through the two output pointers.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32
+    elements, the AoS block strides (144 bytes for block_q4_K, 292 bytes for
+    block_q8_K), the q4_K payload byte offsets (d @0, dmin @2, the 12 packed
+    scale bytes @4, qs @16) and the q8_K payload byte offset (qs @4) -- are
+    carried as typed integer/string attributes (I4 mirror only). The fixed
+    emission mirrors `_generic` (quants.c:644-718) line-for-line so byte-exactness
+    is by construction:
+    - a function-scoped int8_t aux8[256] scratch (an emitc.variable of
+      !emitc.array<256 x !emitc.opaque<"int8_t">>), filled element-ordered (NO
+      bias) by FOUR 64-element chunks, each chunk doing a 32-wide e8m2 vand 0x0F
+      (low nibble -> a[0..31]) and a 32-wide e8m2 vsrl 4 (high nibble ->
+      a[32..63]) vreinterpret to i8 + vse8 store (the q4_K nibbles are UNsigned
+      [0,15], no -32 bias -- the bias is carried by the min term, K4b);
+    - the 6-bit scale/min bit-dance, STRUCTURED scalar emitc: the 12 packed bytes
+      at `scales @4` are read as THREE uint32 words; the `utmp[4]`/`kmask1`
+      (0x3f3f3f3f) /`kmask2` (0x0f0f0f0f) /`kmask3` (0x03030303) cross-byte
+      shuffle is reproduced with emitc.bitwise_and/bitwise_or/bitwise_left_shift/
+      bitwise_right_shift over the three words into a 4-word utmp, then the 16
+      bytes (scales[0..7], mins[0..7]) are vse8-stored through the scale/min
+      output pointer (the same type-pun _generic does);
+    - a nested emitc.for sub-block loop over 8 sub-blocks: the per-sub-block UINT8
+      ZERO-EXTENDED 6-bit scale `scales[js]` (applied in the i32 domain -- NOT
+      q6_K's sign-extended int8), then FOUR 8-element quarters each doing vle8 q8
+      + vle8 aux8 -> vwmul i8xi8->i16 -> vwmacc.vx i32 += scale x i16 into the
+      carried 8-lane aux32 i32 accumulator (e32m2 covers 8 lanes at VLEN>=128;
+      integer add is order-independent so the lane-wise accumulation is
+      byte-exact);
+    - a vse32 store of the 8-lane aux32 vector through the aux32 output pointer at
+      the super-block's destination (aux32 is RESET to zero each super-block,
+      reproducing `_generic`'s `memset(aux32, 0, ...)`).
+    This emission is the op's fixed structure, NOT a candidate-mirror string read
+    in the conversion. The bounded surface kind is limited to
+    "ggml_q4_k_q8_k_aux_partial" and scale_model to
+    "per-sub-block-uint6-scale-i32-domain". Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/q4 names, and common EmitC/export code must not infer or choose
+    super-block dot-product semantics.
+
+    K4a emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target): the unpack runs one
+    vsetvl_e8m2(32) per 32-element nibble group and the per-sub-block quarter runs
+    e8mf2(8)->i16m1->e32m2 (the 8-lane aux32 accumulator), with NO VLEN-robust
+    re-strip loop (a VLEN<128 board would leave part of aux8 unwritten -- the
+    zve32x/zve64x re-strip is a capability item, not built here). The bit-dance is
+    scalar (VLEN-independent). No resource shape knobs yet. This K4a op carries
+    only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$aux32_output,
+    AnyType:$scalemin_output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $aux32_output `,` $scalemin_output "
+    "`,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($aux32_output) `,` type($scalemin_output) `,` type($element_count) "
+    "`,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",
     [TCRVEmitCLowerableOpInterface]> {
