@@ -4172,6 +4172,100 @@ def GgmlBlockDotQ41Q81Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ6KQ8KAux32Op
+    : TCRVRVV_Op<"q6_k_q8_k_aux32_partial",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q6_K x Q8_K super-block INTEGER aux32 partial op";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_q6_K_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step --
+    the K-quant first super-block proof's K1 increment. It reproduces ggml's
+    per-super-block INTEGER state `aux32[8]` EXACTLY as `_generic` computes it
+    right BEFORE the fp32 `d`-multiply, byte-exact (i32 equality), and writes
+    that 8-lane i32 state through a caller-supplied output pointer. The fp32
+    two-level fold (the deferred per-super-block fp16-`d` x fp32-`d` multiply into
+    `sums[8]` + the sequential horizontal sum into `*s`) is DELIBERATELY OUT OF
+    SCOPE here -- that is the K2 increment. K1 isolates the genuinely-new
+    super-block integer machinery (the 6-bit ql+qh unpack, the per-sub-block int8
+    scale applied in the i32 domain, the nested sub-block structure, the lane-
+    collapsed aux32 accumulator) from the fp32 hierarchy.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the q6_K weight base pointer (vx), the q8_K activation
+    base pointer (vy), the i32 aux32 output pointer (the 8-lane integer-state
+    destination), the runtime element count (n) -- plus the active
+    !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token whose
+    lowering writes the per-super-block aux32[8] integer state through the output
+    pointer.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 16 sub-blocks of 16
+    elements, the AoS block strides (210 bytes for block_q6_K, 292 bytes for
+    block_q8_K), the q6_K payload byte offsets (ql @0, qh @128, scales @192,
+    d @208) and the q8_K payload byte offset (qs @4) -- are carried as typed
+    integer/string attributes (I4 mirror only). The fixed emission mirrors
+    `_generic` line-for-line so byte-exactness is by construction:
+    - an outer emitc.for super-block loop over nb = n / 256;
+    - a function-scoped int8_t aux8[256] scratch array (an emitc.variable of
+      !emitc.array<256 x !emitc.opaque<"int8_t">>), filled element-ordered and
+      biased -32 by TWO 128-element chunks, each chunk doing the 4-strip vand/
+      vsrl/vsll/vor/vsub 6-bit ql+qh reconstruct (the exact `a[l+0]/[l+32]/
+      [l+64]/[l+96]` permutation) and a vse8 store into aux8 at the matching
+      offset (the permutation lives ENTIRELY in the unpack -- the dot reads aux8
+      contiguously, exactly as `_generic` does with `a += 8`);
+    - a nested emitc.for sub-block loop over 16 sub-blocks: a scalar int8 scale
+      load `scales[js]` (the per-sub-block scale, applied in the i32 domain), then
+      two 8-element halves each doing vle8 q8 + vle8 aux8 -> vwmul i8xi8->i16 ->
+      vwmacc.vx i32 += scale x i16 into the carried 8-lane aux32 i32 accumulator
+      vector (e32m2 covers 8 lanes at VLEN>=128; integer add is order-independent
+      so the lane-wise accumulation is byte-exact);
+    - a vse32 store of the 8-lane aux32 vector through the output pointer at the
+      super-block's aux32 destination (aux32 is RESET to zero each super-block,
+      reproducing `_generic`'s `memset(aux32, 0, ...)`).
+    This emission is the op's fixed structure, NOT a candidate-mirror string read
+    in the conversion. The bounded surface kind is limited to
+    "ggml_q6_k_q8_k_aux32_partial" and scale_model to
+    "per-sub-block-int8-scale-i32-domain". Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/q6 names, and common EmitC/export code must not infer or choose
+    super-block dot-product semantics.
+
+    K1 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target): the unpack runs one
+    vsetvl_e8m2(32) per 32-element group and the per-sub-block half runs
+    e8mf2(8)->i16m1->e32m2 (the 8-lane aux32 accumulator), with NO VLEN-robust
+    re-strip loop (a VLEN<128 board would leave part of aux8 unwritten -- the
+    zve32x/zve64x re-strip is a K2/capability item, not built here). No resource
+    shape knobs yet; the K3 measurement tuner will register q6_K's candidate
+    shapes. This K1 op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
