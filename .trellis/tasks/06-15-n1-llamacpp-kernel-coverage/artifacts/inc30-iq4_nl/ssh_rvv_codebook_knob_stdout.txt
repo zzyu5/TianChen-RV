@@ -1,0 +1,7 @@
+### COMPILER-KNOB control (ssh rvv, VLEN=128, -ffp-contract=off)
+### two kernels emitted by the COMPILER differing ONLY in the MLIR codebook= attr:
+###   real   = array<i8: -127,-104,...,113>  (kvalues_iq4nl)
+###   linear = array<i8: -8,-7,...,7>          (q4_0 nibble-8 decode)
+compiler(real-attr)   = 2280072   (ref real  = 2280072)
+compiler(linear-attr) = 138029.734   (ref linear= 138029.734, == q4_0 on these bytes)
+COMPILER-KNOB CONTROL OK: flipping ONLY the codebook= attr -> emitted decl flips -> HW result flips (real != linear), each matching its own table's math

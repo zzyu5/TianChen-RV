@@ -4472,6 +4472,118 @@ def GgmlBlockDotQ50Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotIQ4NLQ80Op
+    : TCRVRVV_Op<"iq4_nl_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml IQ4_NL x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_iq4_nl_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the FAMILY-A sibling
+    that opens the CODEBOOK quantization class. It shares the AoS QK=32 block loop,
+    the per-block dual fp16 scale, the fp32 scalar accumulation, and the `*s` store
+    with tcrv_rvv.q4_0_q8_0_block_dot, AND its block byte layout is byte-IDENTICAL
+    to block_q4_0: block_iq4_nl is {fp16 d; uint8 qs[16]} (stride 18), the 16 packed
+    nibble bytes at +2, the low nibble of byte j paired with q8[j] and the high
+    nibble with q8[j+16] (the q8_0 activation is unchanged: stride 34, qs at +2, the
+    high half at +16). The ONE genuinely-new piece -- the mechanism that opens the
+    codebook class -- is that the 4-bit nibble does NOT decode to a linear value
+    (`nibble - 8` as in q4_0) but INDEXES a 16-entry NON-LINEAR INT8 CODEBOOK
+    (ggml's `kvalues_iq4nl[16] = {-127,-104,-83,-65,-49,-35,-22,-10, 1,13,25,38,53,
+    69,89,113}`): the per-element weight value is `kvalues_iq4nl[nibble]`, a
+    deterministic int8->int8 lookup, NOT an arithmetic decode.
+
+    (1) The integer core unpacks the two UNSIGNED nibble-index lanes (`vand 0x0F`
+        low nibble / `vsrl 0x04` high nibble on the UNSIGNED weight lane -> two u8
+        index lanes in [0,15]) then GATHERS each lane through the broadcast codebook
+        table via `vrgather_vv_i8m1(values, idx)` (ggml's exact RVV method, the same
+        `__riscv_vrgather_vv_i8...` the board kernel uses). `values` is the 16-entry
+        signed-int8 codebook broadcast into a vector register ONCE above the block
+        loop via `vle8_v_i8m1(kvalues_iq4nl, 16)`. The two gathered signed-i8 weight
+        lanes feed the SAME asymmetric signed widening product against the plain-i8
+        q8 halves (vwmul low <-> q8[0..15], vwmacc + high <-> q8[16..31]) ->
+        vwredsum -> i32 `sumi` the q4_0 sibling uses (the gather REPLACES only the
+        offset-binary decode; the product/reduce chain is shared verbatim). This is
+        the codebook variant of the nibble core, added CLEANLY alongside the
+        offset-binary (q4_0), unsigned (q4_1), and 5-bit (q5_0) cores (all
+        byte-untouched).
+
+    (2) The per-block fold is ggml's iq4_nl order `sumf = sumf + (float)sumi *
+        (d_x * d_y)` (the two fp16 scales multiplied FIRST, the q8_0/q5_0 scales-
+        first order -- NOT the Q4_0 sibling's `((sumi*d_x)*d_y)`; ggml's _generic is
+        `d * (sumi1 + sumi2)` with `d = d_y * d_x`). It is grouped into ONE
+        emitc.expression so the compiler fuses the SAME FMA ggml does under
+        -ffp-contract on/default (byte-exact across all four modes).
+
+    The CODEBOOK GATHER is inherently a Zvl128b legality fact: to index ALL 16 table
+    entries the `values` register's VLMAX must be >= 16, so the gather pins the m1
+    integer-core anchor (at VLEN=128 e8: m1 -> VLMAX=16 = the whole half-block, mf4
+    -> VLMAX=4 would silently return 0 for any nibble index >= 4). The verifier
+    rejects a non-m1 anchor fail-closed (I7). The m1 anchor holds exactly the 16-lane
+    half-block in one `vsetvl_e8m1(16)`, so the codebook class is the loop-free
+    ("elided") strip form, correct for ANY VLEN >= 128 (vsetvl_e8m1(16) caps the
+    active vl at 16 when VLMAX >= 16) -- apples-to-apples with ggml's own VLEN >= 128
+    assumption. A board with VLEN < 128 (zve32x/zve64x) cannot legally host the
+    codebook gather at this anchor; that is an N1 capability-legality divergence, not
+    a coverage gap.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the iq4_nl weight base pointer (vx), the q8_0 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) -- plus
+    the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
+    whose lowering writes the single fp32 reduction result through the output
+    pointer.
+
+    The block-quantized dot-product STRUCTURE is first-class in the typed body. The
+    structural facts -- QK=32, the AoS block strides (18 bytes for block_iq4_nl, 34
+    bytes for block_q8_0), the quant payload byte offset (+2), the q8 high-half byte
+    offset (+16), the dual-fp16 scale model, and the 16-entry non-linear int8
+    CODEBOOK itself -- are carried as typed integer/string/array attributes (I4
+    mirror only). The codebook is a `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8
+    entries; it is a STRUCTURAL FACT (like the strides/offsets), consumed
+    structurally into the realized body (emitted as a `static const int8_t[16]` decl
+    + the `vle8` table load), NOT an arithmetic decode, NOT a string plan read. The
+    op identity is the dispatch key. Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand mirror strings, q8/iq4
+    names, and common EmitC/export code must not infer or choose block-quantized
+    dot-product semantics.
+
+    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
+    attributes are the SAME bounded resource/scheduling shape knobs the Family-A
+    siblings carry (the *how*, never the *what*; the dot-product is byte-exact for
+    any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). The codebook gather
+    constrains integer_core_lmul to "m1" only (the VLMAX >= 16 table-index legality
+    fact above); the verifier rejects any other anchor fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    DenseI8ArrayAttr:$codebook,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ51Q81Op
     : TCRVRVV_Op<"q5_1_q8_1_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

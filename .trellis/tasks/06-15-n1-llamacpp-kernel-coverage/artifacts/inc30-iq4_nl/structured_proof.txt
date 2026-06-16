@@ -1,0 +1,22 @@
+INC-30 iq4_nl structured (I5; raw()=0) proof
+=============================================
+Kernel: iq4_nl_m1_elided.cpp (tcrv-opt --tcrv-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp)
+
+raw() actual calls in the emitted kernel C : 0
+residual tcrv_rvv.* ops after lowering     : 0
+residual unrealized_conversion_cast ops    : 0
+
+Lowered emitc IR verbatim accounting:
+  total emitc.verbatim                       : 29
+  tcrv_emitc.* provenance comments (mirror)  : 28
+  sanctioned structured-const codebook decl  :  1  (static const int8_t tcrv_iq4_nl_kvalues[16] = {...})
+  UNSTRUCTURED C-blob verbatim               :  0
+
+The codebook table is the ONE task-sanctioned "structured const": a single
+`static const int8_t[16]` declaration rendering the verified DenseI8ArrayAttr
+entries, broadcast-loaded ONCE via __riscv_vle8_v_i8m1 above the block loop. Every
+compute value (the vand/vsrl nibble split, the two vrgather_vv_i8m1 codebook
+lookups, vwmul/vwmacc, vwredsum, the scales-first fp32 fold) is a structured emitc
+node (call_opaque / mul / add / cast / for / variable / load). The ONE sanctioned
+opaque scalar piece is the fp16->fp32 read (emitc.call_opaque), exactly as the
+Family-A siblings emit theirs.
