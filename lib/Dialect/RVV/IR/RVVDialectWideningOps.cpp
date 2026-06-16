@@ -1936,6 +1936,84 @@ mlir::LogicalResult GgmlRmsNormF32Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlVecSiluF32Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attr (I4): the operation kind. There
+  // is no resource/scheduling knob this cut -- the strip loop and the exp
+  // polynomial are fixed at m2 (matching ggml's vsetvl_e32m2 path and the
+  // m2-tied vbool16_t/vuint32m2_t mask/reinterpret types). Anything else -- a
+  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
+  // is rejected fail-closed (I7).
+  auto isAllowedSiluAttr = [](llvm::StringRef name) { return name == "kind"; };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.ggml_vec_silu_f32 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedSiluAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32 silu attribute 'kind'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_vec_silu_f32")
+    return emitOpError()
+           << "currently supports only kind \"ggml_vec_silu_f32\" for the "
+              "bounded ggml f32 silu (vectorized-transcendental) typed surface";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only f32 input pointer, one f32 output "
+              "pointer, one runtime element-count runtime ABI operand, one "
+              "!tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+
+  // The input is read-only (const float *), the output is written (float *).
+  // ggml's ggml_vec_silu_f32 reads x and writes y (vec.cpp:380); the
+  // byte-exactness depends on the exp polynomial running on real f32 lanes, so
+  // the input must be a real f32 buffer.
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] row read for the silu)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml y[] silu output buffer)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+              "\"m1\"> for the ggml f32 silu route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml f32 silu";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

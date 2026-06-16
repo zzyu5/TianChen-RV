@@ -1025,6 +1025,24 @@ public:
       return mlir::success();
     }
 
+    // The forward-pass F5 op (tcrv_rvv.ggml_vec_silu_f32) is the FIRST non-dot
+    // VECTORIZED TRANSCENDENTAL: the per-strip silu y[i] = x[i]*sigmoid(x[i])
+    // where sigmoid runs ggml's EXACT vectorized exp polynomial
+    // (ggml_v_expf_m2). It owns a dedicated routine (an m2 f32 strip loop whose
+    // body is the node-for-node ggml_v_expf_m2 intrinsic chain + the silu
+    // neg/exp/+1/div) -- a NEW shape vs F1/F3 because the exp polynomial must be
+    // replicated bit-for-bit (the slow-path vmerge value graph emitted
+    // unconditionally; ggml's vcpop short-circuit is a pure perf branch whose
+    // taken/not-taken paths are bitwise-equal). Marker: the op identity.
+    if (isGgmlVecSiluF32Body(scope)) {
+      if (mlir::failed(emitGgmlVecSiluF32(rewriter, loc, scope, avlArg,
+                                          sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     if (isDeferredWideDotReduceBody(scope)) {
       if (mlir::failed(emitDeferredWideDotReduceBody(
               rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
@@ -1697,6 +1715,24 @@ private:
       }
     }
     return sawRmsNorm;
+  }
+
+  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.ggml_vec_silu_f32
+  /// (the f32 silu: y[i] = x[i]*sigmoid(x[i]), via ggml's EXACT vectorized exp
+  /// polynomial). The op identity is the dispatch key; the emitter owns the
+  /// structured strip-loop + the node-for-node ggml_v_expf_m2 intrinsic chain.
+  static bool isGgmlVecSiluF32Body(tcrvrvv::WithVLOp scope) {
+    bool sawSilu = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlVecSiluF32Op>(op)) {
+        if (sawSilu)
+          return false;
+        sawSilu = true;
+      } else {
+        return false;
+      }
+    }
+    return sawSilu;
   }
 
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
@@ -7097,6 +7133,257 @@ private:
           loc, stepComment(opName, role, storeCallee));
       rewriter.create<emitc::CallOpaqueOp>(
           loc, mlir::TypeRange{}, storeCallee,
+          mlir::ValueRange{yStorePtr, vy, bodyVL});
+    }
+
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml ggml_vec_silu_f32 forward-pass op (the FFN
+  /// activation y[i] = x[i]*sigmoid(x[i]), sigmoid(x) = 1/(1+e^{-x});
+  /// vec.cpp:380 + ggml_v_silu_m2 vec.h:1363) as fully STRUCTURED emitc nodes
+  /// (I5; no verbatim C-string blob -- every value is a node):
+  ///   for (size_t i = 0; i < n; i += vlmax) {
+  ///     size_t vl = __riscv_vsetvl_e32m2(n - i);
+  ///     vfloat32m2_t vx = __riscv_vle32_v_f32m2(x + i, vl);
+  ///     vfloat32m2_t vy = ggml_v_silu_m2(vx, vl);     // expanded node-for-node
+  ///     __riscv_vse32_v_f32m2(y + i, vy, vl);
+  ///   }
+  /// silu = vfneg(x) -> ggml_v_expf_m2 -> vfadd 1.0f -> vfdiv(x, 1+exp).
+  ///
+  /// BYTE-EXACTNESS to ggml's REAL vectorized silu hinges on replicating
+  /// ggml_v_expf_m2 (vec.h:1324-1360) node-for-node -- a fully vectorized minimax
+  /// exp polynomial built ENTIRELY from __riscv_v intrinsics (NO libm expf). Each
+  /// intrinsic is one emitc.call_opaque node (the one sanctioned opaque seam, as
+  /// the dot kernels emit theirs) with the IDENTICAL magic-constant bit patterns
+  /// (0x1.8p23f, 0x1.715476p+0f, 0x1.62e4p-1f, 0x1.7f7d1cp-20f, the degree-5
+  /// polynomial coefficients, 0x3f800000, 0x82000000/0x7f000000/126.0f/192.0f).
+  /// ggml's `if (!vcpop_m(c))` is a pure performance short-circuit -- the fast
+  /// path k + j*k equals the slow path's c-false lane k + k*j bit-for-bit (fp
+  /// multiply commutes; RISC-V yields the canonical NaN regardless of operand
+  /// order) -- so the slow-path vmerge value graph is emitted UNCONDITIONALLY as
+  /// a straight-line chain: same output bits for every input (normal, saturating
+  /// tails, NaN/inf/denormal), no data-dependent branch. Pinned at m2 (matching
+  /// ggml's vsetvl_e32m2 path and the m2-tied vbool16_t/vuint32m2_t types).
+  mlir::LogicalResult emitGgmlVecSiluF32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlVecSiluF32Op siluOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto s = llvm::dyn_cast<tcrvrvv::GgmlVecSiluF32Op>(op))
+        siluOp = s;
+    }
+    if (!siluOp)
+      return rewriter.notifyMatchFailure(scope, "silu body missing the op");
+
+    mlir::Value input = valueMap.lookup(siluOp.getInput());
+    mlir::Value outputBuf = valueMap.lookup(siluOp.getOutput());
+    if (!input || !outputBuf)
+      return rewriter.notifyMatchFailure(siluOp, "silu ABI operand unmapped");
+
+    llvm::StringRef opName = siluOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = siluOp.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type inputPtrType = input.getType();
+    mlir::Type outputPtrType = outputBuf.getType();
+
+    // The polynomial is fixed at m2 (ggml's vsetvl_e32m2 path; the masks are
+    // vbool16_t and the reinterprets vuint32m2_t -- all m2-tied).
+    mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
+    mlir::Type u32VecType = emitc::OpaqueType::get(ctx, "vuint32m2_t");
+    mlir::Type boolType = emitc::OpaqueType::get(ctx, "vbool16_t");
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type u32ScalarType = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // Small helpers: a structured emitc.call_opaque node, a literal float
+    // immediate (rendered as the exact C hex-float token), a literal u32.
+    auto vcall = [&](mlir::Type resTy, llvm::StringRef callee,
+                     mlir::ValueRange args) -> mlir::Value {
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resTy}, callee, args)
+          .getResult(0);
+    };
+    auto fimm = [&](llvm::StringRef tok) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, floatType, tok);
+    };
+    auto uimm = [&](llvm::StringRef tok) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, u32ScalarType, tok);
+    };
+    auto shiftImm = [&]() -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, "23");
+    };
+
+    // Pre-loop full-chunk VLMAX: size_t vlmax = __riscv_vsetvl_e32m2(n).
+    mlir::Value vlmax =
+        vcall(sizeType, "__riscv_vsetvl_e32m2", mlir::ValueRange{avlArg});
+
+    // for (size_t i = 0; i < n; i += vlmax) { ... }
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
+                                               /*bodyBuilder=*/nullptr);
+    mlir::Value inductionVar = forOp.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(forOp.getBody());
+
+      // size_t vl = __riscv_vsetvl_e32m2(n - i);
+      mlir::Value remaining =
+          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+      mlir::Value bodyVL =
+          vcall(sizeType, "__riscv_vsetvl_e32m2", mlir::ValueRange{remaining});
+
+      // const float *xp = x + i;  float *yp = y + i;
+      mlir::Value xPtr =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, inductionVar);
+      mlir::Value xLoadPtr =
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xPtr)
+              .getResult();
+      mlir::Value yPtr = rewriter.create<emitc::AddOp>(loc, outputPtrType,
+                                                       outputBuf, inductionVar);
+      mlir::Value yStorePtr =
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, yPtr).getResult();
+
+      // vfloat32m2_t vx = __riscv_vle32_v_f32m2(xp, vl);
+      mlir::Value vx = vcall(f32VecType, "__riscv_vle32_v_f32m2",
+                             mlir::ValueRange{xLoadPtr, bodyVL});
+
+      // ===== ggml_v_silu_m2(vx, vl): neg -> ggml_v_expf_m2 -> +1 -> div =====
+      // const vfloat32m2_t neg_x = __riscv_vfneg_v_f32m2(x, vl);
+      mlir::Value negX = vcall(f32VecType, "__riscv_vfneg_v_f32m2",
+                               mlir::ValueRange{vx, bodyVL});
+
+      // --- ggml_v_expf_m2(neg_x, vl) replicated node-for-node (vec.h:1324) ---
+      // X is neg_x.
+      mlir::Value X = negX;
+      // const vfloat32m2_t r = __riscv_vfmv_v_f_f32m2(0x1.8p23f, vl);
+      mlir::Value r = vcall(f32VecType, "__riscv_vfmv_v_f_f32m2",
+                            mlir::ValueRange{fimm("0x1.8p23f"), bodyVL});
+      // const vfloat32m2_t z = __riscv_vfmacc_vf_f32m2(r, 0x1.715476p+0f, x, vl);
+      mlir::Value z = vcall(
+          f32VecType, "__riscv_vfmacc_vf_f32m2",
+          mlir::ValueRange{r, fimm("0x1.715476p+0f"), X, bodyVL});
+      // const vfloat32m2_t n = __riscv_vfsub_vv_f32m2(z, r, vl);
+      mlir::Value n = vcall(f32VecType, "__riscv_vfsub_vv_f32m2",
+                            mlir::ValueRange{z, r, bodyVL});
+      // const vfloat32m2_t b = vfnmsac(vfnmsac(x, 0x1.62e4p-1f, n), 0x1.7f7d1cp-20f, n);
+      mlir::Value bInner = vcall(
+          f32VecType, "__riscv_vfnmsac_vf_f32m2",
+          mlir::ValueRange{X, fimm("0x1.62e4p-1f"), n, bodyVL});
+      mlir::Value b = vcall(
+          f32VecType, "__riscv_vfnmsac_vf_f32m2",
+          mlir::ValueRange{bInner, fimm("0x1.7f7d1cp-20f"), n, bodyVL});
+      // const vuint32m2_t e = __riscv_vsll_vx_u32m2(vreinterpret_v_f32m2_u32m2(z), 23, vl);
+      mlir::Value zBits = vcall(u32VecType, "__riscv_vreinterpret_v_f32m2_u32m2",
+                                mlir::ValueRange{z});
+      mlir::Value e = vcall(u32VecType, "__riscv_vsll_vx_u32m2",
+                            mlir::ValueRange{zBits, shiftImm(), bodyVL});
+      // const vfloat32m2_t k = vreinterpret(vadd_vx_u32m2(e, 0x3f800000, vl));
+      mlir::Value kBits = vcall(u32VecType, "__riscv_vadd_vx_u32m2",
+                                mlir::ValueRange{e, uimm("0x3f800000"), bodyVL});
+      mlir::Value k = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
+                            mlir::ValueRange{kBits});
+      // const vbool16_t c = vmfgt_vf(vfabs_v(n), 126.0f, vl);
+      mlir::Value absN1 = vcall(f32VecType, "__riscv_vfabs_v_f32m2",
+                                mlir::ValueRange{n, bodyVL});
+      mlir::Value c = vcall(boolType, "__riscv_vmfgt_vf_f32m2_b16",
+                            mlir::ValueRange{absN1, fimm("126.0f"), bodyVL});
+      // const vfloat32m2_t u = __riscv_vfmul_vv_f32m2(b, b, vl);
+      mlir::Value u = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
+                            mlir::ValueRange{b, b, bodyVL});
+      // const vfloat32m2_t j = vfmacc_vv(
+      //     vfmul_vf(b, 0x1.ffffecp-1f),
+      //     vfmacc_vv(
+      //         vfmacc_vf(vfmv_v_f(0x1.fffdb6p-2f), 0x1.555e66p-3f, b),
+      //         vfmacc_vf(vfmv_v_f(0x1.573e2ep-5f), 0x1.0e4020p-7f, b),
+      //         u),
+      //     u);
+      mlir::Value jOuterA = vcall(
+          f32VecType, "__riscv_vfmul_vf_f32m2",
+          mlir::ValueRange{b, fimm("0x1.ffffecp-1f"), bodyVL});
+      mlir::Value jc0 = vcall(f32VecType, "__riscv_vfmv_v_f_f32m2",
+                              mlir::ValueRange{fimm("0x1.fffdb6p-2f"), bodyVL});
+      mlir::Value jInnerA = vcall(
+          f32VecType, "__riscv_vfmacc_vf_f32m2",
+          mlir::ValueRange{jc0, fimm("0x1.555e66p-3f"), b, bodyVL});
+      mlir::Value jc1 = vcall(f32VecType, "__riscv_vfmv_v_f_f32m2",
+                              mlir::ValueRange{fimm("0x1.573e2ep-5f"), bodyVL});
+      mlir::Value jInnerB = vcall(
+          f32VecType, "__riscv_vfmacc_vf_f32m2",
+          mlir::ValueRange{jc1, fimm("0x1.0e4020p-7f"), b, bodyVL});
+      mlir::Value jMid = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
+                               mlir::ValueRange{jInnerA, jInnerB, u, bodyVL});
+      mlir::Value j = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
+                            mlir::ValueRange{jOuterA, jMid, u, bodyVL});
+
+      // Slow path emitted UNCONDITIONALLY (the vcpop short-circuit is a pure perf
+      // branch; the slow path's c-false/|n|<=192 lanes are bitwise-equal to the
+      // fast path k + j*k). vec.h:1348-1359.
+      // const vbool16_t dm = __riscv_vmfle_vf_f32m2_b16(n, 0.0f, vl);
+      mlir::Value dm = vcall(boolType, "__riscv_vmfle_vf_f32m2_b16",
+                             mlir::ValueRange{n, fimm("0.0f"), bodyVL});
+      // const vuint32m2_t d = vmerge_vxm(vmv_v_x(0, vl), 0x82000000, dm, vl);
+      mlir::Value dZero =
+          vcall(u32VecType, "__riscv_vmv_v_x_u32m2",
+                mlir::ValueRange{uimm("0"), bodyVL});
+      mlir::Value d =
+          vcall(u32VecType, "__riscv_vmerge_vxm_u32m2",
+                mlir::ValueRange{dZero, uimm("0x82000000"), dm, bodyVL});
+      // const vfloat32m2_t s1 = vreinterpret(vadd_vx_u32m2(d, 0x7f000000, vl));
+      mlir::Value s1Bits = vcall(u32VecType, "__riscv_vadd_vx_u32m2",
+                                 mlir::ValueRange{d, uimm("0x7f000000"), bodyVL});
+      mlir::Value s1 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
+                             mlir::ValueRange{s1Bits});
+      // const vfloat32m2_t s2 = vreinterpret(vsub_vv_u32m2(e, d, vl));
+      mlir::Value s2Bits = vcall(u32VecType, "__riscv_vsub_vv_u32m2",
+                                 mlir::ValueRange{e, d, bodyVL});
+      mlir::Value s2 = vcall(f32VecType, "__riscv_vreinterpret_v_u32m2_f32m2",
+                             mlir::ValueRange{s2Bits});
+      // const vfloat32m2_t r1 = vmerge_vvm(
+      //     vfmacc_vv(k, k, j, vl),
+      //     vfmul_vv(vfmacc_vv(s2, s2, j, vl), s1, vl),
+      //     c, vl);
+      mlir::Value r1False = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
+                                  mlir::ValueRange{k, k, j, bodyVL});
+      mlir::Value r1TrueInner = vcall(f32VecType, "__riscv_vfmacc_vv_f32m2",
+                                      mlir::ValueRange{s2, s2, j, bodyVL});
+      mlir::Value r1True = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
+                                 mlir::ValueRange{r1TrueInner, s1, bodyVL});
+      mlir::Value r1 = vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
+                             mlir::ValueRange{r1False, r1True, c, bodyVL});
+      // return vmerge_vvm(r1, vfmul_vv(s1, s1, vl),
+      //                   vmfgt_vf(vfabs_v(n), 192.0f, vl), vl);
+      mlir::Value absN2 = vcall(f32VecType, "__riscv_vfabs_v_f32m2",
+                                mlir::ValueRange{n, bodyVL});
+      mlir::Value overMask = vcall(boolType, "__riscv_vmfgt_vf_f32m2_b16",
+                                   mlir::ValueRange{absN2, fimm("192.0f"),
+                                                    bodyVL});
+      mlir::Value s1Sq = vcall(f32VecType, "__riscv_vfmul_vv_f32m2",
+                               mlir::ValueRange{s1, s1, bodyVL});
+      mlir::Value expNegX = vcall(f32VecType, "__riscv_vmerge_vvm_f32m2",
+                                  mlir::ValueRange{r1, s1Sq, overMask, bodyVL});
+      // --- end ggml_v_expf_m2 ---
+
+      // const vfloat32m2_t one_plus = __riscv_vfadd_vf_f32m2(exp_neg_x, 1.0f, vl);
+      mlir::Value onePlus =
+          vcall(f32VecType, "__riscv_vfadd_vf_f32m2",
+                mlir::ValueRange{expNegX, fimm("1.0f"), bodyVL});
+      // vfloat32m2_t vy = __riscv_vfdiv_vv_f32m2(x, one_plus, vl);
+      mlir::Value vy = vcall(f32VecType, "__riscv_vfdiv_vv_f32m2",
+                             mlir::ValueRange{vx, onePlus, bodyVL});
+
+      // __riscv_vse32_v_f32m2(yp, vy, vl);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "__riscv_vse32_v_f32m2"));
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, mlir::TypeRange{}, "__riscv_vse32_v_f32m2",
           mlir::ValueRange{yStorePtr, vy, bodyVL});
     }
 

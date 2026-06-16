@@ -1,0 +1,4 @@
+INC-17 F5 ggml_vec_silu_f32: 2641/2641 bit-exact cases PASS (vs ggml's VECTORIZED silu)
+NC wrong-exp-method (libm expf vs ggml minimax): 967/1056 correctly DIFFER
+NC agreement breakdown by dist: d0(~0)=26 d1(moderate)=28 d2(saturation)=35; of all 89 agreeing rows, 0 are fully-saturated (every lane |x|>=104, exp not the discriminator)
+RESULT: PASS (byte-exact vs ggml VECTORIZED silu; the libm-exp NC discriminates -> ggml's exact minimax exp polynomial is matched node-for-node, not just its tolerance)
