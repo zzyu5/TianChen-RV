@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~923 | Active |
+| `journal-1.md` | ~959 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-06-16 | All 3 goal fronts advanced: GEMM perf win + forward-pass op family (all 3 structural classes byte-exact) | `d48533bb`, `70d35660`, `9e5ba826`, `edaeb886` | `main` |
 | 13 | 2026-06-16 | Measurement-backed autotuner (实测胜出) + super-block K-quant q6_K byte-exact; 4 real ggml kernels covered | `4c2999b9`, `ae479367`, `f7f90eac` | `main` |
 | 12 | 2026-06-16 | Compiler-driven capability-aware autotuner on real llama.cpp kernels (Q4_0 beats ggml; q8_0/q4_1 parity); cost-model limits surfaced honestly | `8a7c5e36`, `a6cdeca6`, `8518b819`, `3e639be1`, `3a32d40b` | `main` |
 | 11 | 2026-06-15 | N1 coverage: compiler-emitted kernel really replaces ggml_vec_dot_q4_0_q8_0 in LIVE llama-2-7b inference | `de5d5db3`, `f6f1a73a`, `6a3b384f`, `7f539a4b` | `main` |

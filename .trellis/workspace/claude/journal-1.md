@@ -921,3 +921,39 @@ INC-10: replaced the static cost model's GUESS with on-board MEASUREMENT (the ge
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: All 3 goal fronts advanced: GEMM perf win + forward-pass op family (all 3 structural classes byte-exact)
+
+**Date**: 2026-06-16
+**Task**: All 3 goal fronts advanced: GEMM perf win + forward-pass op family (all 3 structural classes byte-exact)
+**Branch**: `main`
+
+### Summary
+
+Advanced all three fronts of the locked goal (coverage + high-perf + complete forward pass, trellis flow). PERF: INC-14 GEMM G1 — q4_0 weight-decode-reuse tile (decode each weight block ONCE, reuse across M activation columns) measures 1.27-1.33x over per-row vec_dot at K=4096, byte-exact vs Mx ggml_vec_dot. The research honestly falsified the gemv premise (decode is COMPUTE-bound, activation-reuse buys nothing; the win is GEMM weight-decode-amortization) and found ggml's gemm/repack path is DISABLED at VLEN=128 (case 128->nullptr) so ggml itself falls back to per-(row,col) vec_dot with redundant re-decode — exactly what G1 eliminates. Honest: ~1.10x blended / 1.3x tile, VLEN=128-capped (bigger needs VLEN>=256, no such board). FORWARD PASS (was 0%): opened the f32 non-dot op family + proved ALL THREE structural classes byte-exact on ssh rvv — F1 ggml_vec_scale_f32 (elementwise, 3849/3849), F3 ggml_rms_norm_f32 (the REDUCTION; matched ggml's scalar-DOUBLE sum-of-squares fold exactly — the f32-mul->f64-cast->f64-add chain is both the byte-exact key and an FMA barrier, fp-contract-invariant, 4805/4805), F5 ggml_vec_silu_f32 (the TRANSCENDENTAL; replicated ggml_v_expf_m2's degree-5 minimax polynomial node-for-node incl. the exact hex-float constants + the unconditional-vmerge resolution of ggml's vcpop short-circuit, 2641/2641 vs the vectorized silu; libm-expf NC discriminates). All STRUCTURED emitc (raw()=0), each a new emitc lowering. The compiler now demonstrably handles every structural kernel CLASS of llama.cpp: quant-dot (3 families) + GEMM + f32 elementwise/reduction/transcendental. Clean rebuilds green, 3 documented reds, all additive. The remaining work is breadth-EXTENSION of proven classes: F4 quantizers (f32->quant bridge), F5b soft_max (reuses F5 exp + F3 double-reduction), F6 rope; more dot kernels (q5_0/q5_1/q4_K/q5_K/q2_K/q3_K/iq4_nl); G2/G3 (full GEMM ABI + autotuner tunes M) — multi-session.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d48533bb` | (see git log) |
+| `70d35660` | (see git log) |
+| `9e5ba826` | (see git log) |
+| `edaeb886` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
