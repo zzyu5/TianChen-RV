@@ -1099,16 +1099,24 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
   mlir::Operation *op = getOperation();
 
   // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
-  // dual-fp16 scale model, the block-format structural facts, and the bounded
-  // inner activation-column block count M. Anything else -- a forbidden local
-  // element_count/SEW/LMUL/policy attr, or an unexpected name -- is rejected
-  // fail-closed (I7). The runtime row/column counts and the row strides are
-  // RUNTIME ABI value operands (the full ggml-gemm-like ABI), NOT attrs.
+  // dual-fp16 scale model, the block-format structural facts, the bounded inner
+  // activation-column block count M, plus the GEMM M-block measurement-tuner's
+  // resource-provenance audit trail. The schedule producer pass
+  // (MaterializeRVVGemmSchedule) stamps the measured/static M alongside a
+  // "tcrv_rvv.q4_0_gemm_schedule.*" provenance namespace (the candidate count,
+  // the selected cost, the measurement ns, the vreg ceiling) so the choice is a
+  // PROVABLE measurement-backed selection, not a manual constant. The provenance
+  // is mirror metadata (I4): it records the derivation, it does not carry
+  // executable config. Accept any attr in that bounded namespace. Anything else
+  // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
+  // name -- is rejected fail-closed (I7). The runtime row/column counts and the
+  // row strides are RUNTIME ABI value operands (the full ggml-gemm-like ABI).
   auto isAllowedGemmAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
-           name == "activation_high_byte_offset" || name == "activation_cols";
+           name == "activation_high_byte_offset" || name == "activation_cols" ||
+           name.starts_with("tcrv_rvv.q4_0_gemm_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -1161,16 +1169,19 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
            << "requires activation_high_byte_offset == 16 (q8 high half) for "
               "the ggml Q4_0 x Q8_0 full GEMM route";
 
-  // The bounded inner activation-column block count M: G2 fixes a small tile so
+  // The bounded inner activation-column block count M: G2 fixed a small tile so
   // the inner M-column loop and the M-wide fp32 accumulator array stay
-  // register-bounded. Reject M outside the bounded [1, 16] band fail-closed
-  // (I7); the measurement-tuned cache-blocking M-block is G3.
-  int64_t activationCols = getActivationCols();
-  if (activationCols < 1 || activationCols > 16)
-    return emitOpError()
-           << "requires activation_cols in [1, 16] (the bounded G2 inner GEMM "
-              "column block; the measurement-tuned M-block is G3); got "
-           << activationCols;
+  // register-bounded. G3 makes M a measurement-tuned cache-blocking knob, so the
+  // attribute is OPTIONAL and the materialize pass STAMPS the measured-best M
+  // (absent => the emitter falls back to its default tile). When PRESENT, reject
+  // M outside the bounded [1, 16] band fail-closed (I7).
+  if (std::optional<int64_t> activationCols = getActivationCols()) {
+    if (*activationCols < 1 || *activationCols > 16)
+      return emitOpError()
+             << "requires activation_cols in [1, 16] (the bounded inner GEMM "
+                "column block; the measurement-tuned M-block is G3); got "
+             << *activationCols;
+  }
 
   if (op->getNumOperands() != 10 || op->getNumResults() != 1)
     return emitOpError()

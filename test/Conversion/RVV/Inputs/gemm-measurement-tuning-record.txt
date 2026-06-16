@@ -1,0 +1,6 @@
+# GEMM M-block MEASUREMENT tuning record fixture (INC-26 / G3 lit test).
+# The MEASURED-fastest M for (q4_0_q8_0_gemm, rv64gcv) is M=6 -- the fair
+# interleaved on-board ladder's peak (~1.19x vs per-(row,col) vec_dot at K=4096),
+# which OVERTURNS the naive static default (M=4). Fixed ns for the deterministic
+# test (the real ssh-rvv ladder is in the inc26-gemm-g3 artifact record).
+tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=6 measured_ns=1243.8

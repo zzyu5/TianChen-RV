@@ -1,0 +1,4 @@
+# A STALE record naming an M (16) outside the current legal band (vreg ceiling 8)
+# -- the pass MUST revalidate against the current band, find M=16 illegal, and
+# fail-closed to the static default M=4 (it never stamps the stale illegal M).
+tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=16 measured_ns=9999.0

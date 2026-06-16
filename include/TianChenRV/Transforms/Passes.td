@@ -650,6 +650,72 @@ def MaterializeRVVQ51Schedule
   ];
 }
 
+def MaterializeRVVGemmSchedule
+    : Pass<"tcrv-rvv-materialize-gemm-schedule", "::mlir::ModuleOp"> {
+  let summary = "Measurement autotuner: select + stamp the ggml Q4_0 x Q8_0 GEMM M-block (activation-column block)";
+  let description = [{
+    The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
+    (tcrv_rvv.q4_0_q8_0_gemm) M-block -- the inner activation-column block M, the
+    one knob that sets how many activation columns share each hoisted weight
+    decode. It REUSES the EXACT tune-once -> cache -> read architecture the
+    block-dot measurement tuner (--tcrv-rvv-materialize-q4-0-schedule, INC-10)
+    established: it ENUMERATES the bounded M band {1,2,4,6,8}, PRUNES by the
+    vreg-ceiling resource bound (M <= 8; never a capability gate -- every M is
+    byte-exact on any RVV target), then either stamps the MEASURED-fastest M read
+    from a cached tuning record (the genuine N3 '实测胜出') or falls back to the
+    static default M (the safe cache-friendly tile M=4). It STAMPS activation_cols
+    plus a "tcrv_rvv.q4_0_gemm_schedule.*" resource-provenance audit trail onto
+    each tcrv_rvv.q4_0_q8_0_gemm op that does not already carry a hand-authored
+    activation_cols knob (additive / no-clobber).
+
+    Unlike the block-dot autotuner, M is NOT capability-gated -- it is a cache/L1
+    + vreg/unroll resource knob whose optimum is NOISY and analytically
+    UNPREDICTABLE (gemv-perf-scoping.md section 2b: M_opt proportional 1/K; INC-25
+    G2: M=4 wins ~1.04x while M=6 REGRESSES ~0.857x on register pressure at
+    K=4096). A static cost model cannot reliably predict that M6 vreg-pressure
+    cliff, so the win is the MEASURED pick (M=4 over M=6), NOT a capability
+    divergence. The dump-candidates mode emits the FULL legal band (incl. the
+    over-blocking M6/M8 the static proxy deems suboptimal) so the offline tune
+    driver MEASURES the whole band -- the BOARD ranks, not the cost proxy.
+
+    Per core-invariants: the stamped M MIRRORS the plugin-local C++ schedule
+    authority (I4); the M is derived from the validated resource facts + the
+    cached measurement, never inferred from ABI strings / family names / route
+    ids, and no hardware is probed at compile time (I5); a stale record naming a
+    now-illegal M is fail-closed (revalidated against the current band) and if
+    every candidate is pruned the op is left untouched (I7). The pass selects the
+    *how* (the column-block), never the *what* (every output is byte-exact for
+    every legal M).
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march the tuning record is keyed on (the GEMM M-block "
+           "is not capability-gated; the -march keys the record entry for reuse + "
+           "the stale/revalidate fail-closed demo).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string (reserved for parity with the "
+           "block-dot passes; the M-block legality does not consume it).">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record. When set and it carries "
+           "a still-legal entry for (kernel, capability-march), the pass stamps the "
+           "MEASURED-fastest M (the genuine N3 '实测胜出') instead of the static "
+           "default. Absent / stale / unreadable => the pass falls back to the "
+           "static default M (the record is an advisory cache, never a correctness "
+           "authority).">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL M band (the single source of truth for the vreg-ceiling "
+           "prune) for the offline tune driver to consume, then exit without "
+           "stamping. Includes the over-blocking M6/M8 -- the driver MEASURES the "
+           "full band; the board ranks, not the cost proxy.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVGemmSchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 def MaterializeRVVGearboxSchedules
     : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
   let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";

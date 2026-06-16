@@ -21,6 +21,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVQ41ScheduleMaterialization.cpp
   RVVQ50ScheduleMaterialization.cpp
   RVVQ51ScheduleMaterialization.cpp
+  RVVGemmScheduleMaterialization.cpp
   RVVSelectedBodyRealization.cpp
   RVVStandaloneReductionSelectedBodyRealizationOwner.cpp
   RVVWideningConversionSelectedBodyRealizationOwner.cpp

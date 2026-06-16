@@ -1,0 +1,18 @@
+# tcrv-rvv GEMM M-block MEASUREMENT tuning record (INC-26 / G3).
+# Each 'tune' line = the MEASURED-fastest legal M (activation-column
+# block) for (gemm-kernel, capability-march), measured best-of-N min
+# ns/output on ssh rvv (VLEN=128, clang-18 -O3 -march=rv64gcv_zfh_zvfh
+# -ffp-contract=fast, taskset -c 3), gated byte-exact vs per-(row,col)
+# ggml_vec_dot_q4_0_q8_0 (the real used VLEN=128 prefill path). Comment
+# lines record the full measured ladder (audit). The materialize pass
+# READS this and stamps the measured M; absent => static default M=4.
+#
+# --- q4_0_q8_0_gemm @ rv64gcv : the measured M ladder (ns/output @ K=4096) ---
+#   M=1  gemm=  1682.5 ns/out  vec_dot=  1482.5 ns/out  (0.881x vs vec_dot)
+#   M=2  gemm=  1716.2 ns/out  vec_dot=  1482.5 ns/out  (0.864x vs vec_dot)
+#   M=4  gemm=  1380.0 ns/out  vec_dot=  1482.5 ns/out  (1.074x vs vec_dot)
+#   M=6  gemm=  1243.8 ns/out  vec_dot=  1482.5 ns/out  (1.192x vs vec_dot)  <-- MEASURED WINNER
+#   M=8  gemm=  1315.6 ns/out  vec_dot=  1482.5 ns/out  (1.127x vs vec_dot)
+# MEASURED WINNER: M=6 @ 1243.8 ns/out (1.192x vs per-(row,col) vec_dot) -- the board picks M=6; the cache/vreg M optimum is noisy + analytically unpredictable, so measurement decides (it overturns the naive static default M=4).
+tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=6 measured_ns=1243.8
+#

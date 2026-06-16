@@ -1,0 +1,11 @@
+GATE M=1 exact
+GATE M=2 exact
+GATE M=4 exact
+GATE M=6 exact
+GATE M=8 exact
+gate_done 5/5 M candidates byte-exact vs per-(row,col) vec_dot
+RESULT M=1 gemm_ns=1682.5 vecdot_ns=1482.5 speedup=0.881
+RESULT M=2 gemm_ns=1716.2 vecdot_ns=1482.5 speedup=0.864
+RESULT M=4 gemm_ns=1380.0 vecdot_ns=1482.5 speedup=1.074
+RESULT M=6 gemm_ns=1243.8 vecdot_ns=1482.5 speedup=1.192
+RESULT M=8 gemm_ns=1315.6 vecdot_ns=1482.5 speedup=1.127

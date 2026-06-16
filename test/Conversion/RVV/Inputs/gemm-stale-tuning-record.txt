@@ -1,0 +1,6 @@
+# GEMM M-block STALE tuning record fixture (INC-26 / G3 lit test, I7 fail-closed).
+# This record names M=16 -- a value OUTSIDE the current legal M band (the vreg
+# ceiling is 8). The pass MUST revalidate the recorded M against the current band,
+# find M=16 illegal, and fall back to the static default M=4 -- it never stamps
+# the stale illegal M.
+tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=16 measured_ns=9999.0

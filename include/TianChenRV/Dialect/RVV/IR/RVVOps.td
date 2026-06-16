@@ -4133,7 +4133,7 @@ def GgmlGemmQ40Q80Op
     I64Attr:$activation_block_stride,
     I64Attr:$quant_byte_offset,
     I64Attr:$activation_high_byte_offset,
-    I64Attr:$activation_cols
+    OptionalAttr<I64Attr>:$activation_cols
   );
   let results = (outs AnyType:$result);
 

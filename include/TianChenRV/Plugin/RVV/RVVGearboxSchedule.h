@@ -2406,6 +2406,234 @@ selectRVVQ40Q80MinCostShape(llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) 
 }
 
 //===----------------------------------------------------------------------===//
+// The GEMM M-block (activation-column block) MEASUREMENT autotuner (INC-26 / G3).
+//
+// The ggml Q4_0 x Q8_0 FULL GEMM (tcrv_rvv.q4_0_q8_0_gemm) decodes each weight
+// block ONCE and reuses the decoded nibble lanes across M activation columns
+// (the inner column strip). M is the one tuning knob: the COLUMN-BLOCK the cache
+// hierarchy + the register file permit. It is fundamentally different from the
+// block-dot LMUL/factor/elision knobs:
+//
+//   * It is NOT capability-gated. Every M in the enumerated band is byte-exact on
+//     any RVV target (the integer core + the ascending-block fp32 fold are
+//     unchanged; only the loop nest's column-block width moves). So unlike
+//     strip_elision (Zvl128b-gated) the M legality prune is a pure RESOURCE
+//     (vreg-ceiling) bound, never a capability divergence.
+//   * Its optimum is set by TWO noisy, analytically-unpredictable resources -- an
+//     L1 cache-capacity effect (M_opt proportional 1/K; gemv-perf-scoping.md
+//     section 2b) AND a vreg/unroll-pressure effect (the emitter UNROLLS the
+//     constant-M inner loop, so each extra column adds a parallel
+//     vwredsum/vmv_x_s/fp32 reduction chain -> vreg pressure GROWS with M; INC-25
+//     G2 measured M=4 winning ~1.04x and M=6 REGRESSING ~0.857x on register
+//     pressure at K=4096). A static cost model CANNOT reliably predict that
+//     M6 cliff, which is exactly why M must be MEASUREMENT-selected (the genuine
+//     N3 "实测胜出"), not analytically pruned.
+//
+// So the enumeration DUMPS the full legal band (the cost-model never trims M6/M8
+// out of the measured set: the BOARD ranks, not the cost model -- mirroring the
+// block-dot "dump the full legal set" lesson). The static cost model only feeds a
+// sensible offline FALLBACK (the default cache-friendly tile) and the ceiling
+// prune; the win is the measured pick.
+//===----------------------------------------------------------------------===//
+
+/// The default cache-friendly inner activation-column block the emitter uses when
+/// no measurement-tuned M is stamped (and the static fallback the materialize
+/// pass selects absent a tuning record). M=4 is the measured rv64gcv winner
+/// (INC-25 G2: M=4 ~1.04x, M=6 ~0.857x regression on register pressure).
+constexpr std::int64_t kRVVGemmDefaultActivationCols = 4;
+
+/// The architectural vreg ceiling that bounds the TOP of the M band. The emitter
+/// unrolls the constant-M inner column loop, so each extra column materializes a
+/// parallel reduction chain; past ~M=8 the 32-vector file is pressured enough that
+/// the candidate is not worth EMITTING (let alone measuring). This bounds the
+/// enumeration ceiling -- it does NOT pick M (M6/M8 stay IN the measured band so
+/// the board can reveal the M6 regression). M <= 8 keeps every candidate well
+/// inside the dialect verifier's [1, 16] bound.
+constexpr std::int64_t kRVVGemmMaxActivationCols = 8;
+
+/// One enumerated GEMM M-block candidate. `cost` is a capability-blind structural
+/// proxy (used ONLY for the offline static fallback ordering, never to trim the
+/// measured band); `isLegal` is the pure vreg-ceiling prune.
+struct RVVGemmMCandidate {
+  std::int64_t activationCols = 1; // M: activation columns per weight decode.
+  std::int64_t cost = 0;           // structural proxy (fallback ordering only).
+  bool isLegal = false;            // passes the vreg-ceiling prune.
+};
+
+/// The capability-blind structural cost PROXY of a GEMM M-block. It is used ONLY
+/// to order the offline static FALLBACK (so absent a record the pass picks a
+/// sensible default), NEVER to trim the measured band: the whole G3 lesson is that
+/// the real M optimum is noisy and unpredictable, so the BOARD ranks. The proxy
+/// rewards the default cache-friendly tile (distance from M=4) so the static
+/// fallback lands on M=4 -- the measured rv64gcv winner -- exactly as the emitter
+/// default does. (A larger |M - 4| is "less safe" structurally: M=1 leaves the
+/// decode un-amortized, M>=6 grows vreg/unroll pressure toward the G2 cliff.)
+inline std::int64_t computeRVVGemmMCost(std::int64_t activationCols) {
+  std::int64_t delta = activationCols - kRVVGemmDefaultActivationCols;
+  if (delta < 0)
+    delta = -delta;
+  // Penalize over-blocking (toward the vreg cliff) slightly more than
+  // under-blocking, so a tie in distance resolves to the smaller, safer M.
+  std::int64_t overPenalty = (activationCols > kRVVGemmDefaultActivationCols)
+                                 ? (activationCols - kRVVGemmDefaultActivationCols)
+                                 : 0;
+  return delta * 100 + overPenalty * 10;
+}
+
+/// Enumerate the full GEMM M-block candidate band {1, 2, 4, 6, 8} and PRUNE each
+/// by the vreg ceiling ONLY (no capability gate: every M is byte-exact on any RVV
+/// target). The band is deliberately the legal/sensible column-block sizes the
+/// research + G2 identified: M=1 (no blocking), the M=4 measured winner, and the
+/// M=6/M=8 over-blocking shapes that REGRESS -- kept IN the band so the board can
+/// reveal the regression (the demo: the board picks M=4, NOT M6). The cost proxy
+/// is attached for the static-fallback ordering only.
+inline llvm::SmallVector<RVVGemmMCandidate, 5>
+enumerateRVVGemmMCandidates(std::int64_t vregCeiling) {
+  llvm::SmallVector<RVVGemmMCandidate, 5> candidates;
+  static constexpr std::int64_t kMBand[] = {1, 2, 4, 6, 8};
+  for (std::int64_t m : kMBand) {
+    RVVGemmMCandidate candidate;
+    candidate.activationCols = m;
+    candidate.cost = computeRVVGemmMCost(m);
+    candidate.isLegal = (m <= vregCeiling);
+    candidates.push_back(candidate);
+  }
+  return candidates;
+}
+
+/// SELECT the static-fallback M from the pruned band (the offline answer absent a
+/// measurement record): the min-cost-proxy legal M, which the proxy pins to the
+/// default cache-friendly tile (M=4). Returns nullopt only if every candidate was
+/// pruned (fail-closed). This is NOT the win -- it is the safe default the pass
+/// stamps when the board has not measured; the measured pick overrides it.
+inline std::optional<RVVGemmMCandidate>
+selectRVVGemmMStaticFallback(llvm::ArrayRef<RVVGemmMCandidate> candidates) {
+  std::optional<RVVGemmMCandidate> best;
+  for (const RVVGemmMCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    if (!best || candidate.cost < best->cost)
+      best = candidate;
+  }
+  return best;
+}
+
+/// One measured GEMM M-block tuning-record entry: the MEASURED-fastest M for a
+/// (gemm-kernel, capability-march) pair + its on-board ns. Parallel to
+/// RVVBlockDotTuningRecordEntry but keyed on the single M knob.
+struct RVVGemmTuningRecordEntry {
+  std::string kernelKey; // "q4_0_q8_0_gemm".
+  std::string march;     // capability-derivation -march (rv64gcv / ...).
+  std::int64_t activationCols = 1; // measured-best M.
+  double measuredNs = 0.0;         // recorded best-of-N ns/output.
+};
+
+/// The canonical GEMM tuning-record line for one measured pick (the driver writes
+/// exactly this; the pass parses exactly this). Auditable + reproducible.
+inline std::string
+formatRVVGemmTuningRecordLine(llvm::StringRef kernelKey, llvm::StringRef march,
+                             std::int64_t activationCols, double measuredNs) {
+  std::string line;
+  llvm::raw_string_ostream os(line);
+  os << "tune kernel=" << kernelKey << " march=" << march
+     << " activation_cols=" << activationCols << " measured_ns=" << measuredNs;
+  os.flush();
+  return line;
+}
+
+/// Parse the GEMM tuning-record text and return the entry for (kernelKey, march),
+/// if present. Comment ('#') and blank lines are skipped; the first matching
+/// `tune` line with an `activation_cols` token wins. Tolerant of token order /
+/// extra whitespace; a malformed line is skipped (the record is an advisory
+/// cache, never a correctness authority). Returns nullopt if no matching entry
+/// exists -> the pass falls back to the static default.
+inline std::optional<RVVGemmTuningRecordEntry>
+lookupRVVGemmTuningRecord(llvm::StringRef recordText, llvm::StringRef kernelKey,
+                          llvm::StringRef march) {
+  llvm::SmallVector<llvm::StringRef, 64> lines;
+  recordText.split(lines, '\n');
+  for (llvm::StringRef rawLine : lines) {
+    llvm::StringRef line = rawLine.trim();
+    if (line.empty() || line.starts_with("#"))
+      continue;
+    llvm::SmallVector<llvm::StringRef, 8> tokens;
+    line.split(tokens, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    if (tokens.empty() || tokens.front() != "tune")
+      continue;
+
+    RVVGemmTuningRecordEntry entry;
+    bool haveCols = false, haveNs = false;
+    for (llvm::StringRef token : tokens) {
+      auto kv = token.split('=');
+      llvm::StringRef key = kv.first, value = kv.second;
+      if (key == "kernel")
+        entry.kernelKey = value.str();
+      else if (key == "march")
+        entry.march = value.str();
+      else if (key == "activation_cols") {
+        long long parsed = 0;
+        if (!value.getAsInteger(10, parsed)) {
+          entry.activationCols = parsed;
+          haveCols = true;
+        }
+      } else if (key == "measured_ns") {
+        double parsed = 0.0;
+        if (!value.getAsDouble(parsed)) {
+          entry.measuredNs = parsed;
+          haveNs = true;
+        }
+      }
+    }
+    if (entry.kernelKey != kernelKey || entry.march != march)
+      continue;
+    if (!haveCols || !haveNs)
+      continue; // malformed match -> skip, fall through to fallback.
+    return entry;
+  }
+  return std::nullopt;
+}
+
+/// Revalidate a GEMM record's M against the CURRENT legal candidate band (the
+/// single source of truth: the C++ enumerate+prune). A stale record (e.g. one
+/// naming an M now pruned by a shrunk vreg ceiling) must NEVER stamp an illegal M
+/// (I7 fail-closed). Returns the matching legal candidate if the recorded M is
+/// present AND legal, else nullopt -> static fallback.
+inline std::optional<RVVGemmMCandidate>
+revalidateRVVGemmTuningRecordM(llvm::ArrayRef<RVVGemmMCandidate> candidates,
+                               const RVVGemmTuningRecordEntry &entry) {
+  for (const RVVGemmMCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    if (candidate.activationCols == entry.activationCols)
+      return candidate;
+  }
+  return std::nullopt;
+}
+
+/// Dump the LEGAL GEMM M-block candidate band as machine-parseable lines on `os`
+/// -- the single source of truth the offline tune driver consumes (so it
+/// enumerates+prunes via THIS C++ authority, never re-implements the vreg-ceiling
+/// rule). One line per legal M:
+///
+///   candidate kernel=<k> march=<m> activation_cols=<M> cost=<c>
+///
+/// CRUCIAL (the measurement-backed point): EVERY vreg-ceiling-legal M is dumped --
+/// including the over-blocking M6/M8 the static proxy deems suboptimal -- because
+/// the whole G3 lesson is that the M optimum is noisy and unpredictable. The
+/// driver MEASURES the full band and lets the board, not the cost proxy, rank.
+inline void dumpRVVGemmLegalCandidates(
+    llvm::raw_ostream &os, llvm::StringRef kernelKey, llvm::StringRef march,
+    llvm::ArrayRef<RVVGemmMCandidate> candidates) {
+  for (const RVVGemmMCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    os << "candidate kernel=" << kernelKey << " march=" << march
+       << " activation_cols=" << candidate.activationCols
+       << " cost=" << candidate.cost << "\n";
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // The Family-B SIBLING: the ggml Q4_1 x Q8_1 block-dot shape autotuner.
 //
 // q4_1 is the scale+MIN, asymmetric Family-B kernel. Its nibble half-block is

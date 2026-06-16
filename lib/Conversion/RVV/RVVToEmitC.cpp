@@ -6185,7 +6185,15 @@ private:
     int64_t quantOffset = gemm.getQuantByteOffset();
     int64_t highOffset = gemm.getActivationHighByteOffset();
     int64_t halfBlock = qk / 2; // 16 nibble bytes / q8 half lanes per block
-    int64_t cols = gemm.getActivationCols();
+    // M (the inner activation-column block) is the G3 measurement-tuned knob: the
+    // materialize pass stamps the measured-best M, and absent a pass run the op
+    // falls back to the default cache-friendly tile (M=4, the measured rv64gcv
+    // winner -- INC-25 G2: M=4 ~1.04x, M=6 ~0.857x regression). The attribute is
+    // OPTIONAL so a raw op stays lowerable; the literal mirrors the plugin's
+    // kRVVGemmDefaultActivationCols (the conversion layer stays free of the plugin
+    // schedule header -- it is the consumer of the stamped attr, not the authority).
+    constexpr int64_t kGemmDefaultActivationCols = 4;
+    int64_t cols = gemm.getActivationCols().value_or(kGemmDefaultActivationCols);
 
     // The weight decode anchors at the m1 whole-half-block form (one
     // vsetvl_e8m1(16) covers the 16 nibble bytes at VLEN >= 128); the product
