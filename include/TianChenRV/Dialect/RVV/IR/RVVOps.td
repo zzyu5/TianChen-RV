@@ -4804,6 +4804,98 @@ def GgmlQuantizeRowQ80Op
   let hasVerifier = 1;
 }
 
+def GgmlRopeNormF32Op
+    : TCRVRVV_Op<"ggml_rope_norm_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32 NORMAL rope (rotary position embedding) op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_compute_forward_rope_f32` op for ONE attention
+    head row, the GGML_ROPE_TYPE_NORMAL variant (the rope llama-2 / LLM_ARCH_LLAMA
+    uses; llama-model.cpp:2387-2423 maps LLM_ARCH_LLAMA -> LLAMA_ROPE_TYPE_NORM,
+    "a normal RoPE, operating on pairs of CONSECUTIVE head values"), as ONE
+    bounded generic plugin-local typed RVV f32 dataflow step. This is the F6
+    forward-pass op (research/forward-pass-scoping.md) -- the COMPOSITION rung:
+    the angle cache is a verbatim SCALAR libm `cosf`/`sinf` prologue exactly as
+    ggml's `ggml_rope_cache_init` (ops.cpp:5707-5721), and the per-pair rotation
+    is f32 elementwise. With it the forward-pass primitive set is complete.
+
+    The math (ggml NORMAL, the plain path: ext_factor=0, freq_scale=1,
+    attn_factor=1, freq_factors=NULL, forward so sin_sign=+1, n_dims=ne0 = the
+    full head_dim so there is no passthrough channel). Per dim-pair p
+    (i0 = 2*p, p = 0..n_dims/2-1):
+      theta_p = theta_base * theta_scale^p          (the ITERATIVE f32 recurrence
+                                                     `theta *= theta_scale`, NOT a
+                                                     closed-form pow, NOT double)
+      cos_p = cosf(theta_p);  sin_p = sinf(theta_p) (SCALAR libm, once per pair)
+      x0 = x[2p];  x1 = x[2p+1]                      (CONSECUTIVE pair; NORMAL)
+      y[2p]   = x0*cos_p - x1*sin_p
+      y[2p+1] = x0*sin_p + x1*cos_p
+    `theta_base` (= the integer position pos, as f32) and `theta_scale`
+    (= powf(freq_base, -2/n_dims)) are PRECOMPUTED runtime f32 inputs, so the
+    kernel makes NO `powf` call -- the only libm calls are the per-pair
+    `cosf`/`sinf`, matching ggml's `cache[]` bit-for-bit when linked against the
+    SAME libm.
+
+    BYTE-EXACTNESS has TWO distinct axes, surfaced honestly:
+    (1) The angle transcendental is SCALAR libm `cosf`/`sinf` (NOT a vectorized
+        polynomial like F5's `ggml_v_expf_m2`). Its exactness depends on linking
+        the SAME libm ggml links: emit the angle prologue as the SAME scalar
+        `cosf`/`sinf` calls (one emitc.call_opaque each, the sanctioned opaque
+        seam -- NOT a raw string), so a same-libm deployment is bit-exact and a
+        different libm is libm-tolerance bound on the angles ONLY.
+    (2) The rotation `x0*cos - x1*sin` is `a*b - c*d`, an FP-contraction hazard:
+        clang fuses `a*b - c*d` to an FMA (one rounding) under `-ffp-contract`
+        on/fast and keeps two roundings under off. ggml's rotation
+        (ops.cpp:5808-5809) is a SINGLE C expression, so it fuses under on/fast.
+        The lowering GROUPS each output's `a*b - c*d` into ONE emitc.expression
+        (the F3 rms_norm emitc.expression FMA-fix discipline), so mlir-translate
+        renders it as ONE C statement TOKEN-IDENTICAL to ggml's -- clang then
+        makes the IDENTICAL contraction decision under EVERY mode, so the kernel
+        is byte-exact vs ggml under default/on/off/fast (NOT just off),
+        independent of llama.cpp's build flag. Emitting the two products as
+        separate statements would block intra-statement fusion and diverge from
+        ggml under the default `on` -- so the grouping is load-bearing. The
+        rotation is otherwise exact f32.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FIVE runtime
+    ABI value operands -- the read-only f32 input base pointer `x`
+    (`const float *`, one head row), the f32 output base pointer `y`
+    (`float *`), the runtime f32 `theta_base` (the position as f32), the runtime
+    f32 `theta_scale`, the runtime element count `n_dims` (= ne0, the head dim,
+    n_dims % 2 == 0 a ggml contract) -- plus the active !tcrv_rvv.vl token. It
+    produces ONE f32 LMUL m1 !tcrv_rvv.vector token (the per-pair store
+    boundary). For the bounded surface `kind` is limited to
+    "ggml_rope_norm_f32". Route ids, helper names, ABI strings, artifact names,
+    status fields, exact intrinsic spellings, and common EmitC/export code must
+    not infer or choose f32 rope semantics.
+
+    There is no `strip_lmul` knob this cut: cos/sin are scalar libm (one call per
+    pair), so the faithful structure IS ggml's -- a SCALAR per-pair loop that
+    computes the angle and applies the rotation in the same body (vectorizing
+    while cos/sin stay scalar would force gathering scalars into vectors with no
+    byte-exactness gain), matching silu's no-knob precedent.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$theta_base,
+    AnyType:$theta_scale,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $theta_base `,` $theta_scale `,` $element_count `,` "
+    "$vl attr-dict `:` type($input) `,` type($output) `,` type($theta_base) "
+    "`,` type($theta_scale) `,` type($element_count) `,` type($vl) "
+    "`->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

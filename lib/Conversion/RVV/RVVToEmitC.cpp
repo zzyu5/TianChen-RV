@@ -817,11 +817,12 @@ public:
     rewriter.setInsertionPointToStart(module.getBody());
     llvm::SmallVector<llvm::StringRef, 4> headers = {"stddef.h", "stdint.h",
                                                      "riscv_vector.h"};
-    // The forward-pass F3 rms_norm body calls the scalar libm `sqrtf` (the
-    // 1/sqrtf(mean+eps) scale), so its TU needs <math.h>. ONLY this body adds
-    // the header -- every other (quant-dot / elementwise) kernel keeps the
-    // original three-header list byte-identical (additivity).
-    if (isGgmlRmsNormF32Body(scope))
+    // The forward-pass bodies that call scalar libm need <math.h> so the
+    // emitted TU is self-contained: F3 rms_norm (1/sqrtf(mean+eps)) and F6 rope
+    // (cosf/sinf per dim-pair angle). ONLY these bodies add the header -- every
+    // other (quant-dot / elementwise) kernel keeps the original three-header
+    // list byte-identical (additivity).
+    if (isGgmlRmsNormF32Body(scope) || isGgmlRopeNormF32Body(scope))
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
@@ -1084,6 +1085,26 @@ public:
     if (isGgmlQuantizeRowQ80Body(scope)) {
       if (mlir::failed(emitGgmlQuantizeRowQ80(rewriter, loc, scope, avlArg,
                                               sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The forward-pass F6 op (tcrv_rvv.ggml_rope_norm_f32) is the COMPOSITION
+    // rung: ggml's NORMAL rope (rotary position embedding) for one head row. It
+    // owns a dedicated routine -- a SINGLE scalar per-pair loop that carries the
+    // iterative f32 angle recurrence (theta *= theta_scale), computes cosf/sinf
+    // per pair via scalar libm call_opaque (the sanctioned opaque seam, a
+    // DIFFERENT byte-exactness axis -- libm-linked, not a vectorized polynomial),
+    // and applies the f32 rotation y[2p]=x0*cos-x1*sin / y[2p+1]=x0*sin+x1*cos
+    // with each output's a*b-c*d GROUPED into ONE emitc.expression (token-
+    // identical to ggml's single C expression, so it contracts identically under
+    // every -ffp-contract mode -> byte-exact regardless of the build flag).
+    // Marker: the op identity.
+    if (isGgmlRopeNormF32Body(scope)) {
+      if (mlir::failed(emitGgmlRopeNormF32(rewriter, loc, scope, avlArg,
+                                           sizeType, valueMap)))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
       rewriter.eraseOp(variant);
@@ -1819,6 +1840,25 @@ private:
       }
     }
     return sawQuantize;
+  }
+
+  /// The forward-pass F6 recognizer: a with_vl scope whose ONLY compute op is a
+  /// single tcrv_rvv.ggml_rope_norm_f32 (the f32 NORMAL rope: the iterative f32
+  /// angle recurrence + scalar libm cosf/sinf cache + the per-pair f32 rotation).
+  /// The op identity is the dispatch key; the emitter owns the structured scalar
+  /// per-pair loop expansion.
+  static bool isGgmlRopeNormF32Body(tcrvrvv::WithVLOp scope) {
+    bool sawRope = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRopeNormF32Op>(op)) {
+        if (sawRope)
+          return false;
+        sawRope = true;
+      } else {
+        return false;
+      }
+    }
+    return sawRope;
   }
 
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
@@ -7919,6 +7959,242 @@ private:
       rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{},
                                            "__riscv_vse8_v_i8m2",
                                            mlir::ValueRange{qsPtr, vs, vl});
+    }
+
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml ggml_compute_forward_rope_f32 op for ONE head row,
+  /// the GGML_ROPE_TYPE_NORMAL variant (the rope llama-2 / LLM_ARCH_LLAMA uses),
+  /// as fully STRUCTURED emitc nodes (I5; no verbatim C-string blob):
+  ///   float theta = theta_base;                        // the recurrence seed
+  ///   size_t n_pairs = n_dims / 2;
+  ///   for (size_t p = 0; p < n_pairs; ++p) {           // SCALAR per-pair loop
+  ///     float cos_t = cosf(theta);  float sin_t = sinf(theta);  // scalar libm
+  ///     const float *xp = (const float *)(x + 2*p);
+  ///     float *yp = (float *)(y + 2*p);
+  ///     float x0 = xp[0];  float x1 = xp[1];           // CONSECUTIVE pair
+  ///     yp[0] = x0*cos_t - x1*sin_t;                   // two SEPARATE muls then
+  ///     yp[1] = x0*sin_t + x1*cos_t;                   //   a sub/add (no FMA)
+  ///     theta = theta * theta_scale;                   // iterative f32 recurrence
+  ///   }
+  /// BYTE-EXACTNESS has TWO axes (both stated honestly in the result):
+  /// (1) cosf/sinf are SCALAR libm (one emitc.call_opaque each -- the sanctioned
+  ///     opaque seam, NOT a raw string), so the angles are bit-exact vs ggml's
+  ///     cache[] only when the SAME libm is linked (a libm-tolerance otherwise).
+  ///     This differs from F5's exp (a vectorized polynomial we replicate); rope
+  ///     is NOT a vectorized-transcendental problem.
+  /// (2) The rotation x0*cos - x1*sin is a*b - c*d, an FP-contraction hazard.
+  ///     ggml's rotation is a SINGLE C expression (ops.cpp:5808-5809), so each
+  ///     output's a*b - c*d is GROUPED into ONE emitc.expression here (the F3
+  ///     rms_norm emitc.expression FMA-fix discipline) -> ONE C statement
+  ///     token-identical to ggml's -> clang makes the IDENTICAL contraction
+  ///     decision under EVERY -ffp-contract mode, so the kernel is byte-exact vs
+  ///     ggml under default/on/off/fast (NOT just off), independent of the build
+  ///     flag. Separate-statement products would block intra-statement fusion and
+  ///     diverge from ggml under the default `on`.
+  /// theta_base (= pos as f32) and theta_scale (= powf(freq_base, -2/n_dims)) are
+  /// PRECOMPUTED runtime f32 inputs, so the kernel makes no powf call -- the only
+  /// libm calls are the per-pair cosf/sinf. The loop is SCALAR (not vectorized):
+  /// cos/sin are scalar libm so the faithful structure IS ggml's scalar per-pair
+  /// rotation (vectorizing would gather scalars into vectors with no exactness
+  /// gain). The recurrence theta is a loop-carried emitc.variable lvalue +
+  /// emitc.assign (emitc.for has no iter_args), exactly as F3's scalar-double sum.
+  mlir::LogicalResult emitGgmlRopeNormF32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlRopeNormF32Op ropeOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto r = llvm::dyn_cast<tcrvrvv::GgmlRopeNormF32Op>(op))
+        ropeOp = r;
+    }
+    if (!ropeOp)
+      return rewriter.notifyMatchFailure(scope, "rope body missing the op");
+
+    mlir::Value input = valueMap.lookup(ropeOp.getInput());
+    mlir::Value output = valueMap.lookup(ropeOp.getOutput());
+    mlir::Value thetaBase = valueMap.lookup(ropeOp.getThetaBase());
+    mlir::Value thetaScale = valueMap.lookup(ropeOp.getThetaScale());
+    if (!input || !output || !thetaBase || !thetaScale)
+      return rewriter.notifyMatchFailure(ropeOp, "rope ABI operand unmapped");
+
+    llvm::StringRef opName = ropeOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = ropeOp.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type inputPtrType = input.getType();
+    mlir::Type outputPtrType = output.getType();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+    mlir::Type indexType = rewriter.getIndexType();
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // float theta = theta_base;  -- the iterative f32 angle recurrence seed
+    // (ggml's `float theta = theta_base;` ops.cpp:5711). emitc.for has no
+    // iter_args, so the loop-carried theta is an emitc.variable lvalue +
+    // emitc.assign, exactly as F3 (rms_norm) carries its scalar-double sum.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("theta", opName, role));
+    auto thetaVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, thetaVar, thetaBase);
+
+    // size_t n_pairs = n_dims / 2;  (ggml steps i0 by 2 over [0, ne0)).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "pair_count"));
+    mlir::Value nPairs =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(2));
+
+    // for (size_t p = 0; p < n_pairs; p += 1) { ... }  -- the SCALAR per-pair
+    // rotation loop. NOT vectorized: cos/sin are scalar libm (one call per pair),
+    // so the faithful structure IS ggml's scalar loop.
+    mlir::Value zero = sizeLit(0);
+    mlir::Value one = sizeLit(1);
+    auto pairFor = rewriter.create<emitc::ForOp>(loc, zero, nPairs, one,
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::Value p = pairFor.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(pairFor.getBody());
+
+      // float theta_p = theta;  (read the loop-carried recurrence value).
+      mlir::Value thetaCur =
+          rewriter.create<emitc::LoadOp>(loc, floatType, thetaVar).getResult();
+
+      // float cos_t = cosf(theta_p);  float sin_t = sinf(theta_p);  -- the SCALAR
+      // libm angle cache (ggml's rope_yarn cosf/sinf, ops.cpp:5703-5704). Each is
+      // ONE emitc.call_opaque (the sanctioned opaque seam) -- the byte-exactness
+      // axis that depends on linking the SAME libm ggml links (NOT a raw string,
+      // NOT a vectorized polynomial).
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "cosf"));
+      mlir::Value cosT =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           "cosf", mlir::ValueRange{thetaCur})
+              .getResult(0);
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "sinf"));
+      mlir::Value sinT =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           "sinf", mlir::ValueRange{thetaCur})
+              .getResult(0);
+
+      // const float *xp = (const float *)(x + 2*p);  float *yp = (float *)(y+2*p)
+      // -- the CONSECUTIVE pair (NORMAL: ic = i0, x0=x[2p], x1=x[2p+1]).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "pair_ptr"));
+      mlir::Value pairOff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, p, sizeLit(2));
+      mlir::Value xpRaw =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, pairOff);
+      auto xp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xpRaw)
+              .getResult());
+      mlir::Value ypRaw =
+          rewriter.create<emitc::AddOp>(loc, outputPtrType, output, pairOff);
+      auto yp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, ypRaw).getResult());
+
+      // float x0 = xp[0];  float x1 = xp[1];  -- the consecutive pair loads.
+      mlir::Value idx0 = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+      mlir::Value idx1 = rewriter.create<emitc::LiteralOp>(loc, indexType, "1");
+      // The subscript on a `const float *` yields an lvalue of `const float`; the
+      // load must take that exact value type (a fixed `float` mismatches the
+      // emitc.load verifier). The loaded scalar then participates as a plain f32.
+      emitc::SubscriptOp x0Sub =
+          rewriter.create<emitc::SubscriptOp>(loc, xp, idx0);
+      auto xLValueType =
+          llvm::cast<emitc::LValueType>(x0Sub.getResult().getType());
+      mlir::Value x0 =
+          rewriter
+              .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
+                                     x0Sub.getResult())
+              .getResult();
+      emitc::SubscriptOp x1Sub =
+          rewriter.create<emitc::SubscriptOp>(loc, xp, idx1);
+      mlir::Value x1 =
+          rewriter
+              .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
+                                     x1Sub.getResult())
+              .getResult();
+
+      // The ROTATION. Each output's `a*b - c*d` / `a*b + c*d` is grouped into ONE
+      // emitc.expression, so mlir-translate renders it as ONE C statement
+      // TOKEN-IDENTICAL to ggml's source (ops.cpp:5808-5809 -- the rotation is a
+      // single C expression there). Then clang makes the IDENTICAL contraction
+      // decision under EVERY -ffp-contract mode (fuses under on/fast, two-rounding
+      // under off) -- so the kernel is byte-exact vs ggml regardless of the build
+      // flag, NOT only at off. Emitting the two products as separate statements
+      // would block intra-statement fusion and diverge from ggml's fused form
+      // under the default `on`. The subscript-loads and the cosf/sinf
+      // call_opaque results stay OUTSIDE the expression (load/call_opaque lack the
+      // CExpression trait). This mirrors the F3 rms_norm emitc.expression FMA fix.
+      mlir::Value idx0Lit =
+          rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+      mlir::Value idx1Lit =
+          rewriter.create<emitc::LiteralOp>(loc, indexType, "1");
+      // yp[0] = x0*cos_t - x1*sin_t;  (one expression -> one C statement)
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "rotate_lo"));
+      auto loExpr = rewriter.create<emitc::ExpressionOp>(loc, floatType,
+                                                         /*do_not_inline=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+        mlir::Block *exprBlock = rewriter.createBlock(&loExpr.getRegion());
+        rewriter.setInsertionPointToStart(exprBlock);
+        mlir::Value x0cos =
+            rewriter.create<emitc::MulOp>(loc, floatType, x0, cosT);
+        mlir::Value x1sin =
+            rewriter.create<emitc::MulOp>(loc, floatType, x1, sinT);
+        mlir::Value y0 =
+            rewriter.create<emitc::SubOp>(loc, floatType, x0cos, x1sin);
+        rewriter.create<emitc::YieldOp>(loc, y0);
+      }
+      // yp is a DISTINCT subscript chain from xp (the loads addressed the const
+      // xp; the stores address the mutable yp -- ggml writes dst, reads src,
+      // which may alias but the consecutive pair is fully READ before written).
+      emitc::SubscriptOp y0Sub =
+          rewriter.create<emitc::SubscriptOp>(loc, yp, idx0Lit);
+      rewriter.create<emitc::AssignOp>(loc, y0Sub.getResult(),
+                                       loExpr.getResult());
+
+      // yp[1] = x0*sin_t + x1*cos_t;  (one expression -> one C statement)
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "rotate_hi"));
+      auto hiExpr = rewriter.create<emitc::ExpressionOp>(loc, floatType,
+                                                         /*do_not_inline=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+        mlir::Block *exprBlock = rewriter.createBlock(&hiExpr.getRegion());
+        rewriter.setInsertionPointToStart(exprBlock);
+        mlir::Value x0sin =
+            rewriter.create<emitc::MulOp>(loc, floatType, x0, sinT);
+        mlir::Value x1cos =
+            rewriter.create<emitc::MulOp>(loc, floatType, x1, cosT);
+        mlir::Value y1 =
+            rewriter.create<emitc::AddOp>(loc, floatType, x0sin, x1cos);
+        rewriter.create<emitc::YieldOp>(loc, y1);
+      }
+      emitc::SubscriptOp y1Sub =
+          rewriter.create<emitc::SubscriptOp>(loc, yp, idx1Lit);
+      rewriter.create<emitc::AssignOp>(loc, y1Sub.getResult(),
+                                       hiExpr.getResult());
+
+      // theta = theta * theta_scale;  -- the iterative f32 recurrence step
+      // (ggml's `theta *= theta_scale;` ops.cpp:5719).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("theta", opName, role));
+      mlir::Value thetaNext =
+          rewriter.create<emitc::MulOp>(loc, floatType, thetaCur, thetaScale);
+      rewriter.create<emitc::AssignOp>(loc, thetaVar, thetaNext);
     }
 
     return mlir::success();

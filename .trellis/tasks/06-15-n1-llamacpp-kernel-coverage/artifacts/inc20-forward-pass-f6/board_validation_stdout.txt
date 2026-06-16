@@ -1,0 +1,25 @@
+=== full output, all four modes (built once per flag) ===
+----- -ffp-contract=default -----
+INC-20 F6 ggml_rope_norm_f32 (NORMAL, head_dim=128, base=10000.0): 66/66 rows f32 BIT-EXACT (vs ggml NORMAL rope, same-libm; this TU's -ffp-contract mode)
+NC-neox (split-half pairing): 60/66 rows correctly DIFFER (pins the NORMAL consecutive pairing; flag-robust)
+NC-fma (forced-fused rotation): 0/66 rows DIFFER vs ggml ref (context: nonzero when the ref is unfused, e.g. -ffp-contract=off)
+DISCRIMINATION: NC-neox SHARP (flag-robust pairing discriminator)
+RESULT: PASS (f32 output BIT-EXACT vs ggml NORMAL rope at this contraction mode; NC-neox pins the NORMAL pairing)
+----- -ffp-contract=on -----
+INC-20 F6 ggml_rope_norm_f32 (NORMAL, head_dim=128, base=10000.0): 66/66 rows f32 BIT-EXACT (vs ggml NORMAL rope, same-libm; this TU's -ffp-contract mode)
+NC-neox (split-half pairing): 60/66 rows correctly DIFFER (pins the NORMAL consecutive pairing; flag-robust)
+NC-fma (forced-fused rotation): 0/66 rows DIFFER vs ggml ref (context: nonzero when the ref is unfused, e.g. -ffp-contract=off)
+DISCRIMINATION: NC-neox SHARP (flag-robust pairing discriminator)
+RESULT: PASS (f32 output BIT-EXACT vs ggml NORMAL rope at this contraction mode; NC-neox pins the NORMAL pairing)
+----- -ffp-contract=off -----
+INC-20 F6 ggml_rope_norm_f32 (NORMAL, head_dim=128, base=10000.0): 66/66 rows f32 BIT-EXACT (vs ggml NORMAL rope, same-libm; this TU's -ffp-contract mode)
+NC-neox (split-half pairing): 60/66 rows correctly DIFFER (pins the NORMAL consecutive pairing; flag-robust)
+NC-fma (forced-fused rotation): 50/66 rows DIFFER vs ggml ref (context: nonzero when the ref is unfused, e.g. -ffp-contract=off)
+DISCRIMINATION: NC-neox SHARP (flag-robust pairing discriminator)
+RESULT: PASS (f32 output BIT-EXACT vs ggml NORMAL rope at this contraction mode; NC-neox pins the NORMAL pairing)
+----- -ffp-contract=fast -----
+INC-20 F6 ggml_rope_norm_f32 (NORMAL, head_dim=128, base=10000.0): 66/66 rows f32 BIT-EXACT (vs ggml NORMAL rope, same-libm; this TU's -ffp-contract mode)
+NC-neox (split-half pairing): 60/66 rows correctly DIFFER (pins the NORMAL consecutive pairing; flag-robust)
+NC-fma (forced-fused rotation): 0/66 rows DIFFER vs ggml ref (context: nonzero when the ref is unfused, e.g. -ffp-contract=off)
+DISCRIMINATION: NC-neox SHARP (flag-robust pairing discriminator)
+RESULT: PASS (f32 output BIT-EXACT vs ggml NORMAL rope at this contraction mode; NC-neox pins the NORMAL pairing)
