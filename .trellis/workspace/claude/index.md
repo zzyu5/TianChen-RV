@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
-- **Last Active**: 2026-06-16
+- **Total Sessions**: 16
+- **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~994 | Active |
+| `journal-1.md` | ~1030 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-06-17 | Coverage: 12 dot kernels (every structural class) + GEMM autotuner + complete forward pass — all 3 goal fronts | `947ccbd3`, `d237d37e`, `6de78efd`, `6ea547d1` | `main` |
 | 15 | 2026-06-16 | Forward-pass PRIMITIVE SET complete (scale/rms_norm/silu/soft_max/quantize/rope, byte-exact) + GEMM perf win | `c0f06843`, `41ee3bb2`, `a053c41e` | `main` |
 | 14 | 2026-06-16 | All 3 goal fronts advanced: GEMM perf win + forward-pass op family (all 3 structural classes byte-exact) | `d48533bb`, `70d35660`, `9e5ba826`, `edaeb886` | `main` |
 | 13 | 2026-06-16 | Measurement-backed autotuner (实测胜出) + super-block K-quant q6_K byte-exact; 4 real ggml kernels covered | `4c2999b9`, `ae479367`, `f7f90eac` | `main` |
