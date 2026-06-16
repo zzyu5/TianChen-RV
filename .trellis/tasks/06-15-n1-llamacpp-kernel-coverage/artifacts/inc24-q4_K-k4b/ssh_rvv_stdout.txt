@@ -1,0 +1,37 @@
+# INC-24 q4_K K4b — ssh rvv board stdout (riscv64, clang 18.1.3, rv64gcv, VLEN=128)
+
+## (1) -ffp-contract=off  [HEADLINE byte-exact regime]
+INC-24 q4_K K4b byte-exact *s vs ggml _generic (oracle = verbatim _generic)
+named n set:
+  [n=256] n=256  ref=-15227.3604 (0xc66ded71)  tcrv=-15227.3604 (0xc66ded71)  bit-exact
+  [n=512] n=512  ref=6690.8125 (0x45d11680)  tcrv=6690.8125 (0x45d11680)  bit-exact
+  [n=2048] n=2048  ref=-1214491.12 (0xc99440d9)  tcrv=-1214491.12 (0xc99440d9)  bit-exact
+  [n=4096] n=4096  ref=1660849.88 (0x49cabd8f)  tcrv=1660849.88 (0x49cabd8f)  bit-exact
+  [n=25600] n=25600  ref=-2803288.25 (0xca2b1961)  tcrv=-2803288.25 (0xca2b1961)  bit-exact
+  [n=65536] n=65536  ref=-970089.5 (0xc96cd698)  tcrv=-970089.5 (0xc96cd698)  bit-exact
+edge cases:
+  [edge all-zero (q4=0 scale=0 q8=0 bsum=0 d=dmin=1.0 dy=1.0)] ref=0 (0x00000000) tcrv=0 (0x00000000) bit-exact
+  [edge q4=0xFF scale=0xFF q8=+127 bsum=+2000 d=2.0 dmin=0.5 dy=-3.5] ref=-211538880 (0xcd49bd3c) tcrv=-211538880 (0xcd49bd3c) bit-exact
+  [edge q4=0x00 scale=0x00 q8=-128 bsum=-2000 d=0.5 dmin=2.0 dy=2.25] ref=0 (0x00000000) tcrv=0 (0x00000000) bit-exact
+  [edge scale=0x3F(max6) min=0x3F q8=+1 bsum=+1000 d=1.0 dmin=1.0 dy=1.0] ref=-378240 (0xc8b8b000) tcrv=-378240 (0xc8b8b000) bit-exact
+  [edge dy=0.0 -> *s must be 0 (both d and dmin terms vanish)] ref=0 (0x00000000) tcrv=0 (0x00000000) bit-exact
+  [edge min-only: q4=0 (aux32=0 -> positive term 0) bsum=+1500 dmin=2.0] ref=-4536000 (0xca8a6d80) tcrv=-4536000 (0xca8a6d80) bit-exact
+random n (NB in 1..32), 2000 trials:
+  random trials with a mismatch: 0 / 2000
+MIN-term negative control (perturbed dmin must MISMATCH):
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+
+INC-24 q4_K K4b: 2012 positive cases checked, 0 failures
+RESULT: PASS (*s bit-exact vs ggml _generic for all cases; MIN-term negative control discriminating)
+
+## (2) -ffp-contract=on   [reference _generic FUSES sums[l]+=d*aux32[l] -> band]
+  random trials with a mismatch: 913 / 2000
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+INC-24 q4_K K4b: 2012 positive cases checked, 917 failures
+RESULT: FAIL
+
+## (3) -ffp-contract=fast [same reference-fusion band]
+  random trials with a mismatch: 913 / 2000
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+INC-24 q4_K K4b: 2012 positive cases checked, 917 failures
+RESULT: FAIL
