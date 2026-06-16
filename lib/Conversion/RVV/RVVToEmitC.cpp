@@ -938,6 +938,21 @@ public:
       return mlir::success();
     }
 
+    // The ggml Q4_0 x Q8_0 FULL GEMM (tcrv_rvv.q4_0_q8_0_gemm) wraps the
+    // weight-decode-reuse tile in an outer weight-ROW loop (NR rows) x an inner
+    // column-strip loop (the nc activation columns in M-wide strips). Every
+    // output element s[row][col] is byte-exact vs an independent
+    // ggml_vec_dot_q4_0_q8_0(weight_row, column_col). The structural marker is
+    // the tcrv_rvv.q4_0_q8_0_gemm op identity.
+    if (isQ4_0Q8_0GemmBody(scope)) {
+      if (mlir::failed(emitQ4_0Q8_0Gemm(rewriter, loc, scope, avlArg, sizeType,
+                                        valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     // The ggml Q8_0 x Q8_0 block dot-product (tcrv_rvv.q8_0_q8_0_block_dot) is
     // the Family-A sibling of the Q4_0 route: the SAME block-loop / unroll /
     // tail / scale / store structure, with a plain i8 x i8 widening-product
@@ -1750,6 +1765,23 @@ private:
       }
     }
     return sawTile;
+  }
+
+  /// The full-GEMM (NR rows x nc cols) recognizer: a with_vl scope whose ONLY
+  /// compute op is a single tcrv_rvv.q4_0_q8_0_gemm. The op identity is the
+  /// dispatch key; the emitter owns the structured row x column-strip expansion.
+  static bool isQ4_0Q8_0GemmBody(tcrvrvv::WithVLOp scope) {
+    bool sawGemm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlGemmQ40Q80Op>(op)) {
+        if (sawGemm)
+          return false;
+        sawGemm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemm;
   }
 
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
@@ -6067,6 +6099,472 @@ private:
     }
 
     valueMap[tile.getResult()] = lastStored;
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml Q4_0 x Q8_0 FULL GEMM (NR weight rows x nc
+  /// activation columns) for one tcrv_rvv.q4_0_q8_0_gemm op as fully STRUCTURED
+  /// emitc nodes (I5; ZERO raw() strings -- every value is a node in the IR
+  /// graph). It is the FULL-MATMUL wrapper of emitQ4_0Q8_0GemmTile: an outer
+  /// emitc.for weight-ROW loop over nr, and an inner emitc.for column-strip loop
+  /// over the nc columns in M-wide strips, each strip running G1's
+  /// weight-decode-reuse tile body (decode each (row, block) weight ONCE, reuse
+  /// the decoded v0/v1 nibble lanes across the M columns of the strip). The
+  /// shape is:
+  ///   for (size_t ir = 0; ir < nr; ++ir) {
+  ///     const uint8_t *xr = vx + ir*bx;      // weight row ir
+  ///     float *sr = s + ir*bs;               // output row ir
+  ///     for (size_t cb = 0; cb < nc; cb += M) {
+  ///       size_t active = (nc - cb < M) ? (nc - cb) : M;  // tail clamp
+  ///       float sumf[M]; for (j<active) sumf[j] = 0;
+  ///       const uint8_t *yb0 = vy + cb*by;    // first column of the strip
+  ///       for (size_t ib = 0; ib < n/QK; ++ib) {
+  ///         const uint8_t *xb = xr + ib*18;
+  ///         float d_x = (float)*(_Float16*)xb;
+  ///         size_t vl = vsetvl_e8m1(16);
+  ///         vint8m1_t w = vle8(xb+2, vl);  decode -> v0,v1;   // HOISTED once
+  ///         for (size_t j = 0; j < active; ++j) {
+  ///           const uint8_t *yb = yb0 + j*by + ib*34;
+  ///           float d_y = (float)*(_Float16*)yb;
+  ///           y0=vle8(yb+2); y1=vle8(yb+2+16);
+  ///           prod = vwmul/vwmacc(v0,y0,v1,y1);
+  ///           sumi = vmv_x_s(vwredsum(prod));
+  ///           sumf[j] = sumf[j] + ((float)sumi * d_x) * d_y;  // ggml order
+  ///         }
+  ///       }
+  ///       for (size_t j = 0; j < active; ++j) sr[cb + j] = sumf[j];
+  ///     }
+  ///   }
+  /// Each (ir, cb+j) output is EXACTLY ggml_vec_dot_q4_0_q8_0(weight_row_ir,
+  /// column_(cb+j)) -- the weight decode is shared across the strip, but the
+  /// per-(block, column) products / reduction / ascending-block-order fp32 fold
+  /// are identical to vec_dot, with one INDEPENDENT fp32 accumulator per column,
+  /// so every output is byte-exact vs the per-(row,col) vec_dot ggml runs at
+  /// VLEN=128 (the repack GEMM disabled at `case 128`). The weight decode reuses
+  /// emitOffsetBinaryDecodeValue + emitOffsetBinaryProductFromDecodedValue
+  /// (INC-1's decode/product halves) -- the SAME nodes the per-row block dot and
+  /// the GEMM tile emit. The m1 whole-half-block decode is correct at VLEN >= 128
+  /// (the board's mandated full-V floor).
+  mlir::LogicalResult emitQ4_0Q8_0Gemm(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlGemmQ40Q80Op gemm;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlGemmQ40Q80Op>(op))
+        gemm = g;
+    }
+    if (!gemm)
+      return rewriter.notifyMatchFailure(scope, "gemm body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
+    mlir::Value columnStride = valueMap.lookup(gemm.getActivationColumnStride());
+    mlir::Value output = valueMap.lookup(gemm.getOutput());
+    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
+    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
+    mlir::Value weightRowStride = valueMap.lookup(gemm.getWeightRowStride());
+    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
+    if (!weightBase || !activationBase || !columnStride || !output ||
+        !rowCount || !columnCount || !weightRowStride || !outputRowStride)
+      return rewriter.notifyMatchFailure(gemm, "gemm ABI operand unmapped");
+
+    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type weightPtrType = weightBase.getType();
+    mlir::Type activationPtrType = activationBase.getType();
+    mlir::Type floatPtrType = output.getType();
+
+    // The block-format structural facts come straight off the typed attrs (I4).
+    int64_t qk = gemm.getQk();
+    int64_t weightStride = gemm.getWeightBlockStride();
+    int64_t activationStride = gemm.getActivationBlockStride();
+    int64_t quantOffset = gemm.getQuantByteOffset();
+    int64_t highOffset = gemm.getActivationHighByteOffset();
+    int64_t halfBlock = qk / 2; // 16 nibble bytes / q8 half lanes per block
+    int64_t cols = gemm.getActivationCols();
+
+    // The weight decode anchors at the m1 whole-half-block form (one
+    // vsetvl_e8m1(16) covers the 16 nibble bytes at VLEN >= 128); the product
+    // widens i8m1 -> i16m2. The *how* (vector grouping), never the *what*: the
+    // dot product is byte-exact (vwredsum sums the same integer set).
+    llvm::StringRef coreLmul = "m1";
+    llvm::StringRef wideLmul = "m2";
+    mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, "vint8m1_t");
+    mlir::Type i16WideType = emitc::OpaqueType::get(ctx, "vint16m2_t");
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // The scalar fp16->fp32 read (the ONE sanctioned opaque piece, a typed
+    // emitc.call_opaque node, exactly how INC-1 emits its intrinsics).
+    auto fp16Read = [&](mlir::Value blockBase) -> mlir::Value {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fcvt.s.h"));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                       fp16ReadCallee,
+                                       mlir::ValueRange{blockBase})
+          .getResult(0);
+    };
+
+    // A typed i8m1 chunk load: __riscv_vle8_v_i8m1(ptr + fixed, vl).
+    std::string loadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
+    auto loadChunk = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                         mlir::Value vl) -> mlir::Value {
+      mlir::Value full =
+          rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      mlir::Value cast =
+          rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, loadCallee));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
+                                       loadCallee, mlir::ValueRange{cast, vl})
+          .getResult(0);
+    };
+
+    // size_t nb = n / QK;  (the contraction block count, shared across rows/cols)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
+      return rewriter.notifyMatchFailure(gemm, "gemm output not a pointer");
+
+    // ===== Outer weight-ROW loop: for (size_t ir = 0; ir < nr; ++ir) =====
+    auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), rowCount,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::LogicalResult rowStatus = mlir::success();
+    {
+      mlir::OpBuilder::InsertionGuard rowGuard(rewriter);
+      rewriter.setInsertionPointToStart(rowLoop.getBody());
+      mlir::Value ir = rowLoop.getInductionVar();
+
+      // const uint8_t *xr = vx + ir*bx;   float *sr = s + ir*bs;
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "weight_row_base"));
+      mlir::Value rowWeightOff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ir, weightRowStride);
+      mlir::Value xr = rewriter.create<emitc::AddOp>(loc, weightPtrType,
+                                                     weightBase, rowWeightOff);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "output_row_base"));
+      mlir::Value rowOutOff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ir, outputRowStride);
+      mlir::Value sr = rewriter.create<emitc::AddOp>(loc, floatPtrType, output,
+                                                     rowOutOff);
+
+      auto srPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(sr);
+
+      // emitStrip(cb, colBound): one M-wide column strip starting at column cb,
+      // processing `colBound` columns (colBound is the inner-loop trip count).
+      // The FULL strips pass the COMPILE-TIME CONSTANT M (sizeLit(cols)) so the
+      // inner column loop is a constant-trip loop the C compiler fully unrolls
+      // -- recovering G1's tile shape (the per-column vwredsum/vmv_x_s/fp32-fold
+      // chains overlap across the unrolled columns; a runtime bound serializes
+      // them and ships a regression). The ONE tail strip passes the runtime
+      // remainder (nc % M). The math is identical for either bound, so every
+      // output stays byte-exact vs per-(row,col) vec_dot; only the inner
+      // trip-count SHAPE differs (the same "full groups + tail" pattern the
+      // block dot's multi_block_factor uses).
+      auto emitStrip = [&](mlir::Value cb,
+                           mlir::Value colBound) -> mlir::LogicalResult {
+        // const uint8_t *yb0 = vy + cb*by;  -- the first activation column of
+        // this strip; column j of the strip is yb0 + j*by.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "strip_base_y"));
+        mlir::Value stripColOff =
+            rewriter.create<emitc::MulOp>(loc, sizeType, cb, columnStride);
+        mlir::Value yb0 = rewriter.create<emitc::AddOp>(
+            loc, activationPtrType, activationBase, stripColOff);
+
+        // float sumf[M]; for (j < colBound) sumf[j] = 0.0f;  -- the M-wide fp32
+        // accumulator array (M bounded). The init is over colBound (a partial
+        // tail strip leaves the unused lanes untouched).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, localVariableComment("sumf", opName, role));
+        mlir::Type sumfArrayType = emitc::ArrayType::get({cols}, floatType);
+        auto sumfVar = rewriter.create<emitc::VariableOp>(
+            loc, sumfArrayType, emitc::OpaqueAttr::get(ctx, ""));
+        auto sumfArray =
+            llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sumfVar.getResult());
+        auto sumfElem = [&](mlir::Value j) -> mlir::Value {
+          return rewriter
+              .create<emitc::SubscriptOp>(loc, sumfArray, mlir::ValueRange{j})
+              .getResult();
+        };
+        {
+          auto zeroLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
+                                                        colBound, sizeLit(1),
+                                                        /*bodyBuilder=*/nullptr);
+          mlir::OpBuilder::InsertionGuard zg(rewriter);
+          rewriter.setInsertionPointToStart(zeroLoop.getBody());
+          rewriter.create<emitc::AssignOp>(
+              loc, sumfElem(zeroLoop.getInductionVar()),
+              rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
+        }
+
+        // ===== The weight-decode-reuse block loop (G1's tile body) =====
+        // for (size_t ib = 0; ib < nb; ++ib) { decode weight ONCE; for j<colBound }
+        auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                       sizeLit(1),
+                                                       /*bodyBuilder=*/nullptr);
+        mlir::LogicalResult blockStatus = mlir::success();
+        {
+          mlir::OpBuilder::InsertionGuard blockGuard(rewriter);
+          rewriter.setInsertionPointToStart(blockLoop.getBody());
+          mlir::Value ib = blockLoop.getInductionVar();
+
+          // Shared weight block: address (xr + ib*18) + fp16 scale + HOISTED
+          // decode into v0/v1, computed ONCE and reused across the strip cols.
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, "block_base_x"));
+          mlir::Value xbOff =
+              rewriter.create<emitc::MulOp>(loc, sizeType, ib,
+                                            sizeLit(weightStride));
+          mlir::Value xb = rewriter.create<emitc::AddOp>(loc, weightPtrType, xr,
+                                                         xbOff);
+          mlir::Value dX = fp16Read(xb);
+
+          // size_t vl = __riscv_vsetvl_e8m1(16);  (m1 whole-half-block, VLEN>=128)
+          std::string setvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, setvlCallee));
+          mlir::Value vl =
+              rewriter
+                  .create<emitc::CallOpaqueOp>(
+                      loc, mlir::TypeRange{sizeType}, setvlCallee,
+                      mlir::ValueRange{sizeLit(halfBlock)})
+                  .getResult(0);
+
+          // vint8m1_t w = vle8(xb + 2, vl);  then offset-binary decode -> v0/v1
+          // (the SHARED decoded nibble lanes reused across all strip columns).
+          mlir::Value w = loadChunk(xb, weightPtrType, quantOffset, vl);
+          std::pair<mlir::Value, mlir::Value> decoded =
+              emitOffsetBinaryDecodeValue(rewriter, loc, w, vl, i8CoreType,
+                                          "i8", coreLmul, opName, role);
+
+          // ===== The inner COLUMN loop (reuses the hoisted v0/v1) =====
+          // for (size_t j = 0; j < colBound; ++j) { ... }  -- colBound is the
+          // constant M for full strips (unrollable) or the runtime tail.
+          auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), colBound,
+                                                       sizeLit(1),
+                                                       /*bodyBuilder=*/nullptr);
+          mlir::LogicalResult colStatus = mlir::success();
+          {
+            mlir::OpBuilder::InsertionGuard colGuard(rewriter);
+            rewriter.setInsertionPointToStart(colLoop.getBody());
+            mlir::Value j = colLoop.getInductionVar();
+
+            // const uint8_t *yb = yb0 + j*by + ib*34;
+            rewriter.create<emitc::VerbatimOp>(
+                loc, stepComment(opName, role, "column_base_y"));
+            mlir::Value colOff =
+                rewriter.create<emitc::MulOp>(loc, sizeType, j, columnStride);
+            mlir::Value ybCol = rewriter.create<emitc::AddOp>(
+                loc, activationPtrType, yb0, colOff);
+            rewriter.create<emitc::VerbatimOp>(
+                loc, stepComment(opName, role, "block_base_y"));
+            mlir::Value ybBlockOff =
+                rewriter.create<emitc::MulOp>(loc, sizeType, ib,
+                                              sizeLit(activationStride));
+            mlir::Value yb = rewriter.create<emitc::AddOp>(
+                loc, activationPtrType, ybCol, ybBlockOff);
+            mlir::Value dY = fp16Read(yb);
+
+            // vint8m1_t y0 = vle8(yb+2, vl);  y1 = vle8(yb+2+16, vl);
+            mlir::Value y0 = loadChunk(yb, activationPtrType, quantOffset, vl);
+            mlir::Value y1 = loadChunk(yb, activationPtrType,
+                                       quantOffset + highOffset, vl);
+
+            // The product half against the HOISTED decoded weight lanes (byte-
+            // identical nodes to the per-row block dot's vwmul/vwmacc).
+            mlir::FailureOr<mlir::Value> product =
+                emitOffsetBinaryProductFromDecodedValue(
+                    rewriter, loc, decoded.first, decoded.second, y0, y1, vl,
+                    i16WideType, 16, wideLmul, "i16", opName, role);
+            if (mlir::failed(product)) {
+              colStatus = mlir::failure();
+            } else {
+              // Per-column reduce: seed lane0 = 0 (the m1 strip runs once at
+              // VLEN >= 128), vwredsum, extract scalar sumi.
+              std::string seedCallee =
+                  riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
+              rewriter.create<emitc::VerbatimOp>(
+                  loc, stepComment(opName, role, seedCallee));
+              mlir::Value sumiSeed =
+                  rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                      .getResult();
+              mlir::Value seed =
+                  rewriter
+                      .create<emitc::CallOpaqueOp>(
+                          loc, mlir::TypeRange{i32m1Type}, seedCallee,
+                          mlir::ValueRange{sumiSeed, sizeLit(1)})
+                      .getResult(0);
+              std::string reduceCallee =
+                  ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
+              rewriter.create<emitc::VerbatimOp>(
+                  loc, stepComment(opName, role, reduceCallee));
+              mlir::Value red =
+                  rewriter
+                      .create<emitc::CallOpaqueOp>(
+                          loc, mlir::TypeRange{i32m1Type}, reduceCallee,
+                          mlir::ValueRange{*product, seed, vl})
+                      .getResult(0);
+              std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+              rewriter.create<emitc::VerbatimOp>(
+                  loc, stepComment(opName, role, extractCallee));
+              mlir::Value sumi =
+                  rewriter
+                      .create<emitc::CallOpaqueOp>(
+                          loc, mlir::TypeRange{i32Type}, extractCallee,
+                          mlir::ValueRange{red})
+                      .getResult(0);
+
+              // sumf[j] = sumf[j] + ((float)sumi * d_x) * d_y;  -- ggml's exact
+              // left-associative order, grouped into ONE emitc.expression so
+              // mlir-translate renders it as a SINGLE C statement the compiler
+              // fuses into the SAME FMA ggml does under -ffp-contract=on/default
+              // (byte-exact across all four modes). Each column accumulates ib
+              // ascending into its OWN sumf[j], so the fp32 non-associativity
+              // boundary is per-column-identical to vec_dot.
+              rewriter.create<emitc::VerbatimOp>(
+                  loc, stepComment(opName, role, "fp32_accumulate"));
+              mlir::Value sumfElemLval = sumfElem(j);
+              mlir::Value sumfCur =
+                  rewriter.create<emitc::LoadOp>(loc, floatType, sumfElemLval)
+                      .getResult();
+              auto accumExpr = rewriter.create<emitc::ExpressionOp>(
+                  loc, floatType, /*do_not_inline=*/false);
+              {
+                mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+                mlir::Block *exprBlock =
+                    rewriter.createBlock(&accumExpr.getRegion());
+                rewriter.setInsertionPointToStart(exprBlock);
+                mlir::Value sumiFloat =
+                    rewriter.create<emitc::CastOp>(loc, floatType, sumi)
+                        .getResult();
+                mlir::Value timesDx =
+                    rewriter.create<emitc::MulOp>(loc, floatType, sumiFloat, dX);
+                mlir::Value blockTerm =
+                    rewriter.create<emitc::MulOp>(loc, floatType, timesDx, dY);
+                mlir::Value sumfNext = rewriter.create<emitc::AddOp>(
+                    loc, floatType, sumfCur, blockTerm);
+                rewriter.create<emitc::YieldOp>(loc, sumfNext);
+              }
+              rewriter.create<emitc::VerbatimOp>(
+                  loc, assignComment("sumf", opName, role));
+              rewriter.create<emitc::AssignOp>(loc, sumfElemLval,
+                                               accumExpr.getResult());
+            }
+          }
+          if (mlir::failed(colStatus))
+            blockStatus = mlir::failure();
+        }
+        if (mlir::failed(blockStatus))
+          return mlir::failure();
+
+        // for (size_t j = 0; j < colBound; ++j) sr[cb + j] = sumf[j];  -- the
+        // strip output store through the row pointer.
+        auto storeLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), colBound,
+                                                       sizeLit(1),
+                                                       /*bodyBuilder=*/nullptr);
+        mlir::OpBuilder::InsertionGuard sg(rewriter);
+        rewriter.setInsertionPointToStart(storeLoop.getBody());
+        mlir::Value j = storeLoop.getInductionVar();
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "store_s"));
+        mlir::Value outIdx =
+            rewriter.create<emitc::AddOp>(loc, sizeType, cb, j);
+        emitc::SubscriptOp outSubscript =
+            rewriter.create<emitc::SubscriptOp>(loc, srPtr, outIdx);
+        mlir::Value sumfVal =
+            rewriter.create<emitc::LoadOp>(loc, floatType, sumfElem(j))
+                .getResult();
+        rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(),
+                                         sumfVal);
+        return mlir::success();
+      };
+
+      // size_t ncFull = (nc / M) * M;  -- the full-strip span (a multiple of M).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "full_strip_span"));
+      mlir::Value ncGroups =
+          rewriter.create<emitc::DivOp>(loc, sizeType, columnCount,
+                                        sizeLit(cols));
+      mlir::Value ncFull =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ncGroups, sizeLit(cols));
+
+      // ===== FULL column-strip loop: for (cb = 0; cb < ncFull; cb += M) =====
+      // The inner column loop trip count is the COMPILE-TIME CONSTANT M, so the
+      // C compiler fully unrolls it (recovering G1's overlapping reductions).
+      auto stripLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncFull,
+                                                     sizeLit(cols),
+                                                     /*bodyBuilder=*/nullptr);
+      mlir::LogicalResult stripStatus = mlir::success();
+      {
+        mlir::OpBuilder::InsertionGuard stripGuard(rewriter);
+        rewriter.setInsertionPointToStart(stripLoop.getBody());
+        stripStatus = emitStrip(stripLoop.getInductionVar(), sizeLit(cols));
+      }
+      if (mlir::failed(stripStatus))
+        rowStatus = mlir::failure();
+
+      // ===== ONE tail strip: if (ncFull < nc) emitStrip(ncFull, nc-ncFull) =====
+      // The final nc % M columns (0 when nc is a multiple of M). The tail's
+      // inner column loop is the runtime remainder; it runs at most once per
+      // row, so the (un-unrolled) tail does not dominate the cost.
+      if (mlir::succeeded(rowStatus)) {
+        mlir::Value tailCount =
+            rewriter.create<emitc::SubOp>(loc, sizeType, columnCount, ncFull);
+        mlir::Value hasTail =
+            rewriter
+                .create<emitc::CmpOp>(loc, rewriter.getI1Type(),
+                                      emitc::CmpPredicate::lt, ncFull,
+                                      columnCount)
+                .getResult();
+        auto tailIf = rewriter.create<emitc::IfOp>(loc, hasTail,
+                                                   /*addThenBlock=*/true,
+                                                   /*addElseBlock=*/false);
+        {
+          mlir::OpBuilder::InsertionGuard ifGuard(rewriter);
+          rewriter.setInsertionPointToStart(&tailIf.getThenRegion().front());
+          mlir::LogicalResult tailStatus = emitStrip(ncFull, tailCount);
+          rewriter.create<emitc::YieldOp>(loc);
+          if (mlir::failed(tailStatus))
+            rowStatus = mlir::failure();
+        }
+      }
+    }
+    if (mlir::failed(rowStatus))
+      return mlir::failure();
+
+    // The op result is the typed i32m1 token; the GEMM writes through *s so the
+    // token has no consumer. Seed it with a zero i32m1 lane-0 so the valueMap
+    // entry is well-formed (mirrors the per-row block dot's unused result).
+    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
+    mlir::Value zeroLane =
+        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+    mlir::Value resultTok =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
+                                         seedCallee,
+                                         mlir::ValueRange{zeroLane, sizeLit(1)})
+            .getResult(0);
+    valueMap[gemm.getResult()] = resultTok;
     return mlir::success();
   }
 

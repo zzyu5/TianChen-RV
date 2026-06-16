@@ -1,0 +1,74 @@
+=== INC-25 GEMM G2 byte-exact validation (M=4 kernel) ===
+  [M4] n=32 nr=8 nc=4 : 0 mismatches -> PASS
+  [M4] n=64 nr=8 nc=4 : 0 mismatches -> PASS
+  [M4] n=256 nr=8 nc=4 : 0 mismatches -> PASS
+  [M4] n=1024 nr=8 nc=4 : 0 mismatches -> PASS
+  [M4] n=4096 nr=8 nc=4 : 0 mismatches -> PASS
+  [M4] n=32 nr=8 nc=6 : 0 mismatches -> PASS
+  [M4] n=64 nr=8 nc=6 : 0 mismatches -> PASS
+  [M4] n=256 nr=8 nc=6 : 0 mismatches -> PASS
+  [M4] n=1024 nr=8 nc=6 : 0 mismatches -> PASS
+  [M4] n=4096 nr=8 nc=6 : 0 mismatches -> PASS
+  [M4] n=32 nr=16 nc=7 : 0 mismatches -> PASS
+  [M4] n=64 nr=16 nc=7 : 0 mismatches -> PASS
+  [M4] n=256 nr=16 nc=7 : 0 mismatches -> PASS
+  [M4] n=1024 nr=16 nc=7 : 0 mismatches -> PASS
+  [M4] n=4096 nr=16 nc=7 : 0 mismatches -> PASS
+  [M4] n=32 nr=3 nc=5 : 0 mismatches -> PASS
+  [M4] n=64 nr=3 nc=5 : 0 mismatches -> PASS
+  [M4] n=256 nr=3 nc=5 : 0 mismatches -> PASS
+  [M4] n=1024 nr=3 nc=5 : 0 mismatches -> PASS
+  [M4] n=4096 nr=3 nc=5 : 0 mismatches -> PASS
+  [M4] n=32 nr=5 nc=1 : 0 mismatches -> PASS
+  [M4] n=64 nr=5 nc=1 : 0 mismatches -> PASS
+  [M4] n=256 nr=5 nc=1 : 0 mismatches -> PASS
+  [M4] n=1024 nr=5 nc=1 : 0 mismatches -> PASS
+  [M4] n=4096 nr=5 nc=1 : 0 mismatches -> PASS
+  [M4] n=32 nr=7 nc=13 : 0 mismatches -> PASS
+  [M4] n=64 nr=7 nc=13 : 0 mismatches -> PASS
+  [M4] n=256 nr=7 nc=13 : 0 mismatches -> PASS
+  [M4] n=1024 nr=7 nc=13 : 0 mismatches -> PASS
+  [M4] n=4096 nr=7 nc=13 : 0 mismatches -> PASS
+=== INC-25 GEMM G2 byte-exact validation (M=6 kernel) ===
+  [M6] n=32 nr=8 nc=4 : 0 mismatches -> PASS
+  [M6] n=64 nr=8 nc=4 : 0 mismatches -> PASS
+  [M6] n=256 nr=8 nc=4 : 0 mismatches -> PASS
+  [M6] n=1024 nr=8 nc=4 : 0 mismatches -> PASS
+  [M6] n=4096 nr=8 nc=4 : 0 mismatches -> PASS
+  [M6] n=32 nr=8 nc=6 : 0 mismatches -> PASS
+  [M6] n=64 nr=8 nc=6 : 0 mismatches -> PASS
+  [M6] n=256 nr=8 nc=6 : 0 mismatches -> PASS
+  [M6] n=1024 nr=8 nc=6 : 0 mismatches -> PASS
+  [M6] n=4096 nr=8 nc=6 : 0 mismatches -> PASS
+  [M6] n=32 nr=16 nc=7 : 0 mismatches -> PASS
+  [M6] n=64 nr=16 nc=7 : 0 mismatches -> PASS
+  [M6] n=256 nr=16 nc=7 : 0 mismatches -> PASS
+  [M6] n=1024 nr=16 nc=7 : 0 mismatches -> PASS
+  [M6] n=4096 nr=16 nc=7 : 0 mismatches -> PASS
+  [M6] n=32 nr=3 nc=5 : 0 mismatches -> PASS
+  [M6] n=64 nr=3 nc=5 : 0 mismatches -> PASS
+  [M6] n=256 nr=3 nc=5 : 0 mismatches -> PASS
+  [M6] n=1024 nr=3 nc=5 : 0 mismatches -> PASS
+  [M6] n=4096 nr=3 nc=5 : 0 mismatches -> PASS
+  [M6] n=32 nr=5 nc=1 : 0 mismatches -> PASS
+  [M6] n=64 nr=5 nc=1 : 0 mismatches -> PASS
+  [M6] n=256 nr=5 nc=1 : 0 mismatches -> PASS
+  [M6] n=1024 nr=5 nc=1 : 0 mismatches -> PASS
+  [M6] n=4096 nr=5 nc=1 : 0 mismatches -> PASS
+  [M6] n=32 nr=7 nc=13 : 0 mismatches -> PASS
+  [M6] n=64 nr=7 nc=13 : 0 mismatches -> PASS
+  [M6] n=256 nr=7 nc=13 : 0 mismatches -> PASS
+  [M6] n=1024 nr=7 nc=13 : 0 mismatches -> PASS
+  [M6] n=4096 nr=7 nc=13 : 0 mismatches -> PASS
+=== negative controls (must discriminate) ===
+  [M4] negative-control n=256 nr=8 nc=6 perturb_row=3: perturbed-row-diffs=6 other-row-mismatches=0 -> OK(discriminates)
+  [M6] negative-control n=256 nr=8 nc=6 perturb_row=5: perturbed-row-diffs=6 other-row-mismatches=0 -> OK(discriminates)
+=== microbench (full GEMM vs NR*nc per-row vec_dot) ===
+  [M4] BENCH n=4096 nr=8 nc=4 : full-GEMM 7668.8 ns/out  | NR*nc vec_dot 7696.2 ns/out  | speedup 1.004x  (sink=9.32e+05)
+  [M4] BENCH n=4096 nr=8 nc=8 : full-GEMM 7663.1 ns/out  | NR*nc vec_dot 5617.5 ns/out  | speedup 0.733x  (sink=-8.88e+05)
+  [M6] BENCH n=4096 nr=8 nc=6 : full-GEMM 6810.4 ns/out  | NR*nc vec_dot 5623.3 ns/out  | speedup 0.826x  (sink=1.02e+06)
+  [M6] BENCH n=4096 nr=8 nc=12 : full-GEMM 6817.5 ns/out  | NR*nc vec_dot 5616.9 ns/out  | speedup 0.824x  (sink=-3.6e+05)
+  [M4] BENCH n=11008 nr=8 nc=4 : full-GEMM 15051.3 ns/out  | NR*nc vec_dot 15110.6 ns/out  | speedup 1.004x  (sink=1.38e+06)
+  [M6] BENCH n=11008 nr=8 nc=6 : full-GEMM 18198.8 ns/out  | NR*nc vec_dot 15091.3 ns/out  | speedup 0.829x  (sink=1.76e+06)
+
+=== RESULT: ALL PASS (total non-control failures + bad controls = 0) ===

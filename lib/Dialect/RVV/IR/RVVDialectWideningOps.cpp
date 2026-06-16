@@ -1095,6 +1095,162 @@ mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // dual-fp16 scale model, the block-format structural facts, and the bounded
+  // inner activation-column block count M. Anything else -- a forbidden local
+  // element_count/SEW/LMUL/policy attr, or an unexpected name -- is rejected
+  // fail-closed (I7). The runtime row/column counts and the row strides are
+  // RUNTIME ABI value operands (the full ggml-gemm-like ABI), NOT attrs.
+  auto isAllowedGemmAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" || name == "quant_byte_offset" ||
+           name == "activation_high_byte_offset" || name == "activation_cols";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_0_q8_0_gemm keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL/nr/nc/bx/bs in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedGemmAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml Q4_0 x Q8_0 full GEMM attributes "
+                "'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'quant_byte_offset', "
+                "'activation_high_byte_offset', and 'activation_cols'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q4_0_q8_0_gemm")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q4_0_q8_0_gemm\" for "
+              "the bounded ggml Q4_0 x Q8_0 full GEMM typed surface";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" for the "
+              "ggml Q4_0 x Q8_0 full GEMM route";
+  // ggml's externally-defined block format (ggml-common.h), identical to the
+  // per-row block dot / GEMM tile: QK8_0 == 32, block_q4_0 stride 18,
+  // block_q8_0 stride 34, quants at byte offset +2, the q8 high half at +16.
+  // Pin them so a malformed typed body cannot lower under the GEMM emission.
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK8_0) for the ggml Q4_0 x "
+                            "Q8_0 full GEMM route";
+  if (getWeightBlockStride() != 18)
+    return emitOpError()
+           << "requires weight_block_stride == 18 (sizeof block_q4_0) for the "
+              "ggml Q4_0 x Q8_0 full GEMM route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml Q4_0 x Q8_0 full GEMM route";
+  if (getQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires quant_byte_offset == 2 (quants follow the inline fp16 "
+              "scale) for the ggml Q4_0 x Q8_0 full GEMM route";
+  if (getActivationHighByteOffset() != 16)
+    return emitOpError()
+           << "requires activation_high_byte_offset == 16 (q8 high half) for "
+              "the ggml Q4_0 x Q8_0 full GEMM route";
+
+  // The bounded inner activation-column block count M: G2 fixes a small tile so
+  // the inner M-column loop and the M-wide fp32 accumulator array stay
+  // register-bounded. Reject M outside the bounded [1, 16] band fail-closed
+  // (I7); the measurement-tuned cache-blocking M-block is G3.
+  int64_t activationCols = getActivationCols();
+  if (activationCols < 1 || activationCols > 16)
+    return emitOpError()
+           << "requires activation_cols in [1, 16] (the bounded G2 inner GEMM "
+              "column block; the measurement-tuned M-block is G3); got "
+           << activationCols;
+
+  if (op->getNumOperands() != 10 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one activation column-stride, one output pointer, one runtime "
+              "element-count, one runtime row-count, one runtime column-count, "
+              "one weight-row byte-stride, one output-row float-stride runtime "
+              "ABI operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The buffer operands and the counts/strides are runtime ABI values; the
+  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
+  // output is a float *, the element count carries n, the row/column counts
+  // carry nr/nc, and the strides carry the per-row byte stride (bx) and the
+  // per-output-row float stride (bs).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q4_0 weight-rows byte "
+              "array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 columns "
+              "byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination, NR x nc outputs)";
+  if (!llvm::isa<mlir::IndexType>(getActivationColumnStride().getType()))
+    return emitOpError()
+           << "requires the activation column-stride operand to be a runtime "
+              "index value (the per-column activation byte stride)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getRowCount().getType()))
+    return emitOpError()
+           << "requires the row-count operand to be a runtime index value (nr, "
+              "the number of weight rows)";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc, the number of activation columns)";
+  if (!llvm::isa<mlir::IndexType>(getWeightRowStride().getType()))
+    return emitOpError()
+           << "requires the weight-row-stride operand to be a runtime index "
+              "value (bx, the per-weight-row byte stride)";
+  if (!llvm::isa<mlir::IndexType>(getOutputRowStride().getType()))
+    return emitOpError()
+           << "requires the output-row-stride operand to be a runtime index "
+              "value (bs, the per-output-row float stride)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q4_0 x Q8_0 full GEMM route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q4_0 x Q8_0 full GEMM";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ80Q80Op::verify() {
   mlir::Operation *op = getOperation();
 

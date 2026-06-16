@@ -1,0 +1,14 @@
+=== M4 inner-region whole-register vector stores (vs1r.v) ===
+7
+=== M6 ===
+10
+=== M4 distinct spilled vregs ===
+vs1r.v	v10
+vs1r.v	v8
+vs1r.v	v9
+=== M6 distinct spilled vregs ===
+vs1r.v	v10
+vs1r.v	v12
+vs1r.v	v14
+vs1r.v	v8
+vs1r.v	v9

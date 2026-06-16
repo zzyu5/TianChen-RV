@@ -1,0 +1,25 @@
+=== run 1 ===
+  [M4] n=4096 nr=8 nc=4: GEMM 5553.1 | vec_dot 5753.1 | speedup 1.036x
+  [M4] n=4096 nr=8 nc=8: GEMM 5562.2 | vec_dot 5765.6 | speedup 1.037x
+  [M6] n=4096 nr=8 nc=6: GEMM 7272.5 | vec_dot 6237.5 | speedup 0.858x
+  [M6] n=4096 nr=8 nc=12: GEMM 6735.4 | vec_dot 5769.6 | speedup 0.857x
+=== run 2 ===
+  [M4] n=4096 nr=8 nc=4: GEMM 5554.4 | vec_dot 5755.0 | speedup 1.036x
+  [M4] n=4096 nr=8 nc=8: GEMM 5570.3 | vec_dot 5773.1 | speedup 1.036x
+  [M6] n=4096 nr=8 nc=6: GEMM 6720.0 | vec_dot 5767.1 | speedup 0.858x
+  [M6] n=4096 nr=8 nc=12: GEMM 6742.5 | vec_dot 5775.0 | speedup 0.857x
+=== run 3 ===
+  [M4] n=4096 nr=8 nc=4: GEMM 5585.7 | vec_dot 5789.4 | speedup 1.036x
+  [M4] n=4096 nr=8 nc=8: GEMM 5575.3 | vec_dot 5774.1 | speedup 1.036x
+  [M6] n=4096 nr=8 nc=6: GEMM 6720.9 | vec_dot 5761.2 | speedup 0.857x
+  [M6] n=4096 nr=8 nc=12: GEMM 6744.2 | vec_dot 5774.2 | speedup 0.856x
+=== run 4 ===
+  [M4] n=4096 nr=8 nc=4: GEMM 5551.9 | vec_dot 5753.1 | speedup 1.036x
+  [M4] n=4096 nr=8 nc=8: GEMM 5560.6 | vec_dot 5764.4 | speedup 1.037x
+  [M6] n=4096 nr=8 nc=6: GEMM 6710.4 | vec_dot 5756.7 | speedup 0.858x
+  [M6] n=4096 nr=8 nc=12: GEMM 6742.1 | vec_dot 5772.5 | speedup 0.856x
+=== run 5 ===
+  [M4] n=4096 nr=8 nc=4: GEMM 5555.0 | vec_dot 5760.0 | speedup 1.037x
+  [M4] n=4096 nr=8 nc=8: GEMM 5570.6 | vec_dot 5772.8 | speedup 1.036x
+  [M6] n=4096 nr=8 nc=6: GEMM 6744.2 | vec_dot 5776.2 | speedup 0.856x
+  [M6] n=4096 nr=8 nc=12: GEMM 6738.1 | vec_dot 5771.7 | speedup 0.857x
