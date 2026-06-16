@@ -1,0 +1,25 @@
+=== STRUCTURED PROOF (inc22 q5_1, deployable) ===
+
+raw()=0 across all 3 shapes:
+  q5_1_fullv_autotuned.cpp : raw()=0
+  q5_1_zve32x_autotuned.cpp : raw()=0
+  q5_1_mf4_robust.cpp : raw()=0
+
+NON-comment emitc.verbatim in lowered IR (0 = fully structured):
+0
+
+5-bit UNSIGNED decode: NO offset-binary -16 bias (vsub_vx_i8 count = 0):
+  q5_1_fullv_autotuned.cpp : vsub_vx_i8=0
+  q5_1_zve32x_autotuned.cpp : vsub_vx_i8=0
+  q5_1_mf4_robust.cpp : vsub_vx_i8=0
+
+5th-bit injection present (the SHARED q5_0 qh chain): vsrl_vv_u16 + vncvt_x_x_w_u8:
+  // tcrv_emitc.source_op=tcrv_rvv.q5_1_q8_1_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsrl_vv_u16m2
+  // tcrv_emitc.source_op=tcrv_rvv.q5_1_q8_1_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vncvt_x_x_w_u8m1
+
+qh read = two ALIGNED uint16_t halves (xb+4 / xb+6), NOT a misaligned uint32_t:
+35:    uint32_t v22 = (uint16_t)*(const uint16_t *)(v21);
+37:    uint32_t v24 = (uint16_t)*(const uint16_t *)(v23);
+
+q4_1 scale+min fold present: (d_x*d_y)*sumi + m_x*s_y in ONE statement:
+  v6 = v230 + ((v15 * v16) * (float) v229 + v18 * v20);

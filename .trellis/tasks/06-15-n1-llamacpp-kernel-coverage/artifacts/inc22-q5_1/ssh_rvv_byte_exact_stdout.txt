@@ -1,0 +1,48 @@
+===== fullv_autotuned  -ffp-contract=off =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0
+===== fullv_autotuned  -ffp-contract=fast =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0
+===== zve32x_autotuned  -ffp-contract=off =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0
+===== zve32x_autotuned  -ffp-contract=fast =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0
+===== mf4_robust  -ffp-contract=off =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0
+===== mf4_robust  -ffp-contract=fast =====
+== INC-22 q5_1 byte-exact (PRIMARY target: ggml's REAL RVV kernel) ==
+checked 3366 cases, 0 failures (vs ggml's REAL RVV kernel)
+_generic cross-check delta: 0/3366 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control OK (qh): flipped qh 5th-bit diverges (qh consumed)
+negative control OK (min): perturbed m_x diverges (the m_x*s_y MIN term is folded; the Family-B fold is non-vacuous)
+ALL q5_1 BYTE-EXACT CHECKS PASSED
+exit=0

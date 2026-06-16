@@ -583,6 +583,73 @@ def MaterializeRVVQ50Schedule
   ];
 }
 
+def MaterializeRVVQ51Schedule
+    : Pass<"tcrv-rvv-materialize-q5-1-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q5_1 x Q8_1 block-dot shape";
+  let description = [{
+    The Family-B 5-bit SIBLING of the Q4_0 autotuner (--tcrv-rvv-materialize-q4-0-
+    schedule), for the ggml Q5_1 x Q8_1 block dot-product (scale+MIN, asymmetric,
+    5-bit UNSIGNED weight) -- it COMBINES q5_0's 5-bit reconstruction and q4_1's
+    scale+MIN fold. Given a selected RVV -march (a profile selection), it derives
+    the Zvl128b capability fact through the SAME plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q5_1 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided} -- q5_1's nibble half-block matches q4_0's shape, so its
+    anchor set is q4_0's, NOT q8_0's), PRUNES each candidate by legality
+    (strip_elision "elided" is correct only at the m1 anchor on a Zvl128b target)
+    and by the vector-register-file budget, RANKS the legal candidates by the SAME
+    principled, CAPABILITY-BLIND structural cost FORMULA the Q4_0 autotuner uses
+    (fed q5_1's per-anchor reduction count AND its DERIVED latency depth -- q5_1's
+    unsigned 5-bit decode without the `-16` bias is ONE op shorter than q5_0's
+    offset-binary 5-bit chain, a structural fact of the format, not a new cost
+    branch), SELECTS the min-cost legal shape, and STAMPS the chosen shape knobs
+    (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q5_1_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q5_1_q8_1_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function shared with
+    the Q4_0 sibling. The SAME argmin therefore DIVERGES by capability -- a
+    full-V (rv64gcv, Zvl128b) profile selects the strip-elided m1 shape, while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> the Family-B 5-bit breadth proof that the template + autotuner
+    generalize to a structurally NEW (scale+MIN 5-bit) real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts (I5); a candidate that fails the prune is dropped
+    fail-closed and if every candidate is pruned the op is left untouched (I7).
+    The pass selects the *how*, never the *what* (the dot-product is byte-exact
+    for every legal shape).
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the Zvl128b capability "
+           "fact (and thus the strip-elision legality) is derived from (e.g. "
+           "rv64gcv => Zvl128b => VLEN >= 128; rv64gc_zve32x => not Zvl128b).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for the Zvl128b derivation.">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record; when it carries a "
+           "still-legal entry for (kernel, capability-march) the pass stamps the "
+           "MEASURED-fastest shape, else falls back to the static cost model. "
+           "See the q4-0 pass for the full contract.">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL candidate set for the offline tune driver, then exit "
+           "without stamping (the single source of truth for the prune).">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ51SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 def MaterializeRVVGearboxSchedules
     : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
   let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";

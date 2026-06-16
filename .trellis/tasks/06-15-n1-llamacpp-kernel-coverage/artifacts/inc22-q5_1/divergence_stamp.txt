@@ -1,0 +1,8 @@
+== INC-22 q5_1 capability-profile DIVERGENCE (rv64gcv vs zve32x), same attr-less op ==
+--- rv64gcv (Zvl128b): SELECTED shape ---
+tcrv_rvv.q5_1_schedule.has_zvl128b = true
+--- rv64gc_zve32x (no Zvl128b): SELECTED shape ---
+tcrv_rvv.q5_1_schedule.has_zvl128b = false
+
+DIVERGENCE: rv64gcv -> (m1, 4, elided)  vs  zve32x -> (m1, 2, robust)
+One capability fact (Zvl128b) -> N1 legality divergence on a 5-bit Family-B real ggml kernel.
