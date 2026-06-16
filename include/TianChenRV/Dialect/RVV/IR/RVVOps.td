@@ -4584,6 +4584,117 @@ def GgmlBlockDotIQ4NLQ80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotMXFP4Q80Op
+    : TCRVRVV_Op<"mxfp4_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml MXFP4 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_mxfp4_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the CODEBOOK-class
+    sibling that opens the LAST structural quantization class: FP4 (e2m1) weights
+    with an E8M0 shared-exponent block scale. It shares the AoS QK=32 block loop,
+    the codebook-gather integer core, the fp32 scalar accumulation, and the `*s`
+    store with tcrv_rvv.iq4_nl_q8_0_block_dot, reusing the SAME 16-entry non-linear
+    int8 CODEBOOK gather mechanism (vand 0x0F / vsrl 0x04 nibble split ->
+    vrgather_vv_i8m1 through a broadcast `values` table). TWO facts distinguish
+    mxfp4 from iq4_nl, both load-bearing:
+
+    (1) BLOCK FORMAT. block_mxfp4 is `{ uint8_t e; uint8_t qs[16] }` (sizeof 17),
+        NOT `{ fp16 d; uint8_t qs[16] }`: the weight block carries a SINGLE 8-bit
+        E8M0 shared exponent `e` at byte +0, then the 16 packed FP4 nibble bytes
+        at byte +1. So the weight block stride is 17 and the quant payload offset
+        is +1 (not 18 / +2 as for iq4_nl). The q8_0 activation is unchanged
+        (stride 34, quants at +2, the high half at +16).
+
+    (2) WEIGHT SCALE. The per-block weight scale is NOT a fp16 read. It is the
+        structured E8M0 -> fp32 reconstruction `GGML_E8M0_TO_FP32_HALF(e)` =
+        `2^(e-128)` (the HALF form: ggml's `kvalues_mxfp4` codebook is the DOUBLED
+        int8 e2m1 set `{0,1,2,3,4,6,8,12,0,-1,-2,-3,-4,-6,-8,-12}` = 2*E2M1, so the
+        block scale is halved to compensate, keeping the dot an exact INTEGER dot).
+        It is reconstructed by ggml's EXACT bit-construction (ggml-impl.h): a
+        uint32_t `bits = (e < 2) ? (0x00200000u << e) : ((e - 1) << 23)` reinterpreted
+        as a float -- the e<2 branch yields the denormal scales 2^-128 / 2^-127, the
+        e>=2 branch the normalized 2^(e-128). This is emitted STRUCTURALLY (emitc
+        cmp / bitwise_left_shift / sub / conditional + a `*(const float *)&bits`
+        pointer pun), byte-identical to ggml by construction (no scalbnf/ldexpf,
+        which risks FTZ/fast-math divergence on the denormal scales). The codebook
+        entries are NOT pinned by the verifier (a structural input the gather
+        realizes); the scale_model string IS pinned (a wrong scale convention --
+        e.g. the full 2^(e-127) instead of the half form -- is rejected fail-closed).
+
+    The integer core then feeds the SAME asymmetric signed widening product against
+    the plain-i8 q8 halves (vwmul low <-> q8[0..15], vwmacc + high <-> q8[16..31])
+    -> vwredsum -> i32 `sumi` the iq4_nl/q4_0 siblings use (the gather + the q8
+    halves are byte-untouched; only the weight scale read changes). The per-block
+    fold is ggml's mxfp4 order `sumf = sumf + (float)sumi * (scale_x * d_y)`
+    (_generic is `d * (sumi1 + sumi2)` with `d = d_y * scale_x`; fp multiply
+    commutes so the SAME fold node is byte-exact). Only ONE fp16 read survives (the
+    q8_0 `d_y`); the weight `d_x` read is replaced by the E8M0 reconstruction.
+
+    The CODEBOOK GATHER is inherently a Zvl128b legality fact: to index ALL 16 table
+    entries the `values` register's VLMAX must be >= 16, so the gather pins the m1
+    integer-core anchor (at VLEN=128 e8: m1 -> VLMAX=16 = the whole half-block). The
+    verifier rejects a non-m1 anchor fail-closed (I7). A board with VLEN < 128
+    (zve32x/zve64x) cannot legally host the codebook gather at this anchor; that is
+    an N1 capability-legality divergence, not a coverage gap.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the mxfp4 weight base pointer (vx), the q8_0 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) -- plus
+    the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
+    whose lowering writes the single fp32 reduction result through the output
+    pointer.
+
+    The structural facts -- QK=32, the AoS block strides (17 bytes for block_mxfp4,
+    34 bytes for block_q8_0), the weight quant payload byte offset (+1), the q8
+    quant byte offset (+2), the q8 high-half byte offset (+16), the E8M0 weight
+    scale model, and the 16-entry non-linear int8 CODEBOOK itself -- are carried as
+    typed integer/string/array attributes (I4 mirror only). The codebook is a
+    `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8 entries, consumed structurally
+    into the realized body (a `static const int8_t[16]` decl + the `vle8` table
+    load). The op identity is the dispatch key. Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/mxfp4 names, and common EmitC/export code must not infer or
+    choose block-quantized dot-product semantics.
+
+    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
+    attributes are the SAME bounded resource/scheduling shape knobs the codebook
+    siblings carry (the *how*, never the *what*; the dot-product is byte-exact for
+    any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). The codebook gather
+    constrains integer_core_lmul to "m1" only; the verifier rejects any other anchor
+    fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    DenseI8ArrayAttr:$codebook,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ51Q81Op
     : TCRVRVV_Op<"q5_1_q8_1_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

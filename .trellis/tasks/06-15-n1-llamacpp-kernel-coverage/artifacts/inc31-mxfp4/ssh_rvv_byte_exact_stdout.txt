@@ -1,0 +1,32 @@
+################ -ffp-contract='off' ################
+== INC-31 mxfp4 byte-exact (PRIMARY target: ggml's REAL mxfp4 RVV method) ==
+checked 3520 cases, 0 failures (vs ggml's REAL mxfp4 RVV method)
+_generic cross-check delta: 0/3520 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-11980.168 real=-11980.168 linear=8059.04102) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full 2^(e-127)) E8M0 scale diverges (ours=-38723.0938 half=-38723.0938 full=-77446.1875) -> the E8M0 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL mxfp4 BYTE-EXACT CHECKS PASSED
+################ -ffp-contract='on' ################
+== INC-31 mxfp4 byte-exact (PRIMARY target: ggml's REAL mxfp4 RVV method) ==
+checked 3520 cases, 0 failures (vs ggml's REAL mxfp4 RVV method)
+_generic cross-check delta: 0/3520 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-11980.168 real=-11980.168 linear=8059.04102) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full 2^(e-127)) E8M0 scale diverges (ours=-38723.0938 half=-38723.0938 full=-77446.1875) -> the E8M0 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL mxfp4 BYTE-EXACT CHECKS PASSED
+################ -ffp-contract='default' ################
+== INC-31 mxfp4 byte-exact (PRIMARY target: ggml's REAL mxfp4 RVV method) ==
+checked 3520 cases, 0 failures (vs ggml's REAL mxfp4 RVV method)
+_generic cross-check delta: 0/3520 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-11980.168 real=-11980.168 linear=8059.04102) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full 2^(e-127)) E8M0 scale diverges (ours=-38723.0938 half=-38723.0938 full=-77446.1875) -> the E8M0 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL mxfp4 BYTE-EXACT CHECKS PASSED
+################ -ffp-contract='fast' ################
+== INC-31 mxfp4 byte-exact (PRIMARY target: ggml's REAL mxfp4 RVV method) ==
+checked 3520 cases, 0 failures (vs ggml's REAL mxfp4 RVV method)
+_generic cross-check delta: 0/3520 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-11980.168 real=-11980.168 linear=8059.04102) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full 2^(e-127)) E8M0 scale diverges (ours=-38723.0938 half=-38723.0938 full=-77446.1875) -> the E8M0 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL mxfp4 BYTE-EXACT CHECKS PASSED

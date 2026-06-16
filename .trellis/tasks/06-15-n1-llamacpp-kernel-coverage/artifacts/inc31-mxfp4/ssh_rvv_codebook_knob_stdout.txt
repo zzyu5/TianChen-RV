@@ -1,0 +1,4 @@
+=== run ===
+compiler(real-FP4-attr)  = 5118.44727   (ref real-FP4 = 5118.44727)
+compiler(linear-attr)    = 1285.875   (ref linear   = 1285.875)
+COMPILER-KNOB CONTROL OK: flipping ONLY the codebook= attr -> emitted decl flips -> HW result flips (real != linear), each matching its own table's math

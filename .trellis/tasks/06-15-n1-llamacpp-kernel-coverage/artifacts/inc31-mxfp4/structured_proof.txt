@@ -1,0 +1,44 @@
+INC-31 mxfp4 structured (I5; raw()=0) proof
+=============================================
+Kernel: mxfp4_m1_elided.cpp (tcrv-opt --tcrv-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp)
+
+raw() actual calls in the emitted kernel C : 0
+residual tcrv_rvv.* dialect OPS after lowering : 0
+residual unrealized_conversion_cast ops    : 0
+(all 30 "tcrv_rvv" string occurrences are inside verbatim "// tcrv_emitc...source_op=tcrv_rvv..."
+ provenance COMMENT strings -- I4 mirror -- NOT residual ops)
+
+Lowered emitc IR verbatim accounting:
+  total emitc.verbatim                       : 31
+  tcrv_emitc.* provenance comments (mirror)  : 30
+  sanctioned structured-const codebook decl  :  1  (static const int8_t tcrv_mxfp4_kvalues[16] = {...})
+  UNSTRUCTURED C-blob verbatim               :  0
+
+The TWO genuinely-new FP4-class pieces are BOTH emitted as structured emitc nodes:
+
+(1) The block format. block_mxfp4 = { uint8_t e; uint8_t qs[16] } (stride 17): the FP4
+    nibbles load from xb + 1 (weight_quant_byte_offset, structured emitc.add), distinct
+    from the q8 quants at yb + 2 (activation_quant_byte_offset) and the q8 high half at
+    yb + 18 (activation_quant_byte_offset + activation_high_byte_offset). The codebook
+    table is the ONE task-sanctioned "structured const" (the static const int8_t[16] decl
+    rendering the verified DenseI8ArrayAttr entries, broadcast-loaded ONCE via
+    __riscv_vle8_v_i8m1), then each 4-bit nibble (vand 0x0F / vsrl 0x04) mapped through it
+    by vrgather_vv_i8m1 -- ggml's exact RVV method.
+
+(2) The E8M0 -> fp32 HALF weight scale (2^(e-128)), reconstructed by ggml's EXACT bit
+    construction as STRUCTURED emitc nodes (NOT scalbnf/ldexpf):
+      const uint8_t e = *(const uint8_t *)(xb);     // emitc.cast + subscript + load
+      uint32_t bits = (e < 2) ? (0x00200000u << (e & 0x1F)) : ((e - 1) << 23);
+                                                    // emitc.cmp / bitwise_and / sub /
+                                                    // two bitwise_left_shift / conditional
+      float scale_x = *(const float *)&bits;        // emitc.apply "&" / cast / load
+    The (e & 0x1F) mask keeps the denormal shift count well-defined (< 32) in C; it is
+    byte-IDENTICAL to ggml because the masked value is consumed ONLY when e < 2, where
+    `e & 0x1F == e` exactly (e is 0 or 1), and is discarded by the select for e >= 2.
+
+Every compute value (the E8M0 bit dance, the vand/vsrl nibble split, the two
+vrgather_vv_i8m1 codebook lookups, vwmul/vwmacc, vwredsum, the scales-first fp32 fold) is
+a structured emitc node (call_opaque / cmp / bitwise_and / bitwise_left_shift / sub /
+conditional / apply / cast / mul / add / for / variable / load). The ONE sanctioned opaque
+scalar piece is the SINGLE surviving q8_0 fp16->fp32 read (emitc.call_opaque); the weight
+fp16 read of the Family-A siblings is GONE (replaced by the structured E8M0 scale).

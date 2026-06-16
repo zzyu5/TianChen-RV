@@ -1985,6 +1985,192 @@ mlir::LogicalResult GgmlBlockDotIQ4NLQ80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // E8M0 shared-exponent weight scale model, the block-format structural facts,
+  // the 16-entry non-linear int8 CODEBOOK (a structural fact, like the
+  // strides/offsets), and the bounded shape knobs. Anything else -- a forbidden
+  // local element_count/SEW/LMUL/policy attr, or an unexpected name -- is
+  // rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "activation_high_byte_offset" || name == "codebook" ||
+           name == "integer_core_lmul" || name == "multi_block_factor" ||
+           name == "strip_elision" ||
+           name.starts_with("tcrv_rvv.mxfp4_schedule.");
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.mxfp4_q8_0_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded block dot-product attributes 'kind', "
+                "'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'activation_high_byte_offset', "
+                "and 'codebook'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_mxfp4_q8_0_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_mxfp4_q8_0_block_dot\" for "
+              "the bounded ggml MXFP4 x Q8_0 block dot-product typed surface";
+  // The E8M0 half-form scale convention is the load-bearing distinction between
+  // mxfp4 and iq4_nl (the codebook is the DOUBLED int8 e2m1 set, so the block
+  // scale is 2^(e-128), the HALF form). Pin it so a wrong scale convention (the
+  // full 2^(e-127), which would double every result) is rejected fail-closed.
+  if (getScaleModel() != "e8m0-half-shared-exponent-per-block")
+    return emitOpError()
+           << "requires scale_model \"e8m0-half-shared-exponent-per-block\" "
+              "for the ggml MXFP4 x Q8_0 block dot-product route (the E8M0 "
+              "2^(e-128) half form matching the doubled int8 e2m1 codebook)";
+  // ggml's externally-defined block format (ggml-common.h): QK_MXFP4 == QK8_0 ==
+  // 32, block_mxfp4 = { uint8_t e; uint8_t qs[16] } stride 17 (NOT 18: a single
+  // 8-bit E8M0 exponent, NOT a fp16 d), block_q8_0 stride 34, the weight nibbles
+  // at byte offset +1 (after the 1-byte exponent), the q8 quants at +2, the q8
+  // high half at +16. Pin them so a malformed typed body cannot lower under the
+  // block-dot emission.
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK_MXFP4 == QK8_0) for the ggml "
+                            "MXFP4 x Q8_0 block dot-product route";
+  if (getWeightBlockStride() != 17)
+    return emitOpError()
+           << "requires weight_block_stride == 17 (sizeof block_mxfp4: one "
+              "E8M0 exponent byte + 16 packed FP4 nibble bytes) for the ggml "
+              "MXFP4 x Q8_0 block dot-product route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml MXFP4 x Q8_0 block dot-product route";
+  if (getWeightQuantByteOffset() != 1)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 1 (the FP4 nibbles follow "
+              "the single E8M0 exponent byte) for the ggml MXFP4 x Q8_0 block "
+              "dot-product route";
+  if (getActivationQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 2 (the q8 quants follow "
+              "the inline fp16 scale) for the ggml MXFP4 x Q8_0 block "
+              "dot-product route";
+  if (getActivationHighByteOffset() != 16)
+    return emitOpError()
+           << "requires activation_high_byte_offset == 16 (q8 high half) for "
+              "the ggml MXFP4 x Q8_0 block dot-product route";
+
+  // The codebook is the load-bearing structural fact of the codebook class: it
+  // MUST carry EXACTLY 16 int8 entries (one per FP4 nibble index [0,15]). A wrong
+  // size cannot index the nibbles and is rejected fail-closed (I7). The entry
+  // VALUES are NOT pinned here -- they are a genuine structural input the gather
+  // realizes (a wrong-but-well-sized codebook is a legal-but-different kernel,
+  // which is exactly what the negative-control validation exercises).
+  if (getCodebook().size() != 16)
+    return emitOpError()
+           << "requires codebook to carry exactly 16 int8 entries (the FP4 "
+              "e2m1 nibble->int8 lookup table kvalues_mxfp4[16]); got "
+           << getCodebook().size();
+
+  // The codebook gather pins the m1 integer-core anchor: to index ALL 16 table
+  // entries the broadcast `values` register's VLMAX must be >= 16. Reject a
+  // non-m1 anchor fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" for the ggml MXFP4 x "
+                "Q8_0 block dot-product (the 16-entry codebook gather requires "
+                "the broadcast table register's VLMAX >= 16, which mf4 cannot "
+                "provide at VLEN=128); got \""
+             << *coreLmul << "\"";
+  }
+
+  // The optional multi_block_factor is a bounded resource/scheduling shape knob:
+  // 1 (default), 2, or 4 blocks per outer iteration (byte-exact: the per-block
+  // fp32 folds stay in strict ascending order). Any other count is rejected
+  // fail-closed (I7).
+  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
+  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
+    return emitOpError()
+           << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
+              "byte-exact block-unroll factors for the ggml MXFP4 x Q8_0 block "
+              "dot-product outer loop); got "
+           << multiBlockFactor;
+
+  // The optional strip_elision is a bounded resource/scheduling shape knob: the
+  // inner half-block strip loop is kept ("robust", default) or elided ("elided").
+  // The codebook gather ALWAYS anchors at m1 (VLMAX >= 16); "elided" is correct
+  // only at VLEN >= 128. Any other spelling is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> stripElision = getStripElision()) {
+    if (*stripElision != "robust" && *stripElision != "elided")
+      return emitOpError()
+             << "only accepts strip_elision \"robust\" or \"elided\" (the "
+                "bounded inner-strip-loop shape knobs for the ggml MXFP4 x Q8_0 "
+                "block dot-product); got \""
+             << *stripElision << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_mxfp4 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml MXFP4 x Q8_0 block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml MXFP4 x Q8_0 block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ51Q81Op::verify() {
   mlir::Operation *op = getOperation();
 
