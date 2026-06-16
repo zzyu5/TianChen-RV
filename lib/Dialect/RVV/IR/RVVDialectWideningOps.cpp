@@ -2947,6 +2947,167 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // signed-6-bit-scale deferred-fp32-fold (NO min) scale model, and the
+  // super-block-format structural facts (the 32-byte high-bit plane `hmask` @0,
+  // the 64 packed 2-bit-weight qs @32, the 12 packed 6-bit-signed-scale bytes
+  // scales @96, the fp16 weight scale d @108, the fp32 activation scale d @0, qs
+  // @4). q3_K is SYMMETRIC -- there is NO min term, NO dmin, NO bsums. Anything
+  // else -- a forbidden local element_count/SEW/LMUL/policy attr, or an
+  // unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "sub_block" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_hmask_byte_offset" ||
+           name == "weight_qs_byte_offset" ||
+           name == "weight_scales_byte_offset" ||
+           name == "weight_d_byte_offset" ||
+           name == "activation_d_byte_offset" ||
+           name == "activation_quant_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q3_k_q8_k_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded super-block dot-product attributes "
+                "'kind', 'scale_model', 'qk', 'sub_block', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'weight_hmask_byte_offset', 'weight_qs_byte_offset', "
+                "'weight_scales_byte_offset', 'weight_d_byte_offset', "
+                "'activation_d_byte_offset', and 'activation_quant_byte_offset'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q3_k_q8_k_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q3_k_q8_k_block_dot\" for the "
+              "bounded ggml Q3_K x Q8_K super-block full block dot-product typed "
+              "surface";
+  if (getScaleModel() !=
+      "per-sub-block-int6-signed-scale-i32-domain-deferred-fp32-fold")
+    return emitOpError()
+           << "requires scale_model "
+              "\"per-sub-block-int6-signed-scale-i32-domain-deferred-fp32-fold\" "
+              "for the ggml Q3_K x Q8_K super-block full block dot-product route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 16 sub-blocks of 16 elements, block_q3_K stride 110 (hmask[32]@0|qs[64]@32|
+  // scales[12]@96|d@108), block_q8_K stride 292 (d@0|qs@4). Pin them so a
+  // malformed typed body cannot lower under the super-block dot emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml Q3_K x "
+                            "Q8_K super-block full block dot-product route";
+  if (getSubBlock() != 16)
+    return emitOpError()
+           << "requires sub_block == 16 (16-element sub-block scale boundary) "
+              "for the ggml Q3_K x Q8_K super-block full block dot-product route";
+  if (getWeightBlockStride() != 110)
+    return emitOpError()
+           << "requires weight_block_stride == 110 (sizeof block_q3_K) for the "
+              "ggml Q3_K x Q8_K super-block full block dot-product route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml Q3_K x Q8_K super-block full block dot-product route";
+  if (getWeightHmaskByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_hmask_byte_offset == 0 (the 32-byte high-bit "
+              "plane hmask leads block_q3_K) for the ggml Q3_K x Q8_K "
+              "super-block full block dot-product route";
+  if (getWeightQsByteOffset() != 32)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 32 (the 64 packed 2-bit-weight "
+              "qs bytes follow hmask[32]) for the ggml Q3_K x Q8_K super-block "
+              "full block dot-product route";
+  if (getWeightScalesByteOffset() != 96)
+    return emitOpError()
+           << "requires weight_scales_byte_offset == 96 (the 12 packed "
+              "6-bit-signed-scale bytes follow hmask[32]+qs[64]) for the ggml "
+              "Q3_K x Q8_K super-block full block dot-product route";
+  if (getWeightDByteOffset() != 108)
+    return emitOpError()
+           << "requires weight_d_byte_offset == 108 (the fp16 super-block scale "
+              "d follows hmask[32]+qs[64]+scales[12]) for the ggml Q3_K x Q8_K "
+              "super-block full block dot-product route";
+  if (getActivationDByteOffset() != 0)
+    return emitOpError()
+           << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
+              "leads the block) for the ggml Q3_K x Q8_K super-block full block "
+              "dot-product route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml Q3_K x Q8_K super-block full block dot-product "
+              "route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one fp32 *s output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three buffer operands and the element count are runtime ABI values; the
+  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
+  // output is a float * (the fp32 *s dot-product destination), and the element
+  // count carries n.
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q3_K byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the fp32 *s dot-product destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q3_K x Q8_K super-block full block "
+              "dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q3_K x Q8_K super-block full block "
+              "dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlVecScaleF32Op::verify() {
   mlir::Operation *op = getOperation();
 

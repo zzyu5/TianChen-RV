@@ -5218,6 +5218,122 @@ def GgmlBlockDotQ2KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ3KQ8KOp
+    : TCRVRVV_Op<"q3_k_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q3_K x Q8_K super-block FULL block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q3_K_q8_K` super-block dot-product as
+    ONE bounded generic plugin-local typed RVV dataflow step -- the q3_K K-quant
+    COVERAGE rung, the LAST common K-quant (after it the q4_0/q8_0/q4_1/q5_0/q5_1
+    legacy + q6_K/q4_K/q5_K/q2_K K-quants cover every common ggml dot kernel; only
+    the IQ/MXFP4 codebook/fp4 tail remains). q3_K is the 3-bit modern K-quant; it
+    COMPOSES mechanisms already in hand with THREE q3_K-specific twists:
+    - the 2-bit `qs` unpack (q2_K's `(qs >> shift) & 3` over shifts {0,2,4,6});
+    - the hmask high-bit plane (q5_K's fixed 32-byte plane pattern) but applied
+      SUBTRACTIVELY and lifting to SIGNED -- `a = (low2 | (hbit<<2)) - 4` where
+      `hbit = (hm[l] >> p) & 1` and the running bit position p = 4*chunk +
+      shiftIdx (the hmask is the SAME 32 bytes across all 8 groups -- `hm` is
+      NEVER advanced, unlike q6_K's qh; only the tested bit `m` shifts left). This
+      is EXACTLY `_generic`'s `a[l] = (q3[l] >> shift) & 3; a[l] -= (hm[l] & m ? 0
+      : 4)` (bit set -> a in [0,3]; bit unset -> a in [-4,-1]; the signed range is
+      [-4,3]);
+    - the 6-bit SIGNED scale dance: the 12 packed `scales[12]` bytes decode (a
+      q3_K-OWN bit-dance, masks kmask1=0x03030303 / kmask2=0x0f0f0f0f, DISTINCT
+      from q4_K's 0x3f3f3f3f) into 16 6-bit values read as SIGNED int8, then
+      `scale_j = scales[j] - 32` (signed, in [-32,31]).
+    The fold is q6_K's NO-min deferred d.Sum(aux32) structure (symmetric, like
+    q6_K -- there is NO min term and NO dmin): a function-scoped 8-lane fp32
+    accumulator `sums`, per-super-block `d = fp16(x.d) * y.d`, lane-wise `sums[l]
+    += d * aux32[l]` (SEPARATE vfmul/vfadd, NEVER fma), then a SEQUENTIAL
+    horizontal sum and `*s = sumf`. It produces the fp32 `*s` dot-product output
+    BYTE-EXACT vs `_generic` (the well-defined fp32 order is the byte-exactness
+    target; the on-board RVV `_vlN` path is raw inline asm and does NOT define the
+    order).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the q3_K weight base pointer (vx), the q8_K activation
+    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
+    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256, 16 sub-blocks of 16 elements, the AoS block
+    strides (110 bytes for block_q3_K, 292 bytes for block_q8_K), the q3_K payload
+    byte offsets (the 32-byte high-bit-plane `hmask` @0, the 64 packed
+    2-bit-weight bytes qs @32, the 12 packed 6-bit-signed-scale bytes scales @96,
+    the fp16 super-block scale d @108) and the q8_K payload byte offsets (the fp32
+    activation scale d @0, qs @4) -- are carried as typed integer/string
+    attributes (I4 mirror only). The fixed emission mirrors `_generic`
+    (quants.c:566-643) line-for-line so byte-exactness is by construction:
+    - the 2-bit + SUBTRACTIVE-hmask unpack into the element-ordered int8_t
+      aux8[256]: for each 32-byte qs chunk (chunk in 0..1) and each 2-bit shift in
+      {0,2,4,6} (shiftIdx 0..3), `aux8[128*chunk + 32*shiftIdx + l] = ((qs >>
+      shift) & 3 | (((hm[l] >> p) & 1) << 2)) - 4` for the 32 lanes l, with p =
+      4*chunk + shiftIdx -- emitted as a u8m2 load + vsrl/vand for the 2 low bits,
+      a vsrl/vand/vsll of the SAME hmask plane (loaded once per chunk) for the
+      high bit OR-ed in (vor), a u8->i8 reinterpret, a vsub 4, a vse8. The aux8
+      element ordering matches `_generic`: sub-block s in 0..15 -> aux8[16s:16s+16];
+    - the q3_K SIGNED 6-bit scale dance, STRUCTURED scalar emitc: the 12 packed
+      bytes at `scales @96` are read as THREE uint32 words w0/w1/w2 (capture all
+      three BEFORE any output to avoid `_generic`'s in-place read-before-write
+      hazard), then the q3_K shuffle (masks kmask1=0x03030303 / kmask2=0x0f0f0f0f)
+      reproduces `_generic`'s auxs[0..3] via emitc.bitwise_and/_or/_left_shift/
+      _right_shift, the 16 bytes are vse8-stored to a scratch and read back as
+      SIGNED int8, and `scale_j = (int)scales[j] - 32`;
+    - a nested sub-block loop over 16 sub-blocks, each doing TWO 8-element halves
+      vle8 q8 + vle8 aux8 -> vwmul i8xi8->i16 -> vwmacc.vx i32 += (scales[js]-32) x
+      i16 into the carried 8-lane aux32 i32 accumulator (the SAME structure as
+      q6_K's sub-block loop, the signed scale being scales[js]-32 instead of
+      q6_K's direct int8; integer add is order-free so byte-exact);
+    - the DEFERRED two-level fp32 fold IDENTICAL to q6_K's (NO min): a
+      function-scoped 8-lane fp32 `sums` declared+zeroed ONCE outside the loop,
+      per super-block `d = fp16(x.d) * y.d`, `vfcvt` (i32->f32, RNE) then a
+      SEPARATE `vfmul` by d then a SEPARATE `vfadd` into `sums` (NEVER vfmacc), a
+      SEQUENTIAL ascending l=0..7 horizontal sum, `*s = sumf`.
+    This emission is the op's fixed structure, NOT a candidate-mirror string read
+    in the conversion. The bounded surface kind is limited to
+    "ggml_q3_k_q8_k_block_dot" and scale_model to
+    "per-sub-block-int6-signed-scale-i32-domain-deferred-fp32-fold". Route ids,
+    helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/q3 names, and common EmitC/export code
+    must not infer or choose super-block dot-product semantics.
+
+    q3_K emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip loop
+    (the zve32x/zve64x re-strip is a capability item, not built here). No resource
+    shape knobs yet; this op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_hmask_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",
     [TCRVEmitCLowerableOpInterface]> {
