@@ -1104,6 +1104,22 @@ public:
       return mlir::success();
     }
 
+    // The ggml Q2_K x Q8_K FULL super-block dot-product
+    // (tcrv_rvv.q2_k_q8_k_block_dot) is the q2_K COVERAGE rung: it reuses the
+    // super-block scaffolding + the scale+min structure of q4_K but with the
+    // 2-bit weight unpack, the SIMPLE 4-bit nibble scale/min extraction (no
+    // utmp/kmask bit-dance), and a SCALAR per-super-block isum fold (NOT q4_K's
+    // 8-lane deferred vector). The structural marker is the
+    // tcrv_rvv.q2_k_q8_k_block_dot op identity.
+    if (isQ2_KQ8_KBlockDotBody(scope)) {
+      if (mlir::failed(emitQ2_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
+                                            sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     // The forward-pass F1 op (tcrv_rvv.ggml_vec_scale_f32) is the FIRST non-dot
     // f32 elementwise family member: the in-place per-lane multiply y[i] *= v
     // over a flat unit-stride f32 buffer. It owns a dedicated routine -- ONE f32
@@ -1942,6 +1958,24 @@ private:
     bool sawBlockDot = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlBlockDotQ5KQ8KOp>(op)) {
+        if (sawBlockDot)
+          return false;
+        sawBlockDot = true;
+      } else {
+        return false;
+      }
+    }
+    return sawBlockDot;
+  }
+
+  /// The q2_K recognizer: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.q2_k_q8_k_block_dot (the Q2_K x Q8_K super-block FULL block
+  /// dot-product producing the fp32 *s -- the 2-bit weight unpack + the 4-bit
+  /// nibble scale/min extraction + the SCALAR fp32 fold + the q2_K min term).
+  static bool isQ2_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
+    bool sawBlockDot = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlBlockDotQ2KQ8KOp>(op)) {
         if (sawBlockDot)
           return false;
         sawBlockDot = true;
@@ -9645,6 +9679,577 @@ private:
     if (!outPointer)
       return rewriter.notifyMatchFailure(blockDot,
                                          "q5_K block-dot output not a pointer");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_s"));
+    mlir::Value outIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp outSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
+    rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumf);
+
+    valueMap[blockDot.getResult()] = sumf;
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml ggml_vec_dot_q2_K_q8_K block kernel (the q2_K
+  /// COVERAGE rung) for one tcrv_rvv.q2_k_q8_k_block_dot op as fully STRUCTURED
+  /// emitc nodes (I5; no verbatim C-control-flow blob, no raw()). q2_K reuses the
+  /// super-block scaffolding + the scale+min structure of q4_K but is genuinely
+  /// SIMPLER in three respects, mirroring _generic (quants.c:514-564)
+  /// line-for-line so byte-exactness is by construction:
+  ///   int8_t aux8[256];  float sumf = 0.0f;                       // ONCE
+  ///   for (size_t ib = 0; ib < nb; ib += 1) {
+  ///     const uint8_t *xb = vx + ib*84;  const uint8_t *yb = vy + ib*292;
+  ///     // (A) 2-bit weight unpack: for each 32-byte qs chunk (k in 0..1) and
+  ///     //     each shift in {0,2,4,6}, aux8[128*k + 32*(shift/2) + l] =
+  ///     //     (qs[k*32+l] >> shift) & 3 (the 32 lanes l) -- u8m2 load + vsrl +
+  ///     //     vand + u8->i8 reinterpret + vse8. Sub-block s -> aux8[16s:16s+16].
+  ///     // (B) per-sub-block: scale = sc[s] & 0xF, min = sc[s] >> 4 (the SIMPLE
+  ///     //     4-bit nibbles, NO utmp/kmask bit-dance).
+  ///     int isum = 0; int summs = 0;
+  ///     for (size_t s = 0; s < 16; ++s) {
+  ///       int sc = (int)*(const uint8_t *)(xb + s);
+  ///       // isuml = Σ_{l=0..15} q8[16s+l] * aux8[16s+l]  (vector widen-reduce)
+  ///       int isuml = vmv_x_s(vwredsum(vwmul(q8v, av), seed0));
+  ///       isum  += (sc & 0xF) * isuml;
+  ///       summs += (int)bsums[s] * (sc >> 4);
+  ///     }
+  ///     // (C) the SCALAR fp32 fold, ONE C statement:
+  ///     float dy = *(const float *)(yb + 0);
+  ///     float dall = (float)*(const _Float16 *)(xb + 80) * dy;
+  ///     float dmin = (float)*(const _Float16 *)(xb + 82) * dy;
+  ///     sumf += dall * isum - dmin * summs;
+  ///   }
+  ///   *s = sumf;
+  /// The integer side is order-free (associative int add) so the per-sub-block
+  /// isuml is computed in the vector domain; the ONLY pinned order is the SCALAR
+  /// fp32 fold `sumf += dall*isum - dmin*summs` carried in super-block order
+  /// (distinct from q4_K's 8-lane deferred vector + post-loop horizontal sum --
+  /// q2_K's positive term is a single scalar isum, so NO sums vector exists). The
+  /// fold is ONE emitc.expression so the two products + the add + the subtract
+  /// render as ggml's single C statement (quants.c:561) and track the
+  /// contraction. The block-format facts are the op's typed attrs (I4 mirror).
+  mlir::LogicalResult emitQ2_KQ8_KBlockDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlBlockDotQ2KQ8KOp blockDot;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ2KQ8KOp>(op))
+        blockDot = bd;
+    }
+    if (!blockDot)
+      return rewriter.notifyMatchFailure(scope,
+                                         "q2_K block-dot body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
+    mlir::Value output = valueMap.lookup(blockDot.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(blockDot,
+                                         "q2_K block-dot ABI operand unmapped");
+
+    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type weightPtrType = weightBase.getType();
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // The block-format structural facts come straight off the typed attrs (I4).
+    int64_t qk = blockDot.getQk();                    // 256
+    int64_t subBlock = blockDot.getSubBlock();        // 16
+    int64_t weightStride = blockDot.getWeightBlockStride();         // 84
+    int64_t activationStride = blockDot.getActivationBlockStride(); // 292
+    int64_t scalesOffset = blockDot.getWeightScalesByteOffset();    //  0
+    int64_t qsOffset = blockDot.getWeightQsByteOffset();            // 16
+    int64_t weightDOffset = blockDot.getWeightDByteOffset();        // 80
+    int64_t weightDminOffset = blockDot.getWeightDminByteOffset();  // 82
+    int64_t activationDOffset = blockDot.getActivationDByteOffset();//  0
+    int64_t q8Offset = blockDot.getActivationQuantByteOffset();     //  4
+    int64_t bsumsOffset = blockDot.getActivationBsumsByteOffset();  // 260
+    int64_t numSubBlocks = qk / subBlock;             // 16
+
+    // The vector types for the 2-bit unpack (e8m2 32-lane chunk) and the
+    // per-sub-block widening dot (e8m1 16-lane -> i16m2 -> i32m1). The dot uses
+    // LMUL=1 (e8m1) so the 16-element sub-block reduce sees all 16 lanes
+    // (VLMAX(e8m1) = VLEN/8 = 16 at VLEN >= 128; e8mf2 would cap at 8 and halve
+    // the per-sub-block isuml).
+    mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i8m1Type = emitc::OpaqueType::get(ctx, "vint8m1_t");
+    mlir::Type i16m2Type = emitc::OpaqueType::get(ctx, "vint16m2_t");
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type constI16Type = emitc::OpaqueType::get(ctx, "const int16_t");
+    mlir::Type constI16PtrType = emitc::PointerType::get(constI16Type);
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // size_t nb = n / QK_K;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    // int8_t aux8[256];  (function-scoped scratch, the element-ordered 2-bit
+    // unpack destination read contiguously by the per-sub-block dot).
+    mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux8", opName, role));
+    auto aux8Var = rewriter.create<emitc::VariableOp>(
+        loc, aux8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto aux8Array =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux8Var.getResult());
+    mlir::Value aux8Index0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value aux8Elem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, aux8Array,
+                                        mlir::ValueRange{aux8Index0})
+            .getResult();
+    mlir::Value aux8Base =
+        rewriter.create<emitc::ApplyOp>(loc, i8PtrType, "&", aux8Elem0)
+            .getResult();
+
+    // float sumf = 0.0f;  -- the carried SCALAR fp32 accumulator the per-super-
+    // block fold lands in IN-LOOP (in super-block order); declared + zeroed ONCE
+    // OUTSIDE the loop (mirrors _generic's `float sumf = 0;`). q2_K has NO 8-lane
+    // sums vector -- the positive term is the scalar isum.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumfZero =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfZero);
+
+    // Per-super-block base address arithmetic (vx + ib*84, vy + ib*292).
+    auto blockBaseValue = [&](mlir::Value ib, mlir::Value base,
+                              mlir::Type ptrType, int64_t stride,
+                              const char *step) -> mlir::Value {
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+      mlir::Value off =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+      return rewriter.create<emitc::AddOp>(loc, ptrType, base, off);
+    };
+
+    // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_loop"));
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value ib = blockLoop.getInductionVar();
+
+      mlir::Value xb = blockBaseValue(ib, weightBase, weightPtrType,
+                                      weightStride, "super_block_base_x");
+      mlir::Value yb = blockBaseValue(ib, activationBase, activationPtrType,
+                                      activationStride, "super_block_base_y");
+
+      // ---- (A) the 2-bit weight unpack into aux8[256] (element-ordered) ----
+      // For each 32-byte qs chunk (chunk in 0..1) and each 2-bit shift in
+      // {0,2,4,6}: aux8[128*chunk + 32*(shift/2) + l] = (qs[chunk*32+l] >> shift)
+      // & 3 for the 32 lanes l. q2 in [0,3] is non-negative so the u8->i8
+      // reinterpret is exact. Sub-block s -> aux8[16s:16s+16].
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "unpack_2bit"));
+      std::string unpackSetvl = "__riscv_vsetvl_e8m2";
+      for (int64_t chunk = 0; chunk < qk / 128; ++chunk) {
+        int64_t qsChunk = chunk * 32; // q2 advances 32 bytes per 128-elem chunk
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, unpackSetvl));
+        mlir::Value vlu =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                             unpackSetvl,
+                                             mlir::ValueRange{sizeLit(32)})
+                .getResult(0);
+        mlir::Value qsPtr =
+            byteOffsetPtr(xb, weightPtrType, qsOffset + qsChunk, u8PtrType);
+        std::string loadCallee = "__riscv_vle8_v_u8m2";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, loadCallee));
+        mlir::Value q2 =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8m2Type},
+                                             loadCallee,
+                                             mlir::ValueRange{qsPtr, vlu})
+                .getResult(0);
+        for (int64_t j = 0; j < 4; ++j) {
+          int64_t shift = 2 * j;
+          int64_t aChunk = chunk * 128 + j * 32; // aux8 base for this shift
+          mlir::Value nib = q2;
+          if (shift != 0) {
+            std::string srlCallee = "__riscv_vsrl_vx_u8m2";
+            rewriter.create<emitc::VerbatimOp>(
+                loc, stepComment(opName, role, srlCallee));
+            mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+                loc, i32ImmType, std::to_string(shift));
+            nib = rewriter
+                      .create<emitc::CallOpaqueOp>(
+                          loc, mlir::TypeRange{u8m2Type}, srlCallee,
+                          mlir::ValueRange{q2, amt, vlu})
+                      .getResult(0);
+          }
+          std::string andCallee = "__riscv_vand_vx_u8m2";
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, andCallee));
+          mlir::Value mask3 =
+              rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0x03");
+          mlir::Value q2bits =
+              rewriter
+                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8m2Type},
+                                               andCallee,
+                                               mlir::ValueRange{nib, mask3, vlu})
+                  .getResult(0);
+          std::string reCallee = "__riscv_vreinterpret_v_u8m2_i8m2";
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, reCallee));
+          mlir::Value q2i =
+              rewriter
+                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8m2Type},
+                                               reCallee,
+                                               mlir::ValueRange{q2bits})
+                  .getResult(0);
+          mlir::Value dstIdx = rewriter.create<emitc::LiteralOp>(
+              loc, rewriter.getIndexType(), std::to_string(aChunk));
+          mlir::Value dstElem =
+              rewriter
+                  .create<emitc::SubscriptOp>(loc, aux8Array,
+                                              mlir::ValueRange{dstIdx})
+                  .getResult();
+          mlir::Value dstPtr =
+              rewriter
+                  .create<emitc::ApplyOp>(
+                      loc, emitc::PointerType::get(i8ElemType), "&", dstElem)
+                  .getResult();
+          std::string storeCallee = "__riscv_vse8_v_i8m2";
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, storeCallee));
+          rewriter.create<emitc::CallOpaqueOp>(
+              loc, mlir::TypeRange{}, storeCallee,
+              mlir::ValueRange{dstPtr, q2i, vlu});
+        }
+      }
+
+      // The scales[16] base (the 16 direct packed 4-bit-scale/4-bit-min bytes).
+      mlir::Value scBase =
+          byteOffsetPtr(xb, weightPtrType, scalesOffset, u8PtrType);
+      // The q8 quant base and the bsums base.
+      mlir::Value q8Base =
+          byteOffsetPtr(yb, activationPtrType, q8Offset, i8PtrType);
+      mlir::Value bsumsAddr = yb;
+      if (bsumsOffset != 0)
+        bsumsAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
+                                                  sizeLit(bsumsOffset));
+      mlir::Value bsumsPtr =
+          rewriter.create<emitc::CastOp>(loc, constI16PtrType, bsumsAddr)
+              .getResult();
+
+      // ---- (B)/(C) the per-sub-block integer accumulation ----
+      // int isum = 0;  (the per-super-block scalar positive accumulator).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, localVariableComment("isum", opName, role));
+      auto isumVar = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(i32Type), emitc::OpaqueAttr::get(ctx, ""));
+      rewriter.create<emitc::AssignOp>(
+          loc, isumVar,
+          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult());
+      // int summs = 0;  (the per-super-block scalar min accumulator).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, localVariableComment("summs", opName, role));
+      auto summsVar = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(i32Type), emitc::OpaqueAttr::get(ctx, ""));
+      rewriter.create<emitc::AssignOp>(
+          loc, summsVar,
+          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult());
+
+      for (int64_t s = 0; s < numSubBlocks; ++s) {
+        // int sc = (int)scales[s];  (the packed scale/min byte).
+        mlir::Value scIdx = rewriter.create<emitc::LiteralOp>(
+            loc, rewriter.getIndexType(), std::to_string(s));
+        mlir::Value scElem =
+            rewriter
+                .create<emitc::SubscriptOp>(
+                    loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(scBase),
+                    scIdx)
+                .getResult();
+        mlir::Value scU8 =
+            rewriter.create<emitc::LoadOp>(loc, constU8Type, scElem).getResult();
+        mlir::Value sc =
+            rewriter.create<emitc::CastOp>(loc, i32Type, scU8).getResult();
+        // scale = sc & 0xF  (the per-sub-block scale, the LOW nibble).
+        mlir::Value scaleVal =
+            rewriter
+                .create<emitc::BitwiseAndOp>(
+                    loc, i32Type, sc,
+                    rewriter.create<emitc::LiteralOp>(loc, i32Type, "0xF"))
+                .getResult();
+        // min = sc >> 4  (the per-sub-block min, the HIGH nibble).
+        mlir::Value minVal =
+            rewriter
+                .create<emitc::BitwiseRightShiftOp>(
+                    loc, i32Type, sc,
+                    rewriter.create<emitc::LiteralOp>(loc, i32Type, "4"))
+                .getResult();
+
+        // isuml = Σ_{l=0..15} q8[16s+l] * aux8[16s+l]  (the vector widen-reduce;
+        // integer / order-free). vle8 i8m1 (16 lanes) x2 -> vwmul_vv i16m2 ->
+        // vwredsum_vs into i32m1 lane 0 (seed 0) -> vmv_x_s. LMUL=1 (e8m1) so the
+        // 16-element reduce sees all 16 lanes (VLMAX(e8m1)=VLEN/8=16 at VLEN>=128;
+        // e8mf2 would cap at 8 and halve the result).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "sub_block_dot"));
+        std::string dotSetvl = "__riscv_vsetvl_e8m1";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, dotSetvl));
+        mlir::Value vl16 =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                             dotSetvl,
+                                             mlir::ValueRange{sizeLit(subBlock)})
+                .getResult(0);
+        mlir::Value subOff =
+            rewriter.create<emitc::MulOp>(loc, sizeType, scIdx, sizeLit(subBlock));
+        mlir::Value q8Ptr =
+            rewriter.create<emitc::AddOp>(loc, i8PtrType, q8Base, subOff)
+                .getResult();
+        mlir::Value aPtr =
+            rewriter.create<emitc::AddOp>(loc, i8PtrType, aux8Base, subOff)
+                .getResult();
+        std::string loadCallee = "__riscv_vle8_v_i8m1";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, loadCallee));
+        mlir::Value q8v =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8m1Type},
+                                             loadCallee,
+                                             mlir::ValueRange{q8Ptr, vl16})
+                .getResult(0);
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, loadCallee));
+        mlir::Value av =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8m1Type},
+                                             loadCallee,
+                                             mlir::ValueRange{aPtr, vl16})
+                .getResult(0);
+        std::string mulCallee = "__riscv_vwmul_vv_i16m2";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, mulCallee));
+        mlir::Value p =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i16m2Type},
+                                             mulCallee,
+                                             mlir::ValueRange{q8v, av, vl16})
+                .getResult(0);
+        std::string seedCallee = "__riscv_vmv_v_x_i32m1";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, seedCallee));
+        mlir::Value zeroImm =
+            rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0");
+        mlir::Value seed =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
+                                             seedCallee,
+                                             mlir::ValueRange{zeroImm, sizeLit(1)})
+                .getResult(0);
+        std::string reduceCallee = "__riscv_vwredsum_vs_i16m2_i32m1";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, reduceCallee));
+        mlir::Value red =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
+                                             reduceCallee,
+                                             mlir::ValueRange{p, seed, vl16})
+                .getResult(0);
+        std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, extractCallee));
+        mlir::Value isuml =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
+                                             extractCallee,
+                                             mlir::ValueRange{red})
+                .getResult(0);
+
+        // isum += (sc & 0xF) * isuml;  (integer, order-free).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "isum_accumulate"));
+        mlir::Value scaleProd =
+            rewriter.create<emitc::MulOp>(loc, i32Type, scaleVal, isuml)
+                .getResult();
+        mlir::Value isumCur =
+            rewriter.create<emitc::LoadOp>(loc, i32Type, isumVar).getResult();
+        mlir::Value isumNext =
+            rewriter.create<emitc::AddOp>(loc, i32Type, isumCur, scaleProd)
+                .getResult();
+        rewriter.create<emitc::AssignOp>(loc, isumVar, isumNext);
+
+        // summs += (int)bsums[s] * (sc >> 4);  (int16 sign-extended, order-free).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "summs_accumulate"));
+        mlir::Value bElem =
+            rewriter
+                .create<emitc::SubscriptOp>(
+                    loc,
+                    llvm::cast<mlir::TypedValue<emitc::PointerType>>(bsumsPtr),
+                    scIdx)
+                .getResult();
+        mlir::Value bs16 =
+            rewriter.create<emitc::LoadOp>(loc, constI16Type, bElem).getResult();
+        mlir::Value bs =
+            rewriter.create<emitc::CastOp>(loc, i32Type, bs16).getResult();
+        mlir::Value minProd =
+            rewriter.create<emitc::MulOp>(loc, i32Type, bs, minVal).getResult();
+        mlir::Value summsCur =
+            rewriter.create<emitc::LoadOp>(loc, i32Type, summsVar).getResult();
+        mlir::Value summsNext =
+            rewriter.create<emitc::AddOp>(loc, i32Type, summsCur, minProd)
+                .getResult();
+        rewriter.create<emitc::AssignOp>(loc, summsVar, summsNext);
+      }
+
+      // ---- (C) the SCALAR fp32 fold: sumf += dall*isum - dmin*summs ----
+      // float dy = *(const float *)(yb + 0);  -- the fp32 activation scale,
+      // loaded ONCE and shared by dall and dmin (mirrors _generic reading
+      // `y[i].d` once).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fold_activation_d"));
+      mlir::Value dyAddr = yb;
+      if (activationDOffset != 0)
+        dyAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
+                                               sizeLit(activationDOffset));
+      mlir::Type constFloatPtrType =
+          emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+      mlir::Value dyPtr =
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, dyAddr)
+              .getResult();
+      mlir::Value dyIndex0 =
+          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+      mlir::Value dyElem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(dyPtr),
+                  dyIndex0)
+              .getResult();
+      mlir::Type constFloatType = emitc::OpaqueType::get(ctx, "const float");
+      mlir::Value dy =
+          rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
+              .getResult();
+
+      // float dall = (float)*(const _Float16 *)(xb + 80) * dy;
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fold_scale_dall"));
+      mlir::Value dxAddr = xb;
+      if (weightDOffset != 0)
+        dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
+                                               sizeLit(weightDOffset));
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fcvt.s.h"));
+      mlir::Value dx =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           fp16ReadCallee,
+                                           mlir::ValueRange{dxAddr})
+              .getResult(0);
+      mlir::Value dall =
+          rewriter.create<emitc::MulOp>(loc, floatType, dx, dy).getResult();
+
+      // float dmin = (float)*(const _Float16 *)(xb + 82) * dy;
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fold_scale_dmin"));
+      mlir::Value dmAddr = xb;
+      if (weightDminOffset != 0)
+        dmAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
+                                               sizeLit(weightDminOffset));
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fcvt.s.h"));
+      mlir::Value dmx =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           fp16ReadCallee,
+                                           mlir::ValueRange{dmAddr})
+              .getResult(0);
+      mlir::Value dmin =
+          rewriter.create<emitc::MulOp>(loc, floatType, dmx, dy).getResult();
+
+      // sumf = sumf + (dall * (float)isum - dmin * (float)summs);  -- ONE
+      // emitc.expression so the two products + the add + the subtract render as
+      // ggml's single C statement (quants.c:561 `sumf += dall * isum - dmin *
+      // summs`) and track its contraction. The emitc.load temps stay OUTSIDE.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "scalar_fold"));
+      mlir::Value isumFinal =
+          rewriter.create<emitc::LoadOp>(loc, i32Type, isumVar).getResult();
+      mlir::Value summsFinal =
+          rewriter.create<emitc::LoadOp>(loc, i32Type, summsVar).getResult();
+      mlir::Value sumfCur =
+          rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+      auto foldExpr = rewriter.create<emitc::ExpressionOp>(
+          loc, floatType, /*do_not_inline=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+        mlir::Block *exprBlock = rewriter.createBlock(&foldExpr.getRegion());
+        rewriter.setInsertionPointToStart(exprBlock);
+        // (float)isum, (float)summs  -- the int->float conversions.
+        mlir::Value isumFloat =
+            rewriter.create<emitc::CastOp>(loc, floatType, isumFinal)
+                .getResult();
+        mlir::Value summsFloat =
+            rewriter.create<emitc::CastOp>(loc, floatType, summsFinal)
+                .getResult();
+        // dall * isum  -- the positive product.
+        mlir::Value posProduct =
+            rewriter.create<emitc::MulOp>(loc, floatType, dall, isumFloat);
+        // dmin * summs  -- the min product.
+        mlir::Value minProduct =
+            rewriter.create<emitc::MulOp>(loc, floatType, dmin, summsFloat);
+        // dall*isum - dmin*summs  -- the per-super-block delta.
+        mlir::Value delta =
+            rewriter.create<emitc::SubOp>(loc, floatType, posProduct,
+                                          minProduct);
+        // sumf + (dall*isum - dmin*summs)  -- the `+=`.
+        mlir::Value sumfNext =
+            rewriter.create<emitc::AddOp>(loc, floatType, sumfCur, delta);
+        rewriter.create<emitc::YieldOp>(loc, sumfNext);
+      }
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("sumf", opName, role));
+      rewriter.create<emitc::AssignOp>(loc, sumfVar, foldExpr.getResult());
+    }
+
+    // *s = sumf;  (structured scalar store through the float * output pointer).
+    mlir::Value sumf =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(blockDot,
+                                         "q2_K block-dot output not a pointer");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "store_s"));
     mlir::Value outIndex =

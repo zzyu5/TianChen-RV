@@ -5102,6 +5102,122 @@ def GgmlBlockDotQ5KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ2KQ8KOp
+    : TCRVRVV_Op<"q2_k_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q2_K x Q8_K super-block FULL block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q2_K_q8_K` super-block dot-product as
+    ONE bounded generic plugin-local typed RVV dataflow step -- the q2_K K-quant
+    COVERAGE rung. q2_K is the 2-bit modern K-quant: it REUSES the super-block
+    scaffolding (the QK_K=256 AoS super-block loop, the q8_K activation handling,
+    the `(float)*(const _Float16 *)` fp16 read seam, the structured `*s` store)
+    and the scale+min structure (a per-sub-block scale term plus a `-dmin * Σ
+    bsums*min` min term) of q4_K, but with THREE q2_K-specific differences from
+    q4_K's K4b: (1) the weights are 2-bit (4 packed per qs byte), unpacked by a
+    plain `(qs >> shift) & 3` over the 4 shifts {0,2,4,6}; (2) the per-sub-block
+    scales and mins are SIMPLE 4-bit nibbles of the 16 direct `scales[16]` bytes
+    (`sc[j] & 0xF` is the scale, `sc[j] >> 4` is the min) -- NO 6-bit utmp/kmask
+    bit-dance; (3) the positive fold is SCALAR -- q2_K accumulates a single
+    per-super-block integer `isum` and folds `sumf += dall*isum - dmin*summs` as
+    ONE scalar fp32 statement in super-block order (NOT q4_K's 8-lane deferred
+    vector `sums` + post-loop sequential horizontal sum, which exists only because
+    q4_K's `_generic` decomposes its positive term into 8 lanes). It produces the
+    fp32 `*s` dot-product output BYTE-EXACT vs `_generic` (the well-defined fp32
+    order is the byte-exactness target; the on-board RVV `_vlN` path is raw inline
+    asm and does NOT define the order).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the q2_K weight base pointer (vx), the q8_K activation
+    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
+    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256, 16 sub-blocks of 16 elements, the AoS block
+    strides (84 bytes for block_q2_K, 292 bytes for block_q8_K), the q2_K payload
+    byte offsets (the 16 packed 4-bit-scale/4-bit-min bytes `scales` @0, the 64
+    packed 2-bit-weight bytes qs @16, the fp16 super-block scale d @80, the fp16
+    super-block min scale dmin @82) and the q8_K payload byte offsets (the fp32
+    activation scale d @0, qs @4, the int16 per-sub-block sums bsums @260) -- are
+    carried as typed integer/string attributes (I4 mirror only). The fixed
+    emission mirrors `_generic` (quants.c:514-564) line-for-line so byte-exactness
+    is by construction:
+    - the 2-bit weight unpack into the element-ordered int8_t aux8[256]: for each
+      32-byte qs chunk (chunk k in 0..1, qs advances 32 bytes per chunk) and each
+      2-bit shift in {0,2,4,6}, `aux8[128*k + 32*(shift/2) + l] = (qs[k*32+l] >>
+      shift) & 3` for the 32 lanes l, emitted as a u8m2 load + vsrl_vx + vand_vx +
+      u8->i8 reinterpret + vse8 (q2 in [0,3] is non-negative so the reinterpret is
+      exact). The aux8 element ordering matches `_generic`: sub-block s in 0..15
+      maps to aux8[16*s : 16*s+16], q8[16*s : 16*s+16], and bsums[s];
+    - the 4-bit nibble scale/min extraction (the SIMPLER q2_K piece, NO bit-dance):
+      the 16 `scales[16]` bytes are read directly -- `sc[s] & 0xF` is the
+      per-sub-block scale, `sc[s] >> 4` is the per-sub-block min -- as structured
+      scalar emitc.load + emitc.bitwise_and / emitc.bitwise_right_shift;
+    - the SCALAR positive integer dot: a per-super-block `int isum = 0` accumulating
+      Σ_{s=0..15} (sc[s]&0xF) * (Σ_{l in sub-block s} q8[l]*aux8[l]); the inner
+      16-element products are computed in the vector domain (vle8 i8m1 ->
+      vwmul_vv i16m2 -> vwredsum into an i32 lane 0 extracted to int; LMUL=1 so
+      the 16-element reduce sees all 16 lanes at VLEN>=128) and the
+      per-sub-block reduction `isuml` scaled by the int scale and accumulated into
+      the scalar `isum` (integer multiply/add, order-free);
+    - the q2_K MIN term: a per-super-block `int summs = Σ_{s=0..15} bsums[s] *
+      (sc[s] >> 4)` (bsums the int16 q8_K per-sub-block sums @260, SIGN-extended;
+      each min the high nibble of one scales byte; integer multiply/add,
+      order-free), accumulated by a scalar emitc loop;
+    - the SCALAR fp32 fold: `dall = (float)*(const _Float16 *)(xb+80) * dy` and
+      `dmin = (float)*(const _Float16 *)(xb+82) * dy` (dy the fp32 activation scale
+      at byte 0, loaded ONCE), then `sumf += dall*isum - dmin*summs` -- emitted as
+      ONE emitc.expression so the two products + the add + the subtract render as
+      ggml's single C statement (quants.c:561) and track the contraction. This is
+      a SCALAR accumulation in super-block order (NOT a vector lane accumulator),
+      carried across super-blocks;
+    - `*s = sumf` (a structured subscript + assign through the float * output)
+      AFTER the super-block loop.
+    This emission is the op's fixed structure, NOT a candidate-mirror string read
+    in the conversion. The bounded surface kind is limited to
+    "ggml_q2_k_q8_k_block_dot" and scale_model to
+    "per-sub-block-uint4-scale-i32-domain-scalar-fp32-fold-min". Route ids, helper
+    names, ABI strings, artifact names, status fields, exact intrinsic spellings,
+    operand mirror strings, q8/q2 names, and common EmitC/export code must not
+    infer or choose super-block dot-product semantics.
+
+    q2_K emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip loop
+    (the zve32x/zve64x re-strip is a capability item, not built here). No resource
+    shape knobs yet; this op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_dmin_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_bsums_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",
     [TCRVEmitCLowerableOpInterface]> {
