@@ -2263,11 +2263,23 @@ constexpr std::int64_t kRVVBlockDotBaseProductReduceChain = 2;
 ///     XOR/sign-extend, so the dependent decode chain is SHORTER than q4_0's
 ///     (2 real ops vs 5). This SHORTER prefix is the structural fact, not a tuned
 ///     constant; it is what the latency-depth derivation reads.
+///   * "nibble-5bit-offset-binary" (q5_0): the unsigned nibble unpack PLUS the
+///     per-element 5th high-bit injection from the 32-bit qh field PLUS the
+///     offset-binary `-16` bias -- the longest of the block-dot decode chains
+///     (the emitFiveBitOffsetBinaryDecodeProductValue sequence: vand 0x0F / vsrl
+///     0x04 unpack, then the qh broadcast / vid+c shift vector / vsrl_vv / &1 /
+///     <<4 / narrow / OR injection, then reinterpret / vsub 16). A DEEPER
+///     dependent chain than q4_0's (~8 real ops). Like the others its EXACT value
+///     is immaterial to the picks (any depth >= 4 saturates the {1,2,4} unroll
+///     range); what is structural is that the 5-bit format has the LONGEST decode
+///     prefix, derived from its format, not a hand-set constant.
 inline std::int64_t getRVVBlockDotDecodePrefixLength(llvm::StringRef quantFormat) {
   if (quantFormat == "nibble-offset-binary")
     return 5;
   if (quantFormat == "nibble-unsigned")
     return 2;
+  if (quantFormat == "nibble-5bit-offset-binary")
+    return 8;
   return 0; // plain-int8 and any other already-int8 stream.
 }
 
@@ -2447,6 +2459,85 @@ enumerateRVVQ41Q81ShapeCandidates(bool hasZvl128b,
             getRVVQ40ShapeVectorRegisterCost(coreLMUL);
         candidate.cost = computeRVVQ41ShapeCost(coreLMUL, factor, elision);
         // (a) capability/anchor legality of strip elision (q4_1: m1 anchor, like
+        // q4_0).
+        bool elisionLegal = true;
+        if (elision == "elided")
+          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
+        // (b) vreg-budget legality.
+        bool budgetLegal =
+            candidate.vectorRegisterCost <= vectorRegisterBudget;
+        candidate.isLegal = elisionLegal && budgetLegal;
+        candidates.push_back(candidate);
+      }
+  return candidates;
+}
+
+//===----------------------------------------------------------------------===//
+// The Family-A SIBLING: the ggml Q5_0 x Q8_0 block-dot shape autotuner.
+//
+// q5_0 is the single-scale, 5-bit-weight Family-A kernel. Its nibble half-block
+// is byte-identical in SHAPE to q4_0's (16 nibble bytes decoded into 2x16 lanes,
+// paired against q8[0..15]/q8[16..31]), so the SAME shape space {integer_core_lmul
+// {mf4,m1} x multi_block_factor {1,2,4} x strip_elision {robust,elided}} maps to
+// the SAME structural facts as q4_0 (the per-half-block reduction count, the
+// peak-live vreg footprint, the m1-anchored elision legality). The ONE structural
+// difference fed into the SAME cost FORMULA (computeBlockDotShapeCostCore) is the
+// DERIVED latency depth: q5_0's integer core decodes the 4-bit nibble UNSIGNED and
+// then INJECTS the per-element 5th high bit from the qh field before the
+// offset-binary `-16` bias, so its decode prefix is the LONGEST of the block-dot
+// kernels ("nibble-5bit-offset-binary"). Like the others, the EXACT depth is
+// immaterial to the picks (any depth >= 4 saturates the {1,2,4} unroll range), so
+// q5_0's argmin lands at the same shape q4_0's does -- but the depth is a COMPUTED
+// structural count off the format's decode chain, NOT a per-kernel constant (the
+// "derived, not a lookup" litmus: a third 5-bit kernel inherits its depth for free
+// from its format).
+//===----------------------------------------------------------------------===//
+
+/// The architectural vreg budget for the q5_0 shape prune (same 32-vector file).
+constexpr std::int64_t kRVVQ50ShapeVectorRegisterBudget = 32;
+
+/// The capability-blind structural cost of a q5_0 shape: the SAME formula as
+/// q4_0 (computeBlockDotShapeCostCore), fed q5_0's per-anchor reduction count
+/// (identical to q4_0's: the nibble half-block is the same shape) AND its DERIVED
+/// latency depth. q5_0's integer core does an UNSIGNED nibble unpack + 5th-bit
+/// injection + offset-binary `-16` bias -- the LONGEST decode prefix (the
+/// "nibble-5bit-offset-binary" format), a structural fact of the format, NOT a
+/// hand-set factor.
+inline std::int64_t computeRVVQ50ShapeCost(llvm::StringRef coreLMUL,
+                                           std::int64_t multiBlockFactor,
+                                           llvm::StringRef stripElision) {
+  return computeBlockDotShapeCostCore(
+      getRVVQ40ReductionsPerHalfBlock(coreLMUL), multiBlockFactor, stripElision,
+      getRVVBlockDotCoreLatencyDepth("nibble-5bit-offset-binary"));
+}
+
+/// Enumerate the full Q5_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
+/// {robust,elided} = 12 candidates) and PRUNE each by the SAME two facts q4_0
+/// uses: (a) LEGALITY -- strip_elision "elided" is correct only at the m1 anchor
+/// on a Zvl128b target (the mf4 anchor's VLMAX 4 would drop nibble bytes); (b)
+/// BUDGET -- the peak-live vreg footprint must fit the vector-register-file
+/// budget. Each candidate's cost is the capability-blind q5_0 structural cost
+/// above (the SAME formula, with q5_0's derived latency depth).
+inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+enumerateRVVQ50Q80ShapeCandidates(bool hasZvl128b,
+                                  std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
+  static constexpr std::int64_t kFactors[] = {1, 2, 4};
+  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
+  for (llvm::StringRef coreLMUL : kCoreLMULs)
+    for (std::int64_t factor : kFactors)
+      for (llvm::StringRef elision : kElisions) {
+        RVVQ40Q80ShapeCandidate candidate;
+        candidate.integerCoreLMUL = coreLMUL;
+        candidate.multiBlockFactor = factor;
+        candidate.stripElision = elision;
+        candidate.reductionsPerHalfBlock =
+            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
+        candidate.vectorRegisterCost =
+            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
+        candidate.cost = computeRVVQ50ShapeCost(coreLMUL, factor, elision);
+        // (a) capability/anchor legality of strip elision (q5_0: m1 anchor, like
         // q4_0).
         bool elisionLegal = true;
         if (elision == "elided")

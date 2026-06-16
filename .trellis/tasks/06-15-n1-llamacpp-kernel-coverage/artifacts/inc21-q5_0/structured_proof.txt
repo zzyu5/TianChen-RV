@@ -1,0 +1,12 @@
+=== STRUCTURED PROOF (aligned-qh, deployable) ===
+raw()=0 across all 3 shapes:
+  q5_0_fullv_autotuned.cpp : raw()=0
+  q5_0_zve32x_autotuned.cpp : raw()=0
+  q5_0_mf4_robust.cpp : raw()=0
+
+NON-comment emitc.verbatim in lowered IR (0 = fully structured):
+0
+
+qh read = two ALIGNED uint16_t halves (xb+2 / xb+4), NOT a misaligned uint32_t:
+27:    uint32_t v16 = (uint16_t)*(const uint16_t *)(v15);
+29:    uint32_t v18 = (uint16_t)*(const uint16_t *)(v17);

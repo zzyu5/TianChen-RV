@@ -1,0 +1,15 @@
+=== DIVERGENCE: same attr-less q5_0 op, --march only ===
+-- rv64gcv (Zvl128b) --
+integer_core_lmul = "m1"
+multi_block_factor = 4 : i64
+strip_elision = "elided"
+has_zvl128b = true
+legal_candidate_count = 9 : i64
+selected_cost = 1005 : i64
+-- rv64gc_zve32x (no Zvl128b) --
+integer_core_lmul = "m1"
+multi_block_factor = 2 : i64
+strip_elision = "robust"
+has_zvl128b = false
+legal_candidate_count = 6 : i64
+selected_cost = 1310 : i64

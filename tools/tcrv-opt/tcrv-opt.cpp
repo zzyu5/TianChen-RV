@@ -86,6 +86,9 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializeRVVQ41SchedulePass();
   });
   mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ50SchedulePass();
+  });
+  mlir::registerPass([] {
     return tianchenrv::transforms::createMaterializeRVVGearboxSchedulesPass();
   });
   mlir::registerPass([&plugins] {

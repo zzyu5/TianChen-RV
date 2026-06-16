@@ -4258,6 +4258,127 @@ def GgmlBlockDotQ41Q81Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ50Q80Op
+    : TCRVRVV_Op<"q5_0_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml Q5_0 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q5_0_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step, the FAMILY-A sibling of
+    tcrv_rvv.q4_0_q8_0_block_dot (single-scale 5-bit weight): the AoS QK=32 block
+    loop, the per-block dual fp16 scale, the fp32 scalar accumulation, and the
+    `*s` scalar store. It shares the Q4_0/Q4_1 nibble half-block STRUCTURE (16
+    nibble bytes decoded into 2x16 lanes, paired against q8[0..15]/q8[16..31]) and
+    q8_0's scales-first fold order. The ONE genuinely-new piece is the 5-bit weight
+    reconstruction (block_q5_0 carries a 4-bit nibble PLUS a separate per-element
+    5th high bit packed in a 32-bit qh field):
+
+    (1) The integer core decodes the low 4 bits UNSIGNED [0,15] (the q4_1 path:
+        `vand 0x0F` low nibble / `vsrl 0x04` high nibble on the UNSIGNED weight
+        lane), then INJECTS the 5th high bit per element from the 32-bit qh field
+        and applies the offset-binary `-16` bias: for element i the value is
+        `(int8_t)(((qs_nibble) | (qh_bit_i << 4)) - 16)`, range [-16,15]. The 5th
+        bit of element i is `bit i` of qh; for the low half (elements 0..15) that
+        is `bit (c+lane)` of `qh & 0xFFFF`, for the high half (elements 16..31)
+        that is `bit (c+lane)` of `qh >> 16`. The injection is a per-lane shift
+        vector (`vid + c`), `vsrl_vv` of the broadcast 16-bit qh half, `& 1`,
+        `<< 4`, narrowed u16->u8, OR'd into the unsigned nibble, then reinterpret
+        to i8 and `vsub 16`. The decoded i8 lanes feed the SAME signed widening
+        product against the plain-i8 q8 halves (vwmul/vwmacc) -> vwredsum -> i32
+        `sumi`. This is the 5-bit variant of the INC-1/q4_1 nibble core, added
+        CLEANLY alongside them (the offset-binary and unsigned cores are
+        byte-untouched).
+
+    (2) The per-block fold is ggml's q5_0 order `sumf = sumf + (d_x*d_y)*sumi`
+        (the dual fp16 scales multiplied FIRST, q8_0's order -- NOT the Q4_0
+        sibling's `(sumi*d_x)*d_y`), grouped into ONE emitc.expression so the
+        compiler fuses the SAME FMA ggml does under -ffp-contract on/default
+        (byte-exact across all four modes). block_q5_0 is {fp16 d; uint8 qh[4];
+        uint8 qs[16]} (stride 22): d at +0, the qh high-bit field at +2, the 16
+        nibble bytes at +6; block_q8_0 is unchanged (stride 34, qs at +2, high
+        half at +16).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the q5_0 weight base pointer (vx), the q8_0 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) --
+    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result
+    through the output pointer.
+
+    The block-quantized dot-product STRUCTURE is first-class in the typed body.
+    The structural facts -- QK=32, the AoS block strides (22 bytes for block_q5_0,
+    34 bytes for block_q8_0), the WEIGHT quant payload byte offset (+6, after the
+    inline fp16 scale and the 4-byte qh field), the ACTIVATION quant payload byte
+    offset (+2, after the q8_0 inline fp16 scale -- DISTINCT from the weight's +6
+    because q5_0 inserts the 4-byte qh between the scale and the nibbles while the
+    q8_0 activation is unchanged), the q8 high-half byte offset (+16), the qh
+    high-bit field byte offset (+2), and the dual-fp16 scale model -- are carried
+    as typed integer/string attributes (I4 mirror only). The fixed
+    emission -- an outer emitc.for block loop over nb = n / QK, per-block address
+    arithmetic (vx + ib*22, vy + ib*34) via emitc.add/emitc.mul nodes, the two
+    scalar fp16->fp32 reads plus the two aligned 16-bit qh half reads via
+    emitc.call_opaque
+    (the sanctioned opaque pieces, exactly as INC-1 emits its intrinsics), an inner
+    strip loop reusing the unsigned-nibble decode + 5th-bit injection + offset-
+    binary `-16` chain (-> vwmul/vwmacc against the plain q8 halves) + vwredsum
+    into a per-block i32 scalar, and the fp32 accumulate `sumf = sumf +
+    (d_x*d_y)*sumi` (ggml's exact order) -- is the op's lowering, NOT a candidate-
+    mirror string read in the conversion. For the bounded surface kind is limited
+    to "ggml_q5_0_q8_0_block_dot" and scale_model to "dual-fp16-per-block-d_x.d_y".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, operand mirror strings, q8/q5 names, and common
+    EmitC/export code must not infer or choose block-quantized dot-product
+    semantics.
+
+    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
+    attributes are the SAME bounded resource/scheduling shape knobs the Q4_0/Q4_1
+    siblings carry (the *how*, never the *what*; the dot-product is byte-exact for
+    any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). Because q5_0's
+    nibble half-block is byte-identical in shape to q4_0's (16 nibble bytes,
+    decoded into 2x16 lanes), the anchors are q4_0's, NOT q8_0's:
+    - `integer_core_lmul` selects the i8 strip anchor: "m1" (i8m1 -> i16m2, ONE
+      strip + ONE vwredsum per half-block at VLEN=128, matching ggml's reduction
+      anchor) or "mf4" (the default: i8mf4 -> i16mf2, vsetvl_e32m1, 4 chunks).
+    - `multi_block_factor` selects how many q5_0/q8_0 blocks the outer loop
+      processes per iteration -- 1 (default), 2, or 4.
+    - `strip_elision` selects "robust" (default, correct at any VLEN) or "elided"
+      (a single vsetvl_e8m1(16) + one vwredsum per half-block, correct ONLY at
+      VLEN >= 128 and therefore requiring the m1 anchor). The verifier rejects the
+      "elided" + non-m1 combination fail-closed (I7); the autotuner gates "elided"
+      on the Zvl128b capability. The `nb % factor` tail always uses the robust
+      single-block core regardless of strip_elision.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ6KQ8KAux32Op
     : TCRVRVV_Op<"q6_k_q8_k_aux32_partial",
     [TCRVEmitCLowerableOpInterface]> {
