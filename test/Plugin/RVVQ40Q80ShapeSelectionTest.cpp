@@ -576,6 +576,89 @@ int runQ40CostUnchangedByRefactorTest() {
   return 0;
 }
 
+//===----------------------------------------------------------------------===//
+// The MEASUREMENT-BACKED selection seam (INC-10): parse a tuning record, look up
+// a (kernel, capability-march) entry, and REVALIDATE the recorded shape against
+// the current legal candidate set (fail-closed I7 -- a stale record naming a
+// now-illegal shape must NOT be honoured).
+//===----------------------------------------------------------------------===//
+int runTuningRecordLookupTest() {
+  // A record with two entries; the q4_1 full-V pick (m1, factor=1, elided) is the
+  // MEASURED-fastest shape -- DIFFERENT from the static argmin (m1, factor=4,
+  // elided). Comment + blank lines + arbitrary token order are tolerated.
+  llvm::StringRef record =
+      "# a tuning record\n"
+      "\n"
+      "tune march=rv64gcv kernel=q4_1 elision=elided lmul=m1 factor=1 measured_ns=1262.8\n"
+      "tune kernel=q4_1 march=rv64gc_zve32x lmul=m1 factor=2 elision=robust measured_ns=1439.4\n";
+
+  std::optional<tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry> full =
+      tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_1",
+                                                             "rv64gcv");
+  if (!full)
+    return fail("the q4_1 rv64gcv tuning-record entry must be found");
+  if (full->integerCoreLMUL != "m1" || full->multiBlockFactor != 1 ||
+      full->stripElision != "elided" || full->measuredNs != 1262.8)
+    return fail("the q4_1 rv64gcv entry parsed the wrong shape/ns");
+
+  // A kernel/march with NO entry returns nullopt (the pass then falls back).
+  if (tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(record, "q4_0",
+                                                            "rv64gcv"))
+    return fail("a kernel with no record entry must return nullopt");
+
+  // REVALIDATION: the recorded full-V shape is legal in the full-V candidate set.
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> fullVCandidates =
+      enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/true,
+                                        kRVVQ41ShapeVectorRegisterBudget);
+  std::optional<RVVQ40Q80ShapeCandidate> revalidated =
+      tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
+          fullVCandidates, *full);
+  if (!revalidated || revalidated->integerCoreLMUL != "m1" ||
+      revalidated->multiBlockFactor != 1 ||
+      revalidated->stripElision != "elided")
+    return fail("the recorded m1/1/elided shape must revalidate as legal full-V");
+  // AND it is NOT the static argmin (the FIX): the static argmin is m1/4/elided.
+  std::optional<RVVQ40Q80ShapeCandidate> staticArgmin =
+      selectRVVQ40Q80MinCostShape(fullVCandidates);
+  if (!staticArgmin || staticArgmin->multiBlockFactor != 4 ||
+      staticArgmin->stripElision != "elided")
+    return fail("the static q4_1 argmin must be the (m1,4,elided) mis-pick");
+  if (revalidated->multiBlockFactor == staticArgmin->multiBlockFactor)
+    return fail("the measured pick must DIFFER from the static argmin (the FIX)");
+
+  // FAIL-CLOSED: a record naming an ELIDED shape for a non-Zvl128b target (where
+  // elided is capability-pruned) must NOT revalidate -- the pass falls back.
+  tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry stale;
+  stale.kernelKey = "q4_1";
+  stale.march = "rv64gc_zve32x";
+  stale.integerCoreLMUL = "m1";
+  stale.multiBlockFactor = 2;
+  stale.stripElision = "elided"; // illegal without Zvl128b.
+  stale.measuredNs = 999.0;
+  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> zve32xCandidates =
+      enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/false,
+                                        kRVVQ41ShapeVectorRegisterBudget);
+  if (tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
+          zve32xCandidates, stale))
+    return fail("a stale elided shape must NOT revalidate on a non-Zvl128b target "
+                "(fail-closed I7)");
+
+  // ROUND-TRIP: the record formatter and the parser agree.
+  std::string line = tianchenrv::plugin::rvv::formatRVVBlockDotTuningRecordLine(
+      "q8_0", "rv64gcv", "m2", 1, "elided", 851.3);
+  std::optional<tianchenrv::plugin::rvv::RVVBlockDotTuningRecordEntry> rt =
+      tianchenrv::plugin::rvv::lookupRVVBlockDotTuningRecord(line, "q8_0",
+                                                            "rv64gcv");
+  if (!rt || rt->integerCoreLMUL != "m2" || rt->multiBlockFactor != 1 ||
+      rt->stripElision != "elided" || rt->measuredNs != 851.3)
+    return fail("the tuning-record format/parse round-trip must be exact");
+
+  llvm::outs() << "N3 measurement-record lookup + revalidation: measured pick "
+                  "found, FIXES the static argmin, stale shape fail-closed, "
+                  "format round-trips\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -612,6 +695,8 @@ int main() {
   if (int result = runQ41NotZvl128bSelectsMb2RobustTest())
     return result;
   if (int result = runQ41CostMatchesDepthBlindTest())
+    return result;
+  if (int result = runTuningRecordLookupTest())
     return result;
   llvm::outs()
       << "RVV N3 Q4_0 + Q8_0 + Q4_1 capability/resource-aware shape selection "

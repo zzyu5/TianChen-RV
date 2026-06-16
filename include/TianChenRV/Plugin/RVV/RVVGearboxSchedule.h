@@ -4,10 +4,12 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <string>
 
 namespace tianchenrv::plugin::rvv {
 
@@ -2563,6 +2565,165 @@ enumerateRVVQ80Q80ShapeCandidates(bool hasZvl128b,
         candidates.push_back(candidate);
       }
   return candidates;
+}
+
+//===----------------------------------------------------------------------===//
+// The MEASUREMENT-BACKED selection seam (the genuine N3 "实测胜出").
+//
+// The static cost model above (computeBlockDotShapeCostCore) ranks candidates by
+// a STRUCTURAL guess. INC-9 PROVED that guess has measurable limits -- it
+// MIS-RANKS q4_1, picking its SLOWEST legal shape (m1,4,elided, 1.58x slower than
+// ggml) when the MEASURED optimum is (m1,1,robust). The static model stays as the
+// candidate PRUNER + offline FALLBACK, but the SELECTION among the legal set is
+// made by ACTUAL on-board measurement, recorded once (offline, per kernel+target)
+// into a human-readable tuning record that the materialize pass READS at compile
+// time. This keeps the board out of the per-compile path (tune-once-cache-read).
+//
+// The tuning record is a simple, auditable, line-oriented text file. Each tuned
+// (kernel, capability-march) pair is ONE record line:
+//
+//   tune kernel=<k> march=<m> lmul=<L> factor=<F> elision=<E> measured_ns=<ns>
+//
+// `kernel` is the block-dot family key ("q4_0" / "q8_0" / "q4_1"), `march` is the
+// CAPABILITY-derivation -march the pass keys on (rv64gcv / rv64gc_zve32x -- NOT
+// the board clang -march), and (lmul, factor, elision) is the MEASURED-fastest
+// shape. Lines starting with '#' are comments (the audit ladder is recorded as
+// comments). Whitespace-insensitive; key=value tokens in any order.
+//===----------------------------------------------------------------------===//
+
+/// One parsed tuning-record entry: the MEASURED-fastest shape for a tuned
+/// (kernel, capability-march) pair, plus the measured ns the driver recorded.
+struct RVVBlockDotTuningRecordEntry {
+  std::string kernelKey; // "q4_0" / "q8_0" / "q4_1".
+  std::string march;     // capability-derivation -march (rv64gcv / rv64gc_zve32x).
+  std::string integerCoreLMUL; // measured-best anchor.
+  std::int64_t multiBlockFactor = 1;
+  std::string stripElision;    // "robust" / "elided".
+  double measuredNs = 0.0;     // the recorded best-of-N ns/call.
+};
+
+/// The canonical record line for one measured pick (the driver writes exactly
+/// this; the pass parses exactly this). Auditable + reproducible.
+inline std::string
+formatRVVBlockDotTuningRecordLine(llvm::StringRef kernelKey,
+                                  llvm::StringRef march,
+                                  llvm::StringRef integerCoreLMUL,
+                                  std::int64_t multiBlockFactor,
+                                  llvm::StringRef stripElision,
+                                  double measuredNs) {
+  std::string line;
+  llvm::raw_string_ostream os(line);
+  os << "tune kernel=" << kernelKey << " march=" << march
+     << " lmul=" << integerCoreLMUL << " factor=" << multiBlockFactor
+     << " elision=" << stripElision << " measured_ns=" << measuredNs;
+  os.flush();
+  return line;
+}
+
+/// Parse the tuning-record text and return the entry for (kernelKey, march), if
+/// present. Comment ('#') and blank lines are skipped; the first matching `tune`
+/// line wins. Returns nullopt if no matching entry exists (the pass then falls
+/// back to the static cost model). Tolerant of token order and extra whitespace;
+/// a malformed line (missing a required token) is skipped, never crashes -- the
+/// record is an advisory cache, never a correctness authority.
+inline std::optional<RVVBlockDotTuningRecordEntry>
+lookupRVVBlockDotTuningRecord(llvm::StringRef recordText, llvm::StringRef kernelKey,
+                              llvm::StringRef march) {
+  llvm::SmallVector<llvm::StringRef, 64> lines;
+  recordText.split(lines, '\n');
+  for (llvm::StringRef rawLine : lines) {
+    llvm::StringRef line = rawLine.trim();
+    if (line.empty() || line.starts_with("#"))
+      continue;
+    llvm::SmallVector<llvm::StringRef, 8> tokens;
+    line.split(tokens, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    if (tokens.empty() || tokens.front() != "tune")
+      continue;
+
+    RVVBlockDotTuningRecordEntry entry;
+    bool haveLMUL = false, haveFactor = false, haveElision = false,
+         haveNs = false;
+    for (llvm::StringRef token : tokens) {
+      auto kv = token.split('=');
+      llvm::StringRef key = kv.first, value = kv.second;
+      if (key == "kernel")
+        entry.kernelKey = value.str();
+      else if (key == "march")
+        entry.march = value.str();
+      else if (key == "lmul") {
+        entry.integerCoreLMUL = value.str();
+        haveLMUL = true;
+      } else if (key == "factor") {
+        long long parsed = 0;
+        if (!value.getAsInteger(10, parsed)) {
+          entry.multiBlockFactor = parsed;
+          haveFactor = true;
+        }
+      } else if (key == "elision") {
+        entry.stripElision = value.str();
+        haveElision = true;
+      } else if (key == "measured_ns") {
+        double parsed = 0.0;
+        if (!value.getAsDouble(parsed)) {
+          entry.measuredNs = parsed;
+          haveNs = true;
+        }
+      }
+    }
+    if (entry.kernelKey != kernelKey || entry.march != march)
+      continue;
+    if (!haveLMUL || !haveFactor || !haveElision || !haveNs)
+      continue; // malformed match -> skip, fall through to fallback.
+    return entry;
+  }
+  return std::nullopt;
+}
+
+/// Revalidate a record's shape against the CURRENT legal candidate set (the
+/// single source of truth: the C++ enumerate+prune). The record is an advisory
+/// cache; a stale record (e.g. one naming an elided shape no longer legal under a
+/// changed capability) must NEVER stamp an illegal shape (I7 fail-closed). Returns
+/// the matching legal candidate (carrying its structural facts) if the recorded
+/// shape is present AND legal in the current set, else nullopt -> static fallback.
+inline std::optional<RVVQ40Q80ShapeCandidate>
+revalidateRVVBlockDotTuningRecordShape(
+    llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates,
+    const RVVBlockDotTuningRecordEntry &entry) {
+  for (const RVVQ40Q80ShapeCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    if (candidate.integerCoreLMUL == entry.integerCoreLMUL &&
+        candidate.multiBlockFactor == entry.multiBlockFactor &&
+        candidate.stripElision == entry.stripElision)
+      return candidate;
+  }
+  return std::nullopt;
+}
+
+/// Dump the LEGAL candidate set for a (kernel, march) pair as machine-parseable
+/// lines on `os` -- the single source of truth the offline tune driver consumes
+/// (so it enumerates+prunes via THIS C++ authority, never re-implements the
+/// Zvl128b legality rule). One line per legal candidate:
+///
+///   candidate kernel=<k> march=<m> lmul=<L> factor=<F> elision=<E> cost=<c>
+///
+/// CRUCIAL (the measurement-backed point): every BUDGET+CAPABILITY-legal shape is
+/// dumped -- including the mf4 anchors the cost model deems dominated -- because
+/// the WHOLE lesson of q4_1 is that the cost RANKING is untrustworthy. The driver
+/// MEASURES the full legal set and lets the board, not the cost model, rank. The
+/// static `cost` is dumped for audit only (it does NOT prune the dump).
+inline void dumpRVVBlockDotLegalCandidates(
+    llvm::raw_ostream &os, llvm::StringRef kernelKey, llvm::StringRef march,
+    llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) {
+  for (const RVVQ40Q80ShapeCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    os << "candidate kernel=" << kernelKey << " march=" << march
+       << " lmul=" << candidate.integerCoreLMUL
+       << " factor=" << candidate.multiBlockFactor
+       << " elision=" << candidate.stripElision << " cost=" << candidate.cost
+       << "\n";
+  }
 }
 
 } // namespace tianchenrv::plugin::rvv

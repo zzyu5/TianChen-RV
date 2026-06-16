@@ -1,0 +1,8 @@
+# A STALE / inconsistent measurement tuning record for the fail-closed (I7) lit
+# test: it names a strip-ELIDED q4_1 shape for the rv64gc_zve32x capability-march,
+# where the elided shapes are CAPABILITY-PRUNED (illegal without Zvl128b). The
+# materialize pass must NOT stamp this stale, now-illegal shape -- it revalidates
+# the recorded shape against the current legal candidate set and, finding it
+# pruned, falls back to the static cost model. A record is an advisory cache, never
+# a correctness authority.
+tune kernel=q4_1 march=rv64gc_zve32x lmul=m1 factor=2 elision=elided measured_ns=999.0

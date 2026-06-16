@@ -1,0 +1,7 @@
+[=off]
+q4_1 MEASURED-PICK (m1/1/elided) byte-exact: 3600 cases, vs ggml-real 0 fail, vs _generic 0 fail
+[=fast]
+FAIL gen n=1024 -22060.0117!=-22060.0078
+FAIL gen n=2048 -81025.9688!=-81025.9766
+FAIL gen n=4096 -113380.68!=-113380.664
+q4_1 MEASURED-PICK (m1/1/elided) byte-exact: 3600 cases, vs ggml-real 0 fail, vs _generic 1070 fail

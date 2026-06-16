@@ -361,7 +361,22 @@ def MaterializeRVVQ40Schedule
     Option<"isaVectorHints", "isa-vector-hints", "std::string",
            /*default=*/"\"\"",
            "Optional probed isa/vector-hint string augmenting the -march "
-           "evidence for the Zvl128b derivation.">
+           "evidence for the Zvl128b derivation.">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record. When set and it "
+           "carries an entry for (kernel, capability-march) whose shape is still "
+           "legal in the current candidate set, the pass stamps the "
+           "MEASURED-fastest shape (the genuine N3 '实测胜出') instead of the "
+           "static cost-model argmin. Absent / stale / unreadable => the pass "
+           "falls back to the static cost model (the record is an advisory "
+           "cache, never a correctness authority).">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL candidate set (the single source of truth for the "
+           "capability+budget prune) for the offline tune driver to consume, "
+           "then exit without stamping. Includes every budget+capability-legal "
+           "shape (incl. the mf4 anchors the cost model deems dominated) -- the "
+           "driver MEASURES the full legal set; the board ranks, not the cost "
+           "model.">
   ];
   let constructor =
       "::tianchenrv::transforms::createMaterializeRVVQ40SchedulePass()";
@@ -418,7 +433,15 @@ def MaterializeRVVQ80Schedule
     Option<"isaVectorHints", "isa-vector-hints", "std::string",
            /*default=*/"\"\"",
            "Optional probed isa/vector-hint string augmenting the -march "
-           "evidence for the Zvl128b derivation.">
+           "evidence for the Zvl128b derivation.">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record; when it carries a "
+           "still-legal entry for (kernel, capability-march) the pass stamps the "
+           "MEASURED-fastest shape, else falls back to the static cost model "
+           "(see the q4-0 pass for the full contract).">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL candidate set for the offline tune driver, then exit "
+           "without stamping (the single source of truth for the prune).">
   ];
   let constructor =
       "::tianchenrv::transforms::createMaterializeRVVQ80SchedulePass()";
@@ -475,7 +498,17 @@ def MaterializeRVVQ41Schedule
     Option<"isaVectorHints", "isa-vector-hints", "std::string",
            /*default=*/"\"\"",
            "Optional probed isa/vector-hint string augmenting the -march "
-           "evidence for the Zvl128b derivation.">
+           "evidence for the Zvl128b derivation.">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record; when it carries a "
+           "still-legal entry for (kernel, capability-march) the pass stamps the "
+           "MEASURED-fastest shape, else falls back to the static cost model. "
+           "For q4_1 this is the SEAM that FIXES the static mis-pick (the static "
+           "model ranks q4_1's slowest legal shape first; measurement picks the "
+           "real optimum). See the q4-0 pass for the full contract.">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL candidate set for the offline tune driver, then exit "
+           "without stamping (the single source of truth for the prune).">
   ];
   let constructor =
       "::tianchenrv::transforms::createMaterializeRVVQ41SchedulePass()";

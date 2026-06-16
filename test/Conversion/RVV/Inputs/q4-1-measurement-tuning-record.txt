@@ -1,0 +1,13 @@
+# A FIXTURE measurement tuning record for the q4_1 record-read lit test. Mirrors
+# the shape of the artifacts/inc10-measurement-tuner/tuning_record.txt the offline
+# tune driver writes: one `tune` line per (kernel, capability-march), keyed on the
+# CAPABILITY-march (rv64gcv / rv64gc_zve32x), naming the MEASURED-fastest legal
+# shape + its measured ns. Comment lines are the audit ladder (ignored by the pass).
+#
+# The MEASURED-fastest q4_1 full-V shape is (m1, factor=1, elided) -- which DIFFERS
+# from the static cost model's argmin (m1, factor=4, elided): the static model
+# MIS-RANKS this kernel (it picks the slowest legal elided shape); measurement
+# fixes the pick. The zve32x entry names a byte-exact robust shape (the elided
+# shapes are capability-pruned there).
+tune kernel=q4_1 march=rv64gcv lmul=m1 factor=1 elision=elided measured_ns=1262.8
+tune kernel=q4_1 march=rv64gc_zve32x lmul=m1 factor=1 elision=robust measured_ns=1439.4

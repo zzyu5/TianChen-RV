@@ -45,10 +45,12 @@
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVBlockDotScheduleTuning.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Visitors.h"
@@ -90,7 +92,13 @@ constexpr llvm::StringLiteral kQ41SchedulePeakLiveVregAttrName(
     "tcrv_rvv.q4_1_schedule.peak_live_vector_registers");
 constexpr llvm::StringLiteral kQ41ScheduleSelectionReasonAttrName(
     "tcrv_rvv.q4_1_schedule.selection_reason");
+constexpr llvm::StringLiteral kQ41ScheduleMeasuredNsAttrName(
+    "tcrv_rvv.q4_1_schedule.measured_ns");
 constexpr llvm::StringLiteral kQ41ScheduleProducerName("rvv-q4-1-autotuner");
+// The block-dot family key the tuning record is keyed on (with the capability
+// -march). q4_1 is the kernel the static cost model MIS-RANKS -- this is the
+// seam where measurement FIXES the static mis-pick.
+constexpr llvm::StringLiteral kQ41KernelKey("q4_1");
 
 class MaterializeRVVQ41SchedulePass final
     : public impl::MaterializeRVVQ41ScheduleBase<
@@ -109,52 +117,61 @@ public:
     // to the selection; the cost model below is capability-blind.
     bool hasZvl128b = plugin::rvv::deriveHasZvl128b(march, isaVectorHints);
 
+    const std::int64_t budget = plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
+    llvm::SmallVector<plugin::rvv::RVVQ40Q80ShapeCandidate, 12> candidates =
+        plugin::rvv::enumerateRVVQ41Q81ShapeCandidates(hasZvl128b, budget);
+
+    // dump-candidates: the offline tune driver consumes THIS C++ legal set.
+    if (dumpCandidates) {
+      plugin::rvv::dumpRVVBlockDotLegalCandidates(llvm::outs(), kQ41KernelKey,
+                                                  march, candidates);
+      return;
+    }
+
+    std::optional<std::string> recordText =
+        plugin::rvv::loadRVVBlockDotTuningRecord(tuneRecord);
+
     llvm::SmallVector<tcrvrvv::GgmlBlockDotQ41Q81Op, 4> targets;
     module.walk(
         [&](tcrvrvv::GgmlBlockDotQ41Q81Op op) { targets.push_back(op); });
 
     for (tcrvrvv::GgmlBlockDotQ41Q81Op op : targets)
-      materializeSchedule(ctx, op, hasZvl128b);
+      materializeSchedule(ctx, op, hasZvl128b, candidates, budget, recordText);
   }
 
 private:
-  // Enumerate -> prune -> rank -> select -> stamp the Q4_1 schedule onto `op`,
-  // unless `op` already carries a hand-authored shape knob (so the pass never
-  // clobbers an explicit fixture -- additive / opt-in over hand-authored
-  // fixtures).
-  void materializeSchedule(mlir::MLIRContext *ctx,
-                           tcrvrvv::GgmlBlockDotQ41Q81Op op,
-                           bool hasZvl128b) {
+  // Enumerate -> prune -> (measured-best | static fallback) -> stamp the Q4_1
+  // schedule onto `op`, unless `op` already carries a hand-authored shape knob
+  // (so the pass never clobbers an explicit fixture -- additive / opt-in over
+  // hand-authored fixtures). q4_1 is the kernel where the static cost model
+  // MIS-RANKS (it picks the slowest legal shape); the measurement-record seam is
+  // what makes the compiler pick the real on-board optimum.
+  void materializeSchedule(
+      mlir::MLIRContext *ctx, tcrvrvv::GgmlBlockDotQ41Q81Op op, bool hasZvl128b,
+      llvm::ArrayRef<plugin::rvv::RVVQ40Q80ShapeCandidate> candidates,
+      std::int64_t budget, const std::optional<std::string> &recordText) {
     // No-clobber guard: if any shape knob is already present, the IR author
     // pinned the shape; leave the op untouched.
     if (op.getIntegerCoreLmul() || op.getMultiBlockFactor() ||
         op.getStripElision())
       return;
 
-    const std::int64_t budget =
-        plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
-    llvm::SmallVector<plugin::rvv::RVVQ40Q80ShapeCandidate, 12> candidates =
-        plugin::rvv::enumerateRVVQ41Q81ShapeCandidates(hasZvl128b, budget);
-    std::optional<plugin::rvv::RVVQ40Q80ShapeCandidate> selected =
-        plugin::rvv::selectRVVQ40Q80MinCostShape(candidates);
-
-    // Fail-closed (I7): if every candidate was pruned, do not stamp an illegal
-    // shape -- leave the op for the verifier's defaults to govern.
+    // MEASURED-best (if a valid + still-legal record entry exists), else the
+    // static cost-model argmin. Fail-closed (I7): nullopt only when every
+    // candidate was pruned.
+    std::optional<plugin::rvv::RVVBlockDotScheduleSelection> selected =
+        plugin::rvv::selectRVVBlockDotSchedule(candidates, recordText,
+                                               kQ41KernelKey, march);
     if (!selected)
       return;
-
-    std::int64_t legalCount = 0;
-    for (const plugin::rvv::RVVQ40Q80ShapeCandidate &candidate : candidates)
-      if (candidate.isLegal)
-        ++legalCount;
+    const plugin::rvv::RVVQ40Q80ShapeCandidate &shape = selected->shape;
 
     // STAMP the selected schedule knobs (the *how* the lowering reads).
     op.setIntegerCoreLmulAttr(
-        mlir::StringAttr::get(ctx, selected->integerCoreLMUL));
+        mlir::StringAttr::get(ctx, shape.integerCoreLMUL));
     op.setMultiBlockFactorAttr(mlir::IntegerAttr::get(
-        mlir::IntegerType::get(ctx, 64), selected->multiBlockFactor));
-    op.setStripElisionAttr(
-        mlir::StringAttr::get(ctx, selected->stripElision));
+        mlir::IntegerType::get(ctx, 64), shape.multiBlockFactor));
+    op.setStripElisionAttr(mlir::StringAttr::get(ctx, shape.stripElision));
 
     // STAMP the resource-provenance audit trail (the N3 evidence: the choice is
     // a derived enumerate/prune/select over a real candidate space, with the
@@ -169,19 +186,30 @@ private:
                                            candidates.size())));
     op->setAttr(kQ41ScheduleLegalCandidateCountAttrName,
                 mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
-                                       legalCount));
+                                       selected->legalCandidateCount));
     op->setAttr(kQ41ScheduleSelectedCostAttrName,
                 mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
-                                       selected->cost));
+                                       shape.cost));
     op->setAttr(kQ41ScheduleVectorRegisterBudgetAttrName,
                 mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), budget));
     op->setAttr(kQ41SchedulePeakLiveVregAttrName,
                 mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
-                                       selected->vectorRegisterCost));
-    op->setAttr(kQ41ScheduleSelectionReasonAttrName,
-                mlir::StringAttr::get(
-                    ctx, "min-cost legal Q4_1 shape (capability-blind structural "
-                         "cost; strip-elision gated on Zvl128b)"));
+                                       shape.vectorRegisterCost));
+    if (selected->fromMeasurement) {
+      op->setAttr(kQ41ScheduleSelectionReasonAttrName,
+                  mlir::StringAttr::get(
+                      ctx, "measured-fastest legal Q4_1 shape (on-board "
+                           "best-of-N; tuning-record-backed; FIXES the static "
+                           "mis-pick)"));
+      op->setAttr(kQ41ScheduleMeasuredNsAttrName,
+                  mlir::FloatAttr::get(mlir::Float64Type::get(ctx),
+                                       selected->measuredNs));
+    } else {
+      op->setAttr(kQ41ScheduleSelectionReasonAttrName,
+                  mlir::StringAttr::get(
+                      ctx, "min-cost legal Q4_1 shape (capability-blind "
+                           "structural cost; strip-elision gated on Zvl128b)"));
+    }
   }
 };
 
