@@ -957,3 +957,38 @@ Advanced all three fronts of the locked goal (coverage + high-perf + complete fo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Forward-pass PRIMITIVE SET complete (scale/rms_norm/silu/soft_max/quantize/rope, byte-exact) + GEMM perf win
+
+**Date**: 2026-06-16
+**Task**: Forward-pass PRIMITIVE SET complete (scale/rms_norm/silu/soft_max/quantize/rope, byte-exact) + GEMM perf win
+**Branch**: `main`
+
+### Summary
+
+Completed the forward-pass primitive set — the compiler now expresses every structural class AND every forward-pass primitive of llama.cpp inference, all STRUCTURED byte-exact (raw()=0) on ssh rvv: F1 scale, F3 rms_norm (scalar-double reduction, fp-contract-invariant), F5 silu (ggml_v_expf_m2 minimax polynomial node-for-node), F5b soft_max (reuses F5 exp via a shared helper + ggml's exact f64 widening-reduce; byte-exact y[] AND returned sum incl. -inf masked rows), F4 quantize_row_q8_0 (the f32->quant BRIDGE; full block_q8_0 d+qs byte-exact + CLOSE-THE-LOOP: our quantize->our q4_0_q8_0 dot vs ggml quantize->ggml dot = 1920/1920 *s bit-exact across two composed compiler-emitted kernels), F6 rope (NORMAL variant = llama-2's; iterative theta + scalar-libm cos/sin via call_opaque + FMA-grouped rotation; 66/66 byte-exact under all 4 fp-contract modes; self-includes math.h for a standalone drop-in). Each is a new structured emitc lowering reusing the established discipline (the FMA-grouping/emitc.expression byte-exactness fix, the loop-carried-accumulator reduction, the shared exp helper). All additive (every sibling re-renders byte-identical), clean rebuilds green, 3 documented environmental reds. The compiler's demonstrated coverage now spans: quant-dot (q4_0/q8_0/q4_1/q6_K, 3 families, capability-divergent, measurement-tuned, q4_0 beats ggml), GEMM (q4_0 weight-reuse tile 1.27-1.33x, perf front), and the complete f32 forward-pass primitive set. Remaining = breadth-extension of proven patterns (trivial elementwise add/mul/mad, q8_1 quantizer, more dot kernels q5_0/q4_K/etc., full GEMM ABI G2/G3) + end-to-end forward-pass assembly.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c0f06843` | (see git log) |
+| `41ee3bb2` | (see git log) |
+| `a053c41e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
