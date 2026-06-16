@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <riscv_vector.h>
+#include <math.h>
 extern "C" void tcrv_emitc_ggml_rope_norm_f32_kernel_ggml_rope_norm_f32(size_t v1, const float* v2, float* v3, float v4, float v5) {
   // tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
   // tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1

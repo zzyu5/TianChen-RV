@@ -50,6 +50,11 @@ module {
 
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
+// The rope TU calls scalar libm (cosf/sinf), so the emitted module MUST
+// self-include <math.h> to be a self-contained standalone TU. This pins the
+// self-include behavior at the IR level (the board harness's own <cmath> would
+// otherwise mask a missing kernel-side include).
+// CHECK: emitc.include <"math.h">
 // CHECK: emitc.func @tcrv_emitc_ggml_rope_norm_f32_kernel_ggml_rope_norm_f32(
 // The loop-carried f32 angle recurrence theta as an emitc.variable lvalue
 // (emitc.for has no iter_args), seeded from theta_base.

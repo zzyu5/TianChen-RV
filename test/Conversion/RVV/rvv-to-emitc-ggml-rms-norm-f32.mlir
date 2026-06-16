@@ -41,6 +41,10 @@ module {
 
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
+// The rms_norm TU calls scalar libm (1/sqrtf(mean+eps)), so the emitted module
+// MUST self-include <math.h> to be a self-contained standalone TU. This pins the
+// self-include behavior at the IR level.
+// CHECK: emitc.include <"math.h">
 // CHECK: emitc.func @tcrv_emitc_ggml_rms_norm_f32_kernel_ggml_rms_norm_f32(
 // The SCALAR double accumulator (ggml_float sum = 0.0) as an emitc.variable
 // lvalue (emitc.for has no iter_args, so the loop-carried accumulator is a
