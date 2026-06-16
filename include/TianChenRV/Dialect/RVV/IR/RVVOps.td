@@ -4448,6 +4448,68 @@ def GgmlBlockDotQ6KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlVecScaleF32Op
+    : TCRVRVV_Op<"ggml_vec_scale_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32 in-place elementwise scale (y[i] *= v) op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_scale_f32` forward-pass op as ONE bounded
+    generic plugin-local typed RVV f32 elementwise dataflow step: the in-place
+    per-lane multiply `y[i] = y[i] * v` over a flat unit-stride f32 buffer. This
+    is the FIRST forward-pass (non-dot) op family member -- a DIFFERENT shape
+    from the block-quantized integer dot-product ops (no AoS block loop, no
+    packed-int decode, no integer widening, no per-block fp16 scale): a single
+    VLEN-robust `vsetvl_e32m<L>` strip loop over the f32 lanes, `vle32` /
+    `vfmul_vf` (scalar broadcast) / `vse32`, matching ggml's hand-written RVV
+    path (vec.h:733-739, anchored at m8). The op is nested directly under
+    tcrv_rvv.with_vl and consumes THREE runtime ABI value operands -- the f32
+    buffer base pointer `y` (read AND written in place), the runtime f32 scalar
+    `v`, the runtime element count `n` -- plus the active !tcrv_rvv.vl token. It
+    produces ONE f32 LMUL !tcrv_rvv.vector token whose lowering is the in-place
+    strip store (no separate output buffer; `y` is both input and output).
+
+    The op makes the f32 elementwise in-place scale STRUCTURE first-class in the
+    typed body. Byte-exactness to ggml's real op is UNCONDITIONAL: `y[i] *= v` is
+    a bare per-lane fp32 multiply, so there is NO fused multiply-add (so
+    `-ffp-contract` cannot perturb it) and NO cross-lane reduction (so the LMUL /
+    tail / strip-count are correctness-free resource/scheduling knobs, never the
+    *what*). The fixed emission -- the strip loop, the vle32/vfmul_vf/vse32
+    intrinsic chain via emitc.call_opaque (the one sanctioned opaque piece,
+    exactly as the dot kernels emit their intrinsics) -- is the op's lowering,
+    NOT a candidate-mirror string read in the conversion. For the bounded surface
+    `kind` is limited to "ggml_vec_scale_f32". Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, and common
+    EmitC/export code must not infer or choose f32 elementwise scale semantics.
+
+    The optional `strip_lmul` attribute is a bounded resource/scheduling fact --
+    it selects the LMUL the f32 strip loop anchors at ("m1", "m2", "m4", or "m8";
+    default "m8" to match ggml's hand-written path). It is purely the *how*
+    (vector grouping / strip width), never the *what*: the result is byte-exact
+    at any anchor because every lane is multiplied by the same `v` and the strip
+    loop re-strips correctly for any VLEN via the runtime `vsetvl_e32m<L>(n-i)`.
+    (It is named `strip_lmul`, not the with_vl/setvl `lmul` spelling, so the op
+    keeps no SEW/LMUL/policy dataflow-parameter attr at the I5 boundary -- the
+    sibling block-dot op uses the same convention with `integer_core_lmul`.)
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$scalar,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    OptionalAttr<StrAttr>:$strip_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$buffer `,` $scalar `,` $element_count `,` $vl "
+    "attr-dict `:` type($buffer) `,` type($scalar) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

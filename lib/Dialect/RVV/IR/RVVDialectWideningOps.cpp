@@ -1737,6 +1737,103 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlVecScaleF32Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind plus
+  // the optional resource/scheduling strip-LMUL knob. Anything else -- a
+  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
+  // is rejected fail-closed (I7). The knob is named "strip_lmul" (not the
+  // forbidden with_vl/setvl "lmul" spelling), exactly as the sibling block-dot
+  // op uses "integer_core_lmul", so the I5 boundary check stays untouched.
+  auto isAllowedScaleAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "strip_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.ggml_vec_scale_f32 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedScaleAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32 scale attributes 'kind' and "
+                "'strip_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_vec_scale_f32")
+    return emitOpError()
+           << "currently supports only kind \"ggml_vec_scale_f32\" for the "
+              "bounded ggml f32 in-place elementwise scale typed surface";
+
+  // The optional strip-LMUL is a bounded resource/scheduling fact: the f32 strip
+  // loop anchors at m1/m2/m4/m8 (default m8, matching ggml's hand-written path).
+  // All are byte-exact (every lane is multiplied by the same scalar v; the
+  // runtime vsetvl_e32m<L>(n-i) re-strips correctly for any VLEN). Any other
+  // spelling is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
+    if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
+        *stripLmul != "m8")
+      return emitOpError()
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\" (the "
+                "bounded byte-exact f32-strip resource anchors for the ggml "
+                "f32 elementwise scale); got \""
+             << *stripLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one in-place f32 buffer pointer, one runtime f32 scalar, "
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, and one f32 LMUL m1 result";
+
+  // The in-place buffer is read AND written (y[i] *= v) -- it is the FIRST
+  // forward-pass op whose single buffer is both input and output. It binds a
+  // runtime ABI value of C type 'float *'; the scalar binds a runtime ABI value
+  // of C type 'float' (the ggml `v` multiplier); the element count carries n.
+  RuntimeABIValueOp bufferBinding =
+      getBuffer().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp scalarBinding =
+      getScalar().getDefiningOp<RuntimeABIValueOp>();
+  if (!bufferBinding || bufferBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the in-place buffer operand to bind a runtime ABI value "
+              "of C type 'float *' (the ggml y[] buffer read and written in "
+              "place)";
+  if (!scalarBinding || scalarBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the scalar operand to bind a runtime ABI value of C "
+              "type 'float' (the ggml v multiplier)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+              "\"m1\"> for the ggml f32 elementwise scale route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml f32 elementwise scale";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

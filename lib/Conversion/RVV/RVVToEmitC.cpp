@@ -985,6 +985,22 @@ public:
       return mlir::success();
     }
 
+    // The forward-pass F1 op (tcrv_rvv.ggml_vec_scale_f32) is the FIRST non-dot
+    // f32 elementwise family member: the in-place per-lane multiply y[i] *= v
+    // over a flat unit-stride f32 buffer. It owns a dedicated routine -- ONE f32
+    // strip loop (vsetvl_e32m<L>(n-i) / vle32 / vfmul_vf / vse32) -- a DIFFERENT
+    // shape from the block-quantized integer dot ops (no AoS block loop, no
+    // packed-int decode, no integer widening, no per-block fp16 scale). The
+    // structural marker is the tcrv_rvv.ggml_vec_scale_f32 op identity.
+    if (isGgmlVecScaleF32Body(scope)) {
+      if (mlir::failed(emitGgmlVecScaleF32(rewriter, loc, scope, avlArg,
+                                           sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     if (isDeferredWideDotReduceBody(scope)) {
       if (mlir::failed(emitDeferredWideDotReduceBody(
               rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
@@ -1620,6 +1636,24 @@ private:
       }
     }
     return sawBlockDot;
+  }
+
+  /// The forward-pass F1 recognizer: a with_vl scope whose ONLY compute op is a
+  /// single tcrv_rvv.ggml_vec_scale_f32 (the f32 in-place elementwise scale
+  /// y[i] *= v). The op identity is the dispatch key; the emitter owns the
+  /// structured f32 strip-loop expansion (vle32 / vfmul_vf / vse32).
+  static bool isGgmlVecScaleF32Body(tcrvrvv::WithVLOp scope) {
+    bool sawScale = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlVecScaleF32Op>(op)) {
+        if (sawScale)
+          return false;
+        sawScale = true;
+      } else {
+        return false;
+      }
+    }
+    return sawScale;
   }
 
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
@@ -6642,6 +6676,131 @@ private:
                 mlir::ValueRange{lowProduct, v1, actHigh, bodyVL})
             .getResult(0);
     return pairSum;
+  }
+
+  /// Emit the COMPLETE ggml ggml_vec_scale_f32 forward-pass op (the FIRST
+  /// non-dot f32 elementwise family member) for one tcrv_rvv.ggml_vec_scale_f32
+  /// op as fully STRUCTURED emitc nodes (I5; no verbatim C-string blob -- every
+  /// value is a node in the IR graph):
+  ///   for (size_t i = 0; i < n; i += vlmax) {
+  ///     size_t vl = __riscv_vsetvl_e32m<L>(n - i);    // emitc.sub + call_opaque
+  ///     vfloat32m<L>_t ay = __riscv_vle32_v_f32m<L>(y + i, vl);
+  ///     vfloat32m<L>_t ny = __riscv_vfmul_vf_f32m<L>(ay, v, vl);  // scalar bcast
+  ///     __riscv_vse32_v_f32m<L>(y + i, ny, vl);       // in-place store back
+  ///   }
+  /// `y` is read AND written in place (the first forward-pass op whose single
+  /// buffer is both input and output); `v` is the runtime f32 scalar broadcast
+  /// into every lane. Byte-exactness to ggml's real op (vec.h:733-739) is
+  /// UNCONDITIONAL: a bare per-lane fp32 multiply (no FMA -> -ffp-contract
+  /// cannot bite; no cross-lane reduction -> LMUL/tail/strip-count are
+  /// correctness-free). The LMUL is the bounded resource/scheduling knob
+  /// (default m8, matching ggml). The intrinsics are emitc.call_opaque nodes
+  /// (the one sanctioned opaque piece, exactly how the dot kernels emit theirs).
+  mlir::LogicalResult emitGgmlVecScaleF32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlVecScaleF32Op scaleOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto s = llvm::dyn_cast<tcrvrvv::GgmlVecScaleF32Op>(op))
+        scaleOp = s;
+    }
+    if (!scaleOp)
+      return rewriter.notifyMatchFailure(scope, "scale body missing the op");
+
+    mlir::Value buffer = valueMap.lookup(scaleOp.getBuffer());
+    mlir::Value scalar = valueMap.lookup(scaleOp.getScalar());
+    if (!buffer || !scalar)
+      return rewriter.notifyMatchFailure(scaleOp,
+                                         "scale ABI operand unmapped");
+
+    llvm::StringRef opName = scaleOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = scaleOp.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type bufferPtrType = buffer.getType();
+
+    // The f32 strip-loop LMUL is a bounded resource/scheduling fact (default m8,
+    // matching ggml's hand-written path). It is the *how* (vector grouping /
+    // strip width), never the *what*: the result is byte-exact at any anchor
+    // (every lane is multiplied by the same scalar v). The verifier bounds it to
+    // m1|m2|m4|m8 (carried as "strip_lmul" so the op holds no forbidden
+    // dataflow-parameter "lmul" at the I5 boundary).
+    llvm::StringRef lmul = scaleOp.getStripLmul().value_or("m8");
+    std::string f32VecTypeName = ("vfloat32" + lmul + "_t").str();
+    mlir::Type f32VecType = emitc::OpaqueType::get(ctx, f32VecTypeName);
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // Pre-loop full-chunk VLMAX: size_t vlmax = __riscv_vsetvl_e32m<L>(n).
+    std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, setvlCallee));
+    mlir::Value vlmax =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                         setvlCallee, mlir::ValueRange{avlArg})
+            .getResult(0);
+
+    // for (size_t i = 0; i < n; i += vlmax) { ... }
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
+                                               /*bodyBuilder=*/nullptr);
+    mlir::Value inductionVar = forOp.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(forOp.getBody());
+
+      // Remaining-AVL setvl: size_t vl = __riscv_vsetvl_e32m<L>(n - i).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, setvlCallee));
+      mlir::Value remaining =
+          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
+      mlir::Value bodyVL =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                           setvlCallee,
+                                           mlir::ValueRange{remaining})
+              .getResult(0);
+
+      // In-place element pointer: float *p = y + i.
+      mlir::Value elemPtr = rewriter.create<emitc::AddOp>(
+          loc, bufferPtrType, buffer, inductionVar);
+      mlir::Value loadPtr =
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, elemPtr).getResult();
+
+      // vfloat32m<L>_t ay = __riscv_vle32_v_f32m<L>(p, vl);
+      std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, loadCallee));
+      mlir::Value ay =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
+                                           loadCallee,
+                                           mlir::ValueRange{loadPtr, bodyVL})
+              .getResult(0);
+
+      // vfloat32m<L>_t ny = __riscv_vfmul_vf_f32m<L>(ay, v, vl);  scalar bcast.
+      std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, mulCallee));
+      mlir::Value ny =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
+                                           mulCallee,
+                                           mlir::ValueRange{ay, scalar, bodyVL})
+              .getResult(0);
+
+      // __riscv_vse32_v_f32m<L>(p, ny, vl);  store back in place.
+      std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, storeCallee));
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, mlir::TypeRange{}, storeCallee,
+          mlir::ValueRange{loadPtr, ny, bodyVL});
+    }
+
+    return mlir::success();
   }
 
   mlir::LogicalResult emitPackedI4OffsetBinaryXI8Product(
