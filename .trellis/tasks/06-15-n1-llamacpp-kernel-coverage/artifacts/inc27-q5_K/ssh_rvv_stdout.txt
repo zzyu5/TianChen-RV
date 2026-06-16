@@ -1,0 +1,50 @@
+===== INC-27 q5_K ssh rvv (riscv64, clang 18.1.3, rv64gcv, VLEN=128) =====
+
+### -ffp-contract=off (HEADLINE byte-exact regime) ###
+INC-27 q5_K byte-exact *s vs ggml _generic (oracle = verbatim _generic)
+named n set:
+  [n=256] n=256  ref=-3502.66235 (0xc55aea99)  tcrv=-3502.66235 (0xc55aea99)  bit-exact
+  [n=512] n=512  ref=43501.3203 (0x4729ed52)  tcrv=43501.3203 (0x4729ed52)  bit-exact
+  [n=2048] n=2048  ref=616404.75 (0x49167d4c)  tcrv=616404.75 (0x49167d4c)  bit-exact
+  [n=4096] n=4096  ref=-2021291.75 (0xc9f6bd5e)  tcrv=-2021291.75 (0xc9f6bd5e)  bit-exact
+  [n=25600] n=25600  ref=-2217377.5 (0xca075686)  tcrv=-2217377.5 (0xca075686)  bit-exact
+  [n=65536] n=65536  ref=-23961558 (0xcbb6cfeb)  tcrv=-23961558 (0xcbb6cfeb)  bit-exact
+edge cases:
+  [edge all-zero (q4=0 qh=0 scale=0 q8=0 bsum=0 d=dmin=1.0 dy=1.0)] ref=0 (0x00000000) tcrv=0 (0x00000000) bit-exact
+  [edge q5=31 (q4=0xFF qh=0xFF) scale=0xFF q8=+127 bsum=+2000 d=2.0 dmin=0.5 dy=-3.5] ref=-440943552 (0xcdd2421e) tcrv=-440943552 (0xcdd2421e) bit-exact
+  [edge q5=16 from qh only (q4=0x00 qh=0xFF) scale=0xFF q8=-128 bsum=-2000 d=0.5 dmin=2.0 dy=2.25] ref=-28086912 (0xcbd64940) tcrv=-28086912 (0xcbd64940) bit-exact
+  [edge qh=0x01 (only half 0 gets +16) q4=0x0F scale=0x3F q8=+1 bsum=+1000 d=1.0 dmin=1.0 dy=1.0] ref=-420864 (0xc8cd8000) tcrv=-420864 (0xc8cd8000) bit-exact
+  [edge qh=0x80 (only half 7 gets +16) q4=0x0F scale=0x3F q8=+1 bsum=+1000 d=1.0 dmin=1.0 dy=1.0] ref=-445440 (0xc8d98000) tcrv=-445440 (0xc8d98000) bit-exact
+  [edge qh=0xAA (odd halves) q4=0x5A scale=0x2A q8=+3 bsum=+500 d=1.5 dmin=0.5 dy=1.0] ref=376256 (0x48b7b800) tcrv=376256 (0x48b7b800) bit-exact
+  [edge qh=0x55 (even halves) q4=0xA5 scale=0x15 q8=-3 bsum=-500 d=0.5 dmin=1.5 dy=1.0] ref=54624 (0x47556000) tcrv=54624 (0x47556000) bit-exact
+  [edge dy=0.0 -> *s must be 0 (both d and dmin terms vanish)] ref=0 (0x00000000) tcrv=0 (0x00000000) bit-exact
+  [edge min-only: q5=0 (q4=0 qh=0 -> aux32=0) bsum=+1500 dmin=2.0] ref=-4536000 (0xca8a6d80) tcrv=-4536000 (0xca8a6d80) bit-exact
+random n (NB in 1..32), 2000 trials:
+  random trials with a mismatch: 0 / 2000
+MIN-term negative control (perturbed dmin must MISMATCH):
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+qh 5th-bit negative control (q4_K-style no-qh unpack must MISMATCH):
+  no-qh-vs-kernel mismatched: 200 / 200 (must be 200)
+
+INC-27 q5_K: 2015 positive cases checked, 0 failures
+RESULT: PASS (*s bit-exact vs ggml _generic for all cases; MIN-term + qh 5th-bit negative controls discriminating)
+
+### -ffp-contract=on (reference fuses sums[l]+=d*aux32[l] to FMA: documented band) ###
+  random trials with a mismatch: 993 / 2000
+MIN-term negative control (perturbed dmin must MISMATCH):
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+qh 5th-bit negative control (q4_K-style no-qh unpack must MISMATCH):
+  no-qh-vs-kernel mismatched: 200 / 200 (must be 200)
+
+INC-27 q5_K: 2015 positive cases checked, 997 failures
+RESULT: FAIL
+
+### -ffp-contract=fast (same band; negative controls stay discriminating) ###
+  random trials with a mismatch: 993 / 2000
+MIN-term negative control (perturbed dmin must MISMATCH):
+  min-perturbed-vs-kernel mismatched: 200 / 200 (must be 200)
+qh 5th-bit negative control (q4_K-style no-qh unpack must MISMATCH):
+  no-qh-vs-kernel mismatched: 200 / 200 (must be 200)
+
+INC-27 q5_K: 2015 positive cases checked, 997 failures
+RESULT: FAIL

@@ -5007,6 +5007,101 @@ def GgmlBlockDotQ4KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ5KQ8KOp
+    : TCRVRVV_Op<"q5_k_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q5_K x Q8_K super-block FULL block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q5_K_q8_K` super-block dot-product as
+    ONE bounded generic plugin-local typed RVV dataflow step -- the q5_K K-quant
+    COVERAGE rung. q5_K is q4_K PLUS a 5th (high) weight bit: the super-block
+    structure, the 6-bit scale/min bit-dance, the deferred two-level fp32 fold,
+    the q4_K MIN term, and the ggml ABI are ALL IDENTICAL to q4_K
+    (tcrv_rvv.q4_k_q8_k_block_dot). The ONLY new piece is the qh plane: a
+    per-element 5th bit injected into each unpacked 4-bit nibble during the
+    integer unpack, lifting q4 in [0,15] to q5 in [0,31] (UNSIGNED, Family-B
+    K-quant). It produces the fp32 `*s` dot-product output BYTE-EXACT vs
+    `_generic` (the well-defined fp32 order is the byte-exactness target; the
+    on-board RVV `_vl128` path is raw inline asm and does NOT define the order).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the q5_K weight base pointer (vx), the q8_K activation
+    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
+    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block
+    strides (176 bytes for block_q5_K, 292 bytes for block_q8_K), the q5_K payload
+    byte offsets (the fp16 super-block scale d @0, the fp16 super-block min scale
+    dmin @2, the 12 packed scale/min bytes @4, the 32 qh high-bit-plane bytes @16,
+    qs @48) and the q8_K payload byte offsets (the fp32 activation scale d @0, qs
+    @4, the int16 per-sub-block sums bsums @260) -- are carried as typed
+    integer/string attributes (I4 mirror only). The fixed emission mirrors
+    `_generic` (quants.c:720-798) line-for-line so byte-exactness is by
+    construction. The emission is IDENTICAL to q4_K's K4b EXCEPT for the unpack:
+    - the q5_K integer core reuses q4_K's super-block aux32 core (the plain 4-bit
+      nibble unpack into the element-ordered int8_t aux8[256], the STRUCTURED
+      scalar 6-bit scale/min bit-dance via utmp/kmask, the nested sub-block UINT6
+      scale in the i32 domain into the carried 8-lane aux32 accumulator) with the
+      qh plane PLUMBED IN: per 32-element half h in 0..7 (h = chunk*2 +
+      lowNibble?0:1), the 5th bit for element l is `(qh[l] >> h) & 1`, contributing
+      16 when set, added to the unpacked nibble in the UINT8 domain BEFORE the
+      u8->i8 reinterpret (q5 in [0,31] is non-negative so the reinterpret is exact).
+      The qh plane is loaded from a FIXED per-super-block pointer (xb + qh@16) and
+      reused across all 8 halves -- only the bit-shift `h` varies. This mirrors
+      `_generic`'s `m = 1; ...; a[l] += (hm[l] & m ? 16 : 0); m <<= 1` per half;
+    - the DEFERRED two-level fp32 fold, the q4_K MIN term, and the SEQUENTIAL
+      horizontal sum are reused from K4b node-for-node (the same separate
+      vfcvt/vfmul/vfadd positive fold, the same `sumi = Σ bsums[j]*mins[j/2]` +
+      `sumf -= dmin*sumi` min subtraction, the same ascending l=0..7 horizontal
+      sum, the same `*s = sumf`).
+    This emission is the op's fixed structure, NOT a candidate-mirror string read
+    in the conversion. The bounded surface kind is limited to
+    "ggml_q5_k_q8_k_block_dot" and scale_model to
+    "per-sub-block-uint6-scale-i32-domain-deferred-fp32-fold-min". Route ids,
+    helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/q5 names, and common EmitC/export code
+    must not infer or choose super-block dot-product semantics.
+
+    K5 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target), inheriting q4_K's integer-core
+    striping (one vsetvl_e8m2(32) per 32-element nibble group; e8mf2(8)->i16m1->
+    e32m2 per sub-block quarter) with NO VLEN-robust re-strip loop. No resource
+    shape knobs yet; this op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_dmin_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_bsums_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",
     [TCRVEmitCLowerableOpInterface]> {
