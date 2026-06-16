@@ -2014,6 +2014,94 @@ mlir::LogicalResult GgmlVecSiluF32Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlVecSoftMaxF32Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attr (I4): the operation kind. There
+  // is no resource/scheduling knob this cut -- the strip loop and the exp
+  // polynomial are fixed at m2 (matching ggml's vsetvl_e32m2 path and the
+  // m2-tied mask/reinterpret types), and the f64 widening-reduce accumulator is
+  // f64m1 to match ggml's vfwredusum_vs_f32m2_f64m1 fold exactly. Anything else
+  // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
+  // name -- is rejected fail-closed (I7).
+  auto isAllowedSoftMaxAttr = [](llvm::StringRef name) {
+    return name == "kind";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.ggml_vec_soft_max_f32 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedSoftMaxAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32 soft_max attribute 'kind'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_vec_soft_max_f32")
+    return emitOpError()
+           << "currently supports only kind \"ggml_vec_soft_max_f32\" for the "
+              "bounded ggml f32 soft_max (reduction + vectorized-transcendental) "
+              "typed surface";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one f32 output pointer, one read-only f32 input "
+              "pointer, one runtime f32 max, one runtime element-count runtime "
+              "ABI operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+
+  // ggml's ggml_vec_soft_max_f32 writes y[i] = e^{x[i]-max} (out), reads x[]
+  // (in), takes the scalar max (in), and returns the f64 sum. The output is
+  // written (float *), the input is read-only (const float *), max binds a
+  // runtime f32. The byte-exactness depends on the exp polynomial running on
+  // real f32 lanes and the f64 widening reduce, so x must be a real f32 buffer.
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp maxBinding = getMax().getDefiningOp<RuntimeABIValueOp>();
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml y[] = e^{x-max} output buffer)";
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] row read for the soft_max)";
+  if (!maxBinding || maxBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the max operand to bind a runtime ABI value of C type "
+              "'float' (the ggml runtime row max subtracted before exp)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+              "\"m1\"> for the ggml f32 soft_max route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml f32 soft_max";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

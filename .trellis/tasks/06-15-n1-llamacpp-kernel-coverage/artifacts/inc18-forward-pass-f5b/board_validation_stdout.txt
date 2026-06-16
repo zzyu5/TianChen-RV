@@ -1,0 +1,5 @@
+INC-18 F5b ggml_vec_soft_max_f32: y[] 4601/4601 bit-exact, sum 4601/4601 bit-exact (vs ggml's VECTORIZED soft_max)
+NC1 wrong-exp-method (libm expf): 711/768 correctly DIFFER
+NC2 wrong-sum-precision (f32 accumulate, not f64 vfwredusum): 859/864 rows the SUM correctly DIFFERS
+DISCRIMINATION: NC1 exp-polynomial control SHARP (711/768 differ); NC2 sum-precision control caught 859/864 rows (the f64 widening reduce is the discriminator)
+RESULT: PASS (byte-exact y[] AND returned sum vs ggml VECTORIZED soft_max; NC1 discriminates the exact exp polynomial, NC2 the exact f64 widening reduce -> ggml's method matched node-for-node)

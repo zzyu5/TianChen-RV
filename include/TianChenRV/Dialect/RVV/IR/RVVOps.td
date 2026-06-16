@@ -4646,6 +4646,77 @@ def GgmlVecSiluF32Op
   let hasVerifier = 1;
 }
 
+def GgmlVecSoftMaxF32Op
+    : TCRVRVV_Op<"ggml_vec_soft_max_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32 soft_max (y[i]=e^{x[i]-max}; returns sum) op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_soft_max_f32` forward-pass op (the
+    attention softmax core: `y[i] = e^{x[i] - max}`, returning the f64 sum
+    `Sum_i e^{x[i]-max}`; vec.cpp:531 + the `__riscv_v_intrinsic` path
+    vec.cpp:584-592) as ONE bounded generic plugin-local typed RVV f32 dataflow
+    step. This is the F5b forward-pass op (research/forward-pass-scoping.md): it
+    COMBINES F5's vectorized transcendental (the exact `ggml_v_expf_m2` minimax
+    exp polynomial) with a NEW reduction shape -- the f64 widening reduce
+    accumulated across strips.
+
+    BYTE-EXACTNESS faithful to ggml's REAL bare `ggml_vec_soft_max_f32`, NOT the
+    surrounding caller. The function takes `max` as an INPUT (ggml's caller
+    computes it with the SCALAR `ggml_vec_max_f32` and passes it in; ops.cpp:5400)
+    and DOES NOT normalize (ggml's caller applies `1/sum` afterward via
+    `ggml_vec_scale_f32`; ops.cpp:5415-5416). The bare function only writes
+    `y[i] = e^{x[i]-max}` and RETURNS the f64 sum (vec.cpp:531). The exact RVV
+    method (vec.cpp:584-592):
+      vfloat64m1_t vsum = __riscv_vfmv_v_f_f64m1(0, 1);
+      for (avl over n) {
+        vfloat32m2_t val = ggml_v_expf_m2(vfsub_vf(vle32(x), max), avl);
+        vse32(y, val, avl);
+        vsum = vfwredusum_vs_f32m2_f64m1(val, vsum, avl);   // f32->f64 reduce
+      }
+      return (double)vfmv_f_s_f64m1(vsum);
+    The sum is accumulated in `ggml_float` = DOUBLE via the WIDENING reduce
+    `vfwredusum_vs_f32m2_f64m1` into a single f64m1 accumulator carried across
+    strips -- NOT the scalar-ascending double fold F3 (rms_norm) uses. Matching
+    THAT exact widening-reduce fold (a loop-carried opaque-vector accumulator) is
+    the byte-exactness crux for the returned sum. The `exp(x-max)` uses the SAME
+    node-for-node `ggml_v_expf_m2` chain F5 silu emits (the shared
+    `emitGgmlVExpfM2` replication), so the written `y[]` and the per-strip val are
+    bit-identical to ggml. -inf masked entries (attention masks) flow through the
+    polynomial's underflow path (`exp -> 0`) with no special-casing -- the
+    max-subtraction (x-max with x=-inf gives -inf) plus the |n|>192 saturating
+    branch yield 0 bit-exactly.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the f32 output base pointer `y` (written), the
+    read-only f32 input base pointer `x`, the runtime f32 scalar `max`, the
+    runtime element count `n` -- plus the active !tcrv_rvv.vl token. It produces
+    ONE f32 LMUL m1 !tcrv_rvv.vector token (the per-strip store boundary); the f64
+    sum is the function's C return value (the only forward-pass op that RETURNS a
+    scalar). The strip loop and the polynomial are fixed at m2 (matching ggml's
+    `vsetvl_e32m2` path and the m2-tied mask/reinterpret types). For the bounded
+    surface `kind` is limited to "ggml_vec_soft_max_f32". Route ids, helper names,
+    ABI strings, artifact names, status fields, exact intrinsic spellings, and
+    common EmitC/export code must not infer or choose f32 soft_max semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$output,
+    AnyType:$input,
+    AnyType:$max,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$output `,` $input `,` $max `,` $element_count `,` $vl "
+    "attr-dict `:` type($output) `,` type($input) `,` type($max) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
