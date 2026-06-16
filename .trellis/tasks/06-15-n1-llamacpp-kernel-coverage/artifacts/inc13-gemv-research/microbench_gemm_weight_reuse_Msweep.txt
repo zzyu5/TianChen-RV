@@ -1,0 +1,36 @@
+# inc13 GEMM/prefill weight-decode-reuse -- canonical warmed numbers  2026-06-16T05:26Z
+# board: ssh rvv VLEN=128 rv64gcv_zvfh clang18 -O3 -ffp-contract=fast taskset -c 3
+# w_hoist = standard q4_0 weights, decode each weight block ONCE, reuse across M activation cols.
+# baseline a_Mxvecdot = M x ggml vec_dot (re-decodes weight every col) = the PREFILL path at VLEN=128.
+# byte-exact gated vs a_Mxvecdot.
+
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=4 iters=4000 reps=20
+# ns per (Mx output) (min of reps). ref s[0]=1.27369432e+01
+  a_Mxvecdot (Mx vec_dot, PREFILL BASELINE)          8160.1 ns/Mout   2040.0 ns/col  gate=PASS
+  w_hoist    (decode weight once, reuse M cols)      7262.2 ns/Mout   1815.6 ns/col  gate=PASS
+# speedup w_hoist vs a_Mxvecdot = 1.135x
+
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=6 iters=4000 reps=20
+# ns per (Mx output) (min of reps). ref s[0]=1.27369432e+01
+  a_Mxvecdot (Mx vec_dot, PREFILL BASELINE)          8026.6 ns/Mout   1337.8 ns/col  gate=PASS
+  w_hoist    (decode weight once, reuse M cols)      6835.2 ns/Mout   1139.2 ns/col  gate=PASS
+# speedup w_hoist vs a_Mxvecdot = 1.161x
+
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=8 iters=4000 reps=20
+# ns per (Mx output) (min of reps). ref s[0]=1.27369432e+01
+  a_Mxvecdot (Mx vec_dot, PREFILL BASELINE)          9345.1 ns/Mout   1168.1 ns/col  gate=PASS
+  w_hoist    (decode weight once, reuse M cols)      8805.1 ns/Mout   1100.6 ns/col  gate=PASS
+# speedup w_hoist vs a_Mxvecdot = 1.068x
+
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=12 iters=4000 reps=20
+# ns per (Mx output) (min of reps). ref s[0]=1.27369432e+01
+  a_Mxvecdot (Mx vec_dot, PREFILL BASELINE)         13988.7 ns/Mout   1165.7 ns/col  gate=PASS
+  w_hoist    (decode weight once, reuse M cols)     14645.8 ns/Mout   1220.5 ns/col  gate=PASS
+# speedup w_hoist vs a_Mxvecdot = 0.966x
+
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=16 iters=4000 reps=20
+# ns per (Mx output) (min of reps). ref s[0]=1.27369432e+01
+  a_Mxvecdot (Mx vec_dot, PREFILL BASELINE)         18772.1 ns/Mout   1173.3 ns/col  gate=PASS
+  w_hoist    (decode weight once, reuse M cols)     20696.5 ns/Mout   1293.5 ns/col  gate=PASS
+# speedup w_hoist vs a_Mxvecdot = 0.905x
+

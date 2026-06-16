@@ -3970,6 +3970,92 @@ def GgmlBlockDotQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlGemmTileQ40Q80Op
+    : TCRVRVV_Op<"q4_0_q8_0_gemm_tile",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q4_0 x Q8_0 GEMM tile (weight-decode reuse) op";
+  let description = [{
+    Records the ggml Q4_0 x Q8_0 GEMM PREFILL tile -- ONE weight-row block-array
+    times M activation columns -- as ONE bounded generic plugin-local typed RVV
+    dataflow step. It is the WEIGHT-DECODE-REUSE sibling of
+    tcrv_rvv.q4_0_q8_0_block_dot (the per-row vec_dot). The per-(block, column)
+    integer+scale arithmetic is BYTE-IDENTICAL to the per-row block dot; the only
+    structural difference is the loop nest: for each q4_0 weight block the
+    offset-binary nibble decode (vxor.vx 0x88 -> vsll/vsra -> the v0/v1 i8 nibble
+    lanes) is computed ONCE and HOISTED above an inner loop over the M activation
+    columns, so all M columns reuse the SAME decoded weight lanes. ggml at
+    VLEN=128 falls back to M INDEPENDENT ggml_vec_dot_q4_0_q8_0 calls (the repack
+    GEMM is disabled at `case 128`), each of which re-decodes the weight every
+    column; this tile eliminates that redundant re-decode. The op is byte-exact
+    vs M independent ggml_vec_dot_q4_0_q8_0(weight_row, column_j): each column j
+    computes EXACTLY what vec_dot computes for (weight_row, column_j) -- the
+    weight decode is shared but the per-column products, reduction, and the
+    ascending-block-order fp32 fold `sumf_j = sumf_j + ((float)sumi_j * d_x) *
+    d_y_j` are identical to vec_dot, with M INDEPENDENT fp32 accumulators (one per
+    column).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FIVE runtime
+    ABI value operands -- the q4_0 weight-row base pointer (vx), the q8_0
+    activation columns base pointer (vy), the per-column activation byte stride
+    (by, the bytes between two adjacent activation columns), the fp32 output
+    pointer (s, the M contiguous outputs s[0..M-1]), the runtime element count
+    (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the M fp32 reduction results
+    through the output pointer.
+
+    The structural facts -- QK=32, the AoS block strides (18 bytes for
+    block_q4_0, 34 bytes for block_q8_0), the quant payload byte offset (+2), the
+    q8 high-half byte offset (+16), the per-block dual fp16 scale model
+    (d_x . d_y), and the bounded activation-column count M -- are carried as typed
+    integer/string attributes (I4 mirror only). The fixed emission -- an outer
+    emitc.for block loop over nb = n / QK, per-block weight address arithmetic
+    (vx + ib*18), the scalar weight fp16->fp32 read, the HOISTED single
+    vsetvl_e8m1(16) weight load + offset-binary decode into v0/v1 (correct at
+    VLEN >= 128, the board's mandated full-V floor -- same justification as the
+    block-dot's strip_elision="elided" m1 form), an inner emitc.for loop over the
+    M activation columns each loading column j's q8 halves (vy + j*by + ib*34),
+    replaying the SAME asymmetric vwmul/vwmacc product against the hoisted v0/v1,
+    a per-column vwredsum into sumi_j, and the per-column ascending-block-order
+    fp32 fold into an M-wide accumulator array, then the M-output store -- is the
+    op's lowering, NOT a candidate-mirror string read in the conversion. For the
+    bounded surface kind is limited to "ggml_q4_0_q8_0_gemm_tile" and scale_model
+    to "dual-fp16-per-block-d_x.d_y".
+
+    G1 scope: M (the activation-column count) is a fixed bounded compile-time
+    attr (a small power-of-two-friendly tile such as 4 or 6) and the weight
+    decode anchors at the m1 whole-half-block form (one vsetvl_e8m1(16), correct
+    at VLEN >= 128). The full ggml GEMM ABI (the row/col loop nest + the *s output
+    stride bs) is G2; making M a measurement-tuned cache-blocking knob is G3.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$activation_column_stride,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    I64Attr:$activation_cols
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $activation_column_stride `,` "
+    "$output `,` $element_count `,` $vl attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($activation_column_stride) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ80Q80Op
     : TCRVRVV_Op<"q8_0_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

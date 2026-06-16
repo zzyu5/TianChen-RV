@@ -1,0 +1,13 @@
+=== INC-14 G1 GEMM tile byte-exact validation (vs M x ggml_vec_dot_q4_0_q8_0) ===
+
+--- negative control (perturb ONE column scale; that column's output MUST diverge from the unperturbed oracle) ---
+negative control: clean[2]=4.86325658e+09 pert[2]=4.86325299e+09 ref_pert[2]=4.86325299e+09
+negative control: col2_changed=1 others_stable=1 pert_tracks=1 caught_mismatch=1
+NEGATIVE CONTROL PASS: a 1-bit column-2 scale flip changed ONLY s[2] (independent accumulators), s[2] still tracks the perturbed oracle, and the bitwise check REPORTS MISMATCH on divergent inputs (the equality check is non-vacuous).
+
+INC-14 G1 byte-exact check: 2000 tiles checked, 0 failures
+RESULT: PASS (every column bitwise equal vs M x ggml_vec_dot_q4_0_q8_0 AND _generic; negative control discriminates)
+
+=== INC-14 G1 microbench (G1 tile vs M x per-row vec_dot, min-of-reps) ===
+MICROBENCH M=4 n=4096: M x vec_dot 1699.8 ns/out | G1 tile 1386.9 ns/out | speedup 1.226x  (sink=-6.32559e+16)
+MICROBENCH M=6 n=4096: M x vec_dot 1710.1 ns/out | G1 tile 1291.0 ns/out | speedup 1.325x  (sink=5.92981e+17)

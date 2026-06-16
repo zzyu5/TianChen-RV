@@ -1,0 +1,40 @@
+# inc13 gemv probe -- canonical warmed numbers  2026-06-16T05:17Z
+# board: ssh rvv VLEN=128 VLENB=16 rv64gcv_zvfh clang18 -O3 -ffp-contract=fast taskset -c 3
+# il4 ACTIVATION-ALIGNED build (misaligned-i64 artifact fixed).
+
+## STANDARD-LAYOUT probe (gemv_probe: a_vecdot vs b1_hoist vs b2_xrow)
+# Q4_0xQ8_0 multi-row GEMV probe  K=4096  N(rows)=8  iters=4000 reps=20
+# ns per N-row matvec (min of reps). ref s[0]=-1.99767456e+01
+  a_vecdot  (Nx vec_dot, BASELINE/USED path)           9211.1 ns/matvec   1151.4 ns/row  gate=PASS
+  b1_hoist  (act loaded once/blk, per-row reduce)      8995.0 ns/matvec   1124.4 ns/row  gate=PASS
+  b2_xrow   (cross-row SIMD, 4-row tiles)              9681.9 ns/matvec   1210.2 ns/row  gate=PASS
+
+# Q4_0xQ8_0 multi-row GEMV probe  K=4096  N(rows)=16  iters=4000 reps=20
+# ns per N-row matvec (min of reps). ref s[0]=-5.92350245e+00
+  a_vecdot  (Nx vec_dot, BASELINE/USED path)          18712.8 ns/matvec   1169.6 ns/row  gate=PASS
+  b1_hoist  (act loaded once/blk, per-row reduce)     19534.1 ns/matvec   1220.9 ns/row  gate=PASS
+  b2_xrow   (cross-row SIMD, 4-row tiles)             19639.1 ns/matvec   1227.4 ns/row  gate=PASS
+
+# Q4_0xQ8_0 multi-row GEMV probe  K=4096  N(rows)=32  iters=4000 reps=20
+# ns per N-row matvec (min of reps). ref s[0]=4.47090340e+00
+  a_vecdot  (Nx vec_dot, BASELINE/USED path)          37582.5 ns/matvec   1174.5 ns/row  gate=PASS
+  b1_hoist  (act loaded once/blk, per-row reduce)     44124.9 ns/matvec   1378.9 ns/row  gate=PASS
+  b2_xrow   (cross-row SIMD, 4-row tiles)             39388.5 ns/matvec   1230.9 ns/row  gate=PASS
+
+## INTERLEAVED-4COL probe (gemv_probe_il: a_vecdot vs il4 tree-reduce)
+# INTERLEAVED 4-col GEMV probe  K=4096 N=8 iters=4000 reps=20
+# ref s[0]=-1.99767456e+01
+  a_vecdot (Nx vec_dot, USED path)      9313.5 ns/matvec   1164.2 ns/row
+  il4 (interleaved 4-col, tree-reduce)   11855.6 ns/matvec   1481.9 ns/row  gate=PASS  speedup=0.786x
+
+# INTERLEAVED 4-col GEMV probe  K=4096 N=16 iters=4000 reps=20
+# ref s[0]=-5.92350245e+00
+  a_vecdot (Nx vec_dot, USED path)     18763.7 ns/matvec   1172.7 ns/row
+  il4 (interleaved 4-col, tree-reduce)   24371.2 ns/matvec   1523.2 ns/row  gate=PASS  speedup=0.770x
+
+# INTERLEAVED 4-col GEMV probe  K=4096 N=32 iters=4000 reps=20
+# ref s[0]=4.47090340e+00
+  a_vecdot (Nx vec_dot, USED path)     37422.6 ns/matvec   1169.5 ns/row
+  il4 (interleaved 4-col, tree-reduce)   49790.4 ns/matvec   1555.9 ns/row  gate=PASS  speedup=0.752x
+
+## il4 misaligned-load ARTIFACT (pre-fix), K=1024 for reference: il4 was ~571000 ns/matvec = 0.011x (92x SLOWER); alignment fix -> parity-to-0.75x.

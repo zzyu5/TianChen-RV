@@ -1,0 +1,40 @@
+# inc13 GEMM weight-reuse -- K-SWEEP confirming L1-capacity mechanism  2026-06-16T05:34Z
+# optimal M-block scales INVERSELY with K: each q8 activation stream = (K/32)*34 bytes;
+# M streams must fit ~32KB L1.  K=2048 stream=2176B -> M_opt~15 ; K=4096 stream=4352B -> M_opt~6 ; K=8192 stream=8704B -> M_opt~3-4.
+# speedup = w_hoist (decode weight once, reuse M cols) vs M x vec_dot (re-decodes weight/col).
+
+## K=2048 (predict M_opt ~ 15)
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=4 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.141x
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=8 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.204x
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=12 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.242x
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=16 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.230x
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=20 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.015x
+# GEMM/prefill weight-decode-reuse probe  K=2048 M(cols)=24 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.943x
+
+## K=4096 (predict M_opt ~ 6)
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=4 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.135x
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=6 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.029x
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=8 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.079x
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=12 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 1.020x
+# GEMM/prefill weight-decode-reuse probe  K=4096 M(cols)=16 iters=4000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.919x
+
+## K=8192 (predict M_opt ~ 3-4)
+# GEMM/prefill weight-decode-reuse probe  K=8192 M(cols)=2 iters=3000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.928x
+# GEMM/prefill weight-decode-reuse probe  K=8192 M(cols)=4 iters=3000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.953x
+# GEMM/prefill weight-decode-reuse probe  K=8192 M(cols)=6 iters=3000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.945x
+# GEMM/prefill weight-decode-reuse probe  K=8192 M(cols)=8 iters=3000 reps=18
+# speedup w_hoist vs a_Mxvecdot = 0.956x
