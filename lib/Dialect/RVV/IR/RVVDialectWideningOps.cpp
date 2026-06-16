@@ -2102,6 +2102,116 @@ mlir::LogicalResult GgmlVecSoftMaxF32Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind plus
+  // the AoS block-format facts (qk / block_stride / scale_byte_offset /
+  // quant_byte_offset). There is NO resource/scheduling LMUL knob this cut --
+  // the strip is pinned at the m8 anchor ggml uses (all 32 block lanes in one
+  // e32m8 strip; the reduction fold is m8-shaped). Anything else -- a forbidden
+  // local element_count/SEW/LMUL/policy attr, or an unexpected name -- is
+  // rejected fail-closed (I7).
+  auto isAllowedQuantizeAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "block_stride" ||
+           name == "scale_byte_offset" || name == "quant_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.quantize_row_q8_0 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedQuantizeAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32->q8_0 quantizer attributes "
+                "'kind', 'qk', 'block_stride', 'scale_byte_offset', and "
+                "'quant_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_quantize_row_q8_0")
+    return emitOpError()
+           << "currently supports only kind \"ggml_quantize_row_q8_0\" for the "
+              "bounded ggml f32->block_q8_0 activation quantizer typed surface";
+
+  // The block-format facts are the ggml block_q8_0 layout (ggml-common.h:241-245
+  // + QK8_0 = 32): a 32-element block, AoS stride 34 (the fp16 d at byte 0, the
+  // 32 int8 qs at byte 2). They are bounded mirror facts; any other layout is
+  // rejected fail-closed (I7) -- this op is the q8_0 quantizer, not a generic
+  // quantizer.
+  if (getQk() != 32)
+    return emitOpError()
+           << "requires qk = 32 (the ggml QK8_0 block length); got " << getQk();
+  if (getBlockStride() != 34)
+    return emitOpError()
+           << "requires block_stride = 34 (the ggml block_q8_0 AoS stride: 2 "
+              "fp16 d bytes + 32 int8 qs bytes); got "
+           << getBlockStride();
+  if (getScaleByteOffset() != 0)
+    return emitOpError()
+           << "requires scale_byte_offset = 0 (the ggml block_q8_0 fp16 d at "
+              "byte 0); got "
+           << getScaleByteOffset();
+  if (getQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires quant_byte_offset = 2 (the ggml block_q8_0 int8 qs "
+              "after the 2-byte fp16 d); got "
+           << getQuantByteOffset();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only f32 input pointer, one block_q8_0 output "
+              "byte-buffer pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+
+  // ggml's quantize_row_q8_0 reads x[] (const float *) and writes the block_q8_0
+  // AoS byte buffer vy (void *, taken as a uint8_t * byte cursor). The
+  // byte-exactness depends on the amax reduction running on real f32 lanes, so
+  // the input must be a real f32 buffer; the output binds the mutable byte
+  // buffer the AoS d (fp16) + qs (int8) stores write into.
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] f32 activations read for the amax "
+              "reduction and the scale)";
+  if (!outputBinding || outputBinding.getCType() != "uint8_t *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'uint8_t *' (the ggml block_q8_0 AoS byte buffer the fp16 d "
+              "+ int8 qs stores write)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value (ggml's k, n % 32 == 0) feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+              "\"m1\"> for the ggml f32->q8_0 quantizer route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml f32->q8_0 quantizer";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 

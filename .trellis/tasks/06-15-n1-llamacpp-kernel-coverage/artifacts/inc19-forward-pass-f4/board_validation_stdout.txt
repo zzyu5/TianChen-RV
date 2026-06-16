@@ -1,0 +1,6 @@
+INC-19 F4 quantize_row_q8_0: blocks 115584/115584 d bit-exact, 115584/115584 qs bit-exact, 115584/115584 FULL block bit-exact (vs ggml RVV quantizer)
+NC-round (roundf, round-half-AWAY): 28902/115584 blocks qs correctly DIFFER; on engineered-tie blocks 28896/28896 DIFFER (rne vs roundf)
+NC-fp16 (truncated f32->f16 d): 101136/115584 blocks d correctly DIFFER
+CLOSE-THE-LOOP (f32->quantize->q4_0_q8_0 dot *s): 1920/1920 bit-exact (our_quantize->dot vs ggml_quantize->dot)
+DISCRIMINATION: NC-round SHARP (28896/28896 tie blocks differ); NC-fp16 SHARP (101136/115584 differ)
+RESULT: PASS (FULL block_q8_0 d+qs bit-exact AND close-the-loop *s bit-exact vs ggml RVV quantizer; NC-round pins rne, NC-fp16 pins the (_Float16) cast)

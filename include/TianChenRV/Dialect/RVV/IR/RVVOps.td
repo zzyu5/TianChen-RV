@@ -4717,6 +4717,93 @@ def GgmlVecSoftMaxF32Op
   let hasVerifier = 1;
 }
 
+def GgmlQuantizeRowQ80Op
+    : TCRVRVV_Op<"quantize_row_q8_0",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32->block_q8_0 activation quantizer op";
+  let description = [{
+    Records the COMPLETE ggml `quantize_row_q8_0` RVV-path forward-pass op
+    (the f32 -> block_q8_0 ACTIVATION QUANTIZER; riscv/quants.c:32-71) as ONE
+    bounded generic plugin-local typed RVV dataflow step. This is the F4
+    forward-pass op (research/forward-pass-scoping.md): the f32 -> QUANT BRIDGE
+    that produces the block_q8_0 activation our committed q4_0_q8_0 / q8_0_q8_0
+    block-dot kernels CONSUME. It is structurally NEW vs the elementwise/reduction
+    f32 ops (F1/F3/F5/F5b) and vs the integer block-dot ops: a per-32-block
+    max-abs REDUCTION (`vfredmax` of `vfabs`) + a scalar scale (`d = amax/127`,
+    `id = d ? 1/d : 0`) + an f32->i16->i8 NARROWING CONVERT, written into an AoS
+    block_q8_0 buffer (stride 34: the fp16 `d` at byte 0, the 32 int8 `qs` at
+    byte 2).
+
+    BYTE-EXACTNESS to the DEPLOYED kernel hinges on matching ggml's EXACT RVV
+    method (riscv/quants.c:43-65), NOT the scalar `_ref` (which rounds with
+    `roundf`, round-half-AWAY). On the `ssh rvv` board `__riscv_v` is defined, so
+    the live `quantize_row_q8_0` IS the RVV path:
+      vl = 32;  (= QK8_0; one strip per block, relying on Zvl128b => VLEN>=128 so
+                 e32m8 holds all 32 lanes at once, the same capability the q4_0
+                 mb4-elided shape uses)
+      v_x  = vle32_v_f32m8(x + i*32, vl);
+      amax = vfmv_f_s(vfredmax_vs_f32m8_f32m1(vfabs_v_f32m8(v_x),
+                       vfmv_v_f_f32m1(0.0f, vl), vl));
+      d  = amax / 127.0f;  id = d ? 1.0f/d : 0.0f;        // SCALAR f32
+      y[i].d = (_Float16)d;                                // fcvt.h.s (rne)
+      x0 = vfmul_vf_f32m8(v_x, id, vl);                    // scale
+      vi = vfncvt_x_f_w_i16m4(x0, vl);                     // f32->i16 (frm = rne)
+      vs = vncvt_x_x_w_i8m2(vi, vl);                       // i16->i8 (truncate)
+      vse8_v_i8m2(y[i].qs, vs, vl);
+    The ROUNDING crux: `vfncvt_x_f_w_i16m4` rounds with the dynamic frm =
+    round-to-nearest-EVEN (NOT `roundf`'s round-half-away); replicating that exact
+    intrinsic inherits rne + the i8 saturating clamp + every NaN/inf/edge case for
+    free (do NOT reason about rounding -- emit the same intrinsic). The FP16 crux:
+    the board is `__riscv_zfhmin`, so `GGML_CPU_FP32_TO_FP16(d)` is the native
+    `(_Float16)d` cast (`fcvt.h.s`, rne); matching THAT (a structural `_Float16`
+    store, NOT a software fp16 pack) is the second byte-exactness crux. The
+    `d ? 1.0f/d : 0.0f` conditional is load-bearing: the all-zero block (amax=0 =>
+    d=0) must give `id=0` (so every `q[i]=0`) -- a bare `1/d` would give
+    `inf`/`NaN`; it is emitted as a STRUCTURED scalar `emitc.cmp` + `emitc.if`,
+    NOT a raw string.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
+    ABI value operands -- the read-only f32 input base pointer `x`
+    (`const float *`), the block_q8_0 output BYTE buffer base pointer `vy`
+    (`uint8_t *`, the AoS block buffer written), the runtime element count `n`
+    (= ggml's `k`, n % 32 == 0 a ggml contract) -- plus the active !tcrv_rvv.vl
+    token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector token (the per-block store
+    boundary). The block-format facts (`qk` = 32, `block_stride` = 34, the fp16
+    `d` at offset 0, the int8 `qs` at offset 2) are the op's typed mirror attrs
+    (I4); the emission is the op's fixed structure. For the bounded surface `kind`
+    is limited to "ggml_quantize_row_q8_0". The strip is pinned at the m8 anchor
+    ggml uses (the block's 32 lanes in one e32m8 strip -- there is no byte-exact
+    LMUL freedom here: the reduction fold is m8-shaped, so there is NO strip_lmul
+    knob this cut, matching silu's precedent). Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, and common
+    EmitC/export code must not infer or choose f32->q8_0 quantizer semantics.
+
+    q8_1 is the SIBLING quantizer (same amax/scale/narrow + an extra
+    `vfredusum` block sum stored as `block_q8_1.s`); it is a separate op for a
+    later increment, NOT folded into this kind.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

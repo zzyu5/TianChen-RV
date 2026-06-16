@@ -2082,7 +2082,11 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::UpperBoundScalarValue:
     return cType == "float";
   case Role::OutputBuffer:
-    return cType == "uint16_t *" || cType == "int16_t *" ||
+    // The ggml block-quantizer (quantize_row_q8_0 F4) writes an AoS block_q8_0
+    // BYTE buffer (ggml's `void *vy`) -- the fp16 d + int8 qs stores address it
+    // as a mutable byte cursor, so 'uint8_t *' is the natural output ABI here.
+    return cType == "uint8_t *" || cType == "uint16_t *" ||
+           cType == "int16_t *" ||
            cType == "int32_t *" || cType == "uint32_t *" ||
            cType == "int64_t *" ||
            cType == "float *" || cType == "double *";
@@ -2136,8 +2140,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::UpperBoundScalarValue:
     return "'float'";
   case Role::OutputBuffer:
-    return "'uint16_t *', 'int16_t *', 'int32_t *', 'uint32_t *', "
-           "'int64_t *', 'float *', or 'double *'";
+    return "'uint8_t *', 'uint16_t *', 'int16_t *', 'int32_t *', "
+           "'uint32_t *', 'int64_t *', 'float *', or 'double *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
