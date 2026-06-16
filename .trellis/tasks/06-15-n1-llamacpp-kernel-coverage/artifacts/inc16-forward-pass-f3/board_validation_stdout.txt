@@ -1,0 +1,21 @@
+=== board ===
+riscv64
+Ubuntu clang version 18.1.3 (1ubuntu1)
+#define __riscv_v_intrinsic 12000
+#define __riscv_v_min_vlen 128
+#define __riscv_zvl128b 1000000
+=== fp-contract=on ===
+INC-16 F3 ggml_rms_norm_f32: 4805/4805 bit-exact cases PASS
+NC1 wrong-product-type (large-magnitude): 10/10 correctly DIFFER
+NC2 wrong-accumulator-type (long mixed):  31/54 correctly DIFFER (of which the DETERMINISTIC swamping subset: 6/6)
+RESULT: PASS (byte-exact vs ggml rms_norm; NC2 the scalar-double ACCUMULATION control discriminates -> ggml's METHOD is matched, not just its tolerance)
+=== fp-contract=off ===
+INC-16 F3 ggml_rms_norm_f32: 4805/4805 bit-exact cases PASS
+NC1 wrong-product-type (large-magnitude): 10/10 correctly DIFFER
+NC2 wrong-accumulator-type (long mixed):  31/54 correctly DIFFER (of which the DETERMINISTIC swamping subset: 6/6)
+RESULT: PASS (byte-exact vs ggml rms_norm; NC2 the scalar-double ACCUMULATION control discriminates -> ggml's METHOD is matched, not just its tolerance)
+=== fp-contract=fast ===
+INC-16 F3 ggml_rms_norm_f32: 4805/4805 bit-exact cases PASS
+NC1 wrong-product-type (large-magnitude): 10/10 correctly DIFFER
+NC2 wrong-accumulator-type (long mixed):  31/54 correctly DIFFER (of which the DETERMINISTIC swamping subset: 6/6)
+RESULT: PASS (byte-exact vs ggml rms_norm; NC2 the scalar-double ACCUMULATION control discriminates -> ggml's METHOD is matched, not just its tolerance)

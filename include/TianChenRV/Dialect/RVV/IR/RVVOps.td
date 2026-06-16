@@ -4510,6 +4510,77 @@ def GgmlVecScaleF32Op
   let hasVerifier = 1;
 }
 
+def GgmlRmsNormF32Op
+    : TCRVRVV_Op<"ggml_rms_norm_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32 rms_norm (Sx^2 reduce -> rsqrt -> scale) op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_compute_forward_rms_norm_f32` (non-fused, no
+    weight) forward-pass op for ONE row as a bounded generic plugin-local typed
+    RVV f32 dataflow step: the row reduction `mean = (Sum_i x[i]^2)/ne00`, the
+    scalar `scale = 1/sqrtf(mean + eps)`, and the per-lane normalize
+    `y[i] = x[i] * scale` over flat unit-stride f32 buffers. This is the FIRST
+    forward-pass REDUCTION op (F3 in research/forward-pass-scoping.md) -- a NEW
+    shape vs the elementwise scale (F1) and vs the block-quantized integer dot
+    ops: it brings in a cross-lane fold plus a scalar rsqrt before the
+    elementwise scale.
+
+    BYTE-EXACTNESS hinges on matching ggml's EXACT accumulation method
+    (ops.cpp:3791-3798). ggml folds `Sum_i x[i]^2` in `ggml_float` (= double),
+    SCALAR, in strict ASCENDING index order (the source loop is explicitly NOT
+    vectorized -- "worth switching to explicit SIMD?"). The cast chain is
+    load-bearing: each product `x[i]*x[i]` rounds in f32 FIRST, is then WIDENED
+    to double, and accumulated in double -- NOT `(double)x[i]*(double)x[i]`. The
+    f32->double widen between the f32 product and the double add is also an FMA
+    barrier (multiply and add are different types, so -ffp-contract cannot fuse
+    them). Then `mean = (float)(sum / (double)ne00)` (divide in double, cast to
+    f32 AFTER), `scale = 1.0f / sqrtf(mean + eps)` (the add/sqrt/reciprocal all
+    in f32 -- sqrtf-then-reciprocal, NOT a hardware fast-rsqrt). A vectorized
+    f32 `vfredusum` reduction would NOT be byte-exact (it folds in f32 with a
+    tree order), so the reduction is emitted as STRUCTURED scalar emitc nodes
+    (variable/load/mul/cast/add/assign) replicating ggml's scalar double fold,
+    and only the final `y[i] = x[i] * scale` normalize is vectorized (a bare
+    per-lane vfmul_vf strip -- no FMA, no reduction, byte-exact at any LMUL).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the f32 input base pointer `x` (read-only), the f32
+    output base pointer `y` (written), the runtime f32 `eps`, the runtime
+    element count `ne00` -- plus the active !tcrv_rvv.vl token. It produces ONE
+    f32 LMUL m1 !tcrv_rvv.vector token whose lowering is the normalize strip
+    store. For the bounded surface `kind` is limited to "ggml_rms_norm_f32".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    f32 rms_norm semantics.
+
+    The optional `strip_lmul` attribute is a bounded resource/scheduling fact --
+    it selects the LMUL the NORMALIZE strip loop anchors at ("m1", "m2", "m4",
+    or "m8"; default "m8" to match ggml's `ggml_vec_scale_f32` apply path). It is
+    purely the *how* of the vectorized normalize (every lane multiplied by the
+    same scalar `scale`), never the *what* (the reduction stays scalar-double
+    regardless). It is named `strip_lmul`, not the with_vl/setvl `lmul` spelling,
+    so the op keeps no SEW/LMUL/policy dataflow-parameter attr at the I5 boundary
+    -- the sibling ops use the same convention.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$eps,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    OptionalAttr<StrAttr>:$strip_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $eps `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` type($eps) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

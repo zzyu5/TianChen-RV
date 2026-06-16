@@ -815,8 +815,15 @@ public:
     auto module = variant->getParentOfType<mlir::ModuleOp>();
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
-    for (llvm::StringRef header :
-         {"stddef.h", "stdint.h", "riscv_vector.h"})
+    llvm::SmallVector<llvm::StringRef, 4> headers = {"stddef.h", "stdint.h",
+                                                     "riscv_vector.h"};
+    // The forward-pass F3 rms_norm body calls the scalar libm `sqrtf` (the
+    // 1/sqrtf(mean+eps) scale), so its TU needs <math.h>. ONLY this body adds
+    // the header -- every other (quant-dot / elementwise) kernel keeps the
+    // original three-header list byte-identical (additivity).
+    if (isGgmlRmsNormF32Body(scope))
+      headers.push_back("math.h");
+    for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
                                         /*is_standard_include=*/true);
 
@@ -995,6 +1002,23 @@ public:
     if (isGgmlVecScaleF32Body(scope)) {
       if (mlir::failed(emitGgmlVecScaleF32(rewriter, loc, scope, avlArg,
                                            sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The forward-pass F3 op (tcrv_rvv.ggml_rms_norm_f32) is the FIRST non-dot
+    // f32 REDUCTION op: the row Sx^2 scalar-double fold -> scalar 1/sqrtf -> the
+    // vectorized normalize y[i] = x[i] * scale. It owns a dedicated routine (a
+    // structured scalar-double accumulator loop + a scalar rsqrt + a single f32
+    // strip loop) -- a NEW shape vs the elementwise scale (F1) because the
+    // reduction must replicate ggml's scalar-double ascending fold for
+    // byte-exactness (a vectorized vfredusum would fold in f32 and a tree order).
+    // The structural marker is the tcrv_rvv.ggml_rms_norm_f32 op identity.
+    if (isGgmlRmsNormF32Body(scope)) {
+      if (mlir::failed(emitGgmlRmsNormF32(rewriter, loc, scope, avlArg,
+                                          sizeType, valueMap)))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
       rewriter.eraseOp(variant);
@@ -1654,6 +1678,25 @@ private:
       }
     }
     return sawScale;
+  }
+
+  /// The forward-pass F3 recognizer: a with_vl scope whose ONLY compute op is a
+  /// single tcrv_rvv.ggml_rms_norm_f32 (the f32 row rms_norm: Sx^2 scalar-double
+  /// reduce -> scalar 1/sqrtf(mean+eps) -> vectorized y[i] = x[i]*scale). The op
+  /// identity is the dispatch key; the emitter owns the structured scalar-double
+  /// reduction + scalar rsqrt + f32 normalize strip-loop expansion.
+  static bool isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope) {
+    bool sawRmsNorm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRmsNormF32Op>(op)) {
+        if (sawRmsNorm)
+          return false;
+        sawRmsNorm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawRmsNorm;
   }
 
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
@@ -6798,6 +6841,263 @@ private:
       rewriter.create<emitc::CallOpaqueOp>(
           loc, mlir::TypeRange{}, storeCallee,
           mlir::ValueRange{loadPtr, ny, bodyVL});
+    }
+
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml ggml_compute_forward_rms_norm_f32 forward-pass op
+  /// (non-fused, no weight; ops.cpp:3758-3817) for ONE row as fully STRUCTURED
+  /// emitc nodes (I5; no verbatim C-string blob -- every value is a node):
+  ///   double sum = 0.0;                          // ggml_float accumulator
+  ///   for (size_t i = 0; i < ne00; ++i) {        // SCALAR ascending fold
+  ///     float p = x[i] * x[i];                    // f32 product (one f32 round)
+  ///     sum = sum + (double)p;                    // widen-to-double then add
+  ///   }
+  ///   float mean  = (float)(sum / (double)ne00);  // divide in double, cast after
+  ///   float scale = 1.0f / sqrtf(mean + eps);     // f32 add/sqrtf/reciprocal
+  ///   for (size_t i = 0; i < ne00; i += vlmax) {  // VECTORIZED normalize strip
+  ///     size_t vl = __riscv_vsetvl_e32m<L>(ne00 - i);
+  ///     vfloat32m<L>_t vx = __riscv_vle32_v_f32m<L>(x + i, vl);
+  ///     vfloat32m<L>_t vy = __riscv_vfmul_vf_f32m<L>(vx, scale, vl);
+  ///     __riscv_vse32_v_f32m<L>(y + i, vy, vl);
+  ///   }
+  /// BYTE-EXACTNESS to ggml depends on the reduction METHOD, not a tolerance:
+  /// ggml folds Sx^2 in `ggml_float` (= double), SCALAR, in strict ASCENDING
+  /// index order (ops.cpp:3791-3795 -- explicitly NOT vectorized). The cast chain
+  /// is load-bearing: each product rounds in f32 first, is WIDENED to double,
+  /// then accumulated in double (NOT (double)x*(double)x). The f32->double widen
+  /// between the f32 product and the double add is also an FMA barrier (different
+  /// types -> -ffp-contract cannot fuse). The mean divides in double and casts to
+  /// f32 AFTER; the scale is sqrtf-then-reciprocal in f32 (NOT a fast-rsqrt).
+  /// Only the final normalize is vectorized -- a bare per-lane vfmul_vf (no FMA,
+  /// no reduction), byte-exact at any LMUL because every lane is multiplied by
+  /// the same scalar `scale`. The reduction is emitted as STRUCTURED scalar emitc
+  /// nodes (variable/load/mul/cast/add/assign), NOT a raw string.
+  mlir::LogicalResult emitGgmlRmsNormF32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlRmsNormF32Op rmsOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto r = llvm::dyn_cast<tcrvrvv::GgmlRmsNormF32Op>(op))
+        rmsOp = r;
+    }
+    if (!rmsOp)
+      return rewriter.notifyMatchFailure(scope, "rms_norm body missing the op");
+
+    mlir::Value input = valueMap.lookup(rmsOp.getInput());
+    mlir::Value outputBuf = valueMap.lookup(rmsOp.getOutput());
+    mlir::Value eps = valueMap.lookup(rmsOp.getEps());
+    if (!input || !outputBuf || !eps)
+      return rewriter.notifyMatchFailure(rmsOp,
+                                         "rms_norm ABI operand unmapped");
+
+    llvm::StringRef opName = rmsOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = rmsOp.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type inputPtrType = input.getType();
+    mlir::Type outputPtrType = outputBuf.getType();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type doubleType = emitc::OpaqueType::get(ctx, "double");
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // ggml_float sum = 0.0;  (the SCALAR double accumulator -- ggml_float is
+    // double; ops.cpp:3791). emitc.for has no iter_args, so the loop-carried
+    // accumulator is an emitc.variable lvalue + emitc.assign, exactly as the
+    // block-dot kernels carry the fp32 *s accumulator.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sum", opName, role));
+    auto sumVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(doubleType),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, sumVar, rewriter.create<emitc::LiteralOp>(loc, doubleType, "0.0"));
+
+    // for (size_t i = 0; i < ne00; ++i) { ... }  -- the SCALAR ascending fold
+    // (step 1). This loop is NOT vectorized: a vectorized vfredusum would fold in
+    // f32 with a tree order and break byte-exactness vs ggml.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "scalar_double_reduce"));
+    mlir::Value zeroIdx =
+        rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    mlir::Value oneStep =
+        rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+    auto reduceFor = rewriter.create<emitc::ForOp>(loc, zeroIdx, avlArg, oneStep,
+                                                   /*bodyBuilder=*/nullptr);
+    mlir::Value redIdx = reduceFor.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(reduceFor.getBody());
+
+      // const float *xp = (const float *)(x + i);  float xi = xp[0];
+      mlir::Value xElemPtr = rewriter.create<emitc::AddOp>(
+          loc, inputPtrType, input, redIdx);
+      auto xElemPtrCast =
+          llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+              rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xElemPtr)
+                  .getResult());
+      mlir::Value xElemIndex =
+          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+      emitc::SubscriptOp xSubscript =
+          rewriter.create<emitc::SubscriptOp>(loc, xElemPtrCast, xElemIndex);
+      auto xLValueType =
+          llvm::cast<emitc::LValueType>(xSubscript.getResult().getType());
+      mlir::Value xiLoaded =
+          rewriter
+              .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
+                                     xSubscript.getResult())
+              .getResult();
+
+      // The load-bearing cast chain, grouped into ONE emitc.expression so
+      // mlir-translate renders ONE C statement: sum = sum + (double)(xi * xi).
+      // The f32 product rounds FIRST, is WIDENED to double, then added in double.
+      // The widen sits BETWEEN the f32 multiply and the double add -- an FMA
+      // barrier (different types), so -ffp-contract cannot fuse the two. The
+      // emitc.load temps stay OUTSIDE the expression (load lacks the CExpression
+      // trait).
+      mlir::Value sumCur =
+          rewriter.create<emitc::LoadOp>(loc, doubleType, sumVar).getResult();
+      auto accumExpr = rewriter.create<emitc::ExpressionOp>(
+          loc, doubleType, /*do_not_inline=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+        mlir::Block *exprBlock = rewriter.createBlock(&accumExpr.getRegion());
+        rewriter.setInsertionPointToStart(exprBlock);
+        // float p = xi * xi;  (f32 product -- one f32 rounding)
+        mlir::Value prod =
+            rewriter.create<emitc::MulOp>(loc, floatType, xiLoaded, xiLoaded);
+        // (double)p  -- widen the f32 product to double (the FMA barrier).
+        mlir::Value prodWide =
+            rewriter.create<emitc::CastOp>(loc, doubleType, prod).getResult();
+        // sum + (double)p  -- accumulate in double.
+        mlir::Value sumNext =
+            rewriter.create<emitc::AddOp>(loc, doubleType, sumCur, prodWide);
+        rewriter.create<emitc::YieldOp>(loc, sumNext);
+      }
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("sum", opName, role));
+      rewriter.create<emitc::AssignOp>(loc, sumVar, accumExpr.getResult());
+    }
+
+    // float mean = (float)(sum / (double)ne00);  -- divide in DOUBLE, cast to
+    // f32 AFTER the division (ggml's `const float mean = sum/ne00;` with
+    // ne00 promoted to double for the ggml_float divide; ops.cpp:3797).
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "mean"));
+    mlir::Value sumFinal =
+        rewriter.create<emitc::LoadOp>(loc, doubleType, sumVar).getResult();
+    mlir::Value ne00Wide =
+        rewriter.create<emitc::CastOp>(loc, doubleType, avlArg).getResult();
+    mlir::Value meanDouble =
+        rewriter.create<emitc::DivOp>(loc, doubleType, sumFinal, ne00Wide);
+    mlir::Value mean =
+        rewriter.create<emitc::CastOp>(loc, floatType, meanDouble).getResult();
+
+    // float scale = 1.0f / sqrtf(mean + eps);  -- the add, sqrtf, and reciprocal
+    // are ALL f32 (ggml's `1.0f/sqrtf(mean + eps)`; ops.cpp:3798). sqrtf is the
+    // scalar libm call (call_opaque, the one sanctioned opaque seam) -- a true
+    // IEEE correctly-rounded sqrt, NOT a hardware fast-rsqrt7. The reciprocal is
+    // a separate f32 divide.
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "scale"));
+    mlir::Value meanPlusEps =
+        rewriter.create<emitc::AddOp>(loc, floatType, mean, eps);
+    mlir::Value sqrtVal =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                         "sqrtf",
+                                         mlir::ValueRange{meanPlusEps})
+            .getResult(0);
+    mlir::Value oneF =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+    mlir::Value scale =
+        rewriter.create<emitc::DivOp>(loc, floatType, oneF, sqrtVal);
+
+    // The VECTORIZED normalize strip (step 4): y[i] = x[i] * scale. The NORMALIZE
+    // strip LMUL is a bounded resource/scheduling fact (default m8, matching
+    // ggml's ggml_vec_scale_f32 apply path). It is byte-exact at any anchor (a
+    // bare per-lane vfmul_vf -- no FMA, no reduction). This is the SAME strip
+    // machinery F1 (scale) emits, except two-buffer (x in, y out) instead of
+    // in-place: byte-identical (both one f32 multiply per lane), avoiding ggml's
+    // memcpy+in-place-scale.
+    llvm::StringRef lmul = rmsOp.getStripLmul().value_or("m8");
+    std::string f32VecTypeName = ("vfloat32" + lmul + "_t").str();
+    mlir::Type f32VecType = emitc::OpaqueType::get(ctx, f32VecTypeName);
+
+    std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, setvlCallee));
+    mlir::Value vlmax =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                         setvlCallee, mlir::ValueRange{avlArg})
+            .getResult(0);
+
+    mlir::Value normZero =
+        rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    auto normFor = rewriter.create<emitc::ForOp>(loc, normZero, avlArg, vlmax,
+                                                 /*bodyBuilder=*/nullptr);
+    mlir::Value normIdx = normFor.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(normFor.getBody());
+
+      // size_t vl = __riscv_vsetvl_e32m<L>(ne00 - i);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, setvlCallee));
+      mlir::Value remaining =
+          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, normIdx);
+      mlir::Value bodyVL =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                           setvlCallee,
+                                           mlir::ValueRange{remaining})
+              .getResult(0);
+
+      // const float *xp = x + i;  float *yp = y + i;
+      mlir::Value xPtr =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, normIdx);
+      mlir::Value xLoadPtr =
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xPtr)
+              .getResult();
+      mlir::Value yPtr =
+          rewriter.create<emitc::AddOp>(loc, outputPtrType, outputBuf, normIdx);
+      mlir::Value yStorePtr =
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, yPtr).getResult();
+
+      // vfloat32m<L>_t vx = __riscv_vle32_v_f32m<L>(xp, vl);
+      std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, loadCallee));
+      mlir::Value vx =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
+                                           loadCallee,
+                                           mlir::ValueRange{xLoadPtr, bodyVL})
+              .getResult(0);
+
+      // vfloat32m<L>_t vy = __riscv_vfmul_vf_f32m<L>(vx, scale, vl);
+      std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, mulCallee));
+      mlir::Value vy =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
+                                           mulCallee,
+                                           mlir::ValueRange{vx, scale, bodyVL})
+              .getResult(0);
+
+      // __riscv_vse32_v_f32m<L>(yp, vy, vl);
+      std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, storeCallee));
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, mlir::TypeRange{}, storeCallee,
+          mlir::ValueRange{yStorePtr, vy, bodyVL});
     }
 
     return mlir::success();

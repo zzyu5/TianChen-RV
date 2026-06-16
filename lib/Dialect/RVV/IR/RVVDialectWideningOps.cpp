@@ -1834,6 +1834,108 @@ mlir::LogicalResult GgmlVecScaleF32Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlRmsNormF32Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind plus
+  // the optional resource/scheduling NORMALIZE strip-LMUL knob. Anything else --
+  // a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name
+  // -- is rejected fail-closed (I7). The knob is named "strip_lmul" (not the
+  // forbidden with_vl/setvl "lmul" spelling), exactly as the sibling f32 scale
+  // op, so the I5 boundary check stays untouched. The strip knob governs only
+  // the vectorized normalize tail; the Sx^2 reduction is always scalar-double.
+  auto isAllowedRmsNormAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "strip_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.ggml_rms_norm_f32 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime ne00/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedRmsNormAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32 rms_norm attributes 'kind' and "
+                "'strip_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_rms_norm_f32")
+    return emitOpError()
+           << "currently supports only kind \"ggml_rms_norm_f32\" for the "
+              "bounded ggml f32 rms_norm typed surface";
+
+  // The optional strip-LMUL is a bounded resource/scheduling fact: the NORMALIZE
+  // strip loop (y[i] = x[i] * scale) anchors at m1/m2/m4/m8 (default m8). All are
+  // byte-exact (every lane is multiplied by the same scalar scale; the runtime
+  // vsetvl_e32m<L>(ne00-i) re-strips correctly for any VLEN). The reduction is
+  // scalar-double regardless of this knob. Any other spelling is rejected (I7).
+  if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
+    if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
+        *stripLmul != "m8")
+      return emitOpError()
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\" (the "
+                "bounded byte-exact f32-strip resource anchors for the ggml "
+                "f32 rms_norm normalize tail); got \""
+             << *stripLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only f32 input pointer, one f32 output "
+              "pointer, one runtime f32 eps, one runtime element-count runtime "
+              "ABI operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
+
+  // The input is read-only (const float *), the output is written (float *), eps
+  // binds a runtime f32. ggml's rms_norm reads x and writes y (the non-fused,
+  // no-weight path); the byte-exactness depends on x[i]*x[i] being a true f32
+  // product widened to double, so the input must be a real f32 buffer.
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp epsBinding = getEps().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] row read for the Sx^2 reduction "
+              "and the normalize)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml y[] normalized output buffer)";
+  if (!epsBinding || epsBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the eps operand to bind a runtime ABI value of C type "
+              "'float' (the ggml runtime eps)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime ne00 index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, "
+              "\"m1\"> for the ggml f32 rms_norm route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml f32 rms_norm";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult MaskedWideningDotReduceOp::verify() {
   mlir::Operation *op = getOperation();
 
