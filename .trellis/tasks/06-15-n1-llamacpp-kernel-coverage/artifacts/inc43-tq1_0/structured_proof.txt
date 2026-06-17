@@ -1,0 +1,29 @@
+=== INC-43 tq1_0 structured proof (raw()=0, structured emitc) ===
+
+raw() actual calls in emitted C body: 0
+libm calls (sqrt/exp/pow/log/sin/cos): 0
+fp16 reads ((float)*(const _Float16 *)): 1  (the ONLY sanctioned opaque scalar piece; ONE read at xb+52, not a dall/dmin pair)
+unrealized_conversion_cast in lowered MLIR: 0
+
+Residual ACTUAL tcrv_rvv.<op> operations in lowered MLIR (excluding verbatim provenance comments):
+  (count: 0 -- the block-dot op was consumed by the structured emitter)
+
+I4 mirror provenance comments (tcrv_rvv. in verbatim): 287
+
+=== base-3 decode pipeline ops emitted (the load-bearing trit extract) ===
+(counting actual call sites = vse8 stores, one per decode region)
+vse8_v_i8 decode stores: 14  = 5 (qs main, e8m2) + 5 (qs tail, e8m1) + 4 (qh, e8m1)
+  e8m2 (qs main): 5 decodes, pow3 = {1, 3, 9, 27, 81} (one each)
+  e8m1 (qs tail 5 + qh 4): 9 decodes, pow3 dist = 1x2, 3x2, 9x2, 27x2, 81x1
+    (tail uses pow3 0..4 = {1,3,9,27,81}; qh uses pow3 0..3 = {1,3,9,27})
+each region: vmul_vx_u8 (pow3 mul, the uint8 WRAP -- NOT widened) -> vwmulu_vx (*3
+  widen u8->u16) -> vsrl_vx_u16 (>>8) -> vncvt narrow u16->u8 -> vreinterpret u8->i8
+  -> vadd_vx_i8 (-1 ternary bias) -> vse8. The pow3 mul is never fused into the
+  widening multiply (the mod-256 wrap is load-bearing for byte*pow3 >= 256).
+sub_block_dot widening reduces (vwredsum_vs_i16m2_i32m1): 16 (one per 16-lane sub-block)
+
+=== single-scale fp32 fold (one product d=fp16(x.d)*y.d, one += as one C stmt) ===
+    float v360 = (float)*(const _Float16 *)(v359);
+    float v363 = v360 * v362;
+    v9 = v365 + (float) v364 * v363;
+  v2[0] = v366;

@@ -1,0 +1,28 @@
+ggml dot kernel (quants.c *_generic)   ->  covering recognizer (RVVToEmitC.cpp)
+---------------------------------------------------------------------------
+ 1 iq1_m_q8_K     -> isIQ1MQ8KBlockDotBody
+ 2 iq1_s_q8_K     -> isIQ1SQ8KBlockDotBody
+ 3 iq2_s_q8_K     -> isIQ2SQ8KBlockDotBody
+ 4 iq2_xs_q8_K    -> isIQ2XSQ8KBlockDotBody
+ 5 iq2_xxs_q8_K   -> isIQ2XXSQ8KBlockDotBody
+ 6 iq3_s_q8_K     -> isIQ3SQ8KBlockDotBody
+ 7 iq3_xxs_q8_K   -> isIQ3XXSQ8KBlockDotBody
+ 8 iq4_nl_q8_0    -> isIQ4NLQ8_0BlockDotBody
+ 9 iq4_xs_q8_K    -> isIQ4XSQ8KBlockDotBody
+10 mxfp4_q8_0     -> isMXFP4Q8_0BlockDotBody
+11 nvfp4_q8_0     -> isNVFP4Q8_0BlockDotBody
+12 q1_0_q8_0      -> isQ1_0Q8_0BlockDotBody
+13 q2_K_q8_K      -> isQ2_KQ8_KBlockDotBody
+14 q3_K_q8_K      -> isQ3_KQ8_KBlockDotBody
+15 q4_0_q8_0      -> isQ4_0Q8_0BlockDotBody  (+ isQ4_0Q8_0GemmBody/GemmTileBody)
+16 q4_1_q8_1      -> isQ4_1Q8_1BlockDotBody
+17 q4_K_q8_K      -> isQ4_KQ8_KBlockDotBody
+18 q5_0_q8_0      -> isQ5_0Q8_0BlockDotBody
+19 q5_1_q8_1      -> isQ5_1Q8_1BlockDotBody
+20 q5_K_q8_K      -> isQ5_KQ8_KBlockDotBody
+21 q6_K_q8_K      -> isQ6_KQ8_KBlockDotBody
+22 q8_0_q8_0      -> isQ8_0Q8_0BlockDotBody
+23 tq1_0_q8_K     -> isTQ1_0Q8_KBlockDotBody   <== INC-43 (this increment, the LAST)
+24 tq2_0_q8_K     -> isTQ2_0Q8_KBlockDotBody
+---------------------------------------------------------------------------
+24/24 ggml dot kernels covered = literal 100%.

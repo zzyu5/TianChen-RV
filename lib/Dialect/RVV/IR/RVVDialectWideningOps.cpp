@@ -3926,6 +3926,159 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotTQ10Q8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // ternary-base3-single-fp16-scale scalar-fp32-fold scale model, and the
+  // super-block-format structural facts (the 48 packed base-3 qs bytes @0, the
+  // 4 base-3 qh bytes @48, the fp16 weight scale d @52 -- d is at the END of
+  // block_tq1_0, the qh array is the new structural fact -- the fp32 activation
+  // scale d @0, qs @4). tq1_0 is BASE-3 TERNARY with NO scales[16], NO
+  // per-sub-block scale, NO min term, NO dmin, NO bsums. Anything else -- a
+  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
+  // is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_qs_byte_offset" ||
+           name == "weight_qh_byte_offset" || name == "weight_d_byte_offset" ||
+           name == "activation_d_byte_offset" ||
+           name == "activation_quant_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.tq1_0_q8_k_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded super-block dot-product attributes "
+                "'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_qs_byte_offset', "
+                "'weight_qh_byte_offset', 'weight_d_byte_offset', "
+                "'activation_d_byte_offset', and 'activation_quant_byte_offset'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_tq1_0_q8_k_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_tq1_0_q8_k_block_dot\" for "
+              "the bounded ggml TQ1_0 x Q8_K super-block full block dot-product "
+              "typed surface";
+  if (getScaleModel() !=
+      "ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold")
+    return emitOpError()
+           << "requires scale_model "
+              "\"ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold\" "
+              "for the ggml TQ1_0 x Q8_K super-block full block dot-product "
+              "route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // block_tq1_0 stride 54 (qs[48]@0|qh[4]@48|d@52 -- the two base-3 weight
+  // arrays LEAD, the single fp16 scale is the SUFFIX), block_q8_K stride 292
+  // (d@0|qs@4). Pin them so a malformed typed body cannot lower under the
+  // super-block dot emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml TQ1_0 x "
+                            "Q8_K super-block full block dot-product route";
+  if (getWeightBlockStride() != 54)
+    return emitOpError()
+           << "requires weight_block_stride == 54 (sizeof block_tq1_0 = qs[48] "
+              "+ qh[4] + fp16 d) for the ggml TQ1_0 x Q8_K super-block full "
+              "block dot-product route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml TQ1_0 x Q8_K super-block full block dot-product route";
+  if (getWeightQsByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 0 (the 48 packed base-3 qs "
+              "bytes LEAD block_tq1_0) for the ggml TQ1_0 x Q8_K super-block "
+              "full block dot-product route";
+  if (getWeightQhByteOffset() != 48)
+    return emitOpError()
+           << "requires weight_qh_byte_offset == 48 (the 4 base-3 qh bytes "
+              "FOLLOW qs[48]) for the ggml TQ1_0 x Q8_K super-block full block "
+              "dot-product route";
+  if (getWeightDByteOffset() != 52)
+    return emitOpError()
+           << "requires weight_d_byte_offset == 52 (the fp16 super-block scale "
+              "d FOLLOWS qs[48]+qh[4] -- d is at the END of block_tq1_0) for "
+              "the ggml TQ1_0 x Q8_K super-block full block dot-product route";
+  if (getActivationDByteOffset() != 0)
+    return emitOpError()
+           << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
+              "leads the block) for the ggml TQ1_0 x Q8_K super-block full "
+              "block dot-product route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml TQ1_0 x Q8_K super-block full block dot-product "
+              "route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one fp32 *s output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three buffer operands and the element count are runtime ABI values; the
+  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
+  // output is a float * (the fp32 *s dot-product destination), and the element
+  // count carries n.
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_tq1_0 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the fp32 *s dot-product destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml TQ1_0 x Q8_K super-block full block "
+              "dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml TQ1_0 x Q8_K super-block full block "
+              "dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
   mlir::Operation *op = getOperation();
 

@@ -5884,6 +5884,112 @@ def GgmlBlockDotTQ20Q8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotTQ10Q8KOp
+    : TCRVRVV_Op<"tq1_0_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml TQ1_0 x Q8_K super-block FULL block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_tq1_0_q8_K` super-block dot-product
+    as ONE bounded generic plugin-local typed RVV dataflow step -- the LAST of
+    the 24 ggml dot kernels (literal 100% coverage). tq1_0 is the 1.6875-bpw
+    TriLM ternary K-quant and the BASE-3-PACKED sibling of tq2_0: instead of a
+    2-bit field shift, each weight is a base-3 TRIT recovered by a power-of-three
+    multiply (5 trits per qs byte since 3^5 = 243 < 256, plus a 4-trits-per-byte
+    qh tail). The activation is q8_K (the SAME super-block activation as
+    q2_K/q3_K/q4_K/q5_K/q6_K). tq1_0 uses ONLY y.d and y.qs -- NO bsums, NO min.
+    THREE structural facts distinguish tq1_0, all load-bearing:
+
+    (1) SUPER-BLOCK FORMAT, d AT THE END, with a SECOND weight array qh.
+        block_tq1_0 is `{ uint8_t qs[(QK_K - 4*QK_K/64)/5]; uint8_t qh[QK_K/64];
+        ggml_half d }` (QK_K = 256, qs = 48 bytes, qh = 4 bytes, sizeof 54): the
+        48 packed base-3 qs bytes LEAD at byte +0, the 4 base-3 qh bytes follow
+        at byte +48, and the fp16 super-block scale d is the SUFFIX at byte +52
+        (so `weight_qs_byte_offset = 0`, `weight_qh_byte_offset = 48`,
+        `weight_d_byte_offset = 52`, `weight_block_stride = 54`). The qh array is
+        the new structural fact vs every sibling -- tq1_0 carries TWO base-3
+        weight arrays (the 5-trits-per-byte qs and the 4-trits-per-byte qh) whose
+        decoded lanes both contribute to ONE super-block integer accumulator.
+
+    (2) BASE-3 TRIT EXTRACT, with the mandatory uint8 wrap. `_generic`
+        (quants.c:452-453, 461-462, 470-471) computes `uint8_t q = byte *
+        pow3[l]` (an 8-BIT multiply -- the truncation to uint8 IS the decode, and
+        the high base-3 digit is then read by `xi = ((uint16_t)q * 3) >> 8`,
+        value `xi - 1` in {-1,0,1}). pow3[6] = {1,3,9,27,81,243}. The emitter
+        mirrors this with a vector pipeline that PRESERVES the wrap order:
+        `vmul.vx u8 (byte * pow3[l])` (the low-8-bit truncation = the wrap) THEN
+        `vwmulu.vx u8->u16 (q * 3)` THEN `vsrl 8` THEN narrow u16->u8 (xi in
+        {0,1,2}, lossless) THEN reinterpret i8 THEN `vadd.vx -1` -> the ternary
+        lane. The pow3 multiply must NOT be fused into the widening multiply
+        (that would skip the mod-256 wrap and be wrong for any byte where
+        byte*pow3 >= 256). pow3[l] is emitted as a per-l literal.
+
+    (3) THREE accumulation loops into ONE integer accumulator + a SINGLE-SCALE
+        SCALAR fp32 FOLD. `_generic` walks three index regions of the q8_K quant
+        stream -- (a) the qs main loop (j=0, l 0..4, m 0..31 -> q8 index
+        `l*32+m`, weight `qs[m]`), (b) the qs tail loop (j=32, l 0..4, m 0..15 ->
+        q8 index `160 + l*16+m`, weight `qs[32+m]`), (c) the qh loop (l 0..3,
+        j 0..3 -> q8 index `240 + l*4+j`, weight `qh[j]`) -- each contributing
+        `(xi-1) * q8` to ONE `int sum`. Every q8 index 0..255 is covered exactly
+        once, so the emitter decodes all three regions into an element-ordered
+        int8_t aux8[256] (in q8 order) and then runs tq2_0's VERBATIM signed
+        widening reduce (vle8 i8 x q8 i8 -> vwmul i16 -> vwredsum i32) into a
+        single per-super-block integer accumulator (integer add is order-free).
+        Then `sumf += (float)sum * (fp16(x.d) * y.d)` -- ONE fp16 read of the
+        weight scale (xb+52), ONE fp32 read of the q8_K scale (yb+0), their
+        product, then the scaled accumulate, as ONE emitc.expression matching
+        `_generic`'s `sumf += (float) sum * (GGML_CPU_FP16_TO_FP32(x[i].d) *
+        y[i].d)` (quants.c:476) so the fp32 byte-exactness is by construction.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the tq1_0 weight base pointer (vx), the q8_K activation
+    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
+    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+
+    The structural facts -- QK_K=256, the AoS block strides (54 bytes for
+    block_tq1_0, 292 bytes for block_q8_K), the tq1_0 weight byte offsets (qs @0,
+    qh @48, d @52) and the q8_K payload byte offsets (the fp32 activation scale d
+    @0, qs @4) -- are carried as typed integer/string attributes (I4 mirror
+    only). The bounded surface kind is limited to "ggml_tq1_0_q8_k_block_dot" and
+    scale_model to "ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold".
+    The op identity is the dispatch key. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/tq1_0 names, and common EmitC/export code must not infer or
+    choose super-block dot-product semantics.
+
+    tq1_0 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip
+    loop (the zve32x/zve64x re-strip is a capability item, not built here). No
+    resource shape knobs yet; this op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotIQ4XSQ8KOp
     : TCRVRVV_Op<"iq4_xs_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
