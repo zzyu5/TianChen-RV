@@ -434,8 +434,10 @@ RVVExtensionPlugin::verifyExecutableConstructionConformance() const {
 }
 
 llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
-  return registerRVVVectorSourceFrontDoorFamilyPasses(kRVVPluginName, out);
+  return registerRVVVectorSourceFrontDoorFamilyPasses(kRVVPluginName, registry,
+                                                      out);
 }
 
 bool RVVExtensionPlugin::supportsOperation(

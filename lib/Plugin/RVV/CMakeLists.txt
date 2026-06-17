@@ -37,6 +37,7 @@ add_mlir_library(TianChenRVRVVPlugin
   TianChenRVPlugin
   TianChenRVRVVTarget
   TianChenRVSupport
+  TianChenRVTransforms
   MLIRArithDialect
   MLIRFuncDialect
   MLIRIR

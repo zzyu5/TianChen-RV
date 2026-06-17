@@ -30,6 +30,7 @@ public:
   void registerDialects(mlir::DialectRegistry &registry) const override;
   llvm::Error verifyExecutableConstructionConformance() const override;
   llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
   llvm::Error

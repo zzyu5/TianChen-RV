@@ -1,0 +1,19 @@
+# WS-A anti-false-green proof part (c): core/common family-name conditional grep
+# date: 2026-06-17T16:03:59Z
+#
+# The survey's signal is family-name CONDITIONAL branches in core/common, not
+# substrings of 'runtime'/'time'. Discriminating sweep = the family-name
+# identifiers the plugin-protocol checklist flags (hasRVV/hasIME/hasSophgo/
+# hasAME + concrete family tokens), case-sensitive, code lines only.
+
+## (1) family-capability predicate identifiers (hasRVV/hasIME/...):
+  (none)
+
+## (2) concrete family-name tokens in core/common (excluding // comments):
+##     Sophgo / RVM / AME as whole-word identifiers:
+  (none)
+
+## (3) the survey's baselined 3 zero-core-branch comment-hits for 'rvm/RVM future family':
+lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp:19:// today; a future RVM family is a ONE-LINE add here (registerRVMBackendEmitter)
+lib/Transforms/EmitCLowerableMaterialization.cpp:260:    // Toy/Template/TensorExtLite today; a future RVM family is a one-line table
+lib/Target/TargetArtifactExport.cpp:1982:  // (RVV today; a future RVM family is a one-line table add), skips those whose

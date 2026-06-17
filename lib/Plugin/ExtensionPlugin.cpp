@@ -665,7 +665,9 @@ llvm::Error ExtensionPlugin::registerTargetSupportTranslateRoutes(
 }
 
 llvm::Error ExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  (void)registry;
   (void)out;
   return llvm::Error::success();
 }
@@ -783,7 +785,8 @@ llvm::Error ExtensionPluginRegistry::collectSourceFrontDoorPasses(
       continue;
 
     llvm::SmallVector<SourceFrontDoorPassRegistration, 2> pluginPasses;
-    if (llvm::Error error = plugin->registerSourceFrontDoorPasses(pluginPasses))
+    if (llvm::Error error =
+            plugin->registerSourceFrontDoorPasses(*this, pluginPasses))
       return error;
 
     for (const SourceFrontDoorPassRegistration &pass : pluginPasses) {

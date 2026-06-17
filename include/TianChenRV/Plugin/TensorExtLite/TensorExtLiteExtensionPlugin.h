@@ -36,6 +36,7 @@ public:
   collectVariantProposals(const VariantProposalRequest &request,
                           VariantProposalCollectionResult &out) const override;
   llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
   llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const override;

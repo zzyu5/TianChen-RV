@@ -641,7 +641,9 @@ llvm::Error TensorExtLiteExtensionPlugin::collectVariantProposals(
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(),
       "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door",

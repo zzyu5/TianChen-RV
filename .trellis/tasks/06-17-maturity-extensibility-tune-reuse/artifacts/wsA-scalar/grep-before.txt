@@ -1,0 +1,112 @@
+# WS-A scalar-string evidence in lib/Plugin/RVV (BEFORE relocation)
+# date: 2026-06-17T15:49:34Z
+
+## front-door file only (the target):
+scalar-string count in RVVVectorSourceFrontDoor.cpp: 92
+
+40:    kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue(
+41:        "bounded_vector_runtime_scalar_cmp_select_source");
+43:constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
+44:    "scalar_fallback");
+79:failVectorRuntimeScalarCompareSelectMaterializer(mlir::Operation *op,
+82:      << "bounded RVV vector-runtime-scalar-cmp-select source front door "
+99:  RuntimeScalarCompareSelect
+148:      {RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect,
+149:       "bounded-vector-runtime-scalar-cmp-select-source-front-door",
+150:       kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue,
+151:       "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
+152:       "Materialize one bounded MLIR Vector-like i32 runtime-scalar "
+154:       "RVV vector-runtime-scalar-cmp-select source function candidate",
+155:       "rvv_vector_runtime_scalar_cmp_select_",
+156:       "rvv-vector-runtime-scalar-cmp-select-source-front-door",
+157:       "rvv-vector-runtime-scalar-cmp-select-source-front-door-case",
+160:       failVectorRuntimeScalarCompareSelectMaterializer},
+274:std::string getRVVVectorSourceScalarFallbackVariantSymbol(
+278:          "_scalar_fallback")
+392:struct VectorRuntimeScalarCompareSelectSourceMatch {
+395:  mlir::Value rhsScalar;
+731:mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch>
+732:matchBoundedVectorRuntimeScalarCompareSelectSourceFunc(
+735:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+742:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+745:        "lhs memref<?xi32>, rhs_scalar i32, true_value/false_value/out "
+754:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+756:        "source function inputs must be lhs rank-1 i32 memref, rhs_scalar "
+804:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+808:        "runtime-scalar compare/select source pattern");
+812:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+815:        "supported by this bounded runtime-scalar source path");
+820:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+823:        "one vector.splat of rhs_scalar, one supported arith.cmpi vector "
+835:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+838:        "vector.splat result of rhs_scalar");
+847:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+850:        "argument, vector.splat from rhs_scalar, transfer_write to the fifth "
+856:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+867:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+869:        "arith.select layout must select true_value when the runtime-scalar "
+876:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+891:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+899:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+906:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+914:    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+920:  return VectorRuntimeScalarCompareSelectSourceMatch{
+1037:mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch>
+1038:matchVectorRuntimeScalarCompareSelectSourceFrontDoor(
+1047:    return VectorRuntimeScalarCompareSelectSourceMatch{};
+1062:  mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> match =
+1063:      matchBoundedVectorRuntimeScalarCompareSelectSourceFunc(funcs.front());
+1196:                           mlir::Value scalar, mlir::Value vl,
+1199:  state.addOperands({scalar, vl});
+1236:void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
+1241:  state.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
+1275:  fallbackState.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
+1290:      getRVVVectorSourceScalarFallbackVariantSymbol(family, source.binaryKind);
+1303:  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+1304:                   "scalar.fallback", "fallback");
+1306:  mlir::ArrayAttr scalarRequires =
+1307:      createRequires(builder, kScalarFallbackCapabilitySymbol);
+1353:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+1354:                              scalarRequires);
+1368:      getRVVVectorSourceScalarFallbackVariantSymbol(family,
+1382:  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+1383:                   "scalar.fallback", "fallback");
+1385:  mlir::ArrayAttr scalarRequires =
+1386:      createRequires(builder, kScalarFallbackCapabilitySymbol);
+1438:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+1439:                              scalarRequires);
+1444:void materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
+1447:    VectorRuntimeScalarCompareSelectSourceMatch source) {
+1453:      getRVVVectorSourceScalarFallbackVariantSymbol(family,
+1467:  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+1468:                   "scalar.fallback", "fallback");
+1470:  mlir::ArrayAttr scalarRequires =
+1471:      createRequires(builder, kScalarFallbackCapabilitySymbol);
+1481:  std::string rhsScalarPurpose =
+1482:      getRVVVectorSourceRuntimePurpose(family, "rhs_scalar");
+1492:  auto rhsScalar =
+1493:      createRuntimeABIValue(builder, loc, "rhs-scalar-value", "rhs_scalar",
+1494:                            "int32_t", rhsScalarPurpose, builder.getI32Type());
+1524:      builder, loc, rhsScalar.getResult(), setvl.getVl(), vectorType);
+1538:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+1539:                              scalarRequires);
+1585:  case RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect: {
+1586:    mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> source =
+1587:        matchVectorRuntimeScalarCompareSelectSourceFrontDoor(module, family,
+1595:    materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
+1664:createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass() {
+1666:      RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
+
+## whole lib/Plugin/RVV identity-string count (scalar-plugin / scalar.fallback / createScalarFallbackVariant):
+count: 10
+
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1236:void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1241:  state.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1275:  fallbackState.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1304:                   "scalar.fallback", "fallback");
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1353:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1383:                   "scalar.fallback", "fallback");
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1438:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1468:                   "scalar.fallback", "fallback");
+lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp:1538:  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp:68:constexpr llvm::StringLiteral kScalarPluginOriginValue("scalar-plugin");

@@ -48,7 +48,10 @@ public:
   bool isEnabled() const override { return enabled; }
 
   llvm::Error registerSourceFrontDoorPasses(
-      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override {
+      const ExtensionPluginRegistry &registry,
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out)
+      const override {
+    (void)registry;
     for (const std::string &argument : sourceFrontDoorPassArguments) {
       out.push_back(SourceFrontDoorPassRegistration(
           getName(), argument, "mock source front-door pass",

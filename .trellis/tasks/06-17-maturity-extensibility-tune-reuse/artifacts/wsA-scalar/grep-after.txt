@@ -1,0 +1,32 @@
+# WS-A scalar-string evidence in lib/Plugin/RVV (AFTER relocation)
+# date: 2026-06-17T15:59:47Z
+
+## DISCRIMINATOR 1: scalar plugin IDENTITY strings the front door used to hardcode
+##   (origin 'scalar-plugin', capability 'scalar.fallback', the hand-author helper)
+##   in the front-door file:
+front-door identity-string count (scalar-plugin|scalar\.fallback|createScalarFallbackVariant): 0
+  matches:
+  (none)
+
+## DISCRIMINATOR 2: does the front door reference the scalar plugin BY NAME/TYPE?
+##   (the renamed-coupling false-green trap: scalar:: getter, scalar header, ScalarExtensionPlugin)
+front-door 'scalar::' / Scalar-header / ScalarExtensionPlugin references: 0
+  (none — front door never names the scalar plugin)
+
+## SURVIVING 'scalar' tokens in front-door file (should be only structural _scalar_fallback symbol + the unrelated runtime-scalar feature):
+     62 fallback
+     38 RuntimeScalar
+     22 Fallback
+     13 Conservative
+     12 conservative
+     10 runtime-scalar
+      7 rhs_scalar
+      4 ScalarFallback
+      2 scalar_fallback
+      2 runtime_scalar
+      1 rhs-scalar
+
+## whole lib/Plugin/RVV identity-string count (front-door path target):
+count (scalar-plugin|scalar\.fallback|createScalarFallbackVariant) across lib/Plugin/RVV: 1
+  matches:
+lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp:68:constexpr llvm::StringLiteral kScalarPluginOriginValue("scalar-plugin");

@@ -72,8 +72,15 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
 // MATERIALIZED-SAME: kind = "add"
 // MATERIALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // MATERIALIZED: tcrv_rvv.store
+// The conservative fallback variant is authored by dispatching to the
+// fallback-owning plugin (scalar plugin) via the shared materialization path,
+// so it carries that plugin's origin/role/requires/policy verbatim -- the RVV
+// front door no longer hand-mints scalar's identity.
 // MATERIALIZED: tcrv.exec.variant @rvv_vector_add_scalar_fallback
 // MATERIALIZED-SAME: fallback_role = "conservative"
+// MATERIALIZED-SAME: origin = "scalar-plugin"
+// MATERIALIZED-SAME: policy = "portable_scalar_fallback_first_slice"
+// MATERIALIZED-SAME: requires = [@scalar_fallback]
 // MATERIALIZED: tcrv.exec.case @rvv_vector_add
 // MATERIALIZED-SAME: origin = "rvv-plugin"
 // MATERIALIZED-SAME: policy = "rvv-vector-binary-source-front-door-case"

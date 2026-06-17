@@ -13,21 +13,26 @@ class Pass;
 
 namespace tianchenrv::plugin {
 class SourceFrontDoorPassRegistration;
+class ExtensionPluginRegistry;
 } // namespace tianchenrv::plugin
 
 namespace tianchenrv::plugin::rvv {
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVVectorBinarySourceFrontDoorPass();
+createMaterializeRVVVectorBinarySourceFrontDoorPass(
+    const ::tianchenrv::plugin::ExtensionPluginRegistry &registry);
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
+createMaterializeRVVVectorCompareSelectSourceFrontDoorPass(
+    const ::tianchenrv::plugin::ExtensionPluginRegistry &registry);
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass();
+createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass(
+    const ::tianchenrv::plugin::ExtensionPluginRegistry &registry);
 
 llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
     llvm::StringRef ownerPlugin,
+    const ::tianchenrv::plugin::ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<
         ::tianchenrv::plugin::SourceFrontDoorPassRegistration> &out);
 

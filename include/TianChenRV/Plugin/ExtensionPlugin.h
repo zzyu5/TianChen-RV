@@ -32,6 +32,7 @@ class TargetTranslateRouteRegistry;
 namespace tianchenrv::plugin {
 
 class ExtensionBundle;
+class ExtensionPluginRegistry;
 
 inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
     "fallback_role");
@@ -660,6 +661,7 @@ public:
   virtual bool isEnabled() const { return true; }
   virtual llvm::Error verifyExecutableConstructionConformance() const;
   virtual llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
   virtual bool supportsOperation(const VariantProposalRequest &request) const;
   virtual llvm::Error

@@ -469,7 +469,9 @@ llvm::Error ToyExtensionPlugin::collectVariantProposals(
 }
 
 llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(), "tcrv-toy-materialize-template-source-front-door",
       "Materialize one bounded Toy construction-template source marker into "

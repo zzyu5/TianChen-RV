@@ -1,0 +1,23 @@
+# WS-A relocation — summary evidence
+# date: 2026-06-17T16:06:41Z
+
+## BEFORE -> AFTER: scalar-plugin IDENTITY strings in the front-door file
+##   (origin 'scalar-plugin' + capability 'scalar.fallback' + hand-author helper createScalarFallbackVariant)
+   BEFORE: 5   (lines 1241,1275 origin; 1304/1383/1468 capability mint; createScalarFallbackVariant def+3 calls)
+   AFTER:  0
+
+## front door references scalar plugin BY NAME/TYPE (false-green trap):
+   scalar:: / ScalarExtensionPlugin / Plugin/Scalar header: 0
+
+## proof variant now flows through proposeVariants/collectVariantProposals:
+1257:  registry.collectCapabilitiesByKind(kConservativeFallbackCapabilityKind,
+1299:  if (llvm::Error error = registry.collectVariantProposals(request, proposals)) {
+1334:  if (llvm::Error error = transforms::materializeVariantProposals(
+
+## core/common family-name conditional grep (part c): 0 conditionals; only 3 baselined comments (see grep-core-family-name-after.txt)
+
+## HONEST RESIDUALS:
+   - scalar executable lowering still fail-closed 'unsupported' by design (ScalarExtensionPlugin.cpp:208-279) — KEPT per spec.
+   - lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp:68 kScalarPluginOriginValue('scalar-plugin')
+     is a route-planning VALIDATOR (asserts an already-materialized dispatch-fallback boundary's origin), a
+     DIFFERENT layer from the front-door AUTHORSHIP path WS-A targets. Out of scope for this WS; reported, not chased.
