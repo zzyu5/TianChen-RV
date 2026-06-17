@@ -66,10 +66,9 @@ with the most headroom where the gap to the compute ceiling is largest:
   must be measured. Not yet done — this roofline only establishes that the headroom EXISTS
   and which lever addresses it.
 
-## The measured win ALREADY EXISTS — this roofline is its mechanism
-The latency lever the roofline points at (`multi_block_factor` = overlap independent
-per-block integer cores; `integer_core_lmul`) is **already a tune knob**, and was
-already **measured-win'd on ssh rvv** in the archived inc10 campaign
+## The measured win ALREADY EXISTS — and IS the N3 claim (roofline is context, not proof)
+The shape knob `multi_block_factor` (× `integer_core_lmul`) is **already a tune knob**, and
+was already **measured-win'd on ssh rvv** in the archived inc10 campaign
 (`.trellis/tasks/archive/2026-06/06-15-.../artifacts/inc10-measurement-tuner/RESULTS.md`):
 - **q4_1 full-V**: static cost-model picks `m1/factor=4/elided` → measures **0.842×
   (a real LOSS vs ggml)**; measurement picks `m1/factor=1/elided` → **1.012× (a WIN)**.
@@ -79,12 +78,19 @@ already **measured-win'd on ssh rvv** in the archived inc10 campaign
   better" premise (its argmin is always factor=4).
 
 So WS-B was a **measurement through the existing knob**, not a new emit branch — exactly
-the PRD constraint ("加速必须落成 knob, 不是新 emit 分支"). **This roofline supplies the
-mechanism the inc10 measurement lacked**: the kernels are latency-bound (4–13% of the
-compute ceiling), so beyond a small factor more unroll stops hiding reduction/scale
-latency and just adds register-pressure/scheduling overhead — which is why LESS unroll
-wins and why only the board (not the static model) can pick the optimum. Roofline +
-inc10 = a complete, honest N3 evidence chain.
+the PRD constraint ("加速必须落成 knob, 不是新 emit 分支").
+
+**The measurement is the claim; the roofline is suggestive context, NOT the mechanism.**
+Be honest about the tension: roofline says "latency-bound → hide more latency (more
+overlap)", yet the measurement crowns factor=**1** (the LEAST overlap). So `multi_block_factor`
+is not cleanly "the latency-hiding lever the roofline called for" — the post-hoc reading
+(beyond a small factor, extra unroll adds register-pressure/scheduling cost faster than it
+hides reduction latency, so the optimum is small and microarchitectural) is plausible but
+unproven. What carries N3 stands entirely on its own: **measurement overturns the static
+argmin (q4_1 `m1/4` loss → `m1/1` win)**. The roofline's contribution is narrower and solid:
+it proves the kernels sit far from BOTH ceilings (so neither a compute nor a bandwidth model
+would explain the ranking) — i.e. it explains *why a static cost model is doomed to mis-rank
+here*, not *which factor wins*. That much is a complete, honest N3 story.
 
 **Second-consumer validation (WS-C Tier-1):** the measured record flows through the NEW
 interface-driven unified pass `tcrv-rvv-materialize-schedule` and stamps the q4_1 measured
