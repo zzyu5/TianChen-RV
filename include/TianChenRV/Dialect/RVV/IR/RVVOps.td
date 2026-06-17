@@ -5783,6 +5783,107 @@ def GgmlBlockDotQ3KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotTQ20Q8KOp
+    : TCRVRVV_Op<"tq2_0_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml TQ2_0 x Q8_K super-block FULL block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_tq2_0_q8_K` super-block dot-product
+    as ONE bounded generic plugin-local typed RVV dataflow step -- the TERNARY
+    ({-1,0,+1}) TriLM coverage rung, one of the LAST TWO uncommon ggml dot
+    kernels (the other is tq1_0, the base-3-packed sibling). tq2_0 is the 2-bit
+    TriLM ternary K-quant: each weight is a 2-bit field whose value decodes to a
+    ternary lane `((qs >> (l*2)) & 3) - 1` in {-1,0,1,2} (the encoder only emits
+    {0,1,2} so the realized ternary is {-1,0,1}; the structural decode is exact
+    over the full 2-bit range). The activation is q8_K (the SAME super-block
+    activation as q2_K/q3_K/q4_K/q5_K/q6_K).
+
+    tq2_0 REUSES q2_K's 2-bit weight unpack VERBATIM (the same `(qs >> shift) &
+    3` over the 4 shifts {0,2,4,6} into an element-ordered int8_t aux8[256]) but
+    is genuinely SIMPLER than every K-quant sibling -- there is NO scales[16]
+    nibble extraction, NO per-sub-block scale, NO min term, NO dmin, NO bsums.
+    THREE structural facts distinguish tq2_0, all load-bearing:
+
+    (1) SUPER-BLOCK FORMAT, d AT THE END. block_tq2_0 is `{ uint8_t qs[QK_K/4];
+        ggml_half d }` (QK_K = 256, sizeof 66): the 64 packed 2-bit-weight qs
+        bytes LEAD the block at byte +0, and the fp16 super-block scale d follows
+        at byte +64 (so `weight_qs_byte_offset = 0`, `weight_d_byte_offset = 64`,
+        `weight_block_stride = 66`). This is the genuinely-new layout vs every
+        sibling -- every other block has d near the front; here the weight is the
+        prefix and the single scale is the suffix.
+
+    (2) TERNARY `-1` BIAS, folded into the unpack. `_generic` (quants.c:501)
+        computes `(((qs >> (l*2)) & 3) - 1)` PER ELEMENT, so the emitter folds
+        the `- 1` into the unpack: after q2_K's `&3` + u8->i8 reinterpret, ONE
+        `vadd.vx -1` on the i8 vector before the `vse8`, so aux8 holds the
+        signed ternary lanes {-1,0,1,2} directly. The dot is then q2_K's
+        VERBATIM signed widening reduce (vle8 i8 x q8 i8 -> vwmul i16 ->
+        vwredsum i32) with NO per-sub-block scale multiply -- a single
+        per-super-block integer accumulator `sumi`. (The per-element subtract,
+        NOT a `Σ(field*q8) - Σq8` refactor, mirrors `_generic` and keeps the
+        decode exact; omitting it is a non-vacuous wrong-ternary control.)
+
+    (3) ONE INTEGER ACCUMULATOR + a SINGLE-SCALE SCALAR fp32 FOLD. ggml
+        accumulates ONE `int32_t sumi` over the WHOLE super-block (the 256
+        ternary*q8 products, integer add is order-free), then folds
+        `sumf += (float)sumi * d` with `d = y.d * fp16(x.d)` -- ONE fp16 read of
+        the weight scale (xb+64), ONE fp32 read of the q8_K scale (yb+0), their
+        product, then the scaled accumulate. The `d` product is its OWN statement
+        and the fold is ONE emitc.expression so the association matches
+        `_generic`'s `d = y[i].d * GGML_CPU_FP16_TO_FP32(x[i].d); sumf += (float)
+        sumi * d` (quants.c:506-508) and the fp32 byte-exactness is by
+        construction (NOT a 3-factor `sumi*yd*xd` inline, which C would
+        left-associate and break the last-ulp match).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
+    ABI value operands -- the tq2_0 weight base pointer (vx), the q8_K activation
+    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
+    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+
+    The structural facts -- QK_K=256, the AoS block strides (66 bytes for
+    block_tq2_0, 292 bytes for block_q8_K), the tq2_0 weight byte offsets (qs @0,
+    d @64) and the q8_K payload byte offsets (the fp32 activation scale d @0, qs
+    @4) -- are carried as typed integer/string attributes (I4 mirror only). The
+    bounded surface kind is limited to "ggml_tq2_0_q8_k_block_dot" and
+    scale_model to "ternary-single-fp16-scale-i32-domain-scalar-fp32-fold". The
+    op identity is the dispatch key. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/tq2_0 names, and common EmitC/export code must not infer or
+    choose super-block dot-product semantics.
+
+    tq2_0 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip
+    loop (the zve32x/zve64x re-strip is a capability item, not built here). No
+    resource shape knobs yet; this op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotIQ4XSQ8KOp
     : TCRVRVV_Op<"iq4_xs_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

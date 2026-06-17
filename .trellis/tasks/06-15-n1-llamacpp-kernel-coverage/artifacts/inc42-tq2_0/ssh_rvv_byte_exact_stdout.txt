@@ -1,0 +1,30 @@
+Board: riscv64
+isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+Ubuntu clang version 18.1.3 (1ubuntu1)
+########## -ffp-contract=off (clang -O2 -march=rv64gcv) ##########
+== INC-42 tq2_0 byte-exact (oracle = _generic, the well-defined fp32 order; quants.c:482) ==
+checked 3550 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3550 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (no -1 -> raw 2-bit field) ternary diverges (ours=120499.414 real=120499.414 wrong=338285.562) -> the -1 ternary bias is load-bearing
+negative control 2 OK: WRONG (2x d) scale diverges (ours=-20026.9258 real=-20026.9258 wrong=-40053.8516) -> the d scale is load-bearing
+negative control 3 OK: flipped weight field diverges (the weight bytes are consumed; check non-vacuous)
+ALL tq2_0 BYTE-EXACT CHECKS PASSED
+
+########## -ffp-contract=on (clang -O2 -march=rv64gcv) ##########
+== INC-42 tq2_0 byte-exact (oracle = _generic, the well-defined fp32 order; quants.c:482) ==
+checked 3550 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3550 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (no -1 -> raw 2-bit field) ternary diverges (ours=120499.414 real=120499.414 wrong=338285.625) -> the -1 ternary bias is load-bearing
+negative control 2 OK: WRONG (2x d) scale diverges (ours=-20026.9316 real=-20026.9316 wrong=-40053.8633) -> the d scale is load-bearing
+negative control 3 OK: flipped weight field diverges (the weight bytes are consumed; check non-vacuous)
+ALL tq2_0 BYTE-EXACT CHECKS PASSED
+
+########## -ffp-contract=fast (clang -O2 -march=rv64gcv) ##########
+== INC-42 tq2_0 byte-exact (oracle = _generic, the well-defined fp32 order; quants.c:482) ==
+checked 3550 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3550 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (no -1 -> raw 2-bit field) ternary diverges (ours=120499.414 real=120499.414 wrong=338285.625) -> the -1 ternary bias is load-bearing
+negative control 2 OK: WRONG (2x d) scale diverges (ours=-20026.9316 real=-20026.9316 wrong=-40053.8633) -> the d scale is load-bearing
+negative control 3 OK: flipped weight field diverges (the weight bytes are consumed; check non-vacuous)
+ALL tq2_0 BYTE-EXACT CHECKS PASSED
+
