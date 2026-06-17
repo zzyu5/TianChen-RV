@@ -1,0 +1,27 @@
+################ -ffp-contract=off ################
+== INC-41 q1_0 byte-exact (oracle = _generic = the real board kernel, no arch/riscv q1_0 exists) ==
+checked 3650 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3650 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (inverted set->-q8) polarity diverges (ours=24305.8066 real=24305.8066 inverted=-24305.8066) -> the bit polarity is load-bearing
+negative control 2 OK: WRONG (2x d0) scale diverges (ours=30895.0312 real=30895.0312 wrong=61790.0625) -> the d0 scale is load-bearing
+negative control 3 OK: flipped bit diverges (the bits are consumed; check non-vacuous)
+ALL q1_0 BYTE-EXACT CHECKS PASSED
+exit=0
+################ -ffp-contract=on ################
+== INC-41 q1_0 byte-exact (oracle = _generic = the real board kernel, no arch/riscv q1_0 exists) ==
+checked 3650 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3650 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (inverted set->-q8) polarity diverges (ours=24305.8066 real=24305.8066 inverted=-24305.8066) -> the bit polarity is load-bearing
+negative control 2 OK: WRONG (2x d0) scale diverges (ours=30895.0332 real=30895.0332 wrong=61790.0664) -> the d0 scale is load-bearing
+negative control 3 OK: flipped bit diverges (the bits are consumed; check non-vacuous)
+ALL q1_0 BYTE-EXACT CHECKS PASSED
+exit=0
+################ -ffp-contract=fast ################
+== INC-41 q1_0 byte-exact (oracle = _generic = the real board kernel, no arch/riscv q1_0 exists) ==
+checked 3650 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3650 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (inverted set->-q8) polarity diverges (ours=24305.8066 real=24305.8066 inverted=-24305.8066) -> the bit polarity is load-bearing
+negative control 2 OK: WRONG (2x d0) scale diverges (ours=30895.0332 real=30895.0332 wrong=61790.0664) -> the d0 scale is load-bearing
+negative control 3 OK: flipped bit diverges (the bits are consumed; check non-vacuous)
+ALL q1_0 BYTE-EXACT CHECKS PASSED
+exit=0

@@ -2336,6 +2336,156 @@ mlir::LogicalResult GgmlBlockDotNVFP4Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // binary-sign scale model, and the super-block-format structural facts (the
+  // q1_0 stride, the q8_0 stride, the per-super-block q8-block span, and the two
+  // quant byte offsets), plus the bounded shape knob. Anything else -- a
+  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
+  // is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "activation_blocks_per_weight" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul" ||
+           name.starts_with("tcrv_rvv.q1_0_schedule.");
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q1_0_q8_0_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded block dot-product attributes 'kind', "
+                "'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'activation_blocks_per_weight', "
+                "'weight_quant_byte_offset', 'activation_quant_byte_offset', "
+                "and 'integer_core_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q1_0_q8_0_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q1_0_q8_0_block_dot\" for "
+              "the bounded ggml Q1_0 x Q8_0 block dot-product typed surface";
+  // The binary-sign scale model is the load-bearing distinction of q1_0: each
+  // weight bit is a SIGN (set -> +q8, clear -> -q8), and the magnitude is the q8
+  // value itself (NO codebook, NO nibble unpack, NO offset-binary `-8` bias). Pin
+  // it so a wrong decode convention (e.g. an inverted bit polarity, or a
+  // codebook/nibble misroute) is rejected fail-closed (I7).
+  if (getScaleModel() != "binary-sign-per-bit")
+    return emitOpError()
+           << "requires scale_model \"binary-sign-per-bit\" for the ggml Q1_0 x "
+              "Q8_0 block dot-product route (a set bit -> +q8, a clear bit -> "
+              "-q8; the q8 value is the magnitude)";
+  // ggml's externally-defined super-block format (ggml-common.h): QK1_0 == 128,
+  // block_q1_0 = { ggml_half d; uint8_t qs[16] } stride 18 (the fp16 scale then 16
+  // packed bit bytes = 128 element signs), block_q8_0 stride 34, ONE q1_0
+  // super-block spanning FOUR q8_0 blocks, the weight bits at byte offset +2
+  // (after the inline fp16 scale), the q8 quants at +2. Pin them so a malformed
+  // typed body cannot lower under the block-dot emission.
+  if (getQk() != 128)
+    return emitOpError() << "requires qk == 128 (QK1_0) for the ggml Q1_0 x "
+                            "Q8_0 block dot-product route";
+  if (getWeightBlockStride() != 18)
+    return emitOpError()
+           << "requires weight_block_stride == 18 (sizeof block_q1_0: the fp16 "
+              "scale + 16 packed bit bytes) for the ggml Q1_0 x Q8_0 block "
+              "dot-product route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml Q1_0 x Q8_0 block dot-product route";
+  if (getActivationBlocksPerWeight() != 4)
+    return emitOpError()
+           << "requires activation_blocks_per_weight == 4 (one 128-element q1_0 "
+              "super-block spans four 32-element block_q8_0 activation blocks) "
+              "for the ggml Q1_0 x Q8_0 block dot-product route";
+  if (getWeightQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 2 (the packed bit bytes "
+              "follow the inline fp16 scale) for the ggml Q1_0 x Q8_0 block "
+              "dot-product route";
+  if (getActivationQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 2 (the q8 quants follow "
+              "the inline fp16 scale) for the ggml Q1_0 x Q8_0 block "
+              "dot-product route";
+
+  // The binary sign decode anchors at the m1 8-lane sign-plane groups: the
+  // bit-selector / vmsne / vmerge run over 8 q8 lanes at a time. Reject any other
+  // anchor fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" for the ggml Q1_0 x "
+                "Q8_0 block dot-product (the binary sign decode runs the "
+                "kmask/vmsne/vmerge sign plane over 8-lane groups at the m1 "
+                "anchor); got \""
+             << *coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q1_0 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q1_0 x Q8_0 block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q1_0 x Q8_0 block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ51Q81Op::verify() {
   mlir::Operation *op = getOperation();
 

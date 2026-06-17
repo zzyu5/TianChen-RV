@@ -4816,6 +4816,111 @@ def GgmlBlockDotNVFP4Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ10Q80Op
+    : TCRVRVV_Op<"q1_0_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml Q1_0 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_q1_0_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the BINARY ({-1,+1})
+    class, one of the last three uncommon ggml dot kernels. The q1_0 weight is a
+    1-bit-per-element sign: a set bit decodes to `+q8`, an unset bit to `-q8`. The
+    genuinely-new mechanism vs every prior sibling is the per-lane BINARY SIGN
+    DECODE -- a `vmerge(vneg(q8), q8, bit_mask)` that selects `+q8` where the
+    weight bit is set and `-q8` where it is clear -- reusing the iq2_xxs
+    kmask/vmsne sign-plane primitive (the SAME `{1,2,4,8,...}` bit-selector +
+    `vmsne != 0` -> mask), but with NO codebook, NO nibble unpack, NO offset-binary
+    `-8` bias: the q8 value IS the magnitude and the weight bit IS the sign.
+
+    THREE structural facts distinguish q1_0, all load-bearing:
+
+    (1) SUPER-BLOCK FORMAT. block_q1_0 is `{ ggml_half d; uint8_t qs[16] }`
+        (QK1_0 = 128, sizeof 18), the fp16 scale `d0` at byte +0, then 16 packed
+        BIT bytes (128 bits = 128 element signs) at byte +2. ONE q1_0 super-block
+        is 128 elements spanning FOUR block_q8_0 activation blocks (each 32
+        elements): sub-block k (k=0..3) reads q8 block `4*ib + k` (the `*4` span is
+        the genuinely-new addressing vs nvfp4's `*2`), and the 32 bits of sub-block
+        k live at weight bytes `+2 + k*4 .. +2 + k*4 + 3` (4 bytes = 32 bits). The
+        recognizer/emitter walk the four sub-blocks per super-block explicitly; the
+        OUTER loop is over super-blocks nb = n / 128.
+
+    (2) BINARY SIGN DECODE. Within sub-block k the 32 bits map to the 32 q8 lanes
+        in FOUR groups of 8: bit `bits[k*4 + b]` bit `m` (m=0..7) pairs with q8
+        lane `b*8 + m`, value `(bit & (1<<m)) ? +q8[b*8+m] : -q8[b*8+m]` -- ggml's
+        EXACT `quants.c` ordering. The emitter decodes each 8-lane group:
+        broadcast the scalar bits byte into 8 lanes (`vmv_v_x_u8`), `vand` the
+        `{1,2,4,8,16,32,64,128}` bit-selector (the iq2_xxs kmask, emitted ONCE as a
+        `static const uint8_t[8]` decl + `vle8` load above the block loop),
+        `vmsne != 0` -> the per-lane sign mask. The q8 group is WIDENED to i16
+        FIRST (`vwcvt_x_x_v_i16m2`), then `vmerge(vneg_i16(q8w), q8w, mask)` applies
+        the sign IN THE i16 DOMAIN -- ggml's `_generic` negates in the int domain,
+        so `-q8` of the boundary value -128 is +128, which does NOT fit i8 (an i8
+        `vneg` of -128 overflows back to -128); performing the negate/merge after
+        the widening keeps +128 representable, so the decode is byte-exact over the
+        FULL int8 range, not only ggml's [-127,127] q8 quantization domain. The
+        signed i16 group is reduced by `vwredsum` into the per-sub-block integer
+        `sumi_block`. The 8-lane groups keep the core VLEN-robust (8 <= e8m1 VLMAX
+        at any VLEN >= 64; rv64gcv guarantees >= 128).
+
+    (3) TWO-LEVEL fp32 FOLD. ggml accumulates `sumf += d0 * Σ_k(d1_k * sumi_block_k)`
+        with d0 = fp16(x.d) and d1_k = fp16(y[4*ib+k].d). The emitter carries a
+        per-super-block `float sumi = 0.0f`, folds each sub-block as
+        `sumi = sumi + d1_k * (float)sumi_block` (in strict ascending k order), then
+        the super-block term `sumf = sumf + d0 * sumi` -- ggml's EXACT order, so fp
+        non-associativity is byte-exact. There are FIVE fp16 reads per super-block
+        (d0 once, d1_k for k=0..3); they are the ONLY sanctioned opaque scalar
+        pieces (the same `(float)*(const _Float16 *)` node the q4_0 sibling emits).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the q1_0 weight base pointer (vx), the q8_0 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) --
+    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result
+    through the output pointer.
+
+    The structural facts -- qk (128), the super-block stride (18 bytes), the q8_0
+    block stride (34), the per-super-block q8-block span (4), the weight bit-payload
+    byte offset (+2), the q8 quant byte offset (+2), and the binary sign scale model
+    -- are carried as typed integer/string attributes (I4 mirror only). The op
+    identity is the dispatch key. Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand mirror strings, q8/q1_0
+    names, and common EmitC/export code must not infer or choose block-quantized
+    dot-product semantics.
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the siblings carry (the *how*, never the *what*; the dot-product is
+    byte-exact for any legal value because integer addition is order-independent and
+    the per-sub-block/super-block fp32 fold stays in strict ascending order). The
+    binary sign decode anchors at "m1" (the 8-lane sign-plane groups); the verifier
+    rejects any other anchor fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$activation_blocks_per_weight,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ51Q81Op
     : TCRVRVV_Op<"q5_1_q8_1_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
