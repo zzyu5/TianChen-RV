@@ -1,0 +1,3 @@
+real-codebook kernel HW=11600 (ref=11600)
+linear-codebook kernel HW=-26350 (ref=-26350)
+KNOB OK: the codebook attr flips the HW result; each matches its own table -> the codebook is the live load-bearing knob through compile->hardware

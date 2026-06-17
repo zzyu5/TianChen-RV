@@ -1,0 +1,24 @@
+################ -ffp-contract='off' ################
+== INC-40 nvfp4 byte-exact (oracle = _generic = the real board kernel, no arch/riscv nvfp4 exists) ==
+checked 3468 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3468 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-41576.6328 real=-41576.6328 linear=-7113.48828) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full, no *0.5f) UE4M3 scale diverges (ours=-4118.57422 half=-4118.57422 full=-8237.14844) -> the UE4M3 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL nvfp4 BYTE-EXACT CHECKS PASSED
+################ -ffp-contract='on' ################
+== INC-40 nvfp4 byte-exact (oracle = _generic = the real board kernel, no arch/riscv nvfp4 exists) ==
+checked 3468 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3468 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-41576.6328 real=-41576.6328 linear=-7113.48828) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full, no *0.5f) UE4M3 scale diverges (ours=-4118.57422 half=-4118.57422 full=-8237.14844) -> the UE4M3 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL nvfp4 BYTE-EXACT CHECKS PASSED
+################ -ffp-contract='fast' ################
+== INC-40 nvfp4 byte-exact (oracle = _generic = the real board kernel, no arch/riscv nvfp4 exists) ==
+checked 3468 cases, 0 failures (vs ggml's RVV transcription)
+_generic cross-check delta: 0/3468 (at =off this is 0; at =fast it is the references' OWN mutual FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=-41576.6328 real=-41576.6328 linear=-7113.48828) -> the FP4 codebook is load-bearing
+negative control 2 OK: WRONG (full, no *0.5f) UE4M3 scale diverges (ours=-4118.57422 half=-4118.57422 full=-8237.14844) -> the UE4M3 HALF scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the FP4 nibbles are consumed; check non-vacuous)
+ALL nvfp4 BYTE-EXACT CHECKS PASSED

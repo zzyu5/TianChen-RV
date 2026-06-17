@@ -817,12 +817,13 @@ public:
     rewriter.setInsertionPointToStart(module.getBody());
     llvm::SmallVector<llvm::StringRef, 4> headers = {"stddef.h", "stdint.h",
                                                      "riscv_vector.h"};
-    // The forward-pass bodies that call scalar libm need <math.h> so the
-    // emitted TU is self-contained: F3 rms_norm (1/sqrtf(mean+eps)) and F6 rope
-    // (cosf/sinf per dim-pair angle). ONLY these bodies add the header -- every
-    // other (quant-dot / elementwise) kernel keeps the original three-header
-    // list byte-identical (additivity).
-    if (isGgmlRmsNormF32Body(scope) || isGgmlRopeNormF32Body(scope))
+    // The bodies that call scalar libm need <math.h> so the emitted TU is
+    // self-contained: F3 rms_norm (1/sqrtf(mean+eps)), F6 rope (cosf/sinf per
+    // dim-pair angle), and nvfp4 (ldexpf in the UE4M3 scale decode). ONLY these
+    // bodies add the header -- every other (quant-dot / elementwise) kernel keeps
+    // the original three-header list byte-identical (additivity).
+    if (isGgmlRmsNormF32Body(scope) || isGgmlRopeNormF32Body(scope) ||
+        isNVFP4Q8_0BlockDotBody(scope))
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
@@ -1197,6 +1198,23 @@ public:
     // tcrv_rvv.mxfp4_q8_0_block_dot op identity.
     if (isMXFP4Q8_0BlockDotBody(scope)) {
       if (mlir::failed(emitMXFP4Q8_0BlockDot(rewriter, loc, scope, avlArg,
+                                             sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The ggml NVFP4 x Q8_0 block dot-product (tcrv_rvv.nvfp4_q8_0_block_dot) is
+    // the SECOND FP4-class sibling (NVIDIA's FP4). It REUSES mxfp4's FP4 codebook
+    // gather + the asymmetric signed-widening integer core verbatim; the NEW facts
+    // are the super-block format (block_nvfp4 = {uint8_t d[4]; uint8_t qs[32]},
+    // QK=64, four 16-element sub-blocks spanning TWO q8_0 blocks) and the
+    // per-sub-block UE4M3 -> fp32 scale (the structured exp/man split + ldexpf
+    // branches + *0.5f, NOT mxfp4's E8M0 bit dance). The structural marker is the
+    // tcrv_rvv.nvfp4_q8_0_block_dot op identity.
+    if (isNVFP4Q8_0BlockDotBody(scope)) {
+      if (mlir::failed(emitNVFP4Q8_0BlockDot(rewriter, loc, scope, avlArg,
                                              sizeType, valueMap)))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
@@ -2257,6 +2275,22 @@ private:
     bool sawBlockDot = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlBlockDotMXFP4Q80Op>(op)) {
+        if (sawBlockDot)
+          return false;
+        sawBlockDot = true;
+      } else {
+        return false;
+      }
+    }
+    return sawBlockDot;
+  }
+
+  /// The NVFP4 (NVIDIA FP4) CODEBOOK sibling recognizer: a with_vl scope whose
+  /// ONLY compute op is a single tcrv_rvv.nvfp4_q8_0_block_dot.
+  static bool isNVFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
+    bool sawBlockDot = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlBlockDotNVFP4Q80Op>(op)) {
         if (sawBlockDot)
           return false;
         sawBlockDot = true;
@@ -14275,6 +14309,579 @@ private:
         emitFold(core->sumiVar, core->scaleX, core->dY);
       }
     }
+
+    // *s = sumf;  (structured scalar store through the output pointer)
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(blockDot,
+                                         "block-dot output not a pointer");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_s"));
+    mlir::Value outIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp outSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
+    mlir::Value sumfFinal =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+    rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
+
+    valueMap[blockDot.getResult()] = sumfFinal;
+    return mlir::success();
+  }
+
+  /// Emit the COMPLETE ggml ggml_vec_dot_nvfp4_q8_0 block dot-product for one
+  /// tcrv_rvv.nvfp4_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
+  /// raw()). NVFP4 (NVIDIA FP4) is the SECOND FP4-class sibling: it REUSES mxfp4's
+  /// FP4 codebook gather + the asymmetric signed-widening integer core verbatim.
+  /// The THREE genuinely-new facts:
+  ///   (a) SUPER-BLOCK FORMAT: block_nvfp4 = { uint8_t d[4]; uint8_t qs[32] }
+  ///       (QK=64, stride 36): four UE4M3 sub-block scales at +0..3, then 32 FP4
+  ///       nibble bytes at +4 (8 per sub-block, sub-block s at +4 + s*8). One
+  ///       super-block is four 16-element sub-blocks spanning TWO block_q8_0 blocks.
+  ///   (b) PER-SUB-BLOCK UE4M3 -> fp32 scale (the new piece): UE4M3 is unsigned
+  ///       (4 exp bias-7 / 3 man). e==0||e==0x7F -> 0.0f; else exp=(e>>3)&0xF,
+  ///       man=e&7, raw = (exp==0) ? ldexpf(man,-9) : ldexpf(1+man/8, exp-7); * 0.5f
+  ///       (the HALF compensation for the doubled kvalues_mxfp4 codebook). Emitted
+  ///       as structured emitc (no E8M0 bit dance -- UE4M3 scales are all normal
+  ///       fp32, so ggml's exact ldexpf arithmetic is byte-faithful by construction).
+  ///   (c) ACTIVATION ADDRESSING: sub-block s reads q8 block (2*ib + s/2) at the
+  ///       half-offset (s%2)*16 within that q8_0's 32 quants; the strip is 8 lanes
+  ///       (qk_sub/2), the high nibble at +8.
+  ///
+  /// _generic shape (quants.c:278-312):
+  ///   static const int8_t kvalues_mxfp4[16] = { ... };
+  ///   vint8m1_t values = __riscv_vle8_v_i8m1(kvalues_mxfp4, 16);   // ONCE
+  ///   float sumf = 0;
+  ///   for (ib = 0; ib < nb; ++ib) {                                // super-blocks
+  ///     for (s = 0; s < 4; ++s) {                                  // sub-blocks
+  ///       const uint8_t *xb = vx + ib*36;
+  ///       float d  = ggml_ue4m3_to_fp32(xb[s]);                    // (b)
+  ///       const uint8_t *xqs = xb + 4 + s*8;                       // FP4 nibbles
+  ///       const uint8_t *yb = vy + (2*ib + s/2)*34;                // (c)
+  ///       float dy = (float)*(const _Float16 *)yb;
+  ///       const int8_t *yqs = (const int8_t *)(yb + 2 + (s%2)*16);
+  ///       // strip 8 lanes: gather xqs (lo<->yqs[0..7], hi<->yqs[8..15]) -> sumi
+  ///       sumf = sumf + dy * d * (float)sumi;                      // ggml order
+  ///     }
+  ///   }
+  ///   *s = sumf;
+  mlir::LogicalResult emitNVFP4Q8_0BlockDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlBlockDotNVFP4Q80Op blockDot;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotNVFP4Q80Op>(op))
+        blockDot = bd;
+    }
+    if (!blockDot)
+      return rewriter.notifyMatchFailure(scope,
+                                         "block-dot body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
+    mlir::Value output = valueMap.lookup(blockDot.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(blockDot,
+                                         "block-dot ABI operand unmapped");
+
+    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type boolType = rewriter.getI1Type();
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type weightPtrType = weightBase.getType();
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16); the verifier fixes
+    // it to m1. The i8 source LMUL ("m1") drives the i16 product LMUL ("m2").
+    llvm::StringRef coreLmul = "m1";
+    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
+      coreLmul = *attrLmul;
+    llvm::StringRef wideLmul = "m2";
+    std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
+    std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
+    std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
+    mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, i8CoreTypeName);
+    mlir::Type u8CoreType = emitc::OpaqueType::get(ctx, u8CoreTypeName);
+    mlir::Type i16WideType = emitc::OpaqueType::get(ctx, i16WideTypeName);
+    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+
+    // The super-block-format structural facts come straight off the typed attrs
+    // (I4). NOTE the nvfp4-specific layout: four UE4M3 scales at +0..3, then the FP4
+    // nibbles at the WEIGHT quant offset (+4); the q8 quants at the ACTIVATION quant
+    // offset (+2, after the inline fp16 scale), the per-sub-block q8 high half at +8.
+    int64_t qk = blockDot.getQk();           // 64 (QK_NVFP4)
+    int64_t qkSub = blockDot.getQkSub();     // 16 (QK_NVFP4_SUB)
+    int64_t weightStride = blockDot.getWeightBlockStride();       // 36
+    int64_t activationStride = blockDot.getActivationBlockStride(); // 34
+    int64_t weightQuantOffset = blockDot.getWeightQuantByteOffset(); // 4
+    int64_t activationQuantOffset = blockDot.getActivationQuantByteOffset(); // 2
+    int64_t highOffset = blockDot.getActivationHighByteOffset();  // 8
+    int64_t numSubBlocks = qk / qkSub;       // 4
+    int64_t subHalf = qkSub / 2;             // 8 lanes per strip
+    int64_t weightSubStride = qkSub / 2;     // 8 nibble bytes per sub-block
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // The 16-entry FP4 (e2m1) codebook is a STRUCTURAL fact off the typed attr
+    // (I4 mirror) -- REUSED from mxfp4 (the SAME kvalues_mxfp4 table). Emit it as a
+    // `static const int8_t[16]` decl ONCE, then broadcast it into `values` via vle8
+    // ONCE above the block loop (the gather table).
+    llvm::ArrayRef<int8_t> codebook = blockDot.getCodebook();
+    {
+      std::string decl = "static const int8_t tcrv_nvfp4_kvalues[16] = {";
+      for (size_t i = 0; i < codebook.size(); ++i) {
+        if (i)
+          decl += ", ";
+        decl += std::to_string(static_cast<int>(codebook[i]));
+      }
+      decl += "};";
+      rewriter.create<emitc::VerbatimOp>(loc, decl);
+    }
+
+    // float sumf = 0.0f;  (function-scoped accumulator across the block loop)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, sumfVar,
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
+
+    // size_t nb = n / QK;  (QK = 64: super-blocks, NOT q8 blocks)
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_nvfp4_kvalues, 16);  (the FP4
+    // codebook table broadcast into a vreg ONCE; reused by every gather).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "codebook_table_load"));
+    mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+        loc, i8PtrType, "tcrv_nvfp4_kvalues");
+    std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
+    mlir::Value values =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{i8CoreType}, tableLoadCallee,
+                mlir::ValueRange{tableName, sizeLit(codebook.size())})
+            .getResult(0);
+
+    // The q8_0 fp16->fp32 scale read (the ONE sanctioned opaque scalar piece).
+    auto fp16Read = [&](mlir::Value blockBase) -> mlir::Value {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fcvt.s.h"));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                       fp16ReadCallee,
+                                       mlir::ValueRange{blockBase})
+          .getResult(0);
+    };
+
+    // The STRUCTURED UE4M3 -> fp32 HALF weight scale (the genuinely-new NVFP4-class
+    // piece): ggml_ue4m3_to_fp32(e) (ggml-impl.h). UE4M3 is UNSIGNED (4 exp bias-7,
+    // 3 man, NO sign bit). e==0 || e==0x7F -> 0.0f (two specials); else
+    // exp=(e>>3)&0xF, man=e&7, raw=(exp==0)?ldexpf(man,-9):ldexpf(1+man/8, exp-7),
+    // result = raw * 0.5f (the HALF compensation for the doubled codebook). Every
+    // UE4M3 scale lies in comfortably-normal fp32 (~[2^-10, 224]) -- no FTZ risk --
+    // so ggml's EXACT ldexpf arithmetic is replicated structurally and is byte-
+    // identical to _generic by construction (same ops, same libm, same board).
+    // Emitted as structured emitc nodes (load e, two cmp specials, exp/man split,
+    // the two ldexpf branches via call_opaque, the *0.5f, two conditional selects).
+    auto emitUE4M3Scale = [&](mlir::Value scaleBytePtr) -> mlir::Value {
+      // uint8_t e = *(const uint8_t *)(scaleBytePtr);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "ue4m3_scale_load"));
+      mlir::Value xbU8 =
+          rewriter.create<emitc::CastOp>(loc, u8PtrType, scaleBytePtr)
+              .getResult();
+      mlir::Value eIdx0 =
+          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+      mlir::Value eElem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc, mlir::cast<mlir::TypedValue<emitc::PointerType>>(xbU8),
+                  eIdx0)
+              .getResult();
+      mlir::Value e =
+          rewriter.create<emitc::LoadOp>(loc, constU8Type, eElem).getResult();
+      // uint32_t e32 = (uint32_t) e;  (the bit ops run in the uint32_t domain).
+      mlir::Value e32 =
+          rewriter.create<emitc::CastOp>(loc, u32Type, e).getResult();
+
+      // exp = (e >> 3) & 0xF;  man = e & 0x7;  -- the unsigned 4-exp / 3-man split.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "ue4m3_exp_man_split"));
+      mlir::Value three = rewriter.create<emitc::LiteralOp>(loc, u32Type, "3");
+      mlir::Value expMask = rewriter.create<emitc::LiteralOp>(loc, u32Type, "0xF");
+      mlir::Value expShifted =
+          rewriter.create<emitc::BitwiseRightShiftOp>(loc, u32Type, e32, three)
+              .getResult();
+      mlir::Value expU =
+          rewriter.create<emitc::BitwiseAndOp>(loc, u32Type, expShifted, expMask)
+              .getResult();
+      mlir::Value manMask = rewriter.create<emitc::LiteralOp>(loc, u32Type, "0x7");
+      mlir::Value manU =
+          rewriter.create<emitc::BitwiseAndOp>(loc, u32Type, e32, manMask)
+              .getResult();
+      // int exp = (int) expU;  int man = (int) manU;  -- ldexpf/man arithmetic in int.
+      mlir::Value expInt =
+          rewriter.create<emitc::CastOp>(loc, intType, expU).getResult();
+      mlir::Value manInt =
+          rewriter.create<emitc::CastOp>(loc, intType, manU).getResult();
+      mlir::Value manFloat =
+          rewriter.create<emitc::CastOp>(loc, floatType, manInt).getResult();
+
+      // The two ldexpf branches (ggml's exact arithmetic):
+      //   denormal (exp==0): ldexpf((float)man, -9)
+      //   normal:            ldexpf(1.0f + (float)man / 8.0f, exp - 7)
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "ue4m3_ldexpf_branches"));
+      // denormBranch = ldexpf(manFloat, -9)
+      mlir::Value m9 =
+          rewriter.create<emitc::LiteralOp>(loc, intType, "-9");
+      mlir::Value denormRaw =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           "ldexpf",
+                                           mlir::ValueRange{manFloat, m9})
+              .getResult(0);
+      // normMantissa = 1.0f + manFloat / 8.0f
+      mlir::Value oneF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+      mlir::Value eightF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "8.0f");
+      mlir::Value manDiv8 =
+          rewriter.create<emitc::DivOp>(loc, floatType, manFloat, eightF);
+      mlir::Value normMantissa =
+          rewriter.create<emitc::AddOp>(loc, floatType, oneF, manDiv8);
+      // normExp = exp - 7
+      mlir::Value sevenI =
+          rewriter.create<emitc::LiteralOp>(loc, intType, "7");
+      mlir::Value normExp =
+          rewriter.create<emitc::SubOp>(loc, intType, expInt, sevenI);
+      mlir::Value normRaw =
+          rewriter
+              .create<emitc::CallOpaqueOp>(
+                  loc, mlir::TypeRange{floatType}, "ldexpf",
+                  mlir::ValueRange{normMantissa, normExp})
+              .getResult(0);
+      // raw = (exp == 0) ? denormRaw : normRaw;
+      mlir::Value zeroU =
+          rewriter.create<emitc::LiteralOp>(loc, u32Type, "0");
+      mlir::Value isDenorm =
+          rewriter
+              .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, expU,
+                                    zeroU)
+              .getResult();
+      mlir::Value raw =
+          rewriter
+              .create<emitc::ConditionalOp>(loc, floatType, isDenorm, denormRaw,
+                                            normRaw)
+              .getResult();
+      // scaled = raw * 0.5f  (the HALF compensation for the doubled codebook).
+      mlir::Value halfF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
+      mlir::Value scaled =
+          rewriter.create<emitc::MulOp>(loc, floatType, raw, halfF);
+
+      // The two specials: e == 0 || e == 0x7F -> 0.0f. Evaluated AFTER the
+      // arithmetic and selected via two structured conditionals (both branch values
+      // exist; the select discards the arithmetic when special). This matches
+      // ggml's early `if (x == 0 || x == 0x7F) return 0.0f;` byte-exactly: when e is
+      // 0 the exp==0 denorm branch yields ldexpf(0,-9)=0 anyway, but e==0x7F would
+      // otherwise hit the NORMAL branch (exp=15,man=7 -> 240), so the special MUST be
+      // applied explicitly.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "ue4m3_specials"));
+      mlir::Value zeroF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+      mlir::Value zeroByte =
+          rewriter.create<emitc::LiteralOp>(loc, u32Type, "0");
+      mlir::Value specZero =
+          rewriter.create<emitc::LiteralOp>(loc, u32Type, "0x7F");
+      mlir::Value isZero =
+          rewriter
+              .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, e32,
+                                    zeroByte)
+              .getResult();
+      mlir::Value isSpec7F =
+          rewriter
+              .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, e32,
+                                    specZero)
+              .getResult();
+      mlir::Value isSpecial =
+          rewriter
+              .create<emitc::LogicalOrOp>(loc, boolType, isZero, isSpec7F)
+              .getResult();
+      return rewriter
+          .create<emitc::ConditionalOp>(loc, floatType, isSpecial, zeroF, scaled)
+          .getResult();
+    };
+
+    // The CODEBOOK decode + asymmetric product + reduce for ONE sub-block strip
+    // (REUSED from the mxfp4 sibling, with the nvfp4 8-lane sub-block geometry): the
+    // weight nibble byte loads UNSIGNED from xqs, the two q8 halves load SIGNED from
+    // yqs and yqs + highOffset. Returns the scalar i32 sumi for this sub-block.
+    auto emitSubBlockReduce = [&](mlir::Value xqs, mlir::Value yqs,
+                                  mlir::Value vl) -> mlir::FailureOr<mlir::Value> {
+      std::string wLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, wLoadCallee));
+      mlir::Value w =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
+                                           wLoadCallee,
+                                           mlir::ValueRange{xqs, vl})
+              .getResult(0);
+      std::string yLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
+      auto loadY = [&](mlir::Value ptr) -> mlir::Value {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, yLoadCallee));
+        return rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
+                                         yLoadCallee, mlir::ValueRange{ptr, vl})
+            .getResult(0);
+      };
+      mlir::Value yHigh = rewriter.create<emitc::AddOp>(
+          loc, i8PtrType, yqs, sizeLit(highOffset));
+      mlir::Value y0 = loadY(yqs);
+      mlir::Value y1 = loadY(yHigh);
+
+      // The codebook nibble decode: split into the two UNSIGNED index lanes, then
+      // gather each through the broadcast table -> signed-i8 weight lanes v0/v1.
+      auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                         llvm::StringRef amount) -> mlir::Value {
+        std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, callee));
+        mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+            loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
+        return rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType}, callee,
+                                         mlir::ValueRange{src, amt, vl})
+            .getResult(0);
+      };
+      mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
+      mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
+      std::string gatherCallee = ("__riscv_vrgather_vv_i8" + coreLmul).str();
+      auto gather = [&](mlir::Value idx) -> mlir::Value {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, gatherCallee));
+        return rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
+                                         gatherCallee,
+                                         mlir::ValueRange{values, idx, vl})
+            .getResult(0);
+      };
+      mlir::Value v0 = gather(idxLow);
+      mlir::Value v1 = gather(idxHigh);
+
+      // The SAME asymmetric signed widening product the codebook siblings use.
+      mlir::FailureOr<mlir::Value> product =
+          emitOffsetBinaryProductFromDecodedValue(rewriter, loc, v0, v1, y0, y1,
+                                                  vl, i16WideType, 16, wideLmul,
+                                                  "i16", opName, role);
+      if (mlir::failed(product))
+        return mlir::failure();
+
+      // Reduce into the per-sub-block scalar: seed lane0 = 0, vwredsum, extract.
+      std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, seedCallee));
+      mlir::Value sumiSeed =
+          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+      mlir::Value one = sizeLit(1);
+      mlir::Value seed =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
+                                           seedCallee,
+                                           mlir::ValueRange{sumiSeed, one})
+              .getResult(0);
+      std::string reduceCallee =
+          ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, reduceCallee));
+      mlir::Value red =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
+                                           reduceCallee,
+                                           mlir::ValueRange{*product, seed, vl})
+              .getResult(0);
+      std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, extractCallee));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
+                                       extractCallee, mlir::ValueRange{red})
+          .getResult(0);
+    };
+
+    // The per-sub-block fp32 accumulate `sumf = sumf + dy * d * (float)sumi`
+    // (ggml's nvfp4 order: dy * d, then * the integer sum; _generic is `dy * d *
+    // (sumi_lo + sumi_hi)`). Grouped into ONE emitc.expression so mlir-translate
+    // renders ONE C statement (the SAME FMA ggml fuses under -ffp-contract=on).
+    // Caller invokes in STRICT ascending (ib, s_idx) order, preserving fp non-
+    // associativity byte-exactly.
+    auto emitFold = [&](mlir::Value sumi, mlir::Value dY, mlir::Value scaleX) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fp32_accumulate"));
+      mlir::Value sumfCur =
+          rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+      auto accumExpr = rewriter.create<emitc::ExpressionOp>(
+          loc, floatType, /*do_not_inline=*/false);
+      {
+        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+        mlir::Block *exprBlock = rewriter.createBlock(&accumExpr.getRegion());
+        rewriter.setInsertionPointToStart(exprBlock);
+        mlir::Value sumiFloat =
+            rewriter.create<emitc::CastOp>(loc, floatType, sumi).getResult();
+        // dy * d FIRST (ggml nvfp4 scales-first order: `dy * d * (...)`).
+        mlir::Value scaleProduct =
+            rewriter.create<emitc::MulOp>(loc, floatType, dY, scaleX);
+        mlir::Value blockTerm =
+            rewriter.create<emitc::MulOp>(loc, floatType, scaleProduct,
+                                          sumiFloat);
+        mlir::Value sumfNext =
+            rewriter.create<emitc::AddOp>(loc, floatType, sumfCur, blockTerm);
+        rewriter.create<emitc::YieldOp>(loc, sumfNext);
+      }
+      rewriter.create<emitc::VerbatimOp>(
+          loc, assignComment("sumf", opName, role));
+      rewriter.create<emitc::AssignOp>(loc, sumfVar, accumExpr.getResult());
+    };
+
+    // Per-sub-block address arithmetic helper: base + (idxAdd)*stride + fixed.
+    auto offsetPtr = [&](mlir::Value base, mlir::Type ptrType,
+                         mlir::Value scaledIdx, int64_t stride,
+                         int64_t fixed) -> mlir::Value {
+      mlir::Value off =
+          rewriter.create<emitc::MulOp>(loc, sizeType, scaledIdx, sizeLit(stride));
+      mlir::Value p = rewriter.create<emitc::AddOp>(loc, ptrType, base, off);
+      if (fixed != 0)
+        p = rewriter.create<emitc::AddOp>(loc, ptrType, p, sizeLit(fixed));
+      return p;
+    };
+
+    // The set-vl for the 8-lane sub-block strip (anchored at m1: VLMAX caps at the
+    // table's 16 entries; here vl=8, so the gather's table register still holds all
+    // 16 entries at VLEN>=128). Computed ONCE per super-block iteration (constant 8).
+    std::string setvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
+
+    // The outer super-block loop: for (ib = 0; ib < nb; ++ib).
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    mlir::LogicalResult status = mlir::success();
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value ib = blockLoop.getInductionVar();
+
+      // const uint8_t *xb = vx + ib*36;  (super-block weight base)
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "super_block_base_x"));
+      mlir::Value ibStride =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(weightStride));
+      mlir::Value xb =
+          rewriter.create<emitc::AddOp>(loc, weightPtrType, weightBase, ibStride);
+
+      // size_t q8base = 2*ib;  (the FIRST of the two q8_0 blocks this super-block
+      // consumes; sub-block s reads q8 block q8base + s/2).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "q8_block_base_index"));
+      mlir::Value q8Base =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(2));
+
+      // The four sub-blocks, UNROLLED in STRICT ascending s order so the per-
+      // sub-block fp32 fold preserves ggml's exact accumulation order.
+      for (int64_t s = 0; s < numSubBlocks; ++s) {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "sub_block"));
+        // const uint8_t *scalePtr = xb + s;  (the s-th UE4M3 scale byte at +s).
+        mlir::Value scalePtr =
+            s == 0 ? xb
+                   : rewriter
+                         .create<emitc::AddOp>(loc, weightPtrType, xb,
+                                               sizeLit(s))
+                         .getResult();
+        mlir::Value scaleX = emitUE4M3Scale(scalePtr);
+
+        // const uint8_t *xqs = xb + 4 + s*8;  (the FP4 nibbles for sub-block s,
+        // after the four scale bytes; weightQuantOffset == 4, sub-stride 8).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "sub_block_weight_quants"));
+        mlir::Value xqsFull = rewriter.create<emitc::AddOp>(
+            loc, weightPtrType, xb,
+            sizeLit(weightQuantOffset + s * weightSubStride));
+        mlir::Value xqs =
+            rewriter.create<emitc::CastOp>(loc, u8PtrType, xqsFull).getResult();
+
+        // const uint8_t *yb = vy + (2*ib + s/2)*34;  (the q8_0 block for this
+        // sub-block; s/2 is the integer-division block selector within the pair).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "sub_block_q8_base"));
+        mlir::Value q8Idx =
+            (s / 2) == 0
+                ? q8Base
+                : rewriter
+                      .create<emitc::AddOp>(loc, sizeType, q8Base,
+                                            sizeLit(s / 2))
+                      .getResult();
+        mlir::Value yb = offsetPtr(activationBase, activationPtrType, q8Idx,
+                                   activationStride, 0);
+
+        // float dy = (float)*(const _Float16 *)yb;  (the q8_0 fp16 scale).
+        mlir::Value dY = fp16Read(yb);
+
+        // const int8_t *yqs = (const int8_t *)(yb + 2 + (s%2)*16);  (the q8 quant
+        // half this sub-block pairs with: low half of the q8 block for even s,
+        // high half for odd s).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "sub_block_q8_quants"));
+        int64_t q8FixedOffset = activationQuantOffset + (s % 2) * qkSub;
+        mlir::Value yqsFull = rewriter.create<emitc::AddOp>(
+            loc, activationPtrType, yb, sizeLit(q8FixedOffset));
+        mlir::Value yqs =
+            rewriter.create<emitc::CastOp>(loc, i8PtrType, yqsFull).getResult();
+
+        // The 8-lane strip setvl + the codebook integer core -> sumi.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, setvlCallee));
+        mlir::Value vl =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
+                                             setvlCallee,
+                                             mlir::ValueRange{sizeLit(subHalf)})
+                .getResult(0);
+        mlir::FailureOr<mlir::Value> sumi =
+            emitSubBlockReduce(xqs, yqs, vl);
+        if (mlir::failed(sumi)) {
+          status = mlir::failure();
+          break;
+        }
+        emitFold(*sumi, dY, scaleX);
+      }
+    }
+    if (mlir::failed(status))
+      return mlir::failure();
 
     // *s = sumf;  (structured scalar store through the output pointer)
     auto outPointer =

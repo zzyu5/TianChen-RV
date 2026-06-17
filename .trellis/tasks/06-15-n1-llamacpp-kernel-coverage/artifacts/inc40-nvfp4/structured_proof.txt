@@ -1,0 +1,66 @@
+INC-40 nvfp4 structured (I5; raw()=0) proof
+=============================================
+Kernel: nvfp4_kernel.cpp (tcrv-opt --tcrv-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp)
+
+raw() actual calls in the emitted kernel C : 0
+residual tcrv_rvv.* dialect OPS after lowering : 0
+residual unrealized_conversion_cast ops    : 0
+(all "tcrv_rvv" string occurrences in the lowered MLIR are inside emitc.verbatim
+ "// tcrv_emitc...source_op=tcrv_rvv..." provenance COMMENT strings -- I4 mirror --
+ NOT residual ops; the grep filtering out verbatim/comment lines returns nothing.)
+
+Lowered emitc IR verbatim accounting:
+  total emitc.verbatim                       : 106
+  tcrv_emitc.* provenance comments (mirror)  : 105
+  sanctioned structured-const codebook decl  :   1  (static const int8_t tcrv_nvfp4_kvalues[16] = {...})
+  UNSTRUCTURED C-blob verbatim               :   0
+
+The THREE genuinely-new NVFP4-class facts are ALL emitted as structured emitc nodes:
+
+(1) SUPER-BLOCK FORMAT. block_nvfp4 = { uint8_t d[4]; uint8_t qs[32] } (QK=64, stride
+    36): the outer loop is over nb = n/64 SUPER-blocks (emitc.div by 64, NOT 32); each
+    super-block is FOUR 16-element sub-blocks UNROLLED in strict ascending s order. The
+    four UE4M3 scales load from xb + s (s in 0..3); the FP4 nibbles for sub-block s load
+    from xb + 4 + s*8 (weight_quant_byte_offset 4 + the per-sub-block 8-byte stride). The
+    codebook table is the ONE task-sanctioned "structured const" (the static const
+    int8_t[16] decl rendering the verified DenseI8ArrayAttr entries -- the SAME
+    kvalues_mxfp4 = 2*E2M1 table REUSED from mxfp4 -- broadcast-loaded ONCE via
+    __riscv_vle8_v_i8m1), then each 4-bit nibble (vand 0x0F / vsrl 0x04) mapped through
+    it by vrgather_vv_i8m1 -- ggml's exact codebook method.
+
+(2) ACTIVATION ADDRESSING. The super-block spans TWO block_q8_0 blocks. q8base = 2*ib
+    (emitc.mul by 2); sub-block s reads q8 block q8base + s/2 (the s/2 selector is a
+    compile-time-unrolled constant, so it is +0 for s=0,1 and +1 for s=2,3). The q8
+    quants load from yb + 2 + (s%2)*16 (low half for even s, high half for odd s); the
+    per-sub-block q8 high nibble pairs at +8 (activation_high_byte_offset, = QK_SUB/2),
+    and the strip is 8 lanes (vsetvl_e8m1(8)). The q8 fp16->fp32 scale read changes at
+    s=2 (the second q8 block).
+
+(3) The UE4M3 -> fp32 weight scale (ggml_ue4m3_to_fp32), reconstructed as STRUCTURED
+    emitc nodes (NOT mxfp4's E8M0 bit dance -- UE4M3 scales are all comfortably-normal
+    fp32, so ggml's EXACT ldexpf arithmetic is byte-faithful by construction):
+      const uint8_t e = *(const uint8_t *)(xb + s);     // emitc.cast + subscript + load
+      uint32_t exp = (e >> 3) & 0xF;                    // emitc.bitwise_right_shift + and
+      uint32_t man = e & 0x7;                           // emitc.bitwise_and
+      float denorm = ldexpf((float)man, -9);            // emitc.call_opaque "ldexpf"
+      float norm   = ldexpf(1.0f + (float)man/8.0f, exp-7); // emitc.call_opaque "ldexpf"
+      float raw    = (exp == 0) ? denorm : norm;        // emitc.cmp + conditional
+      float scaled = raw * 0.5f;                         // emitc.mul (the HALF compensation)
+      float d      = (e == 0 || e == 0x7F) ? 0.0f : scaled; // emitc.cmp x2 + logical_or + conditional
+    The two specials (e==0, e==0x7F -> 0.0f) are applied explicitly: e==0x7F would
+    otherwise hit the NORMAL branch (exp=15,man=7 -> 240) -- the special MUST override.
+    Both ldexpf branches are always evaluated (the emitc.conditional renders as a
+    statement-level ternary); ldexpf is total/well-defined on every input (no UB), so
+    this is safe and byte-identical to ggml.
+
+Every compute value (the UE4M3 exp/man split + ldexpf decode, the vand/vsrl nibble
+split, the two vrgather_vv_i8m1 codebook lookups, vwmul/vwmacc, vwredsum, the
+scales-first fp32 fold `sumf + (dy * d) * (float)sumi`) is a structured emitc node
+(call_opaque / cmp / bitwise_right_shift / bitwise_and / sub / div / add / mul /
+conditional / logical_or / cast / subscript / load / for / variable). The TWO sanctioned
+opaque scalar pieces are both structured emitc.call_opaque to external functions (NOT
+raw() escapes, the SAME category as each other): the q8_0 fp16->fp32 read `(float)*(const
+_Float16 *)` (4 occurrences, one per sub-block) and `ldexpf` (12 occurrences = 2 branches
+x 4 sub-blocks). ggml's own ggml_ue4m3_to_fp32 calls ldexpf, so a real drop-in already
+links libm; the emitted kernel TU depends on <math.h>/<cmath> + -lm (the preamble is left
+byte-pure so all sibling kernels stay byte-identical).

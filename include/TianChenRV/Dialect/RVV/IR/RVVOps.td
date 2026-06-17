@@ -4695,6 +4695,127 @@ def GgmlBlockDotMXFP4Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotNVFP4Q80Op
+    : TCRVRVV_Op<"nvfp4_q8_0_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-quantized ggml NVFP4 x Q8_0 dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_nvfp4_q8_0` block dot-product as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the SECOND FP4-class
+    sibling. NVFP4 is NVIDIA's FP4: it REUSES mxfp4's FP4 (e2m1) `kvalues_mxfp4`
+    codebook gather + the asymmetric signed-widening integer core verbatim; the
+    genuinely-new fact is a DIFFERENT per-sub-block scale -- a UE4M3 (unsigned 4
+    exp / 3 mantissa) fp8 scale instead of mxfp4's E8M0 shared exponent -- carried
+    on a SUPER-BLOCK that groups four such sub-blocks. THREE facts distinguish
+    nvfp4 from mxfp4, all load-bearing:
+
+    (1) SUPER-BLOCK FORMAT. block_nvfp4 is `{ uint8_t d[4]; uint8_t qs[32] }`
+        (QK_NVFP4 = 64, sizeof 36), NOT mxfp4's flat `{ uint8_t e; uint8_t qs[16] }`
+        QK=32 block. ONE nvfp4 super-block is FOUR 16-element sub-blocks: byte +0..3
+        carry the four UE4M3 sub-block scales `d[s_idx]`; byte +4..35 carry the 32
+        packed FP4 nibble bytes (8 per sub-block, sub-block s_idx at +4 + s_idx*8).
+        The 64 elements span TWO block_q8_0 activation blocks (each 32 elements):
+        sub-block s_idx reads q8 block `2*ib + s_idx/2` at the half-offset
+        `(s_idx%2)*16` within that q8_0's 32 quants. So the q8 activation scale
+        `d_y` changes at s_idx==2, and the per-sub-block strip is 8 lanes
+        (QK_NVFP4_SUB/2), the high nibble pairing at +8 (not the 16-lane / +16 of
+        mxfp4). The recognizer/emitter walk the four sub-blocks per super-block
+        explicitly; the OUTER loop is over super-blocks nb = n / 64.
+
+    (2) WEIGHT SCALE. The per-sub-block weight scale is NOT mxfp4's E8M0 bit dance.
+        It is the structured UE4M3 -> fp32 reconstruction `ggml_ue4m3_to_fp32(e)`
+        (ggml-impl.h): UE4M3 is UNSIGNED (4 exp bits bias=7, 3 mantissa bits, NO
+        sign bit). `e==0 || e==0x7F -> 0.0f` (the two specials); else
+        `exp=(e>>3)&0xF, man=e&7`, and `raw = (exp==0) ? ldexpf(man, -9) :
+        ldexpf(1 + man/8, exp-7)`, then `* 0.5f` (the HALF compensation for the
+        DOUBLED `kvalues_mxfp4` codebook, exactly as mxfp4's E8M0 half form keeps
+        the dot an exact INTEGER dot). Unlike mxfp4's E8M0 (whose scales reach the
+        FTZ-risky 2^-128/2^-127 denormals, forcing the bit-construction dodge),
+        every UE4M3 scale lies in comfortably-normal fp32 (~[2^-10, 224]), so the
+        emission replicates ggml's EXACT arithmetic structurally (an emitc.cmp pair
+        for the two specials -> 0.0f; a structured exp/man split + the two ldexpf
+        branches + the *0.5f), byte-identical to `_generic` by construction (same
+        ops, same libm `ldexpf`, same board). The `scale_model` string IS pinned (a
+        wrong scale convention -- e.g. dropping the *0.5f, or the full E4M3 signed
+        decode -- is rejected fail-closed, I7).
+
+    (3) ACTIVATION ADDRESSING. The activation is the SAME block_q8_0 stream, but the
+        super-block consumes TWO q8_0 blocks. The op carries the q8_0 block stride
+        (34) and the per-sub-block q8 quant byte offset (+2) + high-half offset (+8)
+        as typed facts; the q8-block-index `2*ib + s_idx/2` and the sub-block
+        half-offset `(s_idx%2)*16` are STRUCTURAL (derived in the emitter from the
+        sub-block index), not extra attrs.
+
+    The integer core then feeds the SAME asymmetric signed widening product the
+    mxfp4/iq4_nl siblings use (vand 0x0F / vsrl 0x04 nibble split -> vrgather_vv_i8m1
+    through the broadcast `kvalues_mxfp4` table -> vwmul low <-> q8 lo half, vwmacc +
+    high <-> q8 hi half -> vwredsum -> i32 `sumi`). The per-sub-block fold is ggml's
+    nvfp4 order `sumf = sumf + d_y * d_x * (float)sumi` (_generic is `dy * d *
+    (sumi_lo + sumi_hi)`; fp multiply commutes), in STRICT ascending (ib, s_idx)
+    order so fp non-associativity is byte-exact. The q8_0 `d_y` is the ONE surviving
+    fp16 read per sub-block; the weight `d_x` read is the structured UE4M3 decode.
+
+    The CODEBOOK GATHER is the same Zvl128b legality fact as mxfp4: to index ALL 16
+    table entries the `values` register's VLMAX must be >= 16, so the gather pins the
+    m1 integer-core anchor. The verifier rejects a non-m1 anchor fail-closed (I7). A
+    board with VLEN < 128 (zve32x/zve64x) cannot legally host the codebook gather at
+    this anchor; that is an N1 capability-legality divergence, not a coverage gap.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the nvfp4 weight base pointer (vx), the q8_0 activation base
+    pointer (vy), the fp32 output pointer (s), the runtime element count (n) -- plus
+    the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
+    whose lowering writes the single fp32 reduction result through the output
+    pointer.
+
+    The structural facts -- qk (64), qk_sub (16), the super-block stride (36 bytes),
+    the q8_0 block stride (34), the weight quant payload byte offset (+4), the q8
+    quant byte offset (+2), the per-sub-block q8 high-half byte offset (+8), the
+    UE4M3 weight scale model, and the 16-entry non-linear int8 CODEBOOK itself -- are
+    carried as typed integer/string/array attributes (I4 mirror only). The codebook
+    is a `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8 entries, consumed
+    structurally into the realized body (a `static const int8_t[16]` decl + the
+    `vle8` table load). The op identity is the dispatch key. Route ids, helper names,
+    ABI strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/nvfp4 names, and common EmitC/export code must not infer or
+    choose block-quantized dot-product semantics.
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the codebook siblings carry (the *how*, never the *what*; the dot-product is
+    byte-exact for any legal value because integer addition is order-independent and
+    the per-sub-block fp32 fold stays in strict ascending order). The codebook gather
+    constrains it to "m1" only; the verifier rejects any other anchor fail-closed
+    (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$qk_sub,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    DenseI8ArrayAttr:$codebook,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ51Q81Op
     : TCRVRVV_Op<"q5_1_q8_1_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

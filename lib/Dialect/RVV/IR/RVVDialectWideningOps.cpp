@@ -2171,6 +2171,171 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotNVFP4Q80Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // UE4M3 per-sub-block weight scale model, the super-block-format structural
+  // facts, the 16-entry non-linear int8 CODEBOOK (reused from mxfp4), and the
+  // bounded shape knob. Anything else -- a forbidden local element_count/SEW/LMUL/
+  // policy attr, or an unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "qk_sub" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "activation_high_byte_offset" || name == "codebook" ||
+           name == "integer_core_lmul" ||
+           name.starts_with("tcrv_rvv.nvfp4_schedule.");
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.nvfp4_q8_0_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded block dot-product attributes 'kind', "
+                "'scale_model', 'qk', 'qk_sub', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'activation_high_byte_offset', "
+                "'codebook', and 'integer_core_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_nvfp4_q8_0_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_nvfp4_q8_0_block_dot\" for "
+              "the bounded ggml NVFP4 x Q8_0 block dot-product typed surface";
+  // The UE4M3 half-form scale convention is the load-bearing distinction between
+  // nvfp4 and mxfp4 (the codebook is the SAME DOUBLED int8 e2m1 set, so the block
+  // scale is the UE4M3 decode * 0.5f, the HALF form). Pin it so a wrong scale
+  // convention (the full decode without *0.5f, which would double every result,
+  // or a signed E4M3 misread) is rejected fail-closed.
+  if (getScaleModel() != "ue4m3-half-per-sub-block")
+    return emitOpError()
+           << "requires scale_model \"ue4m3-half-per-sub-block\" for the ggml "
+              "NVFP4 x Q8_0 block dot-product route (the UE4M3 unsigned fp8 "
+              "decode * 0.5f matching the doubled int8 e2m1 codebook)";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_NVFP4 == 64,
+  // QK_NVFP4_SUB == 16, block_nvfp4 = { uint8_t d[4]; uint8_t qs[32] } stride 36
+  // (four UE4M3 sub-block scales + 32 packed FP4 nibble bytes), block_q8_0 stride
+  // 34, the weight nibbles at byte offset +4 (after the four UE4M3 scale bytes),
+  // the q8 quants at +2, the per-sub-block q8 high half at +8. Pin them so a
+  // malformed typed body cannot lower under the block-dot emission.
+  if (getQk() != 64)
+    return emitOpError() << "requires qk == 64 (QK_NVFP4) for the ggml NVFP4 x "
+                            "Q8_0 block dot-product route";
+  if (getQkSub() != 16)
+    return emitOpError()
+           << "requires qk_sub == 16 (QK_NVFP4_SUB, the per-scale sub-block "
+              "size) for the ggml NVFP4 x Q8_0 block dot-product route";
+  if (getWeightBlockStride() != 36)
+    return emitOpError()
+           << "requires weight_block_stride == 36 (sizeof block_nvfp4: four "
+              "UE4M3 scale bytes + 32 packed FP4 nibble bytes) for the ggml "
+              "NVFP4 x Q8_0 block dot-product route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml NVFP4 x Q8_0 block dot-product route";
+  if (getWeightQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 4 (the FP4 nibbles follow "
+              "the four UE4M3 sub-block scale bytes) for the ggml NVFP4 x Q8_0 "
+              "block dot-product route";
+  if (getActivationQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 2 (the q8 quants follow "
+              "the inline fp16 scale) for the ggml NVFP4 x Q8_0 block "
+              "dot-product route";
+  if (getActivationHighByteOffset() != 8)
+    return emitOpError()
+           << "requires activation_high_byte_offset == 8 (the per-sub-block q8 "
+              "high half is QK_NVFP4_SUB/2 lanes on) for the ggml NVFP4 x Q8_0 "
+              "block dot-product route";
+
+  // The codebook is the load-bearing structural fact of the codebook class: it
+  // MUST carry EXACTLY 16 int8 entries (one per FP4 nibble index [0,15]). A wrong
+  // size cannot index the nibbles and is rejected fail-closed (I7). The entry
+  // VALUES are NOT pinned here -- they are a genuine structural input the gather
+  // realizes (a wrong-but-well-sized codebook is a legal-but-different kernel,
+  // which is exactly what the negative-control validation exercises).
+  if (getCodebook().size() != 16)
+    return emitOpError()
+           << "requires codebook to carry exactly 16 int8 entries (the FP4 "
+              "e2m1 nibble->int8 lookup table kvalues_mxfp4[16]); got "
+           << getCodebook().size();
+
+  // The codebook gather pins the m1 integer-core anchor: to index ALL 16 table
+  // entries the broadcast `values` register's VLMAX must be >= 16. Reject a
+  // non-m1 anchor fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" for the ggml NVFP4 x "
+                "Q8_0 block dot-product (the 16-entry codebook gather requires "
+                "the broadcast table register's VLMAX >= 16, which mf4 cannot "
+                "provide at VLEN=128); got \""
+             << *coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_nvfp4 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml NVFP4 x Q8_0 block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml NVFP4 x Q8_0 block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ51Q81Op::verify() {
   mlir::Operation *op = getOperation();
 
