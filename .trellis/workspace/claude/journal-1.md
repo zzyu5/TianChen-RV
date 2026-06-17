@@ -1028,3 +1028,39 @@ Drove all three goal conditions (覆盖+高性能+完整forward, 都做) to subs
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: GOAL COMPLETE — 24/24 ggml dot kernels + GEMM autotuner + complete forward pass, all byte-exact + trellis-checked
+
+**Date**: 2026-06-17
+**Task**: GOAL COMPLETE — 24/24 ggml dot kernels + GEMM autotuner + complete forward pass, all byte-exact + trellis-checked
+**Branch**: `main`
+
+### Summary
+
+All three goal conditions met (覆盖+高性能+完整forward) + trellis flow closed (implement via sub-agents -> holistic trellis-check -> update-spec -> finish). COVERAGE literal 100%: all 24 ggml_vec_dot_* kernels compiler-emitted + byte-exact on ssh rvv (INC-1..INC-43), every structural class -- block-quant linear (q4_0/q8_0/q4_1/q5_0/q5_1), K-quant super-block (q2_K/q3_K/q4_K/q5_K/q6_K, shared super-block core), codebook (iq4_nl/iq4_xs), FP4 (mxfp4 E8M0 / nvfp4 UE4M3), grid-codebook (iq2_xxs/xs/s, iq3_xxs/s), ternary (iq1_s/m, tq1_0 base-3, tq2_0 2-bit), binary (q1_0) -- each reusing prior machinery (bit-dances, super-block fold, codebook gather, ternary grid), 24 distinct recognizers 1:1 with the _generic set. HIGH PERFORMANCE: measurement-backed autotuner (tune-once->cache tuning record->compile reads it; static cost model = pruner + fallback) selects the GEMM M (measured M6 ~1.19x) + dot shapes; q4_0 vec_dot beats ggml ~4.5%; N1 capability divergence (rv64gcv elided / zve32x robust); honest VLEN=128-capped ceiling stated throughout. COMPLETE FORWARD PASS: scale/rms_norm(double-accum)/silu(minimax exp)/soft_max/quantize/rope(libm), byte-exact, close-the-loop (f32->quantize->matmul) proven. Holistic trellis-check PASS: raw()=0 across all (I5 structured, no string-machine), I7 fail-closed verifiers, additive (q4_0 byte-identical to its inc2a artifact across the entire ~40-commit sweep), clean rebuild green, 676 tests/673 pass/3 documented environmental reds. update-spec: the measured>static autotune authority contract. Plus live token-identical llama-2-7b integration (earlier). Honest scope: IQ kernels are coverage-rung 4-arg byte-exact kernels (not full-8-arg-ABI deployed); perf modest+VLEN-capped (bigger needs VLEN>=256, unavailable).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0fc67d67` | (see git log) |
+| `4a28013d` | (see git log) |
+| `a6f43069` | (see git log) |
+| `d26fcb75` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

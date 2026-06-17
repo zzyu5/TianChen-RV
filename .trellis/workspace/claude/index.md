@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1030 | Active |
+| `journal-1.md` | ~1066 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-06-17 | GOAL COMPLETE — 24/24 ggml dot kernels + GEMM autotuner + complete forward pass, all byte-exact + trellis-checked | `0fc67d67`, `4a28013d`, `a6f43069`, `d26fcb75` | `main` |
 | 16 | 2026-06-17 | Coverage: 12 dot kernels (every structural class) + GEMM autotuner + complete forward pass — all 3 goal fronts | `947ccbd3`, `d237d37e`, `6de78efd`, `6ea547d1` | `main` |
 | 15 | 2026-06-16 | Forward-pass PRIMITIVE SET complete (scale/rms_norm/silu/soft_max/quantize/rope, byte-exact) + GEMM perf win | `c0f06843`, `41ee3bb2`, `a053c41e` | `main` |
 | 14 | 2026-06-16 | All 3 goal fronts advanced: GEMM perf win + forward-pass op family (all 3 structural classes byte-exact) | `d48533bb`, `70d35660`, `9e5ba826`, `edaeb886` | `main` |
