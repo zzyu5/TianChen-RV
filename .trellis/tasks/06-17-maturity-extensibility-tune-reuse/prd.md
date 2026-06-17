@@ -51,3 +51,11 @@ WS-B 的新轴落进 WS-C 的接口验证泛化性(WS-B 实测 before freezing t
 ## Honest ledger
 只有 WS-B 是可测的 N3 perf 证据;WS-A/C/D 是 maturity/conform-to-claim 的工程(用户明确要这个,不是卖点)。
 capability-divergence headline 仍等第二块板;本期把 N2/N3 机器变 first-class 来 de-risk 它。
+
+## Progress (journal — 不是 spec)
+- ✅ WS-A scalar family-hardening (commit ef7179e7). 前门 scalar 身份串 5→0、按名引用 0、core family grep 仍空、变量走 collectVariantProposals。残留:RVVLowPrecisionPerformancePolicy.cpp 的 route-planning validator(不同层,诚实记下)。
+- ✅ WS-C Tier-0(commit 1389d946):6 clone pass → 1 generic candidate/select/pass。
+- ✅ WS-D 第一步:28-branch block-dot dispatch → first-match table+loop(commit bd7c8b53)。36 个 emission 测试逐字节不变(fingerprint 07ad6d0d…),raw()=0,673/3。
+- ⏸️ **WS-D verifier de-dup —— DEFERRED(有据)**。实测:34 个 `Ggml*Op::verify`(RVVDialectWideningOps.cpp)~90% 是 **bespoke 诊断 prose**(per-kernel kind/格式值/allowed-attr/错误文案),几乎没有逐字相同的骨架。de-dup 二选一都低价高险:(a) 保诊断逐字 → spec 只是把 prose 从函数体搬进 struct literal(集中数据、没消除);(b) 不保 → 要改 ~28 个断言诊断文本的 lit、丢掉 per-kernel ABI 文档,且把**核心不变量 I7 fail-closed** 做风险化泛型。table-collapse 已 bank 了 zero-core-branch kernel 轴;verifier de-dup 不再 bank 任何 claim,是纯 churn。→ 放到最后,且只在出现干净 spec 设计时做;**不交给 sub-agent**(泛型化 I7 诊断正是机械 agent 会悄悄改坏语义的地方)。
+- 🔜 WS-C Tier-1(TunableScheduleOpInterface)= 下一步(用户"好好探索" tune-reuse 的高意图项)。判定:WS-B 的 microarch lever 在 Tier-0 的 `GenericScheduleCandidate{cost,isLegal,knobs[]}` 下只是又一个 `NamedKnob`,不是新接口方法 → Tier-1 接口**形状**与 WS-B 无关,可现在做;WS-B 落地后只验证 flow(enumerate→prune→measure→stamp)的"第二消费者"勾。
+- ✅ WS-B roofline 实测完成(ssh rvv, VLEN=128, pinned ef7179e7;research/wsB-roofline.md + artifacts/wsB-roofline/)。**结论:三个 kernel 都 latency/overhead-bound** —— cache-resident 只达 compute ceiling(3.86 MAC/cyc)的 q8_0 7% / q4_0 4% / q4_K 13%,streaming 也比 mem BW ceiling(2.3–2.5 B/cyc)低 ~10×。既非 compute-bound 也非 BW-bound,瓶颈在 per-block reduction→scalar→fp32 + decode 依赖链。→ 该加的 microarch knob = **accumulator_count / 跨 block 软流水**(藏 reduction/scale latency),且它只是又一个 `NamedKnob`,**证实 WS-C Tier-1 接口形状与 WS-B 无关**。WS-B 的 knob 实测胜出尚未做(headroom≠win,要 measured)。
