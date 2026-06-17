@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-06-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1105 | Active |
+| `journal-1.md` | ~1138 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-06-18 | closeout: full-set byte-exact proof + roofline honesty | `f9dc05ac` | `main` |
 | 18 | 2026-06-18 | Maturity goal: scalar-hardening + tune-reuse interface + roofline/measured-win + core split (all 4 WS) | `ef7179e7`, `bd7c8b53`, `bac3acd5`, `a73ab62d`, `81b57ba5`, `ec3949d2`, `eb2e09d8` | `main` |
 | 17 | 2026-06-17 | GOAL COMPLETE — 24/24 ggml dot kernels + GEMM autotuner + complete forward pass, all byte-exact + trellis-checked | `0fc67d67`, `4a28013d`, `a6f43069`, `d26fcb75` | `main` |
 | 16 | 2026-06-17 | Coverage: 12 dot kernels (every structural class) + GEMM autotuner + complete forward pass — all 3 goal fronts | `947ccbd3`, `d237d37e`, `6de78efd`, `6ea547d1` | `main` |

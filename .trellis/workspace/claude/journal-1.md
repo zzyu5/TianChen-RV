@@ -1103,3 +1103,36 @@ Completed the 4-workstream compiler-maturity goal. WS-A: scalar variant now flow
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: closeout: full-set byte-exact proof + roofline honesty
+
+**Date**: 2026-06-18
+**Task**: closeout: full-set byte-exact proof + roofline honesty
+**Branch**: `main`
+
+### Summary
+
+Closed the WS-D byte-exact coverage gap (full test/Conversion/RVV set: pre-split 2918bb22 == post-split HEAD == cb04b219, so the ForwardElementwise+DeferredDequant emitters are byte-proven too, not just block-dot). Softened wsB-roofline.md: measurement is the N3 claim; roofline is context (factor=1 winning is in tension with 'more overlap').
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f9dc05ac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
