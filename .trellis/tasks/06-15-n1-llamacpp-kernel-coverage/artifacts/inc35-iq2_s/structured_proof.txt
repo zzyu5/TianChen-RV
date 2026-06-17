@@ -1,0 +1,55 @@
+INC-35 iq2_s structured-emission proof (I5: every value is an emitc node; raw()=0)
+================================================================================
+raw() actual-call count in the compiler-emitted kernel:
+0
+
+Distinct __riscv_* intrinsics emitted (all structured emitc CallOpaque, no raw):
+__riscv_vand_vv_u8m1
+__riscv_vle8_v_i8m1
+__riscv_vle8_v_u8m1
+__riscv_vmerge_vvm_i8m1
+__riscv_vmsne_vx_u8m1_b8
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_v_x_u8m1
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vneg_v_i8m1
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+
+The 1024-entry GRID codebook + kmask are structured static const decls (NOT raw); NO ksigns:
+9:  static const int64_t tcrv_iq2s_grid[1024] = {0x0808080808080808ULL, 0x080808080808082b...
+10:  static const uint8_t tcrv_iq2s_kmask[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+
+DELTA(a)+(b) the 1024-grid byte-view + indexed lookup (grid_i8 + idx*8) -- structured pointer arith:
+19:  const int8_t* v9 = (const int8_t*) tcrv_iq2s_grid;
+73:    const int8_t* v50 = v9 + v49;
+104:    const int8_t* v70 = v9 + v69;
+146:    const int8_t* v96 = v9 + v95;
+177:    const int8_t* v116 = v9 + v115;
+
+DELTA(b) the qh 2-bit high-index injection (qhb << (8-2*l)) & 0x300 (768) then OR into idx:
+65:    int v43 = v39 << 8;
+66:    int v44 = v43 & 768;
+96:    int v63 = v39 << 6;
+97:    int v64 = v63 & 768;
+138:    int v89 = v39 << 4;
+139:    int v90 = v89 & 768;
+169:    int v109 = v39 << 2;
+170:    int v110 = v109 & 768;
+
+DELTA(c) the EXPLICIT sign region read DIRECTLY (xb + 34, NO ksigns lookup):
+37:    const uint8_t* v21 = v12 + 34;
+
+the explicit scales[] (xb + 74) + the two-scale split ls1 = 2*(sc&0xf)+1 / ls2 = 2*(sc>>4)+1:
+41:    const uint8_t* v25 = v12 + 74;
+51:    int v32 = v31 & 15;
+52:    int v33 = v31 >> 4;
+209:    int v134 = v133 & 15;
+210:    int v135 = v133 >> 4;
+368:    int v237 = v236 & 15;
+369:    int v238 = v236 >> 4;
+527:    int v340 = v339 & 15;
+528:    int v341 = v339 >> 4;
+686:    int v443 = v442 & 15;

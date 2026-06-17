@@ -1,0 +1,23 @@
+board: riscv64, Ubuntu clang version 18.1.3 (1ubuntu1), rv64gcv (Zvl128b => VLEN>=128)
+=== -ffp-contract=off ===
+iq2_s byte-exact: 2503/2503 passed, 0 failed (generic delta 0/2503)
+grid-index coverage (march case): max idx = 1023, hit 1023 = YES
+NEG-CTRL wrong-grid:  ours=-289.795197 wrong=-287.928741 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs (explicit): ours=-289.795197 wrong=-2494.8186 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-289.795197 wrong=-135.4823 -> DIVERGES (PASS)
+NEG-CTRL wrong-qh (drop high-index plane): ours=-289.795197 wrong=463.998993 -> DIVERGES (PASS)
+RESULT: ALL PASS
+=== -ffp-contract=fast ===
+iq2_s byte-exact: 2503/2503 passed, 0 failed (generic delta 0/2503)
+grid-index coverage (march case): max idx = 1023, hit 1023 = YES
+NEG-CTRL wrong-grid:  ours=-289.795258 wrong=-287.928864 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs (explicit): ours=-289.795258 wrong=-2494.8186 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-289.795258 wrong=-135.482269 -> DIVERGES (PASS)
+NEG-CTRL wrong-qh (drop high-index plane): ours=-289.795258 wrong=463.998962 -> DIVERGES (PASS)
+RESULT: ALL PASS
+
+=== compiler-knob control (attr -> emitted const -> HW), -ffp-contract=off ===
+REAL-attr kernel      = 3053.45361   (real-table ref = 3053.45361) -> MATCH
+PERTURBED-attr kernel = 3047.76123 (pert-table ref = 3047.76123) -> MATCH
+real-attr vs perturbed-attr -> DIVERGES (attr is the live knob)
+RESULT: KNOB LIVE (attr -> const -> HW)
