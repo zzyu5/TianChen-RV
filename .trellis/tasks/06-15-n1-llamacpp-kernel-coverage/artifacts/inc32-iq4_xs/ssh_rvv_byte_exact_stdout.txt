@@ -1,0 +1,29 @@
+### (1) -ffp-contract=off ###
+== INC-32 iq4_xs byte-exact (target: ggml's VERBATIM _generic iq4_xs) ==
+checked 3070 cases, 0 failures (vs ggml's VERBATIM _generic iq4_xs)
+_generic cross-check delta: 0/3070 (at =off this is 0; at =fast it is the reference's OWN FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=4413705 real=4413705 linear=267497.25) -> the codebook is load-bearing
+negative control 2 OK: WRONG scale bias (-31) diverges (ours=-486479.406 real=-486479.406 wrong=-574218.125) -> the signed scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the weight nibbles are consumed; check non-vacuous)
+ALL iq4_xs BYTE-EXACT CHECKS PASSED
+exit=0
+### (2) -ffp-contract=fast ###
+== INC-32 iq4_xs byte-exact (target: ggml's VERBATIM _generic iq4_xs) ==
+checked 3070 cases, 0 failures (vs ggml's VERBATIM _generic iq4_xs)
+_generic cross-check delta: 0/3070 (at =off this is 0; at =fast it is the reference's OWN FMA-formation delta, not a kernel defect)
+negative control 1 OK: WRONG (linear nibble-8) codebook diverges (ours=4413704.5 real=4413704.5 linear=267497.25) -> the codebook is load-bearing
+negative control 2 OK: WRONG scale bias (-31) diverges (ours=-486479.219 real=-486479.219 wrong=-574218.062) -> the signed scale is load-bearing
+negative control 3 OK: flipped nibble diverges (the weight nibbles are consumed; check non-vacuous)
+ALL iq4_xs BYTE-EXACT CHECKS PASSED
+exit=0
+### (3) nm proof: ONE exported kernel symbol, only __extendhfsf2 external (the fp16 read builtin); RVV intrinsics inlined; NO raw fallback ###
+0000000000000000 r $d.1
+0000000000000000 n $d.2
+0000000000000000 n $d.3
+0000000000000000 r $d.4
+0000000000000000 t $x.0
+0000000000000000 r tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_ggml_vec_dot_iq4_xs_q8_K::tcrv_iq4_xs_kvalues
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_ggml_vec_dot_iq4_xs_q8_K
+### board ISA ###
+isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
