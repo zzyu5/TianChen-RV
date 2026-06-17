@@ -47,8 +47,11 @@ using tianchenrv::plugin::rvv::enumerateRVVQ80Q80ShapeCandidates;
 using tianchenrv::plugin::rvv::kRVVQ40ShapeVectorRegisterBudget;
 using tianchenrv::plugin::rvv::kRVVQ41ShapeVectorRegisterBudget;
 using tianchenrv::plugin::rvv::kRVVQ80ShapeVectorRegisterBudget;
-using tianchenrv::plugin::rvv::RVVQ40Q80ShapeCandidate;
-using tianchenrv::plugin::rvv::selectRVVQ40Q80MinCostShape;
+// The candidate struct + selector now carry their kernel-agnostic GENERIC names
+// (the q4_0-specific spellings were a mislabel -- the struct/selector were always
+// the shared block-dot ones). The picks asserted below are UNCHANGED.
+using tianchenrv::plugin::rvv::RVVBlockDotShapeCandidate;
+using tianchenrv::plugin::rvv::selectRVVBlockDotMinCostShape;
 
 namespace {
 
@@ -91,14 +94,14 @@ int runCostModelIsCapabilityBlindTest() {
 // On a Zvl128b (full-V) target the strip-elided shapes are admitted and the
 // min-cost legal shape is (m1, factor=4, elided): the ~13% ggml-beating shape.
 int runZvl128bSelectsMb4ElidedTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> candidates =
       enumerateRVVQ40Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         kRVVQ40ShapeVectorRegisterBudget);
   if (candidates.size() != 12)
     return fail("expected the full 12-candidate Q4_0 shape space, got " +
                 llvm::Twine(candidates.size()));
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("Zvl128b selection returned no legal shape");
   if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 4 ||
@@ -115,11 +118,11 @@ int runZvl128bSelectsMb4ElidedTest() {
 // On a NON-Zvl128b target the elided shapes are PRUNED (correct only at
 // VLEN >= 128) and the SAME argmin selects (m1, factor=2, robust).
 int runNotZvl128bSelectsMb2RobustTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> candidates =
       enumerateRVVQ40Q80ShapeCandidates(/*hasZvl128b=*/false,
                                         kRVVQ40ShapeVectorRegisterBudget);
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("non-Zvl128b selection returned no legal shape");
   if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 2 ||
@@ -130,7 +133,7 @@ int runNotZvl128bSelectsMb2RobustTest() {
                 selected->stripElision + ")");
   // Confirm EVERY elided candidate was pruned on a non-Zvl128b target (the
   // legality prune binds; the only legal shapes are robust).
-  for (const RVVQ40Q80ShapeCandidate &candidate : candidates)
+  for (const RVVBlockDotShapeCandidate &candidate : candidates)
     if (candidate.stripElision == "elided" && candidate.isLegal)
       return fail("a non-Zvl128b target must prune ALL elided shapes");
   llvm::outs() << "N3 non-Zvl128b target prunes all elided shapes and selects "
@@ -143,11 +146,11 @@ int runNotZvl128bSelectsMb2RobustTest() {
 // same; only the admitted set differs. This is the "derived, not a constant"
 // evidence at the selector level.
 int runZvl128bFlipFlipsShapeTest() {
-  std::optional<RVVQ40Q80ShapeCandidate> withZvl =
-      selectRVVQ40Q80MinCostShape(enumerateRVVQ40Q80ShapeCandidates(
+  std::optional<RVVBlockDotShapeCandidate> withZvl =
+      selectRVVBlockDotMinCostShape(enumerateRVVQ40Q80ShapeCandidates(
           /*hasZvl128b=*/true, kRVVQ40ShapeVectorRegisterBudget));
-  std::optional<RVVQ40Q80ShapeCandidate> withoutZvl =
-      selectRVVQ40Q80MinCostShape(enumerateRVVQ40Q80ShapeCandidates(
+  std::optional<RVVBlockDotShapeCandidate> withoutZvl =
+      selectRVVBlockDotMinCostShape(enumerateRVVQ40Q80ShapeCandidates(
           /*hasZvl128b=*/false, kRVVQ40ShapeVectorRegisterBudget));
   if (!withZvl || !withoutZvl)
     return fail("both Zvl128b states must yield a legal selection");
@@ -170,11 +173,11 @@ int runBudgetPruneBindsTest() {
   // A 3-vreg budget is below every candidate's peak-live footprint (m1 robust
   // costs i8m1(1)+i16m2(2)+i32m1(1)+reserve(2)=6; mf4 costs 1+1+1+2=5). So the
   // budget prune rejects all candidates -> fail-closed.
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> tiny =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> tiny =
       enumerateRVVQ40Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         /*vectorRegisterBudget=*/3);
-  std::optional<RVVQ40Q80ShapeCandidate> selectedTiny =
-      selectRVVQ40Q80MinCostShape(tiny);
+  std::optional<RVVBlockDotShapeCandidate> selectedTiny =
+      selectRVVBlockDotMinCostShape(tiny);
   if (selectedTiny)
     return fail("a 3-vreg budget should prune every Q4_0 shape (fail-closed)");
 
@@ -182,12 +185,12 @@ int runBudgetPruneBindsTest() {
   // -- the budget prune binds and changes the legal set (the prune is a real
   // resource fact, not inert). The selection then falls to the cheapest legal
   // mf4 shape.
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> mid =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> mid =
       enumerateRVVQ40Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         /*vectorRegisterBudget=*/5);
   bool sawM1Pruned = false;
   bool sawMf4Legal = false;
-  for (const RVVQ40Q80ShapeCandidate &candidate : mid) {
+  for (const RVVBlockDotShapeCandidate &candidate : mid) {
     if (candidate.integerCoreLMUL == "m1" && !candidate.isLegal)
       sawM1Pruned = true;
     if (candidate.integerCoreLMUL == "mf4" && candidate.isLegal)
@@ -279,14 +282,14 @@ int runQ80CostModelStructureTest() {
 // measured ssh-rvv optimum cluster (RESULTS.md: mb1 845 / mb2 844 / mb4 884; the
 // old depth-blind model mis-picked mb4, ~6% slower than this mb2 optimum).
 int runQ80Zvl128bSelectsM2Mb2ElidedTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> candidates =
       enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         kRVVQ80ShapeVectorRegisterBudget);
   if (candidates.size() != 18)
     return fail("expected the full 18-candidate q8_0 shape space, got " +
                 llvm::Twine(candidates.size()));
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("q8_0 Zvl128b selection returned no legal shape");
   if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 2 ||
@@ -304,11 +307,11 @@ int runQ80Zvl128bSelectsM2Mb2ElidedTest() {
 // On a NON-Zvl128b target the elided shapes are PRUNED and the SAME argmin
 // selects (m2, factor=2, robust).
 int runQ80NotZvl128bSelectsM2Mb2RobustTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> candidates =
       enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/false,
                                         kRVVQ80ShapeVectorRegisterBudget);
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("q8_0 non-Zvl128b selection returned no legal shape");
   if (selected->integerCoreLMUL != "m2" || selected->multiBlockFactor != 2 ||
@@ -317,7 +320,7 @@ int runQ80NotZvl128bSelectsM2Mb2RobustTest() {
                 selected->integerCoreLMUL + ", factor=" +
                 llvm::Twine(selected->multiBlockFactor) + ", " +
                 selected->stripElision + ")");
-  for (const RVVQ40Q80ShapeCandidate &candidate : candidates)
+  for (const RVVBlockDotShapeCandidate &candidate : candidates)
     if (candidate.stripElision == "elided" && candidate.isLegal)
       return fail("a q8_0 non-Zvl128b target must prune ALL elided shapes");
   llvm::outs() << "N3 q8_0 non-Zvl128b target prunes all elided shapes and "
@@ -328,11 +331,11 @@ int runQ80NotZvl128bSelectsM2Mb2RobustTest() {
 // The DERIVATION proof for q8_0: flipping ONLY the Zvl128b boolean flips the
 // selected shape elided<->robust (same cost, only the admitted set differs).
 int runQ80Zvl128bFlipFlipsShapeTest() {
-  std::optional<RVVQ40Q80ShapeCandidate> withZvl =
-      selectRVVQ40Q80MinCostShape(enumerateRVVQ80Q80ShapeCandidates(
+  std::optional<RVVBlockDotShapeCandidate> withZvl =
+      selectRVVBlockDotMinCostShape(enumerateRVVQ80Q80ShapeCandidates(
           /*hasZvl128b=*/true, kRVVQ80ShapeVectorRegisterBudget));
-  std::optional<RVVQ40Q80ShapeCandidate> withoutZvl =
-      selectRVVQ40Q80MinCostShape(enumerateRVVQ80Q80ShapeCandidates(
+  std::optional<RVVBlockDotShapeCandidate> withoutZvl =
+      selectRVVBlockDotMinCostShape(enumerateRVVQ80Q80ShapeCandidates(
           /*hasZvl128b=*/false, kRVVQ80ShapeVectorRegisterBudget));
   if (!withZvl || !withoutZvl)
     return fail("both q8_0 Zvl128b states must yield a legal selection");
@@ -349,21 +352,21 @@ int runQ80Zvl128bFlipFlipsShapeTest() {
 // prunes every candidate -> fail-closed). q8_0 footprints: mf4 = 1+1+1+2=5,
 // m1 = 1+2+1+2=6, m2 = 2+4+1+2=9.
 int runQ80BudgetPruneBindsTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> tiny =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> tiny =
       enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         /*vectorRegisterBudget=*/3);
-  if (selectRVVQ40Q80MinCostShape(tiny))
+  if (selectRVVBlockDotMinCostShape(tiny))
     return fail("a 3-vreg budget should prune every q8_0 shape (fail-closed)");
 
   // An 8-vreg budget admits mf4 (5) and m1 (6) but prunes the wider m2 (9) --
   // the budget prune binds and changes the legal set. The selection then falls
   // to the cheapest legal non-m2 shape.
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> mid =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> mid =
       enumerateRVVQ80Q80ShapeCandidates(/*hasZvl128b=*/true,
                                         /*vectorRegisterBudget=*/8);
   bool sawM2Pruned = false;
   bool sawM1Legal = false;
-  for (const RVVQ40Q80ShapeCandidate &candidate : mid) {
+  for (const RVVBlockDotShapeCandidate &candidate : mid) {
     if (candidate.integerCoreLMUL == "m2" && !candidate.isLegal)
       sawM2Pruned = true;
     if (candidate.integerCoreLMUL == "m1" && candidate.isLegal)
@@ -469,14 +472,14 @@ int runLatencyDepthIsDerivedSumTest() {
 // q4_0 win does NOT generalize to scale+MIN. Adding a fold-pressure cost term is
 // future work; do NOT read these green tests as "mb4_elided is the good shape".
 int runQ41Zvl128bSelectsMb4ElidedTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> candidates =
       enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/true,
                                         kRVVQ41ShapeVectorRegisterBudget);
   if (candidates.size() != 12)
     return fail("expected the full 12-candidate q4_1 shape space, got " +
                 llvm::Twine(candidates.size()));
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("q4_1 Zvl128b selection returned no legal shape");
   if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 4 ||
@@ -491,15 +494,15 @@ int runQ41Zvl128bSelectsMb4ElidedTest() {
 }
 
 int runQ41NotZvl128bSelectsMb2RobustTest() {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> candidates =
       enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/false,
                                         kRVVQ41ShapeVectorRegisterBudget);
-  std::optional<RVVQ40Q80ShapeCandidate> selected =
-      selectRVVQ40Q80MinCostShape(candidates);
+  std::optional<RVVBlockDotShapeCandidate> selected =
+      selectRVVBlockDotMinCostShape(candidates);
   if (!selected)
     return fail("q4_1 non-Zvl128b selection returned no legal shape");
   // Every elided candidate must be pruned (illegal without Zvl128b).
-  for (const RVVQ40Q80ShapeCandidate &candidate : candidates)
+  for (const RVVBlockDotShapeCandidate &candidate : candidates)
     if (candidate.stripElision == "elided" && candidate.isLegal)
       return fail("q4_1 elided shape must be pruned without Zvl128b");
   if (selected->integerCoreLMUL != "m1" || selected->multiBlockFactor != 2 ||
@@ -607,10 +610,10 @@ int runTuningRecordLookupTest() {
     return fail("a kernel with no record entry must return nullopt");
 
   // REVALIDATION: the recorded full-V shape is legal in the full-V candidate set.
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> fullVCandidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> fullVCandidates =
       enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/true,
                                         kRVVQ41ShapeVectorRegisterBudget);
-  std::optional<RVVQ40Q80ShapeCandidate> revalidated =
+  std::optional<RVVBlockDotShapeCandidate> revalidated =
       tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(
           fullVCandidates, *full);
   if (!revalidated || revalidated->integerCoreLMUL != "m1" ||
@@ -618,8 +621,8 @@ int runTuningRecordLookupTest() {
       revalidated->stripElision != "elided")
     return fail("the recorded m1/1/elided shape must revalidate as legal full-V");
   // AND it is NOT the static argmin (the FIX): the static argmin is m1/4/elided.
-  std::optional<RVVQ40Q80ShapeCandidate> staticArgmin =
-      selectRVVQ40Q80MinCostShape(fullVCandidates);
+  std::optional<RVVBlockDotShapeCandidate> staticArgmin =
+      selectRVVBlockDotMinCostShape(fullVCandidates);
   if (!staticArgmin || staticArgmin->multiBlockFactor != 4 ||
       staticArgmin->stripElision != "elided")
     return fail("the static q4_1 argmin must be the (m1,4,elided) mis-pick");
@@ -635,7 +638,7 @@ int runTuningRecordLookupTest() {
   stale.multiBlockFactor = 2;
   stale.stripElision = "elided"; // illegal without Zvl128b.
   stale.measuredNs = 999.0;
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> zve32xCandidates =
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> zve32xCandidates =
       enumerateRVVQ41Q81ShapeCandidates(/*hasZvl128b=*/false,
                                         kRVVQ41ShapeVectorRegisterBudget);
   if (tianchenrv::plugin::rvv::revalidateRVVBlockDotTuningRecordShape(

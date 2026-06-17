@@ -4,12 +4,15 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tianchenrv::plugin::rvv {
 
@@ -2114,9 +2117,14 @@ selectRVVDotReduceDeferredWideMaxLegalLMULRung(
 /// MECHANISM is genuine (a shrunk budget rejects the wider shapes).
 constexpr std::int64_t kRVVQ40ShapeVectorRegisterBudget = 32;
 
-/// One enumerated Q4_0 x Q8_0 block-dot shape candidate, with the structural
-/// facts the prune and the cost model reason over.
-struct RVVQ40Q80ShapeCandidate {
+/// One enumerated block-quantized-dot shape candidate, with the structural facts
+/// the prune and the cost model reason over. This is the SHARED candidate struct
+/// for ALL five block-dot kernels (q4_0/q8_0/q4_1/q5_0/q5_1) -- they enumerate the
+/// SAME knob axes (integer_core_lmul / multi_block_factor / strip_elision) and
+/// differ only in the per-anchor reduction count and the DERIVED latency depth fed
+/// into the SAME cost formula. (Formerly RVVQ40Q80ShapeCandidate -- the q4_0-
+/// specific name was a mislabel; the struct was always the shared block-dot one.)
+struct RVVBlockDotShapeCandidate {
   llvm::StringRef integerCoreLMUL; // i8 integer-core anchor: "mf4" or "m1".
   std::int64_t multiBlockFactor = 1; // outer-loop blocks/iteration: 1, 2, or 4.
   llvm::StringRef stripElision;      // inner strip loop: "robust" or "elided".
@@ -2125,6 +2133,88 @@ struct RVVQ40Q80ShapeCandidate {
   std::int64_t cost = 0;                    // capability-BLIND structural cost.
   bool isLegal = false;                     // passes the capability+budget prune.
 };
+
+/// Back-compat alias for the historical q4_0-specific name. The struct is the
+/// shared block-dot candidate (it always was); the alias keeps existing call
+/// sites + the selection unit test compiling while the codebase migrates to the
+/// generic name. New code should use RVVBlockDotShapeCandidate.
+using RVVQ40Q80ShapeCandidate = RVVBlockDotShapeCandidate;
+
+//===----------------------------------------------------------------------===//
+// The GENERIC schedule candidate (the kernel-agnostic tune contract).
+//
+// The selection machinery only ever reads TWO fields off a candidate -- `cost`
+// (the static argmin) and `isLegal` (the prune) -- so the per-kernel shape facts
+// (lmul/factor/elision for block-dot; the single M for GEMM) are OPAQUE STAMP
+// PAYLOAD to the selector. `GenericScheduleCandidate` makes that explicit: it
+// unifies the block-dot 3-knob candidate AND the GEMM 1-knob candidate behind the
+// SAME {cost,isLegal,knobs} contract, so ONE selectSchedule() / revalidate /
+// dump generalize across both knob-sets (and any future tunable op's knob list).
+//
+// A NamedKnob carries BOTH spellings the autotuner uses for the SAME knob: the
+// SHORT `recordKey` the tuning-record + dump lines use (lmul/factor/elision/
+// activation_cols) AND the LONG `attrName` the dialect op carries (the stamp
+// target: integer_core_lmul/multi_block_factor/strip_elision/activation_cols),
+// plus whether the value is an integer (so the stamp picks IntegerAttr vs
+// StringAttr and the record parse uses getAsInteger). The value is the opaque
+// payload; only `recordKey`/`value` participate in record matching + revalidation.
+//===----------------------------------------------------------------------===//
+
+/// One named tuning knob: the short record key, the long dialect-attr name, the
+/// (textual) value, and whether the value is an integer (drives the stamp attr
+/// type + the record parse). For a string knob `value` is the literal string; for
+/// an integer knob `value` is its base-10 spelling.
+struct NamedKnob {
+  llvm::StringRef recordKey; // tuning-record / dump-line key (e.g. "lmul").
+  llvm::StringRef attrName;  // dialect op attribute name (e.g. "integer_core_lmul").
+  std::string value;         // the opaque payload (string literal, or int spelling).
+  bool isInteger = false;    // true => stamp IntegerAttr i64; parse via getAsInteger.
+};
+
+/// One enumerated schedule candidate in the kernel-agnostic form: the static cost
+/// (the argmin lever) + the legality flag (the prune) + the opaque knob payload
+/// the pass stamps. Built from a per-kernel candidate by attaching that kernel's
+/// knob list (see toGenericBlockDotCandidate / toGenericGemmCandidate below).
+struct GenericScheduleCandidate {
+  std::int64_t cost = 0;
+  bool isLegal = false;
+  llvm::SmallVector<NamedKnob, 3> knobs;
+};
+
+/// Load the tuning-record text from `path` (best-effort, knob-agnostic file
+/// read). Returns the file body on success, or nullopt if the path is empty or
+/// unreadable -- an unreadable / absent record is NEVER fatal: the pass falls
+/// back to the static cost model (the record is an advisory cache, not a
+/// correctness authority). Shared by EVERY schedule autotuner (the read is
+/// format-agnostic; the keyed PARSE is the knob-specific part).
+inline std::optional<std::string>
+loadRVVBlockDotTuningRecord(llvm::StringRef path) {
+  if (path.empty())
+    return std::nullopt;
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer =
+      llvm::MemoryBuffer::getFile(path);
+  if (!buffer)
+    return std::nullopt;
+  return (*buffer)->getBuffer().str();
+}
+
+/// The min-cost LEGAL candidate from a generic enumeration (the capability-blind
+/// argmin over the admitted set; the static fallback / offline answer). Returns
+/// nullopt if every candidate was pruned (fail-closed I7). This is the SINGLE
+/// argmin policy shared by the block-dot shape selection AND the GEMM M fallback
+/// (both were byte-identical "argmin over legal by cost" loops before).
+inline std::optional<GenericScheduleCandidate>
+selectGenericMinCostCandidate(
+    llvm::ArrayRef<GenericScheduleCandidate> candidates) {
+  std::optional<GenericScheduleCandidate> best;
+  for (const GenericScheduleCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    if (!best || candidate.cost < best->cost)
+      best = candidate;
+  }
+  return best;
+}
 
 /// The per-half-block reduction count of the integer core at the given anchor:
 /// at VLEN=128 the m1 anchor covers the whole 16-byte half-block in one
@@ -2339,52 +2429,95 @@ inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
       getRVVBlockDotCoreLatencyDepth("nibble-offset-binary"));
 }
 
-/// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
-/// {robust,elided} = 12 candidates) and PRUNE each by two facts:
-///   (a) LEGALITY -- strip_elision "elided" is correct only when the integer
-///       core anchors at m1 (the mf4 anchor's vsetvl_e32m1 VLMAX 4 would silently
-///       drop 12 of 16 nibble bytes) AND the target guarantees Zvl128b
-///       (VLEN >= 128); this mirrors the dialect verifier's m1 rule and adds the
-///       capability gate (`hasZvl128b`). This is the ONLY place capability
-///       enters the selection.
+//===----------------------------------------------------------------------===//
+// The DESCRIPTOR-driven block-dot enumeration (the de-dup of the 5 byte-identical
+// enumerate clones). Every block-dot kernel enumerates the SAME knob axes
+// (integer_core_lmul x multi_block_factor x strip_elision) and prunes by the SAME
+// two facts (the elided-anchor+Zvl128b legality and the vreg budget). The ONLY
+// per-kernel variation is DATA: the anchor (LMUL) set, the per-anchor reduction
+// count, the per-anchor vreg footprint, the LMUL anchor at which strip-elision is
+// legal, and the quant format string (which feeds the DERIVED latency depth into
+// the shared cost formula). `RVVBlockDotKernelDescriptor` carries exactly those,
+// so ONE enumerateBlockDotShapeCandidates serves all five (the per-kernel
+// enumerate* functions below are now thin descriptor wrappers, preserved for the
+// existing call sites + the selection unit test).
+//===----------------------------------------------------------------------===//
+
+/// The per-kernel structural facts the shared block-dot enumeration reasons over.
+/// The fn-pointer fields capture the two per-anchor structural counts (reductions,
+/// vreg footprint) that differ between the nibble-half-block kernels (q4_*/q5_*)
+/// and the contiguous-int8 q8_0; `quantFormat` selects the DERIVED latency depth.
+struct RVVBlockDotKernelDescriptor {
+  llvm::ArrayRef<llvm::StringLiteral> coreLMULs; // anchor set (q8_0 adds "m2").
+  llvm::StringRef elidedLegalAnchor; // LMUL where strip-elision is legal ("m1"/"m2").
+  llvm::StringRef quantFormat;       // decode-prefix format -> latency depth.
+  std::int64_t (*reductionsPerBlock)(llvm::StringRef coreLMUL) = nullptr;
+  std::int64_t (*vectorRegisterCost)(llvm::StringRef coreLMUL) = nullptr;
+};
+
+/// Enumerate a block-dot kernel's full shape candidate space ({anchors} x {1,2,4}
+/// x {robust,elided}) and PRUNE each by two facts:
+///   (a) LEGALITY -- strip_elision "elided" is correct only when the integer core
+///       anchors at the kernel's elided-legal anchor (the wider anchors' VLMAX
+///       would silently drop block bytes) AND the target guarantees Zvl128b
+///       (VLEN >= 128). This is the ONLY place capability enters the selection.
 ///   (b) BUDGET -- the peak-live vreg footprint must fit the architectural
-///       vector-register-file budget (acc+product+load+reserve <= budget). It
-///       never binds on this light kernel, but the prune is genuine: a shrunk
-///       budget rejects the wider-footprint shapes (mf4 vs m1 footprints differ),
-///       exactly as the LMUL rung budget prune binds when shrunk.
-/// Each candidate's cost is the capability-blind structural cost above. Returns
-/// the candidates in a fixed enumeration order (mf4 before m1, ascending factor,
-/// robust before elided).
-inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
-enumerateRVVQ40Q80ShapeCandidates(bool hasZvl128b,
-                                  std::int64_t vectorRegisterBudget) {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
-  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
+///       vector-register-file budget. It never binds on these light kernels, but
+///       the prune is genuine: a shrunk budget rejects the wider-footprint shapes.
+/// Each candidate's cost is the shared capability-blind structural cost (the
+/// kernel's per-anchor reduction count + its DERIVED latency depth fed into
+/// computeBlockDotShapeCostCore). Fixed enumeration order: anchors in descriptor
+/// order, ascending factor, robust before elided.
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 18>
+enumerateBlockDotShapeCandidates(const RVVBlockDotKernelDescriptor &descriptor,
+                                 bool hasZvl128b,
+                                 std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> candidates;
   static constexpr std::int64_t kFactors[] = {1, 2, 4};
   static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
-  for (llvm::StringRef coreLMUL : kCoreLMULs)
+  const std::int64_t coreLatencyDepth =
+      getRVVBlockDotCoreLatencyDepth(descriptor.quantFormat);
+  for (llvm::StringRef coreLMUL : descriptor.coreLMULs)
     for (std::int64_t factor : kFactors)
       for (llvm::StringRef elision : kElisions) {
-        RVVQ40Q80ShapeCandidate candidate;
+        RVVBlockDotShapeCandidate candidate;
         candidate.integerCoreLMUL = coreLMUL;
         candidate.multiBlockFactor = factor;
         candidate.stripElision = elision;
         candidate.reductionsPerHalfBlock =
-            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
-        candidate.vectorRegisterCost =
-            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
-        candidate.cost = computeRVVQ40ShapeCost(coreLMUL, factor, elision);
+            descriptor.reductionsPerBlock(coreLMUL);
+        candidate.vectorRegisterCost = descriptor.vectorRegisterCost(coreLMUL);
+        candidate.cost = computeBlockDotShapeCostCore(
+            candidate.reductionsPerHalfBlock, factor, elision, coreLatencyDepth);
         // (a) capability/anchor legality of strip elision.
         bool elisionLegal = true;
         if (elision == "elided")
-          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
+          elisionLegal = (coreLMUL == descriptor.elidedLegalAnchor) && hasZvl128b;
         // (b) vreg-budget legality.
-        bool budgetLegal =
-            candidate.vectorRegisterCost <= vectorRegisterBudget;
+        bool budgetLegal = candidate.vectorRegisterCost <= vectorRegisterBudget;
         candidate.isLegal = elisionLegal && budgetLegal;
         candidates.push_back(candidate);
       }
   return candidates;
+}
+
+/// The q4_0 x q8_0 kernel descriptor: the nibble half-block anchors {mf4,m1}, the
+/// m1 elided anchor, and the deep offset-binary decode prefix (latency depth 7).
+inline RVVBlockDotKernelDescriptor getRVVQ40Q80KernelDescriptor() {
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
+  return {kCoreLMULs, "m1", "nibble-offset-binary",
+          getRVVQ40ReductionsPerHalfBlock, getRVVQ40ShapeVectorRegisterCost};
+}
+
+/// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
+/// {robust,elided} = 12 candidates) via the shared descriptor-driven enumeration.
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
+enumerateRVVQ40Q80ShapeCandidates(bool hasZvl128b,
+                                  std::int64_t vectorRegisterBudget) {
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
+      enumerateBlockDotShapeCandidates(getRVVQ40Q80KernelDescriptor(),
+                                       hasZvl128b, vectorRegisterBudget);
+  return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
 /// SELECT the minimum-cost LEGAL Q4_0 shape from the pruned enumeration (the
@@ -2393,16 +2526,25 @@ enumerateRVVQ40Q80ShapeCandidates(bool hasZvl128b,
 /// Zvl128b target this picks (m1, factor=4, elided) -- the ~13% ggml-beating
 /// shape; on a non-Zvl128b target the elided shapes are pruned and the same
 /// argmin picks (m1, factor=2, robust) -- the robust optimum.
-inline std::optional<RVVQ40Q80ShapeCandidate>
-selectRVVQ40Q80MinCostShape(llvm::ArrayRef<RVVQ40Q80ShapeCandidate> candidates) {
-  std::optional<RVVQ40Q80ShapeCandidate> best;
-  for (const RVVQ40Q80ShapeCandidate &candidate : candidates) {
+inline std::optional<RVVBlockDotShapeCandidate>
+selectRVVBlockDotMinCostShape(
+    llvm::ArrayRef<RVVBlockDotShapeCandidate> candidates) {
+  std::optional<RVVBlockDotShapeCandidate> best;
+  for (const RVVBlockDotShapeCandidate &candidate : candidates) {
     if (!candidate.isLegal)
       continue;
     if (!best || candidate.cost < best->cost)
       best = candidate;
   }
   return best;
+}
+
+/// Back-compat alias for the historical q4_0-specific selector name (the selector
+/// was always the shared block-dot argmin). New code uses the generic name.
+inline std::optional<RVVBlockDotShapeCandidate>
+selectRVVQ40Q80MinCostShape(
+    llvm::ArrayRef<RVVBlockDotShapeCandidate> candidates) {
+  return selectRVVBlockDotMinCostShape(candidates);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2501,137 +2643,15 @@ enumerateRVVGemmMCandidates(std::int64_t vregCeiling) {
   return candidates;
 }
 
-/// SELECT the static-fallback M from the pruned band (the offline answer absent a
-/// measurement record): the min-cost-proxy legal M, which the proxy pins to the
-/// default cache-friendly tile (M=4). Returns nullopt only if every candidate was
-/// pruned (fail-closed). This is NOT the win -- it is the safe default the pass
-/// stamps when the board has not measured; the measured pick overrides it.
-inline std::optional<RVVGemmMCandidate>
-selectRVVGemmMStaticFallback(llvm::ArrayRef<RVVGemmMCandidate> candidates) {
-  std::optional<RVVGemmMCandidate> best;
-  for (const RVVGemmMCandidate &candidate : candidates) {
-    if (!candidate.isLegal)
-      continue;
-    if (!best || candidate.cost < best->cost)
-      best = candidate;
-  }
-  return best;
-}
-
-/// One measured GEMM M-block tuning-record entry: the MEASURED-fastest M for a
-/// (gemm-kernel, capability-march) pair + its on-board ns. Parallel to
-/// RVVBlockDotTuningRecordEntry but keyed on the single M knob.
-struct RVVGemmTuningRecordEntry {
-  std::string kernelKey; // "q4_0_q8_0_gemm".
-  std::string march;     // capability-derivation -march (rv64gcv / ...).
-  std::int64_t activationCols = 1; // measured-best M.
-  double measuredNs = 0.0;         // recorded best-of-N ns/output.
-};
-
-/// The canonical GEMM tuning-record line for one measured pick (the driver writes
-/// exactly this; the pass parses exactly this). Auditable + reproducible.
-inline std::string
-formatRVVGemmTuningRecordLine(llvm::StringRef kernelKey, llvm::StringRef march,
-                             std::int64_t activationCols, double measuredNs) {
-  std::string line;
-  llvm::raw_string_ostream os(line);
-  os << "tune kernel=" << kernelKey << " march=" << march
-     << " activation_cols=" << activationCols << " measured_ns=" << measuredNs;
-  os.flush();
-  return line;
-}
-
-/// Parse the GEMM tuning-record text and return the entry for (kernelKey, march),
-/// if present. Comment ('#') and blank lines are skipped; the first matching
-/// `tune` line with an `activation_cols` token wins. Tolerant of token order /
-/// extra whitespace; a malformed line is skipped (the record is an advisory
-/// cache, never a correctness authority). Returns nullopt if no matching entry
-/// exists -> the pass falls back to the static default.
-inline std::optional<RVVGemmTuningRecordEntry>
-lookupRVVGemmTuningRecord(llvm::StringRef recordText, llvm::StringRef kernelKey,
-                          llvm::StringRef march) {
-  llvm::SmallVector<llvm::StringRef, 64> lines;
-  recordText.split(lines, '\n');
-  for (llvm::StringRef rawLine : lines) {
-    llvm::StringRef line = rawLine.trim();
-    if (line.empty() || line.starts_with("#"))
-      continue;
-    llvm::SmallVector<llvm::StringRef, 8> tokens;
-    line.split(tokens, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-    if (tokens.empty() || tokens.front() != "tune")
-      continue;
-
-    RVVGemmTuningRecordEntry entry;
-    bool haveCols = false, haveNs = false;
-    for (llvm::StringRef token : tokens) {
-      auto kv = token.split('=');
-      llvm::StringRef key = kv.first, value = kv.second;
-      if (key == "kernel")
-        entry.kernelKey = value.str();
-      else if (key == "march")
-        entry.march = value.str();
-      else if (key == "activation_cols") {
-        long long parsed = 0;
-        if (!value.getAsInteger(10, parsed)) {
-          entry.activationCols = parsed;
-          haveCols = true;
-        }
-      } else if (key == "measured_ns") {
-        double parsed = 0.0;
-        if (!value.getAsDouble(parsed)) {
-          entry.measuredNs = parsed;
-          haveNs = true;
-        }
-      }
-    }
-    if (entry.kernelKey != kernelKey || entry.march != march)
-      continue;
-    if (!haveCols || !haveNs)
-      continue; // malformed match -> skip, fall through to fallback.
-    return entry;
-  }
-  return std::nullopt;
-}
-
-/// Revalidate a GEMM record's M against the CURRENT legal candidate band (the
-/// single source of truth: the C++ enumerate+prune). A stale record (e.g. one
-/// naming an M now pruned by a shrunk vreg ceiling) must NEVER stamp an illegal M
-/// (I7 fail-closed). Returns the matching legal candidate if the recorded M is
-/// present AND legal, else nullopt -> static fallback.
-inline std::optional<RVVGemmMCandidate>
-revalidateRVVGemmTuningRecordM(llvm::ArrayRef<RVVGemmMCandidate> candidates,
-                               const RVVGemmTuningRecordEntry &entry) {
-  for (const RVVGemmMCandidate &candidate : candidates) {
-    if (!candidate.isLegal)
-      continue;
-    if (candidate.activationCols == entry.activationCols)
-      return candidate;
-  }
-  return std::nullopt;
-}
-
-/// Dump the LEGAL GEMM M-block candidate band as machine-parseable lines on `os`
-/// -- the single source of truth the offline tune driver consumes (so it
-/// enumerates+prunes via THIS C++ authority, never re-implements the vreg-ceiling
-/// rule). One line per legal M:
-///
-///   candidate kernel=<k> march=<m> activation_cols=<M> cost=<c>
-///
-/// CRUCIAL (the measurement-backed point): EVERY vreg-ceiling-legal M is dumped --
-/// including the over-blocking M6/M8 the static proxy deems suboptimal -- because
-/// the whole G3 lesson is that the M optimum is noisy and unpredictable. The
-/// driver MEASURES the full band and lets the board, not the cost proxy, rank.
-inline void dumpRVVGemmLegalCandidates(
-    llvm::raw_ostream &os, llvm::StringRef kernelKey, llvm::StringRef march,
-    llvm::ArrayRef<RVVGemmMCandidate> candidates) {
-  for (const RVVGemmMCandidate &candidate : candidates) {
-    if (!candidate.isLegal)
-      continue;
-    os << "candidate kernel=" << kernelKey << " march=" << march
-       << " activation_cols=" << candidate.activationCols
-       << " cost=" << candidate.cost << "\n";
-  }
-}
+// NOTE: the GEMM static-fallback selector + the GEMM-specific tuning-record trio
+// (entry struct / format / lookup / revalidate / dump) were COLLAPSED into the
+// generic {cost,isLegal,knobs} path (selectGenericSchedule / lookupGeneric /
+// revalidateGeneric / dumpGenericLegalCandidates) -- the GEMM pass now reaches
+// them via toGenericGemmCandidate, so the per-knob-set GEMM clones are gone.
+// `RVVGemmMCandidate` + `computeRVVGemmMCost` + `enumerateRVVGemmMCandidates`
+// remain: the M band enumeration + its cost PROXY are genuinely GEMM-specific
+// (the {1,2,4,6,8} band is a different geometry than the block-dot lmul x factor
+// x elision space; fusing them would be a false abstraction).
 
 //===----------------------------------------------------------------------===//
 // The Family-B SIBLING: the ggml Q4_1 x Q8_1 block-dot shape autotuner.
@@ -2676,37 +2696,21 @@ inline std::int64_t computeRVVQ41ShapeCost(llvm::StringRef coreLMUL,
 /// BUDGET -- the peak-live vreg footprint must fit the vector-register-file
 /// budget. Each candidate's cost is the capability-blind q4_1 structural cost
 /// above (the SAME formula, with q4_1's derived latency depth).
-inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
 enumerateRVVQ41Q81ShapeCandidates(bool hasZvl128b,
                                   std::int64_t vectorRegisterBudget) {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  // q4_1 shares q4_0's nibble-half-block SHAPE (same anchors + reduction +
+  // footprint); the ONLY structural difference is the SHORTER unsigned-nibble
+  // decode prefix ("nibble-unsigned" -> latency depth 4), fed into the SAME
+  // descriptor-driven enumeration.
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
-  static constexpr std::int64_t kFactors[] = {1, 2, 4};
-  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
-  for (llvm::StringRef coreLMUL : kCoreLMULs)
-    for (std::int64_t factor : kFactors)
-      for (llvm::StringRef elision : kElisions) {
-        RVVQ40Q80ShapeCandidate candidate;
-        candidate.integerCoreLMUL = coreLMUL;
-        candidate.multiBlockFactor = factor;
-        candidate.stripElision = elision;
-        candidate.reductionsPerHalfBlock =
-            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
-        candidate.vectorRegisterCost =
-            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
-        candidate.cost = computeRVVQ41ShapeCost(coreLMUL, factor, elision);
-        // (a) capability/anchor legality of strip elision (q4_1: m1 anchor, like
-        // q4_0).
-        bool elisionLegal = true;
-        if (elision == "elided")
-          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
-        // (b) vreg-budget legality.
-        bool budgetLegal =
-            candidate.vectorRegisterCost <= vectorRegisterBudget;
-        candidate.isLegal = elisionLegal && budgetLegal;
-        candidates.push_back(candidate);
-      }
-  return candidates;
+  RVVBlockDotKernelDescriptor descriptor{
+      kCoreLMULs, "m1", "nibble-unsigned", getRVVQ40ReductionsPerHalfBlock,
+      getRVVQ40ShapeVectorRegisterCost};
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
+      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+                                       vectorRegisterBudget);
+  return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2755,37 +2759,21 @@ inline std::int64_t computeRVVQ50ShapeCost(llvm::StringRef coreLMUL,
 /// BUDGET -- the peak-live vreg footprint must fit the vector-register-file
 /// budget. Each candidate's cost is the capability-blind q5_0 structural cost
 /// above (the SAME formula, with q5_0's derived latency depth).
-inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
 enumerateRVVQ50Q80ShapeCandidates(bool hasZvl128b,
                                   std::int64_t vectorRegisterBudget) {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  // q5_0 shares q4_0's nibble-half-block SHAPE; the ONLY structural difference is
+  // its LONGEST decode prefix (unsigned nibble + 5th-bit injection + offset-binary
+  // `-16` bias -> "nibble-5bit-offset-binary", latency depth 10), fed into the
+  // SAME descriptor-driven enumeration.
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
-  static constexpr std::int64_t kFactors[] = {1, 2, 4};
-  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
-  for (llvm::StringRef coreLMUL : kCoreLMULs)
-    for (std::int64_t factor : kFactors)
-      for (llvm::StringRef elision : kElisions) {
-        RVVQ40Q80ShapeCandidate candidate;
-        candidate.integerCoreLMUL = coreLMUL;
-        candidate.multiBlockFactor = factor;
-        candidate.stripElision = elision;
-        candidate.reductionsPerHalfBlock =
-            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
-        candidate.vectorRegisterCost =
-            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
-        candidate.cost = computeRVVQ50ShapeCost(coreLMUL, factor, elision);
-        // (a) capability/anchor legality of strip elision (q5_0: m1 anchor, like
-        // q4_0).
-        bool elisionLegal = true;
-        if (elision == "elided")
-          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
-        // (b) vreg-budget legality.
-        bool budgetLegal =
-            candidate.vectorRegisterCost <= vectorRegisterBudget;
-        candidate.isLegal = elisionLegal && budgetLegal;
-        candidates.push_back(candidate);
-      }
-  return candidates;
+  RVVBlockDotKernelDescriptor descriptor{
+      kCoreLMULs, "m1", "nibble-5bit-offset-binary",
+      getRVVQ40ReductionsPerHalfBlock, getRVVQ40ShapeVectorRegisterCost};
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
+      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+                                       vectorRegisterBudget);
+  return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2833,37 +2821,20 @@ inline std::int64_t computeRVVQ51ShapeCost(llvm::StringRef coreLMUL,
 /// BUDGET -- the peak-live vreg footprint must fit the vector-register-file
 /// budget. Each candidate's cost is the capability-blind q5_1 structural cost
 /// above (the SAME formula, with q5_1's derived latency depth).
-inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12>
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
 enumerateRVVQ51Q81ShapeCandidates(bool hasZvl128b,
                                   std::int64_t vectorRegisterBudget) {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 12> candidates;
+  // q5_1 shares q4_0's nibble-half-block SHAPE; the ONLY structural difference is
+  // its decode prefix -- q5_0's 5-bit chain MINUS the `-16` bias ("nibble-5bit-
+  // unsigned", latency depth 9), fed into the SAME descriptor-driven enumeration.
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
-  static constexpr std::int64_t kFactors[] = {1, 2, 4};
-  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
-  for (llvm::StringRef coreLMUL : kCoreLMULs)
-    for (std::int64_t factor : kFactors)
-      for (llvm::StringRef elision : kElisions) {
-        RVVQ40Q80ShapeCandidate candidate;
-        candidate.integerCoreLMUL = coreLMUL;
-        candidate.multiBlockFactor = factor;
-        candidate.stripElision = elision;
-        candidate.reductionsPerHalfBlock =
-            getRVVQ40ReductionsPerHalfBlock(coreLMUL);
-        candidate.vectorRegisterCost =
-            getRVVQ40ShapeVectorRegisterCost(coreLMUL);
-        candidate.cost = computeRVVQ51ShapeCost(coreLMUL, factor, elision);
-        // (a) capability/anchor legality of strip elision (q5_1: m1 anchor, like
-        // q4_0).
-        bool elisionLegal = true;
-        if (elision == "elided")
-          elisionLegal = (coreLMUL == "m1") && hasZvl128b;
-        // (b) vreg-budget legality.
-        bool budgetLegal =
-            candidate.vectorRegisterCost <= vectorRegisterBudget;
-        candidate.isLegal = elisionLegal && budgetLegal;
-        candidates.push_back(candidate);
-      }
-  return candidates;
+  RVVBlockDotKernelDescriptor descriptor{
+      kCoreLMULs, "m1", "nibble-5bit-unsigned", getRVVQ40ReductionsPerHalfBlock,
+      getRVVQ40ShapeVectorRegisterCost};
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
+      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+                                       vectorRegisterBudget);
+  return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2943,34 +2914,20 @@ inline std::int64_t computeRVVQ80ShapeCost(llvm::StringRef coreLMUL,
 ///       vector-register-file budget. It never binds on this light kernel, but
 ///       the prune is genuine: a shrunk budget rejects the wider m2 footprint.
 /// Each candidate's cost is the shared capability-blind structural cost above.
-inline llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18>
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 18>
 enumerateRVVQ80Q80ShapeCandidates(bool hasZvl128b,
                                   std::int64_t vectorRegisterBudget) {
-  llvm::SmallVector<RVVQ40Q80ShapeCandidate, 18> candidates;
+  // q8_0's block is 32 CONTIGUOUS int8, so its descriptor differs from the nibble
+  // kernels in DATA: the anchor set adds "m2", the elided anchor IS m2, the
+  // per-anchor reduction + vreg counts are the q8_0 ones, and the format is
+  // plain-int8 (latency depth 2 -- the shallow product->reduce chain). Same shared
+  // descriptor-driven enumeration; only the descriptor data changes.
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1", "m2"};
-  static constexpr std::int64_t kFactors[] = {1, 2, 4};
-  static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
-  for (llvm::StringRef coreLMUL : kCoreLMULs)
-    for (std::int64_t factor : kFactors)
-      for (llvm::StringRef elision : kElisions) {
-        RVVQ40Q80ShapeCandidate candidate;
-        candidate.integerCoreLMUL = coreLMUL;
-        candidate.multiBlockFactor = factor;
-        candidate.stripElision = elision;
-        candidate.reductionsPerHalfBlock = getRVVQ80ReductionsPerBlock(coreLMUL);
-        candidate.vectorRegisterCost = getRVVQ80ShapeVectorRegisterCost(coreLMUL);
-        candidate.cost = computeRVVQ80ShapeCost(coreLMUL, factor, elision);
-        // (a) capability/anchor legality of strip elision (q8_0: m2 anchor).
-        bool elisionLegal = true;
-        if (elision == "elided")
-          elisionLegal = (coreLMUL == "m2") && hasZvl128b;
-        // (b) vreg-budget legality.
-        bool budgetLegal =
-            candidate.vectorRegisterCost <= vectorRegisterBudget;
-        candidate.isLegal = elisionLegal && budgetLegal;
-        candidates.push_back(candidate);
-      }
-  return candidates;
+  RVVBlockDotKernelDescriptor descriptor{kCoreLMULs, "m2", "plain-int8",
+                                         getRVVQ80ReductionsPerBlock,
+                                         getRVVQ80ShapeVectorRegisterCost};
+  return enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+                                          vectorRegisterBudget);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3130,6 +3087,232 @@ inline void dumpRVVBlockDotLegalCandidates(
        << " elision=" << candidate.stripElision << " cost=" << candidate.cost
        << "\n";
   }
+}
+
+//===----------------------------------------------------------------------===//
+// The GENERIC key=value tuning machinery (parse / revalidate / dump / select).
+//
+// These generalize the block-dot AND GEMM record-parse / revalidate / dump / select
+// from FIXED keys (lmul/factor/elision vs activation_cols) to an ARBITRARY
+// `key=value` knob list carried on GenericScheduleCandidate. The wire format is
+// UNCHANGED -- the existing `dumpRVV*LegalCandidates` lines are already
+// `key=value` -- so a new tunable op inherits parse/revalidate/dump/select by
+// declaring its knob list, with no new per-knob-set parser. (The typed
+// block-dot/GEMM helpers above stay as thin shims so existing call sites + tests
+// are byte-identical; the generic versions are what the collapsed pass uses.)
+//===----------------------------------------------------------------------===//
+
+/// Lift a typed block-dot candidate to the generic candidate, attaching its three
+/// knobs with BOTH spellings (the short record key + the long dialect-attr name)
+/// in the canonical dump/record order (lmul, factor, elision). The block-dot
+/// dialect attrs are integer_core_lmul (string), multi_block_factor (i64),
+/// strip_elision (string).
+inline GenericScheduleCandidate
+toGenericBlockDotCandidate(const RVVBlockDotShapeCandidate &candidate) {
+  GenericScheduleCandidate generic;
+  generic.cost = candidate.cost;
+  generic.isLegal = candidate.isLegal;
+  generic.knobs.push_back(
+      {"lmul", "integer_core_lmul", candidate.integerCoreLMUL.str(), false});
+  generic.knobs.push_back(
+      {"factor", "multi_block_factor",
+       std::to_string(candidate.multiBlockFactor), true});
+  generic.knobs.push_back(
+      {"elision", "strip_elision", candidate.stripElision.str(), false});
+  return generic;
+}
+
+/// Lift a typed GEMM M candidate to the generic candidate. The GEMM knob uses the
+/// SAME spelling for the record key + the dialect attr (activation_cols, i64).
+inline GenericScheduleCandidate
+toGenericGemmCandidate(const RVVGemmMCandidate &candidate) {
+  GenericScheduleCandidate generic;
+  generic.cost = candidate.cost;
+  generic.isLegal = candidate.isLegal;
+  generic.knobs.push_back({"activation_cols", "activation_cols",
+                           std::to_string(candidate.activationCols), true});
+  return generic;
+}
+
+/// A generic measured record entry: the matched (kernel, march) pair, the measured
+/// ns, and the recorded knob VALUES keyed by the SHORT record key. Knob-agnostic:
+/// any `key=value` token that is not a reserved control token (kernel / march /
+/// measured_ns) is captured as a knob value, so a new knob set needs no parser
+/// change.
+struct GenericTuningRecordEntry {
+  std::string kernelKey;
+  std::string march;
+  double measuredNs = 0.0;
+  llvm::SmallVector<std::pair<std::string, std::string>, 3> knobValues;
+
+  /// The recorded value for `recordKey`, if present.
+  std::optional<llvm::StringRef> lookupKnob(llvm::StringRef recordKey) const {
+    for (const auto &kv : knobValues)
+      if (kv.first == recordKey)
+        return llvm::StringRef(kv.second);
+    return std::nullopt;
+  }
+};
+
+/// Parse the tuning-record text and return the entry for (kernelKey, march), with
+/// EVERY knob token captured (key-agnostic). Skips comment ('#') / blank lines;
+/// the first matching `tune` line wins; tolerant of token order + whitespace; a
+/// line missing measured_ns is skipped (advisory cache, never a correctness
+/// authority). `requiredKnobKeys` are the record keys the caller's knob set needs;
+/// a match missing any of them is skipped (parity with the typed parsers'
+/// missing-token guard). Returns nullopt if no complete matching entry exists.
+inline std::optional<GenericTuningRecordEntry> lookupGenericTuningRecord(
+    llvm::StringRef recordText, llvm::StringRef kernelKey, llvm::StringRef march,
+    llvm::ArrayRef<llvm::StringRef> requiredKnobKeys) {
+  llvm::SmallVector<llvm::StringRef, 64> lines;
+  recordText.split(lines, '\n');
+  for (llvm::StringRef rawLine : lines) {
+    llvm::StringRef line = rawLine.trim();
+    if (line.empty() || line.starts_with("#"))
+      continue;
+    llvm::SmallVector<llvm::StringRef, 8> tokens;
+    line.split(tokens, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    if (tokens.empty() || tokens.front() != "tune")
+      continue;
+
+    GenericTuningRecordEntry entry;
+    bool haveNs = false;
+    for (llvm::StringRef token : tokens) {
+      auto kv = token.split('=');
+      llvm::StringRef key = kv.first, value = kv.second;
+      if (key == "tune")
+        continue;
+      if (key == "kernel")
+        entry.kernelKey = value.str();
+      else if (key == "march")
+        entry.march = value.str();
+      else if (key == "measured_ns") {
+        double parsed = 0.0;
+        if (!value.getAsDouble(parsed)) {
+          entry.measuredNs = parsed;
+          haveNs = true;
+        }
+      } else
+        entry.knobValues.push_back({key.str(), value.str()});
+    }
+    if (entry.kernelKey != kernelKey || entry.march != march)
+      continue;
+    if (!haveNs)
+      continue; // malformed match -> skip, fall through to fallback.
+    bool haveAllKnobs = true;
+    for (llvm::StringRef required : requiredKnobKeys)
+      if (!entry.lookupKnob(required))
+        haveAllKnobs = false;
+    if (!haveAllKnobs)
+      continue;
+    return entry;
+  }
+  return std::nullopt;
+}
+
+/// Revalidate a record entry against the CURRENT legal generic candidate set (the
+/// single source of truth: the C++ enumerate+prune). A stale record (one whose
+/// knobs name a now-illegal candidate) must NEVER stamp an illegal shape (I7
+/// fail-closed). Returns the matching legal candidate (all knob VALUES equal the
+/// record's) if present + legal, else nullopt -> static fallback.
+inline std::optional<GenericScheduleCandidate> revalidateGenericTuningRecord(
+    llvm::ArrayRef<GenericScheduleCandidate> candidates,
+    const GenericTuningRecordEntry &entry) {
+  for (const GenericScheduleCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    bool allMatch = true;
+    for (const NamedKnob &knob : candidate.knobs) {
+      std::optional<llvm::StringRef> recorded = entry.lookupKnob(knob.recordKey);
+      if (!recorded || *recorded != knob.value) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch)
+      return candidate;
+  }
+  return std::nullopt;
+}
+
+/// Dump the LEGAL generic candidate set as machine-parseable `candidate kernel=...
+/// march=... <knob>=<v> ... cost=<c>` lines (the single source of truth the
+/// offline tune driver consumes). Knobs are emitted by their SHORT record key in
+/// candidate order -- byte-identical to the typed dumpRVV*LegalCandidates output
+/// (lmul/factor/elision or activation_cols), so the wire format is unchanged.
+inline void dumpGenericLegalCandidates(
+    llvm::raw_ostream &os, llvm::StringRef kernelKey, llvm::StringRef march,
+    llvm::ArrayRef<GenericScheduleCandidate> candidates) {
+  for (const GenericScheduleCandidate &candidate : candidates) {
+    if (!candidate.isLegal)
+      continue;
+    os << "candidate kernel=" << kernelKey << " march=" << march;
+    for (const NamedKnob &knob : candidate.knobs)
+      os << " " << knob.recordKey << "=" << knob.value;
+    os << " cost=" << candidate.cost << "\n";
+  }
+}
+
+/// The outcome of a generic measured-best-then-static-fallback selection: the
+/// chosen candidate (always legal), the provenance (measured vs static), the
+/// recorded ns (only if measured), and the legal-candidate count (audit).
+struct GenericScheduleSelection {
+  GenericScheduleCandidate candidate;
+  bool fromMeasurement = false;
+  double measuredNs = 0.0;
+  std::int64_t legalCandidateCount = 0;
+};
+
+/// Select a schedule from the (already enumerated + pruned) generic candidate set
+/// and the optional tuning-record text. This is the ONE selection policy that
+/// replaces selectRVVBlockDotSchedule + selectRVVGemmSchedule:
+///   (1) measured-best -- if a record entry for (kernelKey, march) exists AND its
+///       knobs still revalidate against the current legal set, stamp it (carrying
+///       the recorded ns);
+///   (2) else the static argmin over the legal set (the offline fallback).
+/// Returns nullopt only when every candidate was pruned (fail-closed I7). The
+/// `requiredKnobKeys` are the caller's knob record keys (so a malformed record
+/// missing one is skipped, exactly like the typed parsers).
+inline std::optional<GenericScheduleSelection> selectGenericSchedule(
+    llvm::ArrayRef<GenericScheduleCandidate> candidates,
+    const std::optional<std::string> &recordText, llvm::StringRef kernelKey,
+    llvm::StringRef march, llvm::ArrayRef<llvm::StringRef> requiredKnobKeys) {
+  std::int64_t legalCount = 0;
+  for (const GenericScheduleCandidate &candidate : candidates)
+    if (candidate.isLegal)
+      ++legalCount;
+
+  // (1) Measured-best, if a valid + still-legal record entry exists.
+  if (recordText) {
+    std::optional<GenericTuningRecordEntry> entry = lookupGenericTuningRecord(
+        *recordText, kernelKey, march, requiredKnobKeys);
+    if (entry) {
+      std::optional<GenericScheduleCandidate> revalidated =
+          revalidateGenericTuningRecord(candidates, *entry);
+      if (revalidated) {
+        GenericScheduleSelection selection;
+        selection.candidate = *revalidated;
+        selection.fromMeasurement = true;
+        selection.measuredNs = entry->measuredNs;
+        selection.legalCandidateCount = legalCount;
+        return selection;
+      }
+      // A stale record (the recorded knobs are no longer legal) -> fail-closed:
+      // fall through to the static fallback below.
+    }
+  }
+
+  // (2) Static cost-model argmin fallback (the offline answer).
+  std::optional<GenericScheduleCandidate> staticBest =
+      selectGenericMinCostCandidate(candidates);
+  if (!staticBest)
+    return std::nullopt; // every candidate pruned -> fail-closed.
+
+  GenericScheduleSelection selection;
+  selection.candidate = *staticBest;
+  selection.fromMeasurement = false;
+  selection.legalCandidateCount = legalCount;
+  return selection;
 }
 
 } // namespace tianchenrv::plugin::rvv
