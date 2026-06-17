@@ -1,0 +1,47 @@
+INC-33 iq2_xxs structured-emission proof (I5: every value is an emitc node; raw()=0)
+================================================================================
+raw() actual-call count in the compiler-emitted kernel:
+0
+0
+
+Distinct __riscv_* intrinsics emitted (all structured emitc CallOpaque, no raw):
+__riscv_vand_vv_u8m1
+__riscv_vle8_v_i8m1
+__riscv_vle8_v_u8m1
+__riscv_vmerge_vvm_i8m1
+__riscv_vmsne_vx_u8m1_b8
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_v_x_u8m1
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vneg_v_i8m1
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+
+The GRID codebook + SIGN plane + kmask are structured static const decls (NOT raw):
+9:  static const int64_t tcrv_iq2xxs_grid[256] = {...
+10:  static const uint8_t tcrv_iq2xxs_ksigns[128] = {...
+11:  static const uint8_t tcrv_iq2xxs_kmask[8] = {...
+
+The grid byte-view + indexed lookup (grid_i8 + idx*8) -- structured pointer arith:
+20:  const int8_t* v9 = (const int8_t*) tcrv_iq2xxs_grid;
+75:    const int8_t* v52 = v9 + v51;
+106:    const int8_t* v72 = v9 + v71;
+137:    const int8_t* v92 = v9 + v91;
+
+The aux1 reassembly + UNSIGNED scale shift (logical, no *(uint32_t*), no signed >>):
+48:    uint32_t v28 = v27 << 8u;
+52:    uint32_t v32 = v31 << 16u;
+56:    uint32_t v36 = v35 << 24u;
+58:    uint32_t v38 = v37 >> 28u;
+203:    uint32_t v133 = v132 << 8u;
+207:    uint32_t v137 = v136 << 16u;
+
+The SIGN-plane vector application (broadcast/vand/vmsne/vneg/vmerge) + integer fold:
+84:    // tcrv_emitc.source_op=tcrv_rvv.iq2_xxs_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+85:    vbool8_t v57 = __riscv_vmsne_vx_u8m1_b8(v56, 0, v50);
+86:    // tcrv_emitc.source_op=tcrv_rvv.iq2_xxs_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+87:    vint8m1_t v58 = __riscv_vneg_v_i8m1(v53, v50);
+88:    // tcrv_emitc.source_op=tcrv_rvv.iq2_xxs_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+89:    vint8m1_t v59 = __riscv_vmerge_vvm_i8m1(v53, v58, v57, v50);

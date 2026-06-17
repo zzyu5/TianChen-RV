@@ -1,0 +1,24 @@
+=== board ===
+riscv64
+Ubuntu clang version 18.1.3 (1ubuntu1)
+=== -ffp-contract=off ===
+iq2_xxs byte-exact: 2502/2502 passed, 0 failed (generic delta 0/2502)
+NEG-CTRL wrong-grid:  ours=428.734467 wrong=451.451782 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=428.734467 wrong=-58.2125854 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=428.734467 wrong=407.110535 -> DIVERGES (PASS)
+RESULT: ALL PASS
+=== -ffp-contract=fast ===
+iq2_xxs byte-exact: 2502/2502 passed, 0 failed (generic delta 0/2502)
+NEG-CTRL wrong-grid:  ours=428.734406 wrong=451.451721 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=428.734406 wrong=-58.2126312 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=428.734406 wrong=407.110443 -> DIVERGES (PASS)
+RESULT: ALL PASS
+=== nm exported symbols (k_off.o) ===
+0000000000000000 t $x.0
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_ggml_vec_dot_iq2_xxs_q8_K
+=== COMPILER-KNOB control (attr -> const -> HW) ===
+REAL-attr kernel    = 49.970417  (real-table ref = 49.970417) -> MATCH
+PERTURBED-attr kernel = 7.96230602  (pert-table ref = 7.96230602) -> MATCH
+real-attr vs perturbed-attr HW result -> DIVERGES (attr is the live knob)
+RESULT: KNOB LIVE (attr -> const -> HW)

@@ -5677,6 +5677,107 @@ def GgmlBlockDotIQ4XSQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotIQ2XXSQ8KOp
+    : TCRVRVV_Op<"iq2_xxs_q8_k_block_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ2_XXS x Q8_K GRID-codebook super-block dot-product op";
+  let description = [{
+    Records the COMPLETE ggml `ggml_vec_dot_iq2_xxs_q8_K` super-block dot-product as
+    ONE bounded generic plugin-local typed RVV dataflow step -- the FIRST member of
+    the DEEP IQ tail: the GRID-codebook class. This is a genuinely NEW mechanism, NOT
+    the 16-entry per-nibble gather (iq4_nl/iq4_xs): each weight byte INDEXES a large
+    packed GRID codebook (`iq2xxs_grid[256]`, a uint64 table where each entry encodes
+    8 int8 values), the per-element SIGN is read from a separate SIGN PLANE
+    (`ksigns_iq2xs[128]` / `kmask_iq2xs[8]`), and a per-group 4-bit scale folds in the
+    INTEGER domain. It REUSES the q6_K-style super-block structure (the q8_K
+    activation, the integer-domain `bsum` accumulation, the per-super-block fp32 fold).
+
+    Block format (ggml-common.h): block_iq2_xxs = { ggml_half d; uint16_t qs[QK_K/8] }
+    (= {fp16 d; uint16_t qs[32]}, stride 66), the q8_K activation unchanged (stride
+    292, fp32 d @0, int8 qs @4). QK_K=256, 8 sub-blocks of 32 elements (ib32=0..7).
+
+    (1) Per super-block d = (float)*(const _Float16 *)(xb) * *(const float *)(yb)
+        (the fp16 weight scale times the fp32 q8_K scale, ONE mul), computed once.
+        int32_t bsum = 0 reset per super-block.
+
+    (2) For each of the 8 sub-blocks (a FLAT unrolled loop over ib32=0..7), read the
+        two aux uint32 words from qs + ib32*8 by REASSEMBLING each from 4 little-
+        endian byte loads (the qs stream starts at byte 2 so the aux words are
+        2-aligned, NOT 4-aligned -- the byte reassembly is alignment-safe structured
+        scalar emitc, no misaligned `*(uint32_t*)`): aux0 packs the 4 grid byte
+        INDICES (aux8[0..3] = the low 4 bytes), aux1 packs the SIGN selectors + the
+        scale. The per-sub-block scale `ls = 2*(aux1 >> 28) + 1` and the integer dot
+        `sumi = 0`. For each of the 4 groups l=0..3: the grid INDEX `idx = aux8[l]`,
+        the sign byte `signs = ksigns_iq2xs[(aux1 >> 7*l) & 127]`, the 8 grid int8
+        values `grid = (const int8_t *)(iq2xxs_grid + idx)` (an indexed pointer-arith
+        lookup `grid_table_i8 + idx*8`, NOT a vrgather -- the 2048-byte table cannot
+        broadcast into a vreg), are decoded over 8 lanes: broadcast `signs`, `vand`
+        with the kmask vector {1,2,4,8,16,32,64,128}, `vmsne 0` -> mask, `vmerge(grid,
+        vneg(grid), mask)` applies the per-lane sign, then `vwmul(grid_signed, q8)` ->
+        i16, `vwredsum` accumulates (seed = the running sumi i32m1, integer add is
+        order-free) into the chained i32 reduction. After the 4 groups `bsum +=
+        sumi * ls`.
+
+    (3) The per-super-block fp32 fold `sumf = sumf + d * (float)bsum` is ONE
+        emitc.expression (the SAME FMA `_generic` does under -ffp-contract on/default;
+        the `(float)bsum` cast is explicit) invoked in STRICT ascending super-block
+        order so fp non-associativity is byte-exact across all four -ffp-contract
+        modes. The final `*s = 0.125f * sumf` (the iq2_xxs trailing 1/8 factor) is a
+        SEPARATE statement OUTSIDE the accumulate expression.
+
+    The grid lookup is an indexed vle8(8) over a pointer (`grid_table + idx*8`), the
+    operative vector width is 8 (one group), so there is NO vrgather table-index
+    legality fact and the integer core does NOT pin an m1 table anchor. The grid +
+    ksigns tables are STRUCTURAL facts (I4 mirror) carried as typed array attributes
+    and emitted as structured `static const` decls (the grid as `int64_t[256]`
+    rendering ggml's exact uint64 literals, read via a `(const int8_t *)` cast; ksigns
+    as a `uint8_t[128]` decl); kmask is the inline const {1<<j}. They are consumed
+    STRUCTURALLY into the realized body (decls + indexed loads + the vle8 grid load),
+    NOT an arithmetic decode, NOT a string plan read. The op identity is the dispatch
+    key. Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, operand mirror strings, q8/iq2 names, and common EmitC/export
+    code must not infer or choose super-block dot-product semantics.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
+    value operands -- the iq2_xxs weight base pointer (vx), the q8_K activation base
+    pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime element
+    count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
+
+    iq2_xxs emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
+    Zvl128b => VLEN>=128, the validated target). No resource shape knobs this cut; the
+    op carries only the structural facts.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    DenseI64ArrayAttr:$grid,
+    DenseI32ArrayAttr:$ksigns
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",
     [TCRVEmitCLowerableOpInterface]> {
