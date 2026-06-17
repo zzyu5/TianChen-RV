@@ -1064,3 +1064,42 @@ All three goal conditions met (覆盖+高性能+完整forward) + trellis flow cl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Maturity goal: scalar-hardening + tune-reuse interface + roofline/measured-win + core split (all 4 WS)
+
+**Date**: 2026-06-18
+**Task**: Maturity goal: scalar-hardening + tune-reuse interface + roofline/measured-win + core split (all 4 WS)
+**Branch**: `main`
+
+### Summary
+
+Completed the 4-workstream compiler-maturity goal. WS-A: scalar variant now flows via registry collectVariantProposals by abstract ConservativeFallback role (front-door scalar strings 5->0, core family-grep empty). WS-C: TunableScheduleOpInterface (Tier-1) — one tcrv-rvv-materialize-schedule pass auto-discovers all tunable ops via dyn_cast (0 hardcoded op types); descriptor data provably identical -> byte-exact stamps; family-neutral. WS-B: ssh-rvv roofline showed kernels are latency/overhead-bound (4-13% of compute ceiling), so the lever is multi_block_factor overlap — and the measured win already exists (inc10: q4_1 static m1/4 loss->measured m1/1 win, factor 1>2>4 overturns the cost model), flowing through the new Tier-1 pass byte-identically. WS-D: 28-branch block-dot dispatch->first-match table; 33 support helpers extracted; VariantToEmitCFunc de-anonymized + split across 7 family TUs (RVVToEmitC.cpp 23939->5237). All byte-exact (clean-build fingerprint f810ce6b), raw()=0, lit 674/3. Deferred (documented): WS-D verifier de-dup (90% bespoke I7 diagnostics, pure churn). Build-hygiene lesson: this tree's incremental builds are unreliable (always-dirty RVVOps.cpp.inc) — fingerprint gates must use forced/clean rebuilds.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ef7179e7` | (see git log) |
+| `bd7c8b53` | (see git log) |
+| `bac3acd5` | (see git log) |
+| `a73ab62d` | (see git log) |
+| `81b57ba5` | (see git log) |
+| `ec3949d2` | (see git log) |
+| `eb2e09d8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
