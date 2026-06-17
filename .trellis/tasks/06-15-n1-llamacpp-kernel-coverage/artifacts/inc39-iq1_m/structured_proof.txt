@@ -1,0 +1,23 @@
+=== raw() actual-call count (emitc.verbatim that are NOT comments/decls) ===
+non-comment verbatim ops in lowered IR:
+0
+(0 = only the structured grid decl; no raw escapes)
+
+=== distinct __riscv_* intrinsics in the emitted kernel ===
+__riscv_vle8_v_i8m1
+__riscv_vmv_v_x_i16m1
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_x_s_i16m1_i16
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+__riscv_vwredsum_vs_i8m1_i16m1
+
+=== sign-apply intrinsics (MUST be 0 -- ternary grid is itself signed) ===
+0
+=== _Float16 reinterpret reads (the iq1m_scale reconstruction) ===
+1
+=== 0.125f literal count (IQ1M_DELTA, once per super-block fold) ===
+1

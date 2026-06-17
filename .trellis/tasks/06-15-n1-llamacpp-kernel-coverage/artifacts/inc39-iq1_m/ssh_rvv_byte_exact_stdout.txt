@@ -1,0 +1,16 @@
+=== OFF ===
+iq1_m byte-exact: 2464/2464 passed, 0 failed
+grid-index coverage (edge): max idx = 2047, hit 2047 = YES
+NEG-CTRL wrong-grid   (every grid byte +1)            ours=-748.790039 wrong=12598.695312 -> DIVERGES
+NEG-CTRL wrong-scale  (drop the +1 in ls1/ls2)        ours=-748.790039 wrong=-544.148438 -> DIVERGES
+NEG-CTRL wrong-DELTA  (omit the delta sumi2 term)     ours=-748.790039 wrong=919.645508 -> DIVERGES
+NEG-CTRL wrong-RECON  (iq1m_scale wrong nibble shift) ours=-748.790039 wrong=-260.053711 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq1_m _generic + 4 negative controls live)
+=== FAST ===
+iq1_m byte-exact: 2464/2464 passed, 0 failed
+grid-index coverage (edge): max idx = 2047, hit 2047 = YES
+NEG-CTRL wrong-grid   (every grid byte +1)            ours=-748.790283 wrong=12598.693359 -> DIVERGES
+NEG-CTRL wrong-scale  (drop the +1 in ls1/ls2)        ours=-748.790283 wrong=-544.148438 -> DIVERGES
+NEG-CTRL wrong-DELTA  (omit the delta sumi2 term)     ours=-748.790283 wrong=919.645691 -> DIVERGES
+NEG-CTRL wrong-RECON  (iq1m_scale wrong nibble shift) ours=-748.790283 wrong=-260.055328 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq1_m _generic + 4 negative controls live)
