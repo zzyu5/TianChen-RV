@@ -1,0 +1,33 @@
+=== INC-37 iq3_s structured-emission proof ===
+raw( actual-call count in the compiler-emitted kernel: 0
+
+=== distinct __riscv_* intrinsics (all structured emitc CallOpaque) ===
+__riscv_vand_vv_u8m1
+__riscv_vle8_v_i8m1
+__riscv_vle8_v_u8m1
+__riscv_vmerge_vvm_i8m1
+__riscv_vmsne_vx_u8m1_b8
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_v_x_u8m1
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vneg_v_i8m1
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+
+=== structured static const tables (emitc VerbatimOp decls) ===
+static const uint32_t tcrv_iq3s_grid[512]
+static const uint8_t tcrv_iq3s_kmask[8]
+
+=== the qh 9th-bit injection (mask 256 = bit 8) is present as structured int ops ===
+   256 occurrences: 64
+
+=== ksigns table ABSENT (iq3_s has NO ksigns plane) ===
+  ksigns occurrences: 0
+
+=== trailing factor ABSENT (iq3_s applies *s = sumf, no 0.25f/0.125f) ===
+  0.25f occurrences: 0  0.125f occurrences: 0
+
+=== exported symbol (extern C) ===
+extern "C" void tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_ggml_vec_dot_iq3_s_q8_K

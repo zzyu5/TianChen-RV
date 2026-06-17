@@ -1,0 +1,25 @@
+=== -ffp-contract=off ===
+iq3_s byte-exact: 2464/2464 passed, 0 failed (generic delta 0/2464)
+grid-index coverage (edge): max idx = 511, hit 511 = YES
+NEG-CTRL wrong-grid  (every grid byte +1)         ours=-482942.812500 wrong=-523587.812500 -> DIVERGES
+NEG-CTRL wrong-signs (clear explicit sign bit)    ours=-482942.812500 wrong=-131964.218750 -> DIVERGES
+NEG-CTRL wrong-scale (drop the +1)                ours=-482942.812500 wrong=-461682.937500 -> DIVERGES
+NEG-CTRL wrong-qh    (drop the 9th-bit plane)     ours=-482942.812500 wrong=-100410.023438 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq3_s _generic + 4 negative controls live)
+=== -ffp-contract=fast ===
+iq3_s byte-exact: 2464/2464 passed, 0 failed (generic delta 0/2464)
+grid-index coverage (edge): max idx = 511, hit 511 = YES
+NEG-CTRL wrong-grid  (every grid byte +1)         ours=-482942.781250 wrong=-523587.812500 -> DIVERGES
+NEG-CTRL wrong-signs (clear explicit sign bit)    ours=-482942.781250 wrong=-131964.218750 -> DIVERGES
+NEG-CTRL wrong-scale (drop the +1)                ours=-482942.781250 wrong=-461682.937500 -> DIVERGES
+NEG-CTRL wrong-qh    (drop the 9th-bit plane)     ours=-482942.781250 wrong=-100410.015625 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq3_s _generic + 4 negative controls live)
+=== nm: exported symbols + external refs ===
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_ggml_vec_dot_iq3_s_q8_K
+
+=== COMPILER-KNOB control (-ffp-contract=off) ===
+REAL-attr kernel      = 87244.55469   (real-table ref = 87244.55469) -> MATCH
+PERTURBED-attr kernel = 101755.50000   (pert-table ref = 101755.50000) -> MATCH
+real-attr vs perturbed-attr -> DIVERGES (attr is the live knob)
+RESULT: KNOB LIVE (attr -> const -> HW)
