@@ -1,0 +1,25 @@
+=== INC-36 iq3_xxs ssh rvv byte-exact validation (riscv64, rv64gcv, VLEN=128, clang 18.1.3) ===
+
+### -ffp-contract=off ###
+iq3_xxs byte-exact: 2502/2502 passed, 0 failed (generic delta 0/2502)
+NEG-CTRL wrong-grid:  ours=-12981.7734 wrong=-13293.4229 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=-12981.7734 wrong=-18303.6816 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-12981.7734 wrong=-12015.9238 -> DIVERGES (PASS)
+RESULT: ALL PASS
+
+### -ffp-contract=fast ###
+iq3_xxs byte-exact: 2502/2502 passed, 0 failed (generic delta 0/2502)
+NEG-CTRL wrong-grid:  ours=-12981.7734 wrong=-13293.4229 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=-12981.7734 wrong=-18303.6816 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-12981.7734 wrong=-12015.9238 -> DIVERGES (PASS)
+RESULT: ALL PASS
+
+### COMPILER-KNOB control (real-attr vs perturbed-attr; grid[5] low byte +1, ksigns[5] 5->200) ###
+KNOB real-attr kernel:  HW=4646.250000  ref(real-table)=4646.250000  MATCH
+KNOB pert-attr kernel:  HW=19931.625000  ref(pert-table)=19931.625000  MATCH
+KNOB real-HW vs pert-HW: 4646.250000 vs 19931.625000 -> DIVERGE (PASS: attr is the live knob)
+KNOB RESULT: ALL PASS
+
+### nm: ONE exported symbol + ONE external ref (compiler-rt fp16) of the kernel object ###
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_ggml_vec_dot_iq3_xxs_q8_K

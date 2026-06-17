@@ -1,0 +1,25 @@
+=== INC-36 iq3_xxs STRUCTURED-emission proof (raw()=0) ===
+
+raw() actual-call count in the compiler-emitted kernel (tcrv_emitted_kernel.cpp): 0
+
+The op lowers to fully STRUCTURED emitc nodes (I5): every value is an emitc node. The
+only opaque pieces are the sanctioned (float)*(const _Float16 *) d read and the
+__riscv_* intrinsic spellings -- both structured emitc.call_opaque. The grid + ksigns +
+kmask tables are structured static const decls (emitc.verbatim), the SAME channel the
+iq2_xxs/iq2_s GRID-codebook siblings use.
+
+Distinct __riscv_* intrinsic spellings emitted (all structured call_opaque):
+  __riscv_vand_vv_u8m1 __riscv_vle8_v_i8m1 __riscv_vle8_v_u8m1 __riscv_vmerge_vvm_i8m1 __riscv_vmsne_vx_u8m1_b8 __riscv_vmv_v_x_i32m1 __riscv_vmv_v_x_u8m1 __riscv_vmv_x_s_i32m1_i32 __riscv_vneg_v_i8m1 __riscv_vsetvl_e32m1 __riscv_vsetvl_e8m1 __riscv_vwmul_vv_i16m2 __riscv_vwredsum_vs_i16m2_i32m1
+
+The GRID-of-4 byte view + indexed lookup (the iq3 delta vs iq2_xxs's grid-of-8):
+  grid byte view:  = (const int8_t*) tcrv_iq3xxs_grid;
+  idx*4 (4 bytes per grid-of-4 entry):  size_t v56 = v54 * 4;
+  vle8 width 4:  __riscv_vsetvl_e8m1(4)
+
+The trailing iq3_xxs 1/4 factor (vs iq2_xxs's 0.125f):
+  0.25f * v1363
+
+Board nm: ONE exported kernel symbol, ONE external ref (__extendhfsf2 = the compiler-rt
+fp16->fp32 builtin) -- no kernel fallback; the RVV intrinsics inline:
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_ggml_vec_dot_iq3_xxs_q8_K

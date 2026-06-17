@@ -4185,6 +4185,188 @@ mlir::LogicalResult GgmlBlockDotIQ2SQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotIQ3XXSQ8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // GRID-codebook integer-domain scale model, the super-block-format structural
+  // facts (the fp16 weight scale d @0, the grid index region qs @2, the aux/sign/
+  // scale region gas @66 = qs + QK_K/4, the fp32 activation scale d @0, qs @4), and
+  // the two GRID-codebook structural tables -- the 256-entry uint32 iq3xxs_grid (each
+  // entry packs 4 int8 grid values, carried as int32[256] rendering ggml's exact
+  // literals -- every entry < 0x80000000 so a positive int32 carries the value
+  // losslessly) and the 128-entry ksigns_iq2xs sign plane (carried as i32[128] --
+  // ksigns values reach 255, beyond int8, so an i32 attr is required to carry them
+  // losslessly). The kmask {1<<j} sign-bit selector is an inline const, not a table.
+  // Anything else -- a forbidden local element_count/SEW/LMUL/policy attr, or an
+  // unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "sub_block" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_d_byte_offset" || name == "weight_qs_byte_offset" ||
+           name == "weight_gas_byte_offset" ||
+           name == "activation_d_byte_offset" ||
+           name == "activation_quant_byte_offset" || name == "grid" ||
+           name == "ksigns";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.iq3_xxs_q8_k_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded GRID-codebook super-block dot-product "
+                "attributes 'kind', 'scale_model', 'qk', 'sub_block', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'weight_d_byte_offset', 'weight_qs_byte_offset', "
+                "'weight_gas_byte_offset', 'activation_d_byte_offset', "
+                "'activation_quant_byte_offset', 'grid', and 'ksigns'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_iq3_xxs_q8_k_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_iq3_xxs_q8_k_block_dot\" for "
+              "the bounded ggml IQ3_XXS x Q8_K GRID-codebook super-block full "
+              "block dot-product typed surface";
+  if (getScaleModel() != "per-group-int4-grid-of-4-codebook-scale-int-domain")
+    return emitOpError()
+           << "requires scale_model "
+              "\"per-group-int4-grid-of-4-codebook-scale-int-domain\" for the "
+              "ggml IQ3_XXS x Q8_K GRID-codebook super-block full block "
+              "dot-product route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 8 sub-blocks of 32 elements, block_iq3_xxs stride 98 (d@0|qs[96]@2; the qs[96]
+  // array holds 64 grid index bytes @2 then 32 aux bytes @66) and block_q8_K stride
+  // 292 (d@0|qs@4|bsums@260 unused). Pin them so a malformed typed body cannot lower
+  // under the super-block dot emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ3_XXS x "
+                            "Q8_K GRID-codebook super-block full block "
+                            "dot-product route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block boundary) for the "
+              "ggml IQ3_XXS x Q8_K GRID-codebook super-block full block "
+              "dot-product route";
+  if (getWeightBlockStride() != 98)
+    return emitOpError()
+           << "requires weight_block_stride == 98 (sizeof block_iq3_xxs) for "
+              "the ggml IQ3_XXS x Q8_K GRID-codebook super-block full block "
+              "dot-product route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml IQ3_XXS x Q8_K GRID-codebook super-block full block "
+              "dot-product route";
+  if (getWeightDByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_d_byte_offset == 0 (the fp16 super-block scale d "
+              "leads block_iq3_xxs) for the ggml IQ3_XXS x Q8_K GRID-codebook "
+              "super-block full block dot-product route";
+  if (getWeightQsByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 2 (the uint8 qs[96] follow d; "
+              "the first 64 bytes are grid index bytes) for the ggml IQ3_XXS x "
+              "Q8_K GRID-codebook super-block full block dot-product route";
+  if (getWeightGasByteOffset() != 66)
+    return emitOpError()
+           << "requires weight_gas_byte_offset == 66 (the aux/sign/scale words "
+              "live INSIDE qs[96] at qs+QK_K/4 = 2+64) for the ggml IQ3_XXS x "
+              "Q8_K GRID-codebook super-block full block dot-product route";
+  if (getActivationDByteOffset() != 0)
+    return emitOpError()
+           << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
+              "leads the block) for the ggml IQ3_XXS x Q8_K GRID-codebook "
+              "super-block full block dot-product route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml IQ3_XXS x Q8_K GRID-codebook super-block full "
+              "block dot-product route";
+
+  // The two GRID-codebook tables are the load-bearing structural facts of the
+  // GRID class. The grid MUST carry EXACTLY 256 int32 entries (iq3xxs_grid[256],
+  // each a uint32 of 4 packed int8 grid values, indexed by the weight byte [0,255]).
+  // The sign plane MUST carry EXACTLY 128 int32 entries (ksigns_iq2xs[128], indexed
+  // by the 7-bit sign selector [0,127]). Wrong sizes cannot index the grid/signs
+  // and are rejected fail-closed (I7). The entry VALUES are NOT pinned -- they are
+  // genuine structural inputs the lookup realizes (a wrong-but-well-sized table is a
+  // legal-but-different kernel, which is what the negative-control validation
+  // exercises).
+  if (getGrid().size() != 256)
+    return emitOpError()
+           << "requires grid to carry exactly 256 int32 entries (the packed "
+              "uint32 grid codebook iq3xxs_grid[256]); got " << getGrid().size();
+  if (getKsigns().size() != 128)
+    return emitOpError()
+           << "requires ksigns to carry exactly 128 int32 entries (the sign "
+              "plane ksigns_iq2xs[128]); got " << getKsigns().size();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one fp32 *s output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three buffer operands and the element count are runtime ABI values; the
+  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
+  // output is a float * (the fp32 *s dot-product destination), and the element
+  // count carries n.
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_iq3_xxs byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the fp32 *s dot-product destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml IQ3_XXS x Q8_K GRID-codebook super-block "
+              "full block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml IQ3_XXS x Q8_K GRID-codebook super-block "
+              "full block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlVecScaleF32Op::verify() {
   mlir::Operation *op = getOperation();
 
