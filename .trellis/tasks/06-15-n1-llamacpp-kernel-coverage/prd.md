@@ -110,3 +110,9 @@ q5_0, q4_1, a K-quant) INHERITS the autotuner — no hand-tuning per kernel.
   structs in `ggml/src/ggml-common.h`.
 - fp16→fp32 on the board is **scalar** `fcvt.s.h` (`simd-mappings.h:95`) — no vector zvfh required for INC-2.
 - Our adjacent path: `tcrv_rvv.packed_i4_nibble_unpack_product` (+ `standalone_reduce` + `dequantize`), lowered in `lib/Conversion/RVV/RVVToEmitC.cpp` (~3560); ABI emission + e2e harness as for the deferred-wide work.
+
+## FINAL STATUS (2026-06-17) — all three goal conditions met, trellis-checked
+- COVERAGE: all 24 ggml_vec_dot_* kernels compiler-emitted + byte-exact on ssh rvv (24 distinct is*BlockDotBody recognizers, 1:1 with the _generic set) — every structural class (block-quant linear, K-quant super-block, codebook, FP4, grid-codebook, ternary, binary, base-3) + the q4_0 GEMM + the f32->quant bridge.
+- HIGH PERFORMANCE: measurement-backed autotuner selects the optimal GEMM M (~1.19x) + dot shapes; q4_0 vec_dot beats ggml ~4.5%; honest VLEN=128-capped ceiling.
+- COMPLETE FORWARD PASS: scale/rms_norm/silu/soft_max/quantize/rope, byte-exact, close-the-loop proven.
+- Holistic trellis-check PASS: I5 raw()=0 across all kernels; I7 fail-closed; additive (q4_0 byte-identical to its earliest artifact across the whole sweep); clean rebuild green, 676 tests/673 pass/3 documented environmental reds.
