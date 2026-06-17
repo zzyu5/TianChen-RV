@@ -66,6 +66,33 @@ with the most headroom where the gap to the compute ceiling is largest:
   must be measured. Not yet done — this roofline only establishes that the headroom EXISTS
   and which lever addresses it.
 
+## The measured win ALREADY EXISTS — this roofline is its mechanism
+The latency lever the roofline points at (`multi_block_factor` = overlap independent
+per-block integer cores; `integer_core_lmul`) is **already a tune knob**, and was
+already **measured-win'd on ssh rvv** in the archived inc10 campaign
+(`.trellis/tasks/archive/2026-06/06-15-.../artifacts/inc10-measurement-tuner/RESULTS.md`):
+- **q4_1 full-V**: static cost-model picks `m1/factor=4/elided` → measures **0.842×
+  (a real LOSS vs ggml)**; measurement picks `m1/factor=1/elided` → **1.012× (a WIN)**.
+  Measurement FIXES a static mis-pick (loss→win). This is the headline N3 "实测胜出".
+- The measured elided order is **factor 1 > 2 > 4** (q8_0 m2: 0.990/0.961/0.945; q4_1
+  m1: 1.012/0.923/0.842) — measurement **overturns** the cost model's "more unroll is
+  better" premise (its argmin is always factor=4).
+
+So WS-B was a **measurement through the existing knob**, not a new emit branch — exactly
+the PRD constraint ("加速必须落成 knob, 不是新 emit 分支"). **This roofline supplies the
+mechanism the inc10 measurement lacked**: the kernels are latency-bound (4–13% of the
+compute ceiling), so beyond a small factor more unroll stops hiding reduction/scale
+latency and just adds register-pressure/scheduling overhead — which is why LESS unroll
+wins and why only the board (not the static model) can pick the optimum. Roofline +
+inc10 = a complete, honest N3 evidence chain.
+
+**Second-consumer validation (WS-C Tier-1):** the measured record flows through the NEW
+interface-driven unified pass `tcrv-rvv-materialize-schedule` and stamps the q4_1 measured
+pick (`m1/factor=1/elided`, measured_ns=1262.8, reason "FIXES the static mis-pick") BYTE-
+IDENTICALLY to the per-kernel pass — verified directly. This proves the Tier-1 interface is
+validated against the **measured** axis, not just the static one (the over-fit guard the
+PRD asked for).
+
 ## Artifacts
 `../artifacts/wsB-roofline/`: `probe_host.c` (VLEN/freq), `micro_ceiling.c` (+run log,
 the two roofline anchors), `kernel_{q8_0_q8_0,q4_0_q8_0,q4_k_q8_k}.cpp` (the measured

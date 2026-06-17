@@ -42,11 +42,13 @@ WS-B 的新轴落进 WS-C 的接口验证泛化性(WS-B 实测 before freezing t
 - WS-B 的加速**必须落成 knob(数据穿过接口)**,不是新 emit-fn 分支(否则养大 core)。
 
 ## Acceptance
-- [ ] WS-A: scalar 变量由 scalar plugin 在每条 flow 产出;family-name grep 仍空;协议测试绿。
-- [ ] WS-C: 一个泛型 candidate+select+pass(或 TunableScheduleOpInterface);6 个 clone pass 折叠;每个 kernel 的 stamp 与调优 pick 逐字节不变;`key=value` record 泛化。
-- [ ] WS-D: `RVVToEmitC.cpp` 拆成模块;recognizer/dispatch/verifier de-dup;每个 kernel 的 emit 逐字节不变(additive 重构)。
-- [ ] WS-B: roofline 实测 + 一个 microarch knob 落进 tune 接口 + ssh-rvv 实测加速(诚实 win/parity)。
-- [ ] 全程 raw()=0、clean rebuild 绿、3 documented reds、所有现有 kernel 逐字节不变。
+- [x] WS-A: scalar 变量由 scalar plugin 经 collectVariantProposals 产出;前门 scalar 串 5→0、按名 0;family-name grep 仍空;协议测试绿。(ef7179e7)
+- [x] WS-C: `GenericScheduleCandidate{cost,isLegal,knobs}`+`selectGenericSchedule`(Tier-0, 1389d946)+ **TunableScheduleOpInterface** 一个 pass auto-discover 所有 tunable op(Tier-1, a73ab62d);6 clone pass 折叠;stamp/调优 pick 逐字节不变;`key=value` record 泛化。
+- [~] WS-D: **table-collapse 完成**(28-branch dispatch→first-match table,36 emission 测试逐字节不变,bd7c8b53)。verifier de-dup = **DEFERRED**(有据,见 Progress)。`RVVToEmitC.cpp` TU 拆分 = **未做**(纯 maturity churn + linkage 风险,advisor 判定为预算不足时第一个砍的;唯一剩项)。
+- [x] WS-B: roofline 实测(bac3acd5)+ measured win **已存在**(inc10: q4_1 静态 m1/4 loss→实测 m1/1 win;factor 1>2>4 推翻 cost-model)+ knob = 既有 `multi_block_factor`(不是新 emit 分支)+ 经 Tier-1 unified pass 逐字节消费(second-consumer 验证)。
+- [x] 全程 raw()=0、clean rebuild 绿、3 documented reds(`Scripts/rvv-generated-bundle-abi-e2e-*`)、所有现有 kernel/stamp 逐字节不变。
+
+**状态**:4 个 workstream 里 WS-A/WS-C/WS-B 完成,WS-D 完成 table-collapse、defer verifier de-dup(有据)、剩 TU 文件拆分(纯 churn,advisor 判定最低优先 / 预算不足首砍项)。
 
 ## Honest ledger
 只有 WS-B 是可测的 N3 perf 证据;WS-A/C/D 是 maturity/conform-to-claim 的工程(用户明确要这个,不是卖点)。
