@@ -4556,6 +4556,193 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotIQ1SQ8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // TERNARY-grid qh-encoded-scale delta-bsum integer-domain scale model, the
+  // super-block-format structural facts (the fp16 weight scale d @0, the grid index
+  // region qs @2, the uint16 qh plane @34, the fp32 activation scale d @0, the int8
+  // qs @4, the int16 bsums @260), and the ONE GRID-codebook structural table -- the
+  // 2048-entry uint64 iq1s_grid (each entry packs 8 TERNARY int8 grid values, carried
+  // as int64[2048] rendering ggml's exact literals; byte-viewed as int8 the 0xff bytes
+  // read as -1). iq1_s carries NO sign plane (the ternary grid is itself signed), NO
+  // explicit scales[] array (the scale lives in qh bits 12..14), and NO kmask. Anything
+  // else -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name
+  // -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "sub_block" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_d_byte_offset" || name == "weight_qs_byte_offset" ||
+           name == "weight_qh_byte_offset" ||
+           name == "activation_d_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "activation_bsums_byte_offset" || name == "grid";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.iq1_s_q8_k_block_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded TERNARY-grid super-block dot-product "
+                "attributes 'kind', 'scale_model', 'qk', 'sub_block', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'weight_d_byte_offset', 'weight_qs_byte_offset', "
+                "'weight_qh_byte_offset', 'activation_d_byte_offset', "
+                "'activation_quant_byte_offset', "
+                "'activation_bsums_byte_offset', and 'grid'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_iq1_s_q8_k_block_dot")
+    return emitOpError()
+           << "currently supports only kind \"ggml_iq1_s_q8_k_block_dot\" for "
+              "the bounded ggml IQ1_S x Q8_K TERNARY-grid super-block full "
+              "block dot-product typed surface";
+  if (getScaleModel() !=
+      "per-sub-block-qh-scale-ternary-grid-codebook-qh-plane-delta-bsum-int-domain")
+    return emitOpError()
+           << "requires scale_model "
+              "\"per-sub-block-qh-scale-ternary-grid-codebook-qh-plane-delta-"
+              "bsum-int-domain\" for the ggml IQ1_S x Q8_K TERNARY-grid "
+              "super-block full block dot-product route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 8 sub-blocks of 32 elements, block_iq1_s stride 50 (d@0|qs[32]@2|qh[8]@34, the
+  // uint16 qh array) and block_q8_K stride 292 (d@0|qs@4|bsums@260, the bsums READ by
+  // the delta term). Pin them so a malformed typed body cannot lower under the
+  // super-block dot emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ1_S x "
+                            "Q8_K TERNARY-grid super-block full block "
+                            "dot-product route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block boundary) for the "
+              "ggml IQ1_S x Q8_K TERNARY-grid super-block full block "
+              "dot-product route";
+  if (getWeightBlockStride() != 50)
+    return emitOpError()
+           << "requires weight_block_stride == 50 (sizeof block_iq1_s) for "
+              "the ggml IQ1_S x Q8_K TERNARY-grid super-block full block "
+              "dot-product route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml IQ1_S x Q8_K TERNARY-grid super-block full block "
+              "dot-product route";
+  if (getWeightDByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_d_byte_offset == 0 (the fp16 super-block scale d "
+              "leads block_iq1_s) for the ggml IQ1_S x Q8_K TERNARY-grid "
+              "super-block full block dot-product route";
+  if (getWeightQsByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 2 (the uint8 qs[32] grid index "
+              "bytes follow d) for the ggml IQ1_S x Q8_K TERNARY-grid "
+              "super-block full block dot-product route";
+  if (getWeightQhByteOffset() != 34)
+    return emitOpError()
+           << "requires weight_qh_byte_offset == 34 (the uint16 qh[8] plane "
+              "follow the 32-byte qs; it carries the grid-high-3-bit fields, the "
+              "3-bit scale @12..14, and the delta sign @15) for the ggml IQ1_S "
+              "x Q8_K TERNARY-grid super-block full block dot-product route";
+  if (getActivationDByteOffset() != 0)
+    return emitOpError()
+           << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
+              "leads the block) for the ggml IQ1_S x Q8_K TERNARY-grid "
+              "super-block full block dot-product route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml IQ1_S x Q8_K TERNARY-grid super-block full "
+              "block dot-product route";
+  // The delta term reads the int16 bsums region of block_q8_K (sizeof(float) +
+  // QK_K = 4 + 256 = 260). It is the load-bearing fact of the NEW delta mechanism;
+  // pin it fail-closed (I7).
+  if (getActivationBsumsByteOffset() != 260)
+    return emitOpError()
+           << "requires activation_bsums_byte_offset == 260 (the int16 bsums "
+              "follow the fp32 d and int8 qs[256]) for the ggml IQ1_S x Q8_K "
+              "TERNARY-grid super-block full block dot-product route";
+
+  // The GRID-codebook table is the load-bearing structural fact of the TERNARY class.
+  // The grid MUST carry EXACTLY 2048 int64 entries (iq1s_grid[2048], each a uint64 of
+  // 8 packed TERNARY int8 grid values, indexed by the 11-bit grid index [0,2047]). A
+  // wrong size cannot index the grid and is rejected fail-closed (I7). The entry VALUES
+  // are NOT pinned -- they are genuine structural inputs the lookup realizes (a
+  // wrong-but-well-sized table is a legal-but-different kernel, which is what the
+  // negative-control validation exercises). iq1_s carries NO ksigns plane.
+  if (getGrid().size() != 2048)
+    return emitOpError()
+           << "requires grid to carry exactly 2048 int64 entries (the packed "
+              "uint64 TERNARY grid codebook iq1s_grid[2048]); got "
+           << getGrid().size();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one fp32 *s output pointer, one runtime element-count runtime ABI "
+              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three buffer operands and the element count are runtime ABI values; the
+  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
+  // output is a float * (the fp32 *s dot-product destination), and the element
+  // count carries n.
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_iq1_s byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the fp32 *s dot-product destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml IQ1_S x Q8_K TERNARY-grid super-block "
+              "full block dot-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml IQ1_S x Q8_K TERNARY-grid super-block "
+              "full block dot-product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlVecScaleF32Op::verify() {
   mlir::Operation *op = getOperation();
 

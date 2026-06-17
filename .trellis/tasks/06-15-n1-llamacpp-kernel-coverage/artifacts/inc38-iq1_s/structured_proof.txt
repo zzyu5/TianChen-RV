@@ -1,0 +1,44 @@
+=== INC-38 iq1_s structured-emission proof ===
+raw( actual-call count in the compiler-emitted kernel: 0
+non-comment non-static-const verbatim ops in the lowered IR (raw, want 0): 0
+
+=== distinct __riscv_* intrinsics (all structured emitc CallOpaque) ===
+__riscv_vle8_v_i8m1
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+
+=== structured static const tables (emitc VerbatimOp decls) ===
+static const uint64_t tcrv_iq1s_grid[2048]
+
+=== NO sign-apply intrinsics (the ternary grid is ITSELF signed -- 0xff -> -1) ===
+  vand occurrences:   0
+  vmsne occurrences:  0
+  vneg occurrences:   0
+  vmerge occurrences: 0
+  kmask occurrences:  0
+  ksigns occurrences: 0
+
+=== the uint16 qh word read (the qh-encoded scale + delta) is structured ===
+  const uint16_t* casts: 1
+  qh>>12 scale field (>> 12):  8
+  qh>>15 delta sign (>> 15):   8
+
+=== the DELTA term reads the int16 bsums (the NEW mechanism) ===
+  const int16_t* casts: 1
+
+=== the 11-bit grid index ((qh>>3l)&7)<<8 is structured int ops ===
+  << 8 occurrences: 32
+
+=== IQ1S_DELTA = 0.125f applied ONCE inside the fold, *s = sumf (NO trailing factor) ===
+  0.125f occurrences (the fold): 1
+  the fold expression:
+        v6 = v693 + v17 * ((float) v691 + 0.125f * (float) v692);
+  the store:
+      v2[0] = v694;
+
+=== exported symbol (extern C) ===
+extern "C" void tcrv_emitc_ggml_vec_dot_iq1_s_q8_K_kernel_ggml_vec_dot_iq1_s_q8_K

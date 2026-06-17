@@ -1,0 +1,15 @@
+=== -ffp-contract=off ===
+iq1_s byte-exact: 2464/2464 passed, 0 failed (generic delta 0/2464)
+grid-index coverage (edge): max idx = 2047, hit 2047 = YES
+NEG-CTRL wrong-grid  (every grid byte +1)         ours=-7376.241211 wrong=-6315.993652 -> DIVERGES
+NEG-CTRL wrong-scale (drop the +1)                ours=-7376.241211 wrong=-7048.280273 -> DIVERGES
+NEG-CTRL drop-DELTA  (omit ls*delta*bsum term)    ours=-7376.241211 wrong=-7243.709473 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq1_s _generic + 3 negative controls live)
+
+=== -ffp-contract=fast ===
+iq1_s byte-exact: 2464/2464 passed, 0 failed (generic delta 0/2464)
+grid-index coverage (edge): max idx = 2047, hit 2047 = YES
+NEG-CTRL wrong-grid  (every grid byte +1)         ours=-7376.240723 wrong=-6315.994141 -> DIVERGES
+NEG-CTRL wrong-scale (drop the +1)                ours=-7376.240723 wrong=-7048.280273 -> DIVERGES
+NEG-CTRL drop-DELTA  (omit ls*delta*bsum term)    ours=-7376.240723 wrong=-7243.708984 -> DIVERGES
+RESULT: PASS (byte-exact vs ggml iq1_s _generic + 3 negative controls live)
