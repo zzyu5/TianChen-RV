@@ -345,6 +345,44 @@ defvar kRVVBlockDotScheduleOptions = [
          "model.">
 ];
 
+def MaterializeRVVSchedule
+    : Pass<"tcrv-rvv-materialize-schedule", "::mlir::ModuleOp"> {
+  let summary = "Unified capability/resource-aware autotuner: select + stamp the schedule of EVERY tunable RVV op in one walk";
+  let description = [{
+    The ONE walk-all RVV schedule-materialization pass. Instead of a per-kernel
+    pass per tunable op, this pass walks the module ONCE and auto-discovers every
+    op that implements the TunableScheduleOpInterface (the family-neutral
+    interface that returns the op's schedule kernel key and its no-clobber pin
+    predicate). For each discovered op it runs the SAME shared skeleton the
+    per-kernel passes run -- derive the Zvl128b capability fact, enumerate + prune
+    the bounded generic candidate space for the op's kernel (looked up in the
+    plugin-local descriptor registry), load the optional measurement record, select
+    the measured-fastest still-legal shape (else the static cost-model argmin), and
+    STAMP the chosen knobs plus the per-kernel resource-provenance audit trail onto
+    each op that does not already carry a hand-authored shape knob (additive /
+    no-clobber). The stamped IR is byte-identical to the corresponding per-kernel
+    pass; this pass is the per-op path, just auto-discovered.
+
+    A NEW tunable op needs ZERO new pass: it adopts the interface (returning its
+    kernel key + pin predicate) and registers a descriptor; this pass picks it up.
+    The tuning logic stays plugin-local (the dialect depends only on the
+    family-neutral interface, never on the plugin tuning machinery).
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts, never inferred from ABI strings / family names /
+    route ids, and no hardware is probed (I5); a candidate that fails the prune is
+    dropped fail-closed and if every candidate is pruned the op is left untouched
+    (I7). The pass selects the *how*, never the *what*.
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVSchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 def MaterializeRVVQ40Schedule
     : Pass<"tcrv-rvv-materialize-q4-0-schedule", "::mlir::ModuleOp"> {
   let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q4_0 x Q8_0 block-dot shape";

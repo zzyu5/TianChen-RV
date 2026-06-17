@@ -5,6 +5,7 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
+include "TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.td"
 
 def TCRV_RVV_Dialect : Dialect {
   let name = "tcrv_rvv";
@@ -3871,7 +3872,8 @@ def PackedI4OffsetBinaryXI8ProductOp
 
 def GgmlBlockDotQ40Q80Op
     : TCRVRVV_Op<"q4_0_q8_0_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml Q4_0 x Q8_0 dot-product op";
   let description = [{
@@ -4058,7 +4060,8 @@ def GgmlGemmTileQ40Q80Op
 
 def GgmlGemmQ40Q80Op
     : TCRVRVV_Op<"q4_0_q8_0_gemm",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV ggml Q4_0 x Q8_0 FULL GEMM (NR rows x nc cols) op";
   let description = [{
@@ -4151,7 +4154,8 @@ def GgmlGemmQ40Q80Op
 
 def GgmlBlockDotQ80Q80Op
     : TCRVRVV_Op<"q8_0_q8_0_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml Q8_0 x Q8_0 dot-product op";
   let description = [{
@@ -4242,7 +4246,8 @@ def GgmlBlockDotQ80Q80Op
 
 def GgmlBlockDotQ41Q81Op
     : TCRVRVV_Op<"q4_1_q8_1_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml Q4_1 x Q8_1 dot-product op";
   let description = [{
@@ -4353,7 +4358,8 @@ def GgmlBlockDotQ41Q81Op
 
 def GgmlBlockDotQ50Q80Op
     : TCRVRVV_Op<"q5_0_q8_0_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml Q5_0 x Q8_0 dot-product op";
   let description = [{
@@ -4923,7 +4929,8 @@ def GgmlBlockDotQ10Q80Op
 
 def GgmlBlockDotQ51Q81Op
     : TCRVRVV_Op<"q5_1_q8_1_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml Q5_1 x Q8_1 dot-product op";
   let description = [{

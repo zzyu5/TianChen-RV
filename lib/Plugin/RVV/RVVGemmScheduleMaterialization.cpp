@@ -49,34 +49,9 @@ public:
       MaterializeRVVGemmSchedulePass>::MaterializeRVVGemmScheduleBase;
 
   void runOnOperation() override {
-    plugin::rvv::RVVScheduleMaterializationDescriptor descriptor;
-    descriptor.kernelKey = "q4_0_q8_0_gemm";
-    descriptor.attrPrefix = "tcrv_rvv.q4_0_gemm_schedule";
-    descriptor.producerName = "rvv-gemm-m-autotuner";
-    descriptor.measuredReason =
-        "measured-fastest GEMM M-block (on-board best-of-N; tuning-record-backed; "
-        "the noisy cache/vreg M optimum is selected by measurement, overturning "
-        "the naive static default)";
-    descriptor.staticReason =
-        "static default GEMM M-block (the safe cache-friendly tile; no tuning "
-        "record -> the measurement-tuned M is not available)";
-    descriptor.budgetAttrName = "vreg_ceiling";
-    descriptor.budgetValue = plugin::rvv::kRVVGemmMaxActivationCols;
-    descriptor.stampPeakLiveVregs = false; // GEMM has no peak-live-vreg stamp.
-    descriptor.requiredKnobKeys = {"activation_cols"};
-    descriptor.enumerate = [](bool /*hasZvl128b*/, std::int64_t vregCeiling) {
-      llvm::SmallVector<plugin::rvv::GenericScheduleCandidate> generic;
-      for (const plugin::rvv::RVVGemmMCandidate &candidate :
-           plugin::rvv::enumerateRVVGemmMCandidates(vregCeiling))
-        generic.push_back(plugin::rvv::toGenericGemmCandidate(candidate));
-      return generic;
-    };
-
-    plugin::rvv::runRVVScheduleMaterialization<tcrvrvv::GgmlGemmQ40Q80Op>(
-        getOperation(), descriptor, march, isaVectorHints, tuneRecord,
-        dumpCandidates, [](tcrvrvv::GgmlGemmQ40Q80Op op) {
-          return op.getActivationCols().has_value();
-        });
+    plugin::rvv::runRVVScheduleMaterializationViaInterface(
+        getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
+        mlir::TypeID::get<tcrvrvv::GgmlGemmQ40Q80Op>());
   }
 };
 

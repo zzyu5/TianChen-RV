@@ -13,6 +13,7 @@ add_mlir_dialect_library(TianChenRVRVVDialect
   DEPENDS
   MLIRRVVOpsIncGen
   MLIRTCRVEmitCLowerableOpInterfaceIncGen
+  MLIRTunableScheduleOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC

@@ -11,10 +11,14 @@
 // in DATA (the op type, the kernel key, the attr-name prefix, the producer name,
 // the enumerate function, the audit-attr flavor, and the two provenance strings).
 //
-// `RVVScheduleMaterializationDescriptor` carries exactly that data, and
-// `runRVVScheduleMaterialization<OpT>` runs the shared skeleton over every `OpT`
-// in the module. A new tunable op INHERITS the whole machinery by supplying a
-// descriptor (its enumerate fn + its knob/audit data) -- no new pass body, no new
+// `RVVScheduleMaterializationDescriptor` carries exactly that data;
+// `lookupRVVScheduleDescriptor` is the single-source-of-truth registry mapping a
+// kernel key to its descriptor, and `runRVVScheduleMaterializationViaInterface`
+// runs the shared skeleton over every op implementing TunableScheduleOpInterface
+// (auto-discovery via dyn_cast -- NO hardcoded op-type list), optionally filtered
+// to one op type for the preserved per-kernel passes. A new tunable op INHERITS
+// the whole machinery by adopting the interface (returning its kernel key + pin
+// predicate) and registering a descriptor -- no new pass body, no new
 // parse/select code. The selection + record machinery is the generic
 // {cost,isLegal,knobs} path in RVVGearboxSchedule.h.
 //
@@ -36,6 +40,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Visitors.h"
+#include "mlir/Support/TypeID.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -194,62 +199,30 @@ inline void stampRVVSchedule(
   }
 }
 
-/// Run the shared 7-step schedule-materialization skeleton over every `OpT` in
-/// `module`. `OpT` is the tunable op (a block-dot op or the GEMM op); the
-/// descriptor supplies all per-kernel data. `march` / `isaVectorHints` /
-/// `tuneRecord` / `dumpCandidates` are the pass options. `hasShapeKnob(op)` is the
-/// no-clobber predicate (true => the IR author pinned the shape; leave untouched).
-template <typename OpT>
-void runRVVScheduleMaterialization(
-    mlir::ModuleOp module, const RVVScheduleMaterializationDescriptor &descriptor,
-    llvm::StringRef march, llvm::StringRef isaVectorHints,
+/// The plugin-local descriptor registry: map a schedule kernel key (the string an
+/// op returns from TunableScheduleOpInterface::getScheduleKernelKey) to its tuning
+/// descriptor. This is the SINGLE SOURCE OF TRUTH for the per-kernel data the six
+/// materialize providers used to build inline (the same makeBlockDotScheduleDescriptor
+/// / GEMM-descriptor data). Returns nullopt for an unregistered key (the runner
+/// skips that op fail-closed). Definition in RVVScheduleDescriptorRegistry.cpp.
+std::optional<RVVScheduleMaterializationDescriptor>
+lookupRVVScheduleDescriptor(llvm::StringRef kernelKey);
+
+/// Run the shared 7-step schedule-materialization skeleton over every op that
+/// implements TunableScheduleOpInterface (auto-discovery: NO hardcoded op-type
+/// list). When `onlyOpType` is set the walk is filtered to that op type (this is
+/// how each preserved per-kernel pass restricts itself to its own op); when it is
+/// nullopt the ONE unified pass stamps every tunable op in the module.
+///
+/// The per-op kernel key drives lookupRVVScheduleDescriptor; the SAME
+/// derive-Zvl128b -> enumerate -> dump|prune -> load record -> select -> no-clobber
+/// -> stamp steps run (reusing selectGenericSchedule / stampRVVSchedule), so the
+/// stamped IR is byte-identical to the old typed template path. No-clobber uses the
+/// op's own isSchedulePinned(). Definition in RVVScheduleDescriptorRegistry.cpp.
+void runRVVScheduleMaterializationViaInterface(
+    mlir::ModuleOp module, llvm::StringRef march, llvm::StringRef isaVectorHints,
     llvm::StringRef tuneRecord, bool dumpCandidates,
-    llvm::function_ref<bool(OpT)> hasShapeKnob) {
-  mlir::MLIRContext *ctx = module.getContext();
-
-  // (1) Derive the Zvl128b capability fact ONCE (the ONLY capability input; the
-  // cost model is capability-blind). For GEMM this is audit-only.
-  bool hasZvl128b = deriveHasZvl128b(march, isaVectorHints);
-
-  // (2) Enumerate + prune the generic candidate space.
-  llvm::SmallVector<GenericScheduleCandidate> candidates =
-      descriptor.enumerate(hasZvl128b, descriptor.budgetValue);
-
-  // (3) dump-candidates: emit the legal set (single source of truth for the
-  // offline tune driver) and exit without stamping.
-  if (dumpCandidates) {
-    dumpGenericLegalCandidates(llvm::outs(), descriptor.kernelKey, march,
-                               candidates);
-    return;
-  }
-
-  // (4) Load the optional measurement record ONCE (absent/unreadable => static
-  // fallback; the record is an advisory cache, never a correctness authority).
-  std::optional<std::string> recordText =
-      loadRVVBlockDotTuningRecord(tuneRecord);
-
-  // Collect targets first (the walk mutates the IR by stamping).
-  llvm::SmallVector<OpT, 4> targets;
-  module.walk([&](OpT op) { targets.push_back(op); });
-
-  for (OpT op : targets) {
-    // (5) No-clobber guard: a hand-authored shape pins the op; leave untouched.
-    if (hasShapeKnob(op))
-      continue;
-
-    // (6) Select: measured-best (still-legal record) else the static argmin.
-    // Fail-closed (I7): nullopt only when every candidate was pruned.
-    std::optional<GenericScheduleSelection> selected = selectGenericSchedule(
-        candidates, recordText, descriptor.kernelKey, march,
-        descriptor.requiredKnobKeys);
-    if (!selected)
-      continue;
-
-    // (7) Stamp the chosen knobs + the provenance audit trail.
-    stampRVVSchedule(ctx, op.getOperation(), descriptor, hasZvl128b,
-                     static_cast<std::int64_t>(candidates.size()), *selected);
-  }
-}
+    std::optional<mlir::TypeID> onlyOpType = std::nullopt);
 
 } // namespace tianchenrv::plugin::rvv
 

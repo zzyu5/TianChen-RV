@@ -39,26 +39,9 @@ public:
       MaterializeRVVQ41SchedulePass>::MaterializeRVVQ41ScheduleBase;
 
   void runOnOperation() override {
-    plugin::rvv::RVVScheduleMaterializationDescriptor descriptor =
-        plugin::rvv::makeBlockDotScheduleDescriptor(
-            /*kernelKey=*/"q4_1",
-            /*attrPrefix=*/"tcrv_rvv.q4_1_schedule",
-            /*producerName=*/"rvv-q4-1-autotuner",
-            /*measuredReason=*/
-            "measured-fastest legal Q4_1 shape (on-board best-of-N; "
-            "tuning-record-backed; FIXES the static mis-pick)",
-            /*staticReason=*/
-            "min-cost legal Q4_1 shape (capability-blind structural cost; "
-            "strip-elision gated on Zvl128b)",
-            /*vectorRegisterBudget=*/plugin::rvv::kRVVQ41ShapeVectorRegisterBudget,
-            /*enumerate12=*/plugin::rvv::enumerateRVVQ41Q81ShapeCandidates);
-    plugin::rvv::runRVVScheduleMaterialization<tcrvrvv::GgmlBlockDotQ41Q81Op>(
-        getOperation(), descriptor, march, isaVectorHints, tuneRecord,
-        dumpCandidates, [](tcrvrvv::GgmlBlockDotQ41Q81Op op) {
-          return static_cast<bool>(op.getIntegerCoreLmul()) ||
-                 static_cast<bool>(op.getMultiBlockFactor()) ||
-                 static_cast<bool>(op.getStripElision());
-        });
+    plugin::rvv::runRVVScheduleMaterializationViaInterface(
+        getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
+        mlir::TypeID::get<tcrvrvv::GgmlBlockDotQ41Q81Op>());
   }
 };
 

@@ -14,6 +14,7 @@
 
 #include "RVVDialectInternal.h"
 
+#include "TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
@@ -776,6 +777,59 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
               "widening product";
 
   return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// TunableScheduleOpInterface implementations.
+//
+// The interface is family-neutral (it returns ONLY primitives); the kernel key
+// is the same string each kernel's materialize provider keys its tuning record
+// on, and isSchedulePinned() is the same no-clobber predicate each provider's
+// `hasShapeKnob` lambda applied (a hand-authored shape knob pins the op). The
+// plugin-local descriptor registry maps the kernel key to its tuning descriptor;
+// the dialect keeps NO tuning logic (no dialect -> plugin cycle).
+//===----------------------------------------------------------------------===//
+
+llvm::StringRef GgmlBlockDotQ40Q80Op::getScheduleKernelKey() { return "q4_0"; }
+bool GgmlBlockDotQ40Q80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlBlockDotQ80Q80Op::getScheduleKernelKey() { return "q8_0"; }
+bool GgmlBlockDotQ80Q80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlBlockDotQ41Q81Op::getScheduleKernelKey() { return "q4_1"; }
+bool GgmlBlockDotQ41Q81Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlBlockDotQ50Q80Op::getScheduleKernelKey() { return "q5_0"; }
+bool GgmlBlockDotQ50Q80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlBlockDotQ51Q81Op::getScheduleKernelKey() { return "q5_1"; }
+bool GgmlBlockDotQ51Q81Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlGemmQ40Q80Op::getScheduleKernelKey() {
+  return "q4_0_q8_0_gemm";
+}
+bool GgmlGemmQ40Q80Op::isSchedulePinned() {
+  return getActivationCols().has_value();
 }
 
 mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
