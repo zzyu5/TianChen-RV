@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVConversionRVV
   RVVToEmitC.cpp
+  RVVToEmitCSupport.cpp
 
   DEPENDS
   TianChenRVPassesIncGen
