@@ -1,0 +1,41 @@
+INC-34 iq2_xs structured-emission proof (I5: every value is an emitc node; raw()=0)
+================================================================================
+raw() actual-call count in the compiler-emitted kernel:
+0
+
+Distinct __riscv_* intrinsics emitted (all structured emitc CallOpaque, no raw):
+__riscv_vand_vv_u8m1
+__riscv_vle8_v_i8m1
+__riscv_vle8_v_u8m1
+__riscv_vmerge_vvm_i8m1
+__riscv_vmsne_vx_u8m1_b8
+__riscv_vmv_v_x_i32m1
+__riscv_vmv_v_x_u8m1
+__riscv_vmv_x_s_i32m1_i32
+__riscv_vneg_v_i8m1
+__riscv_vsetvl_e32m1
+__riscv_vsetvl_e8m1
+__riscv_vwmul_vv_i16m2
+__riscv_vwredsum_vs_i16m2_i32m1
+
+The 512-entry GRID codebook + SIGN plane + kmask are structured static const decls (NOT raw):
+9:  static const int64_t tcrv_iq2xs_grid[512] = {0x0808080808080808ULL, 0x080808
+10:  static const uint8_t tcrv_iq2xs_ksigns[128] = {0, 129, 130, 3, 132, 5, 6, 1
+11:  static const uint8_t tcrv_iq2xs_kmask[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+
+DELTA(a) the 512-grid byte-view + indexed lookup (grid_i8 + idx*8) -- structured pointer arith:
+20:  const int8_t* v9 = (const int8_t*) tcrv_iq2xs_grid;
+72:    const int8_t* v49 = v9 + v48;
+108:    const int8_t* v74 = v9 + v73;
+155:    const int8_t* v105 = v9 + v104;
+
+DELTA(b) the 9-bit index (w & 511u) + the sign selector (w >> 9u) -- logical, no signed >>:
+63:    uint32_t v41 = v40 & 511u;
+99:    uint32_t v66 = v65 & 511u;
+65:    uint32_t v43 = v40 >> 9u;
+101:    uint32_t v68 = v65 >> 9u;
+
+DELTA(c) the explicit scales[] (xb + 66) + the two-scale split ls1 = 2*(sc&0xf)+1 / ls2 = 2*(sc>>4)+1:
+38:    const uint8_t* v21 = v12 + 66;
+48:    int v28 = v27 & 15;
+49:    int v29 = v27 >> 4;

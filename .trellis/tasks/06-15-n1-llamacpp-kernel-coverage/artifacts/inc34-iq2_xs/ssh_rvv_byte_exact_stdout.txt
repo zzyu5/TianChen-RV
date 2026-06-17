@@ -1,0 +1,29 @@
+=== board ===
+riscv64
+Ubuntu clang version 18.1.3 (1ubuntu1)
+=== -ffp-contract=off ===
+iq2_xs byte-exact: 2503/2503 passed, 0 failed (generic delta 0/2503)
+NEG-CTRL wrong-grid:  ours=-1398.55298 wrong=-1590.43457 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=-1398.55298 wrong=1249.69092 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-1398.55298 wrong=-1346.65125 -> DIVERGES (PASS)
+NEG-CTRL collapse-split (ls2=ls1): ours=-1398.55298 wrong=115.061722 -> DIVERGES (PASS)
+RESULT: ALL PASS
+=== -ffp-contract=fast ===
+iq2_xs byte-exact: 2503/2503 passed, 0 failed (generic delta 0/2503)
+NEG-CTRL wrong-grid:  ours=-1398.55286 wrong=-1590.43469 -> DIVERGES (PASS)
+NEG-CTRL wrong-signs: ours=-1398.55286 wrong=1249.69092 -> DIVERGES (PASS)
+NEG-CTRL wrong-scale: ours=-1398.55286 wrong=-1346.65149 -> DIVERGES (PASS)
+NEG-CTRL collapse-split (ls2=ls1): ours=-1398.55286 wrong=115.061707 -> DIVERGES (PASS)
+RESULT: ALL PASS
+=== nm exported symbols (k_off.o) ===
+0000000000000000 r _ZZ67tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_ggml_vec_dot_iq2_xs_q8_KE15tcrv_iq2xs_grid
+0000000000001080 r _ZZ67tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_ggml_vec_dot_iq2_xs_q8_KE16tcrv_iq2xs_kmask
+0000000000001000 r _ZZ67tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_ggml_vec_dot_iq2_xs_q8_KE17tcrv_iq2xs_ksigns
+                 U __extendhfsf2
+0000000000000000 T tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_ggml_vec_dot_iq2_xs_q8_K
+
+=== COMPILER-KNOB control (attr -> const -> HW) ===
+REAL-attr kernel    = 49.970417  (real-table ref = 49.970417) -> MATCH
+PERTURBED-attr kernel = 7.96230602  (pert-table ref = 7.96230602) -> MATCH
+real-attr vs perturbed-attr HW result -> DIVERGES (attr is the live knob)
+RESULT: KNOB LIVE (attr -> const -> HW)
