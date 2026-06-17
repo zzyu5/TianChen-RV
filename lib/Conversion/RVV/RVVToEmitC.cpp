@@ -907,502 +907,93 @@ public:
     // it via NON-widening vadd.vv, ONE trailing vredsum + scalar acc[0] add,
     // then an i32 lane-0 store (NO dequant). The structural marker is
     // tcrv_rvv.deferred_accumulate.
-    // The ggml Q4_0 x Q8_0 block dot-product (tcrv_rvv.q4_0_q8_0_block_dot) owns
-    // a dedicated routine: an outer emitc.for block loop over nb = n / QK, the
-    // per-block address arithmetic + dual fp16 scalar scale reads, an inner
-    // strip loop reusing INC-1's offset-binary asymmetric i4xi8 integer core
-    // into a per-block i32 scalar, the left-assoc fp32 accumulate, and the *s
-    // store. It does NOT use the single-scope runtime-VL strip loop. The
-    // structural marker is the tcrv_rvv.q4_0_q8_0_block_dot op identity.
-    if (isQ4_0Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitQ4_0Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
+    // ggml block-dot / GEMM kernel dispatch (WS-D: zero-core-branch kernel
+    // axis). Each tunable block-quant contraction body is recognized by a
+    // structural marker (its op identity) and lowered by a dedicated emitter.
+    // Every branch here was byte-identical boilerplate varying ONLY in the
+    // (recognizer, emitter) pair, so the former 28-way if-chain is collapsed to
+    // a first-match-wins table + loop. ORDER IS SEMANTIC: the recognizers are
+    // not all mutually exclusive (the Q4_0 gemm-tile / gemm / block-dot and the
+    // Q6_K/Q4_K aux32-partial / block-dot markers are checked specific-before-
+    // general), so the table preserves the exact original source order. The
+    // per-kernel structural docs live at each emitter's definition.
+    using BlockDotRecognizer = bool (*)(tcrvrvv::WithVLOp);
+    using BlockDotEmitter = mlir::LogicalResult (VariantToEmitCFunc::*)(
+        mlir::ConversionPatternRewriter &, mlir::Location, tcrvrvv::WithVLOp,
+        mlir::Value, mlir::Type,
+        llvm::DenseMap<mlir::Value, mlir::Value> &) const;
+    struct BlockDotKernel {
+      BlockDotRecognizer recognize;
+      BlockDotEmitter emit;
+    };
+    static constexpr BlockDotKernel kBlockDotKernels[] = {
+        {&isQ4_0Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitQ4_0Q8_0BlockDot},
+        {&isQ4_0Q8_0GemmTileBody,
+         &VariantToEmitCFunc::emitQ4_0Q8_0GemmTile},
+        {&isQ4_0Q8_0GemmBody,
+         &VariantToEmitCFunc::emitQ4_0Q8_0Gemm},
+        {&isQ8_0Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitQ8_0Q8_0BlockDot},
+        {&isQ4_1Q8_1BlockDotBody,
+         &VariantToEmitCFunc::emitQ4_1Q8_1BlockDot},
+        {&isQ5_0Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitQ5_0Q8_0BlockDot},
+        {&isQ5_1Q8_1BlockDotBody,
+         &VariantToEmitCFunc::emitQ5_1Q8_1BlockDot},
+        {&isIQ4NLQ8_0BlockDotBody,
+         &VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot},
+        {&isIQ4XSQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ4XSQ8KBlockDot},
+        {&isIQ2XXSQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot},
+        {&isIQ2XSQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ2XSQ8KBlockDot},
+        {&isIQ2SQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ2SQ8KBlockDot},
+        {&isIQ3XXSQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot},
+        {&isIQ3SQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ3SQ8KBlockDot},
+        {&isIQ1SQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ1SQ8KBlockDot},
+        {&isIQ1MQ8KBlockDotBody,
+         &VariantToEmitCFunc::emitIQ1MQ8KBlockDot},
+        {&isMXFP4Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitMXFP4Q8_0BlockDot},
+        {&isNVFP4Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitNVFP4Q8_0BlockDot},
+        {&isQ1_0Q8_0BlockDotBody,
+         &VariantToEmitCFunc::emitQ1_0Q8_0BlockDot},
+        {&isQ6_KQ8_KAux32PartialBody,
+         &VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial},
+        {&isQ6_KQ8_KBlockDotBody,
+         &VariantToEmitCFunc::emitQ6_KQ8_KBlockDot},
+        {&isQ4_KQ8_KAux32PartialBody,
+         &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
+        {&isQ4_KQ8_KBlockDotBody,
+         &VariantToEmitCFunc::emitQ4_KQ8_KBlockDot},
+        {&isQ5_KQ8_KBlockDotBody,
+         &VariantToEmitCFunc::emitQ5_KQ8_KBlockDot},
+        {&isQ2_KQ8_KBlockDotBody,
+         &VariantToEmitCFunc::emitQ2_KQ8_KBlockDot},
+        {&isQ3_KQ8_KBlockDotBody,
+         &VariantToEmitCFunc::emitQ3_KQ8_KBlockDot},
+        {&isTQ2_0Q8_KBlockDotBody,
+         &VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot},
+        {&isTQ1_0Q8_KBlockDotBody,
+         &VariantToEmitCFunc::emitTQ1_0Q8_KBlockDot},
+    };
+    for (const BlockDotKernel &kernel : kBlockDotKernels) {
+      if (kernel.recognize(scope)) {
+        if (mlir::failed((this->*kernel.emit)(rewriter, loc, scope, avlArg,
+                                              sizeType, valueMap)))
+          return mlir::failure();
+        rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+        rewriter.eraseOp(variant);
+        return mlir::success();
+      }
     }
-
-    // The ggml Q4_0 x Q8_0 GEMM tile (tcrv_rvv.q4_0_q8_0_gemm_tile) is the
-    // WEIGHT-DECODE-REUSE sibling of the per-row block dot: the SAME per-(block,
-    // column) integer+scale arithmetic, but the offset-binary weight decode is
-    // HOISTED above an inner M-column loop so all M activation columns reuse the
-    // SAME decoded v0/v1 nibble lanes. It produces M byte-exact outputs (one per
-    // column, each == ggml_vec_dot_q4_0_q8_0(weight_row, column_j)). The
-    // structural marker is the tcrv_rvv.q4_0_q8_0_gemm_tile op identity.
-    if (isQ4_0Q8_0GemmTileBody(scope)) {
-      if (mlir::failed(emitQ4_0Q8_0GemmTile(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q4_0 x Q8_0 FULL GEMM (tcrv_rvv.q4_0_q8_0_gemm) wraps the
-    // weight-decode-reuse tile in an outer weight-ROW loop (NR rows) x an inner
-    // column-strip loop (the nc activation columns in M-wide strips). Every
-    // output element s[row][col] is byte-exact vs an independent
-    // ggml_vec_dot_q4_0_q8_0(weight_row, column_col). The structural marker is
-    // the tcrv_rvv.q4_0_q8_0_gemm op identity.
-    if (isQ4_0Q8_0GemmBody(scope)) {
-      if (mlir::failed(emitQ4_0Q8_0Gemm(rewriter, loc, scope, avlArg, sizeType,
-                                        valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q8_0 x Q8_0 block dot-product (tcrv_rvv.q8_0_q8_0_block_dot) is
-    // the Family-A sibling of the Q4_0 route: the SAME block-loop / unroll /
-    // tail / scale / store structure, with a plain i8 x i8 widening-product
-    // integer core (no nibble decode) and ggml's q8_0 fold order. The structural
-    // marker is the tcrv_rvv.q8_0_q8_0_block_dot op identity.
-    if (isQ8_0Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitQ8_0Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q4_1 x Q8_1 block dot-product (tcrv_rvv.q4_1_q8_1_block_dot) is
-    // the Family-B sibling (scale+MIN, asymmetric): the SAME block-loop / unroll
-    // / tail / scale / store structure, with an UNSIGNED-nibble i4 x i8 widening-
-    // product integer core (no offset-binary `-8` decode) and ggml's q4_1 fold
-    // (the (d_x*d_y)*sumi scale term plus the m_x*s_y MIN term). The structural
-    // marker is the tcrv_rvv.q4_1_q8_1_block_dot op identity.
-    if (isQ4_1Q8_1BlockDotBody(scope)) {
-      if (mlir::failed(emitQ4_1Q8_1BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q5_0 x Q8_0 block dot-product (tcrv_rvv.q5_0_q8_0_block_dot) is
-    // the Family-A 5-bit sibling: the SAME block-loop / unroll / tail / scale /
-    // store structure as the Q4_0 route, with a 5-BIT-weight integer core (the
-    // unsigned nibble unpack + per-element 5th-bit injection from the qh field +
-    // offset-binary `-16` bias) and ggml's q5_0/q8_0 scales-first fold order. The
-    // structural marker is the tcrv_rvv.q5_0_q8_0_block_dot op identity.
-    if (isQ5_0Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitQ5_0Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q5_1 x Q8_1 block dot-product (tcrv_rvv.q5_1_q8_1_block_dot) is
-    // the Family-B 5-bit sibling that COMBINES q5_0's 5-bit weight
-    // reconstruction (the unsigned nibble unpack + per-element 5th-bit injection
-    // from the qh field, but with NO offset-binary `-16` bias) with q4_1's
-    // scale+MIN fold (the (d_x*d_y)*sumi scale term plus the m_x*s_y MIN term).
-    // The structural marker is the tcrv_rvv.q5_1_q8_1_block_dot op identity.
-    if (isQ5_1Q8_1BlockDotBody(scope)) {
-      if (mlir::failed(emitQ5_1Q8_1BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ4_NL x Q8_0 block dot-product (tcrv_rvv.iq4_nl_q8_0_block_dot)
-    // is the Family-A sibling that opens the CODEBOOK class: the SAME block-loop /
-    // scale / store / scales-first-fold structure as q8_0/q5_0, with the SAME
-    // block byte shape as q4_0 (stride 18, nibbles at +2). The ONE new piece is
-    // the integer core's weight decode -- the 4-bit nibble does NOT decode to a
-    // linear value but GATHERS a 16-entry non-linear int8 codebook
-    // (kvalues_iq4nl[nibble]) via vrgather, then feeds the SAME asymmetric signed
-    // widening product against the plain-i8 q8 halves. The structural marker is
-    // the tcrv_rvv.iq4_nl_q8_0_block_dot op identity.
-    if (isIQ4NLQ8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitIQ4NLQ8_0BlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ4_XS x Q8_K super-block dot-product
-    // (tcrv_rvv.iq4_xs_q8_k_block_dot) is the CODEBOOK class's SUPER-BLOCK rung:
-    // iq4_xs is the super-block variant of iq4_nl. It REUSES iq4_nl's
-    // codebook-gather integer core (the 16-entry kvalues_iq4nl[16] vrgather lookup
-    // per nibble) inside the q4_K-style super-block structure (QK_K=256, 8
-    // sub-blocks of 32, the q8_K activation). The ONE new piece is the iq4_xs
-    // SIGNED 6-bit scale (extracted from scales_l[4]+scales_h by the q4_K-style
-    // closed-form cross-byte bit dance, biased -32) applied in the FLOAT domain
-    // (NOT q6_K's integer aux32 domain): per sub-block d1 = d4d8*(ls-32) then
-    // sumf += d1*(float)sumi. NO min term (symmetric, like q6_K). The structural
-    // marker is the tcrv_rvv.iq4_xs_q8_k_block_dot op identity.
-    if (isIQ4XSQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ4XSQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ2_XXS x Q8_K GRID-codebook super-block dot-product
-    // (tcrv_rvv.iq2_xxs_q8_k_block_dot) is the FIRST member of the deep IQ tail:
-    // each weight byte indexes a 256-entry packed uint64 GRID codebook
-    // (iq2xxs_grid), the per-element sign comes from a separate SIGN PLANE
-    // (ksigns_iq2xs/kmask), and a per-group 4-bit scale folds in the INTEGER domain.
-    // It REUSES the q6_K-style super-block structure (the q8_K activation, the
-    // integer bsum accumulation, the per-super-block fp32 fold) and adds the
-    // trailing 0.125f factor. The structural marker is the
-    // tcrv_rvv.iq2_xxs_q8_k_block_dot op identity.
-    if (isIQ2XXSQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ2XXSQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ2_XS x Q8_K GRID-codebook super-block dot-product
-    // (tcrv_rvv.iq2_xs_q8_k_block_dot) is the SECOND member of the deep IQ tail and
-    // the SIBLING of iq2_xxs. It REUSES the iq2_xxs grid + sign mechanism (indexed
-    // packed-uint64 GRID lookup, the ksigns_iq2xs/kmask SIGN plane, the integer bsum
-    // fold, the 0.125f factor) with three structural deltas: a 512-entry grid, a
-    // 9-bit index read DIRECTLY from each uint16 qs word (q2[l]&511 / q2[l]>>9 -- no
-    // aux1 packing), and an EXPLICIT per-sub-block scales[] array carrying two 4-bit
-    // scales (ls1 for groups 0,1 / ls2 for groups 2,3). The structural marker is the
-    // tcrv_rvv.iq2_xs_q8_k_block_dot op identity.
-    if (isIQ2XSQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ2XSQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ2_S x Q8_K GRID-codebook super-block dot-product
-    // (tcrv_rvv.iq2_s_q8_k_block_dot) is the THIRD member of the deep IQ tail and the
-    // SIBLING of iq2_xs. It REUSES the GRID + sign mechanism (indexed packed-uint64
-    // GRID lookup, the kmask sign-bit plane + broadcast/vand/vmsne/vneg/vmerge apply,
-    // the integer bsum fold, the explicit scales[] two-half split, the 0.125f factor)
-    // with three structural deltas: a 1024-entry grid, a 10-bit index assembled from
-    // a single qs index byte plus 2 qh-plane bits (idx = qs[l] | ((qh[ib32] <<
-    // (8-2*l)) & 0x300)), and EXPLICIT signs read DIRECTLY from a sign-byte region
-    // inside qs[64] (signs = qs+32, NO ksigns lookup). The structural marker is the
-    // tcrv_rvv.iq2_s_q8_k_block_dot op identity.
-    if (isIQ2SQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ2SQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ3_XXS x Q8_K GRID-codebook super-block dot-product
-    // (tcrv_rvv.iq3_xxs_q8_k_block_dot) is a member of the deep IQ tail and the
-    // SIBLING of iq2_xxs -- the iq3 GRID variant. It REUSES the iq2_xxs grid + sign
-    // mechanism (indexed packed GRID lookup, the ksigns_iq2xs/kmask SIGN plane, the
-    // packed-aux 4-bit scale 2*(aux>>28)+1 + the (aux>>7l)&127 sign selectors, the
-    // integer bsum fold) with ONE load-bearing delta: the GRID is 256 entries of FOUR
-    // int8 (a uint32 grid-of-4, half the lane width of iq2_xxs's uint64 grid-of-8), so
-    // each index decodes 4 values (vle8(4) over grid_i8 + idx*4) and an 8-element sign
-    // group is TWO indices q3[2l+0]/q3[2l+1] decoded as two 4-lane passes. The grid
-    // indices and the aux words live in SEPARATE qs[96] regions (q3 @2 / gas @66), and
-    // the trailing factor is 0.25f (not 0.125f). The structural marker is the
-    // tcrv_rvv.iq3_xxs_q8_k_block_dot op identity.
-    if (isIQ3XXSQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ3XXSQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ3_S x Q8_K block dot-product (tcrv_rvv.iq3_s_q8_k_block_dot) is the
-    // GRID-codebook sibling that RE-COMPOSES three already-built mechanisms: the
-    // 512-entry iq3 GRID-of-4 codebook (iq3_xxs's grid-of-4, two 4-lane passes per
-    // sign group), the qh 9th-bit plane (iq2_s, here a SINGLE bit mask 256 with the
-    // two passes taking shifts 8-2l and 7-2l), the EXPLICIT signs read from a
-    // dedicated memory region (iq2_s), and the explicit per-sub-block 4-bit scales
-    // (iq2_s, the two-nibble split). The trailing factor is `*s = sumf` (none). The
-    // structural marker is the tcrv_rvv.iq3_s_q8_k_block_dot op identity.
-    if (isIQ3SQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ3SQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ1_S x Q8_K block dot-product (tcrv_rvv.iq1_s_q8_k_block_dot) is the
-    // TERNARY class -- the last common ggml dot kernel. It REUSES the grid-codebook
-    // indexed-lookup mechanism (packed uint64 GRID, vle8(8) over grid_i8 + idx*8,
-    // signed widening product + chained vwredsum, the integer accumulation, the
-    // per-super-block fp32 fold) but adds a GENUINELY NEW mechanism -- the per-block
-    // DELTA term. Deltas vs the iq2/iq3 grid siblings: a 2048-entry TERNARY grid whose
-    // bytes are {0,+1,-1} so the grid IS the signed value (NO sign plane, NO kmask, NO
-    // vmsne/vand/vneg/vmerge); the scale lives in the uint16 qh word (ls = 2*((qh>>12)
-    // & 7)+1); the 11-bit index idx = qs[ib*4+l] | (((qh>>3l)&7)<<8); and the DELTA term
-    // delta = (qh & 0x8000) ? -1 : 1 folded via the q8 bsums (sumi1 += ls*delta*(bsums
-    // [2ib]+bsums[2ib+1])), with the 0.125f applied ONCE inside the fold (sumf += d*
-    // ((float)sumi + 0.125f*(float)sumi1)) and *s = sumf. The structural marker is the
-    // tcrv_rvv.iq1_s_q8_k_block_dot op identity.
-    if (isIQ1SQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ1SQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml IQ1_M x Q8_K block dot-product (tcrv_rvv.iq1_m_q8_k_block_dot) is the
-    // LAST common ggml dot kernel -- the iq1_s sibling that completes 100% ggml dot
-    // coverage. It REUSES the SAME 2048-entry iq1s_grid ternary codebook (byte-viewed
-    // signed -> NO sign plane/kmask) and the per-block DELTA mechanism, with three NEW
-    // pieces: (a) NO fp16 d field -- the super-block scale is RECONSTRUCTED from the
-    // packed iq1m_scale union spread across the 4 uint16 scales[] words (a bit
-    // reinterpret read as _Float16), and the per-sub-block 3-bit scales split into ls1
-    // (groups 0..1) and ls2 (groups 2..3) from the same words' low bits; (b) the qh
-    // plane is uint8 qh[16] (2 bytes/sub-block), idx = qs[l] | (((qh[l/2] << (8-4*(l%2)))
-    // & 0x700)); (c) the delta is per-GROUP (8 elems) with FOUR independent signs
-    // (qh[l/2] bit 3/7), so it CANNOT fold through bsums -- each group computes a fresh
-    // lsum2 = Σq8 reduced separately, ×delta[l], into sum2[l/2]. The structural marker
-    // is the tcrv_rvv.iq1_m_q8_k_block_dot op identity.
-    if (isIQ1MQ8KBlockDotBody(scope)) {
-      if (mlir::failed(emitIQ1MQ8KBlockDot(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml MXFP4 x Q8_0 block dot-product (tcrv_rvv.mxfp4_q8_0_block_dot) is
-    // the CODEBOOK-class sibling that opens the LAST structural quantization class:
-    // FP4 (e2m1) weights with an E8M0 shared-exponent block scale. It REUSES the
-    // iq4_nl codebook-gather integer core verbatim; the TWO new facts are the block
-    // format (block_mxfp4 = {uint8_t e; uint8_t qs[16]}, stride 17, nibbles at +1)
-    // and the weight scale (the structured E8M0 -> fp32 half reconstruction
-    // 2^(e-128), NOT a fp16 read). The structural marker is the
-    // tcrv_rvv.mxfp4_q8_0_block_dot op identity.
-    if (isMXFP4Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitMXFP4Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml NVFP4 x Q8_0 block dot-product (tcrv_rvv.nvfp4_q8_0_block_dot) is
-    // the SECOND FP4-class sibling (NVIDIA's FP4). It REUSES mxfp4's FP4 codebook
-    // gather + the asymmetric signed-widening integer core verbatim; the NEW facts
-    // are the super-block format (block_nvfp4 = {uint8_t d[4]; uint8_t qs[32]},
-    // QK=64, four 16-element sub-blocks spanning TWO q8_0 blocks) and the
-    // per-sub-block UE4M3 -> fp32 scale (the structured exp/man split + ldexpf
-    // branches + *0.5f, NOT mxfp4's E8M0 bit dance). The structural marker is the
-    // tcrv_rvv.nvfp4_q8_0_block_dot op identity.
-    if (isNVFP4Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitNVFP4Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q1_0 x Q8_0 block dot-product (tcrv_rvv.q1_0_q8_0_block_dot) is
-    // the BINARY ({-1,+1}) class -- one of the last three uncommon ggml dot
-    // kernels. The q1_0 weight is a 1-bit-per-element sign (set bit -> +q8, clear
-    // bit -> -q8). It REUSES the iq2_xxs kmask/vmsne sign-plane primitive (the
-    // {1,2,4,...,128} bit-selector + vmsne != 0 -> per-lane sign mask) but with NO
-    // codebook, NO nibble unpack, NO offset-binary `-8` bias: the new facts are
-    // the super-block format (block_q1_0 = {ggml_half d; uint8_t qs[16]}, stride
-    // 18, 128 element bits at +2, spanning FOUR q8_0 blocks) and the per-lane
-    // binary sign decode (vmerge(vneg(q8), q8, bit_mask) over 8-lane groups) +
-    // the two-level fp32 fold (sumf += d0 * Σ_k d1_k * sumi_block_k). The
-    // structural marker is the tcrv_rvv.q1_0_q8_0_block_dot op identity.
-    if (isQ1_0Q8_0BlockDotBody(scope)) {
-      if (mlir::failed(emitQ1_0Q8_0BlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q6_K x Q8_K super-block INTEGER partial
-    // (tcrv_rvv.q6_k_q8_k_aux32_partial) is the K-quant K1 increment: the
-    // super-block 6-bit ql+qh unpack into an element-ordered int8_t aux8[256]
-    // scratch (the exact `_generic` permutation), a nested sub-block loop
-    // applying the per-sub-block int8 scale in the i32 domain into an 8-lane
-    // aux32 accumulator vector, and a vse32 store of that aux32 state through the
-    // output pointer (NO fp32 fold -- that is K2). The structural marker is the
-    // tcrv_rvv.q6_k_q8_k_aux32_partial op identity.
-    if (isQ6_KQ8_KAux32PartialBody(scope)) {
-      if (mlir::failed(emitQ6_KQ8_KAux32Partial(rewriter, loc, scope, avlArg,
-                                                sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q6_K x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.q6_k_q8_k_block_dot) is the K-quant K2 increment: the SAME K1
-    // super-block integer core (6-bit ql+qh unpack into aux8[256], nested
-    // sub-block int8-scaled i32 accumulation into the 8-lane aux32) PLUS the
-    // deferred two-level fp32 fold (the carried 8-lane fp32 `sums` accumulator,
-    // the per-super-block fp16-d x fp32-d multiply, the lane-wise sums[l] +=
-    // d*aux32[l] via SEPARATE vfmul/vfadd, and the SEQUENTIAL horizontal sum
-    // into the fp32 *s). The structural marker is the
-    // tcrv_rvv.q6_k_q8_k_block_dot op identity.
-    if (isQ6_KQ8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitQ6_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q4_K x Q8_K super-block INTEGER partial
-    // (tcrv_rvv.q4_k_q8_k_aux_partial) is the q4_K K4a increment: the super-block
-    // 4-bit nibble unpack into an element-ordered int8_t aux8[256] scratch (NO
-    // bias), the STRUCTURED 6-bit scale/min bit-dance (the get_scale_min_k4 /
-    // utmp/kmask cross-byte decode as scalar emitc bitwise ops) producing the 8
-    // scales + 8 mins, a nested sub-block loop applying the per-sub-block UINT6
-    // scale in the i32 domain into an 8-lane aux32 accumulator vector, and a
-    // vse32 store of aux32 + a vse8 store of the 16 decoded scale/min bytes
-    // through the two output pointers (NO fp32 d/dmin fold + NO min term -- that
-    // is K4b). The structural marker is the tcrv_rvv.q4_k_q8_k_aux_partial op
-    // identity.
-    if (isQ4_KQ8_KAux32PartialBody(scope)) {
-      if (mlir::failed(emitQ4_KQ8_KAux32Partial(rewriter, loc, scope, avlArg,
-                                                sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q4_K x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.q4_k_q8_k_block_dot) is the q4_K K4b increment: the SAME K4a
-    // super-block integer core (4-bit unpack into aux8[256], the 6-bit scale/min
-    // bit-dance, nested sub-block uint6-scaled i32 accumulation into the 8-lane
-    // aux32) PLUS the deferred two-level fp32 fold (the carried 8-lane fp32
-    // `sums` accumulator, the per-super-block fp16-d x fp32-d multiply, the
-    // lane-wise sums[l] += d*aux32[l] via SEPARATE vfmul/vfadd) AND the q4_K min
-    // term (the integer sumi = Σ bsums[j]*mins[j/2] carried in a scalar sumf
-    // accumulator via sumf -= dmin*sumi IN-LOOP), then the SEQUENTIAL horizontal
-    // sum into the fp32 *s. The structural marker is the
-    // tcrv_rvv.q4_k_q8_k_block_dot op identity.
-    if (isQ4_KQ8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitQ4_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q5_K x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.q5_k_q8_k_block_dot) is the q5_K COVERAGE rung: q4_K's K4b
-    // emission EXACTLY (the shared super-block integer core + the deferred fp32
-    // fold + the q4_K min term + the sequential horizontal sum) with the ONLY
-    // new piece = the qh 5th-bit injection plumbed into the shared core (each
-    // unpacked nibble gets +16 when its qh plane bit is set, lifting q4 in
-    // [0,15] to q5 in [0,31]). The structural marker is the
-    // tcrv_rvv.q5_k_q8_k_block_dot op identity.
-    if (isQ5_KQ8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitQ5_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q2_K x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.q2_k_q8_k_block_dot) is the q2_K COVERAGE rung: it reuses the
-    // super-block scaffolding + the scale+min structure of q4_K but with the
-    // 2-bit weight unpack, the SIMPLE 4-bit nibble scale/min extraction (no
-    // utmp/kmask bit-dance), and a SCALAR per-super-block isum fold (NOT q4_K's
-    // 8-lane deferred vector). The structural marker is the
-    // tcrv_rvv.q2_k_q8_k_block_dot op identity.
-    if (isQ2_KQ8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitQ2_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml Q3_K x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.q3_k_q8_k_block_dot) is the q3_K COVERAGE rung, the LAST common
-    // K-quant: it COMPOSES q2_K's 2-bit qs unpack + the SUBTRACTIVE hmask
-    // high-bit injection (q5_K's plane pattern but -4 when the bit is UNSET ->
-    // signed [-4,3]) + the q3_K-OWN SIGNED 6-bit scale dance (scales[j]-32) +
-    // q6_K's NO-min deferred d.Sum(aux32) fold. The structural marker is the
-    // tcrv_rvv.q3_k_q8_k_block_dot op identity.
-    if (isQ3_KQ8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitQ3_KQ8_KBlockDot(rewriter, loc, scope, avlArg,
-                                            sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml TQ2_0 x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.tq2_0_q8_k_block_dot) is the TERNARY ({-1,0,+1}) TriLM coverage
-    // rung -- one of the LAST TWO uncommon ggml dot kernels. It REUSES q2_K's
-    // 2-bit weight unpack VERBATIM but folds a per-element `-1` ternary bias
-    // into the unpack and is SIMPLER than every K-quant sibling: NO scales, NO
-    // per-sub-block scale, NO min, NO dmin, NO bsums -- a single per-super-block
-    // integer accumulator + a single-fp16-scale SCALAR fp32 fold (d is at the
-    // END of block_tq2_0). The structural marker is the
-    // tcrv_rvv.tq2_0_q8_k_block_dot op identity.
-    if (isTQ2_0Q8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitTQ2_0Q8_KBlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The ggml TQ1_0 x Q8_K FULL super-block dot-product
-    // (tcrv_rvv.tq1_0_q8_k_block_dot) is the BASE-3-PACKED TriLM coverage rung --
-    // the LAST of the 24 ggml dot kernels (literal 100%). Each weight is a base-3
-    // trit recovered by a power-of-three multiply + the uint8 wrap (5 trits per
-    // qs byte, 4 per qh byte), decoded into an element-ordered int8_t aux8[256]
-    // (in q8 order) and then fed through tq2_0's VERBATIM signed widening reduce.
-    // SIMPLER than every K-quant sibling: NO scales, NO per-sub-block scale, NO
-    // min, NO dmin, NO bsums -- a single per-super-block integer accumulator + a
-    // single-fp16-scale SCALAR fp32 fold (d is at the END of block_tq1_0). The
-    // structural marker is the tcrv_rvv.tq1_0_q8_k_block_dot op identity.
-    if (isTQ1_0Q8_KBlockDotBody(scope)) {
-      if (mlir::failed(emitTQ1_0Q8_KBlockDot(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
     // The forward-pass F1 op (tcrv_rvv.ggml_vec_scale_f32) is the FIRST non-dot
     // f32 elementwise family member: the in-place per-lane multiply y[i] *= v
     // over a flat unit-stride f32 buffer. It owns a dedicated routine -- ONE f32
