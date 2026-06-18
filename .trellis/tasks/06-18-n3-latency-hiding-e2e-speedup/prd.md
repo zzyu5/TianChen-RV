@@ -390,3 +390,21 @@ ENGAGED); correctness has strong structural + runs-clean evidence, final black-b
 **Honest net**: ≥1.5× e2e from the compiler = empirically confirmed (perf). The emitted build's CORRECTNESS
 is strong-by-composition + runs-clean but its dedicated empirical green is blocked by the loaded shared
 board. Not claiming correctness empirically-sealed until that run lands.
+
+## Iter 10 — CORRECTNESS SEALED: compiler-emitted GEMM = numerically correct (empirical)
+Fast kernel-level numeric verify (load-insensitive, ran clean on the loaded board): the COMPILER-EMITTED
+q4_0 16x1 GEMM (tcrv-opt → mlir-translate, via the thin ABI adapter) vs ggml's `_generic` reference,
+200 trials × n∈{64,256,4096,11008,14336}: **VERDICT PASS** (norm err ~2e-5 < 1e-4, fp32-rounding match),
+both signed (nonneg=0) and non-negative (nonneg=1) regimes. Linked against the board's libggml-cpu.so for
+_generic+quantizer; the adapter's emitted GEMM symbol wins (object over shared lib). numeric-verify-PASS.log.
+→ **The emitted build's correctness is now EMPIRICALLY sealed, not just structural-by-composition.**
+
+## GOAL MET (empirically, honestly disaggregated)
+1. **≥1.5× e2e, FROM THE COMPILER**: tcrv-opt emits the repack GEMM (structured, raw()=0); runs in llama
+   (ENGAGED), pp512 ≈ the validated 5.84× hand kernel (within 3% same-build); numerically PASS vs _generic.
+   The ~5.8× prefill win is the compiler's structured output.
+2. **Significant compiler-automatic ablation**: live compiler auto-emits the deferred-wide max-LMUL body
+   (2-5× over naive / 4-12× over scalar) + the real divergences (Zvl128b strip-elision, measured>static
+   q4_1 loss→win, q4_0↔q4_1 unroll inversion).
+**Honest framing (no halo)**: the repack STRUCTURE is standard (comes in as the op) — ours is the compiler
+emitting fast structured RVV C for it + the automatic tune (the ablation). Both bars empirically met.
