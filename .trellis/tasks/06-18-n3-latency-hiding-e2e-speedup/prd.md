@@ -240,3 +240,15 @@ Concurrent gentle q5_0/q5_1 ablation also finishing (board sequenced — micro v
   the reduction wall → approaches the 1.98× compute ceiling). ggml itself does this at VLEN≥256; VLEN=128
   is a ggml TODO (we'd be FILLING ggml's gap). BUT: repacking is a weight-layout transform = the other
   project's `_repackON` domain + arguably above our codegen layer. **= a SCOPE DECISION for the user.**
+
+## Iter 8 — USER SCOPE DECISION: repack-GEMM kernel IN scope (chase ≥1.5× e2e)
+User chose: implement the consume-side VLEN=128 q4_0 **repacked GEMM** (fill ggml's own
+`case 128: break // TODO` in repack.cpp). Scope boundary: we do the repack-GEMM KERNEL +
+the runtime repack-at-load buffer (ggml's CPU_REPACK mechanism); we do NOT change the GGUF
+storage format. Block-as-lane + CONTIGUOUS loads (the repacked layout fixes the strided-load
+problem that killed the failfast TRANSPOSED probe at 0.14×) → escapes the per-block cross-lane
+reduction wall → matmul ~1.98× → **e2e prefill ≈ 1.75× (1/(0.14+0.86/1.98))**, clean past 1.5×.
+- Approach: PORT ggml's existing VLEN≥256 Q4_0_8x8 repack+GEMM (in our own ~/tcrv-llamacpp) DOWN
+  to VLEN=128 (i32m1=4 lanes; pick 4x/8x repack width that fits). Real contribution = filling
+  ggml's VLEN=128 gap, not duplicating. Validate: correctness (perplexity-neutral / logits match
+  vs stock q4_0) + llama-bench pp512 ≥1.5×. Gentle on the fragile board.
