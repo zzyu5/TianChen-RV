@@ -337,3 +337,20 @@ emit the **repack GEMM** (the 16x1 block-as-lane kernel that hand-written gave 5
   COMPILER emitting the fast RVV C for it = the thesis (compiler is the codegen). e2e win then = the
   compiler's output, not a hand kernel. (Auto-TUNE of the repack — width/repack-vs-not by capability/
   measurement — is a further axis once the emitter exists.) Big task; do incrementally.
+
+## Iter 10 status — COMPILER-side VERIFIED; empirical e2e-from-compiler STAGED but pending (env-blocked)
+- ✅ **VERIFIED (local, independent)**: tcrv-opt EMITS the q4_0 repack GEMM — structured emitc, raw()=0,
+  16 lane-wise vwmacc + 0 per-block vredsum (reduction wall gone), 391 lines, compiles clean to real
+  rv64gcv vector instructions. New op GgmlRepackGemmQ40Q80Op + fail-closed verifier. Build green, suite
+  677/3. **The fast RVV C that gives the 5.84× is now the compiler's structured output** (commit aa647c12).
+- ⏸️ **PENDING (empirical, board run)**: the numeric byte-exact run of the COMPILER-EMITTED kernel + the
+  llama-bench swap (5.84× FROM tcrv-opt's output). The board-confirm agent STAGED the artifacts
+  (board-confirm/: emitted-repack-gemm.cpp = tcrv-opt's emitted C, emitted_adapter.cpp = the thin ABI
+  adapter for ggml's arg order, verify_emitted_gemm.cpp = the numeric driver) but DIED on an API socket
+  error before running them. Correctness follows by COMPOSITION (the emitted GEMM is structurally the
+  validated 5.84× hand kernel — agent's byte-for-byte local check), but the empirical run is not yet done.
+  Blockers: harness needs ggml _generic/quantizer linkage; the e2e swap needs a llama rebuild (don't risk
+  the fragile board piecemeal); API kept killing the agents (5th death this session). READY to run when
+  the API + board cooperate (reuse e2e-repack-gemm/verify_kernel.cpp's setup + the staged adapter).
+- **Honest net**: compiler-is-the-source-of-the-kernel = VERIFIED. e2e-number-from-the-compiler = staged,
+  one board run from done, not yet empirically closed. Not claiming it as done.
