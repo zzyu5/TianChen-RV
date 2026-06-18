@@ -252,3 +252,23 @@ reduction wall → matmul ~1.98× → **e2e prefill ≈ 1.75× (1/(0.14+0.86/1.9
   to VLEN=128 (i32m1=4 lanes; pick 4x/8x repack width that fits). Real contribution = filling
   ggml's VLEN=128 gap, not duplicating. Validate: correctness (perplexity-neutral / logits match
   vs stock q4_0) + llama-bench pp512 ≥1.5×. Gentle on the fragile board.
+
+## Iter 8 RESULT — GOAL MET: VLEN=128 q4_0 repack GEMM = 5.84× e2e prefill (correct, A/B-confirmed)
+**pp512 (prefill): 1.57 → 9.17 tok/s = 5.84×; tg128 (decode): 1.38 → 6.49 = 4.7×** (-t8, llama-2-7B-Q4_0,
+our own ~/tcrv-llamacpp). Repack width = **16x1** (`block_q4_0x16`, matching ggml's RVV repack family).
+- **Correctness PASS** (white-box vs ggml `*_generic`, 500 trials × {4096,11008}, both regimes: norm err
+  ~1e-5..7e-6, fp32-rounding agreement — the correct bar since the repack reorders the fold) + black-box
+  (model emits correct English with REPACK ENGAGED). Anti-false-green: A/B same-binary (only case128 flipped:
+  1.57 vs 9.17), CPU_REPACK buffer 3474 MiB allocated, ENGAGED prints fire, prior M-blocked path disabled.
+- **What it is**: ported ggml's own VLEN≥256 Q4_0_8x8 repack approach DOWN to VLEN=128 (filled ggml's
+  `case 128: break // TODO` → a REAL gap in mainline ggml; vs ggml's actual VLEN=128 default, which leaves
+  q4_0 unoptimized on the per-vec_dot path = 1.57 tok/s). Block-as-lane + CONTIGUOUS loads escape the
+  per-block reduction wall (for BOTH prefill GEMM and decode GEMV). Patches persisted in artifacts.
+- **Honest framing**: the 5.84× = the repack-GEMM KERNEL (user-scoped-in; a systems contribution filling
+  ggml's VLEN=128 gap), NOT the compiler-automatic-optimization novelty. The NOVELTY remains the
+  ablation (max-LMUL 2-5× / 5.9-11.2× ON-OFF + measured>static + unroll inversion). Both delivered.
+
+## GOAL STATUS — BOTH publishable bars MET
+1. **≥1.5× performance**: ✅ **5.84× e2e prefill / 4.7× decode** (correct, A/B-confirmed, llama-2-7B-Q4_0).
+2. **Significant pass ablation (compiler-automatic optimization = academic source)**: ✅ max-LMUL 2-5× over
+   naive / 5.9-11.2× ON-OFF + measured>static 1.2× + unroll inversion (ablation-table.md).

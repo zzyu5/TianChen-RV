@@ -1,0 +1,11 @@
+--- /tmp/repack_main.orig	2026-06-18 11:16:51.452135942 +0000
++++ ggml/src/ggml-cpu/repack.cpp	2026-06-18 12:40:06.183002383 +0000
+@@ -4589,7 +4589,7 @@
+         if (ggml_cpu_has_riscv_v()) {
+             #if defined __riscv_zvfh
+             switch (__riscv_vlenb() * 8) {
+-                case 128:  { break; } // TODO
++                case 128:  { if (cur->ne[1] % 16 == 0) { return &q4_0_16x1_q8_0; } break; }
+                 case 256:  { if (cur->ne[1] % 16 == 0) { return &q4_0_16x1_q8_0; } break; }
+                 case 512:  { break; } // TODO
+                 case 1024: { break; } // TODO
