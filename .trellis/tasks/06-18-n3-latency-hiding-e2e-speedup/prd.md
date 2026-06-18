@@ -157,3 +157,29 @@ block-dots: strengthens generality + fixes the regression).
 - [ ] Phase 2: 自己的 riscv llama.cpp(非 sibling)在 rvv llama7b 上 llama-bench,decode/prefill tok/s before/after,
       诚实数字(含 Amdahl 归因)。
 - [ ] 全程不碰 sibling llama.cpp;build 低 `-j`;byte-exact 正确性 hold。
+
+## Iter 5 — PRIZE grounded precisely (ready to build when board returns)
+The documented "remaining lift" = the **selector→realizer fact-pinning gap** for the deferred-wide
+max-LMUL win (RVVGearboxSchedule.h:1899-1905, :1944-1948): the selector PICKS the wide rung
+(unit-tested, budget-pruned) but the live realization owner's fact-consumption
+(materializeLowPrecisionResourceRealizationAttrs / copyLowPrecisionResourceAttrs / primitive facts)
+is **pinned to narrow mf4/mf2/m1** → the compiler SELECTS the 2-5× winner but doesn't AUTO-EMIT it
+end-to-end. Closing it makes the measured N3 win **fully compiler-automatic** (the real strengthening:
+"selector picks winner" → "compiler auto-realizes the 2-5× body").
+- **Scope is favorable**: the wide `widening_accumulate` op helper ALREADY exists
+  (RVVContractionSelectedBodyRealizationOwner.cpp:1104-1117); the known-good target structure is the
+  runtime-validated `var_v_m2_a1.c` (06-14 p-b1). So it's wiring the selected rung through the
+  fact-consumption + dialect verifier, NOT inventing a body.
+- **Why not built blind now**: it touches I5 fact-consumption + the dialect verifier (core-invariant
+  territory); its value is the MEASURED auto-delivered win; runtime byte-exact + perf re-validation
+  needs ssh rvv (currently DOWN, host reboot). Building an I5 change with only a local structural gate
+  (no runtime) at marathon's end is the wrong risk. Ready to implement + validate when the board returns.
+
+## HONEST CHECKPOINT (board down)
+- ✅ Corrected academic N3 goal MET + measured: max-legal-LMUL pass 2-5× over naive / 5.9-11.2× ON÷OFF,
+  + measured>static 1.2×, + unroll inversion (generality). Ablation table = the central artifact.
+- ⛔ 1.5× e2e llama-2-7b tok/s = capability-capped (winning op ≠ llama's per-block-scaled q4_0;
+  q4_0 decode reduction-capped; prefill GEMM win above-layer; ggml default non-repacked & slow).
+  Honest, not faked.
+- 🔜 PRIZE (full auto-realization) grounded + ready; rvv-validation-gated; board DOWN.
+- 🔜 Ablation gaps (q5_0/q5_1 perf, i8 same-compiler ON/OFF, budget-prune self-timing) = rvv-gated; board DOWN.
