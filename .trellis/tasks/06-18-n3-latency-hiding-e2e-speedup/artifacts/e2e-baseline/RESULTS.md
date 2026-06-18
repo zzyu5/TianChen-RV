@@ -39,7 +39,7 @@ other project's dirs (`~/llama_integ*`, `~/workspace/workspace3/llama.cpp`,
 | uname | `Linux ubuntu 6.12.23 #1 SMP riscv64 GNU/Linux` |
 | ISA | `rv64imafdcv_zicbom_zicboz_..._zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_...` |
 | Vector | RVV 1.0 present (`v`, `zve64*`, `zvfh`); **VLEN = 128 bit** (`vlenb` CSR = 16 bytes, confirmed at runtime) |
-| Hart count | `nproc` = **64**. (An early `cat /proc/cpuinfo \| head -30` showed only processors 0–3, but that was `head` truncation, not the true count — not a reliable hart count.) The measured 4→8 thread scaling below (~2x for both pp and tg) demonstrates **>4 usable harts** actually do work. Exact count left as `nproc`=64 / unverified-beyond-that (a board outage prevented a clean `grep -c ^processor /proc/cpuinfo`). Per task discipline, builds use `-j4` and benches use `-t {1,4,8}`, never `-t 64`. |
+| Hart count | **64** (verified after reboot: `grep -c ^processor /proc/cpuinfo` = 64, matching `nproc`=64). The measured 4→8 thread scaling below (~2x for both pp and tg) is consistent with this. (An early `cat /proc/cpuinfo \| head -30` had shown only processors 0–3, but that was `head` truncation, not the true count.) Per task discipline, builds use `-j4` and benches use `-t {1,4,8}`, never `-t 64`. |
 | RAM | 121 GiB total, ~119 GiB available |
 | cmake | 3.28.3 |
 | Default C/C++ compiler used by build | GNU 14.2.0 (`/usr/bin/cc`, `/usr/bin/c++`) |
