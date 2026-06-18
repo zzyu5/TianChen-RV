@@ -288,3 +288,14 @@ correction: "证明我们编译自动优化学术性的来源"). Disaggregated h
   (compiler-automatic publishable speedup) is unmet. Two honest artifacts exist — a fast hand-written ggml
   kernel (a real PR, outside our compiler) + a real-but-not-auto-realized resource-aware selector with
   measured wins — and neither, alone, is the thesis. Label them correctly; do not delete either.
+
+## Iter 9 — USER: do BOTH (make the COMPILER the source)
+User: "1和2可以都做". Both compiler-side lifts toward the N3 thesis:
+- **(1) PRIZE**: close selector→realizer fact-pinning gap → tcrv-opt auto-emits the 2-5× wide rung
+  (deferred-wide op). Makes "compiler-automatic optimization" literally TRUE + ablation-proven.
+  (Cleanest compiler result; not a llama e2e number.) API now stable (last 3 agents succeeded) → retry.
+- **(2) COMPILER emits llama's kernel**: route GgmlGemmQ40Q80Op (our M-blocked GEMM, already in the MLIR
+  stack) through tcrv-opt→emitted C→wire into llama → the e2e number becomes the COMPILER's output (not
+  the hand-written failfast kernel the 1.44×/5.84× used). Compiler-emitted M-blocked ≈ 1.44× e2e (< 1.5×
+  but compiler's); compiler-emitting the REPACK GEMM for >1.5× = the bigger lift (compiler must model
+  repacked layout). Sequence after the prize.

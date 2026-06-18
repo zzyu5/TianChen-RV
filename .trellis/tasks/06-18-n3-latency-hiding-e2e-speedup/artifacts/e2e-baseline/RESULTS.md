@@ -25,10 +25,12 @@ other project's dirs (`~/llama_integ*`, `~/workspace/workspace3/llama.cpp`,
   |---|---|---|
   | 4 | 0.78 ± 0.00 | 0.74 ± 0.00 |
   | 8 | **1.55 ± 0.00** | **1.38 ± 0.00** |
-  | 1 | not collected (board outage during run) | not collected |
+  | 1 | not collected (the run crashed the board) | not collected |
 
   Throughput is very low (best pp512 = 1.55 tok/s @ -t 8) — consistent with the no-repack
-  scalar path. 4→8 threads scales ~2x (>4 real harts). -t 1 was interrupted by a board outage.
+  scalar path. 4→8 threads scales ~2x (64 harts, verified). The single-threaded -t 1 run
+  crashed the board ~1 h in (since rebooted); it is the least load-bearing row and was not
+  recollected — see the -t 1 note below.
 
 ---
 
@@ -53,6 +55,28 @@ other project's dirs (`~/llama_integ*`, `~/workspace/workspace3/llama.cpp`,
 | commit | `f3e182816421c648188b5eab269853bf1531d950` |
 | tag | `b9692` (mainline `master`, dated 2026-06-17) |
 | ggml version / commit | 0.15.1 / `f3e1828` |
+
+> **Provenance / reproducibility caveat (important).** All baseline numbers in this file were
+> measured against the **clean, unmodified DEFAULT** `~/tcrv-llamacpp` binary built 2026-06-18
+> 02:11 (stock mainline `f3e1828`, no source patches). **After** this baseline was measured,
+> several follow-on perf tasks patched the SAME `~/tcrv-llamacpp` tree and rebuilt the binary:
+> `e2e-gemm-integration` (M-blocked q4_0 GEMM in `ggml-cpu.c`, binary mtime 10:22) and
+> `e2e-repack-gemm` (VLEN=128 q4_0 repack GEMM — edits `arch/riscv/repack.cpp` + `repack.cpp`,
+> and flips the `case 128: { break; } // TODO` to enable repack; binary mtime 11:55). The tree's
+> `HEAD` is still our pinned commit `f3e1828`; only the working tree is dirty
+> (`git status`: M `ggml-cpu.c`, M `repack.cpp`, M `arch/riscv/repack.cpp`).
+>
+> So the binary **currently on the board is patched, NOT the clean baseline** — do NOT re-run
+> against it to reproduce these baseline numbers. To reproduce: `git checkout -- ggml/` (restores
+> stock) then rebuild `-j4`. The repack verdict + dims + cmake summary + the pp/tg table below all
+> reflect the clean default build and are unaffected by these later patches.
+>
+> **Cross-confirmation of the repack verdict.** The `e2e-repack-gemm` task had to *manually* edit
+> `repack.cpp` to turn `case 128: { break; } // TODO` into a returned repack type before q4_0 would
+> repack at all — independently confirming that **stock default ggml does NOT repack q4_0 at
+> VLEN=128** (this file's verdict). Its A/B baseline also reproduced our banked pp512 (1.55–1.57
+> tok/s @ -t 8), and its honest decomposition identifies the stock default as the GCC-pessimized
+> per-`vec_dot` path — i.e. our denominator is exactly the per-`vec_dot` path we claimed.
 
 ## cmake feature summary (DEFAULT config — `cmake -B build -DCMAKE_BUILD_TYPE=Release`)
 
@@ -169,14 +193,22 @@ independently). Full output: `llama-bench-sweep.log`.
 | 4 | **0.78 ± 0.00** | **0.74 ± 0.00** |
 | 8 | **1.55 ± 0.00** | **1.38 ± 0.00** |
 
-> **-t 1 status:** the single-threaded row was the last in the fastest-first sweep order
-> (4, 8, 1). It ran ~1 h into its pp512 phase, then the rvv board became unreachable
-> (`No route to host` — apparent host outage/reboot, NOT load-induced: the crash happened
-> during -t 1, the gentlest load, while -t 4 and -t 8 had already completed cleanly). The
-> single-threaded row is the least load-bearing data point (it does not change the repack
-> verdict or the denominator) and would take ~3–4 h to recollect at default reps, so it is
-> reported as **not collected**. If the board returns and the detached run survived, the row
-> will be filled from `llama-bench-sweep.log`; otherwise it stays uncollected.
+> **-t 1 status: not collected (board crash during the run, since confirmed & rebooted).**
+> The single-threaded row was last in the fastest-first sweep order (4, 8, 1). It ran ~1 h into
+> its pp512 phase, then the rvv board went unreachable (`No route to host`) and **stayed down for
+> ~30+ min** — i.e. the long single-threaded `-t 1` run **crashed the board**. After a manual
+> reboot the board came back healthy (uptime confirmed, 64 harts verified); the nohup'd bench
+> process did not survive the reboot, so the `-t 1` row was never produced. (Notably -t 4 and
+> -t 8 had already completed cleanly, so the crash surfaced under the *gentlest* sustained load,
+> not the heaviest — a board-stability data point worth recording on its own.)
+>
+> Decision: **not recollected.** The single-threaded row is the least load-bearing data point
+> (it changes neither the repack verdict nor the honest denominator — the campaign-relevant
+> number is pp512 @ -t 8 = 1.55 tok/s, already consumed downstream as the e2e prefill baseline),
+> a default-reps re-run is ~3–4 h, and it carries a demonstrated board-crash risk. Re-running it
+> would additionally require first restoring `~/tcrv-llamacpp` to clean stock (the tree was later
+> patched by the `e2e-gemm-integration` task — see provenance caveat above) so the row stays
+> same-source as -t 4 / -t 8.
 
 > Note: throughput on this board is very low (pp512 @ -t 4 = **0.78 tok/s**, @ -t 8 = **1.55 tok/s**).
 > This is the honest no-repack scalar `ggml_vec_dot_q4_0_q8_0` path (backend column reads `CPU`,

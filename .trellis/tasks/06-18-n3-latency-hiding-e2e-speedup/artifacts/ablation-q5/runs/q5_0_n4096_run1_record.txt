@@ -1,0 +1,19 @@
+# tcrv-rvv q5 block-dot MEASUREMENT tuning record (06-18 ablation-q5).
+# Each 'tune' line = the MEASURED-fastest legal shape for (kernel,
+# capability-march, n), measured best-of-N min on ssh rvv (clang -O3
+# -march=rv64gcv_zfh_zvfh -ffp-contract=fast, taskset -c 3, reps=80, iters=1500).
+# Comment lines record the full measured ladder + the gate-dropped shapes.
+#
+# --- q5_0 @ rv64gcv n=4096 : ggml(real)=1886.2 ns ---
+#   m1/1/robust            2506.2 ns  (0.753x vs ggml)  cost=1390
+#   m1/2/robust            2556.6 ns  (0.738x vs ggml)  cost=1310
+#   m1/4/robust            2603.1 ns  (0.725x vs ggml)  cost=1525
+#   m1/4/elided            3848.0 ns  (0.490x vs ggml)  cost=1005
+#   m1/2/elided            3960.2 ns  (0.476x vs ggml)  cost=1050
+#   m1/1/elided            4228.3 ns  (0.446x vs ggml)  cost=1260
+#   mf4/1/robust           7318.3 ns  (0.258x vs ggml)  cost=3190
+#   mf4/2/robust           7345.3 ns  (0.257x vs ggml)  cost=3110
+#   mf4/4/robust           7456.6 ns  (0.253x vs ggml)  cost=3325
+# MEASURED WINNER: m1/1/robust @ 2506.2 ns (0.753x vs ggml)
+tune kernel=q5_0 march=rv64gcv n=4096 lmul=m1 factor=1 elision=robust measured_ns=2506.2
+#
