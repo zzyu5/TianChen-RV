@@ -4152,6 +4152,96 @@ def GgmlGemmQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemmQ40Q80Op
+    : TCRVRVV_Op<"repack_gemm_q4_0_q8_0",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q4_0 x Q8_0 16x1-REPACKED GEMM (block-as-lane) op";
+  let description = [{
+    Records the COMPLETE ggml q4_0 16x1-REPACKED GEMM hot kernel -- the
+    validated `vlen128-q4_0-16x1` `ggml_gemm_q4_0_16x1_q8_0` path that consumes
+    ALREADY-repacked weights -- as ONE bounded generic plugin-local typed RVV
+    dataflow step. It is the BLOCK-AS-LANE sibling of tcrv_rvv.q4_0_q8_0_gemm:
+    where that op lays the q4_0 weight block out as a VECTOR and reduces it with
+    a cross-lane vwredsum (the per-block reduction wall), THIS op consumes the
+    16-block-as-lane repacked layout (block_q4_0x16) so the 16 interleaved
+    weight rows of a group occupy 16 distinct vector lanes and the dot product
+    accumulates LANE-WISE via vwmacc (NO cross-lane vredsum -- the reduction
+    wall is gone). The repacked weight nibbles already carry the offset-binary
+    `^ 0x88` bias from the repack-at-load transform (make_block_q4_0x16), so the
+    kernel decodes each nibble with a plain vsll/vsra sign-extension (NO in-kernel
+    vxor). At VLEN=128 an e16m1 vector holds only 8 i16 lanes, so each
+    16-block-as-lane group is processed as TWO disjoint contiguous halves of 8
+    lanes each (rows 0..7 then rows 8..15); every weight byte is read exactly
+    once.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes FIVE runtime
+    ABI value operands -- the repacked q4_0x16 weight base pointer (vx, the
+    NC/16 column-groups laid out at byte stride (n/QK)*288 apart), the repacked
+    q8_0x4 activation base pointer (vy, the nr/4 row-groups laid out at byte
+    stride (n/QK)*136 apart), the fp32 output base pointer (s), the runtime
+    contraction element count (n), the runtime activation-row count (nr) and the
+    runtime weight-column count (nc), plus the runtime output row stride (bs, in
+    floats) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the nr x nc fp32 results through
+    the output pointer.
+
+    The structural facts -- QK=32, the repacked block strides (288 bytes for
+    block_q4_0x16, 136 bytes for block_q8_0x4), the repacked quant byte offsets
+    (weight qs at +32 after the 16 inline fp16 scales, activation qs at +8 after
+    the 4 inline fp16 scales), the interleave widths (16 weight rows per group, 4
+    activation columns per group), the half-lane VLEN=128 split width (8), and
+    the dual-fp16 scale model -- are carried as typed integer/string attributes
+    (I4 mirror only). The fixed emission -- the outer activation-row-GROUP loop
+    over nr/4, the weight-column-GROUP loop over nc/16, the two-halves loop over
+    the 8-lane halves, the 4x8 f32 accumulator set, the per-block lane-wise
+    vwmacc product (vle8 disjoint sub-loads of the repacked qs, vsll/vsra nibble
+    sign-extend, vwmacc_vx against the scalar q8 quants), the vwadd lo/hi combine,
+    the vfwmul/vfcvt/vfmacc scale fold, and the vse32 vector store -- is the op's
+    lowering, NOT a candidate-mirror string read in the conversion. The bounded
+    surface kind is limited to "ggml_repack_gemm_q4_0_q8_0" and scale_model to
+    "dual-fp16-per-block-d_x.d_y". Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand mirror strings,
+    q8/q4 names, and common EmitC/export code must not infer or choose the
+    block-as-lane repacked GEMM semantics.
+
+    This op pins the 16x1 repacked ABI fail-closed (I7): the byte layout the
+    kernel depends on (288/136 strides, +32/+8 quant offsets, 16/4 interleaves,
+    half=8) is the validated `vlen128-q4_0-16x1` contract. A malformed typed body
+    cannot lower under this emission.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$row_count,
+    AnyType:$column_count,
+    AnyType:$output_row_stride,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$activation_interleave,
+    I64Attr:$half_lanes
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
+    "type($output_row_stride) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ80Q80Op
     : TCRVRVV_Op<"q8_0_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface,

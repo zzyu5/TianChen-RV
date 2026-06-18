@@ -1,0 +1,8 @@
+      4 vfcvt.f.x.v
+      4 vfmacc.vv
+      4 vfwmul.vf
+     53 vle16.v
+     12 vle8.v
+     41 vse32.v
+      4 vwadd.vv
+      8 vwmacc.vx

@@ -333,6 +333,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_0Q8_0GemmTile},
         {&isQ4_0Q8_0GemmBody,
          &VariantToEmitCFunc::emitQ4_0Q8_0Gemm},
+        {&isRepackGemmQ4_0Q8_0Body,
+         &VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0},
         {&isQ8_0Q8_0BlockDotBody,
          &VariantToEmitCFunc::emitQ8_0Q8_0BlockDot},
         {&isQ4_1Q8_1BlockDotBody,
@@ -1039,6 +1041,20 @@ bool VariantToEmitCFunc::isQ4_0Q8_0GemmBody(tcrvrvv::WithVLOp scope) {
     bool sawGemm = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlGemmQ40Q80Op>(op)) {
+        if (sawGemm)
+          return false;
+        sawGemm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemm;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmQ4_0Q8_0Body(tcrvrvv::WithVLOp scope) {
+    bool sawGemm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ40Q80Op>(op)) {
         if (sawGemm)
           return false;
         sawGemm = true;
