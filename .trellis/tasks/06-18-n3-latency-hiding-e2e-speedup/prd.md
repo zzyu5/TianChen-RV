@@ -324,3 +324,16 @@ makes the same choice is not diverging on resources (spec: "固定 LMUL 只是 M
 **Net honest status**: the compiler automatically emits a measured 2-5× (over naive) optimized body —
 a genuine compiler-automatic-optimization result + pass ablation. The capability/resource-AWARENESS is
 demonstrated by strip_elision/measured>static/unroll (real divergences), NOT by the dormant budget axis.
+
+## Iter 10 — make the ≥1.5× e2e win the COMPILER's output (the genuine remaining lift)
+Hook: the 5.84× is hand-written (in ggml), not tcrv-opt. The M-blocked GgmlGemmQ40Q80Op IS
+compiler-emittable but caps ~1.44× e2e (< 1.5×). To get ≥1.5× e2e FROM THE COMPILER → tcrv-opt must
+emit the **repack GEMM** (the 16x1 block-as-lane kernel that hand-written gave 5.84×).
+- Plan: (1) define `tcrv_rvv.ggml_repack_gemm_q4_0_q8_0` op (block-as-lane 16x1 repacked contraction);
+  (2) STRUCTURED RVVToEmitC emitter (raw()=0) that emits the validated `vlen128-q4_0-16x1` kernel
+  byte-exact vs the hand-written reference + `_generic`; (3) lit-validate the emission; (4) wire the
+  COMPILER-EMITTED C into ~/tcrv-llamacpp → e2e (must reproduce ~5.84×, now from tcrv-opt).
+- Honest framing: the repack STRUCTURE is standard (comes in as the op/MLIR, not our novelty); the
+  COMPILER emitting the fast RVV C for it = the thesis (compiler is the codegen). e2e win then = the
+  compiler's output, not a hand kernel. (Auto-TUNE of the repack — width/repack-vs-not by capability/
+  measurement — is a further axis once the emitter exists.) Big task; do incrementally.
