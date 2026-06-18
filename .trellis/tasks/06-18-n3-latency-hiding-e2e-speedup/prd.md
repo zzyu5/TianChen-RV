@@ -183,3 +183,27 @@ end-to-end. Closing it makes the measured N3 win **fully compiler-automatic** (t
   Honest, not faked.
 - 🔜 PRIZE (full auto-realization) grounded + ready; rvv-validation-gated; board DOWN.
 - 🔜 Ablation gaps (q5_0/q5_1 perf, i8 same-compiler ON/OFF, budget-prune self-timing) = rvv-gated; board DOWN.
+
+## Iter 6 — board BACK UP; prize attempted but blocked by API flakiness (clean handoff)
+- **Board recovered** (rebooted, idle, 64 cores, reachable). rvv work is unblocked — but board is
+  FRAGILE (crashed under ~1h single-thread llama-bench). Keep all rvv runs gentle: low -j, short
+  micro best-of-N, single-thread, watch for crash. **Decision: do NOT re-run llama-bench -t 1**
+  (it was the crash trigger, least-relevant point; -t 8 = 1.55 tok/s is the denominator). Crash
+  recorded as an honest board-stability finding.
+- **Prize attempt died on transient API socket error** (4th agent killed this session by API flakiness,
+  all mid-work, 0 source changes — tree clean). The prize is a deep I5 + dialect-verifier change in a
+  2700-line realization owner; not safe to grind in exhausted context with flaky API + fragile board.
+
+### NEXT-SESSION HANDOFF — the prize (do this on a stable session)
+**Goal**: close the selector→realizer fact-pinning gap so the live compiler AUTO-EMITS the wide rung
+→ the measured 2-5× max-LMUL win becomes fully compiler-automatic + fills the headline i8 same-compiler
+ON÷OFF ablation row (currently the only i8 timing was a hand-emitted kernel, not compiler output).
+- **Files**: selector = `RVVGearboxSchedule.h:1885-2030` (done, unit-tested). Gap = realizer
+  `RVVContractionSelectedBodyRealizationOwner.cpp` fact-consumption (`materializeLowPrecisionResource-
+  RealizationAttrs`/`copyLowPrecisionResourceAttrs`/primitive facts) pinned narrow mf4/mf2/m1
+  (:1944-1948); wide `widening_accumulate` helper already exists (:1104-1117). Target structure =
+  validated `…/06-14-…/artifacts/p-b1-accumulator-sweep/byte/var_v_m2_a1.c`.
+- **Gate**: local (lit green, raw()=0, budget≥32→wide / <32→narrow divergence lit, structure matches
+  var_v_m2_a1.c) → then GENTLE rvv (byte-exact vs _generic + same-compiler ON÷OFF). FAIL-CLOSED: if
+  the realizer can't emit the wide rung byte-exact, STOP (don't emit a wrong body / weaken the verifier).
+- Then the cheaper independent gaps: q5_0/q5_1 block-dot ablation (autotuner already wired), budget-prune self-timing.
