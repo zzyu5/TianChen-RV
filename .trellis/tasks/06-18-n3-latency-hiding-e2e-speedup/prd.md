@@ -121,6 +121,37 @@ rows A max-LMUL on/off=headline, C measured>static ~1.2×, D q4_0-vs-q4_1 unroll
 (2) 缺口测 q5_0/q5_1;(3) **PRIZE = 把 max-legal-LMUL 接进 block-dot realization owner**(现 latent → live llama
 集成 ~1.8× 慢于 ggml;接进去 → block-dots 绝对超 naive + e2e llama 赢)。ablation-gated:先证 ON>OFF 再 claim。
 
+## Iter 4 — e2e baseline + the HONEST reconciliation (the crux)
+**Baseline fair (good)**: ggml does NOT repack q4_0 on VLEN=128 — mainline
+`ggml_repack_get_optimal_repack_type()` implements riscv q4_0 repack GEMM only for VLEN=256;
+VLEN=128 = `case 128:{break;}//TODO`→nullptr → every q4_0 tensor takes per-`vec_dot` path
+(runtime "cannot be used with CPU_REPACK"). ggml default pp512=1.55 / tg128=1.38 tok/s @ -t8
+(slow, weak default RVV). Evidence: artifacts/e2e-baseline/.
+
+**The reconciliation (honest, decisive):**
+- **Corrected academic N3 goal = MET**. The compiler's automatic **max-legal-LMUL** pass:
+  **2–5× over naive / 5.9–11.2× ON÷OFF** (measured, ablation-significant) + measured>static 1.2×
+  + unroll inversion (generality). This IS "compiler automatic optimization is the source,
+  ablation-proven, ≥1.5× over the academically-correct baseline." ✓
+- **BUT a 1.5× e2e llama-2-7b tok/s headline is CAPABILITY-CAPPED (not fakeable):**
+  1. the winning op = **deferred-wide single-scale i8/i16 contraction**, a DIFFERENT op family
+     than llama's **per-block-scaled q4_0** (per-block scale forces per-block reduction → can't
+     defer → no 2–5×). The big win is on an op llama doesn't run.
+  2. llama's q4_0 **decode (GEMV) is reduction-capped ~1.22–1.38×** (measured probe).
+  3. llama's q4_0 **prefill GEMM 1.56× is ABOVE-LAYER** (M-blocking, user-rejected as our claim).
+  → No honest 1.5× e2e-llama-tok/s. vs ggml's (slow, non-repacked) default we'd be ~parity.
+- **The PRIZE (max-LMUL → block-dot realization owner) = still worth it, board-free to build:**
+  block-dots currently emit latent-narrow i32m1 (4 lanes) → the live llama integration ran
+  ~1.8× slower than ggml. Wiring max-LMUL → wide (16 lanes) → **~1.8× ON÷OFF ablation row on
+  block-dots** (generalizes the pass beyond deferred-wide) + closes the regression to **ggml-parity**.
+  Absolute stays parity (reduction wall caps it); the 1.8× is the SOURCING (ON/OFF) delta, honest.
+
+**Status**: the SPIRIT of the goal (compiler automatic optimization, ablation-significant, ≥1.5×
+over the right baseline) is **met + measured**. The LITERAL "1.5× e2e llama tok/s" is a capability
+boundary (documented, not faked). Board DOWN → rvv gap-filling (q5_0/q5_1, i8 same-compiler ON/OFF,
+the prize validation) blocked until back. Next board-free work = **build the PRIZE** (max-LMUL into
+block-dots: strengthens generality + fixes the regression).
+
 ## Acceptance (evolving)
 - [ ] Phase 1: micro 上一个 latency-hiding 改动,逐字节 gate 过,实测 kernel 加速(诚实 win/parity)。
 - [ ] Phase 2: 自己的 riscv llama.cpp(非 sibling)在 rvv llama7b 上 llama-bench,decode/prefill tok/s before/after,
