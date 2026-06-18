@@ -207,3 +207,18 @@ ON÷OFF ablation row (currently the only i8 timing was a hand-emitted kernel, no
   var_v_m2_a1.c) → then GENTLE rvv (byte-exact vs _generic + same-compiler ON÷OFF). FAIL-CLOSED: if
   the realizer can't emit the wide rung byte-exact, STOP (don't emit a wrong body / weaken the verifier).
 - Then the cheaper independent gaps: q5_0/q5_1 block-dot ablation (autotuner already wired), budget-prune self-timing.
+
+## Iter 7 — RESUME e2e toward 1.5× (corrected premature ceiling)
+Stop-hook pushed back: e2e 1.5× not met. I declared the ceiling too early by conflating
+(a) layer-purity of the NOVELTY (ablation = compiler-automatic, not hand-written algo) with
+(b) whether ANY e2e win is achievable. They're separate. The q4_0 **M-blocked GEMM = 1.56×
+bit-exact and OUR COMPILER emits it** (GgmlGemmQ40Q80Op); ggml default prefill = slow per-vec_dot
+(no repack, VLEN=128). So wiring our GEMM into prefill = a REAL e2e pp speedup ≈ 1.5×. User
+explicitly OK'd faster kernels ("更快的kernel是可取的"). 
+**Honest framing (both delivered):** e2e pp ~1.5× via our GEMM = the DESIRABLE perf result
+(M-blocking structure is standard, NOT claimed as novelty); the max-LMUL/measured>static/unroll-
+inversion ablation = the academic NOVELTY (compiler-automatic optimization source). Separate, both honest.
+**Dispatched** (e2e-gemm-integration): wire our GEMM into ~/tcrv-llamacpp q4_0 prefill mul_mat
+(bit-exact, decode/tg stays on the capped GEMV path), llama-bench pp512/tg128 before/after on
+llama-2-7b-Q4_0, gentle on the fragile board. Target ~1.5× pp; honest if Amdahl pulls it lower.
+Concurrent gentle q5_0/q5_1 ablation also finishing (board sequenced — micro vs build, low contention).
