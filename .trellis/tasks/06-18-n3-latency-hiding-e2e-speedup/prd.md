@@ -371,3 +371,22 @@ Board run (the dying agent's staged artifacts + my own re-runs, ssh rvv):
   hang) — a non-interactive greedy re-run is in flight to seal black-box correctness.
 **Net**: ≥1.5× e2e FROM THE COMPILER = confirmed (the emitted kernel ≈ the validated 5.84× kernel, runs,
 ENGAGED); correctness has strong structural + runs-clean evidence, final black-box greedy pending.
+
+## Iter 10 — final empirical status (honest; correctness of the EMITTED build not yet sealed)
+- **Perf, FROM THE COMPILER: empirically confirmed.** tcrv-opt emits the repack GEMM (raw()=0, verified),
+  it runs in llama (ENGAGED 12×), pp512=5.56 ≈ hand 5.73 (same build, within 3%) = the validated 5.84×
+  hand kernel. The ~5.8× prefill win is the compiler's structured output.
+- **Correctness of the EMITTED build: STRONG-by-composition + runs-clean, but NOT a dedicated empirical
+  green yet.** The emitted GEMM is structurally the validated hand kernel (tcrv-opt's lowering of the op
+  describing it; agent's byte-for-byte node-sequence) + the emitted build runs llama without crash/NaN.
+  BUT: the dedicated numeric verify was left incomplete (API-killed agent; eng_*.txt empty), and the
+  emitted-build greedy black-box keeps TIMING OUT — the board is a SHARED machine (7 users, load
+  fluctuates 1→5) so llama-cli model-load+generate exceeds the run window. NOT sealed.
+  - Note: the prior "Paris" greedy was the HAND-kernel build, not the emitted build → does not substitute.
+- **REMAINING to seal correctness** (env-gated, not a real doubt): run the emitted-build greedy when the
+  shared board is calm (→ "Paris"), OR complete the staged numeric harness (verify_emitted_gemm.cpp +
+  the emitted/adapter, linking ggml's _generic/quantizer without the hand-kernel symbol clash).
+- **Ablation: verified** (deferred-wide max-LMUL auto-emit 2-5× over naive + Zvl128b/measured>static/unroll).
+**Honest net**: ≥1.5× e2e from the compiler = empirically confirmed (perf). The emitted build's CORRECTNESS
+is strong-by-composition + runs-clean but its dedicated empirical green is blocked by the loaded shared
+board. Not claiming correctness empirically-sealed until that run lands.
