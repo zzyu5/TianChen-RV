@@ -180,6 +180,23 @@ mlir::LogicalResult requireIntegerAttr(mlir::Operation *op,
          << "'";
 }
 
+// The architectural vector-register-file budget is a resource/capability INPUT
+// to the Gearbox candidate derivation, not a hardcoded schedule constant. Honor
+// an op-provided budget when present (a constrained-budget profile, e.g. a
+// narrow-LMUL target) and otherwise default to the 32-vreg RVV architectural
+// fact. Reading the budget from the op keeps EVERY downstream stamped fact
+// (legal candidate count, the budget attr itself) derived from the SAME value,
+// so the later realizer's `requireIntegerAttr`-shaped consistency checks pass at
+// any budget -- this is what makes narrow-vs-wide selection genuinely
+// budget-driven (N1/N3) instead of pinned to the default.
+std::int64_t resolveGearboxVectorRegisterBudget(mlir::Operation *op) {
+  if (auto attr = op->getAttrOfType<mlir::IntegerAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceVectorRegisterBudgetAttrName))
+    return attr.getInt();
+  return tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget;
+}
+
 mlir::LogicalResult materializeGearboxAttrs(mlir::Operation *op,
                                             mlir::OpBuilder &builder) {
   if (mlir::failed(requireStringAttr(
@@ -537,11 +554,17 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
               "requires a supported product-reduction memory form";
   llvm::StringRef tailPolicy = stringifyGearboxTailPolicy(policy.getTail());
   llvm::StringRef maskPolicy = stringifyGearboxMaskPolicy(policy.getMask());
+  // Resolve the architectural vreg-file budget from the op (constrained-budget
+  // profiles carry it; default is the 32-vreg RVV fact). Every budget-derived
+  // candidate fact below (legality, the stamped budget attr) flows from this one
+  // value so the realizer consumes a self-consistent fact set at any budget.
+  const std::int64_t vectorRegisterBudget =
+      resolveGearboxVectorRegisterBudget(op);
   llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
       candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
           *operation, tailPolicy, maskPolicy, sourceSEW, sourceLMUL,
           productSEW, productLMUL, resultSEW, resultLMUL, resultSEW,
-          resultLMUL, kRVVLowPrecisionResourceVectorRegisterBudget);
+          resultLMUL, vectorRegisterBudget);
   std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
       selectRVVLowPrecisionProductReductionResourceCandidate(candidates);
   if (auto selectedAttr = op->getAttrOfType<mlir::StringAttr>(

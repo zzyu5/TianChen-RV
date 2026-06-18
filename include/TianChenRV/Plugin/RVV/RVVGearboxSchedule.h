@@ -1896,13 +1896,18 @@ inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {
 // the i8/m2 -> i16/m4 -> i32/m8 chain, and this enumeration derives exactly that
 // rung from the budget: it is the widest whose 8+4+reserve fits 32 vregs.
 //
-// NOTE (honest scope): this selection logic is unit-tested standalone. It is NOT
-// yet wired into the live realization path -- the realized typed body + its
-// stamped primitive facts (RVVContractionSelectedBodyRealizationOwner.cpp) are
-// still pinned to the narrow i8mf4 per-iteration-vwredsum chain, so selecting a
-// wide rung today would not realize a faithful body. Live-wiring (the dialect
-// verifier + realization-owner generalization) is the remaining lift; see the
-// 06-14 task report's gap map.
+// SCOPE: this selector is LIVE-WIRED. The realization owner
+// (RVVContractionSelectedBodyRealizationOwner.cpp, the
+// TypedWideningProductReduceDequantize dispatch) reads the architectural
+// vector-register-budget resource fact off the pre-realized body and feeds it to
+// selectRVVLowPrecisionMaxLegalAccumulatorLMULRung; when the budget admits the
+// i32m8 rung it AUTO-EMITS the deferred-wide i8m2 -> i16m4 -> i32m8 typed body
+// (realizeDeferredWideDequantBody) -- the measured ssh-rvv winner -- and
+// otherwise falls through to the legacy grouped narrow body. The budget is an
+// op-provided resource INPUT (gearbox honors it, default 32), so the SAME kernel
+// realizes wide at budget 32 and narrow at a constrained budget; the wide
+// emission is resource-derived, not pinned. See
+// test/Target/RVV/pre-realized-selected-body-realize-deferred-wide-budget-divergence.mlir.
 //===----------------------------------------------------------------------===//
 
 /// One enumerated accumulator-LMUL rung for the widening product-reduction
