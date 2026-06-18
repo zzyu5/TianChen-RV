@@ -299,3 +299,28 @@ User: "1和2可以都做". Both compiler-side lifts toward the N3 thesis:
   the hand-written failfast kernel the 1.44×/5.84× used). Compiler-emitted M-blocked ≈ 1.44× e2e (< 1.5×
   but compiler's); compiler-emitting the REPACK GEMM for >1.5× = the bigger lift (compiler must model
   repacked layout). Sequence after the prize.
+
+## Iter 9 — PRIZE result, HONESTLY disaggregated (advisor caught a 2nd false-green of the same shape)
+The c5a0652d commit said "resource-aware ablation-proven 2-5.7×" — the word **resource-aware** is an
+OVERCLAIM. The budget resource fact is INVARIANT on real RVV (32 vregs = architectural; nothing
+upstream stamps it — grep-confirmed by the prize agent), so every production compile picks WIDE; the
+narrow OFF arm fires ONLY under a synthetic injected budget (16) no real target has. A pass that always
+makes the same choice is not diverging on resources (spec: "固定 LMUL 只是 MVP 占位…不是 N3").
+**Honest disaggregation (same discipline as the 5.84× hand-written kernel):**
+- ✅ **REAL — the compiler auto-emits a measured win.** tcrv-opt AUTO-EMITS the wide
+  i8m2→i16m4→i32m8 widening_accumulate body BY DEFAULT (verified: ran the live pass), byte-exact all-n,
+  measured **2-5× over naive RVV / 4-12× over scalar** (archived p-b5/p-b8). "Compiler is the source of
+  the WIN" is TRUE. Legit PASS ablation = auto-emitted-wide vs the MVP-placeholder narrow (≈naive).
+- ✅ **REAL — the resource/capability divergences that ACTUALLY fire on real targets** (the N3
+  "aware/divergent" content): `strip_elision` gated on Zvl128b (VLEN capability), `measured>static`
+  (q4_1 loss→win), q4_0↔q4_1 unroll inversion. These are the honest ablation rows.
+- ⚠️ **DORMANT — NOT a claim**: the budget→wide/narrow "2-5.7× ON/OFF". Machinery is resource-derived
+  but the resource (vreg budget) is invariant on RVV → the divergence never fires on real hardware. Do
+  NOT headline it as resource-aware. (To make it REAL = the advisor's option 2: model true register
+  pressure — reserved mask v0 + live accumulators → effective budget varies by kernel → narrow fires
+  for pressured kernels. That's a further lift.)
+- ✅ **REAL but OUTSIDE the compiler**: the hand-written repack-GEMM 5.84× llama e2e (systems PR, soft
+  baseline).
+**Net honest status**: the compiler automatically emits a measured 2-5× (over naive) optimized body —
+a genuine compiler-automatic-optimization result + pass ablation. The capability/resource-AWARENESS is
+demonstrated by strip_elision/measured>static/unroll (real divergences), NOT by the dormant budget axis.
