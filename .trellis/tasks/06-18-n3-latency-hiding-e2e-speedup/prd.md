@@ -24,10 +24,28 @@
   **`/home/ubuntu/llama-2-7b-chat.Q4_0.gguf`**(Q4_0 7B,kernel 完美对上)跑 `llama-bench`,量 decode tok/s
   before/after。decode(batch=1)主导算子就是 q4_0 dot → tok/s 近似直接反映 kernel 加速。
 
-## 诚实风险(1.5× 不是保证,是研究赌注)
-ggml 的 RVV q4_0 kernel 已不差,我们现在 parity。1.5× 要靠吃 latency-bound headroom(deferred accumulate /
-多累加器 / 软流水)—— roofline 说这块 ggml 也没吃,理论上有;但能吃到多少要 micro 实测才知道。先做 q4_0 一个
-kernel 打透看能否逼近 1.5×,再决定推广。**到不了就诚实报天花板,不灌水。**
+## 两个可发论文的硬指标(用户 2026-06-18)
+1. **~1.5× 加速**(over ggml,e2e tok/s 证),成熟可发论文。
+2. **ablation(消融)显著**:每个 optimization pass 单独开/关,实测 delta **明显**(不是 ±1% 的噪声)——
+   即每个 pass 都有可发论文的独立贡献,能画出 ablation 表/图。
+3. **达不到要反复迭代探索**(iterate-until):这是持续优化 campaign,不是一锤子;到不了 1.5× 就换 lever 再试,
+   每轮实测、诚实记录天花板,直到逼近或证明硬限。
+
+## 关键 enabler(诚实):1.5× 很可能要从 byte-exact 放宽到 numerically-equivalent
+现状 inc10 的 gate 是"vs ggml-real 漂 1 ULP 即不合格"——**这条约束本身 FORCE 了 per-block reduction**
+(为逐字节复刻 ggml 的 fp32 fold 顺序),而 per-block `vredsum`→scalar→fp32 正是 roofline 指认的瓶颈。
+要吃到 latency headroom(批量化 reduction / 重排 fp32 fold)就**必然改 fold 顺序 → 不再逐字节**。
+正确的论文 bar 不是 bit-exact(ggml 自己跨 `-ffp-contract`/跨 build 都不 bit-reproducible),而是
+**accuracy-preserving drop-in**:perplexity 中性(e2e PPL 与 ggml 持平)或相对误差 < 阈值。
+→ 本 task 显式把正确性 bar 从 byte-exact 调成 **perplexity-neutral / bounded-rel-error**(在 PRD 钉死,实测 PPL 证)。
+
+## 候选 lever(实测驱动, 攻 latency-bound 链)
+现有 knob:`integer_core_lmul` / `multi_block_factor` / `strip_elision`(±5% 级,不够 1.5×)。新 lever:
+- **批量化 per-block reduction**:把 N 个 block 的 i32 sumi 收进一个向量 [sumi_0..sumi_{N-1}],对一组 scale 向量化
+  乘,**N:1 摊薄 vredsum**(直接砍掉瓶颈链)。改 fold 顺序 → 需 perplexity gate。
+- **多独立 fp32 累加器**:block 循环按 K 展开,K 个独立 sumf,藏 fp32 fadd 串行延迟。
+- **decode↔compute 软流水**:block i+1 的 nibble decode 叠在 block i 的 compute 上。
+每个 lever 都是一个 pass/knob → 正好做 ablation。先 q4_0 打透到 ~1.5×,再推广 q4_K/q8_0。**到不了诚实报天花板。**
 
 ## 为什么 e2e 可归因(不是模糊"整体涨一点")
 batch=1 解码 = 一连串 `ggml_vec_dot_q*_*`,**block-dot kernel 就是解码主导算子** → decode tok/s 几乎直接反映 kernel
