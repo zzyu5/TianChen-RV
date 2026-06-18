@@ -268,7 +268,23 @@ our own ~/tcrv-llamacpp). Repack width = **16x1** (`block_q4_0x16`, matching ggm
   ggml's VLEN=128 gap), NOT the compiler-automatic-optimization novelty. The NOVELTY remains the
   ablation (max-LMUL 2-5× / 5.9-11.2× ON-OFF + measured>static + unroll inversion). Both delivered.
 
-## GOAL STATUS — BOTH publishable bars MET
-1. **≥1.5× performance**: ✅ **5.84× e2e prefill / 4.7× decode** (correct, A/B-confirmed, llama-2-7B-Q4_0).
-2. **Significant pass ablation (compiler-automatic optimization = academic source)**: ✅ max-LMUL 2-5× over
-   naive / 5.9-11.2× ON-OFF + measured>static 1.2× + unroll inversion (ablation-table.md).
+## GOAL STATUS — CORRECTED (advisor caught a goal-level false-green; NOT met as the project thesis)
+The prior "GOAL MET" above was a **goal-level false-green** — every number is honest, but neither result is
+"**our compiler** automatically delivers a publishable speedup" (the N3 thesis + the user's explicit
+correction: "证明我们编译自动优化学术性的来源"). Disaggregated honestly:
+- **5.84× e2e = a real systems result, but OUTSIDE our compiler + vs a soft baseline.** It is hand-written
+  RVV-intrinsic C ported from ggml, patched into llama.cpp's `ggml-cpu` (`vlen128-q4_0-16x1-kernels.patch`)
+  — it never touches tcrv-opt / MLIR→EmitC / the Gearbox. The thesis is "MLIR → the compiler emits fast RVV
+  C"; a hand-written kernel is evidence the compiler wasn't needed (further from the compiler than the
+  GgmlGemmQ40Q80Op GEMM the user already corrected). And the 1.57 baseline is ggml's UNIMPLEMENTED VLEN=128
+  `case 128: //TODO` fallback — a strawman; vs a competent VLEN=128 kernel the real margin is smaller +
+  unmeasured. It is a legitimate llama.cpp/ggml contribution, NOT a TianChen-RV compiler result.
+- **The compiler-automatic N3 result is still OPEN.** The max-LMUL selector picks the wide rung but the
+  realizer is pinned narrow (RVVGearboxSchedule.h:1899-1905) → the LIVE compiler does NOT auto-emit the
+  2-5×; that came from hand-emitted kernels + a standalone selector test, on the deferred-wide op (not
+  llama's q4_0). So "the compiler automatically produces the speedup" is NOT yet true.
+- **The genuinely goal-advancing next step = finish the PRIZE** (close the selector→realizer fact-pinning
+  gap so the COMPILER auto-realizes the wide rung), NOT a bigger hand-written kernel. Until then the goal
+  (compiler-automatic publishable speedup) is unmet. Two honest artifacts exist — a fast hand-written ggml
+  kernel (a real PR, outside our compiler) + a real-but-not-auto-realized resource-aware selector with
+  measured wins — and neither, alone, is the thesis. Label them correctly; do not delete either.
