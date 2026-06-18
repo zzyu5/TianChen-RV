@@ -19,7 +19,7 @@ baseline (I9)** — only a byte-exact correctness oracle.
 | Regime | vs naive RVV | vs scalar | source |
 |---|---|---|---|
 | **Deferred-wide contraction** (i8 byte, i16 dot-reduce) — the real N3 win | **2.1–5.4×** | 4.0–12.3× | **max-legal-LMUL** (i8mf4→i32m8 @ budget≥32) |
-| ggml block-dots (q4_0/q8_0/q4_1/q5_x) — parity regime | parity (packed-i4 0.93–1.01×) | 1.5–4.3× | in-layer **measured>static** ~1.2×; max-LMUL **latent** |
+| ggml block-dots (q4_0/q8_0/q4_1/q5_x) — parity regime | parity (packed-i4 0.93–1.01×) | **GAP** (only counter-evidence: grouped-u2 **0.50–0.61×**, packed-i4 parity) | in-layer **measured>static** ~1.2×; max-LMUL **latent** |
 Headline: deferred-wide passes = **2–5× over naive / 4–12× over scalar**, byte-exact-gated, ssh rvv.
 The 1.56× GEMM = above-layer structural, NOT claimed.
 
