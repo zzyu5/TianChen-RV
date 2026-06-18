@@ -1,0 +1,162 @@
+--- ggml/src/ggml-cpu/ggml-cpu.c.orig	2026-06-18 09:09:05.776831254 +0000
++++ ggml/src/ggml-cpu/ggml-cpu.c	2026-06-18 10:22:13.621148074 +0000
+@@ -1152,6 +1152,91 @@
+ 
+ // ggml_compute_forward_mul_mat
+ 
++// ============================================================================
++// TianChen-RV q4_0 x q8_0 M-blocked prefill GEMM (decode amortization).
++//
++// Drop-in, BIT-EXACT acceleration of the q4_0 prefill (multi-column) matmul.
++// For PREFILL (>=2 activation columns) we decode each q4_0 weight block's
++// nibbles ONCE and reuse them across M q8_0 activation columns, instead of
++// re-decoding the weights for every (weight-row, activation-col) vec_dot.
++// The per-(row,col) reduction is unchanged -> the result is bit-exact to
++// ggml's ggml_vec_dot_q4_0_q8_0 (same per-block accumulation order).
++//
++// Validated micro-probe: ~1.56x over per-vec_dot at M=8 (n_embd=4096/n_ff=11008,
++// VLEN=128). See .trellis/tasks/06-18-n3-latency-hiding-e2e-speedup/artifacts/
++// failfast-gemm/{kernels.c,RESULTS.md} in the TianChen-RV repo.
++//
++// Gated to: q4_0 weights, q8_0 activations, num_rows_per_vec_dot==1 (no mmla),
++// M>=2 (decode (single-col GEMV) stays on ggml's path -- it is reduction-capped,
++// not our win, and M=1 in this kernel is ~0.80x = slower).
++// ============================================================================
++#if defined(__riscv) && defined(__riscv_v_intrinsic) && defined(__riscv_zvfh)
++#include <riscv_vector.h>
++
++#define TCRV_Q4_0_XS 18   // sizeof(block_q4_0): fp16 d + 16 packed nibbles
++#define TCRV_Q8_0_YS 34   // sizeof(block_q8_0): fp16 d + 32 int8 quants
++#define TCRV_GEMM_MAXM 16 // 16-col ggml block tile (blck_1)
++
++static_assert(TCRV_Q4_0_XS == sizeof(block_q4_0), "tcrv: block_q4_0 stride mismatch");
++static_assert(TCRV_Q8_0_YS == sizeof(block_q8_0), "tcrv: block_q8_0 stride mismatch");
++
++// Decode one weight block's 16 qs bytes -> v0,v1 (low/high nibble int8, -8 bias).
++#define TCRV_DECODE_W(xb, v0, v1, vl)                                                \
++    vuint8m1_t tx_##v0 = __riscv_vle8_v_u8m1((xb) + 2, (vl));                        \
++    vint8m1_t v0 = __riscv_vsub_vx_i8m1(                                             \
++        __riscv_vreinterpret_v_u8m1_i8m1(__riscv_vand_vx_u8m1(tx_##v0, 0x0F, (vl))), 8, (vl)); \
++    vint8m1_t v1 = __riscv_vsub_vx_i8m1(                                             \
++        __riscv_vreinterpret_v_u8m1_i8m1(__riscv_vsrl_vx_u8m1(tx_##v0, 0x04, (vl))), 8, (vl));
++
++// M-blocked GEMM. out[j] == ggml_vec_dot_q4_0_q8_0(weight_row, column_j) for
++// j in [0,M).  vyp is block-major packed: column j's block-ib q8_0 record at
++// vyp + (ib*M + j)*YS  (M columns' block-ib data contiguous).
++// This is kern_gemm (PRIMARY, scalar-fold) from the validated probe, verbatim.
++static void tcrv_gemm_q4_0_q8_0(size_t n, int M, float * out,
++                                const uint8_t * vx, const uint8_t * vyp) {
++    const int nb = (int)n / 32;
++    size_t vl = 16;
++    size_t fvl = (size_t)M;                          // M fp32 lanes (M<=16 -> m4)
++    vfloat32m4_t facc = __riscv_vfmv_v_f_f32m4(0.0f, fvl);
++    int32_t buf[TCRV_GEMM_MAXM];
++    float   dyf[TCRV_GEMM_MAXM];
++    for (int ib = 0; ib < nb; ++ib) {
++        const uint8_t * xb = vx + (size_t)ib * TCRV_Q4_0_XS;
++        TCRV_DECODE_W(xb, v0, v1, vl);                // decode weight block ONCE
++        float dx = (float)*(const _Float16 *)(xb);
++        const uint8_t * yblk = vyp + (size_t)ib * M * TCRV_Q8_0_YS;
++        for (int j = 0; j < M; ++j) {
++            const uint8_t * yb = yblk + (size_t)j * TCRV_Q8_0_YS;
++            vint8m1_t y0 = __riscv_vle8_v_i8m1((const int8_t *)(yb + 2), vl);
++            vint8m1_t y1 = __riscv_vle8_v_i8m1((const int8_t *)(yb + 2 + 16), vl);
++            vint16m2_t p = __riscv_vwmul_vv_i16m2(v0, y0, vl);   // reuse decoded v0/v1
++            p = __riscv_vwmacc_vv_i16m2(p, v1, y1, vl);
++            vint32m1_t z = __riscv_vmv_v_x_i32m1(0, vl);
++            // lane-0 vector store of the per-(block,col) reduction; NO vmv.x.s.
++            __riscv_vse32_v_i32m1(buf + j, __riscv_vwredsum_vs_i16m2_i32m1(p, z, vl), 1);
++            dyf[j] = (float)*(const _Float16 *)(yb);
++        }
++        // ONE vectorised fp32 fold over all M columns for this block.
++        vfloat32m4_t sumiv  = __riscv_vfcvt_f_x_v_f32m4(__riscv_vle32_v_i32m4(buf, fvl), fvl);
++        vfloat32m4_t scalev = __riscv_vfmul_vf_f32m4(__riscv_vle32_v_f32m4(dyf, fvl), dx, fvl);
++        facc = __riscv_vfmacc_vv_f32m4(facc, sumiv, scalev, fvl);
++    }
++    __riscv_vse32_v_f32m4(out, facc, fvl);
++}
++
++// 1 == build a shadow ggml-vec_dot result and abort() on any mismatch (DERISK
++// only; set to 0 for the perf build). Controlled at build time.
++#ifndef TCRV_GEMM_VERIFY
++#define TCRV_GEMM_VERIFY 0
++#endif
++
++#define TCRV_GEMM_ENABLED 1
++#else
++#define TCRV_GEMM_ENABLED 0
++#endif // riscv_v_intrinsic && zvfh
++
++
++
+ static void ggml_compute_forward_mul_mat_one_chunk(
+     const struct ggml_compute_params * params,
+     struct ggml_tensor * dst,
+@@ -1199,6 +1284,67 @@
+     // 16 * 2, accounting for mmla kernels
+     float tmp[32];
+ 
++#if TCRV_GEMM_ENABLED
++    // -------- TianChen-RV q4_0 M-blocked prefill GEMM fast-path --------
++    // Decode each q4_0 weight block ONCE, reuse across M q8_0 activation cols.
++    // Bit-exact to the per-(row,col) ggml_vec_dot_q4_0_q8_0 path. Engaged only
++    // for q4_0 weights, q8_0 acts, single-row vec_dot, simple (unbroadcast)
++    // 2D matmul, and >=2 activation columns (decode/GEMV stays on ggml's path).
++    if (type == GGML_TYPE_Q4_0
++        && vec_dot_type == GGML_TYPE_Q8_0
++        && num_rows_per_vec_dot == 1
++        && ne12 == 1 && ne13 == 1   // src1 not broadcast -> i11=ir1, i12=i13=0
++        && (ne00 % 32) == 0
++        && (ir1_end - ir1_start) >= 2) {
++        const int nb = (int)(ne00 / 32);
++        // thread-local block-major activation scratch: up to 16 cols x nb blocks.
++        // n_ff=11008 -> nb=344 -> 344*16*34 ~= 187 KB (too big for the stack).
++        static _Thread_local uint8_t tcrv_vyp[TCRV_GEMM_MAXM * (11008 / 32) * TCRV_Q8_0_YS];
++        const size_t need = (size_t)TCRV_GEMM_MAXM * (size_t)nb * TCRV_Q8_0_YS;
++        if (need <= sizeof(tcrv_vyp)) {
++            // one-shot diagnostic: prove the GEMM fast-path actually fired.
++            static volatile int tcrv_announced = 0;
++            if (!tcrv_announced) { tcrv_announced = 1;
++                fprintf(stderr, "TCRV GEMM ENGAGED nb=%d cols=%lld rows=%lld\n",
++                        nb, (long long)(ir1_end - ir1_start), (long long)(ir0_end - ir0_start)); }
++            float gout[TCRV_GEMM_MAXM];
++            for (int64_t iir1 = ir1_start; iir1 < ir1_end; iir1 += blck_1) {
++                const int M = (int)MIN(blck_1, ir1_end - iir1);
++                // pack the M columns block-major: vyp[(ib*M + j)*YS] = col(iir1+j) blk ib
++                for (int j = 0; j < M; ++j) {
++                    const uint8_t * col = (const uint8_t *)wdata + (size_t)(iir1 + j) * row_size;
++                    for (int ib = 0; ib < nb; ++ib) {
++                        memcpy(tcrv_vyp + ((size_t)ib * M + j) * TCRV_Q8_0_YS,
++                               col + (size_t)ib * TCRV_Q8_0_YS, TCRV_Q8_0_YS);
++                    }
++                }
++                for (int64_t ir0 = ir0_start; ir0 < ir0_end; ++ir0) {
++                    const uint8_t * src0_row = (const uint8_t *)src0->data + ir0 * nb01;
++                    tcrv_gemm_q4_0_q8_0((size_t)ne00, M, gout, src0_row, tcrv_vyp);
++#if TCRV_GEMM_VERIFY
++                    for (int j = 0; j < M; ++j) {
++                        float ref = 0.0f;
++                        const char * scol = (const char *)wdata + (size_t)(iir1 + j) * row_size;
++                        vec_dot(ne00, &ref, 0, (const char *)src0_row, 0, scol, 0, 1);
++                        if (ref != gout[j]) {
++                            fprintf(stderr, "TCRV GEMM MISMATCH row=%lld col=%lld ref=%.9g gemm=%.9g\n",
++                                    (long long)ir0, (long long)(iir1 + j), ref, gout[j]);
++                            abort();
++                        }
++                    }
++#endif
++                    for (int j = 0; j < M; ++j) {
++                        float * dst_col = (float*)((char*)dst->data + (size_t)(iir1 + j) * nb1);
++                        dst_col[ir0] = gout[j];
++                    }
++                }
++            }
++            return;
++        }
++    }
++    // ------------------------------------------------------------------
++#endif // TCRV_GEMM_ENABLED
++
+     for (int64_t iir1 = ir1_start; iir1 < ir1_end; iir1 += blck_1) {
+         for (int64_t iir0 = ir0_start; iir0 < ir0_end; iir0 += blck_0) {
+             for (int64_t ir1 = iir1; ir1 < iir1 + blck_1 && ir1 < ir1_end; ir1 += num_rows_per_vec_dot) {

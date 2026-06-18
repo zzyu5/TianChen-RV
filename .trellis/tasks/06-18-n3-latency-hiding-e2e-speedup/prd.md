@@ -222,3 +222,21 @@ inversion ablation = the academic NOVELTY (compiler-automatic optimization sourc
 (bit-exact, decode/tg stays on the capped GEMV path), llama-bench pp512/tg128 before/after on
 llama-2-7b-Q4_0, gentle on the fragile board. Target ~1.5× pp; honest if Amdahl pulls it lower.
 Concurrent gentle q5_0/q5_1 ablation also finishing (board sequenced — micro vs build, low contention).
+
+## Iter 7 RESULT — e2e prefill 1.44× (real, bit-exact); the in-layer ceiling, honestly
+- **pp512: 1.55 → 2.24 tok/s = 1.44× e2e** (our q4_0 M-blocked GEMM wired into ~/tcrv-llamacpp
+  prefill, ENGAGED cols=16, reproducible ±0.5%, bit-exact). tg = stock fallthrough (1.22 = thermal noise).
+- **Why 1.44× not 1.5× = Amdahl, and it's an IN-LAYER CEILING**: the GEMM kernel is 1.56×, but matmul
+  is only ~86% of prefill time (q8_0 activation quant + attention + layernorm + glue = the other ~14%,
+  all FIXED ggml ops / above-layer). Even a perfect-overhead integration caps e2e at ~1.44×. To cross
+  1.5× e2e needs EITHER a faster kernel (>1.56× → needs weight repacking to beat the per-block reduction
+  wall) OR speeding the non-matmul ops (above-layer). Both are above our codegen layer.
+- **So the honest picture is two strong results**:
+  (1) **e2e perf: 1.44× prefill** (real, bit-exact, over ggml's slow non-repacked default) — the
+      DESIRABLE perf result (M-blocking standard, not the novelty).
+  (2) **compiler-automatic optimization ablation: 2–5× over naive / 5.9–11.2× ON÷OFF** — the NOVELTY,
+      exceeds 1.5× massively (the academic "compiler optimization is the source").
+- **The clean ≥1.5× e2e-over-ggml lever = offline weight REPACKING** (Q4_0_8x8 block-as-lane → escapes
+  the reduction wall → approaches the 1.98× compute ceiling). ggml itself does this at VLEN≥256; VLEN=128
+  is a ggml TODO (we'd be FILLING ggml's gap). BUT: repacking is a weight-layout transform = the other
+  project's `_repackON` domain + arguably above our codegen layer. **= a SCOPE DECISION for the user.**
