@@ -408,3 +408,9 @@ _generic+quantizer; the adapter's emitted GEMM symbol wins (object over shared l
    q4_1 loss→win, q4_0↔q4_1 unroll inversion).
 **Honest framing (no halo)**: the repack STRUCTURE is standard (comes in as the op) — ours is the compiler
 emitting fast structured RVV C for it + the automatic tune (the ablation). Both bars empirically met.
+
+## Iter 10 — numeric-verify record CORRECTED (arg semantics)
+The verify driver's argv[1] is the TRIALS count (NOT a nonneg toggle); it always tests the signed
+(nonneg=0) general regime. Clean seal = **500-trial signed PASS, norm ~2e-5 < 1e-4** (numeric-verify-PASS.log).
+The earlier "trials=0 FAIL / trials=1 PASS" lines were my mis-passed args (0 trials = degenerate nan), not
+a real failure. Correctness empirically sealed stands.
