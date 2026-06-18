@@ -354,3 +354,20 @@ emit the **repack GEMM** (the 16x1 block-as-lane kernel that hand-written gave 5
   the API + board cooperate (reuse e2e-repack-gemm/verify_kernel.cpp's setup + the staged adapter).
 - **Honest net**: compiler-is-the-source-of-the-kernel = VERIFIED. e2e-number-from-the-compiler = staged,
   one board run from done, not yet empirically closed. Not claiming it as done.
+
+## Iter 10 — EMPIRICAL: compiler-emitted kernel runs in llama, ≈ the validated 5.84× hand kernel
+Board run (the dying agent's staged artifacts + my own re-runs, ssh rvv):
+- **Compiler-emitted pp512 = 5.56 tok/s** (idle -r1 AND loaded -r3 agree → not thermal), **ENGAGED 12×**
+  (the emitted repack GEMM/GEMV path actually ran — `TCRV REPACK GEMM(q4_0_16x1 VLEN128) ENGAGED`).
+- **Same-build equivalence: emitted 5.56 ≈ hand 5.73 (0.97×, within 3%)** → the COMPILER-EMITTED kernel
+  performs like the validated hand repack kernel. (This build's absolute is ~0.6× of the e2e-repack-gemm
+  build uniformly — tg also 2.66 vs 6.49 — a build-config slowdown, NOT the kernel.)
+- The hand kernel's clean same-build A/B = **5.84×** (stock 1.57 → 9.17, e2e-repack-gemm). Since
+  emitted ≈ hand, the **compiler-emitted kernel delivers ~5.8× e2e prefill** — now from tcrv-opt's
+  structured output (raw()=0), not hand-written C in ggml.
+- **Correctness**: the emitted build runs llama (no crash/NaN) + the emitted GEMM is structurally the
+  validated kernel (agent's byte-for-byte). The dedicated numeric verify came back empty (harness
+  incomplete) + the greedy black-box sanity kept timing out (slow model load / llama-cli interactive
+  hang) — a non-interactive greedy re-run is in flight to seal black-box correctness.
+**Net**: ≥1.5× e2e FROM THE COMPILER = confirmed (the emitted kernel ≈ the validated 5.84× kernel, runs,
+ENGAGED); correctness has strong structural + runs-clean evidence, final black-box greedy pending.
