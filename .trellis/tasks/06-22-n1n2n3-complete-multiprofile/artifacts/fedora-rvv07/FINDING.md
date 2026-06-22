@@ -93,6 +93,30 @@ manufactured budget) — honest-ledger discipline held.**
 A same-kernel *emit-A-vs-emit-B* output divergence (vs the reject-vs-emit legality one) needs the
 deferred RVV0.7 EMITTER variant (no-policy form + repack m1 floor). That is the remaining RVV0.7 work.
 
+## Win-A tune MEASURED on RVV0.7/C920 — 3rd profile, 2nd ISA generation (2026-06-22)
+The verbatim tcrv-opt wide-deferred body (`automatic_emitted_body.cpp`, sha256 ff5ba5b1, UNCHANGED)
+compiled `-march=rv64gc_xtheadvector`, ran byte-exact vs the scalar oracle on the C920, objdumps to
+genuine `th.v*` 0.7.1 (`e16,m4`/`e32,m8`, zero 1.0-only leak). The max-LMUL tune RUNS + WINS:
+| n | wide_vs_scalar | wide_vs_periter | wide_vs_narrow |
+|---|---|---|---|
+| 4096 | 7.19 | 8.38 | 1.74 |
+| 65536 | 6.21 | 7.36 | 1.45 |
+wide(m4) > narrow(m1) > per-iter at every size; wide_vs_scalar 3.4–7.2× in family with rvv(128)
+4.0–7.5× and K1(256) 8.4–15.3×. **→ Win-A is now demonstrated running+winning on THREE real profiles
+across TWO ISA generations** (RVV1.0 @ VLEN128/256, RVV0.7 @ VLEN128).
+
+Two honest data points:
+1. **RVV1.0 naive-baseline source does NOT compile on RVV0.7** — the verbatim `lamp_automatic_rvv.c`
+   is rejected on fractional-LMUL `i16mf2` symbols (`vsetvl_e16mf2`, `vint16mf2_t`, `vle16_v_i16mf2`).
+   RVV0.7.1 has zero fractional LMUL → RVV1.0 narrow-baseline code is **non-portable across the ISA
+   generation**. This EMPIRICALLY validates the committed RVV0.7 LMUL-floor capability fact (5d49eda2).
+2. **Honest baseline adaptation**: the two hand naive baselines were LMUL-floored mf2→m1 (what RVV0.7 can
+   express). That makes the RVV0.7 baseline ~2× stronger (8 vs 4 elts/strip @ VLEN128) → `wide_vs_narrow`
+   compresses to ~1.3–1.7× vs rvv's ~3×. Shown from data: `narrow_vs_scalar` 2.40–4.27 on C920 vs
+   1.39–2.02 on rvv(128) — the baseline doubling accounts for the compression; the tune did not weaken.
+Log: `winA-ablation-c920-rvv07.log`. (Toolchain: gcc at `~/xuantie/RuyiSDK-.../bin/`; vector ref TU must
+be compiled with gcc C-mode, not g++, to keep `dot_*` C-linkage matching the `extern "C"` emitted body.)
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
