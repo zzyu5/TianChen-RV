@@ -49,6 +49,24 @@ Ran ACTUAL tcrv-opt-emitted kernels (not hand kernels) on the C920 via XuanTie. 
 allow-list EXCLUDES mf2/mf4 → the gearbox LMUL selection floors at m1 on RVV0.7 vs RVV1.0. Fixing it both
 unblocks repack/block-dot RVV0.7 emission AND is a same-kernel selection divergence. Next increment.**
 
+## RVV0.7 SELECTION divergence — structural analysis (where it lives)
+The capability-FACT divergences (version, ta/ma policy, LMUL allow-list) are committed
+(a71aa201, 5d49eda2). For a same-kernel SELECTION divergence ("RVV0.7 floors to m1"):
+- **NOT in the contraction LMUL-rung selectors** (`enumerateRVVLowPrecision/DotReduceDeferredWide
+  LMULRungs` + their max-widest-legal selectors): empirically proven structurally unreachable —
+  the only budget where RVV1.0 picks an mf2-source rung is budget 9, where the m1-source rung is
+  already illegal (footprint 10 > 9); pruning mf2 there yields nullopt→narrow fallthrough, NOT an
+  m1 promotion. The "wider is monotone-better" rule + the 1-vreg footprint gap make the mf2↔m1
+  flip impossible. (Landing the enumerator allow-list param with default=all would be untested
+  dead code — correctly NOT landed.)
+- **YES in the Q4_0 block-dot min-cost argmin** (`selectGenericMinCostCandidate`, integer_core_lmul
+  ∈ {mf4,m1}): it picks by MIN COST not max width, so capability-pruning the mf4 candidate on RVV0.7
+  makes m1 the new argmin winner — a genuine same-budget flip, distinguishable by reduction count
+  (`getRVVQ40ReductionsPerHalfBlock`: mf4=4 vs m1=1). This is legitimate capability-LEGALITY
+  enforcement (RVV0.7 genuinely lacks fractional LMUL), NOT the perf-axis "block-dot LMUL ablation"
+  trap (design-boundaries.md) — that trap was adding a tuning knob; this enforces a hardware fact.
+  This is the correct home for the RVV0.7 m1-floor selection divergence + it is the q4_0 hot path.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
