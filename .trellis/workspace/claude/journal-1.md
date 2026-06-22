@@ -1169,3 +1169,45 @@ Item ① same-build A/B 5.98x (baseline pinned naive-RVV); ⑤ compiler emits re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: N1/N2/N3 multi-profile: Win-A in llama (VLEN strip) + all-compiler ablation + 3-profile silicon divergence
+
+**Date**: 2026-06-22
+**Task**: N1/N2/N3 multi-profile: Win-A in llama (VLEN strip) + all-compiler ablation + 3-profile silicon divergence
+**Branch**: `main`
+
+### Summary
+
+N1: 3 real profiles (rvv SG2044 VLEN128 / K1 X60 VLEN256 / Fedora SG2042 RVV0.7); q8_0 selection divergence m2@128->m1@256 directly observed; quant-family map (q4_1 elision flip, q5 null); static wrong on every kernel x chip. N3: all-compiler LMUL ablation 2.27-3.79x (rvv); VLEN-aware repack strip = Win-A selection in llama q4_0 hot path (1.48x selection microbench, engages+correct in real K1 inference); e2e repack wins 2.49-6x on SG2044 but REGRESSES 0.74x on X60 (proven microarch-specific, not small-model) -> points to per-microarch path-selection as next N3 layer. N2 boundary pinned (capability-expressible + zero-core-branch; discrete cards excluded). Open: Fedora RVV0.7 codegen (XuanTie toolchain), K1 t1 A/B (board down), per-microarch path-selection.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `87c540ec` | (see git log) |
+| `d9764407` | (see git log) |
+| `4d36bdb3` | (see git log) |
+| `08a11764` | (see git log) |
+| `3d2a2b3f` | (see git log) |
+| `709bb69d` | (see git log) |
+| `d6022f58` | (see git log) |
+| `3abc9dc5` | (see git log) |
+| `2a349d3b` | (see git log) |
+| `23ac5aae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
+- **Total Sessions**: 21
 - **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1171 | Active |
+| `journal-1.md` | ~1213 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-06-22 | N1/N2/N3 multi-profile: Win-A in llama (VLEN strip) + all-compiler ablation + 3-profile silicon divergence | `87c540ec`, `d9764407`, `4d36bdb3`, `08a11764`, `3d2a2b3f`, `709bb69d`, `d6022f58`, `3abc9dc5`, `2a349d3b`, `23ac5aae` | `main` |
 | 20 | 2026-06-22 | N1/N2/N3 RVV maturity: compiler emits q4_0 GEMV (whole path) + ①②⑤ sealed | `868de602` | `main` |
 | 19 | 2026-06-18 | closeout: full-set byte-exact proof + roofline honesty | `f9dc05ac` | `main` |
 | 18 | 2026-06-18 | Maturity goal: scalar-hardening + tune-reuse interface + roofline/measured-win + core split (all 4 WS) | `ef7179e7`, `bd7c8b53`, `bac3acd5`, `a73ab62d`, `81b57ba5`, `ec3949d2`, `eb2e09d8` | `main` |
