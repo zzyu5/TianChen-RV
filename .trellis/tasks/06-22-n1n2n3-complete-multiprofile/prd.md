@@ -57,7 +57,13 @@
   K1 实测:compiler 自动选 1×16@VLEN256,数值 PASS,**1.48× faster** vs 2×8 `[08a11764]`。**剩**:full llama.cpp e2e(K1 上跑真模型)未做(microbench 已证 decode kernel)。
 - [x] **② N1 多-profile 真硅分化** `[4d36bdb3, d6022f58]`:q8_0 winner m2@128→m1@256(同-session,~7%,categorical LMUL-family reversal);
   q4_1 elision flip(K1 +11.2%);q4_0 factor flip(marginal);q5_0/q5_1 null(m1-only,结构性)。static argmin 在**每个 kernel×chip 都错**→ measured>static 普遍必需。
-- [~] **④ N2 / Fedora RVV0.7**:Fedora 确认是真 RVV0.7(SG2042/C920,RVV1.0 SIGILL)。RVV0.7 codegen 需 XuanTie 工具链(rv64gcv0p7,clang16 不支持)→ **deferred**。N2 第二 family 仍 IME-class、hardware-blocked。
+- [~] **④ / Fedora RVV0.7 — N1 ISA-generation 轴推进 (def25aba, a71aa201)**:
+  Fedora 确认真 RVV0.7(SG2042/C920);**真硅证明可 target**:XuanTie 工具链(RuyiSDK gnu-plct-xthead 3.1.0)已装 Fedora,
+  手写 `rv64gc_xtheadvector` kernel 出 `th.v*` 0.7.1 编码、**实跑绿**(dot PASS),RVV1.0 binary SIGILL —— 干净二分。
+  **capability 模型已加 RVV0.7 版本轴**:`RVVVersion`(1p0/0p7)成 queryable fact,同 kernel 在 RVV0.7 vs RVV1.0 **legality 分化**
+  (ta/ma agnostic policy 是 1.0-only → 0.7 上 fail-closed 拒;rv64gcv 输出 byte-identical)。这是 N1 最深轴(ISA 代),补 K1 的 VLEN 轴。
+  **剩**:RVV0.7 **emission**(~1 eng-week 的 0.7-policy emitter variant + th.* 拼写)—— deferred follow-on,工具链/硬件已就绪。
+  N2 第二 family 仍 IME-class、hardware-blocked(RVV0.7 是 RISC-V 家族内的 N1 profile,不是 N2 family)。
 - [x] **① N1 breadth**:沿 VLEN 分化拓到 q8_0/q4_1/q4_0/q5 family-coverage map(见上)。
 - [x] **全程**:structured raw()=0 / fail-closed verifier / real ssh 证据 / Win-A(编译器-tune)vs Win-B(kernel-swap)分清 / clean rebuild 绿 / 诚实 ledger(advisor 抓过 verifier 错机器、我抓 q4_1 overturn)。
 - **Open 下一阶段(用户 steer)**:(2) full llama e2e on K1;(3) Fedora RVV0.7 codegen(XuanTie 工具链);(4) consolidate for paper;扩 VLEN strip 到更多 quant repack。
