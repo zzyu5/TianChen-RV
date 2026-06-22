@@ -125,6 +125,12 @@ private:
   /// dispatch key; the emitter owns the structured block-as-lane expansion.
   static bool isRepackGemmQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl scope
+  /// whose ONLY compute op is a single tcrv_rvv.repack_gemv_q4_0_q8_0. The op
+  /// identity is the dispatch key; the emitter owns the structured block-as-lane
+  /// single-output-column expansion.
+  static bool isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
+
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
   static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
@@ -999,6 +1005,52 @@ private:
   /// scale fold feeds the raw _Float16 a[l].d[c] into vfwmul_vf (NO float cast,
   /// unlike the per-block dot's fp16Read).
   mlir::LogicalResult emitRepackGemmQ4_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml q4_0 16x1-REPACKED GEMV (decode) hot kernel (the
+  /// validated vlen128-q4_0-16x1 ggml_gemv_q4_0_16x1_q8_0 path) for one
+  /// tcrv_rvv.repack_gemv_q4_0_q8_0 op as fully STRUCTURED emitc nodes (I5; ZERO
+  /// raw() strings -- every value is a node in the IR graph). It is the
+  /// SINGLE-OUTPUT-COLUMN (decode) sibling of emitRepackGemmQ4_0Q8_0: the weight
+  /// side is the SAME block_q4_0x16 block-as-lane layout (the 16 interleaved
+  /// rows of a group across 16 vector lanes, the dot accumulates LANE-WISE via
+  /// vwmacc, NO cross-lane vredsum wall), but the activation is ONE plain
+  /// block_q8_0 stream (stride 34, quants at +2) -- a single activation column.
+  /// At VLEN=128 an e16m1 vector holds 8 i16 lanes, so each 16-block group is
+  /// processed as two disjoint contiguous halves of 8 lanes INLINE (no half
+  /// loop). The repacked nibbles already carry the offset-binary ^0x88 bias, so
+  /// the decode is a plain vsll/vsra sign-extension (NO in-kernel vxor). The
+  /// shape mirrors the validated kernel exactly (no tail; ragged edges go to
+  /// _generic at dispatch):
+  ///   const block_q8_0 *a = (vy);  // set once, indexed a[l], reused per x
+  ///   for (size_t x = 0; x < nc/16; ++x) {
+  ///     const block_q4_0x16 *b = (vx) + x*nb;
+  ///     vfloat32m2_t sumf_a = vfmv_v_f(0,8);  // rows 0..7
+  ///     vfloat32m2_t sumf_b = vfmv_v_f(0,8);  // rows 8..15
+  ///     for (size_t l = 0; l < nb; ++l) {
+  ///       vint16m1_t sumi_{a,b}_{lo,hi} = vmv_v_x(0,8);
+  ///       for (size_t i = 0; i < 16; ++i) {
+  ///         b_a = vle8(&b[l].qs[i*16+0], 8);  b_b = vle8(&b[l].qs[i*16+8], 8);
+  ///         b_a_lo = vsra(vsll(b_a,4),4);  b_a_hi = vsra(b_a,4);  // and b_b
+  ///         sumi_a_lo = vwmacc_vx(sumi_a_lo, a[l].qs[i],    b_a_lo, 8);
+  ///         sumi_a_hi = vwmacc_vx(sumi_a_hi, a[l].qs[16+i], b_a_hi, 8);
+  ///         sumi_b_lo = vwmacc_vx(sumi_b_lo, a[l].qs[i],    b_b_lo, 8);
+  ///         sumi_b_hi = vwmacc_vx(sumi_b_hi, a[l].qs[16+i], b_b_hi, 8);
+  ///       }
+  ///       sumi_a = vwadd_vv(sumi_a_lo, sumi_a_hi, 8);  // and sumi_b
+  ///       b_d_a = vle16(&b[l].d[0], 8);  b_d_b = vle16(&b[l].d[8], 8);
+  ///       d_a = vfwmul_vf(b_d_a, *(_Float16*)&a[l].d, 8);  // and d_b
+  ///       sumf_a = vfmacc_vv(sumf_a, vfcvt_f_x_v(sumi_a,8), d_a, 8);  // and _b
+  ///     }
+  ///     vse32(s + x*16 + 0, sumf_a, 8);  vse32(s + x*16 + 8, sumf_b, 8);
+  ///   }
+  /// Each output is byte-exact vs ggml_gemv_q4_0_16x1_q8_0_generic (the patch is
+  /// already byte-exact vs _generic; structural fidelity to its node sequence is
+  /// the byte-exactness proof). All intrinsics are emitc.call_opaque nodes; the
+  /// scale fold feeds the raw _Float16 a[l].d into vfwmul_vf (NO float cast).
+  mlir::LogicalResult emitRepackGemvQ4_0Q8_0(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
