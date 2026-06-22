@@ -1,0 +1,20 @@
+GATE mf4_f1_robust exact
+GATE mf4_f2_robust exact
+GATE mf4_f4_robust exact
+GATE m1_f1_robust exact
+GATE m1_f1_elided exact
+GATE m1_f2_robust exact
+GATE m1_f2_elided exact
+GATE m1_f4_robust exact
+GATE m1_f4_elided exact
+gate_done 9/9 candidates byte-exact vs ggml (=fast, many n)
+RESULT ggml(real) 7430.4
+RESULT mf4_f1_robust 10975.4
+RESULT mf4_f2_robust 10982.7
+RESULT mf4_f4_robust 11254.1
+RESULT m1_f1_robust 9514.5
+RESULT m1_f1_elided 8219.0
+RESULT m1_f2_robust 9595.4
+RESULT m1_f2_elided 7890.1
+RESULT m1_f4_robust 9864.3
+RESULT m1_f4_elided 7956.9

@@ -1,0 +1,24 @@
+scp OK
+=== run lamp on K1 ===
+--- gcc compile (scalar TU rv64gc, vector TUs rv64gcv) VLEN=256 ---
+--- scalar TU vector-op count (expect 0) ---
+--- run on K1 (VLEN=256) ---
+SUMMARY variant=genuine-scalar n=257 best_per_iter_ns=1304.688
+SUMMARY variant=wide-deferred n=257 best_per_iter_ns=156.250
+RATIO n=257 wide_vs_scalar=8.350000 wide_vs_periter=4.333200 wide_vs_narrow=2.150000 narrow_vs_scalar=3.883721 periter_vs_scalar=1.926982
+SUMMARY variant=genuine-scalar n=256 best_per_iter_ns=1299.438
+SUMMARY variant=wide-deferred n=256 best_per_iter_ns=138.000
+RATIO n=256 wide_vs_scalar=9.416214 wide_vs_periter=4.755435 wide_vs_narrow=2.377717 narrow_vs_scalar=3.960190 periter_vs_scalar=1.980095
+SUMMARY variant=genuine-scalar n=1024 best_per_iter_ns=5138.000
+SUMMARY variant=wide-deferred n=1024 best_per_iter_ns=377.562
+RATIO n=1024 wide_vs_scalar=13.608343 wide_vs_periter=6.821387 wide_vs_narrow=3.248634 narrow_vs_scalar=4.188943 periter_vs_scalar=1.994952
+SUMMARY variant=genuine-scalar n=4096 best_per_iter_ns=20500.000
+SUMMARY variant=wide-deferred n=4096 best_per_iter_ns=1338.500
+RATIO n=4096 wide_vs_scalar=15.315652 wide_vs_periter=7.667538 wide_vs_narrow=3.609031 narrow_vs_scalar=4.243702 periter_vs_scalar=1.997467
+SUMMARY variant=genuine-scalar n=16384 best_per_iter_ns=86395.812
+SUMMARY variant=wide-deferred n=16384 best_per_iter_ns=11341.188
+RATIO n=16384 wide_vs_scalar=7.617881 wide_vs_periter=3.651420 wide_vs_narrow=1.836960 narrow_vs_scalar=4.147003 periter_vs_scalar=2.086279
+SUMMARY variant=genuine-scalar n=65536 best_per_iter_ns=345549.500
+SUMMARY variant=wide-deferred n=65536 best_per_iter_ns=38833.375
+RATIO n=65536 wide_vs_scalar=8.898261 wide_vs_periter=4.336637 wide_vs_narrow=2.092206 narrow_vs_scalar=4.253051 periter_vs_scalar=2.051880
+[K1 lamp done]
