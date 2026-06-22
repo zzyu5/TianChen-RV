@@ -227,15 +227,17 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
 // march+hint tokenization. Note "zve32x"/"zve64x" contain a literal 'v', so the
 // full-V probe matches the "gcv" token or a bare "v" extension token, NOT any
 // stray 'v'.
-bool deriveHasZvl128b(llvm::StringRef selectedMarch,
-                      llvm::StringRef isaVectorHints) {
+std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
+                               llvm::StringRef isaVectorHints) {
   std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
   llvm::StringRef text(combined);
 
-  // (1) An explicit Zvl{N}b token with N >= 128 guarantees VLEN >= 128 on any
-  // tier (full-V or embedded). Scan every "zvl" occurrence and parse its bit
-  // width; the legal Zvl widths are powers of two from 32 up (zvl32b ..
-  // zvl65536b), so any token whose parsed N >= 128 guarantees the minimum.
+  std::int64_t floorBits = 0;
+
+  // (1) Every explicit Zvl{N}b token raises the guaranteed minimum to N. Scan
+  // every "zvl" occurrence and parse its bit width; the legal Zvl widths are
+  // powers of two from 32 up (zvl32b .. zvl65536b). Take the LARGEST such floor
+  // (e.g. rv64gcv_zvl256b -> 256, rv64gcv_zvl512b -> 512).
   std::size_t zvlPos = text.find("zvl");
   while (zvlPos != llvm::StringRef::npos) {
     std::size_t digitBegin = zvlPos + 3;
@@ -247,8 +249,8 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
         text[digitEnd] == 'b') {
       std::uint64_t widthBits = 0;
       if (!text.slice(digitBegin, digitEnd).getAsInteger(10, widthBits) &&
-          widthBits >= 128)
-        return true;
+          static_cast<std::int64_t>(widthBits) > floorBits)
+        floorBits = static_cast<std::int64_t>(widthBits);
     }
     zvlPos = text.find("zvl", zvlPos + 3);
   }
@@ -256,15 +258,23 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
   // (2) Full "V" mandates Zvl128b by the ratified spec: rv64gcv / a "gcv" token,
   // or a bare "v" vector extension token in the march (not a stray 'v' inside
   // "zve32x"). Detect the full-V token by the "gcv" spelling or a "_v"/leading
-  // "v" extension token.
-  if (text.contains("gcv"))
-    return true;
-  if (text.contains("_v") || text.contains("rv64v") || text.contains("rv32v"))
-    return true;
+  // "v" extension token. This floors the minimum at 128 (a larger explicit Zvl
+  // token in (1) keeps precedence).
+  bool fullV = text.contains("gcv") || text.contains("_v") ||
+               text.contains("rv64v") || text.contains("rv32v");
+  if (fullV && floorBits < 128)
+    floorBits = 128;
 
   // (3) Embedded zve32x / zve64x without an explicit Zvl128b+ token: only
-  // Zvl32b / Zvl64b mandated -> NOT guaranteed VLEN >= 128.
-  return false;
+  // Zvl32b / Zvl64b mandated -> NO guaranteed VLEN >= 128 minimum -> 0.
+  return floorBits;
+}
+
+bool deriveHasZvl128b(llvm::StringRef selectedMarch,
+                      llvm::StringRef isaVectorHints) {
+  // Zvl128b is exactly the >= 128-bit minimum-VLEN floor (the SAME march+hint
+  // tokenization; rv64gcv_zvl256b still true, embedded zve32x still false).
+  return deriveMinimumVLEN(selectedMarch, isaVectorHints) >= 128;
 }
 
 llvm::StringRef getRVVHartCountCapabilityID() {

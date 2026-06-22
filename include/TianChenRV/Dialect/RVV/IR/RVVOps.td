@@ -4190,11 +4190,14 @@ def GgmlRepackGemmQ40Q80Op
     block_q4_0x16, 136 bytes for block_q8_0x4), the repacked quant byte offsets
     (weight qs at +32 after the 16 inline fp16 scales, activation qs at +8 after
     the 4 inline fp16 scales), the interleave widths (16 weight rows per group, 4
-    activation columns per group), the half-lane VLEN=128 split width (8), and
-    the dual-fp16 scale model -- are carried as typed integer/string attributes
+    activation columns per group), the resource-aware e16m1 strip width
+    (half_lanes, 8 at VLEN=128 -> two 8-lane halves, 16 at VLEN=256 -> one
+    16-lane strip; derived from the minimum-VLEN capability fact), and the
+    dual-fp16 scale model -- are carried as typed integer/string attributes
     (I4 mirror only). The fixed emission -- the outer activation-row-GROUP loop
-    over nr/4, the weight-column-GROUP loop over nc/16, the two-halves loop over
-    the 8-lane halves, the 4x8 f32 accumulator set, the per-block lane-wise
+    over nr/4, the weight-column-GROUP loop over nc/16, the
+    weight_interleave/half_lanes strip loop over the half_lanes-lane strips, the
+    4x8 f32 accumulator set, the per-block lane-wise
     vwmacc product (vle8 disjoint sub-loads of the repacked qs, vsll/vsra nibble
     sign-extend, vwmacc_vx against the scalar q8 quants), the vwadd lo/hi combine,
     the vfwmul/vfcvt/vfmacc scale fold, and the vse32 vector store -- is the op's
@@ -4206,9 +4209,11 @@ def GgmlRepackGemmQ40Q80Op
     block-as-lane repacked GEMM semantics.
 
     This op pins the 16x1 repacked ABI fail-closed (I7): the byte layout the
-    kernel depends on (288/136 strides, +32/+8 quant offsets, 16/4 interleaves,
-    half=8) is the validated `vlen128-q4_0-16x1` contract. A malformed typed body
-    cannot lower under this emission.
+    kernel depends on (288/136 strides, +32/+8 quant offsets, 16/4 interleaves)
+    is the validated `vlen128-q4_0-16x1` contract; half_lanes is the
+    resource-aware strip width in {8, 16} (it must divide the 16-way interleave,
+    and a 16-lane strip reads byte-identical repacked data to two 8-lane halves).
+    A malformed typed body cannot lower under this emission.
   }];
 
   let arguments = (ins
@@ -4282,16 +4287,18 @@ def GgmlRepackGemvQ40Q80Op
     block_q8_0), the repacked weight quant byte offset (qs at +32 after the 16
     inline fp16 scales), the plain activation quant byte offset (qs at +2 after
     the single inline fp16 scale), the weight interleave width (16 weight rows
-    per group), the half-lane VLEN=128 split width (8), and the dual-fp16 scale
-    model -- are carried as typed integer/string attributes (I4 mirror only).
-    The fixed emission -- the outer weight-column-GROUP loop over nc/16, the two
-    8-lane f32 accumulators (rows 0..7, 8..15), the inner contraction-block loop
-    over nb, the per-block lane-wise vwmacc product (vle8 disjoint sub-loads of
-    the repacked qs at qs[i*16+0] and qs[i*16+8], vsll/vsra nibble sign-extend,
-    vwmacc_vx against the scalar q8 quant qs[i] low / qs[16+i] high), the vwadd
-    lo/hi combine, the vfwmul/vfcvt/vfmacc scale fold (one activation scale
-    broadcast into both halves), and the two vse32 vector stores (s+x*16+0 and
-    s+x*16+8) -- is the op's lowering, NOT a candidate-mirror string read in the
+    per group), the resource-aware e16m1 strip width (half_lanes, 8 at VLEN=128
+    -> two 8-lane halves, 16 at VLEN=256 -> one 16-lane strip; derived from the
+    minimum-VLEN capability fact), and the dual-fp16 scale model -- are carried
+    as typed integer/string attributes (I4 mirror only). The fixed emission --
+    the outer weight-column-GROUP loop over nc/16, the weight_interleave/half_lanes
+    f32 accumulator strips (e.g. rows 0..7, 8..15 at half_lanes=8), the inner
+    contraction-block loop over nb, the per-block lane-wise vwmacc product (vle8
+    disjoint sub-loads of the repacked qs at qs[i*16 + h*half_lanes], vsll/vsra
+    nibble sign-extend, vwmacc_vx against the scalar q8 quant qs[i] low / qs[16+i]
+    high), the vwadd lo/hi combine, the vfwmul/vfcvt/vfmacc scale fold (one
+    activation scale broadcast into every strip), and the per-strip vse32 vector
+    stores (s + x*16 + h*half_lanes) -- is the op's lowering, NOT a candidate-mirror string read in the
     conversion. The bounded surface kind is limited to
     "ggml_repack_gemv_q4_0_q8_0" and scale_model to
     "dual-fp16-per-block-d_x.d_y". Route ids, helper names, ABI strings,
@@ -4300,9 +4307,11 @@ def GgmlRepackGemvQ40Q80Op
     the block-as-lane repacked GEMV semantics.
 
     This op pins the 16x1 repacked GEMV ABI fail-closed (I7): the byte layout
-    the kernel depends on (weight 288/+32/16, activation 34/+2, half=8) is the
-    validated `vlen128-q4_0-16x1` decode contract. A malformed typed body cannot
-    lower under this emission.
+    the kernel depends on (weight 288/+32/16, activation 34/+2) is the validated
+    `vlen128-q4_0-16x1` decode contract; half_lanes is the resource-aware strip
+    width in {8, 16} (it must divide the 16-way interleave, and a 16-lane strip
+    reads byte-identical repacked data to two 8-lane halves). A malformed typed
+    body cannot lower under this emission.
   }];
 
   let arguments = (ins

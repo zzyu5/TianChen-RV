@@ -16,6 +16,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVExtensionPlugin.cpp
   RVVGearboxSchedules.cpp
   RVVProbedCapabilityAxesMaterialization.cpp
+  RVVRepackStripWidthMaterialization.cpp
   RVVQ40ScheduleMaterialization.cpp
   RVVQ80ScheduleMaterialization.cpp
   RVVQ41ScheduleMaterialization.cpp

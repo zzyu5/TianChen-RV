@@ -77,6 +77,10 @@ llvm::Error registerTianChenRVOptPasses(
         createMaterializeRVVProbedCapabilityAxesPass();
   });
   mlir::registerPass([] {
+    return tianchenrv::transforms::
+        createMaterializeRVVRepackStripWidthPass();
+  });
+  mlir::registerPass([] {
     return tianchenrv::transforms::createMaterializeRVVSchedulePass();
   });
   mlir::registerPass([] {

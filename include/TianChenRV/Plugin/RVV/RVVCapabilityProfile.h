@@ -84,6 +84,21 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
 bool deriveHasZvl128b(llvm::StringRef selectedMarch,
                       llvm::StringRef isaVectorHints);
 
+// Derives the GUARANTEED minimum vector length in BITS from the selected -march
+// plus the probed isa/vector hint string. This is a TARGET-CAPABILITY fact ("what
+// VLEN does this configured target guarantee at minimum"), NOT a plugin-selected
+// config (I5; profiles.md). It is the quantitative generalization of
+// deriveHasZvl128b: an explicit Zvl{N}b token (zvl128b / zvl256b / zvl512b / ...)
+// raises the floor to N; full "V" (rv64gcv, a bare "v" token) mandates Zvl128b so
+// it floors at 128; an embedded tier (zve32x / zve64x) with no explicit Zvl token
+// guarantees no >= 128 minimum so it returns 0. Returns the largest such floor in
+// bits (0 when the evidence names no concrete RVV minimum). deriveHasZvl128b ==
+// (deriveMinimumVLEN(...) >= 128). The repack strip-width legality reasons over
+// this fact: VLEN >= 256 admits a single 16-lane e16m1 strip per 16-block group,
+// VLEN == 128 keeps two disjoint 8-lane halves.
+std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
+                               llvm::StringRef isaVectorHints);
+
 // Builds the probe-fact capability set. Relations (currently only `provides`)
 // are minted as interned CapabilityRelationsAttr from `context`; the returned
 // TargetCapabilitySet must therefore not outlive `context`. The TCRV Exec

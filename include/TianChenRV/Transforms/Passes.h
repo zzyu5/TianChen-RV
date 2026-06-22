@@ -69,6 +69,7 @@ std::unique_ptr<::mlir::Pass>
 createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createMaterializeRVVProbedCapabilityAxesPass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVRepackStripWidthPass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVSchedulePass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVQ40SchedulePass();
 std::unique_ptr<::mlir::Pass> createMaterializeRVVQ80SchedulePass();

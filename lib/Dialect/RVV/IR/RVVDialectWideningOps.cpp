@@ -1397,11 +1397,28 @@ mlir::LogicalResult GgmlRepackGemmQ40Q80Op::verify() {
     return emitOpError() << "requires activation_interleave == 4 (the q8_0x4 "
                             "activation-column group width) for the ggml Q4_0 x "
                             "Q8_0 16x1-repacked GEMM route";
-  if (getHalfLanes() != 8)
-    return emitOpError() << "requires half_lanes == 8 (the VLEN=128 e16m1 lane "
-                            "count; each 16-block-as-lane group is processed as "
-                            "two disjoint 8-lane halves) for the ggml Q4_0 x "
-                            "Q8_0 16x1-repacked GEMM route";
+  // half_lanes is the resource-aware strip width: the e16m1 lane count the
+  // 16-block-as-lane group is tiled into. It MUST divide the weight interleave
+  // (16) so the group splits into whole strips, and is bounded to the VLEN-derived
+  // set {8, 16}: 8 at VLEN=128 (two disjoint 8-lane halves), 16 at VLEN=256 (one
+  // 16-lane strip). This safety invariant holds ONLY because the repack is 16-way
+  // interleaved (block_q4_0x16: 256 qs[] bytes = 16 blocks-as-lanes, byte i =
+  // block(i%16) offset(i/16)); a 16-lane strip at VLEN=256 therefore reads
+  // BYTE-IDENTICAL repacked data to the two 8-lane halves at VLEN=128. Any other
+  // width (e.g. 12) is rejected fail-closed (I7).
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} (the resource-aware e16m1 strip "
+              "width: 8 at VLEN=128 -> two 8-lane halves, 16 at VLEN=256 -> one "
+              "16-lane strip; the strip is valid only because the 16-way "
+              "interleaved repack makes a 16-lane strip read byte-identical data "
+              "to two 8-lane halves) for the ggml Q4_0 x Q8_0 16x1-repacked GEMM "
+              "route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) so the "
+              "16-block-as-lane group tiles into whole strips for the ggml Q4_0 "
+              "x Q8_0 16x1-repacked GEMM route";
 
   if (op->getNumOperands() != 8 || op->getNumResults() != 1)
     return emitOpError()
@@ -1549,11 +1566,28 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
     return emitOpError() << "requires weight_interleave == 16 (the 16x1 "
                             "block-as-lane repack width) for the ggml Q4_0 x "
                             "Q8_0 16x1-repacked GEMV route";
-  if (getHalfLanes() != 8)
-    return emitOpError() << "requires half_lanes == 8 (the VLEN=128 e16m1 lane "
-                            "count; each 16-block-as-lane group is processed as "
-                            "two disjoint 8-lane halves) for the ggml Q4_0 x "
-                            "Q8_0 16x1-repacked GEMV route";
+  // half_lanes is the resource-aware strip width: the e16m1 lane count the
+  // 16-block-as-lane group is tiled into. It MUST divide the weight interleave
+  // (16) so the group splits into whole strips, and is bounded to the VLEN-derived
+  // set {8, 16}: 8 at VLEN=128 (two disjoint 8-lane halves), 16 at VLEN=256 (one
+  // 16-lane strip). This safety invariant holds ONLY because the repack is 16-way
+  // interleaved (block_q4_0x16: 256 qs[] bytes = 16 blocks-as-lanes, byte i =
+  // block(i%16) offset(i/16)); a 16-lane strip at VLEN=256 therefore reads
+  // BYTE-IDENTICAL repacked data to the two 8-lane halves at VLEN=128. Any other
+  // width (e.g. 12) is rejected fail-closed (I7).
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} (the resource-aware e16m1 strip "
+              "width: 8 at VLEN=128 -> two 8-lane halves, 16 at VLEN=256 -> one "
+              "16-lane strip; the strip is valid only because the 16-way "
+              "interleaved repack makes a 16-lane strip read byte-identical data "
+              "to two 8-lane halves) for the ggml Q4_0 x Q8_0 16x1-repacked GEMV "
+              "route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) so the "
+              "16-block-as-lane group tiles into whole strips for the ggml Q4_0 "
+              "x Q8_0 16x1-repacked GEMV route";
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 1)
     return emitOpError()

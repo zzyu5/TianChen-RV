@@ -315,6 +315,56 @@ def MaterializeRVVProbedCapabilityAxes
   ];
 }
 
+def MaterializeRVVRepackStripWidth
+    : Pass<"tcrv-rvv-materialize-repack-strip-width", "::mlir::ModuleOp"> {
+  let summary = "Materialize the resource-aware repack strip width (half_lanes) onto the in-IR Q4_0 repack GEMM/GEMV from the selected -march";
+  let description = [{
+    Stamps the resource-aware e16m1 strip width (half_lanes) onto the in-kernel
+    ggml Q4_0 x Q8_0 16x1-repacked GEMM/GEMV ops from the selected RVV -march.
+    This is the N3-reframed PRIZE seam: a compiler-automatic SELECTION enters
+    llama's q4_0 hot path. Given a selected -march (a profile selection), the
+    pass calls the SAME plugin-local capability authority the probe->capability
+    conversion uses (deriveMinimumVLEN) and sets half_lanes = min(vlen/16,
+    weight_interleave): VLEN >= 256 derives 16 (one 16-lane strip per
+    16-block-as-lane group), VLEN == 128 derives 8 (two disjoint 8-lane halves).
+    The repack lowering then emits weight_interleave/half_lanes strips, so the
+    SAME typed kernel diverges by capability with no hand-authored half_lanes
+    fixture (e.g. --march=rv64gcv => VLEN 128 => half_lanes 8 => two 8-lane
+    halves; --march=rv64gcv_zvl256b => VLEN 256 => half_lanes 16 => one 16-lane
+    strip).
+
+    The strip width is a TARGET-CAPABILITY-derived realization choice (the e16m1
+    lane count the configured target's guaranteed VLEN affords), not a
+    plugin-selected dtype/route (I5): the typed body still owns its single chosen
+    config, and the emitter reads the half_lanes the pass writes (I1/I4), never
+    inferring from ABI strings or family names. The divergence rests on the
+    16-way-interleaved repack (block_q4_0x16: byte i = block(i%16) offset(i/16)),
+    so a 16-lane strip at VLEN=256 reads byte-identical repacked data to two
+    8-lane halves at VLEN=128; the dialect verifier pins half_lanes in {8, 16}
+    fail-closed (I7). A march that guarantees no >= 128 minimum (empty march, or a
+    constrained tier) derives no width and leaves any authored half_lanes intact.
+    The pass derives nothing from clang/cmake/compile-run toolchain facts and
+    probes no hardware; it does not lower, emit code, claim runtime or performance
+    evidence, or fabricate selected config.
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the guaranteed minimum "
+           "VLEN (and thus the repack strip width) is derived from (e.g. "
+           "rv64gcv => VLEN 128 => half_lanes 8; rv64gcv_zvl256b => VLEN 256 "
+           "=> half_lanes 16).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for the minimum-VLEN derivation.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVRepackStripWidthPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 // The 4 pass options shared by ALL FIVE block-dot schedule autotuners
 // (q4_0/q8_0/q4_1/q5_0/q5_1): march -> Zvl128b derivation, the optional probed
 // isa/vector hints, the optional measurement tuning-record path, and the
