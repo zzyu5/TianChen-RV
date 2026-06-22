@@ -165,6 +165,30 @@ emitter), then stamp from the pass. That is a **bounded emitter+ODS task** (mirr
 pattern), NOT a one-line stamp and NOT a multi-day cascade. **Deferred follow-on.**
 (The block-dot m1-on-C920 proof stands — that WAS the block-dot op, correctly.)
 
+## DEFINITIVE (corrects my over-optimism twice): repack-GEMV RVV0.7 is a genuine RE-SCOPE
+A rigorous emitter-level scoping (escape-hatch STOP) settled it: the repack-GEMV RVV0.7 whole-LMUL
+emission is NOT a bounded `coreLmul` mirror. **Structural reason**: block-dot's `coreLmul` is a FREE
+knob because it REDUCES each integer strip to a scalar `int32` (`vwredsum`+`vmv_x_s`) BEFORE the f32
+fold → the integer LMUL collapses → fp32 fold is LMUL-independent (why the block-dot m1 path runs on
+the C920). The **repack has NO reduction** — it accumulates LANE-WISE (`vwmacc`) into a VECTOR f32
+accumulator where each lane IS an output row, so the integer-core lane width flows UNBROKEN into the
+f32 fold. Consequences of mf2→m1:
+- the WHOLE chain doubles: `i8m1→vwmacc i16m2→vwadd i32m4→vfcvt/vfwmul/vfmacc/vfmv/vse32 f32m4`, scale
+  `f16m1→f16m2` — the f32 fold is PINNED by the integer width, not free.
+- `half_lanes` (= vlen/16 = the e16m1 lane count, assuming i16 product = m1) becomes `coreLmul`-DEPENDENT
+  (with coreLmul=m1 the product is i16m2, 16 lanes @VLEN128) → collides with the ODS verifiers'
+  `half_lanes ∈ {8,16}` bound + the strip-pass's VLEN-only derivation.
+The numerically-correct-but-slow path (i8m1 at vl=8, half-filling m4 registers) was correctly REJECTED
+(not a credible kernel). **So the repack RVV0.7 path is a re-scope across ODS + both repack verifiers +
+the strip pass + both emitters** (half_lanes/numHalves co-derived from the i16 product width, f32 fold
+carried at m4) — DEFERRED, now fully understood. My earlier "bounded stamp" (8eeace63) and "bounded
+emitter+ODS" (7eb99b99) framings were both over-optimistic; this is the corrected, rigorous verdict.
+
+## RVV0.7 — definitive kernel coverage
+contraction ✅ runs (reduces to scalar) · block-dot ✅ byte-exact on C920 (llama hot path, reduces to
+scalar) · repack-GEMV/GEMM ❌ genuine re-scope (lane-wise, no reduction → coreLmul slaved to f32 fold).
+**2/3 classes run on RVV0.7 today; the 3rd is a well-characterized deferred re-scope, not a quick fix.**
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
