@@ -67,6 +67,32 @@ The capability-FACT divergences (version, ta/ma policy, LMUL allow-list) are com
   trap (design-boundaries.md) — that trap was adding a tuning knob; this enforces a hardware fact.
   This is the correct home for the RVV0.7 m1-floor selection divergence + it is the q4_0 hot path.
 
+## RVV0.7 LMUL-SELECTION-flip is a DEAD END (proven twice) — honest conclusion
+Both candidate selectors were probed; an RVV0.7-vs-RVV1.0 *selection-output* flip via
+fractional-LMUL pruning is **structurally impossible**:
+- Contraction max-width rungs: the 1-vreg footprint gap means mf2 only wins at budget 9 where
+  m1 is already illegal → pruning mf2 falls through to narrow, never promotes to m1.
+- Q4_0 block-dot min-cost argmin: **m1 already wins on RVV1.0** (cost 1005 vs mf4's 3110 — the
+  cost model rewards the widest whole-multiplier LMUL; an existing test `runCostModelIsCapability
+  BlindTest` pins mf4≫m1, and the existing divergence lit already stamps `integer_core_lmul="m1"`
+  on rv64gcv). Pruning mf4 on RVV0.7 only drops `legal_candidate_count`; the winner stays m1.
+**Root law**: every block-dot winner is a WHOLE multiplier (q4_0→m1, q8_0→m2, q4_1→m1); fractional
+LMULs are always cost-losers. So removing RVV0.7's (absent) fractional LMUL can never flip a winner.
+A true selection-output flip would need a selector where RVV0.7's restriction lands on the WINNING
+candidate (a 1.0-only policy/encoding or an RVV0.7-absent emission shape) — a different design, not
+the LMUL axis. **Both agents correctly STOPPED rather than fabricate it (no cost-model hack, no
+manufactured budget) — honest-ledger discipline held.**
+
+## Honest RVV0.7 N1 evidence (what stands)
+1. **Capability FACTS diverge** (committed): `rvv_version` (1.0/0.7), `supported_lmul` ({mf8..m8} vs
+   {m1..m8}, no fractional on 0.7) — queryable, I1/I3, same-kernel profile differs.
+2. **ta/ma policy LEGALITY divergence** (committed a71aa201): a ratified-agnostic-policy body is
+   fail-closed-REJECTED on RVV0.7 (1.0 emits, 0.7 rejects) — a real same-kernel legality outcome flip.
+3. **Hardware**: C920 runs RVV0.7 (`th.v*`), faults RVV1.0. Contraction-class tcrv-opt output runs
+   on it today.
+A same-kernel *emit-A-vs-emit-B* output divergence (vs the reject-vs-emit legality one) needs the
+deferred RVV0.7 EMITTER variant (no-policy form + repack m1 floor). That is the remaining RVV0.7 work.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
