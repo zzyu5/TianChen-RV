@@ -189,6 +189,26 @@ contraction ✅ runs (reduces to scalar) · block-dot ✅ byte-exact on C920 (ll
 scalar) · repack-GEMV/GEMM ❌ genuine re-scope (lane-wise, no reduction → coreLmul slaved to f32 fold).
 **2/3 classes run on RVV0.7 today; the 3rd is a well-characterized deferred re-scope, not a quick fix.**
 
+## Full RVV0.7 llama e2e — blocked by GGML's reference (NOT our compiler), 2026-06-22
+With all 3 RVV0.7 kernel classes now emitting fraction-free (commit c5bc6589, GEMV bit-exact on C920),
+the full-system llama e2e on RVV0.7 was attempted. **Blocker found (honest boundary):** ggml's OWN RVV
+reference `ggml/src/ggml-cpu/arch/riscv/quants.c` carries **383 fractional-LMUL intrinsic uses**
+(`mf2`/`mf4`) that DON'T compile under xtheadvector — RVV0.7.1 has no fractional LMUL. So building the
+WHOLE llama.cpp (not just our emitted kernels) under the XuanTie toolchain hits ggml's reference wall.
+- **This is an upstream-ggml limitation, NOT our compiler's gap**: OUR compiler emits all RVV0.7 kernel
+  classes fraction-free + bit-exact (proven). The full-system e2e is gated by ggml's hand-written RVV
+  reference, which assumes RVV1.0 fractional LMUL.
+- **Mitigation path (not yet executed — agent infra-timed-out before the board build)**: build ggml with
+  its RVV reference DISABLED (scalar fallback for non-q4_0 ops) + wire OUR RVV0.7 q4_0 repack `.inc` for
+  the q4_0 decode path → the q4_0 hot path runs our compiler-emitted RVV0.7 kernel, the rest scalar.
+  That would let llama RUN on RVV0.7 with our q4_0 path engaged. Involved (ggml build config + wiring);
+  deferred.
+- **Honest scope for "Win-A in llama on the new machines"**: (K1/VLEN256) the VLEN-strip selection
+  engages + correct in real inference + 1.48× decode microbench, but the full e2e ≥1.5× regressed
+  (X60-microarch-specific) and K1 is currently down. (Fedora/RVV0.7) our compiler's q4_0 kernels emit +
+  run bit-exact, but the full-system llama build is gated by ggml's 383-fractional-LMUL reference. The
+  compiler-side RVV0.7 work is COMPLETE; the full-system e2e on RVV0.7 has a documented mitigation path.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
