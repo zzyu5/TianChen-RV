@@ -51,6 +51,28 @@ count = 1 decisive + 1 marginal + 1 null** (the probe JSON overcounted q4_0 as c
 - **Caveat**: Fedora VLEN=128 is architectural/inferred (the only program reaching `vlenb` SIGILLs);
   a measured VLEN needs an RVV0.7 toolchain run.
 
+## N1 family-coverage map (same-session paired rvv128/K1256, 2026-06-22)
+Extended the divergence probe across the quant family (identical knobs: n=4096, iters=2000,
+reps=200, taskset, clang18, -ffp-contract=fast; all legs 9/9 byte-exact vs ggml):
+| kernel | rvv winner | K1 winner | divergence type | margin | static argmin correct? |
+|---|---|---|---|---|---|
+| **q8_0** | m2/4/elided | m1/2/robust | **LMUL-family reversal** (only kernel with an m2 candidate) | ~7% both | NO (wrong family on K1) |
+| **q4_1** | m1/1/robust | m1/1/elided | **elision-axis flip** | rvv +2.9% / **K1 +11.2%** | NO (wrong elision) |
+| q4_0 | m1/4/elided | m1/2/elided | within-m1 factor flip | marginal (~0.8%) | NO |
+| q5_0 | m1/1/robust | m1/1/robust | **NULL** (m1-only legal set) | tie (≤1.3%) | NO |
+| q5_1 | m1/1/robust | m1/1/robust | **NULL** (m1-only legal set) | tie (≤0.05%) | NO |
+
+**Findings**:
+- **q4_1 overturns the prior "null"**: a fresh paired run shows a decisive (+11.2% on K1) elision
+  divergence — a NEW N1 datum. (Caveat: q4_1's weak rvv side mixes VLEN with a clang patchlevel
+  18.1.3↔18.1.8 confound, not separable on these two boards; immaterial to K1's +11.2% or q8_0's 7%.)
+- **Structural law**: only q8_0 carries an m2 candidate → only it can flip LMUL *family*; m1-only
+  kernels (q4_x, q5_x) can at most flip elision (q4_1) / factor (q4_0) or stay null (q5).
+- **N3 generality (strong)**: the static cost-argmin (m1/4/elided, cost 1005) is **wrong on EVERY
+  kernel × chip** — among the slowest shapes on every leg (literally last on q5_1@K1, q4_1@K1). So
+  measured>static is broadly necessary across the quant family AND both VLENs, not a q8_0 one-off.
+- Log: `k1-vlen256/q5-q41-paired-divergence.log` (+ raw `paired-{rvv128,k1256}-q{5,41}/`).
+
 ## Next (N1)
 1. **Solidify q8_0 divergence**: same-session paired rvv(128)+K1(256) re-measure → directly-observed
    reversal (removes the archived-baseline caveat). Highest-value N1 strengthening, no new hardware.
