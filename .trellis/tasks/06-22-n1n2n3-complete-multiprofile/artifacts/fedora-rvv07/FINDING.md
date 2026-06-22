@@ -131,6 +131,25 @@ SECOND ISA generation. The sole remaining gap is the repack-GEMV's fractional-LM
 RVV0.7 emitter LMUL-floor (emit i8m1 not i8mf2). Bonus header fact: `vreinterpret_v_u8m1_i8m1` IS in the
 XuanTie RVV0.7 header (the ggml drop-in compiled), which the earlier repack probe hadn't verified.
 
+## Repack-GEMV RVV0.7 emission — characterized BOUNDED (the exact fix, ~few lines)
+The last RVV0.7 kernel-class gap is a small, well-bounded change (NOT the feared cascade rewrite):
+- The repack emitter (`RVVToEmitCBlockQuantLinear.cpp`, all 3 emit funcs ~63/504/948) is ALREADY
+  LMUL-parametric: `llvm::StringRef coreLmul = "mf4"; if (attrLmul) coreLmul = *attrLmul;` — it reads
+  the op's `integer_core_lmul` attr (`RVVOps.td:3962 OptionalAttr<StrAttr>:$integer_core_lmul`), and
+  `coreLmul` drives the i8 load type, `wideLmul` (`m1→m2` / `mf4→mf2`), every `riscvIntrinsicName`
+  spelling, and the `setvlSEW` (`coreLmul=="m1" ? 8 : 32`). So `coreLmul="m1"` → whole-LMUL i8m1/i16m2
+  emission with NO fractional symbol — and that m1 path is **already proven to run byte-exact on the
+  C920** (the q4_0 block-dot test used the m1 integer core).
+- **The fix**: `RVVRepackStripWidthMaterialization.cpp` (Thread B's pass — already derives VLEN/capability
+  from the `-march` and stamps `half_lanes`) should ALSO stamp `integer_core_lmul="m1"` when
+  `deriveRVVVersion(march)==RVV0p7` (or `supported_lmul` excludes fractional). RVV1.0 → leave it unset
+  (emitter default `mf4`, byte-unchanged). The emitter + verifier already accept `m1` (the block-dot
+  path), so no emitter/verifier rewrite. Estimated: a few lines in the pass + 1 lit (RVV0.7 march →
+  integer_core_lmul=m1, no mf2) + the C920 numeric re-run.
+- **Verdict: BOUNDED follow-up** (a stamp in the existing capability-aware pass), NOT multi-day. Deferred
+  here only because the agent dispatch was infra-timing-out; the implementation is a clean ~few-line
+  trellis-implement task. Once landed, ALL 3 RVV0.7 kernel classes emit + run on the C920.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
