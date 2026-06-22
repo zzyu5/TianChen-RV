@@ -34,8 +34,11 @@
 #include "llvm/Support/raw_ostream.h"
 
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
+using tianchenrv::plugin::rvv::RVVVersion;
 using tianchenrv::plugin::rvv::buildRVVTargetCapabilitiesFromProbeFacts;
+using tianchenrv::plugin::rvv::deriveRVVVersion;
 using tianchenrv::plugin::rvv::getRVVPreferredCapabilitySymbol;
+using tianchenrv::plugin::rvv::stringifyRVVVersion;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 
@@ -188,6 +191,94 @@ int runProfilesDivergeOnSEW64() {
   return 0;
 }
 
+// The RVV ISA-GENERATION fact (the deepest N1 divergence axis): the SAME march
+// tokenizer that derives the support axes derives the version. rv64gcv (RVV1.0)
+// and rv64gc_xtheadvector (RVV0.7 / C920) share every SEW/LMUL axis but differ
+// on the ISA generation. The 0.7 markers (xtheadvector, an explicit 0p7 suffix)
+// must NOT fold to 1.0 via the embedded "gcv" substring.
+int runRVVVersionDerivationDiverges() {
+  // The C920's portable RVV0.7 spelling -> RVV0.7.
+  if (deriveRVVVersion("rv64gc_xtheadvector", "") != RVVVersion::RVV0p7)
+    return fail("rv64gc_xtheadvector must derive RVV0.7");
+  // An explicit 0p7 version suffix on the V token -> RVV0.7 (must NOT fold to
+  // 1.0 through its embedded "gcv" substring).
+  if (deriveRVVVersion("rv64gcv0p7", "") != RVVVersion::RVV0p7)
+    return fail("rv64gcv0p7 must derive RVV0.7 (not fold to 1.0 via 'gcv')");
+  // Plain full-V -> RVV1.0 (the ratified ta/ma generation).
+  if (deriveRVVVersion("rv64gcv", "") != RVVVersion::RVV1p0)
+    return fail("rv64gcv must derive RVV1.0");
+  if (deriveRVVVersion("rv64gcv", "rv64gcv_zvl128b") != RVVVersion::RVV1p0)
+    return fail("rv64gcv (with zvl128b hint) must derive RVV1.0");
+  // No concrete RVV generation named -> Unknown (the version fact stays silent).
+  if (deriveRVVVersion("rv64gc", "") != RVVVersion::Unknown)
+    return fail("rv64gc (no vector) must derive Unknown");
+
+  // The two real probed marches genuinely DIVERGE on the generation axis.
+  RVVVersion rvv10 = deriveRVVVersion("rv64gcv", "");
+  RVVVersion rvv07 = deriveRVVVersion("rv64gc_xtheadvector", "");
+  if (rvv10 == rvv07)
+    return fail("rv64gcv and rv64gc_xtheadvector must derive DIFFERENT RVV "
+                "generations");
+  if (stringifyRVVVersion(rvv10) != "1.0" ||
+      stringifyRVVVersion(rvv07) != "0.7")
+    return fail("RVV version string spellings must be 1.0 / 0.7");
+
+  llvm::outs() << "N1 two real probed marches DIVERGE on RVV generation: "
+                  "rv64gcv=1.0 vs rv64gc_xtheadvector=0.7 (capability-driven)\n";
+  return 0;
+}
+
+// The probe->capability conversion stamps the version fact onto the built RVV
+// capability: rv64gcv -> rvv_version=1.0, rv64gc_xtheadvector -> rvv_version=0.7,
+// while EVERY support axis (supported_sew / supported_lmul) is IDENTICAL (both
+// are full vector units). So the SAME gate query that finds matching support
+// axes still finds a divergent ISA generation -- the legality gate's
+// ratified-policy (ta/ma) split rests on this fact.
+int runProbedVersionFactDiverges() {
+  mlir::MLIRContext context;
+  loadDialects(context);
+
+  RVVProbeCapabilityFacts rvv10 = makeBaseFacts();
+  rvv10.isaVectorHints = "rv64gcv_zvl128b";
+  rvv10.selectedMarch = "rv64gcv";
+
+  RVVProbeCapabilityFacts rvv07 = makeBaseFacts();
+  rvv07.isaVectorHints = "rv64gc_xtheadvector";
+  rvv07.selectedMarch = "rv64gc_xtheadvector";
+
+  llvm::Expected<TargetCapabilitySet> rvv10Caps =
+      buildRVVTargetCapabilitiesFromProbeFacts(context, rvv10);
+  llvm::Expected<TargetCapabilitySet> rvv07Caps =
+      buildRVVTargetCapabilitiesFromProbeFacts(context, rvv07);
+  if (!rvv10Caps || !rvv07Caps) {
+    if (!rvv10Caps)
+      llvm::consumeError(rvv10Caps.takeError());
+    if (!rvv07Caps)
+      llvm::consumeError(rvv07Caps.takeError());
+    return fail("RVV version profile capability construction failed");
+  }
+
+  llvm::StringRef v10 = lookupRVV(*rvv10Caps)->getProperty("rvv_version");
+  llvm::StringRef v07 = lookupRVV(*rvv07Caps)->getProperty("rvv_version");
+  if (v10 != "1.0")
+    return fail("rv64gcv probe expected rvv_version '1.0', got '" + v10 + "'");
+  if (v07 != "0.7")
+    return fail("rv64gc_xtheadvector probe expected rvv_version '0.7', got '" +
+                v07 + "'");
+
+  // The support axes are IDENTICAL: the divergence is purely the generation.
+  llvm::StringRef sew10 = lookupRVV(*rvv10Caps)->getProperty("supported_sew");
+  llvm::StringRef sew07 = lookupRVV(*rvv07Caps)->getProperty("supported_sew");
+  if (sew10 != sew07 || sew10 != "8,16,32,64")
+    return fail("RVV1.0 and RVV0.7 must share supported_sew=8,16,32,64 (the "
+                "divergence is the generation, not the SEW axis)");
+
+  llvm::outs() << "N1 probe->capability stamps DIVERGENT RVV generation: "
+                  "rv64gcv=1.0 vs rv64gc_xtheadvector=0.7, support axes "
+                  "IDENTICAL (generation-only divergence)\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -196,6 +287,10 @@ int main() {
   if (int status = runZve32xProfileExcludesSEW64())
     return status;
   if (int status = runProfilesDivergeOnSEW64())
+    return status;
+  if (int status = runRVVVersionDerivationDiverges())
+    return status;
+  if (int status = runProbedVersionFactDiverges())
     return status;
   llvm::outs() << "RVV N1 probe->capability divergence-axis derivation tests "
                   "passed\n";

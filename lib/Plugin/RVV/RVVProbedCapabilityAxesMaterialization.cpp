@@ -99,11 +99,20 @@ public:
         plugin::rvv::deriveSupportedSEWAllowList(march, isaVectorHints);
     std::string supportedLMUL =
         plugin::rvv::deriveSupportedLMULAllowList(march, isaVectorHints);
+    // The RVV ISA generation (the deepest N1 axis): RVV0.7 (xtheadvector / C920)
+    // vs RVV1.0 (rv64gcv). The version stamp drives the legality gate's
+    // ratified-policy (ta/ma) divergence -- an agnostic-policy body is RVV1.0-
+    // only, so it is gated out on an rvv_version=0.7 provider. "" (Unknown) ->
+    // no fact, mirroring the empty-allow-list silent-gate behaviour.
+    std::string rvvVersion =
+        plugin::rvv::stringifyRVVVersion(
+            plugin::rvv::deriveRVVVersion(march, isaVectorHints))
+            .str();
 
-    // A march that names no concrete RVV element-width tier derives no axes:
+    // A march that names no concrete RVV tier derives no axes AND no version:
     // nothing to materialize, leave the IR (and the historically silent gate)
     // unchanged.
-    if (supportedSEW.empty() && supportedLMUL.empty())
+    if (supportedSEW.empty() && supportedLMUL.empty() && rvvVersion.empty())
       return;
 
     module.walk([&](mlir::Operation *op) {
@@ -113,6 +122,7 @@ public:
         return;
       materializeAxis(op, "supported_sew", supportedSEW);
       materializeAxis(op, "supported_lmul", supportedLMUL);
+      materializeAxis(op, "rvv_version", rvvVersion);
     });
   }
 };

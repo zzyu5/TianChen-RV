@@ -517,11 +517,21 @@ private:
   /// Reading the attrs straight off the provider op keeps the capability the
   /// legality authority -- no string capability model is imported. The gate is
   /// silent when a provider declares no restriction (the common case).
+  ///
+  /// `bodyRequiresAgnosticPolicy` carries the typed body's ISA-generation
+  /// requirement: a tail/mask-agnostic (ta/ma) policy is a RATIFIED RVV1.0
+  /// feature absent on RVV0.7 (xtheadvector / C920). If the resolved provider
+  /// declares `rvv_version` = "0.7" and the body requires the agnostic policy,
+  /// the capability gates this body out the same way -- this is the N1
+  /// ISA-generation divergence, gated on the version CAPABILITY FACT (I3: no
+  /// family-name / march-string branch). The gate is silent when the provider
+  /// declares no `rvv_version` or declares "1.0".
   mlir::LogicalResult
   checkCapabilityConfigGate(mlir::ConversionPatternRewriter &rewriter,
                             tcrv::exec::VariantOp variant,
                             tcrv::exec::KernelOp kernel, unsigned bodySEW,
-                            llvm::StringRef bodyLMUL) const;
+                            llvm::StringRef bodyLMUL,
+                            bool bodyRequiresAgnosticPolicy) const;
 
   /// load(%abi, %vl) -> ptr = base + i; __riscv_vle<sew>_v_<dtype><lmul>(ptr, vl)
   /// When `extraOffset` is set, a SECOND pointer add is emitted after the

@@ -7,7 +7,13 @@
 # it, the embedded zve32x profile rejects it -- capability-driven, on real ISA
 # semantics.
 
+# The deepest N1 axis (ISA generation): rv64gcv (RVV1.0) and rv64gc_xtheadvector
+# (RVV0.7 / C920) share every SEW/LMUL axis but diverge on the rvv_version fact;
+# the legality gate's ratified ta/ma policy split rests on it.
+
 # CHECK: N1 full-V (rv64gcv) probe derives supported_sew=8,16,32,64 (SEW=64 admitted)
 # CHECK: N1 zve32x probe derives supported_sew=8,16,32 (SEW=64 gated out)
 # CHECK: N1 two real probed profiles DIVERGE on SEW=64: full-V admits, zve32x rejects (capability-driven)
+# CHECK: N1 two real probed marches DIVERGE on RVV generation: rv64gcv=1.0 vs rv64gc_xtheadvector=0.7 (capability-driven)
+# CHECK: N1 probe->capability stamps DIVERGENT RVV generation: rv64gcv=1.0 vs rv64gc_xtheadvector=0.7, support axes IDENTICAL (generation-only divergence)
 # CHECK: RVV N1 probe->capability divergence-axis derivation tests passed

@@ -109,7 +109,8 @@ bool hasRVVVectorHint(llvm::StringRef hints) {
   std::string lower = hints.lower();
   llvm::StringRef normalized(lower);
   if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv"))
+      normalized.contains("zvfh") || normalized.contains("gcv") ||
+      normalized.contains("xtheadvector"))
     return true;
 
   std::size_t position = lower.find("rv64");
@@ -188,9 +189,11 @@ std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
   llvm::StringRef text(combined);
 
   // 64-bit-element evidence: full "V" (rv64gcv / a bare "v" extension token),
-  // or an explicit zve64* embedded vector tier.
+  // an explicit zve64* embedded vector tier, or the XuanTie xtheadvector full
+  // vector unit (RVV0.7 on the C920 -- a complete 8..64 element-width vector
+  // unit; it diverges from RVV1.0 on the ISA GENERATION, not on SEW/LMUL).
   bool hasElement64 = text.contains("zve64") || text.contains("gcv") ||
-                      text.contains("rv64gcv");
+                      text.contains("rv64gcv") || text.contains("xtheadvector");
   // 32-bit-element-only embedded tier: zve32* without a zve64* token.
   bool hasElement32Only = text.contains("zve32") && !text.contains("zve64");
 
@@ -212,7 +215,11 @@ std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
                                          llvm::StringRef isaVectorHints) {
   std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
   llvm::StringRef text(combined);
-  if (text.contains("zve") || text.contains("gcv"))
+  // xtheadvector (RVV0.7 on the C920) provides the full LMUL grouping grid, the
+  // same as full-V and the embedded zve* tiers; the generations differ on ISA
+  // version, not on the LMUL multiplier set.
+  if (text.contains("zve") || text.contains("gcv") ||
+      text.contains("xtheadvector"))
     return "mf8,mf4,mf2,m1,m2,m4,m8";
   return "";
 }
@@ -258,10 +265,12 @@ std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
   // (2) Full "V" mandates Zvl128b by the ratified spec: rv64gcv / a "gcv" token,
   // or a bare "v" vector extension token in the march (not a stray 'v' inside
   // "zve32x"). Detect the full-V token by the "gcv" spelling or a "_v"/leading
-  // "v" extension token. This floors the minimum at 128 (a larger explicit Zvl
-  // token in (1) keeps precedence).
+  // "v" extension token. The XuanTie xtheadvector full vector unit (RVV0.7 on
+  // the C920) likewise guarantees VLEN >= 128. This floors the minimum at 128 (a
+  // larger explicit Zvl token in (1) keeps precedence).
   bool fullV = text.contains("gcv") || text.contains("_v") ||
-               text.contains("rv64v") || text.contains("rv32v");
+               text.contains("rv64v") || text.contains("rv32v") ||
+               text.contains("xtheadvector");
   if (fullV && floorBits < 128)
     floorBits = 128;
 
@@ -275,6 +284,42 @@ bool deriveHasZvl128b(llvm::StringRef selectedMarch,
   // Zvl128b is exactly the >= 128-bit minimum-VLEN floor (the SAME march+hint
   // tokenization; rv64gcv_zvl256b still true, embedded zve32x still false).
   return deriveMinimumVLEN(selectedMarch, isaVectorHints) >= 128;
+}
+
+llvm::StringRef stringifyRVVVersion(RVVVersion version) {
+  switch (version) {
+  case RVVVersion::RVV1p0:
+    return "1.0";
+  case RVVVersion::RVV0p7:
+    return "0.7";
+  case RVVVersion::Unknown:
+    return "";
+  }
+  return "";
+}
+
+RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
+                            llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  // (1) RVV0.7 markers are tested FIRST so a "gcv0p7" / "rv64gcv0p7" spelling
+  // does NOT fold to 1.0 via its embedded "gcv" substring. The portable spelling
+  // `rv64gc_xtheadvector` names the XuanTie 0.7.1 vector unit; an explicit "0p7"
+  // version suffix on the V token names the same pre-ratification generation.
+  if (text.contains("xtheadvector") || text.contains("0p7"))
+    return RVVVersion::RVV0p7;
+
+  // (2) Plain full-V (rv64gcv / a "gcv" token / a bare "v" / "rv64v" token) or an
+  // embedded zve* vector tier, with no 0.7 marker, is the ratified RVV1.0
+  // generation -- the one with the tail/mask-agnostic (ta/ma) policy.
+  if (text.contains("gcv") || text.contains("zve") || text.contains("rv64v") ||
+      text.contains("rv32v") || text.contains("_v"))
+    return RVVVersion::RVV1p0;
+
+  // (3) No concrete RVV generation named -> Unknown (the version fact stays
+  // silent; the downstream version gate is then a no-op on the version axis).
+  return RVVVersion::Unknown;
 }
 
 llvm::StringRef getRVVHartCountCapabilityID() {
@@ -412,6 +457,15 @@ buildRVVTargetCapabilitiesFromProbeFacts(
       facts.selectedMarch, facts.isaVectorHints);
   if (!supportedLMUL.empty())
     rvvProperties["supported_lmul"] = supportedLMUL;
+  // Derive the RVV ISA-generation fact (the deepest N1 divergence axis). RVV0.7
+  // (xtheadvector / C920) and RVV1.0 share every SEW/LMUL/VLEN axis but differ
+  // on the ratified ta/ma policy: an agnostic-policy body is RVV1.0-only. The
+  // version is stamped as a queryable provider-op property the legality gate
+  // reads (mirroring supported_sew). Unknown -> no fact (the gate stays silent).
+  llvm::StringRef rvvVersion = stringifyRVVVersion(
+      deriveRVVVersion(facts.selectedMarch, facts.isaVectorHints));
+  if (!rvvVersion.empty())
+    rvvProperties["rvv_version"] = rvvVersion.str();
   if (llvm::Error error = addAvailableCapability(
       context, capabilities, getRVVPreferredCapabilitySymbol(),
       getRVVCapabilityID(), getRVVCapabilityKind(), std::move(rvvProperties)))

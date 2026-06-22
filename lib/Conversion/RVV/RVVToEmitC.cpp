@@ -202,8 +202,17 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     {
       unsigned bodySEW = static_cast<unsigned>(preLoopSetVL.getSew());
       llvm::StringRef bodyLMUL = preLoopSetVL.getLmul();
-      if (mlir::failed(checkCapabilityConfigGate(rewriter, variant, kernel,
-                                                 bodySEW, bodyLMUL)))
+      // The typed body requires the ratified RVV1.0 tail/mask-agnostic (ta/ma)
+      // policy iff its setvl policy is agnostic on both axes -- the form this
+      // converter renders into the agnostic `_v` intrinsic spelling. That form
+      // is illegal on the RVV0.7 ISA generation (xtheadvector / C920), so the
+      // version gate reasons over this fact below.
+      bool bodyRequiresAgnosticPolicy =
+          policy.getTail() == tcrvrvv::TailPolicy::Agnostic &&
+          policy.getMask() == tcrvrvv::MaskPolicy::Agnostic;
+      if (mlir::failed(checkCapabilityConfigGate(
+              rewriter, variant, kernel, bodySEW, bodyLMUL,
+              bodyRequiresAgnosticPolicy)))
         return mlir::failure();
     }
 
@@ -1631,7 +1640,8 @@ mlir::LogicalResult
 VariantToEmitCFunc::checkCapabilityConfigGate(mlir::ConversionPatternRewriter &rewriter,
                           tcrv::exec::VariantOp variant,
                           tcrv::exec::KernelOp kernel, unsigned bodySEW,
-                          llvm::StringRef bodyLMUL) const {
+                          llvm::StringRef bodyLMUL,
+                          bool bodyRequiresAgnosticPolicy) const {
     auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
     if (!requiresAttr)
       return mlir::success();
@@ -1678,6 +1688,27 @@ VariantToEmitCFunc::checkCapabilityConfigGate(mlir::ConversionPatternRewriter &r
           return rewriter.notifyMatchFailure(
               variant, "capability provider supported_lmul excludes typed body "
                        "LMUL (capability gates this body out)");
+      }
+      // RVV ISA-generation gate (the deepest N1 divergence axis). The
+      // tail/mask-agnostic (ta/ma) vector policy is a RATIFIED RVV1.0 feature
+      // that RVV0.7 (xtheadvector / C920) does NOT have. So a body that requires
+      // the agnostic policy is RVV1.0-only: if the resolved provider declares
+      // `rvv_version` = "0.7", the capability gates this body out, exactly as the
+      // supported_sew/lmul allow-lists gate an unsupported (sew, lmul). This is
+      // gated on the version CAPABILITY FACT read off the provider op (I3: no
+      // family-name / march-string branch in the gate). The gate is silent when
+      // the provider declares no `rvv_version` or declares "1.0" (the agnostic
+      // policy is legal there) -- so rv64gcv behaviour is byte-identical.
+      if (bodyRequiresAgnosticPolicy) {
+        if (auto rvvVersion =
+                provider->getAttrOfType<mlir::StringAttr>("rvv_version")) {
+          if (rvvVersion.getValue().trim() == "0.7")
+            return rewriter.notifyMatchFailure(
+                variant,
+                "capability provider rvv_version=0.7 lacks the ratified "
+                "tail/mask-agnostic policy the typed body requires (RVV0.7 "
+                "ISA generation gates this body out)");
+        }
       }
     }
     return mlir::success();

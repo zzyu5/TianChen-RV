@@ -12,6 +12,52 @@
 
 namespace tianchenrv::plugin::rvv {
 
+// The RVV ISA GENERATION the configured target implements, as a first-class
+// capability fact (core-invariants I1). This is the deepest N1 capability axis:
+// two profiles can share VLEN, SEW, and LMUL yet differ by ISA generation, and
+// a ratified-only feature (e.g. the tail/mask-agnostic policy) is legal on one
+// generation and illegal on the other. The version is a TARGET-CAPABILITY fact
+// derived from the validated ISA evidence (the selected -march / probed
+// isa/vector-hint string), NOT a plugin-selected config (I5; profiles.md).
+//   * RVV1p0 -- the ratified RISC-V "V" 1.0 extension (rv64gcv / a bare "v"
+//     token / an embedded zve* tier). Has the ratified tail/mask-agnostic
+//     (ta/ma) vector policy.
+//   * RVV0p7 -- the pre-ratification 0.7.1 vector extension as implemented by
+//     the T-Head C920 (XuanTie xtheadvector). The portable -march spelling is
+//     `rv64gc_xtheadvector`; a `gcv0p7` / explicit `0p7` version suffix on the V
+//     token names the same generation. RVV0.7 LACKS the ratified ta/ma policy.
+//   * Unknown -- the evidence names no concrete RVV generation (the version
+//     fact stays silent; the version gate is then a no-op, fail-open on the
+//     version axis only, mirroring the empty-allow-list silent-gate behaviour).
+// HARDWARE FACT (proven on the C920): `rv64gc_xtheadvector` runs 0.7.1 `th.v*`;
+// a 1.0 `rv64gcv` binary SIGILLs there. The two generations are NOT
+// binary-compatible -- hence the version must be a queryable capability fact, so
+// a core/common pass gates the ratified-only policy form on the version FACT
+// (I3: no family-name / march-string branch in the gate).
+enum class RVVVersion {
+  Unknown,
+  RVV1p0,
+  RVV0p7,
+};
+
+// The stable string spelling of an RVVVersion as it is stamped onto the in-IR
+// capability provider op (the `rvv_version` property) and read back by the
+// legality gate. "0.7" / "1.0" / "" (Unknown -> no fact). Keeping the on-IR fact
+// a string mirrors how the other support axes (supported_sew / supported_lmul)
+// are modeled as provider-op string attributes the gate queries directly.
+llvm::StringRef stringifyRVVVersion(RVVVersion version);
+
+// Derives the RVV ISA generation from the selected -march plus the probed
+// isa/vector-hint string. RVV0.7 wins on a `xtheadvector` token OR a `0p7`
+// version suffix on the V token (tested FIRST so `gcv0p7` does not fold to 1.0
+// via its embedded "gcv" substring); plain full-V (rv64gcv / a bare "v" token /
+// an embedded zve* tier) with no 0.7 marker -> RVV1.0; otherwise Unknown. This
+// is the SAME plugin-local C++ authority the probe->capability conversion and
+// the in-IR materialization pass use, so the version fact and the support axes
+// are derived consistently from one ISA-evidence parse.
+RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
+                            llvm::StringRef isaVectorHints);
+
 struct RVVProbeCapabilityFacts {
   std::string architecture;
   std::uint64_t hartCount = 0;
@@ -52,8 +98,12 @@ llvm::Error validateRVVProbeCapabilityFacts(
 // NOT a plugin-selected compile-time config (the typed body owns its single
 // chosen SEW; see core-invariants I5 and capability-model/profiles.md: the probe
 // must not fabricate the SELECTED sew/lmul/tail/mask). Returns a comma-separated
-// allow-list ("8,16,32,64" for a full-V / zve64* tier; "8,16,32" for an embedded
-// zve32* tier) or "" when the evidence names no concrete RVV element-width tier.
+// allow-list ("8,16,32,64" for a full-V / zve64* / xtheadvector tier; "8,16,32"
+// for an embedded zve32* tier) or "" when the evidence names no concrete RVV
+// element-width tier. The XuanTie xtheadvector (RVV0.7 on the C920) is a full
+// vector unit -- element widths 8..64, all LMUL groupings -- so it derives the
+// same support axes as full-V; it diverges from RVV1.0 only on the ISA
+// GENERATION (deriveRVVVersion), not on these element-width / LMUL axes.
 // This is the SAME authority the probe->capability conversion uses; exporting it
 // lets a materialization pass write the derived axis onto the in-IR provider op
 // from a march/profile selection without fabricating toolchain-probe facts.
