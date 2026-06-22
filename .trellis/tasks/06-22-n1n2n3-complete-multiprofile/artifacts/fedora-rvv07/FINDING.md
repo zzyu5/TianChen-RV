@@ -117,6 +117,20 @@ Two honest data points:
 Log: `winA-ablation-c920-rvv07.log`. (Toolchain: gcc at `~/xuantie/RuyiSDK-.../bin/`; vector ref TU must
 be compiled with gcc C-mode, not g++, to keep `dot_*` C-linkage matching the `extern "C"` emitted body.)
 
+## RVV0.7 kernel-class coverage map (2026-06-22, all on-C920)
+| kernel class | RVV0.7/C920 | evidence |
+|---|---|---|
+| **contraction** (i16 dot-reduce, Win-A) | **YES** runs + wins | wide_vs_scalar 3.4–7.2×, byte-exact, th.v* (winA-ablation-c920-rvv07.log) |
+| **block-dot** (q4_0 m1, **llama hot path**) | **YES** byte-exact | m1/f4/elided winner (whole multiplier); compiles clean, byte-exact vs scalar oracle (7 sizes) AND vs ggml hand kernel (1600/1600); 115 th.v* ops, zero fractional/1.0-only/standard-V leak (q4_0-blockdot-m1-on-c920.log) |
+| **repack-GEMV** | **NO** | emitter selects i8**mf2** (fractional) → XuanTie rejects `vint8mf2_t`/`vle8_v_i8mf2`; needs the deferred 0.7 LMUL-floor EMISSION policy |
+
+**2 of 3 kernel classes (incl. the llama q4_0 decode hot-path block-dot) run on RVV0.7 today** — confirming
+the FINDING law "every block-dot winner is a whole multiplier, so RVV0.7's absent fractional LMUL is a no-op
+for it." The block-dot being byte-exact vs ggml means a real llama-relevant q4_0 kernel runs correctly on a
+SECOND ISA generation. The sole remaining gap is the repack-GEMV's fractional-LMUL strip → the deferred
+RVV0.7 emitter LMUL-floor (emit i8m1 not i8mf2). Bonus header fact: `vreinterpret_v_u8m1_i8m1` IS in the
+XuanTie RVV0.7 header (the ggml drop-in compiled), which the earlier repack probe hadn't verified.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
