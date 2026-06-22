@@ -33,6 +33,31 @@ After the benches, K1 went unresponsive (port 22 CLOSED from the jumphost; jumph
 K1-local). Needs a **manual reboot/power-cycle** (cannot be done over a dead ssh). Left on K1 (intact):
 `~/tcrv-k1-llama` (built tree), the 637MB model, the two A/B `.so` snapshots.
 
+## Mechanism RESOLVED (2026-06-22): X60-microarch-specific, NOT small-model
+Tested the small-model hypothesis on rvv (UP) instead of asserting it — same TinyLlama-1.1B Q4_0,
+same t8, repack ON vs OFF:
+| board (same 1.1B, t8) | repack ON | repack OFF | ratio |
+|---|---|---|---|
+| rvv / SG2044 | 22.25 t/s (ENGAGED) | 8.93 t/s (generic) | **2.49× WIN** |
+| K1 / X60 | 3.22 (1×16 strip) | 4.38 (ref) | **0.74× LOSS** |
+Holding model size + thread count fixed and changing ONLY the board flips a 0.74× loss into a
+2.49× win → **small-model dilution is REJECTED; the K1 regression is X60-microarch-specific**
+(strong clang-18 autovec of the generic q4_0 path on X60; our repack strip wasn't tuned to beat it).
+On SG2044 the same repack engine wins 2.49× even at 1.1B (and 5–6× at 7B — the win shrinks with size
+but does not invert). Honest caveat: the two boards' OFF baselines aren't byte-identical (rvv OFF =
+no-repack; K1 OFF = strip-guard-off on the still-repacked layout) — but the symmetric load-bearing
+fact (rvv repack-vs-its-own-no-repack wins on the small model) is what rejects board-independent dilution.
+Log: `rvv-smallmodel-repack-toggle.log`. rvv restored to repack-ON (md5-verified).
+
+## The real N3 implication (the honest takeaway)
+This is itself a **capability/resource-aware-tune signal**: "always use the repack path" is the WRONG
+static choice on X60 (where it regresses); a measured>static decision at the PATH level (repack-vs-generic,
+not just strip-width) would pick generic on X60 and repack on SG2044. Same pattern as the q8_0 finding
+(static wrong on every chip → measurement needed). So the X60 loss doesn't weaken N3 — it points to the
+next N3 layer: the tune should select the *vehicle* (repack vs autovec'd-generic) per real microarch, not
+just the strip width within the repack. Our gearbox currently tunes within-repack; per-microarch
+path-selection (driven by real measurement like this) is the honest next step.
+
 ## What stands regardless
 - The **microbench 1.48×** (1×16 vs 2×8, isolated decode kernel, single-core) is the strip-SELECTION win
   and is unaffected — it answers "is the wider strip the right choice at VLEN=256" (yes).
