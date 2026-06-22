@@ -21,9 +21,19 @@ count = 1 decisive + 1 marginal + 1 null** (the probe JSON overcounted q4_0 as c
   divergence on the q8_0 hot-path kernel, measured on two real chips.
 - **q4_0 — marginal** (K1 m1/2/elided vs rvv m1/4/elided, 0.84% near-tie; reproduced, not noise,
   but NOT co-equal). q4_1 — null (m1/1/elided both).
-- **Caveat to close**: the rvv side used the ARCHIVED 06-15 baseline, not a same-session paired
-  re-measure. → next: run q8_0 tuner on rvv(SG2044) + K1 back-to-back, same harness, to make the
-  reversal directly-observed same-session. Log: `k1-vlen256/blockdot-tune-k1.log`.
+- **Caveat CLOSED (2026-06-22 same-session paired re-measure)**: ran q8_0 tuner on rvv(SG2044,
+  live vlenb=128) + K1(live vlenb=256) back-to-back, same harness, clang18, identical n=4096 /
+  iters=2000 / reps=200 / taskset / -ffp-contract=fast, identical 12-candidate enumeration (12/12
+  byte-exact both). **Reversal directly observed**: rvv winner **m2/4/elided** (5818ns; m2 beats
+  best-m1 +7.01%) vs K1 winner **m1/2/robust** (7138ns; m1 beats best-m2 +6.88%). ~7% both ways,
+  far outside noise; only the VLEN token (rv64gcv vs rv64gcv_zvl256b) differed. The fresh rvv
+  winner is a different m2 *sub-shape* than the archived m2/1/elided — same **m2 family**, so the
+  family-reversal claim is robust; exact sub-shape varies across board states. Log:
+  `k1-vlen256/q8_0-paired-rvv128-k1256.log`.
+- **N3 corollary (strong)**: the STATIC cost model picks `m2/2/elided` for BOTH chips — family-correct
+  on rvv (within 0.1% of measured) but **wrong-family on K1 (6.5% slower than the measured m1 winner)**.
+  Static can't see the VLEN-driven family flip; measurement fixes it. So this single result is both
+  N1 (capability→selection divergence) AND N3 (measured>static where static is blind to VLEN).
 
 ## Fedora — genuine RVV0.7 (probe holds; verifier REFUTATION IS INVALID)
 - **Probe (ran on `fedora-rvv07`)**: `clang -march=rv64gcv` RVV1.0 binary **SIGILLs** on the

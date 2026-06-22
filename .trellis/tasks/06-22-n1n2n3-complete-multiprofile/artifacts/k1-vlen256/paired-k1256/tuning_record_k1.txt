@@ -1,0 +1,23 @@
+# tcrv-rvv block-dot MEASUREMENT tuning record (INC-10).
+# Each 'tune' line = the MEASURED-fastest legal shape for (kernel,
+# capability-march), measured best-of-N min on ssh rvv (VLEN=128,
+# clang-18 -O3 -march=rv64gcv_zvl256b -ffp-contract=fast, taskset -c 3).
+# Comment lines record the full measured ladder (audit). The materialize
+# pass READS this and stamps the measured shape; absent => static fallback.
+#
+# --- q8_0 @ rv64gcv : ggml(real)=8056.7 ns ---
+#   m1/2/robust            7138.4 ns  (1.129x vs ggml)
+#   m1/1/robust            7242.8 ns  (1.112x vs ggml)
+#   m1/4/robust            7300.7 ns  (1.104x vs ggml)
+#   m2/2/elided            7629.8 ns  (1.056x vs ggml)
+#   m2/4/elided            7638.8 ns  (1.055x vs ggml)
+#   m2/2/robust            8040.3 ns  (1.002x vs ggml)
+#   m2/1/elided            8053.9 ns  (1.000x vs ggml)
+#   m2/1/robust            8068.2 ns  (0.999x vs ggml)
+#   m2/4/robust            8204.5 ns  (0.982x vs ggml)
+#   mf4/1/robust          10305.0 ns  (0.782x vs ggml)
+#   mf4/2/robust          10343.8 ns  (0.779x vs ggml)
+#   mf4/4/robust          10512.5 ns  (0.766x vs ggml)
+# MEASURED WINNER: m1/2/robust @ 7138.4 ns (1.129x vs ggml)
+tune kernel=q8_0 march=rv64gcv lmul=m1 factor=2 elision=robust measured_ns=7138.4
+#
