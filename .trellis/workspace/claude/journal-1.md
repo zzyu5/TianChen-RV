@@ -1136,3 +1136,36 @@ Closed the WS-D byte-exact coverage gap (full test/Conversion/RVV set: pre-split
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: N1/N2/N3 RVV maturity: compiler emits q4_0 GEMV (whole path) + ①②⑤ sealed
+
+**Date**: 2026-06-22
+**Task**: N1/N2/N3 RVV maturity: compiler emits q4_0 GEMV (whole path) + ①②⑤ sealed
+**Branch**: `main`
+
+### Summary
+
+Item ① same-build A/B 5.98x (baseline pinned naive-RVV); ⑤ compiler emits repack GEMV (raw=0, numeric PASS NC≤336, decode ENGAGED tg128); ② budget dormant-on-RVV honest finding (EMUL cap is the live lever); Win-A ablation re-measured fresh on rvv (2-4x vs naive, adversarial-corrected: realization-selection not pure-LMUL-knob, not in llama yet).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `868de602` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

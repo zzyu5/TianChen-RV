@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-06-18
+- **Total Sessions**: 20
+- **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1138 | Active |
+| `journal-1.md` | ~1171 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-06-22 | N1/N2/N3 RVV maturity: compiler emits q4_0 GEMV (whole path) + ①②⑤ sealed | `868de602` | `main` |
 | 19 | 2026-06-18 | closeout: full-set byte-exact proof + roofline honesty | `f9dc05ac` | `main` |
 | 18 | 2026-06-18 | Maturity goal: scalar-hardening + tune-reuse interface + roofline/measured-win + core split (all 4 WS) | `ef7179e7`, `bd7c8b53`, `bac3acd5`, `a73ab62d`, `81b57ba5`, `ec3949d2`, `eb2e09d8` | `main` |
 | 17 | 2026-06-17 | GOAL COMPLETE — 24/24 ggml dot kernels + GEMM autotuner + complete forward pass, all byte-exact + trellis-checked | `0fc67d67`, `4a28013d`, `a6f43069`, `d26fcb75` | `main` |
