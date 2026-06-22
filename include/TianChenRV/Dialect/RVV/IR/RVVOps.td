@@ -4208,6 +4208,21 @@ def GgmlRepackGemmQ40Q80Op
     q8/q4 names, and common EmitC/export code must not infer or choose the
     block-as-lane repacked GEMM semantics.
 
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    fact: it selects the LMUL the per-strip integer-product core anchors at
+    ("mf2" or "m1"), which is purely the *how* (vector grouping / strip width),
+    NOT the *what*. The repacked dot is byte-exact either way (the 16-way
+    interleaved repack reads the SAME bytes; lane-wise vwmacc sums and integer
+    addition is order-independent). When the attribute is absent the core anchors
+    at "mf2" (the RVV1.0 default: i8mf2 -> i16m1 -> i32m2 -> f32m2, at half_lanes
+    e16m1 lanes per strip; 8 at VLEN=128 -> two halves, 16 at VLEN=256 -> one
+    strip). When it is "m1" the ENTIRE LMUL chain shifts up one notch (i8m1 ->
+    i16m2 -> i32m4 -> f32m4, the f16 scale at m2) and the 16-block-as-lane group
+    is ONE 16-lane strip (half_lanes=16): this is the WHOLE-LMUL form RVV0.7.1
+    requires (the pre-ratification generation has NO fractional LMUL, so i8mf2 is
+    rejected by the XuanTie toolchain). The verifier pins the legal
+    (integer_core_lmul, half_lanes) combinations fail-closed (I7).
+
     This op pins the 16x1 repacked ABI fail-closed (I7): the byte layout the
     kernel depends on (288/136 strides, +32/+8 quant offsets, 16/4 interleaves)
     is the validated `vlen128-q4_0-16x1` contract; half_lanes is the
@@ -4234,7 +4249,8 @@ def GgmlRepackGemmQ40Q80Op
     I64Attr:$activation_quant_byte_offset,
     I64Attr:$weight_interleave,
     I64Attr:$activation_interleave,
-    I64Attr:$half_lanes
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 
@@ -4306,6 +4322,21 @@ def GgmlRepackGemvQ40Q80Op
     strings, q8/q4 names, and common EmitC/export code must not infer or choose
     the block-as-lane repacked GEMV semantics.
 
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    fact: it selects the LMUL the per-strip integer-product core anchors at
+    ("mf2" or "m1"), which is purely the *how* (vector grouping / strip width),
+    NOT the *what*. The repacked dot is byte-exact either way (the 16-way
+    interleaved repack reads the SAME bytes; lane-wise vwmacc sums and integer
+    addition is order-independent). When the attribute is absent the core anchors
+    at "mf2" (the RVV1.0 default: i8mf2 -> i16m1 -> i32m2 -> f32m2, at half_lanes
+    e16m1 lanes per strip; 8 at VLEN=128 -> two halves, 16 at VLEN=256 -> one
+    strip). When it is "m1" the ENTIRE LMUL chain shifts up one notch (i8m1 ->
+    i16m2 -> i32m4 -> f32m4, the f16 scale at m2) and the 16-block-as-lane group
+    is ONE 16-lane strip (half_lanes=16): this is the WHOLE-LMUL form RVV0.7.1
+    requires (the pre-ratification generation has NO fractional LMUL, so i8mf2 is
+    rejected by the XuanTie toolchain). The verifier pins the legal
+    (integer_core_lmul, half_lanes) combinations fail-closed (I7).
+
     This op pins the 16x1 repacked GEMV ABI fail-closed (I7): the byte layout
     the kernel depends on (weight 288/+32/16, activation 34/+2) is the validated
     `vlen128-q4_0-16x1` decode contract; half_lanes is the resource-aware strip
@@ -4329,7 +4360,8 @@ def GgmlRepackGemvQ40Q80Op
     I64Attr:$weight_quant_byte_offset,
     I64Attr:$activation_quant_byte_offset,
     I64Attr:$weight_interleave,
-    I64Attr:$half_lanes
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 

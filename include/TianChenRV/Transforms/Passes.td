@@ -346,6 +346,19 @@ def MaterializeRVVRepackStripWidth
     The pass derives nothing from clang/cmake/compile-run toolchain facts and
     probes no hardware; it does not lower, emit code, claim runtime or performance
     evidence, or fabricate selected config.
+
+    SECOND axis (ISA generation): when the selected -march names the
+    pre-ratification RVV0.7.1 generation (deriveRVVVersion == RVV0p7, e.g.
+    rv64gc_xtheadvector on the C920), the pass ALSO stamps integer_core_lmul =
+    "m1" and overrides half_lanes to 16. RVV0.7.1 has NO fractional LMUL, so the
+    repack's default fractional core (i8mf2) is not emittable there; the
+    whole-LMUL core (i8m1 -> i16m2 -> i32m4 -> f32m4) is ONE 16-lane strip per
+    16-block group. This is numerically identical (the 16-way-interleaved repack
+    reads the same bytes; the i8m1 strip is 16 i8 lanes at VLEN=128) -- the win is
+    using the whole LMUL the ISA supports. The RVV-generation fact is derived
+    through the SAME plugin-local authority (deriveRVVVersion), not a march-string
+    branch in a core pass (I3); RVV1.0 leaves integer_core_lmul unset so the
+    emitter keeps the fractional chain, byte-identical to its prior emission.
   }];
   let options = [
     Option<"march", "march", "std::string", /*default=*/"\"\"",

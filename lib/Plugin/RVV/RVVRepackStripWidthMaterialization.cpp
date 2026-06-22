@@ -33,6 +33,17 @@
 // data to the two 8-lane halves at VLEN=128. The stamp holds ONLY while the
 // repack stays 16-way interleaved.
 //
+// SECOND divergence axis (ISA generation): the pre-ratification RVV0.7.1
+// generation (XuanTie xtheadvector on the C920) has NO fractional LMUL, so the
+// repack's default fractional core (i8mf2) is rejected by the XuanTie toolchain.
+// On RVV0.7 the stamp pins the WHOLE-LMUL core anchor (integer_core_lmul = "m1":
+// i8m1 -> i16m2 -> i32m4 -> f32m4) AND its mandatory ONE-16-lane-strip width
+// (half_lanes = 16). The whole-LMUL core reads the SAME interleaved bytes (the
+// i8m1 strip is 16 i8 lanes at VLEN=128), so it is numerically identical to the
+// VLEN=256 fractional one-strip form; the win is using the whole LMUL the ISA
+// supports. The RVV-generation fact is derived through the SAME plugin-local
+// authority (deriveRVVVersion), not a march-string branch in a core pass (I3).
+//
 //===----------------------------------------------------------------------===//
 
 #include "TianChenRV/Transforms/Passes.h"
@@ -88,6 +99,19 @@ public:
     std::int64_t vlenBits =
         plugin::rvv::deriveMinimumVLEN(march, isaVectorHints);
 
+    // Derive the RVV ISA generation through the SAME plugin-local authority. The
+    // pre-ratification RVV0.7.1 generation (XuanTie xtheadvector on the C920) has
+    // NO fractional LMUL, so the repack's default fractional core (i8mf2) is NOT
+    // emittable there: the whole-LMUL form (i8m1 -> i16m2 -> i32m4 -> f32m4) is
+    // required, which is ONE 16-lane strip (half_lanes 16) per 16-block group. So
+    // on RVV0.7 the stamp pins BOTH the whole-LMUL core anchor (integer_core_lmul
+    // = "m1") AND its mandatory strip width (half_lanes = 16), overriding the
+    // VLEN-derived width (deriveMinimumVLEN floors xtheadvector at 128, which
+    // would otherwise derive 8). RVV1.0 leaves integer_core_lmul unset (the
+    // emitter defaults to the fractional "mf2" chain, byte-identical to HEAD).
+    bool isRVV0p7 = plugin::rvv::deriveRVVVersion(march, isaVectorHints) ==
+                    plugin::rvv::RVVVersion::RVV0p7;
+
     // A march that guarantees no >= 128 minimum (empty march, or a constrained
     // tier) derives no strip width: leave any hand-authored half_lanes intact
     // (no-clobber, mirroring the probed-axes materializer's empty-derive skip).
@@ -96,6 +120,11 @@ public:
 
     module.walk([&](mlir::Operation *op) {
       if (auto gemm = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ40Q80Op>(op)) {
+        if (isRVV0p7) {
+          gemm.setIntegerCoreLmul("m1");
+          gemm.setHalfLanes(gemm.getWeightInterleave());
+          return;
+        }
         std::int64_t width =
             deriveRepackHalfLanes(vlenBits, gemm.getWeightInterleave());
         if (width > 0)
@@ -103,6 +132,11 @@ public:
         return;
       }
       if (auto gemv = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ40Q80Op>(op)) {
+        if (isRVV0p7) {
+          gemv.setIntegerCoreLmul("m1");
+          gemv.setHalfLanes(gemv.getWeightInterleave());
+          return;
+        }
         std::int64_t width =
             deriveRepackHalfLanes(vlenBits, gemv.getWeightInterleave());
         if (width > 0)

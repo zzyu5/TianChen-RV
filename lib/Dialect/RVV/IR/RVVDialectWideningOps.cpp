@@ -1373,7 +1373,7 @@ mlir::LogicalResult GgmlRepackGemmQ40Q80Op::verify() {
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "weight_interleave" || name == "activation_interleave" ||
-           name == "half_lanes";
+           name == "half_lanes" || name == "integer_core_lmul";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -1390,7 +1390,8 @@ mlir::LogicalResult GgmlRepackGemmQ40Q80Op::verify() {
                 "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
                 "'activation_block_stride', 'weight_quant_byte_offset', "
                 "'activation_quant_byte_offset', 'weight_interleave', "
-                "'activation_interleave', and 'half_lanes'; unexpected attribute '"
+                "'activation_interleave', 'half_lanes', and "
+                "'integer_core_lmul'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -1461,6 +1462,33 @@ mlir::LogicalResult GgmlRepackGemmQ40Q80Op::verify() {
            << "requires half_lanes to divide weight_interleave (16) so the "
               "16-block-as-lane group tiles into whole strips for the ggml Q4_0 "
               "x Q8_0 16x1-repacked GEMM route";
+
+  // The optional integer_core_lmul anchors the per-strip integer-product chain
+  // (the *how*, never the *what*; the 16-way interleaved repack reads the SAME
+  // bytes either way). Only two anchors are legal, each pinned to its strip
+  // width fail-closed (I7):
+  //   * absent / "mf2" -- the RVV1.0 fractional chain (i8mf2 -> i16m1 -> i32m2
+  //     -> f32m2), legal at half_lanes in {8, 16} (the strip width above).
+  //   * "m1" -- the WHOLE-LMUL chain RVV0.7.1 requires (i8m1 -> i16m2 -> i32m4
+  //     -> f32m4); the i8m1 strip is 16 i8 lanes at VLEN=128, so it tiles the
+  //     16-block-as-lane group into exactly ONE 16-lane strip -- half_lanes MUST
+  //     be 16. An "m1" anchor with half_lanes 8 (a two-strip whole-LMUL form)
+  //     is rejected: it would re-introduce a fractional read.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} (the RVV1.0 "
+                "fractional core anchor or the RVV0.7.1 whole-LMUL core anchor) "
+                "for the ggml Q4_0 x Q8_0 16x1-repacked GEMM route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" "
+                "(the whole-LMUL i8m1 strip is 16 i8 lanes, tiling the "
+                "16-block-as-lane group into exactly ONE 16-lane strip) for the "
+                "ggml Q4_0 x Q8_0 16x1-repacked GEMM route";
+  }
 
   if (op->getNumOperands() != 8 || op->getNumResults() != 1)
     return emitOpError()
@@ -1544,7 +1572,8 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
            name == "activation_block_stride" ||
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "weight_interleave" || name == "half_lanes";
+           name == "weight_interleave" || name == "half_lanes" ||
+           name == "integer_core_lmul";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -1560,8 +1589,8 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
              << "only accepts the bounded ggml Q4_0 x Q8_0 16x1-repacked GEMV "
                 "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
                 "'activation_block_stride', 'weight_quant_byte_offset', "
-                "'activation_quant_byte_offset', 'weight_interleave', and "
-                "'half_lanes'; unexpected attribute '"
+                "'activation_quant_byte_offset', 'weight_interleave', "
+                "'half_lanes', and 'integer_core_lmul'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -1630,6 +1659,33 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
            << "requires half_lanes to divide weight_interleave (16) so the "
               "16-block-as-lane group tiles into whole strips for the ggml Q4_0 "
               "x Q8_0 16x1-repacked GEMV route";
+
+  // The optional integer_core_lmul anchors the per-strip integer-product chain
+  // (the *how*, never the *what*; the 16-way interleaved repack reads the SAME
+  // bytes either way). Only two anchors are legal, each pinned to its strip
+  // width fail-closed (I7):
+  //   * absent / "mf2" -- the RVV1.0 fractional chain (i8mf2 -> i16m1 -> i32m2
+  //     -> f32m2), legal at half_lanes in {8, 16} (the strip width above).
+  //   * "m1" -- the WHOLE-LMUL chain RVV0.7.1 requires (i8m1 -> i16m2 -> i32m4
+  //     -> f32m4); the i8m1 strip is 16 i8 lanes at VLEN=128, so it tiles the
+  //     16-block-as-lane group into exactly ONE 16-lane strip -- half_lanes MUST
+  //     be 16. An "m1" anchor with half_lanes 8 (a two-strip whole-LMUL form)
+  //     is rejected: it would re-introduce a fractional read.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} (the RVV1.0 "
+                "fractional core anchor or the RVV0.7.1 whole-LMUL core anchor) "
+                "for the ggml Q4_0 x Q8_0 16x1-repacked GEMV route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" "
+                "(the whole-LMUL i8m1 strip is 16 i8 lanes, tiling the "
+                "16-block-as-lane group into exactly ONE 16-lane strip) for the "
+                "ggml Q4_0 x Q8_0 16x1-repacked GEMV route";
+  }
 
   if (op->getNumOperands() != 6 || op->getNumResults() != 1)
     return emitOpError()
