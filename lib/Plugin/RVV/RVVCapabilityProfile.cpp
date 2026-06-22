@@ -191,7 +191,9 @@ std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
   // 64-bit-element evidence: full "V" (rv64gcv / a bare "v" extension token),
   // an explicit zve64* embedded vector tier, or the XuanTie xtheadvector full
   // vector unit (RVV0.7 on the C920 -- a complete 8..64 element-width vector
-  // unit; it diverges from RVV1.0 on the ISA GENERATION, not on SEW/LMUL).
+  // unit; it shares this SEW axis with RVV1.0 and diverges on the ISA GENERATION
+  // and on the LMUL axis -- RVV0.7 has no fractional LMUL, see
+  // deriveSupportedLMULAllowList).
   bool hasElement64 = text.contains("zve64") || text.contains("gcv") ||
                       text.contains("rv64gcv") || text.contains("xtheadvector");
   // 32-bit-element-only embedded tier: zve32* without a zve64* token.
@@ -204,23 +206,37 @@ std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
   return "";
 }
 
-// Derives the LMUL grouping SUPPORT allow-list. Every conforming RISC-V vector
-// configuration (full "V" and the embedded zve* tiers alike) provides the same
-// LMUL grouping set; the tiers differ in supported element widths, not in the
-// LMUL multiplier grid. So when the ISA evidence names a concrete RVV tier we
-// advertise the full grouping allow-list; otherwise "" (no LMUL restriction).
-// As with SEW, this is the support set the legality gate queries, never the
-// body's single selected LMUL.
+// Derives the LMUL grouping SUPPORT allow-list. The ratified RVV1.0 generation
+// (full "V" / rv64gcv / embedded zve* tiers) provides the FRACTIONAL LMUL
+// groupings (mf8/mf4/mf2) alongside the whole multipliers (m1..m8). The
+// pre-ratification RVV0.7.1 generation (XuanTie xtheadvector on the C920) does
+// NOT: it has NO fractional LMUL at all -- empirically proven on hardware (the
+// XuanTie 0.7.1 vector header declares ZERO mf2/mf4/mf8 types, and a tcrv-opt-
+// emitted repack kernel fails to compile against `vint8mf2_t` /
+// `__riscv_vle8_v_i8mf2` there). So the RVV0.7 allow-list is exactly
+// {m1,m2,m4,m8} (whole multipliers only), while RVV1.0 keeps the full grid.
+// This is a SECOND N1 capability divergence axis (the SAME kernel selects a
+// different LMUL on RVV0.7 vs RVV1.0) and is derived off the RVV-GENERATION fact
+// (deriveRVVVersion), not a raw march substring beyond the version detection
+// (core-invariants I1/I3: gate on the version FACT, not the march string). As
+// with SEW, this is the support set the legality gate queries, never the body's
+// single selected LMUL. Unknown generation -> "" (no LMUL restriction).
 std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
                                          llvm::StringRef isaVectorHints) {
-  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
-  llvm::StringRef text(combined);
-  // xtheadvector (RVV0.7 on the C920) provides the full LMUL grouping grid, the
-  // same as full-V and the embedded zve* tiers; the generations differ on ISA
-  // version, not on the LMUL multiplier set.
-  if (text.contains("zve") || text.contains("gcv") ||
-      text.contains("xtheadvector"))
+  switch (deriveRVVVersion(selectedMarch, isaVectorHints)) {
+  case RVVVersion::RVV0p7:
+    // RVV0.7.1 (xtheadvector / C920): NO fractional LMUL exists on this
+    // generation -- whole multipliers only.
+    return "m1,m2,m4,m8";
+  case RVVVersion::RVV1p0:
+    // Ratified RVV1.0 (rv64gcv / a bare "v" / the embedded zve* tiers): the full
+    // grouping grid including the fractional mf8/mf4/mf2 rungs.
     return "mf8,mf4,mf2,m1,m2,m4,m8";
+  case RVVVersion::Unknown:
+    // No concrete RVV generation named -> no LMUL restriction (gate stays
+    // silent on this axis, the historical behaviour).
+    return "";
+  }
   return "";
 }
 
@@ -458,8 +474,9 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   if (!supportedLMUL.empty())
     rvvProperties["supported_lmul"] = supportedLMUL;
   // Derive the RVV ISA-generation fact (the deepest N1 divergence axis). RVV0.7
-  // (xtheadvector / C920) and RVV1.0 share every SEW/LMUL/VLEN axis but differ
-  // on the ratified ta/ma policy: an agnostic-policy body is RVV1.0-only. The
+  // (xtheadvector / C920) and RVV1.0 share the SEW/VLEN axes but diverge on the
+  // ratified ta/ma policy (an agnostic-policy body is RVV1.0-only) AND on the
+  // LMUL grid (RVV0.7 has no fractional LMUL -- see supportedLMUL above). The
   // version is stamped as a queryable provider-op property the legality gate
   // reads (mirroring supported_sew). Unknown -> no fact (the gate stays silent).
   llvm::StringRef rvvVersion = stringifyRVVVersion(

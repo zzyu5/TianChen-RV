@@ -1,8 +1,9 @@
 // N1 ISA-GENERATION EVIDENCE (the deepest N1 divergence axis). The SAME kernel
 // body -- an i32 / SEW=32 elementwise add that REQUIRES the ratified RVV1.0
 // tail/mask-agnostic (ta/ma) vector policy -- is routed to DIFFERENT legality
-// outcomes on two RVV profiles that share EVERY other capability axis (VLEN,
-// SEW, LMUL) and differ ONLY in the RVV ISA GENERATION. The generation is the
+// outcomes on two RVV profiles that share VLEN and SEW and differ in the RVV ISA
+// GENERATION (and, as a second derived axis, in the LMUL grid: RVV0.7.1 has no
+// fractional LMUL -- see the supported_lmul stamp below). The generation is the
 // `rvv_version` capability fact the plugin-local C++ authority derives from each
 // profile's -march and stamps onto the bare @rvv provider; the EmitC legality
 // gate then queries it:
@@ -17,7 +18,8 @@
 // N1 bar ("同一 kernel 在多个真实 profile 上，被 capability 查询导向不同的合法性
 // /选择/dispatch 结果"), the axis K1's VLEN divergence cannot reach: rv64gcv and
 // rv64gc_xtheadvector are NOT binary compatible (a 1.0 binary SIGILLs on the
-// C920) yet share VLEN=128 / SEW 8..64 / all LMUL -- only the generation differs.
+// C920) yet share VLEN=128 / SEW 8..64 -- the generation differs, and with it the
+// LMUL grid (RVV0.7 lacks the fractional rungs).
 //
 // HARDWARE GROUNDING: the C920 runs 0.7.1 `th.v*` under rv64gc_xtheadvector and
 // SIGILLs on a 1.0 rv64gcv binary (proven on the real silicon). This lit gates
@@ -27,8 +29,10 @@
 
 // First, the pass-only RUN lines prove CAUSATION (not correlation): the derived
 // rvv_version that lands on the bare @rvv provider differs purely by the -march,
-// while supported_sew is IDENTICAL (both full vector units) -- so the legality
-// divergence below is the ISA-generation axis, not a SEW/LMUL axis.
+// while supported_sew is IDENTICAL (both full 8..64 vector units). supported_lmul
+// also diverges by the -march (RVV0.7 floors out the fractional rungs) -- so the
+// legality divergence below is the ISA-generation (ta/ma) axis specifically, with
+// the LMUL grid as an independent capability axis the same derivation produces.
 
 // RUN: tcrv-opt %s \
 // RUN:   --tcrv-rvv-materialize-probed-capability-axes=march=rv64gcv \
@@ -79,13 +83,19 @@ module {
 
 // Causation: the pass stamps the march-derived ISA generation onto the bare @rvv
 // provider. rv64gcv -> rvv_version 1.0; rv64gc_xtheadvector -> rvv_version 0.7.
-// supported_sew is the SAME for both (8,16,32,64) -- the only divergence is the
-// generation, so the legality split below is purely the ISA-generation axis.
+// supported_sew is the SAME for both (8,16,32,64); supported_lmul DIVERGES (RVV1.0
+// carries the fractional mf2/mf4/mf8 rungs, RVV0.7.1 has no fractional LMUL so it
+// floors at m1). So the legality split below rests on the ISA-generation (ta/ma)
+// axis, and the LMUL axis is a SECOND, independent capability divergence the same
+// pass derives. The attr-dict prints alphabetically: rvv_version, supported_lmul,
+// supported_sew.
 // STAMP-RVV10: tcrv.exec.capability @rvv
 // STAMP-RVV10-SAME: rvv_version = "1.0"
+// STAMP-RVV10-SAME: supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8"
 // STAMP-RVV10-SAME: supported_sew = "8,16,32,64"
 // STAMP-RVV07: tcrv.exec.capability @rvv
 // STAMP-RVV07-SAME: rvv_version = "0.7"
+// STAMP-RVV07-SAME: supported_lmul = "m1,m2,m4,m8"
 // STAMP-RVV07-SAME: supported_sew = "8,16,32,64"
 
 // Profile A (RVV1.0 rv64gcv): the live-materialized rvv_version is 1.0, which has

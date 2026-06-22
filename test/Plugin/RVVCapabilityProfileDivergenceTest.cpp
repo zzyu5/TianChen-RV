@@ -106,9 +106,11 @@ int runFullVProfileDerivesSEW64() {
     return fail("full-V supported_sew expected '8,16,32,64', got '" +
                 supportedSEW + "'");
   llvm::StringRef supportedLMUL = rvv->getProperty("supported_lmul");
-  if (!supportedLMUL.contains("m8") || !supportedLMUL.contains("m1"))
-    return fail("full-V supported_lmul expected the full grouping grid, got '" +
-                supportedLMUL + "'");
+  // rv64gcv is RVV1.0: the full grouping grid INCLUDING the fractional rungs.
+  // This is the regression guard that the RVV1.0 allow-list is byte-unchanged.
+  if (supportedLMUL != "mf8,mf4,mf2,m1,m2,m4,m8")
+    return fail("full-V (RVV1.0) supported_lmul expected the full grouping grid "
+                "'mf8,mf4,mf2,m1,m2,m4,m8', got '" + supportedLMUL + "'");
 
   llvm::outs()
       << "N1 full-V (rv64gcv) probe derives supported_sew=8,16,32,64 "
@@ -193,8 +195,10 @@ int runProfilesDivergeOnSEW64() {
 
 // The RVV ISA-GENERATION fact (the deepest N1 divergence axis): the SAME march
 // tokenizer that derives the support axes derives the version. rv64gcv (RVV1.0)
-// and rv64gc_xtheadvector (RVV0.7 / C920) share every SEW/LMUL axis but differ
-// on the ISA generation. The 0.7 markers (xtheadvector, an explicit 0p7 suffix)
+// and rv64gc_xtheadvector (RVV0.7 / C920) share the SEW axis but differ on the
+// ISA generation (and on the LMUL grid -- RVV0.7 has no fractional LMUL, asserted
+// in runProbedVersionFactDiverges). The 0.7 markers (xtheadvector, an explicit
+// 0p7 suffix)
 // must NOT fold to 1.0 via the embedded "gcv" substring.
 int runRVVVersionDerivationDiverges() {
   // The C920's portable RVV0.7 spelling -> RVV0.7.
@@ -229,11 +233,15 @@ int runRVVVersionDerivationDiverges() {
 }
 
 // The probe->capability conversion stamps the version fact onto the built RVV
-// capability: rv64gcv -> rvv_version=1.0, rv64gc_xtheadvector -> rvv_version=0.7,
-// while EVERY support axis (supported_sew / supported_lmul) is IDENTICAL (both
-// are full vector units). So the SAME gate query that finds matching support
-// axes still finds a divergent ISA generation -- the legality gate's
-// ratified-policy (ta/ma) split rests on this fact.
+// capability: rv64gcv -> rvv_version=1.0, rv64gc_xtheadvector -> rvv_version=0.7.
+// The SEW axis is IDENTICAL across the two (both are 8..64 vector units), but the
+// LMUL axis DIVERGES: RVV1.0 advertises the fractional rungs (mf8/mf4/mf2) in its
+// supported_lmul, while RVV0.7.1 (xtheadvector / C920) has NO fractional LMUL at
+// all (a hardware fact -- the XuanTie 0.7.1 vector header declares zero mf2/mf4/
+// mf8 types) so its supported_lmul is exactly {m1,m2,m4,m8}. So the SAME gate
+// query that finds a matching SEW axis still finds a divergent ISA generation AND
+// a divergent supported_lmul -- two N1 capability divergence axes derived from
+// one ISA-evidence parse.
 int runProbedVersionFactDiverges() {
   mlir::MLIRContext context;
   loadDialects(context);
@@ -266,16 +274,36 @@ int runProbedVersionFactDiverges() {
     return fail("rv64gc_xtheadvector probe expected rvv_version '0.7', got '" +
                 v07 + "'");
 
-  // The support axes are IDENTICAL: the divergence is purely the generation.
+  // The SEW axis is IDENTICAL: that divergence is purely the generation.
   llvm::StringRef sew10 = lookupRVV(*rvv10Caps)->getProperty("supported_sew");
   llvm::StringRef sew07 = lookupRVV(*rvv07Caps)->getProperty("supported_sew");
   if (sew10 != sew07 || sew10 != "8,16,32,64")
     return fail("RVV1.0 and RVV0.7 must share supported_sew=8,16,32,64 (the "
                 "divergence is the generation, not the SEW axis)");
 
+  // The LMUL axis DIVERGES: RVV1.0 carries the fractional rungs, RVV0.7 does not.
+  llvm::StringRef lmul10 = lookupRVV(*rvv10Caps)->getProperty("supported_lmul");
+  llvm::StringRef lmul07 = lookupRVV(*rvv07Caps)->getProperty("supported_lmul");
+  if (lmul10 != "mf8,mf4,mf2,m1,m2,m4,m8")
+    return fail("RVV1.0 supported_lmul expected the full fractional grid "
+                "'mf8,mf4,mf2,m1,m2,m4,m8', got '" + lmul10 + "'");
+  if (lmul07 != "m1,m2,m4,m8")
+    return fail("RVV0.7 supported_lmul expected the no-fractional grid "
+                "'m1,m2,m4,m8', got '" + lmul07 + "'");
+  if (lmul10 == lmul07)
+    return fail("RVV1.0 and RVV0.7 supported_lmul must DIVERGE (RVV0.7 has no "
+                "fractional LMUL)");
+  if (!llvm::StringRef(lmul10).contains("mf2") ||
+      llvm::StringRef(lmul07).contains("mf2") ||
+      llvm::StringRef(lmul07).contains("mf4") ||
+      llvm::StringRef(lmul07).contains("mf8"))
+    return fail("RVV1.0 supported_lmul must INCLUDE mf2 and RVV0.7 must EXCLUDE "
+                "every fractional (mf2/mf4/mf8) rung");
+
   llvm::outs() << "N1 probe->capability stamps DIVERGENT RVV generation: "
-                  "rv64gcv=1.0 vs rv64gc_xtheadvector=0.7, support axes "
-                  "IDENTICAL (generation-only divergence)\n";
+                  "rv64gcv=1.0 vs rv64gc_xtheadvector=0.7; supported_sew "
+                  "IDENTICAL but supported_lmul DIVERGES (RVV1.0 has the "
+                  "fractional mf2/mf4/mf8 rungs, RVV0.7 floors at m1)\n";
   return 0;
 }
 

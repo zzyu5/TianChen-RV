@@ -101,19 +101,32 @@ llvm::Error validateRVVProbeCapabilityFacts(
 // allow-list ("8,16,32,64" for a full-V / zve64* / xtheadvector tier; "8,16,32"
 // for an embedded zve32* tier) or "" when the evidence names no concrete RVV
 // element-width tier. The XuanTie xtheadvector (RVV0.7 on the C920) is a full
-// vector unit -- element widths 8..64, all LMUL groupings -- so it derives the
-// same support axes as full-V; it diverges from RVV1.0 only on the ISA
-// GENERATION (deriveRVVVersion), not on these element-width / LMUL axes.
+// vector unit on the ELEMENT-WIDTH axis -- element widths 8..64 -- so it derives
+// the same supported_sew as full-V; it diverges from RVV1.0 on the ISA
+// GENERATION (deriveRVVVersion) AND on the LMUL axis (RVV0.7 has no fractional
+// LMUL; see deriveSupportedLMULAllowList).
 // This is the SAME authority the probe->capability conversion uses; exporting it
 // lets a materialization pass write the derived axis onto the in-IR provider op
 // from a march/profile selection without fabricating toolchain-probe facts.
 std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
                                         llvm::StringRef isaVectorHints);
 
-// Derives the LMUL grouping SUPPORT allow-list. Every conforming RISC-V vector
-// configuration (full "V" and the embedded zve* tiers alike) provides the same
-// LMUL grouping set, so a concrete RVV tier advertises the full grouping
-// allow-list ("mf8,mf4,mf2,m1,m2,m4,m8"); otherwise "" (no LMUL restriction).
+// Derives the LMUL grouping SUPPORT allow-list, DRIVEN OFF the RVV-generation
+// fact (deriveRVVVersion), not a raw march substring (core-invariants I1/I3).
+// The two ratified-vs-pre-ratification generations diverge on the LMUL grid:
+//   * RVV1.0 (rv64gcv / a bare "v" token / an embedded zve* tier) advertises the
+//     FULL grouping grid "mf8,mf4,mf2,m1,m2,m4,m8" -- it has the fractional LMUL
+//     rungs (mf8/mf4/mf2) as well as the whole multipliers.
+//   * RVV0.7.1 (XuanTie xtheadvector on the C920) has NO fractional LMUL at all
+//     -- empirically proven on hardware (the XuanTie 0.7.1 vector header declares
+//     ZERO mf2/mf4/mf8 types) -- so it advertises ONLY the whole multipliers
+//     "m1,m2,m4,m8".
+//   * Unknown generation -> "" (no LMUL restriction).
+// This is a SECOND N1 capability divergence axis (alongside SEW / VLEN / the
+// ta/ma policy split): the SAME kernel resolves a different supported_lmul on
+// RVV0.7 vs RVV1.0, so a fractional-LMUL body is gated OUT on RVV0.7 while it is
+// admitted on RVV1.0. As with SEW, this is the support set the legality gate
+// queries, never the body's single selected LMUL.
 std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
                                          llvm::StringRef isaVectorHints);
 
