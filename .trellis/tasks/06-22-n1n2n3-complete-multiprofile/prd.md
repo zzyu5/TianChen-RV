@@ -50,10 +50,14 @@
 - 先搞清状况再编;合理 `-j`(fedora 可 -t64;k1 弱→ -j4~8;rvv -j16);用 remote `timeout` 防 zombie;背靠背同-load 比值抗负载。
 - 板子专用目录,绝不碰别人的树;structured emitc raw()=0;fail-closed verifier;real ssh 证据;诚实 ledger(区分 Win-A 编译器-tune vs Win-B kernel-swap)。
 
-## Acceptance (evolving)
-- [ ] ⑤ tcrv-opt emit competent narrow-deferred → 干净「全-compiler、只变 LMUL」ablation,rvv 实测 N(数值 PASS)。
-- [ ] ④-PRIZE: max-legal-LMUL 进 q4_0 block-dots,rvv 上 ON/OFF e2e(llama)ablation 实测(诚实,哪怕 modest)。
-- [ ] ② N1 多-profile:同 kernel 在 rvv(128)/k1(256)[/fedora RVV0.7] 上 legality/selection/dispatch 实测分化 + 真硅 run。
-- [ ] ④ N2:RVV0.7 codegen 可行性(rv64gcv0p7)+ 能否 zero-core-branch 当第二 family。
-- [ ] ① N1 breadth:沿分化/胜出拓 kernel。
-- [ ] 全程 structured raw()=0 / fail-closed / real ssh 证据 / 诚实区分 Win-A vs Win-B / clean rebuild 绿。
+## Acceptance (evolving) — status 2026-06-22
+- [x] **⑤ tcrv-opt emit competent narrow-deferred → 干净全-compiler LMUL ablation** `[3d2a2b3f]`:budget 32→m8/12→m4/9→m1,
+  同 deferred-accumulate 算法、只变 LMUL、两臂都编译器 emit;rvv 实测 wide÷narrow **2.27–3.79×**,两臂数值 EXACT vs scalar oracle `[709bb69d]`。
+- [~] **④-PRIZE: Win-A 进 llama hot path** `[87c540ec]`:advisor 重构后落地为 **VLEN-aware repack strip**(非 max-LMUL 进 block-dot,那会撞 per-block-reduce 墙)。
+  K1 实测:compiler 自动选 1×16@VLEN256,数值 PASS,**1.48× faster** vs 2×8 `[08a11764]`。**剩**:full llama.cpp e2e(K1 上跑真模型)未做(microbench 已证 decode kernel)。
+- [x] **② N1 多-profile 真硅分化** `[4d36bdb3, d6022f58]`:q8_0 winner m2@128→m1@256(同-session,~7%,categorical LMUL-family reversal);
+  q4_1 elision flip(K1 +11.2%);q4_0 factor flip(marginal);q5_0/q5_1 null(m1-only,结构性)。static argmin 在**每个 kernel×chip 都错**→ measured>static 普遍必需。
+- [~] **④ N2 / Fedora RVV0.7**:Fedora 确认是真 RVV0.7(SG2042/C920,RVV1.0 SIGILL)。RVV0.7 codegen 需 XuanTie 工具链(rv64gcv0p7,clang16 不支持)→ **deferred**。N2 第二 family 仍 IME-class、hardware-blocked。
+- [x] **① N1 breadth**:沿 VLEN 分化拓到 q8_0/q4_1/q4_0/q5 family-coverage map(见上)。
+- [x] **全程**:structured raw()=0 / fail-closed verifier / real ssh 证据 / Win-A(编译器-tune)vs Win-B(kernel-swap)分清 / clean rebuild 绿 / 诚实 ledger(advisor 抓过 verifier 错机器、我抓 q4_1 overturn)。
+- **Open 下一阶段(用户 steer)**:(2) full llama e2e on K1;(3) Fedora RVV0.7 codegen(XuanTie 工具链);(4) consolidate for paper;扩 VLEN strip 到更多 quant repack。
