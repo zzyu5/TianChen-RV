@@ -227,6 +227,22 @@ The clean coherent e2e landing (agent in progress): GEMM→scalar `_generic` (co
 GEMV→emitted RVV0.7 (validated decode) → llama runs coherent on the C920 with the q4_0 DECODE HOT PATH
 being our compiler-emitted RVV0.7 kernel. The GEMM RVV0.7 numerical bug is a real, located follow-up.
 
+## Win-A in llama on Fedora/RVV0.7 — ENGAGEMENT proven, correctness bug open (2026-06-22)
+The full-llama e2e on the C920 (per-file-march mitigation: ggml fractional-LMUL reference compiled
+scalar `-march=rv64gc`, OUR q4_0 repack compiled `-march=rv64gc_xtheadvector`) RUNS:
+- **Both our RVV0.7 kernels ENGAGE in real llama inference on the C920**: `TCRV EMITTED GEMM(...RVV0.7)
+  ENGAGED` (prefill, ×12) + `TCRV EMITTED GEMV(...RVV0.7) ENGAGED` (decode) fire on the real model.
+  tg128 = **3.71 t/s** decode (the engaged decode kernel is our compiler-emitted RVV0.7 GEMV). objdump
+  confirms `th.v*` 0.7.1 in the engaged kernels, zero standard-V leak → REAL RVV0.7 silicon execution.
+- **So the ENGAGEMENT half of "Win-A in llama on a 2nd ISA generation" is DONE**: our compiler-emitted
+  RVV0.7 q4_0 kernels run as the q4_0 hot-path kernels in real llama on the C920.
+- **Correctness is the open issue**: the full q4_0 path outputs garbage ("####") vs rvv's "Paris". GEMV is
+  bit-exact (validated); GEMM is the prime suspect (never numeric-validated) BUT my local structural diff
+  shows the GEMM RVV0.7 emission MATCHES the correct GEMV pattern (numHalves 2→1, AVL 8→16, offsets *8→*16
+  all correct) — so the bug is either a subtle GEMM value/activation defect OR the GEVM-in-llama
+  wiring/build (q8_0 activation prep under the scalar path). The clean-landing rebuild (GEMM→scalar +
+  GEMV→RVV0.7) is the discriminator (in progress). Pinpointing needs on-C920 numeric bisection.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
