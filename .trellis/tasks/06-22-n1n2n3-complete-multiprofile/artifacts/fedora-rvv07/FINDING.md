@@ -243,6 +243,28 @@ scalar `-march=rv64gc`, OUR q4_0 repack compiled `-march=rv64gc_xtheadvector`) R
   wiring/build (q8_0 activation prep under the scalar path). The clean-landing rebuild (GEMM→scalar +
   GEMV→RVV0.7) is the discriminator (in progress). Pinpointing needs on-C920 numeric bisection.
 
+## DECISIVE: GEMM IS the bug, located to the 4th act-row accumulator at f32m4 (2026-06-22)
+Isolated on-C920 GEMM RVV0.7 numeric test (`gemm-rvv07-numeric` harness, vs ggml `_generic`, 200 trials)
+= **FAIL** (norm 5.4 → 6.1e35, ≫ 1e-4). This settles GEMM-vs-wiring: **GEMM is the bug, not the llama
+wiring.** The failure pattern is the locator:
+| nr | nc | norm | worst error at |
+|---|---|---|---|
+| 4 | 16 | 5.42 | row=3 col=15 |
+| 4 | 32 | 5.96 | row=3 col=26 |
+| 4 | 64 | 6.1e35 | row=3 col=12 |
+| 8 | 16 | 6.1e35 | row=3 col=12 |
+| 8 | 64 | 6.46 | row=3 col=28 |
+**The worst error is ALWAYS row=3** (the 4th activation row) across all configs — col varies. So the bug
+is in the **4th act-row accumulator (`sumf_3`)** specifically. Mechanism: the GEMM has 4 act-row f32
+accumulators (sumf_0..3); the re-scope widened them f32m2→**f32m4** (16 weight-col lanes each) → 4×f32m4 =
+16 vregs just for accumulators. The 4th (sumf_3) is corrupted (aliasing / vreg-pressure spill / a
+mis-widened offset from the f32m2→f32m4 shift). The 6e35 (garbage/overflow) confirms uninitialized/aliased
+data in sumf_3. (Contrast: the GEMV has ONE f32m4 accumulator — no 4-way pressure → bit-exact.)
+**The fix is located**: the GEMM emitter's 4-act-row f32m4 accumulator handling (sumf_3 specifically) —
+the f32m2→f32m4 widening for the 4-accumulator GEMM introduced the defect. Validates the user's instinct
+that Win-A-IN-llama (the e2e) catches what the microbench/compile-validation missed. The GEMV RVV0.7
+remains bit-exact + engages in real llama; only the GEMM prefill needs this accumulator fix.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
