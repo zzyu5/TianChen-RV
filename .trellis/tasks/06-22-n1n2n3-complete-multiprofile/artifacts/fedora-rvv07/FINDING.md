@@ -265,6 +265,22 @@ the f32m2→f32m4 widening for the 4-accumulator GEMM introduced the defect. Val
 that Win-A-IN-llama (the e2e) catches what the microbench/compile-validation missed. The GEMV RVV0.7
 remains bit-exact + engages in real llama; only the GEMM prefill needs this accumulator fix.
 
+## GEMM sumf_3 bug — ruled-out candidates (precise handoff for the fix)
+Read the GEMM emitter (`emitRepackGemmQ4_0Q8_0`); the OBVIOUS candidates are all CORRECT (so the fix
+should NOT re-check them):
+- LMUL chain: `l8=coreLmul`, `l16=(m1?m2:m1)`, `l32=(m1?m4:m2)` — correct (i8m1→i16m2→i32m4→f32m4).
+- Seed AVL: `vfmv_v_f(0.0, vl8)` with `vl8=sizeLit(half)`=16 for RVV0.7 — inits all 16 f32m4 lanes, correct.
+- numHalves = weight_interleave/half = 16/16 = 1 (one strip), correct.
+- Activation index `al.qs[i*4+c]` — width-independent, same as the correct RVV1.0 mf2 path.
+The harness says the ENTIRE sumf_3 (4th activation column) is wrong (worst at row/col=3, varying weight-col,
+norm up to 6e35) while sumf_0..2 are ~ok. So the defect is **4th-column-specific** in the scale-fold
+(`vfwmul`/`vfcvt`/`vfmacc` with the c=3 f16 scale `al.d[3]`) OR a cross-column register interaction at
+f32m4 (4×f32m4=16 vregs + 4×i16m2 products=16 vregs → the 4th may alias at the doubled LMUL). **Fix
+approach**: runtime-bisect with the ready `~/tcrv-fedora-gemm-numeric/gemm_verify` harness on the C920 —
+toggle the c=3 scale-fold / accumulator and re-run to localize. This is a focused fresh-session debug
+(the bug is isolated, the validation gate is built); the GEVM RVV0.7 is bit-exact + engages in real llama,
+so ONLY the GEMM prefill needs it.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
