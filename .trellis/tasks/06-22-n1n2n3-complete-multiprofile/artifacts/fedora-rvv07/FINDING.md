@@ -209,6 +209,24 @@ WHOLE llama.cpp (not just our emitted kernels) under the XuanTie toolchain hits 
   run bit-exact, but the full-system llama build is gated by ggml's 383-fractional-LMUL reference. The
   compiler-side RVV0.7 work is COMPLETE; the full-system e2e on RVV0.7 has a documented mitigation path.
 
+## CRITICAL e2e finding (corrects c5bc6589): GEMM RVV0.7 is NUMERICALLY WRONG
+The full-llama e2e on the C920 caught a real bug. Decisive discriminator (identical model/template/
+greedy `--temp 0 -s 42 -p "The capital of France is" -n 16`):
+- rvv (RVV1.0, known-good): "...is **Paris.**" COHERENT
+- Fedora (RVV0.7 per-file build): "**################**" GARBAGE
+Same harness → NOT an artifact → **our RVV0.7 q4_0 path produces wrong logits** (forward pass runs, no
+crash/NaN, but the math is wrong). **Suspect = GEMM** (prefill):
+- GEMV (decode) IS bit-exact on the C920 (c5bc6589 validated it numerically). ✅
+- **GEMM (prefill) was only compile+disasm-validated, NEVER hardware-numeric-run** — and it's the
+  "genuine re-scope" (lane-wise, no reduction, coreLmul slaved to the f32m4 fold). The re-scope
+  introduced a numerical bug. GEMM-only bench runs (67.8 t/s, no NaN) but is NOT correct.
+**Honest correction to c5bc6589**: "all 3 RVV0.7 classes emit+run" was right that GEMM EMITS+COMPILES+
+RUNS, but WRONG to imply it's correct — GEMV RVV0.7 is bit-exact; **GEMM RVV0.7 is numerically broken**
+(the m1→i16m2→i32m4→f32m4 chain shift has a defect, masked because GEMM was never numeric-validated).
+The clean coherent e2e landing (agent in progress): GEMM→scalar `_generic` (correct prefill) +
+GEMV→emitted RVV0.7 (validated decode) → llama runs coherent on the C920 with the q4_0 DECODE HOT PATH
+being our compiler-emitted RVV0.7 kernel. The GEMM RVV0.7 numerical bug is a real, located follow-up.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
