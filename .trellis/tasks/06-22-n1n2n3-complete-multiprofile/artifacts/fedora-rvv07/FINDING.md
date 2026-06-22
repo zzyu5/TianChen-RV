@@ -150,6 +150,21 @@ The last RVV0.7 kernel-class gap is a small, well-bounded change (NOT the feared
   here only because the agent dispatch was infra-timing-out; the implementation is a clean ~few-line
   trellis-implement task. Once landed, ALL 3 RVV0.7 kernel classes emit + run on the C920.
 
+## CORRECTION (honest ledger): repack-GEMV RVV0.7 is an emitter rewrite, NOT a stamp
+The prior "BOUNDED stamp" characterization (commit 8eeace63) was **WRONG — I conflated two op
+families**. The `coreLmul`/`integer_core_lmul` parameterization (RVVToEmitCBlockQuantLinear.cpp
+lines 63/504/948) belongs to the **block-dot** emitter (`GgmlBlockDot*Op`). The **repack** ops
+(`GgmlRepackGemmQ40Q80Op` @RVVOps.td:4155, `GgmlRepackGemvQ40Q80Op` @4250) carry ONLY `half_lanes`,
+NOT `integer_core_lmul`; the repack emitter `emitRepackGemvQ4_0Q8_0` (@2614) **hardcodes `i8mf2`**
+(`i8mf2Type` @2641, `vle..i8mf2` @2706, `vsll/vsra_vx_i8mf2` @2721) — it never reads `coreLmul`. The
+existing vlen256 lit confirms the repack stays `i8mf2` at any half_lanes. So stamping
+`integer_core_lmul` on the repack op is inert (the emitter ignores it). **The real fix** = add
+`integer_core_lmul` to the two repack ODS ops + parameterize the hardcoded `i8mf2`/widened chain +
+~6 intrinsic spellings in `emitRepackGemv/GemmQ4_0Q8_0` off `coreLmul` (mirroring the block-dot
+emitter), then stamp from the pass. That is a **bounded emitter+ODS task** (mirror an existing
+pattern), NOT a one-line stamp and NOT a multi-day cascade. **Deferred follow-on.**
+(The block-dot m1-on-C920 proof stands — that WAS the block-dot op, correctly.)
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
