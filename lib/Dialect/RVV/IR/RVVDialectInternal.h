@@ -492,6 +492,14 @@ bool isSupportedGenericWideningProductWideDeferredRelation(
 bool isSupportedGenericWideningProductWideDotReduceRelation(
     llvm::StringRef relation);
 
+// Extract the i16 source LMUL ({mf2,m1,m2,m4}) from a VALIDATED i16 dot-reduce
+// product relation "signed-i16<L>xi16<L>-to-i32<W>". Returns empty if the
+// relation is not a supported dot-reduce product relation. The i32 accumulator
+// LMUL is then getRVVNextWiderLMUL(sourceLMUL). Used by the verifiers to derive
+// the expected operand/result/with_vl LMUL from the relation (parametric,
+// fail-closed) instead of a static m4/m8 allowlist.
+llvm::StringRef getRVVDotReduceProductSourceLMUL(llvm::StringRef relation);
+
 // The deferred-wide NON-widening accumulate op (i32m8 + i32m8 -> i32m8 via
 // vadd.vv) for the i16 dot-reduce family carries only 'kind' and
 // 'accumulate_relation'.
@@ -500,6 +508,14 @@ bool isAllowedDeferredAccumulateAttr(llvm::StringRef name);
 bool isSupportedGenericDeferredAccumulateKind(llvm::StringRef kind);
 
 bool isSupportedGenericDeferredAccumulateRelation(llvm::StringRef relation);
+
+// Extract the i32 accumulator LMUL ({m1,m2,m4,m8}) from a VALIDATED i16
+// dot-reduce accumulate relation "signed-i32<W>-into-i32<W>-deferred-add".
+// Returns empty if the relation is not a supported deferred-accumulate relation.
+// Used by DeferredAccumulateOp::verify to derive the expected operand/result/
+// with_vl LMUL from the relation (parametric, fail-closed) instead of a static
+// m8 allowlist.
+llvm::StringRef getRVVDotReduceAccumulateLMUL(llvm::StringRef relation);
 
 bool isAllowedMaskedWideningDotReduceAttr(llvm::StringRef name);
 

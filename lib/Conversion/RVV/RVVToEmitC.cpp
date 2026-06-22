@@ -4973,6 +4973,11 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         // (wide widening product), and i32/m8 (the loop-carried deferred vector
         // accumulator). These extend the in-scope grid for the deferred-wide
         // path; the narrow i8mf4/i16mf2/i32m1 rungs are unchanged.
+        // The all-compiler LMUL-width ablation for the i16 dot-reduce family adds
+        // the NARROW deferred rungs the budget knob selects: i16 source
+        // {mf2,m1,m2,m4} -> i32 accumulator {m1,m2,m4,m8} (one EMUL step wider).
+        // So the i32 grid spans {m1,m2,m4,m8} (the m4 accumulator is the budget-12
+        // narrow rung) and the i16 grid spans {mf2,m1,m2,m4}.
         bool inScope = false;
         if (sew == 8)
           inScope = lmul == "mf4" || lmul == "m2";
@@ -4980,7 +4985,8 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2" ||
                     lmul == "m4";
         else if (sew == 32)
-          inScope = lmul == "m1" || lmul == "m2" || lmul == "m8";
+          inScope = lmul == "m1" || lmul == "m2" || lmul == "m4" ||
+                    lmul == "m8";
         else
           inScope = lmul == "m1" || lmul == "m2";
         if (!inScope)

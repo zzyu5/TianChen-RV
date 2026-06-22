@@ -143,10 +143,24 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
   // config (SEW16 LMUL m4).
   if (auto deferredAccumulate =
           getInput().getDefiningOp<DeferredAccumulateOp>()) {
+    // The trailing reduce folds the loop-carried i32 accumulator into an i32m1
+    // scalar lane. The accumulator LMUL ({m1,m2,m4,m8}) is DERIVED from the
+    // deferred_accumulate relation, not pinned to m8: the budget-driven LMUL-
+    // width ablation produces the wide m8 accumulator at the default budget and
+    // a narrower m4/m2/m1 accumulator at a constrained budget. The reduction
+    // RESULT is always i32m1 (a reduction collapses to one m1 lane regardless of
+    // source LMUL); the enclosing with_vl strip config is the i16 source LMUL.
+    const llvm::StringRef accumulatorLMUL = getRVVDotReduceAccumulateLMUL(
+        deferredAccumulate.getAccumulateRelation());
+    if (accumulatorLMUL.empty())
+      return emitOpError()
+             << "requires the producing tcrv_rvv.deferred_accumulate to carry a "
+                "supported accumulate_relation "
+                "\"signed-i32<W>-into-i32<W>-deferred-add\"";
     if (getKind() != "add")
       return emitOpError()
              << "requires kind \"add\" for the deferred-wide dot-reduce "
-                "trailing standalone reduction (folds the i32m8 accumulator "
+                "trailing standalone reduction (folds the i32 accumulator "
                 "with one vredsum)";
     if (getAccumulatorLayout() !=
         "scalar-i32-seed-lane0-from-accumulator-input")
@@ -161,13 +175,16 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
                 "deferred-wide dot-reduce trailing standalone reduction";
     if (op->getNumOperands() != 3 || op->getNumResults() != 1)
       return emitOpError()
-             << "requires one i32 LMUL m8 input vector operand, one scalar "
+             << "requires one i32 input vector operand, one scalar "
                 "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
                 "operand, and one i32 LMUL m1 vector result";
-    if (!isGenericRVVVectorI32M8(getInput().getType()))
+    if (!isGenericRVVVectorType(getInput().getType(), getRVVSEW32Bits(),
+                                accumulatorLMUL))
       return emitOpError()
              << "requires deferred-wide dot-reduce trailing reduction source "
-                "vector to have type !tcrv_rvv.vector<i32, \"m8\">";
+                "vector to have type !tcrv_rvv.vector<i32, \""
+             << accumulatorLMUL
+             << "\"> matching the producing deferred_accumulate";
     if (!isGenericRVVVectorI32M1(getResult().getType()))
       return emitOpError()
              << "requires deferred-wide dot-reduce trailing reduction result "
@@ -215,12 +232,26 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
              << "requires enclosing tcrv_rvv.with_vl to carry explicit "
                 "SEW/LMUL metadata for the deferred-wide dot-reduce trailing "
                 "reduction";
+    // The enclosing with_vl strip config is the i16 SOURCE LMUL, derived from
+    // the producing widening_product's relation (the source rung the budget
+    // selected), not pinned to m4.
+    auto sourceProduct =
+        deferredAccumulate.getProduct().getDefiningOp<WideningProductOp>();
+    const llvm::StringRef sourceLMUL =
+        sourceProduct ? getRVVDotReduceProductSourceLMUL(
+                            sourceProduct.getProductRelation())
+                      : llvm::StringRef{};
+    if (sourceLMUL.empty())
+      return emitOpError()
+             << "requires the deferred-wide dot-reduce widening_product to carry "
+                "a supported product_relation \"signed-i16<L>xi16<L>-to-i32<W>\"";
     if (expectedSEW.getInt() != getRVVSEW16Bits() ||
-        expectedLMUL.getValue() != getRVVLMULM4())
+        expectedLMUL.getValue() != sourceLMUL)
       return emitOpError()
              << "requires enclosing tcrv_rvv.with_vl config to be SEW16 LMUL "
-                "m4 (the dot-reduce strip config) for the deferred-wide "
-                "trailing reduction";
+             << sourceLMUL
+             << " (the dot-reduce strip config) for the deferred-wide trailing "
+                "reduction";
     if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
       return emitOpError()
              << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

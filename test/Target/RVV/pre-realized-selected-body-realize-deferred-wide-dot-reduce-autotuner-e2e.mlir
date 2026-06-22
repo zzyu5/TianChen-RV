@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=WIDE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 // RUN: sed 's/source_lmul = "mf2"/"tcrv_rvv.low_precision_resource.vector_register_budget" = 12 : i64, source_lmul = "mf2"/' %s | tcrv-opt --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=NARROW
+// RUN: sed 's/source_lmul = "mf2"/"tcrv_rvv.low_precision_resource.vector_register_budget" = 12 : i64, source_lmul = "mf2"/' %s | tcrv-opt --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROW-EMITC
+// RUN: sed 's/source_lmul = "mf2"/"tcrv_rvv.low_precision_resource.vector_register_budget" = 9 : i64, source_lmul = "mf2"/' %s | tcrv-opt --tcrv-materialize-selected-lowering-boundaries | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROWEST-EMITC
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 //
@@ -23,9 +25,14 @@
 // vwadd.wv accumulate, distinct pathology (per-iteration vredsum latency vs the
 // byte under-LMUL), distinct max-legal budget answer.
 //
-// The NARROW run (sed-injected constrained budget 12 < 16 crossover) PRUNES the
-// wide rung and falls through to the i16mf2 per-iteration-vredsum body: the
-// budget GENUINELY drives narrow-vs-wide for i16 (N3, the prune binds).
+// CLEAN LMUL-WIDTH ABLATION (all-compiler): a constrained budget does NOT fall
+// back to the per-iteration-vredsum algorithm. Instead the gearbox auto-prunes
+// the wide rung and selects a NARROWER but otherwise-IDENTICAL deferred-accumulate
+// rung -- SAME algorithm (one persistent i32 accumulator + ONE trailing vredsum),
+// only the LMUL width changes. budget 12 (<16 crossover) -> the i16m2 -> i32m4
+// rung; budget 9 (<10) -> the i16mf2 -> i32m1 rung. So wide@32 vs narrow@12 vs
+// narrow@9 is a pure LMUL-width sweep, every rung compiler-emitted, the algorithm
+// held constant -- the honest provenance behind the measured ~2-4x (N3).
 
 module {
   tcrv.exec.kernel @dot_reduce_autotuner_e2e_kernel {
@@ -87,13 +94,51 @@ module {
 // EMITC: call_opaque "__riscv_vse32_v_i32m1"
 
 // The constrained budget (12 < the 16 crossover) prunes the wide i32m8 rung; the
-// realization falls through to the NARROW i16mf2 per-iteration dot-reduce body.
-// The budget genuinely drives the choice (N3 -- the prune binds).
-// NARROW-NOT: tcrv_rvv.deferred_accumulate
-// NARROW: tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
-// NARROW: tcrv_rvv.widening_dot_reduce
-// NARROW-SAME: dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
-// NARROW-SAME: !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+// gearbox selects the NARROWER i16m2 -> i32m4 deferred rung -- the SAME deferred-
+// accumulate algorithm (widening_product + deferred_accumulate + ONE trailing
+// standalone_reduce), only the LMUL width is narrower. NOT the per-iteration
+// vredsum path. The budget genuinely drives the LMUL width (N3 -- the prune
+// binds), and the narrow side is now compiler-emitted (clean ablation).
+// NARROW: tcrv_rvv.setvl %{{.*}} {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64}
+// NARROW: tcrv_rvv.with_vl
+// NARROW-SAME: lmul = "m2"
+// NARROW-SAME: sew = 16 : i64
+// NARROW: tcrv_rvv.load %{{.*}} -> !tcrv_rvv.vector<i16, "m2">
+// NARROW: tcrv_rvv.load %{{.*}} -> !tcrv_rvv.vector<i16, "m2">
+// NARROW: tcrv_rvv.widening_product
+// NARROW-SAME: product_relation = "signed-i16m2xi16m2-to-i32m4"
+// NARROW-SAME: -> !tcrv_rvv.vector<i32, "m4">
+// NARROW: tcrv_rvv.deferred_accumulate
+// NARROW-SAME: accumulate_relation = "signed-i32m4-into-i32m4-deferred-add"
+// NARROW-SAME: -> !tcrv_rvv.vector<i32, "m4">
+// NARROW: tcrv_rvv.standalone_reduce
+// NARROW-SAME: kind = "add"
+// NARROW-SAME: -> !tcrv_rvv.vector<i32, "m1">
+// NARROW-NOT: tcrv_rvv.widening_dot_reduce
+
+// The narrow@12 compiler C: the SAME deferred algorithm at i16m2 -> i32m4 (vs the
+// wide i16m4 -> i32m8) -- ONE vredsum, NO per-iteration vwredsum. This is the
+// LMUL-width-only ablation, all compiler-emitted.
+// NARROW-EMITC-LABEL: emitc.func @tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv
+// NARROW-EMITC: call_opaque "__riscv_vmv_v_x_i32m4"
+// NARROW-EMITC: call_opaque "__riscv_vle16_v_i16m2"
+// NARROW-EMITC: call_opaque "__riscv_vwmul_vv_i32m4"
+// NARROW-EMITC: call_opaque "__riscv_vadd_vv_i32m4"
+// NARROW-EMITC-NOT: call_opaque "__riscv_vwredsum{{.*}}"
+// NARROW-EMITC: call_opaque "__riscv_vredsum_vs_i32m4_i32m1"
+// NARROW-EMITC: call_opaque "__riscv_vse32_v_i32m1"
+
+// The narrowest@9 compiler C (RISK path: mf2 source / m1 accumulator, the
+// genuinely narrowest deferred conversion rung): SAME deferred algorithm, ONE
+// vredsum over the i32m1 accumulator, NO per-iteration vwredsum.
+// NARROWEST-EMITC-LABEL: emitc.func @tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv
+// NARROWEST-EMITC: call_opaque "__riscv_vmv_v_x_i32m1"
+// NARROWEST-EMITC: call_opaque "__riscv_vle16_v_i16mf2"
+// NARROWEST-EMITC: call_opaque "__riscv_vwmul_vv_i32m1"
+// NARROWEST-EMITC: call_opaque "__riscv_vadd_vv_i32m1"
+// NARROWEST-EMITC-NOT: call_opaque "__riscv_vwredsum{{.*}}"
+// NARROWEST-EMITC: call_opaque "__riscv_vredsum_vs_i32m1_i32m1"
+// NARROWEST-EMITC: call_opaque "__riscv_vse32_v_i32m1"
 
 // The deferred-wide i16 dot-reduce body materializes a DEPLOYABLE bundle: the
 // route-family description engine recognizes the structural chain and exports a

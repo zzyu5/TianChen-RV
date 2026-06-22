@@ -685,9 +685,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceBody(
 
     auto accVecType =
         llvm::dyn_cast<tcrvrvv::VectorType>(accumulate.getResult().getType());
-    if (!accVecType || accVecType.getLmul() != "m8")
+    // Accept any budget-legal i32 accumulator LMUL ({m1,m2,m4,m8}): the wide
+    // m8 rung at the default budget, a narrower m4/m2/m1 rung at a constrained
+    // budget. The downstream intrinsic emission is fully type-driven (it derives
+    // <dtype><lmul> from accVecType), so the narrow rung emits the SAME deferred-
+    // accumulate algorithm (vadd.vv at accLmul + ONE trailing vredsum) at the
+    // narrower width -- the all-compiler LMUL-width ablation.
+    if (!accVecType || !accVecType.getElementType().isSignlessInteger(32) ||
+        (accVecType.getLmul() != "m1" && accVecType.getLmul() != "m2" &&
+         accVecType.getLmul() != "m4" && accVecType.getLmul() != "m8"))
       return rewriter.notifyMatchFailure(
-          scope, "deferred-wide dot-reduce accumulator not an i32m8 vector");
+          scope, "deferred-wide dot-reduce accumulator not an i32 m1/m2/m4/m8 "
+                 "vector");
     mlir::Type accEmitC = convertVectorTypeToEmitC(accVecType);
     if (!accEmitC)
       return rewriter.notifyMatchFailure(

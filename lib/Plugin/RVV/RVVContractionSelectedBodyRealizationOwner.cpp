@@ -1135,9 +1135,19 @@ mlir::Operation *createRealizedGenericDeferredAccumulate(
   state.addOperands({product, vl});
   state.addAttribute("kind",
                      builder.getStringAttr("signed_deferred_accumulate_add"));
-  state.addAttribute(
-      "accumulate_relation",
-      builder.getStringAttr("signed-i32m8-into-i32m8-deferred-add"));
+  // The accumulate relation is DERIVED from the rung's accumulator LMUL, not
+  // hardcoded m8: "signed-i32m8-into-i32m8-deferred-add" at the default budget,
+  // the narrower "signed-i32m4-into-i32m4-deferred-add" or
+  // "signed-i32m1-into-i32m1-deferred-add" at a constrained budget. The i32
+  // widened product IS the accumulator width (same LMUL), so both sides of the
+  // same-width vadd.vv carry the SAME LMUL -- only the width changes across the
+  // ablation.
+  const std::string accumulateRelation =
+      ("signed-i32" + accumulatorLMUL + "-into-i32" + accumulatorLMUL +
+       "-deferred-add")
+          .str();
+  state.addAttribute("accumulate_relation",
+                     builder.getStringAttr(accumulateRelation));
   state.addTypes(getGenericVectorType(builder, accumulatorSEW, accumulatorLMUL,
                                       /*isUnsigned=*/false));
   return builder.create(state);
@@ -2086,11 +2096,22 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizeDeferredWideDotReduceBody(
   auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
       builder, loc, plan.rhs, setvl.getVl(), sourceSEW, rung.sourceLMUL,
       /*isUnsigned=*/false));
+  // The product/accumulate relation strings are DERIVED from the budget-pruned
+  // rung's source/accumulator LMUL, not hardcoded m4/m8: at the default budget
+  // this is "signed-i16m4xi16m4-to-i32m8", at a constrained budget it is the
+  // narrower "signed-i16m2xi16m2-to-i32m4" or "signed-i16mf2xi16mf2-to-i32m1".
+  // Both are the SAME single-widening product feeding the SAME deferred vadd.vv;
+  // only the LMUL width changes, so the algorithm is held constant across the
+  // LMUL-width ablation.
+  const std::string productRelation =
+      ("signed-i16" + rung.sourceLMUL + "xi16" + rung.sourceLMUL + "-to-i32" +
+       rung.accumulatorLMUL)
+          .str();
   auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
       createRealizedGenericWideningProductCompute(
-          builder, loc, "signed_widening_product",
-          "signed-i16m4xi16m4-to-i32m8", lhsLoad.getLoaded(),
-          rhsLoad.getLoaded(), setvl.getVl(), productSEW, rung.accumulatorLMUL,
+          builder, loc, "signed_widening_product", productRelation,
+          lhsLoad.getLoaded(), rhsLoad.getLoaded(), setvl.getVl(), productSEW,
+          rung.accumulatorLMUL,
           /*isUnsigned=*/false));
   auto accumulate = llvm::cast<tcrv::rvv::DeferredAccumulateOp>(
       createRealizedGenericDeferredAccumulate(builder, loc, product.getResult(),
@@ -2628,10 +2649,17 @@ realizePreRealizedRVVContractionOwnerImpl(
                 kDeferredWideDotReduceReserveRegisterCost);
         std::optional<RVVDotReduceDeferredWideLMULRung> selected =
             selectRVVDotReduceDeferredWideMaxLegalLMULRung(rungs);
-        // Realize the deferred-wide winner only when the budget-pruned selection
-        // is the i32m8 accumulator rung (source i16m4). Any narrower legal rung
-        // (a constrained budget) falls through to the narrow realization.
-        if (selected && selected->accumulatorLMUL == tcrv::rvv::getRVVLMULM8())
+        // Realize the deferred-wide dot-reduce body at ANY budget-legal rung the
+        // gearbox picks. The selector returns the WIDEST legal accumulator-LMUL
+        // for the resolved budget (m4/m8 at the default 32, a narrower m2/m4 or
+        // mf2/m1 rung at a constrained budget). Both rungs are the SAME deferred-
+        // accumulate algorithm (one persistent i32 accumulator + ONE trailing
+        // reduce) -- only the LMUL width changes. This makes the budget knob a
+        // clean LMUL-width ablation entirely inside the compiler: wide budget ->
+        // wide rung, constrained budget -> a competent NARROW-deferred rung (NOT
+        // the per-iteration-vredsum algorithm). The realized body's vector types
+        // carry the rung choice, so the tune decision stays structural (I5).
+        if (selected)
           return realizeDeferredWideDotReduceBody(request, requires, plan,
                                                   *selected);
       }

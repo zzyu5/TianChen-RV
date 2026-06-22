@@ -176,16 +176,18 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
           "strip configs to share the realized tail/mask policy");
   } else if (isDeferredWideDotReduce) {
     // The deferred-wide i16 dot-reduce route (2nd kernel family) carries TWO
-    // structural configs: the loop/strip config (sew16/m4, the setvl driving the
-    // runtime AVL/VL control plan over the i16m4 -> i32m8 winner) and the i32m1
-    // RESULT config (plan.sew/lmul, driving result typing/header). Assert each
+    // structural configs: the loop/strip config (sew16/<L>, the setvl driving the
+    // runtime AVL/VL control plan over the i16<L> -> i32<W> winner) and the i32m1
+    // RESULT config (plan.sew/lmul, driving result typing/header). The strip LMUL
+    // <L> is the budget-selected dot-reduce source rung (m4 at the default budget,
+    // a narrower m2/mf2 at a constrained budget), NOT pinned to m4. Assert each
     // against its own structural source (I5: both are realized configs).
-    if (plan.runtimeControlPlan.sew != tcrv::rvv::getRVVSEW16Bits() ||
-        plan.runtimeControlPlan.lmul != tcrv::rvv::getRVVLMULM4())
+    if (!tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(
+            plan.runtimeControlPlan.sew, plan.runtimeControlPlan.lmul))
       return makeRVVEmitCRouteProviderError(
           "deferred-wide i16 dot-reduce contraction route-family plan requires "
-          "the runtime AVL/VL control plan to run at the realized i16m4 strip "
-          "config");
+          "the runtime AVL/VL control plan to run at a realized i16 strip "
+          "config (the budget-selected dot-reduce source rung)");
     if (plan.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
         plan.lmul != tcrv::rvv::getRVVLMULM1())
       return makeRVVEmitCRouteProviderError(
@@ -241,15 +243,16 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
         llvm::Twine(plan.sourceSEW) + "/" + plan.sourceLMUL + " -> " +
         llvm::Twine(plan.productSEW) + "/" + plan.productLMUL + " -> " +
         llvm::Twine(plan.sew) + "/" + plan.lmul + "'");
-  // The deferred-wide i16 dot-reduce realized source is the wide i16m4 strip (vs
-  // the narrow i16mf2 dot-reduce); its result is i32m1. This is the structural
-  // realized wide ladder of the SAME logical dot-reduce op (I5), admitted as a
-  // parallel config (it does NOT loosen isSupportedContractionSourceResultConfig
-  // for any other route).
+  // The deferred-wide i16 dot-reduce realized source is the budget-selected i16
+  // strip ({mf2,m1,m2,m4}, vs the narrow per-iteration i16mf2 dot-reduce); its
+  // result is i32m1. This is the structural realized ladder of the SAME logical
+  // dot-reduce op (I5), admitted as a parallel config (it does NOT loosen
+  // isSupportedContractionSourceResultConfig for any other route). The source
+  // LMUL is the budget-selected rung, NOT pinned to m4.
   const bool supportsDeferredWideDotReduceConfig =
       isDeferredWideDotReduce &&
-      plan.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      plan.sourceLMUL == tcrv::rvv::getRVVLMULM4() &&
+      tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sourceSEW,
+                                                       plan.sourceLMUL) &&
       plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       plan.lmul == tcrv::rvv::getRVVLMULM1();
   if (!isProductReductionChain && !supportsDeferredWideDotReduceConfig &&
@@ -1797,14 +1800,15 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
         "provider-derived 8-bit source -> 16-bit product -> 32-bit "
         "accumulator/result SEW/LMUL facts");
   // The deferred-wide i16 dot-reduce route description (2nd kernel family) carries
-  // the wide realized source i16m4 -> result i32m1; admit it as a parallel config
-  // (mirrors the plan-level supportsDeferredWideDotReduceConfig).
+  // the realized budget-selected source i16<L> -> result i32m1; admit it as a
+  // parallel config (mirrors the plan-level supportsDeferredWideDotReduceConfig).
+  // The source LMUL is the budget-selected dot-reduce rung, NOT pinned to m4.
   const bool supportsDeferredWideDotReduceConfig =
       description.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredDotAccumulateReduceAdd &&
-      description.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      description.sourceLMUL == tcrv::rvv::getRVVLMULM4() &&
+      tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(description.sourceSEW,
+                                                       description.sourceLMUL) &&
       description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       description.lmul == tcrv::rvv::getRVVLMULM1();
   if (!usesProductReductionChain && !supportsDeferredWideDotReduceConfig &&

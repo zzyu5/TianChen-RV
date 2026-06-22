@@ -394,11 +394,16 @@ bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul) {
 
 bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
                                            llvm::StringRef lmul) {
-  // The 2nd-family (i16 dot-reduce) deferred-wide strip config: i16 loads at
-  // LMUL m4 (16-bit SEW), widened once to an i32m8 product == i32m8 deferred
-  // accumulator. PARALLEL config admitted only on the deferred-wide dot-reduce
-  // setvl/with_vl scope; it does NOT loosen isRVVFirstSliceDataflowConfig.
-  return sew == kRVVSEW16Bits && lmul == kRVVLMULM4;
+  // The 2nd-family (i16 dot-reduce) deferred-wide strip config: i16 loads at the
+  // budget-selected source LMUL ({mf2,m1,m2,m4}, 16-bit SEW), widened once to an
+  // i32 product == i32 deferred accumulator (one EMUL step wider). The default
+  // budget selects m4 (-> i32m8); a constrained budget selects a narrower m2
+  // (-> i32m4) or mf2 (-> i32m1) strip -- the all-compiler LMUL-width ablation.
+  // PARALLEL config admitted only on the deferred-wide dot-reduce setvl/with_vl
+  // scope; it does NOT loosen isRVVFirstSliceDataflowConfig.
+  return sew == kRVVSEW16Bits &&
+         (lmul == kRVVLMULMF2 || lmul == kRVVLMULM1 || lmul == kRVVLMULM2 ||
+          lmul == kRVVLMULM4);
 }
 
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {

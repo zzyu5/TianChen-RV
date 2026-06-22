@@ -1872,8 +1872,11 @@ bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
          relation == "unsigned-u8mf4xu8mf4-to-u16mf2" ||
          // The deferred-wide max-legal-LMUL schedule (N3) wide product rung.
          relation == "signed-i8m2xi8m2-to-i16m4" ||
-         // The 2nd-family (i16 dot-reduce) deferred-wide single-widening rung.
-         relation == "signed-i16m4xi16m4-to-i32m8";
+         // The 2nd-family (i16 dot-reduce) deferred-wide single-widening rung at
+         // ANY budget-selected source LMUL ({mf2,m1,m2,m4} -> i32 one step wider).
+         // Parsed, not a static allowlist, so the narrow ablation rungs are
+         // admitted alongside the wide m4/m8 rung (fail-closed, I7).
+         isSupportedGenericWideningProductWideDotReduceRelation(relation);
 }
 
 bool isSupportedGenericWideningProductWideDeferredRelation(
@@ -1881,9 +1884,50 @@ bool isSupportedGenericWideningProductWideDeferredRelation(
   return relation == "signed-i8m2xi8m2-to-i16m4";
 }
 
+llvm::StringRef getRVVDotReduceProductSourceLMUL(llvm::StringRef relation) {
+  // Parse "signed-i16<L>xi16<L>-to-i32<W>" where <L> is a source rung
+  // {mf2,m1,m2,m4} and <W> is exactly <L> widened one EMUL step (the i32 product
+  // is one step wider than the i16 source). Both i16 LMULs must MATCH and <W>
+  // must be the next-wider of <L>. Returns the source LMUL <L> on success, empty
+  // on any mismatch/illegal shape (fail-closed, I7).
+  llvm::StringRef rest = relation;
+  if (!rest.consume_front("signed-i16"))
+    return {};
+  llvm::StringRef sourceLMUL;
+  for (llvm::StringRef candidate : {"mf2", "m1", "m2", "m4"}) {
+    if (rest.consume_front(candidate)) {
+      sourceLMUL = candidate;
+      break;
+    }
+  }
+  if (sourceLMUL.empty())
+    return {};
+  if (!rest.consume_front("xi16"))
+    return {};
+  if (!rest.consume_front(sourceLMUL))
+    return {};
+  if (!rest.consume_front("-to-i32"))
+    return {};
+  llvm::StringRef accumulatorLMUL =
+      tianchenrv::plugin::rvv::getRVVNextWiderLMUL(sourceLMUL);
+  if (accumulatorLMUL.empty())
+    return {};
+  if (rest != accumulatorLMUL)
+    return {};
+  return sourceLMUL;
+}
+
 bool isSupportedGenericWideningProductWideDotReduceRelation(
     llvm::StringRef relation) {
-  return relation == "signed-i16m4xi16m4-to-i32m8";
+  // The i16 single-widening dot-reduce product rung. The relation is PARSED, not
+  // a static allowlist: it must be "signed-i16<L>xi16<L>-to-i32<W>" where <L> is
+  // one of the source rungs {mf2,m1,m2,m4} and <W> is exactly <L> widened one
+  // EMUL step. This future-proofs the budget-driven LMUL-width ablation: the
+  // default budget yields "signed-i16m4xi16m4-to-i32m8", a constrained budget
+  // the narrower m2/m4 or mf2/m1 rung -- all admitted by the same parse, every
+  // other shape (mismatched LHS/RHS LMUL, wrong widening step, illegal source)
+  // rejected (fail-closed, I7).
+  return !getRVVDotReduceProductSourceLMUL(relation).empty();
 }
 
 bool isAllowedWideningAccumulateAttr(llvm::StringRef name) {
@@ -1906,10 +1950,39 @@ bool isSupportedGenericDeferredAccumulateKind(llvm::StringRef kind) {
   return kind == "signed_deferred_accumulate_add";
 }
 
+llvm::StringRef getRVVDotReduceAccumulateLMUL(llvm::StringRef relation) {
+  // Parse "signed-i32<W>-into-i32<W>-deferred-add" where <W> is an i32
+  // accumulator LMUL {m1,m2,m4,m8} (the i16 source rung widened one step) and
+  // BOTH sides carry the SAME <W>. Returns <W> on success, empty on any
+  // mismatch/illegal shape (fail-closed, I7).
+  llvm::StringRef rest = relation;
+  if (!rest.consume_front("signed-i32"))
+    return {};
+  llvm::StringRef accumulatorLMUL;
+  for (llvm::StringRef candidate : {"m1", "m2", "m4", "m8"}) {
+    if (rest.consume_front(candidate)) {
+      accumulatorLMUL = candidate;
+      break;
+    }
+  }
+  if (accumulatorLMUL.empty())
+    return {};
+  if (!rest.consume_front("-into-i32"))
+    return {};
+  if (!rest.consume_front(accumulatorLMUL))
+    return {};
+  if (rest != "-deferred-add")
+    return {};
+  return accumulatorLMUL;
+}
+
 bool isSupportedGenericDeferredAccumulateRelation(llvm::StringRef relation) {
-  // The i16 dot-reduce deferred-wide accumulate is NON-widening: the i32m8
-  // widened product is added into the loop-carried i32m8 accumulator (vadd.vv).
-  return relation == "signed-i32m8-into-i32m8-deferred-add";
+  // The i16 dot-reduce deferred accumulate is NON-widening: the i32<W> widened
+  // product is added into the loop-carried i32<W> accumulator (vadd.vv, SAME
+  // width on both sides). The relation is PARSED, not a static allowlist: the
+  // default budget yields the m8 form, a constrained budget the narrower m4 or
+  // m1 form; every mismatched/illegal shape is rejected (fail-closed, I7).
+  return !getRVVDotReduceAccumulateLMUL(relation).empty();
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -3297,10 +3370,14 @@ bool isBoundedDeferredWideDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
   auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
   if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
     return false;
-  // The deferred-wide dot-reduce strip config is SEW16 LMUL m4.
-  if (sew.getInt() != getRVVSEW16Bits() || lmul.getValue() != getRVVLMULM4())
+  // The deferred-wide dot-reduce strip config is SEW16 at the budget-selected
+  // source LMUL ({mf2,m1,m2,m4}), NOT pinned to m4: the default budget selects
+  // m4, a constrained budget a narrower rung. The i16 load LMUL must match the
+  // with_vl strip LMUL.
+  if (!isRVVDeferredWideDotReduceStripConfig(sew.getInt(), lmul.getValue()))
     return false;
-  if (!isGenericRVVVectorSignedI16M4(load.getLoaded().getType()))
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          load.getLoaded().getType(), getRVVSEW16Bits(), lmul.getValue()))
     return false;
 
   bool hasWideProductUse = false;

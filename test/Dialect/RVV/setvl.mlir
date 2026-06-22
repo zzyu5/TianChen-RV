@@ -38,9 +38,12 @@ module {
 module {
   tcrv.exec.kernel @rvv_setvl_reject_sew {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    // SEW16 LMUL m8 is NOT a valid config: not a first-slice dataflow config and
+    // not a deferred-wide dot-reduce strip rung (the i16 source rungs cap at m4;
+    // m8 would widen the i32 product past the m8 LMUL cap). Rejected.
     // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2", or SEW64 with LMUL "m1"}}
     %vl = tcrv_rvv.setvl %avl {
-      lmul = "m1",
+      lmul = "m8",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 16 : i64
     } : index -> !tcrv_rvv.vl

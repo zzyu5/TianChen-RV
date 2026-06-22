@@ -206,7 +206,8 @@ mlir::LogicalResult SetVLOp::verify() {
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
               "\"m1\" or \"m2\", or a deferred-wide strip config (SEW8 LMUL "
-              "\"m2\" or SEW16 LMUL \"m4\")";
+              "\"m2\", or SEW16 LMUL \"mf2\"/\"m1\"/\"m2\"/\"m4\" for the "
+              "budget-selected dot-reduce rung)";
 
   if (!getPolicy())
     return emitOpError()
@@ -266,7 +267,8 @@ mlir::LogicalResult WithVLOp::verify() {
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
               "\"m1\" or \"m2\", or a deferred-wide strip config (SEW8 LMUL "
-              "\"m2\" or SEW16 LMUL \"m4\")";
+              "\"m2\", or SEW16 LMUL \"mf2\"/\"m1\"/\"m2\"/\"m4\" for the "
+              "budget-selected dot-reduce rung)";
   if (sew && !lmul)
     return emitOpError()
            << "requires optional 'lmul' metadata when optional 'sew' "

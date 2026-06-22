@@ -61,6 +61,56 @@ using ::tianchenrv::plugin::rvv::getRVVSelectedBodyArithmeticIntrinsic;
 using ::tianchenrv::plugin::rvv::getRVVSelectedBodyMaskAndIntrinsic;
 using ::tianchenrv::plugin::rvv::getRVVSelectedBodySelectIntrinsic;
 
+// Parse the i16 SOURCE LMUL ({mf2,m1,m2,m4}) out of a dot-reduce product
+// relation "signed-i16<L>xi16<L>-to-i32<W>" where <W> is exactly <L> widened one
+// EMUL step. Returns empty on any mismatch/illegal shape. This admits the
+// budget-driven LMUL-width ablation (wide m4/m8 at the default budget, narrower
+// m2/m4 or mf2/m1 at a constrained budget) without a static allowlist; the
+// dialect verifier already enforces the same parse (fail-closed, I5/I7).
+llvm::StringRef rvvDotReduceProductSourceLMUL(llvm::StringRef relation) {
+  llvm::StringRef rest = relation;
+  if (!rest.consume_front("signed-i16"))
+    return {};
+  llvm::StringRef sourceLMUL;
+  for (llvm::StringRef candidate : {"mf2", "m1", "m2", "m4"}) {
+    if (rest.consume_front(candidate)) {
+      sourceLMUL = candidate;
+      break;
+    }
+  }
+  if (sourceLMUL.empty())
+    return {};
+  if (!rest.consume_front("xi16") || !rest.consume_front(sourceLMUL) ||
+      !rest.consume_front("-to-i32"))
+    return {};
+  llvm::StringRef accumulatorLMUL = getRVVNextWiderLMUL(sourceLMUL);
+  if (accumulatorLMUL.empty() || rest != accumulatorLMUL)
+    return {};
+  return sourceLMUL;
+}
+
+// Parse the i32 ACCUMULATOR LMUL ({m1,m2,m4,m8}) out of a dot-reduce accumulate
+// relation "signed-i32<W>-into-i32<W>-deferred-add". Returns empty on mismatch.
+llvm::StringRef rvvDotReduceAccumulateLMUL(llvm::StringRef relation) {
+  llvm::StringRef rest = relation;
+  if (!rest.consume_front("signed-i32"))
+    return {};
+  llvm::StringRef accumulatorLMUL;
+  for (llvm::StringRef candidate : {"m1", "m2", "m4", "m8"}) {
+    if (rest.consume_front(candidate)) {
+      accumulatorLMUL = candidate;
+      break;
+    }
+  }
+  if (accumulatorLMUL.empty())
+    return {};
+  if (!rest.consume_front("-into-i32") || !rest.consume_front(accumulatorLMUL))
+    return {};
+  if (rest != "-deferred-add")
+    return {};
+  return accumulatorLMUL;
+}
+
 llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
                                            mlir::Operation *op,
                                            RVVSelectedBodyOperationKind kind,
@@ -630,14 +680,17 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
       product.getKind() == "signed_widening_product" &&
       product.getProductRelation() == "signed-i8m2xi8m2-to-i16m4";
   // The N3 deferred-wide i16 dot-reduce winner (2nd kernel family) widens the
-  // strip config from mf2 to m4 (i16m4 x i16m4 -> i32m8) -- a SINGLE widening
-  // whose product IS the i32m8 deferred accumulator width. Accept the wide signed
-  // i16 product relation ADDITIVELY -- the narrow + byte branches above are
-  // byte-untouched. The relation is read structurally from the typed op (I5); a
-  // downstream tcrv_rvv.deferred_accumulate is required to complete the chain.
+  // strip config one step (i16<L> x i16<L> -> i32<W>) -- a SINGLE widening whose
+  // product IS the i32 deferred accumulator width. The LMUL is PARSED, not pinned
+  // to m4/m8: the budget-driven LMUL-width ablation realizes the wide m4/m8 rung
+  // at the default budget and a narrower m2/m4 or mf2/m1 rung at a constrained
+  // budget. Accept any such signed i16 dot-reduce product relation ADDITIVELY --
+  // the narrow + byte branches above are byte-untouched. The relation is read
+  // structurally from the typed op (I5); a downstream tcrv_rvv.deferred_accumulate
+  // is required to complete the chain.
   const bool isSignedDeferredWideDotProduct =
       product.getKind() == "signed_widening_product" &&
-      product.getProductRelation() == "signed-i16m4xi16m4-to-i32m8";
+      !rvvDotReduceProductSourceLMUL(product.getProductRelation()).empty();
   if (!isSignedProduct && !isUnsignedProduct && !isSignedDeferredWideProduct &&
       !isSignedDeferredWideDotProduct)
     return makeRVVEmitCRouteProviderError(
@@ -734,19 +787,25 @@ llvm::Error recordRVVSelectedBodyDeferredAccumulate(
         "deferred-wide i16 dot-reduce RVV route requires "
         "tcrv_rvv.deferred_accumulate to follow the selected signed "
         "tcrv_rvv.widening_product head");
-  if (slice.wideningProductOp.getProductRelation() !=
-      "signed-i16m4xi16m4-to-i32m8")
+  // The product head's source LMUL <L> is PARSED (the budget-selected rung), not
+  // pinned to m4; the deferred accumulate's accumulator LMUL <W> must be exactly
+  // <L> widened one step (the i32 product IS the accumulator width).
+  const llvm::StringRef productSourceLMUL = rvvDotReduceProductSourceLMUL(
+      slice.wideningProductOp.getProductRelation());
+  if (productSourceLMUL.empty())
     return makeRVVEmitCRouteProviderError(
         "deferred-wide i16 dot-reduce RVV route requires the "
-        "tcrv_rvv.deferred_accumulate to follow the wide "
-        "signed-i16m4xi16m4-to-i32m8 product head");
+        "tcrv_rvv.deferred_accumulate to follow a wide "
+        "signed-i16<L>xi16<L>-to-i32<W> product head");
   if (accumulate.getKind() != "signed_deferred_accumulate_add")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.deferred_accumulate kind '") +
         accumulate.getKind() +
         "' for bounded RVV deferred-wide i16 dot-reduce accumulate route");
-  if (accumulate.getAccumulateRelation() !=
-      "signed-i32m8-into-i32m8-deferred-add")
+  const llvm::StringRef accumulatorLMUL =
+      rvvDotReduceAccumulateLMUL(accumulate.getAccumulateRelation());
+  if (accumulatorLMUL.empty() ||
+      getRVVNextWiderLMUL(productSourceLMUL) != accumulatorLMUL)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.deferred_accumulate "
                     "accumulate_relation '") +

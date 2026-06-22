@@ -1743,22 +1743,47 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   // The deferred-wide (N3 resource-aware max-legal-LMUL winner) realization of the
   // SAME logical widening_dot_reduce_add op (2nd kernel family, signed i16
   // dot-reduce). UNLIKE the narrow path (whose setvl carries the i32m1 RESULT
-  // config), the deferred-wide setvl carries the SOURCE strip config (sew16/m4),
+  // config), the deferred-wide setvl carries the SOURCE strip config (sew16/<L>),
   // so the result config (sew32/m1) is derived explicitly here. The wide LMUL
-  // ladder is fixed by the structural ops: source i16m4, product i32m8, deferred
-  // accumulate i32m8 (same-width vadd.vv), ONE trailing reduce to i32m1, store
-  // i32m1. Every config below mirrors those typed result types (I5) -- nothing is
-  // inferred from a name/route id.
+  // ladder is fixed by the structural ops: source i16<L>, product i32<W>, deferred
+  // accumulate i32<W> (same-width vadd.vv), ONE trailing reduce to i32m1, store
+  // i32m1. The source/accumulate LMUL is READ from the realized typed ops (the
+  // budget-selected rung), NOT pinned to m4/m8: the budget-driven LMUL-width
+  // ablation realizes the wide m4/m8 rung at the default budget and a narrower
+  // m2/m4 or mf2/m1 rung at a constrained budget. Every config below mirrors the
+  // typed result types (I5) -- nothing is inferred from a name/route id.
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredDotAccumulateReduceAdd) {
+    // Read the realized source/accumulator LMUL from the deferred-accumulate
+    // result type (the budget-selected i32 accumulator <W>); the i16 source <L>
+    // is <W> un-widened one step (the i32 product is one EMUL step wider).
+    auto accumulateType = llvm::dyn_cast_or_null<tcrv::rvv::VectorType>(
+        slice.deferredAccumulateOp
+            ? slice.deferredAccumulateOp.getResult().getType()
+            : mlir::Type());
+    if (!accumulateType)
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide dot-reduction requires a typed i32 accumulate result");
+    llvm::StringRef accumulatorLMUL = accumulateType.getLmul();
+    llvm::StringRef sourceLMUL;
+    for (llvm::StringRef candidate : {"mf2", "m1", "m2", "m4"}) {
+      if (getRVVNextWiderLMUL(candidate) == accumulatorLMUL) {
+        sourceLMUL = candidate;
+        break;
+      }
+    }
+    if (sourceLMUL.empty())
+      return makeRVVEmitCRouteProviderError(
+          "deferred-wide dot-reduction accumulator LMUL is not a legal i16->i32 "
+          "single-widening rung");
     tcrv::rvv::RVVCompileTimeConfig sourceConfig;
     sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULM4();
+    sourceConfig.lmul = sourceLMUL;
     sourceConfig.policy = config.policy;
     tcrv::rvv::RVVCompileTimeConfig accumulateConfig;
     accumulateConfig.sew = tcrv::rvv::getRVVSEW32Bits();
-    accumulateConfig.lmul = tcrv::rvv::getRVVLMULM8();
+    accumulateConfig.lmul = accumulatorLMUL;
     accumulateConfig.policy = config.policy;
     tcrv::rvv::RVVCompileTimeConfig resultConfig;
     resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
@@ -1774,12 +1799,12 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             productSlotResult(slice),
-            "deferred-wide dot-reduction i32m8 product vector",
+            "deferred-wide dot-reduction i32 product vector",
             accumulateConfig))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.deferredAccumulateOp.getResult(),
-            "deferred-wide dot-reduction i32m8 accumulate vector",
+            "deferred-wide dot-reduction i32 accumulate vector",
             accumulateConfig))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
