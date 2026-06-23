@@ -194,8 +194,7 @@ Provenance: `n2-ime/PLUGIN-SLICE.md`.
   real X60 with `use_ime1:1` and produces correct Q4_0 inference (~46.6 tok/s pp / ~8.0 tok/s tg) — but that is
   the **reference oracle** (analogous to ggml/RVV), used to prove the hardware/programming-model, NOT a measure
   of our pass. (`n2-ime/FOUNDATION.md` task 4.)
-- **N2 perf is UNSTARTED** (§5). The proven claim is *zero-core-branch + bit-exact emission*, not an
-  IME-vs-anything speedup.
+- **N2's structural claim excludes perf.** The proven N2 claim is *zero-core-branch + bit-exact emission*. IME PERF is measured separately (NOT part of N2): 5.51× isolated kernel, but e2e **NULL** in decode AND prefill (the matrix unit doesn't transplant to memory-bound e2e; the apparent prefill gain is a build-codegen artifact, decode-control-isolated).
 - **Scope note:** no target-artifact-export route was added (separate ~300-line adapter; the EmitC route is
   produced by the generic pass, independent of export — no zero-core-branch gap). IME2 (int4/sparse/fp16) is
   not on this X60 and is not claimed.
@@ -358,8 +357,7 @@ A `reduction_structure` body fact (deferred_accumulate | per_iteration), stamped
    WIDE_FIXED engages, e2e prefill **1.70× t1 / 1.10× t16**, decode memory-bound-flat (§4.1b). No longer open.
 3. **Win-B regresses on K1/X60 (0.74×).** Per-microarch path selection (repack vs autovec'd-generic) is the
    needed-but-unbuilt next N3 layer (§4.2).
-4. **N2 IME performance is UNSTARTED.** N2 proves zero-core-branch + bit-exact emission only; there is no
-   IME-vs-anything speedup measurement (§3.3).
+4. **IME perf is MEASURED, e2e NULL (not unstarted).** N2's structural claim is zero-core-branch + bit-exact; separately, IME perf = 5.51× isolated kernel but e2e **NULL** in BOTH decode (0.86×) and prefill (apparent 1.4–1.95× is a build-codegen artifact, isolated by the M=1 decode control where the matrix unit physically can't help). No transplant to memory-bound e2e (§3.3).
 5. **Win-C structural novelty NOT demonstrated** — the deferred-vs-per-iter pass is built + checked + toggles 3.0–3.3× pass-ON/OFF, but a register-kept decomposition shows pure-structure ≈1.00× (the 3× is a per-iter `out[0]` memory round-trip, an emitter artifact); the pass is kept as the Win-A structural enabler, not a standalone Win-C (§4.4).
 6. **RVV0.7 repack-GEMV/GEMM emission is a genuine RE-SCOPE, not a bounded fix.** (The earlier "bounded stamp" /
    "bounded emitter+ODS" framings at commits 8eeace63 / 7eb99b99 are explicitly RETRACTED.) Block-dot's
@@ -384,7 +382,7 @@ ISA-generation boundary and the ISA-generation axis itself moving nothing (CONFI
 fractional-prune flip remains structurally impossible — no contradiction). N2 is proven as a zero-core-branch
 second family: our pass consumes the `spacemit.ime` capability fact and emits `vmadot` with no family-name
 branch in core, bit-exact on real X60 (one honest I5 caveat: a single justified asm leaf, no IME intrinsic
-exists; we do not claim raw()==0; IME perf unstarted). N3 stands on Win-A i16-contraction tune (2.27–3.79×
+exists; we do not claim raw()==0; IME perf measured = 5.51× kernel but e2e NULL in decode+prefill). N3 stands on Win-A i16-contraction tune (2.27–3.79×
 microbench, 3 chips, all compiler-emitted) + TWO Win-A results with an e2e leg — the VLEN-strip selection
 (1.48× micro / 1.31× e2e decode on K1) and the repack-LMUL-width tune (2.1× micro decode; **e2e prefill 1.70×
 t1 / 1.10× t16**, decode memory-bound-flat — engagement bug root-caused as a harness toggle and fixed) — +
@@ -411,7 +409,7 @@ interchanged — a microbench win that does not survive e2e is shown as such.
 | **Win-A i16-contraction** (LMUL-width tune) | N3-WinA-tune | **2.27–3.79×** (rvv) · vs tune-OFF narrow-deferred (SAME algorithm, narrow LMUL, ALSO compiler-emitted) · rvv SG2044; **1.8–3.6× K1** VLEN256; **1.4–1.7× C920** RVV0.7 (compression = stronger RVV0.7 baseline floored mf2→m1, NOT a weaker tune) · all byte-exact vs scalar oracle | **none — microbench/selection result, no e2e leg of its own** (the i16 contraction is not a standalone llama hot-path kernel; its e2e analogue is the repack-LMUL row below) | **SOLID** (3 chips, all compiler-emitted; THE Win-A headline) |
 | **Win-A LMUL-in-repack** (WIDE m1 vs NARROW mf2) | N3-WinA-tune | decode **2.11–2.21×** / prefill **1.27–1.38×** · vs NARROW arm (knob-only, both compiler-emitted, disjoint LMUL spellings, 3 distinct `.so` md5s) · rvv SG2044 · norm=0 byte-exact | prefill **1.70× t1** / **1.10× t16** (pp; compute-bound, HOLDS) · **decode FLAT** (tg ≈1.05× t1 / ≈0.93× t16, in noise — memory-bandwidth-bound, LMUL changes compute not traffic) · vs NARROW, rvv 7B Q4_0 · (engagement bug was a build-harness toggle in a different TU — root-caused & FIXED, `libggml-cpu.WIDE_FIXED.so` 7bf39840 engages) | **MEASURED** (micro decode 2.1× does NOT transplant; e2e win is in prefill) |
 | **VLEN-strip selection** (1×16 vs 2×8) | N3-VLEN-strip | **1.48×** · vs 2×8 strip (both compiler-emitted, only strip width differs) · K1 X60 VLEN256, isolated decode kernel | **1.31×** (t1 decode, tg32 2.12 vs 1.62 t/s, both ENGAGED) · vs 2×8 strip · K1 X60 VLEN256 · **HOLDS — selection win in real inference** (engagement+correctness SEAL: emitted strip ran as the literal decode GEVM, output "...Paris.") | **SOLID** (only Win-A result with both a clean micro AND e2e leg) |
-| **IME matmul** (int8→int32 `vmadot`) | N2-IME | **5.51×** · vs a competent RVV vector matmul (`vwmacc`+`vredsum`, NOT ggml's shipped kernel, NOT scalar) · K1 X60 VLEN256, 256³ int8 · both arms bit-exact vs scalar oracle | **0.86–0.98× NULL** (tg16 0.86× / pp32 0.98×) · vs non-IME RVV lib (itself Win-A-tuned 1×16 — a strong baseline) · K1 X60, tinyllama-1B Q4_0 · IME confirmed engaged (not silent RVV) → real "no e2e win," disclosed | micro **SOLID** / e2e **NULL** (matrix unit cannot help memory-bound M=1 decode) |
+| **IME matmul** (int8→int32 `vmadot`) | N2-IME | **5.51×** · vs a competent RVV vector matmul (`vwmacc`+`vredsum`, NOT ggml's shipped kernel, NOT scalar) · K1 X60 VLEN256, 256³ int8 · both arms bit-exact vs scalar oracle | **NULL e2e — decode AND prefill** · decode tg16 0.86× / pp32 0.98× vs non-IME 1×16 RVV (strong baseline), IME engaged, K1 tinyllama-1B Q4_0. PREFILL probe (pp256–1024): apparent 1.37–1.95× is a BUILD-CODEGEN artifact NOT the IME unit — the decode control (1.25× in M=1, where the matrix unit physically can't help) isolates it to clang codegen; ratio decays with M (inverse of a matmul win). No IME-unit e2e win, disclosed | micro **SOLID** / e2e **NULL** (matrix unit cannot help memory-bound M=1 decode) |
 
 **Folded-in honest losses/blocks not given their own row (avoid double-counting):**
 - **K1 repack 0.74× LOSS** — on K1/X60 the q4_0 repack *path* loses to ggml's autovec'd generic q4_0 (3.22 vs
