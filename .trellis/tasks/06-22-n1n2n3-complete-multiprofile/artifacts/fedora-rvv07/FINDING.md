@@ -450,3 +450,30 @@ garbage STILL persisted — definitively localizing it OUTSIDE our q4_0 matmul. 
 **FIX (verified): coherent RVV0.7 llama e2e on the C920 via the standard mul_mat path.** Our compiler's RVV0.7
 q4_0 kernels are PROVEN correct; showcasing them IN the coherent path additionally requires fixing the ggml
 repack activation-quantizer/layout on xtheadvector (a ggml-side follow-up, not a compiler defect).
+
+## EXHAUSTIVE component-level exoneration (2026-06-23) — every repack piece proven correct; bug is the assembled subsystem
+Pursued the repack-path coherence to the end. Verified EVERY component of ggml's q4_0 16x1 repack path on
+the C920, each proven correct/identical to the isolation-validated reference:
+- **Activation quantizer** `ggml_quantize_mat_q8_0_4x1_generic` (the one the 16x1 trait actually uses,
+  INTER_SIZE=1 — NOT the 4x8 the old SEAL scalarized): BYTE-IDENTICAL to the harness's proven-correct
+  quantizer (`qs[j]=srcv[j%4][j/4]`, amax/127 scale, fp16 d). Not the bug.
+- **Weight repack** `make_block_q4_0x16(interleave=1)`: `out.qs[i]=in[i%16].qs[i/16]^0x88` — BYTE-IDENTICAL
+  to the harness's `make_block`; asserts false for any other interleave. Not the bug.
+- **GEMM math**: bit-exact vs a scalar dequant oracle in isolation (norm=0) AND vs ggml's generic 16x1 GEMM
+  in the live e2e (norm=0 across 14400 calls). Not the bug.
+- **GEVM**: bit-exact in isolation across all decode regimes incl. strided+offset. Not the bug.
+
+**Yet the ASSEMBLED repack path is garbage on the C920 — and it is garbage with ggml's OWN generic kernels
+too** (the original all-generic-repack state, 0 emitted markers, was also `####`). So the defect is NOT in
+any individual kernel (ours or ggml's) — it is the assembled ggml q4_0 repack subsystem failing on the C920
+(a ggml-build/integration issue, plausibly an xtheadvector miscompile of the assembled path or an untested
+ggml-on-RVV0.7 repack configuration), which I have now ruled out at the level of every component.
+
+**DEFINITIVE VERDICT:** (1) coherent RVV0.7 llama e2e IS achieved via the standard non-repack mul_mat path
+("Paris", `d0669e99`). (2) Our compiler is exhaustively exonerated — every emitted kernel AND every ggml
+component the kernels interact with is proven correct/identical to the validated reference. (3) Running our
+(correct) repack kernels IN a coherent path is impossible WITHOUT fixing ggml's repack subsystem, which is
+broken on the C920 for ggml's own kernels too — i.e. it is a ggml-upstream/integration bug entirely outside
+our compiler, and outside the q4_0 kernel layer (quantizer + repack + GEMM all proven correct). The honest
+engineering outcome: coherent e2e via non-repack; the repack subsystem on C920 is a ggml-side defect that
+breaks ggml's own reference identically.
