@@ -19,7 +19,9 @@ The three Wins, exactly per the user's definitions (`N1N2N3-LEDGER.md` head):
 - **Win-B** = a generated kernel that **changes the ALGORITHM** (the q4_0 repack: 16-blocks-as-lanes
   GEMM/GEMV). Baseline = **llama.cpp's OWN shipped optimized RVV kernel** (`ggml_vec_dot_*`, real RVV ops),
   NOT scalar, NOT `_generic`, NOT a hand-naive.
-- **Win-C** = an automatic **PASS that changes algorithm STRUCTURE**. **None exists yet** (§4.4).
+- **Win-C** = an automatic **PASS that changes algorithm STRUCTURE**. **None built yet**, but a tractable
+  micro candidate is designed + in-flight (`WIN-C-DESIGN.md`, §2(c) gap 8): deferred-accumulate vs
+  per-iteration reduction (a real loop-carried-dependency change); e2e arm architecturally blocked.
 
 **Cell taxonomy (4 states — never collapsed to binary "value-or-GAP"):**
 
@@ -90,8 +92,8 @@ Provenance: `N1N2N3-LEDGER.md` §2.1/2.2; `k1-vlen256/q8_0-paired-rvv128-k1256.l
 
 | Kernel | Win-A kernel | Win-A e2e | Win-B kernel | Win-B e2e | Win-C |
 |---|---|---|---|---|---|
-| **q4_1 repack GEMV** (`repack_gemv_q4_1_q8_1`) | **GAP (gap 4, QUICK)** — half_lanes/LMUL strip-arm already emits per capability; the q4_0 ablation just hasn't been transplanted to q4_1 | GAP — inherits the e2e BLOCK | code+lit COMPLETE; **GAP (gap 2)** numeric oracle DEFERRED (no ggml q4_1-GEMV oracle for the asymmetric ABI) | **BLOCKED** — no q8_1x4 quantizer / q4_1-repack routing; spacemit `block_q4_1x16` is a different ABI (upstream, not us) | NONE (§4.4) |
-| **q4_1 repack GEMM** (`repack_gemm_q4_1_q8_1`) | **GAP (gap 4, QUICK)** — same buildable ablation | GAP — inherits BLOCK | code **DONE**; **GAP (gap 2)** numeric oracle DEFERRED (no ggml q4_1-GEMM oracle exists) | **BLOCKED** — same upstream gap | NONE (§4.4) |
+| **q4_1 repack GEMV** (`repack_gemv_q4_1_q8_1`) | **MEASURED ~1.80×** WIDE m1 (1×16) vs NARROW mf2 (2×8) · rvv VLEN128 · byte-exact (norm 0), 3-run 1.799–1.804× `[kernel-coverage/q4_1-winA-oracle-FINDING.md; commit 039fcd54]` | GAP — inherits the e2e BLOCK | code+lit COMPLETE; **MEASURED oracle PASS** norm ≤ 7.6e-6 vs scalar q4_1 dequant-matmul ref — correctness only `[same FINDING]` | **BLOCKED** — no q8_1x4 quantizer / q4_1-repack routing; spacemit `block_q4_1x16` is a different ABI (upstream, not us) | NONE (§4.4) |
+| **q4_1 repack GEMM** (`repack_gemm_q4_1_q8_1`) | **GAP (gap 4b, QUICK)** — only the GEVM arm was measured; the GEMM WIDE/NARROW ablation reuses the identical harness | GAP — inherits BLOCK | code **DONE**; **MEASURED oracle PASS** norm ≤ 7.634e-6 vs scalar q4_1 dequant-matmul (nr=16×nc∈{16,32,64,336}) — correctness only `[commit 039fcd54]` | **BLOCKED** — same upstream gap | NONE (§4.4) |
 
 ### 1e. IME — N2 second family (int8→int32 vmadot); own row, not a clean A or B
 
@@ -108,7 +110,7 @@ genuinely **N/A (hard-pinned / emit-only)**. Win-B is per-op-vs-ggml but **micro
 
 | Family (ops) | Win-A | Win-B kernel | Win-B/all e2e | Win-C |
 |---|---|---|---|---|
-| **K-quant block-dots** q6_K/q4_K/q5_K/q2_K/q3_K (+aux32) | **N/A** emit-only (no stamp pass) | vs `ggml_vec_dot_q{6,4,5,2,3}_K_q8_K` — **GAP (not measured)** | **GAP** not-wired (no §7 e2e row) | NONE (§4.4) |
+| **K-quant block-dots** q6_K/q4_K/q5_K/q2_K/q3_K (+aux32) | **N/A** emit-only — *but* q4_K Win-A knob = **emitter parametrization** (deferred, scoped): fixed-m2 emit IS why Win-B loses to ggml `_vl256` `[commit 79db10f0]` | **MEASURED, MIXED** vs ggml's OWN `_vl256` (K1 VLEN256, norm 5e-7..3e-6): q2_K **WIN 1.016×**, q5_K **TIE 0.998×**, q4_K **LOSS** (ggml 1.72×), q6_K **LOSS** (ggml 2.26×), q3_K **LOSS** (ggml 2.13×) — single-LMUL `_generic` fp-order port vs ggml's hand-tuned nibble-split `[commit d27c512a]` | **GAP** not-wired (no §7 e2e row) | NONE (§4.4) |
 | **IQ-quant block-dots** iq4_xs/iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m | **N/A** emit-only | vs per-op `ggml_vec_dot_iq*_q8_K` — **GAP** | **GAP** not-wired | NONE (§4.4) |
 | **Ternary block-dots** tq2_0/tq1_0 | **N/A** emit-only | vs `ggml_vec_dot_tq{2,1}_0_q8_K` — **GAP** | **GAP** not-wired | NONE (§4.4) |
 | **FP4-codebook block-dots** iq4_nl/mxfp4/nvfp4/q1_0 | **N/A** — `coreLmul` read in emitter but **no pass stamps it** (attr-present-not-selected) | vs per-op ggml (q1_0 not mainline → nominal) — **GAP** | **GAP** not-wired | NONE (§4.4) |
@@ -122,6 +124,18 @@ novelty), **not** per-kernel debt. The repack is hand-authored Win-B and correct
 ---
 
 ## 2. Prioritized gap-filling plan
+
+> **Consolidation status (2026-06-24) — folded into §1 above:**
+> - ✅ **Gap 4 (GEVM) + Gap 2** CLOSED — q4_1 repack GEVM Win-A·micro **~1.80×** (byte-exact) + q4_1 GEMM
+>   scalar-oracle **PASS** (norm ≤ 7.6e-6). `[q4_1-winA-oracle-FINDING.md; 039fcd54]`
+> - ✅ **K-quant Win-B·micro** (all 5) vs ggml `_vl256` — honest MIXED (q2_K win / q5_K tie / q4_K·q6_K·q3_K
+>   loss); the losses MOTIVATE the q4_K Win-A knob. `[kquant-winB-micro-FINDING.md; d27c512a]`
+> - ⏳ **Gap 8 (Win-C)** designed + make-or-break IN FLIGHT — `WIN-C-DESIGN.md` (1adc631b); see (c) below.
+> - **Quick-measurement gaps are now largely EXHAUSTED.** Remaining value = the *transplanting* kernels
+>   (K-quant repack, IME prefill) and Win-C — all code-heavy, deliberate efforts, not microbench reruns.
+>
+> **Still open & quick:** Gap 4b (q4_1 repack GEMM Win-A WIDE/NARROW ablation — GEVM done, GEMM reuses the
+> identical harness) · Gap 6 (block-dot SELECTION e2e seal, esp. the load-bearing q8_0 VLEN-flip).
 
 Ordered by value × tractability. "Quick" = existing kernel + existing harness, just bench on rvv/K1.
 
