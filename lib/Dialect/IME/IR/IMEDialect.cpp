@@ -30,6 +30,10 @@ constexpr llvm::StringLiteral kAccumBitsAttrName("accum_bits");
 constexpr llvm::StringLiteral kMacMAttrName("mac_m");
 constexpr llvm::StringLiteral kMacNAttrName("mac_n");
 constexpr llvm::StringLiteral kMacKAttrName("mac_k");
+// Whole-matrix problem dims carried ONLY by tcrv.ime.matmul (the tiled op).
+constexpr llvm::StringLiteral kMatMAttrName("mat_m");
+constexpr llvm::StringLiteral kMatNAttrName("mat_n");
+constexpr llvm::StringLiteral kMatKAttrName("mat_k");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
 
@@ -62,6 +66,12 @@ bool isAllowedMMAAttr(llvm::StringRef attrName) {
          attrName == kAccumBitsAttrName || attrName == kMacMAttrName ||
          attrName == kMacNAttrName || attrName == kMacKAttrName ||
          attrName == kAvailableHartsAttrName || attrName == kIMEReasonAttrName;
+}
+
+// The tiled whole-matrix op admits the same envelope PLUS the problem dims.
+bool isAllowedMatMulAttr(llvm::StringRef attrName) {
+  return isAllowedMMAAttr(attrName) || attrName == kMatMAttrName ||
+         attrName == kMatNAttrName || attrName == kMatKAttrName;
 }
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
@@ -182,9 +192,10 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
 /// `emitOpError` so diagnostics are attributed to the concrete op.
 mlir::LogicalResult
 verifyIMEMACBoundary(mlir::Operation *op, llvm::StringRef expectedIMEOp,
+                     llvm::function_ref<bool(llvm::StringRef)> isAllowedAttr,
                      llvm::function_ref<mlir::InFlightDiagnostic()> emitErr) {
   for (mlir::NamedAttribute attr : op->getAttrs()) {
-    if (!isAllowedMMAAttr(attr.getName().getValue()))
+    if (!isAllowedAttr(attr.getName().getValue()))
       return emitErr()
              << "does not accept generic tensor/tile/benchmark or unknown "
                 "attribute '"
@@ -277,6 +288,7 @@ llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceRole() {
 
 mlir::LogicalResult MMAOp::verify() {
   return verifyIMEMACBoundary(getOperation(), kExpectedSignedIMEOp,
+                              isAllowedMMAAttr,
                               [this]() { return emitOpError(); });
 }
 
@@ -290,7 +302,54 @@ llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceRole() {
 
 mlir::LogicalResult MMAUOp::verify() {
   return verifyIMEMACBoundary(getOperation(), kExpectedUnsignedIMEOp,
+                              isAllowedMMAAttr,
                               [this]() { return emitOpError(); });
+}
+
+llvm::StringRef MatMulOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MatMulOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MatMulOp::verify() {
+  // The tiled whole-matrix op accepts EITHER signedness (signed vmadot or
+  // unsigned vmadotu); the per-op signed/unsigned axis is the ime_op fact.
+  llvm::StringRef imeOp = getImeOp();
+  llvm::StringRef expectedIMEOp =
+      imeOp == kExpectedUnsignedIMEOp ? kExpectedUnsignedIMEOp
+                                      : kExpectedSignedIMEOp;
+  if (mlir::failed(verifyIMEMACBoundary(getOperation(), expectedIMEOp,
+                                        isAllowedMatMulAttr,
+                                        [this]() { return emitOpError(); })))
+    return mlir::failure();
+
+  // Whole-matrix problem dims: present, positive, and a whole multiple of the
+  // capability-derived MAC fragment (fail-closed: NO remainder path). mac_*
+  // were already validated positive by the shared envelope verifier above.
+  auto matM = getOperation()->getAttrOfType<mlir::IntegerAttr>(kMatMAttrName);
+  auto matN = getOperation()->getAttrOfType<mlir::IntegerAttr>(kMatNAttrName);
+  auto matK = getOperation()->getAttrOfType<mlir::IntegerAttr>(kMatKAttrName);
+  if (!matM || !matN || !matK)
+    return emitOpError()
+           << "requires the whole-matrix problem-dim integer attributes '"
+           << kMatMAttrName << "', '" << kMatNAttrName << "', '" << kMatKAttrName
+           << "'";
+  if (matM.getInt() <= 0 || matN.getInt() <= 0 || matK.getInt() <= 0)
+    return emitOpError() << "problem dims (mat_m/mat_n/mat_k) must be positive";
+
+  int64_t macM = getMacM(), macN = getMacN(), macK = getMacK();
+  if (matM.getInt() % macM != 0 || matN.getInt() % macN != 0 ||
+      matK.getInt() % macK != 0)
+    return emitOpError()
+           << "problem dims (mat_m=" << matM.getInt()
+           << ", mat_n=" << matN.getInt() << ", mat_k=" << matK.getInt()
+           << ") must each be a whole multiple of the MAC fragment (mac_m="
+           << macM << ", mac_n=" << macN << ", mac_k=" << macK
+           << "); no remainder path is emitted (fail-closed, I7)";
+  return mlir::success();
 }
 
 void TCRVIMEDialect::initialize() {

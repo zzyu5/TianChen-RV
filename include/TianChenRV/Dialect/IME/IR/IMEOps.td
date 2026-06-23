@@ -128,4 +128,58 @@ def MMAUOp : TCRVIME_Op<"mma_u",
   let hasVerifier = 1;
 }
 
+def MatMulOp : TCRVIME_Op<"matmul",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "IME int8->int32 tiled whole-matrix multiply-accumulate boundary";
+  let description = [{
+    The selected IME execution boundary for a WHOLE-MATRIX int8->int32
+    multiply-accumulate C[M,N] += A[M,K] . B[K,N] realized by tiling the IME1
+    MAC fragment (`vmadot` / `vmadotu`) over the (M/mac_m) x (N/mac_n) x
+    (K/mac_k) tile grid. This is the same capability-derived MAC fragment
+    (4x4x8 at VLEN=256/SEW=8) as tcrv.ime.mma, but applied to a problem-sized
+    matmul rather than a single fragment — so it carries the problem dims
+    (mat_m/mat_n/mat_k) IN ADDITION to the fragment shape (mac_m/mac_n/mac_k).
+
+    A is stored (M,K) int8 row-major; B is stored (N,K) int8 row-major (== B^T
+    of the math (K,N) matrix — the IME-native B^T layout); C is (M,N) int32
+    row-major. The kernel keeps each 4x4 C output tile in the int32 VD pair
+    across the WHOLE K reduction (the MAC accumulates in-register), storing C
+    once per tile — so the per-output reduction the RVV path needs (vredsum) is
+    structurally absent. The signedness form (`vmadot` signed / `vmadotu`
+    unsigned) follows the same capability-derived fact as tcrv.ime.mma/mma_u.
+
+    A fail-closed verifier (core-invariants I7) admits ONLY the validated IME1
+    int8->int32 envelope AND requires the problem dims to be a whole multiple of
+    the MAC fragment (no remainder path — honest and bounded). This is an IME
+    execution op, not a high-level matmul op: it carries the structural
+    executable facts so emission is structural (I5); it makes no
+    correctness/performance claim in the IR itself.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    I64Attr:$mat_m,
+    I64Attr:$mat_n,
+    I64Attr:$mat_k,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 #endif // TIANCHENRV_DIALECT_IME_IR_IMEOPS_TD

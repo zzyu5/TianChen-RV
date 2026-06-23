@@ -30,6 +30,11 @@ constexpr llvm::StringLiteral kIMEFirstSliceVariantName("ime_vmadot_mma_slice");
 // (tcrv.ime.mma_u). This is the N2 plugin-breadth surface.
 constexpr llvm::StringLiteral kIMEUnsignedVariantName(
     "ime_vmadotu_mma_slice");
+// The TILED whole-matrix variants (signed/unsigned). Same capability FACT +
+// dispatch, a richer problem shape => the tcrv.ime.matmul boundary op.
+constexpr llvm::StringLiteral kIMEMatmulVariantName("ime_vmadot_matmul_slice");
+constexpr llvm::StringLiteral kIMEMatmulUVariantName(
+    "ime_vmadotu_matmul_slice");
 
 constexpr llvm::StringLiteral kIMEPolicy("ime_int8_matmul_vmadot_mac");
 constexpr llvm::StringLiteral kIMECondition("spacemit_ime_capability_available");
@@ -49,6 +54,9 @@ constexpr llvm::StringLiteral kAccumBitsAttrName("accum_bits");
 constexpr llvm::StringLiteral kMacMAttrName("mac_m");
 constexpr llvm::StringLiteral kMacNAttrName("mac_n");
 constexpr llvm::StringLiteral kMacKAttrName("mac_k");
+constexpr llvm::StringLiteral kMatMAttrName("mat_m");
+constexpr llvm::StringLiteral kMatNAttrName("mat_n");
+constexpr llvm::StringLiteral kMatKAttrName("mat_k");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
 
@@ -68,6 +76,13 @@ constexpr llvm::StringLiteral kAvailableHartsPropertyName("available_harts");
 constexpr llvm::StringLiteral kSignednessPropertyName("ime_signedness");
 constexpr llvm::StringLiteral kSignednessSigned("signed");
 constexpr llvm::StringLiteral kSignednessUnsigned("unsigned");
+// The optional WHOLE-MATRIX problem-shape FACT (format "MxNxK"). When the
+// capability carries it, the kernel requests the TILED matmul boundary
+// (tcrv.ime.matmul) over that problem; absent => the single 4x4x8 MAC fragment
+// boundary (tcrv.ime.mma, back-compat with the first slice). This is a SHAPE
+// fact, NOT a family-name string: the same capability id + dispatch, a richer
+// problem. Dims must each be a whole multiple of the derived MAC fragment.
+constexpr llvm::StringLiteral kMatmulShapePropertyName("ime_matmul_shape");
 
 // The load-bearing IME1 march token (FOUNDATION task 2: absent => assembler
 // rejects `vmadot`). The capability is the proven IME1 envelope ONLY when this
@@ -107,6 +122,12 @@ struct IMEMatmulCapability {
   int64_t macM = 0;
   int64_t macN = 0;
   int64_t macK = 0;
+  // Whole-matrix problem dims (>0 only when the kernel requests the tiled
+  // matmul boundary via the ime_matmul_shape fact). 0 => single MAC fragment.
+  int64_t matM = 0;
+  int64_t matN = 0;
+  int64_t matK = 0;
+  bool isMatmul = false;
   std::string availableHarts;
 };
 
@@ -170,6 +191,39 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
         "4x4x8 is the only real-K1-validated shape)");
   }
 
+  // Optional WHOLE-MATRIX problem shape FACT. Absent => single MAC fragment
+  // boundary (back-compat). Present => tiled matmul boundary over MxNxK; each
+  // dim must be a whole multiple of the derived MAC fragment (fail-closed: no
+  // remainder path). Format "MxNxK" (e.g. "256x256x256").
+  llvm::StringRef matmulShape =
+      capability.getProperty(kMatmulShapePropertyName).trim();
+  if (!matmulShape.empty()) {
+    llvm::SmallVector<llvm::StringRef, 3> parts;
+    matmulShape.split(parts, 'x');
+    long long m = 0, n = 0, k = 0;
+    if (parts.size() != 3 || parts[0].getAsInteger(10, m) ||
+        parts[1].getAsInteger(10, n) || parts[2].getAsInteger(10, k))
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kMatmulShapePropertyName +
+          "' must be the whole-matrix problem shape 'MxNxK' (integers)");
+    if (m <= 0 || n <= 0 || k <= 0)
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kMatmulShapePropertyName + "' dims must be positive");
+    if (m % derived.macM != 0 || n % derived.macN != 0 || k % derived.macK != 0)
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kMatmulShapePropertyName + "' = '" + matmulShape +
+          "' must be a whole multiple of the derived MAC fragment (" +
+          llvm::Twine(derived.macM) + "x" + llvm::Twine(derived.macN) + "x" +
+          llvm::Twine(derived.macK) + "); no remainder path is emitted");
+    derived.matM = m;
+    derived.matN = n;
+    derived.matK = k;
+    derived.isMatmul = true;
+  }
+
   llvm::StringRef harts = capability.getProperty(kAvailableHartsPropertyName);
   derived.availableHarts =
       harts.trim().empty() ? kIMEDefaultAvailableHarts.str() : harts.trim().str();
@@ -218,12 +272,18 @@ buildIMEProposal(const VariantProposalRequest &request) {
     return derived.takeError();
 
   // The variant name + the recorded signedness FACT both follow the derived
-  // capability fact (NOT a family-name string). The signedness drives which of
-  // the two IME boundary ops (tcrv.ime.mma / tcrv.ime.mma_u) materializes.
+  // capability fact (NOT a family-name string). Two orthogonal facts pick the
+  // boundary op: the SHAPE fact (single fragment => tcrv.ime.mma[_u]; whole
+  // matrix => tcrv.ime.matmul) and the SIGNEDNESS fact (vmadot vs vmadotu).
   bool isUnsigned = derived->signedness == kSignednessUnsigned;
-  VariantProposal proposal(
-      isUnsigned ? kIMEUnsignedVariantName : kIMEFirstSliceVariantName,
-      kIMEPluginName);
+  llvm::StringRef variantName;
+  if (derived->isMatmul)
+    variantName =
+        isUnsigned ? kIMEMatmulUVariantName : kIMEMatmulVariantName;
+  else
+    variantName =
+        isUnsigned ? kIMEUnsignedVariantName : kIMEFirstSliceVariantName;
+  VariantProposal proposal(variantName, kIMEPluginName);
   proposal.addRequiredCapabilityID(kIMECapabilityID);
   proposal.setCondition(kIMECondition);
   proposal.setGuard(kIMEGuard);
@@ -438,10 +498,23 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
+  // Re-derive to know whether this is the single-fragment or the tiled-matmul
+  // boundary (a shape fact, not a family-name branch).
+  const support::CapabilityDescriptor *planCapability =
+      request.getCapabilities().lookupProviderByID(kIMECapabilityID);
+  bool isMatmul = false;
+  if (planCapability) {
+    if (llvm::Expected<IMEMatmulCapability> planDerived =
+            deriveIMEMatmulCapability(*planCapability))
+      isMatmul = planDerived->isMatmul;
+    else
+      llvm::consumeError(planDerived.takeError());
+  }
   bool isUnsigned = variantRequestsUnsignedIME(request.getVariant());
   llvm::StringRef boundaryOpName =
-      isUnsigned ? tcrv::ime::MMAUOp::getOperationName()
-                 : tcrv::ime::MMAOp::getOperationName();
+      isMatmul ? tcrv::ime::MatMulOp::getOperationName()
+               : (isUnsigned ? tcrv::ime::MMAUOp::getOperationName()
+                             : tcrv::ime::MMAOp::getOperationName());
   out = VariantEmissionPlan::getSupported(
       kIMEPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
@@ -502,10 +575,16 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   // the capability-derived fact (recorded on the variant by the materializer),
   // NOT a family-name branch. (The architectural family spelling `tcrv.ime.*`
   // is not a valid dialect namespace, so the registered names are tcrv_ime.*.)
+  // Two orthogonal capability-derived FACTS pick the boundary op: the SHAPE
+  // fact (single fragment => tcrv.ime.mma[_u]; whole matrix => tcrv.ime.matmul)
+  // and the SIGNEDNESS fact (vmadot vs vmadotu). Neither is a family-name
+  // branch; both are pure data flow of the derived capability facts.
   bool boundaryIsUnsigned = derived->signedness == kSignednessUnsigned;
   llvm::StringRef boundaryOpName =
-      boundaryIsUnsigned ? tcrv::ime::MMAUOp::getOperationName()
-                         : tcrv::ime::MMAOp::getOperationName();
+      derived->isMatmul
+          ? tcrv::ime::MatMulOp::getOperationName()
+          : (boundaryIsUnsigned ? tcrv::ime::MMAUOp::getOperationName()
+                                : tcrv::ime::MMAOp::getOperationName());
   mlir::OperationState state(variant.getLoc(), boundaryOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
@@ -527,14 +606,33 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   state.addAttribute(kMacMAttrName, builder.getI64IntegerAttr(derived->macM));
   state.addAttribute(kMacNAttrName, builder.getI64IntegerAttr(derived->macN));
   state.addAttribute(kMacKAttrName, builder.getI64IntegerAttr(derived->macK));
+  if (derived->isMatmul) {
+    state.addAttribute(kMatMAttrName,
+                       builder.getI64IntegerAttr(derived->matM));
+    state.addAttribute(kMatNAttrName,
+                       builder.getI64IntegerAttr(derived->matN));
+    state.addAttribute(kMatKAttrName,
+                       builder.getI64IntegerAttr(derived->matK));
+  }
   state.addAttribute(kAvailableHartsAttrName,
                      builder.getStringAttr(derived->availableHarts));
   state.addAttribute(
       kIMEReasonAttrName,
       builder.getStringAttr(
-          llvm::Twine("capability-derived IME1 int8->int32 ") + derived->imeOp +
-          " MAC fragment from march xsmtvdotii + VLEN/SEW (signedness=" +
-          derived->signedness + ")"));
+          (derived->isMatmul
+               ? llvm::Twine("capability-derived IME1 int8->int32 ") +
+                     derived->imeOp + " tiled matmul (" +
+                     llvm::Twine(derived->matM) + "x" +
+                     llvm::Twine(derived->matN) + "x" +
+                     llvm::Twine(derived->matK) +
+                     ") over the MAC fragment from march xsmtvdotii + VLEN/SEW "
+                     "(signedness=" +
+                     derived->signedness + ")"
+               : llvm::Twine("capability-derived IME1 int8->int32 ") +
+                     derived->imeOp +
+                     " MAC fragment from march xsmtvdotii + VLEN/SEW "
+                     "(signedness=" +
+                     derived->signedness + ")")));
   mlir::Operation *boundary = builder.create(state);
 
   VariantLoweringBoundaryValidationRequest validationRequest(
@@ -550,18 +648,23 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
 llvm::Error IMEExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  // The boundary is EITHER the signed tcrv.ime.mma or the unsigned
-  // tcrv.ime.mma_u op — both are the IME plugin execution surface. Accept
-  // either; each op's fail-closed verifier pins its own correct mnemonic.
+  // The boundary is the signed tcrv.ime.mma, the unsigned tcrv.ime.mma_u, or
+  // the tiled tcrv.ime.matmul op — all are the IME plugin execution surface.
+  // Accept any; each op's fail-closed verifier pins its own correct mnemonic
+  // and envelope.
   mlir::Operation *boundaryOp = request.getBoundary();
   bool verifierFailed = false;
   if (auto mma = llvm::dyn_cast_if_present<tcrv::ime::MMAOp>(boundaryOp))
     verifierFailed = mlir::failed(mma.verify());
   else if (auto mmau = llvm::dyn_cast_if_present<tcrv::ime::MMAUOp>(boundaryOp))
     verifierFailed = mlir::failed(mmau.verify());
+  else if (auto matmul =
+               llvm::dyn_cast_if_present<tcrv::ime::MatMulOp>(boundaryOp))
+    verifierFailed = mlir::failed(matmul.verify());
   else
     return makeIMEPluginError(
-        "selected IME path requires a tcrv.ime.mma or tcrv.ime.mma_u operation");
+        "selected IME path requires a tcrv.ime.mma, tcrv.ime.mma_u, or "
+        "tcrv.ime.matmul operation");
 
   // The ODS verifier (fail-closed, I7) already enforces the int8->int32 MAC
   // envelope of the op's signedness, origin/role/status, and selected-path

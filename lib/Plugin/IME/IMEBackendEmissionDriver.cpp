@@ -108,6 +108,104 @@ std::string vmadotuHelperBody() {
   return macHelperBody(kVmadotuHelperName, "vmadotu");
 }
 
+// The tiled whole-matrix micro-kernel helper names. The single justified asm
+// leaf is the same `vmadot`/`vmadotu` instruction, here driven IN-REGISTER over
+// the whole K reduction so the per-output reduce (RVV's vredsum) is
+// structurally absent — that is exactly the IME advantage the bench measures.
+constexpr llvm::StringLiteral kMatmulHelperName("tcrv_ime_vmadot_matmul");
+constexpr llvm::StringLiteral kMatmulUHelperName("tcrv_ime_vmadotu_matmul");
+
+/// The tiled int8->int32 whole-matrix kernel, emitted as ONE self-contained
+/// `static inline` helper. It computes C[M,N] += A[M,K] . B[K,N] by looping the
+/// FOUNDATION-validated 4x4x8 `vmadot` fragment over the (M/4)x(N/4)x(K/8) tile
+/// grid. The inputs are PRE-PACKED into FRAGMENT-MAJOR tile-contiguous layout
+/// (the same repack policy applied to BOTH the IME and the RVV baseline; weight
+/// repack is amortized offline in e2e), so each 4x8 fragment of A and B is a
+/// contiguous 32-byte `vle8` — exactly the FOUNDATION load (`vle8 v0,(A)` over a
+/// 4x8 row-major tile loads [r0(8),r1(8),r2(8),r3(8)] = one fragment):
+///   Apack: (M/4) row-tiles. Tile mi = K/8 fragments concatenated; fragment f =
+///          [Arow0[8f..8f+7], Arow1[..], Arow2[..], Arow3[..]] (32B).
+///   Bpack: (N/4) col-tiles, same fragment-major layout over B^T's 4 rows.
+///   C:     (M,N) int32 row-major.
+/// Per output tile (mi,nj), the 4x4 int32 accumulator lives in the v2/v3 VD
+/// pair across the WHOLE K loop (vmadot accumulates C += A.B^T in-register), so
+/// the per-output reduce RVV needs (vredsum) is structurally absent. The result
+/// is stored ONCE to a contiguous 16-int32 scratch (v2 = rows 0,1; v3 = rows
+/// 2,3 — exactly FOUNDATION's validated store), then the structured C wrapper
+/// scatters it into the N-strided C tile. The signed/unsigned divergence is
+/// exactly the instruction mnemonic; everything structural is identical. The
+/// helper has fixed parameter names, so no translator-generated SSA name is
+/// interpolated into the asm.
+std::string matmulHelperBody(llvm::StringRef helperName,
+                             llvm::StringRef mnemonic) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.asm_leaf=" << helperName
+     << " tiled_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic
+     << " in_register_K_accumulate=1\n";
+  os << "static inline void " << helperName
+     << "(const int8_t *Apack, const int8_t *Bpack, int32_t *C,\n";
+  os << "    long M, long N, long K) {\n";
+  os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
+  os << "  for (long mi = 0; mi < mt; ++mi) {\n";
+  // Apack row-tile (mi): K/8 fragments of 32B, contiguous = mi*4*K bytes in.
+  os << "    const int8_t *Atile = Apack + (long)mi * 4 * K;\n";
+  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
+  // Bpack col-tile (nj): K/8 fragments of 32B (B^T col-tile), contiguous.
+  os << "      const int8_t *Btile = Bpack + (long)nj * 4 * K;\n";
+  // 16-int32 scratch for the single per-tile store (rows 0,1 in v2; 2,3 in v3),
+  // exactly the FOUNDATION store shape. The strided scatter into C is below, in
+  // STRUCTURED C (not asm), keeping the asm leaf the validated store.
+  os << "      int32_t Cs[16];\n";
+  os << "      __asm__ volatile(\n";
+  // Clear the 4x4 int32 accumulator (v2/v3) once for this output tile.
+  os << "          \"vsetvli   t0, zero, e32, m1, ta, ma  \\n\\t\"\n";
+  os << "          \"vmv.v.i   v2, 0                      \\n\\t\"\n";
+  os << "          \"vmv.v.i   v3, 0                      \\n\\t\"\n";
+  os << "          \"vsetvli   t0, zero, e8, m1, ta, ma   \\n\\t\"\n";
+  os << "          \"mv        t1, %[ka]                  \\n\\t\"\n";
+  os << "          \"mv        t2, %[kb]                  \\n\\t\"\n";
+  os << "          \"mv        t3, %[kt]                  \\n\\t\"\n";
+  // K loop: each iter consumes one 4x8 A fragment + one 4x8 B fragment (32B
+  // each), accumulating into v2/v3. Pointers advance by 32 bytes per fragment.
+  os << "          \"1:                                  \\n\\t\"\n";
+  os << "          \"vle8.v    v0, (t1)                   \\n\\t\"\n";
+  os << "          \"vle8.v    v1, (t2)                   \\n\\t\"\n";
+  os << "          \"" << mnemonic << "    v2, v0, v1                 \\n\\t\"\n";
+  os << "          \"addi      t1, t1, 32                 \\n\\t\"\n";
+  os << "          \"addi      t2, t2, 32                 \\n\\t\"\n";
+  os << "          \"addi      t3, t3, -1                 \\n\\t\"\n";
+  os << "          \"bnez      t3, 1b                     \\n\\t\"\n";
+  // Store the 4x4 int32 result ONCE to the contiguous scratch (FOUNDATION
+  // store: v2 -> Cs[0..7] rows 0,1; v3 -> Cs[8..15] rows 2,3).
+  os << "          \"vsetvli   t0, zero, e32, m1, ta, ma  \\n\\t\"\n";
+  os << "          \"vse32.v   v2, (%[pcs])               \\n\\t\"\n";
+  os << "          \"addi      t4, %[pcs], 32             \\n\\t\"\n";
+  os << "          \"vse32.v   v3, (t4)                   \\n\\t\"\n";
+  os << "          :\n";
+  os << "          : [ka] \"r\"(Atile), [kb] \"r\"(Btile), [kt] \"r\"(kt),\n";
+  os << "            [pcs] \"r\"(Cs)\n";
+  os << "          : \"t0\", \"t1\", \"t2\", \"t3\", \"t4\",\n";
+  os << "            \"v0\", \"v1\", \"v2\", \"v3\", \"memory\");\n";
+  // Structured strided scatter: Cs[r*4+c] -> C[(mi*4+r)*N + nj*4+c].
+  os << "      for (long r = 0; r < 4; ++r)\n";
+  os << "        for (long c = 0; c < 4; ++c)\n";
+  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += Cs[r * 4 + c];\n";
+  os << "    }\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+std::string matmulHelperBodySigned() {
+  return matmulHelperBody(kMatmulHelperName, "vmadot");
+}
+
+std::string matmulHelperBodyUnsigned() {
+  return matmulHelperBody(kMatmulUHelperName, "vmadotu");
+}
+
 /// Lowers a selected IME MAC boundary (`tcrv.ime.mma` signed / `tcrv.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
 ///   #include <stdint.h>
@@ -229,6 +327,125 @@ template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUOp>::helperBody() {
   return vmadotuHelperBody();
 }
 
+/// Lowers the tiled whole-matrix IME boundary (`tcrv.ime.matmul`) into a
+/// standalone EmitC module:
+///   #include <stdint.h>
+///   static inline void tcrv_ime_vmadot[u]_matmul(const int8_t*, const int8_t*,
+///                                 int32_t*, long M, long N, long K) { ...tiled... }
+///   extern "C" void tcrv_emitc_<kernel>_<variant>(const int8_t *Apack,
+///                                                  const int8_t *Bpack,
+///                                                  int32_t *C) {
+///     tcrv_ime_vmadot[u]_matmul(Apack, Bpack, C, <M>, <N>, <K>);
+///   }
+/// M/N/K are the op's capability-bound problem-dim FACTS (mat_m/mat_n/mat_k),
+/// baked into the wrapper as constants (they are compile-time facts of the
+/// selected variant). The wrapper is structured emitc (emitc.func +
+/// emitc.call_opaque on the Apack/Bpack/C block args + emitc.constant M/N/K);
+/// the verbatim helper holds the validated vmadot/vmadotu plus its
+/// load/store/K-loop scaffold. Signed vs unsigned is the `ime_op` fact (NOT a
+/// family-name branch): vmadot => signed helper, vmadotu => unsigned helper.
+class IMEMatMulToEmitCFunc final
+    : public mlir::OpConversionPattern<tcrv::ime::MatMulOp> {
+public:
+  using mlir::OpConversionPattern<tcrv::ime::MatMulOp>::OpConversionPattern;
+  using OpAdaptor =
+      typename mlir::OpConversionPattern<tcrv::ime::MatMulOp>::OpAdaptor;
+
+  mlir::LogicalResult
+  matchAndRewrite(tcrv::ime::MatMulOp matmul, OpAdaptor /*adaptor*/,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::MLIRContext *context = matmul.getContext();
+    mlir::Location loc = matmul.getLoc();
+
+    // Signed/unsigned is a capability-derived FACT carried on the op, not a
+    // family-name branch: ime_op == "vmadotu" => unsigned helper, else signed.
+    bool isUnsigned = matmul.getImeOp() == "vmadotu";
+    llvm::StringRef helperName =
+        isUnsigned ? kMatmulUHelperName : kMatmulHelperName;
+    std::string helperBody =
+        isUnsigned ? matmulHelperBodyUnsigned() : matmulHelperBodySigned();
+
+    auto variant =
+        matmul->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    auto sourceKernel =
+        matmul->getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!variant || !sourceKernel)
+      return rewriter.notifyMatchFailure(
+          matmul, "IME matmul boundary requires selected_variant and "
+                  "source_kernel attributes");
+    std::string functionName =
+        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+
+    int64_t matM = matmul.getMatM();
+    int64_t matN = matmul.getMatN();
+    int64_t matK = matmul.getMatK();
+
+    llvm::StringRef sourceOpName = matmul.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = matmul.getTCRVEmitCLowerableSourceRole();
+
+    auto module = matmul->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return rewriter.notifyMatchFailure(matmul,
+                                         "IME matmul boundary has no module");
+
+    auto i8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const int8_t"));
+    auto i32PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "int32_t"));
+    auto longType = emitc::OpaqueType::get(context, "long");
+
+    // Module-scope prologue: include + the self-contained tiled-kernel helper.
+    {
+      mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
+                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(loc, helperBody);
+    }
+
+    mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+    rewriter.setInsertionPointToEnd(module.getBody());
+
+    // Exported wrapper: extern "C" void <name>(const int8_t* Apack,
+    // const int8_t* Bpack, int32_t* C).
+    llvm::SmallVector<mlir::Type, 3> paramTypes{i8PtrType, i8PtrType,
+                                                i32PtrType};
+    mlir::FunctionType functionType =
+        rewriter.getFunctionType(paramTypes, /*results=*/{});
+    llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
+    funcAttrs.push_back(rewriter.getNamedAttr(
+        "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+    auto func = rewriter.create<emitc::FuncOp>(loc, functionName, functionType,
+                                               funcAttrs);
+    mlir::Block *entry = func.addEntryBlock();
+    rewriter.setInsertionPointToStart(entry);
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, routeSourceComment(sourceOpName, sourceRole));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(sourceOpName, sourceRole, helperName));
+
+    // Structured dataflow into the leaf: call_opaque on the Apack/Bpack/C block
+    // args plus the M/N/K problem-dim constants (compile-time variant facts).
+    llvm::SmallVector<mlir::Value, 6> callOperands;
+    for (mlir::BlockArgument arg : entry->getArguments())
+      callOperands.push_back(arg);
+    for (int64_t dim : {matM, matN, matK}) {
+      auto dimAttr = emitc::OpaqueAttr::get(context, std::to_string(dim));
+      auto constOp = rewriter.create<emitc::ConstantOp>(loc, longType, dimAttr);
+      callOperands.push_back(constOp.getResult());
+    }
+    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, helperName,
+                                         callOperands);
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(matmul);
+    return mlir::success();
+  }
+};
+
 class IMEBackendEmissionDriver final
     : public tcrvemitc::TypedBackendEmissionDriver {
 public:
@@ -239,7 +456,8 @@ public:
 
   void
   configureConversionTarget(mlir::ConversionTarget &target) const override {
-    target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp>();
+    target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
+                        tcrv::ime::MatMulOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -247,8 +465,8 @@ public:
   populateLoweringPatterns(mlir::TypeConverter &typeConverter,
                            mlir::RewritePatternSet &patterns) const override {
     patterns.add<IMEMACToEmitCFunc<tcrv::ime::MMAOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMAUOp>>(typeConverter,
-                                                       patterns.getContext());
+                 IMEMACToEmitCFunc<tcrv::ime::MMAUOp>, IMEMatMulToEmitCFunc>(
+        typeConverter, patterns.getContext());
   }
 
   llvm::LogicalResult
