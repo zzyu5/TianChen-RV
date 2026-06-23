@@ -124,6 +124,78 @@ WIDE↔NARROW agreement (norm 0) — conclusive the two arms ran distinct vector
 - **Resource-aware seal:** the RVV1.0/`rv64gcv` stamp emits byte-identical to no-stamp NARROW → the
   SG2044 tune actually SELECTS the faster (NARROW) arm for q8_0.
 
+---
+
+## VLEN256 ISO follow-up (X60 / `ssh k1`) — strip-count/ILP axis ISOLATED from the LMUL axis
+
+**Date:** 2026-06-24. **Box:** SpacemiT X60, RVV1.0, **VLEN256** (`ssh k1`) — a DIFFERENT silicon
+than the prior SG2044/`ssh rvv` rows above (do NOT arithmetically reconcile 5.5× vs 1.9×). **Goal:**
+test whether the q8_0 GEVM WIDE-loses inversion (measured 5.5× at rvv/VLEN128) ALSO holds at VLEN256,
+isolating the **strip-count/ILP axis** by holding LMUL fixed.
+
+### Why this is a DIFFERENT experiment from the rows above (the prior 5.5× was CONFOUNDED)
+The headline rows above produced WIDE via the `march=rv64gc_xtheadvector` stamp, which pins
+`integer_core_lmul=m1` — so that WIDE arm changed BOTH the LMUL core (mf2→m1, i.e. i32m2→i32m4) AND
+the strip count (2×8→1×16). The 5.5× therefore bundled an m4-LMUL latency penalty WITH the strip change.
+This follow-up holds **LMUL fixed at the mf2 fractional core** and varies ONLY `half_lanes`:
+- **NARROW** = `half_lanes=8` → TWO 8-lane `i32m2` strips (ILP-2, two independent accumulate chains).
+- **WIDE**   = `half_lanes=16` → ONE 16-lane `i32m2` strip (serial, one accumulate chain).
+
+Both compiler-emitted from the SAME `tcrv_rvv.repack_gemv_q8_0_q8_0` op via **plain
+`--tcrv-rvv-lower-to-emitc` (NO march stamp)**, from two IRs byte-identical except `half_lanes: 8` vs `16`
+(`vlen256-iso/iso_{NARROW_hl8,WIDE_hl16}.mlir`). **Host LMUL-identity check (load-bearing):** grep of both
+`.cpp` shows IDENTICAL fractional-core spellings in both arms (`i8mf2`/`i16m1`/`i32m2`/`f32m2`/`f16m1`) and
+**ZERO** whole-LMUL contaminant (`i8m1`/`i16m2`/`i32m4`/`f32m4`/`f16m2`) in EITHER. The ONLY delta is the
+per-strip op count: NARROW emits each of `vle8_v_i8mf2`/`vwmul_vx_i16m1`/`vwadd_wv_i32m2`/`vse32_v_f32m2`
+exactly **2×**, WIDE exactly **1×** (and the strip-width literals `…(0,8)`×2 vs `…(0,16)`×1). So the only
+thing that varies is two-8-lane-strips-ILP-2 vs one-16-lane-strip-serial — the pure strip-count/ILP axis.
+
+**Selector provenance (SEALED):** emitting from the `half_lanes=8` base via the REAL VLEN256 stamp
+`--tcrv-rvv-materialize-repack-strip-width=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc` is
+**BYTE-IDENTICAL** (`diff` empty, `vlen256-iso/k_gemv_STAMP256.cpp`) to the hand-set `half_lanes=16` WIDE
+arm, and stays at mf2 (0 m1/m4). So `deriveRepackHalfLanes(256,16)=min(16,16)=16` → the K1/VLEN256 selector
+ACTUALLY emits the WIDE (1×16) arm; "WIDE" here IS the compiler's pick, not merely a hand fixture.
+
+### Result — the inversion does NOT hold at VLEN256; **WIDE (1×16) is ~1.9–2.0× FASTER**
+
+clang18 `-O3 -march=rv64gcv_zvl256b_zvfh -mabi=lp64d -ffp-contract=fast`, `taskset -c 0`, best-of-reps min,
+3 runs/shape (`vlen256-iso/vlen256-iso-ablation.log`). (`_zvfh` added only because the f16 scale-fold
+intrinsics need it; it does NOT change VLEN.)
+
+| shape (n × nc) | NARROW (mf2, 2×8) | WIDE (mf2, 1×16) | ratio NARROW/WIDE | **16/8 ratio (WIDE/NARROW)** | WIDE↔NARROW norm | oracle norm |
+|---|---|---|---|---|---|---|
+| 4096 × 4096 (3 runs)  | 13.70–13.94 M ns | 6.91–7.21 M ns | 1.93–1.98× | **≈ 0.51×** (WIDE ~1.95× faster) | 0.000e+00 BYTE-EXACT | 1.129e-06 PASS |
+| 4096 × 11008 (3 runs) | 36.45–37.28 M ns | 18.31–19.21 M ns | 1.94–1.99× | **≈ 0.51×** (WIDE ~1.96× faster) | 0.000e+00 BYTE-EXACT | 1.660e-06 PASS |
+
+The VLEN256 oracle PASS is itself the VLEN-confirmation: `vmv_v_x_i32m2(0,16)` only computes 16 lanes
+correctly when hardware VLMAX≥16 (VLEN≥256); on a VLEN128 part vl clamps to 8 and half the output rows go
+unwritten → the oracle would spike. WIDE's norm 1.1e-6 PASS therefore proves it ran at VLEN256.
+
+### VERDICT — the cross-VLEN mis-selection hypothesis is **REFUTED at VLEN256** (inversion is VLEN128-specific)
+At VLEN256, with the LMUL axis isolated, the single 16-lane strip is ~1.9–2.0× FASTER than the two 8-lane
+strips — the OPPOSITE of the rvv/VLEN128 inversion. So the task's hypothesis (that the VLEN-derived selector
+picks the SLOWER arm at VLEN256 = a confirmed cross-VLEN LIMITATION) **does NOT hold**: the prior 5.5×
+WIDE-loses result was confounded with the mf2→m1 (`i32m2`→`i32m4`) LMUL change, NOT a pure strip-count/ILP
+effect. The strip-count inversion is **VLEN128-specific** (and even there it is entangled with LMUL). This is
+NOT framed as "the tune correctly diverges" — it is a refutation of a suspected limitation: the suspected
+VLEN256 mis-selection is not real on this axis.
+
+**Mechanism (inference, reconciles both VLENs):** `i32m2` holds VLEN/16 i32 lanes — 8 at VLEN128, 16 at
+VLEN256. At VLEN256 `half_lanes=16` fills the m2 register in ONE strip; `half_lanes=8` runs TWO strips at
+8/16-lane occupancy = ~2× the vector ops at half utilization → ~2× slower, matching the measured 1.9×. At
+VLEN128 `half_lanes=8` was FULL utilization and a 16-lane strip would have required m4 (the latency wall the
+prior rows hit). The `vlen/16` formula tracks register-fill at both VLENs — which is exactly why this is a
+VLEN-dependent effect and "VLEN128-specific" is defensible.
+
+### Artifacts (VLEN256 ISO)
+- `q8_0-emit/vlen256-iso/iso_{NARROW_hl8,WIDE_hl16}.mlir` — the two source IRs (identical except `half_lanes`).
+- `q8_0-emit/vlen256-iso/k_gemv_{NARROW,WIDE}.cpp` — the two mf2 compiler-emitted arms (LMUL-identical).
+- `q8_0-emit/vlen256-iso/k_gemv_STAMP256.cpp` — real `march=rv64gcv_zvl256b` stamp output, BYTE-IDENTICAL to WIDE.
+- `q8_0-emit/vlen256-iso/ablation_micro_q80.cpp` — harness (header updated to the ISO framing).
+- `q8_0-emit/vlen256-iso/vlen256-iso-ablation.log` — canonical 3-run × 2-shape K1 log (AGREE + ORACLE + RESULT).
+
+---
+
 ## Artifacts
 - `q8_0-winA-gevm-ablation.log` — canonical 3-run rvv log (AGREE + ORACLE + RESULT lines).
 - `q8_0-emit/` — the two compiler-emitted GEVM arms `k_gemv_{NARROW,WIDE}.cpp` (disjoint LMUL) and the
