@@ -1,6 +1,7 @@
 #include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
 
 #include "TianChenRV/Conversion/RVV/RVVBackendEmissionDriver.h"
+#include "TianChenRV/Plugin/IME/IMEBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/Template/TemplateBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/Toy/ToyBackendEmissionDriver.h"
@@ -25,6 +26,7 @@ constexpr BackendEmitterRegistrationFn kBuiltinBackendEmitters[] = {
     ::tianchenrv::plugin::toy::registerToyBackendEmitter,
     ::tianchenrv::plugin::template_ext::registerTemplateBackendEmitter,
     ::tianchenrv::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter,
+    ::tianchenrv::plugin::ime::registerIMEBackendEmitter,
 };
 
 } // namespace

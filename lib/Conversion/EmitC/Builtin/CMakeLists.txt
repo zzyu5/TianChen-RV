@@ -4,6 +4,7 @@ add_mlir_library(TianChenRVConversionEmitCBuiltin
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVConversionRVV
+  TianChenRVIMEBackendEmitter
   TianChenRVToyBackendEmitter
   TianChenRVTemplateBackendEmitter
   TianChenRVTensorExtLiteBackendEmitter

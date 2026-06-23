@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/IME/IMEExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
@@ -36,6 +37,7 @@ constexpr BuiltinExtensionBundleSpec kBuiltinExtensionBundles[] = {
     {"toy-extension-bundle", registerToyExtensionPlugin},
     {"template-extension-bundle", registerTemplateExtensionPlugin},
     {"tensorext-lite-extension-bundle", registerTensorExtLiteExtensionPlugin},
+    {"ime-extension-bundle", registerIMEExtensionPlugin},
     {"scalar-extension-bundle", registerScalarExtensionPlugin},
 };
 
