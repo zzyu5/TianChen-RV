@@ -39,6 +39,9 @@ The same linchpin means the matrix's q4_0 ("WIDE m1 2.11–2.21×") and q4_1 ("W
 cells are **also mf2-vs-RVV0.7-m1-form numbers, not RVV1.0 auto-tune ablations**. Likely honest reframe
 (per advisor, NOT yet verified): the m1 repack kernel is genuinely faster for q4 and was demonstrated e2e
 via the **hand-placed `.inc`-swap**, but the auto-gearbox emits mf2 on RVV1.0, so auto-*selection* of that
-winner is a separate gap — the same selection-vs-kernel distinction gap-6 already tracks. **TODO (focused
-audit, not this turn):** read `winA-e2e/FINDING.md` to confirm which arm (m1 or mf2) the q4_0 e2e
-`.inc`-swap actually engaged, then axis-label the q4_0/q4_1 cells. Until then those cells carry this caveat.
+winner is a separate gap — the same selection-vs-kernel distinction gap-6 already tracks. **AUDIT DONE (2026-06-24):** `winA-e2e/FINDING.md:32-34` confirms the q4_0 e2e WIDE arm = m1 emitted via
+`march=rv64gc_xtheadvector` (isRVV0p7 stamp → integer_core_lmul=m1), compiled rv64gcv_zvfh for VLEN128. So the
+m1 kernel is HAND-PLACED (not auto-selected); it is genuinely faster for q4 (2.1× micro, **1.10× t16 prefill /
+NULL decode** e2e — the micro win largely washes out at e2e, the memory wall again), and auto-SELECTING m1 on
+RVV1.0 is an unbuilt gap. Cells now carry the resolved caveat. This is winning-LMUL-CONFIG-differs-by-quant
+(motivation for a quant-aware repack cost model), NOT the ledger §5 winning-ALGORITHM-differs-by-PROFILE target.
