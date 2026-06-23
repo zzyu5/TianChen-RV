@@ -1287,3 +1287,42 @@ Per-kernel kernel+e2e characterization (user-directed): IME matmul 5.51x kernel 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Win-C built→structural-NULL (decomposed); IME prefill NULL (codegen artifact); +2 methodology contracts to spec
+
+**Date**: 2026-06-24
+**Task**: Win-C built→structural-NULL (decomposed); IME prefill NULL (codegen artifact); +2 methodology contracts to spec
+**Branch**: `main`
+
+### Summary
+
+Built Win-C (the strongest previously-unclaimed novelty) as a reduction_structure pass (deferred-vs-per-iter, 3.0-3.3x pass-ON/OFF on rvv, trellis-check PASS I5/I7, merged). A hand-written register-kept per-iter control kernel then REFUTED the structural interpretation: pure-structure delta ~=1.00x; the entire 3x is a per-iter out[0] memory round-trip (emitter artifact, objdump-verified), NOT reduction-structure latency. Corrected to honest structural-NULL across matrix/ledger/memory (Win-C-as-novelty NOT demonstrated; pass kept as the Win-A structural enabler). IME prefill probed on K1: apparent 1.4-1.95x 'prefill win' is a build-codegen artifact, isolated by the decode control (1.25x in M=1 where the matrix unit physically can't help); IME-unit e2e stays NULL (decode+prefill) -> reinforces the memory-wall finding. Matrix consolidated (q4_1 Win-A 1.80x + GEMM oracle PASS, K-quant Win-B micro honest-mixed). Promoted 2 durable decomposition disciplines to the N3 baseline spec: (1) structural-pass claims need a same-structure competently-emitted control; (2) hardware-unit/build-swap claims need a can't-possibly-help control regime + same-toolchain toggle. Net: two honest NULLs caught by controls the session itself built; over-optimism-correction discipline held.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1adc631b` | (see git log) |
+| `39eb9c48` | (see git log) |
+| `e93a3b43` | (see git log) |
+| `6c5a66f5` | (see git log) |
+| `69d69c30` | (see git log) |
+| `bca1fb12` | (see git log) |
+| `518a6c36` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

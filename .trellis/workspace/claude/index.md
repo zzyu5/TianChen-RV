@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 23
-- **Last Active**: 2026-06-23
+- **Total Sessions**: 24
+- **Last Active**: 2026-06-24
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1289 | Active |
+| `journal-1.md` | ~1328 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-06-24 | Win-C built→structural-NULL (decomposed); IME prefill NULL (codegen artifact); +2 methodology contracts to spec | `1adc631b`, `39eb9c48`, `e93a3b43`, `6c5a66f5`, `69d69c30`, `bca1fb12`, `518a6c36` | `main` |
 | 23 | 2026-06-23 | N1/N2/N3 perf phase: IME kernel 5.51x + e2e-null, q4_1 GEMM+2.47x, Fedora kernels exonerated, capstone {micro,e2e} matrix + memory-wall finding | `6c885916`, `f8a42258`, `051ebff1`, `f1753051`, `0b8c6168`, `1b4f582a` | `main` |
 | 22 | 2026-06-23 | N1/N2/N3 campaign: N2 IME plugin PROVEN + breadth, Win-A in llama e2e, Win-B vs real kernel, q4_1 coverage, 3/3 N1 profiles, paper-ready ledger | `2eeabff9`, `22c844a2`, `4f098598`, `c7069111`, `2b1547b0`, `bacebf2d` | `main` |
 | 21 | 2026-06-22 | N1/N2/N3 multi-profile: Win-A in llama (VLEN strip) + all-compiler ablation + 3-profile silicon divergence | `87c540ec`, `d9764407`, `4d36bdb3`, `08a11764`, `3d2a2b3f`, `709bb69d`, `d6022f58`, `3abc9dc5`, `2a349d3b`, `23ac5aae` | `main` |
