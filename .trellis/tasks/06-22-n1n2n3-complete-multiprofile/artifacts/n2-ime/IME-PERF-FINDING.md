@@ -96,6 +96,13 @@ RVV** CPU backend — **zero spacemit/IME content** (`strings | grep -c spacemit
 symbols are `timestep_embedding`/`time_us` false-positives) — with the **same soname `libggml-cpu.so.0`**,
 so it's an ABI-compatible `LD_LIBRARY_PATH` drop-in vs the default IME lib.
 
+**IME confirmed to engage for Q4_0 (so the IME arm is genuinely IME, not silent RVV):** the spacemit
+`extra_buffer_type::supports_op` (ime.cpp L1580) claims any 2D Q4_0 weight × F32-activation `MUL_MAT`
+via `get_optimal_repack_type`, and Q4_0 is an explicit case in the repack + IME1 i8i4 gemm dispatch
+(ime.cpp L193/L212/L1277). tinyllama-Q4_0's matmuls match (2D Q4_0 weights, F32 acts; no VLEN-128 guard
+on this path — K1 is VLEN-256). So the default-lib arm really runs the IME i8i4 gemm; the null is a real
+"IME engaged, no e2e win," not "IME never activated."
+
 ### E2E RESULT — non-IME lib vs IME lib (tinyllama 1B Q4_0, t4, `taskset -c 0-3`, r3, same load window)
 | regime | non-IME lib (1x16 RVV) | IME lib (default) | IME / RVV ratio |
 |---|---|---|---|

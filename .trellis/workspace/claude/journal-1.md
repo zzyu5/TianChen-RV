@@ -1249,3 +1249,41 @@ N2 proven (IME plugin zero-core-branch, K1 bit-exact) + 2nd op mma_u; Win-A in l
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: N1/N2/N3 perf phase: IME kernel 5.51x + e2e-null, q4_1 GEMM+2.47x, Fedora kernels exonerated, capstone {micro,e2e} matrix + memory-wall finding
+
+**Date**: 2026-06-23
+**Task**: N1/N2/N3 perf phase: IME kernel 5.51x + e2e-null, q4_1 GEMM+2.47x, Fedora kernels exonerated, capstone {micro,e2e} matrix + memory-wall finding
+**Branch**: `main`
+
+### Summary
+
+Per-kernel kernel+e2e characterization (user-directed): IME matmul 5.51x kernel vs RVV / e2e 0.86-0.98x null (valid lib-swap; my env-toggle was a qemu no-op, corrected); q4_1 repack GEMM added + GEVM 2.47x vs ggml's real RVV q4_1; Fedora RVV0.7 GEMM+GEVM PROVEN correct in exact llama regimes -> e2e garbage is ggml-side routing not our compiler; capstone per-kernel {microbench,e2e} matrix (ledger §7). Central finding: compute-bound kernel wins don't transplant to memory-bound decode e2e; e2e wins live in memory-layout/selection. trellis-check PASS on q4_1 GEMM + IME matmul.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6c885916` | (see git log) |
+| `f8a42258` | (see git log) |
+| `051ebff1` | (see git log) |
+| `f1753051` | (see git log) |
+| `0b8c6168` | (see git log) |
+| `1b4f582a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
