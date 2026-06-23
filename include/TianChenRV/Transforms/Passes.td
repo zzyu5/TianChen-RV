@@ -779,6 +779,17 @@ def MaterializeRVVGearboxSchedules
     "::tianchenrv::tcrv::exec::TCRVExecDialect",
     "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
   ];
+  let options = [
+    Option<"reductionStructure", "reduction-structure", "std::string",
+           /*default=*/"\"\"",
+           "N3 Win-C: stamp the i16 dot-reduce reduction-STRUCTURE body fact "
+           "(orthogonal to the LMUL/budget axis). 'deferred_accumulate' -> the "
+           "loop-carried wide accumulator + ONE trailing reduce; "
+           "'per_iteration' -> a per-strip vredsum onto the running seed. Empty "
+           "(default) stamps nothing -> the realizer keeps its existing "
+           "budget-driven behavior (I7 fail-closed). Only the mf2/m1 signed "
+           "dot-reduce strip the wide selector serves is stamped.">
+  ];
 }
 
 def MaterializeEmitCLowerableRoutes

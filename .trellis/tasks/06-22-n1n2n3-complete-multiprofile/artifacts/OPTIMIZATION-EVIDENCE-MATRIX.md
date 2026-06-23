@@ -19,9 +19,7 @@ The three Wins, exactly per the user's definitions (`N1N2N3-LEDGER.md` head):
 - **Win-B** = a generated kernel that **changes the ALGORITHM** (the q4_0 repack: 16-blocks-as-lanes
   GEMM/GEMV). Baseline = **llama.cpp's OWN shipped optimized RVV kernel** (`ggml_vec_dot_*`, real RVV ops),
   NOT scalar, NOT `_generic`, NOT a hand-naive.
-- **Win-C** = an automatic **PASS that changes algorithm STRUCTURE**. **None built yet**, but a tractable
-  micro candidate is designed + in-flight (`WIN-C-DESIGN.md`, §2(c) gap 8): deferred-accumulate vs
-  per-iteration reduction (a real loop-carried-dependency change); e2e arm architecturally blocked.
+- **Win-C** = an automatic **PASS that changes algorithm STRUCTURE**. **BUILT + PROVEN** (2026-06-24): deferred-accumulate vs per-iteration reduction on the i16 dot-reduce body — **3.0–3.3× pass-ON/OFF** at FIXED m1 LMUL on rvv, byte-exact, I5/I7 trellis-check PASS (`WIN-C-DESIGN.md`). Micro only; e2e architecturally blocked (llama-routed kernels are monolithic emitters). The 3× is the pass-ON/OFF number (bundles genuine reduction-structure + a co-occurring per-iter round-trip), NOT a pure-structure isolate.
 
 **Cell taxonomy (4 states — never collapsed to binary "value-or-GAP"):**
 
@@ -70,7 +68,7 @@ missing`. All provenance roots under `.trellis/tasks/06-22-n1n2n3-complete-multi
 
 | Kernel | Win-A kernel | Win-A e2e | Win-B kernel | Win-B e2e | Win-C |
 |---|---|---|---|---|---|
-| **i16 dot-reduce contraction** (`TypedWideningDotReduce…`, the **Win-A headline**) | **MEASURED 2.27–3.79×** (rvv VLEN128) / **1.8–3.6×** (K1 VLEN256) · vs tune-OFF narrow-deferred (SAME algorithm, narrow LMUL, ALSO compiler-emitted) · byte-exact vs scalar oracle `[WIN-A-2-4x-EXPLAINED.md; commit 709bb69d]` | **N/A by nature** — not a standalone llama hot-path kernel; its e2e analogue *is* the q4_0 repack-LMUL row above. NOT a gap. | **N/A** — no ggml algorithm to swap against; baseline is tune-OFF same algorithm | N/A | NONE (§4.4) |
+| **i16 dot-reduce contraction** (`TypedWideningDotReduce…`, the **Win-A headline**) | **MEASURED 2.27–3.79×** (rvv VLEN128) / **1.8–3.6×** (K1 VLEN256) · vs tune-OFF narrow-deferred (SAME algorithm, narrow LMUL, ALSO compiler-emitted) · byte-exact vs scalar oracle `[WIN-A-2-4x-EXPLAINED.md; commit 709bb69d]` | **N/A by nature** — not a standalone llama hot-path kernel; its e2e analogue *is* the q4_0 repack-LMUL row above. NOT a gap. | **N/A** — no ggml algorithm to swap against; baseline is tune-OFF same algorithm | **MEASURED 3.0–3.3×** pass-ON/OFF (deferred vs per-iteration reduction) at FIXED m1 · rvv · byte-exact · I5/I7 check PASS; **e2e N/A** (not a standalone llama hot-path kernel — routed kernels are monolithic emitters, §4 block); the 3× bundles structure + a co-occurring round-trip, not a pure isolate `[WIN-C-DESIGN.md]` |
 | **q4_0 full GEMM (AoS)** (`q4_0_q8_0_gemm`, M-knob) | **MEASURED** (knob = activation_cols M, gearbox-selected) — superseded e2e by repack; micro is the AoS-GEMM building block | GAP — no standalone e2e row (repack GEMM is the routed prefill path) | n/a (algorithm-change home is the repack, scored above) | — | NONE (§4.4) |
 | **forward-pass scale / rms_norm** (`ggml_vec_scale_f32`, `rms_norm_f32`) | **N/A as tune** — `strip_lmul` attribute-togglable (default m8) but **no gearbox PASS selects it**; never measured-stamped | GAP — not wired; no e2e row | **N/A** — bit-identical reimpl of the ggml fn (same algorithm) | N/A | NONE (§4.4) |
 
@@ -117,9 +115,7 @@ genuinely **N/A (hard-pinned / emit-only)**. Win-B is per-op-vs-ggml but **micro
 | **Forward-pass hard-pinned** silu / softmax / quantize_row_q8_0 / rope_norm (fixed f32m2) | **N/A** hard-pinned (no `strip_lmul` knob) | **N/A** bit-identical reimpl of the ggml fn (same algorithm) | **GAP** not-wired | NONE (§4.4) |
 | **q4_0 GEMM-tile** (`q4_0_q8_0_gemm_tile`) | **N/A** — no own knob; composes the parent GEMM's M-knob | M× `ggml_vec_dot_q4_0_q8_0` (algorithm = shared weight decode) — building block, superseded e2e by repack | **GAP** (no standalone row) | NONE (§4.4) |
 
-**Win-C column — single global fact:** `NONE` in every cell above because **no automatic
-algorithm-STRUCTURE-changing pass exists** (§4.4). This is **one** missing capability (the strongest unclaimed
-novelty), **not** per-kernel debt. The repack is hand-authored Win-B and correctly NOT relabeled Win-C.
+**Win-C column — UPDATED (2026-06-24):** a Win-C structural-transform pass NOW EXISTS and is proven on the **i16 dot-reduce body** (3.0–3.3× pass-ON/OFF micro, §1b; I5/I7 trellis-check PASS). It does NOT apply to the other kernels here because their reduction structure is baked into **monolithic emitters** (repack/block-dot/K-quant) — the same architectural fact that blocks Win-C e2e. So Win-C = **MEASURED** for the dot-reduce row, **N/A-monolithic** elsewhere (not per-kernel debt). The repack is hand-authored Win-B, correctly NOT relabeled Win-C.
 
 ---
 
@@ -130,7 +126,7 @@ novelty), **not** per-kernel debt. The repack is hand-authored Win-B and correct
 >   scalar-oracle **PASS** (norm ≤ 7.6e-6). `[q4_1-winA-oracle-FINDING.md; 039fcd54]`
 > - ✅ **K-quant Win-B·micro** (all 5) vs ggml `_vl256` — honest MIXED (q2_K win / q5_K tie / q4_K·q6_K·q3_K
 >   loss); the losses MOTIVATE the q4_K Win-A knob. `[kquant-winB-micro-FINDING.md; d27c512a]`
-> - ⏳ **Gap 8 (Win-C)** designed + make-or-break IN FLIGHT — `WIN-C-DESIGN.md` (1adc631b); see (c) below.
+> - ✅ **Gap 8 (Win-C)** DONE (micro) — deferred-vs-per-iter reduction pass BUILT + PROVEN 3.0–3.3× pass-ON/OFF on rvv, I5/I7 check PASS; e2e blocked (monolithic emitters). `WIN-C-DESIGN.md` + winC-ablation/.
 > - **Quick-measurement gaps are now largely EXHAUSTED.** Remaining value = the *transplanting* kernels
 >   (K-quant repack, IME prefill) and Win-C — all code-heavy, deliberate efforts, not microbench reruns.
 >
@@ -170,9 +166,7 @@ Ordered by value × tractability. "Quick" = existing kernel + existing harness, 
 6. **Gap 5 — IME e2e in a matmul-bound regime.** HW-blocked: only K1 has IME silicon, ~7 GB RAM caps models at
    ~1–3B (all memory-bound decode). The 5.51× kernel win **structurally cannot surface e2e** on a runnable
    model; needs larger-RAM IME hardware.
-7. **Gap 8 — Win-C (automatic structural-transform pass).** The single biggest conceptual gap and the strongest
-   unclaimed novelty, but a **build-a-new-pass effort, not a measurement** (§4.4). Related N1→N3 target
-   ("winning-ALGORITHM-differs-by-profile", §5 item 7) is OPEN.
+7. **Gap 8 — Win-C (automatic structural-transform pass).** DONE for MICRO (2026-06-24): the deferred-vs-per-iteration reduction pass is BUILT + PROVEN (3.0–3.3× pass-ON/OFF at fixed m1 on rvv, byte-exact, I5/I7 trellis-check PASS; `WIN-C-DESIGN.md`). The e2e arm stays BLOCKED — llama-routed kernels are monolithic emitters whose reduction structure isn't sub-op-toggleable (would need an emitter refactor). Related N1→N3 target ("winning-ALGORITHM-differs-by-profile") remains OPEN.
 
 **Dropped (not gaps):** all RVV0.7/C920 cells (C920 Win-A, q8_0 third-profile probe, Fedora coherent-llama e2e
 block, RVV0.7 repack-GEVM re-scope) — out of scope per "drop RVV0.7," deliberately absent.

@@ -393,7 +393,15 @@ bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
          // narrow dot-reduce route's header/withVL never inherit them.
          name ==
              tianchenrv::plugin::rvv::
-                 kRVVLowPrecisionResourceVectorRegisterBudgetAttrName;
+                 kRVVLowPrecisionResourceVectorRegisterBudgetAttrName ||
+         // N3 Win-C: the orthogonal reduction-STRUCTURE fact (deferred-accumulate
+         // vs per-iteration reduce). Like the budget, it is a pre-realization
+         // resource fact the selector consumes and the realizer erases with the
+         // body; it is never a low_precision_resource MIRROR copied onto a
+         // realized op (held off isRVVLowPrecisionResourceAttrName on purpose).
+         name ==
+             tianchenrv::plugin::rvv::
+                 kRVVLowPrecisionResourceReductionStructureAttrName;
 }
 
 bool isAllowedTypedStridedInputWideningDotReducePreRealizedBodyAttr(

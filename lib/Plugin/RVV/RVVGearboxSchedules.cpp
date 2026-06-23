@@ -1240,6 +1240,49 @@ mlir::LogicalResult materializeDeferredWideBudgetForDotReduceBody(
       tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget);
 }
 
+// N3 Win-C: stamp the reduction-STRUCTURE body fact on the same narrow i16mf2
+// signed dot-reduce strip the wide selector serves. This is the STRUCTURE axis,
+// orthogonal to the LMUL/budget (Win-A) axis: it names which reduction structure
+// the realizer must emit (deferred-accumulate chain vs per-iteration vredsum),
+// independent of the budget rung. An empty option stamps nothing -> the realizer
+// keeps its existing budget-driven behavior (I7 fail-closed). An unrecognized
+// value is a bounded pass error (no silent fall-through to a wrong structure).
+mlir::LogicalResult materializeReductionStructureForDotReduceBody(
+    TypedWideningDotReducePreRealizedBodyOp body,
+    llvm::StringRef reductionStructure) {
+  if (reductionStructure.empty())
+    return mlir::success();
+  // Validate the OPTION VALUE first, independent of the shape gate below: an
+  // unrecognized value is always a bounded pass error (fail-closed), never
+  // silently dropped just because no body in this module matches the i16mf2->
+  // i32m1 strip the structure axis serves.
+  if (reductionStructure !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceReductionStructureDeferredAccumulate &&
+      reductionStructure !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceReductionStructurePerIteration)
+    return body->emitError()
+           << "RVV Gearbox reduction-structure option must be '"
+           << tianchenrv::plugin::rvv::
+                  kRVVLowPrecisionResourceReductionStructureDeferredAccumulate
+           << "' or '"
+           << tianchenrv::plugin::rvv::
+                  kRVVLowPrecisionResourceReductionStructurePerIteration
+           << "', got '" << reductionStructure << "'";
+  // Only stamp the recognized fact onto the narrow i16mf2 signed dot-reduce
+  // strip the wide selector serves; other shapes are left untouched.
+  if (body.getSourceSew() != 16 || body.getSourceLmul() != "mf2" ||
+      body.getResultSew() != 32 || body.getResultLmul() != "m1")
+    return mlir::success();
+  mlir::OpBuilder builder(body.getContext());
+  return requireStringAttr(
+      body.getOperation(), builder,
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceReductionStructureAttrName,
+      reductionStructure);
+}
+
 template <typename BodyOp>
 mlir::LogicalResult validateLowPrecisionProductDequantClampBody(BodyOp body) {
   if (body.getOpKind() != kLowPrecisionProductDequantClampOpKind ||
@@ -2393,6 +2436,13 @@ public:
          preRealizedDotReduceBodies) {
       if (mlir::failed(
               materializeDeferredWideBudgetForDotReduceBody(body))) {
+        signalPassFailure();
+        return;
+      }
+      // N3 Win-C: stamp the orthogonal reduction-STRUCTURE fact from the pass
+      // option (empty -> no stamp -> existing budget behavior, I7 fail-closed).
+      if (mlir::failed(materializeReductionStructureForDotReduceBody(
+              body, reductionStructure))) {
         signalPassFailure();
         return;
       }

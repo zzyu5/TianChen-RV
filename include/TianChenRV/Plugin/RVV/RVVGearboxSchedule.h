@@ -142,6 +142,25 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceVectorRegisterBudgetAttrName(
         "tcrv_rvv.low_precision_resource.vector_register_budget");
+// N3 Win-C: the reduction-STRUCTURE axis on the i16 dot-reduce strip, ORTHOGONAL
+// to the LMUL/budget (Win-A) axis. A body fact (stamped by the gearbox pass from
+// the reduction-structure pass option, consumed and erased at realization) that
+// names which contraction reduction structure to emit: the deferred-accumulate
+// chain (loop-carried wide vector accumulator + ONE trailing standalone reduce)
+// or the per-iteration reduce (a vredsum onto the running seed every strip). The
+// realization owner reads it BEFORE the budget rung logic; absent -> I7 fall
+// closed to the existing budget-driven behavior (no semantic change). Held off
+// the copy allowlist (isRVVLowPrecisionResourceAttrName) on purpose so it is
+// never mirrored onto a realized op (I5): the executable structure lives in the
+// realized op identity, not this string.
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceReductionStructureAttrName(
+        "tcrv_rvv.low_precision_resource.reduction_structure");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceReductionStructureDeferredAccumulate(
+        "deferred_accumulate");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceReductionStructurePerIteration("per_iteration");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceCostContractAttrName(
         "tcrv_rvv.low_precision_resource.resource_cost_contract");
@@ -2089,6 +2108,24 @@ selectRVVDotReduceDeferredWideMaxLegalLMULRung(
       best = rung;
   }
   return best;
+}
+
+/// N3 Win-C: the MINIMAL i16 dot-reduce deferred rung (source mf2 -> accumulator
+/// m1), which is ALWAYS architecturally available (one i32m1 group). Used when
+/// the reduction-STRUCTURE axis explicitly asks for the deferred chain but the
+/// budget pruned every rung in the resource enumeration: the structural request
+/// is honored at the narrowest legal LMUL, so the deferred-vs-per-iteration
+/// ablation is a pure STRUCTURE flip (this minimal m1 rung is exactly the LMUL
+/// the per-iteration emitter also fixes at -- RVVToEmitC m1 result constraint).
+inline RVVDotReduceDeferredWideLMULRung
+makeRVVDotReduceMinimalDeferredM1Rung() {
+  RVVDotReduceDeferredWideLMULRung rung;
+  rung.sourceLMUL = "mf2";
+  rung.accumulatorLMUL = "m1";
+  rung.accumulatorRegisterCost = getRVVLMULRegisterFootprint("m1");
+  rung.reserveRegisterCost = 0;
+  rung.isLegal = true;
+  return rung;
 }
 
 //===----------------------------------------------------------------------===//

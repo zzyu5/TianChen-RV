@@ -1,0 +1,19 @@
+CONFIG family=signed-i16-widening-dot-reduce ablation=STRUCTURAL-deferred-vs-periter-AT-FIXED-LMUL-m1 deferred=budget9(i16mf2->i32m1,vadd+1trailing-vredsum) periter=budget8(i16mf2->i32m1,vredsum-every-iter) both=verbatim-compiler-emitted-SAME-m1-LMUL-only-reduction-structure-differs warmups=3 repeats=11 iters=16 timing=clock_gettime(MONOTONIC_RAW)
+CORRECTNESS n=257 ok oracle=-50381 (deferred=-50381 periter=-50381, tol exact)
+CORRECTNESS n=1000 ok oracle=330390 (deferred=330390 periter=330390, tol exact)
+CORRECTNESS n=256 ok oracle=-39182 (deferred=-39182 periter=-39182, tol exact)
+CORRECTNESS n=1024 ok oracle=325816 (deferred=325816 periter=325816, tol exact)
+CORRECTNESS n=4096 ok oracle=-519741 (deferred=-519741 periter=-519741, tol exact)
+CORRECTNESS n=16384 ok oracle=-503356 (deferred=-503356 periter=-503356, tol exact)
+CORRECTNESS n=65536 ok oracle=-3062020 (deferred=-3062020 periter=-3062020, tol exact)
+SUMMARY n=256 deferred_ns=238.750 periter_ns=722.500
+RATIO n=256 periter_vs_deferred=3.026178
+SUMMARY n=1024 deferred_ns=870.000 periter_ns=2826.250
+RATIO n=1024 periter_vs_deferred=3.248563
+SUMMARY n=4096 deferred_ns=3396.250 periter_ns=11243.750
+RATIO n=4096 periter_vs_deferred=3.310637
+SUMMARY n=16384 deferred_ns=13628.750 periter_ns=45316.250
+RATIO n=16384 periter_vs_deferred=3.325048
+SUMMARY n=65536 deferred_ns=57087.500 periter_ns=182090.000
+RATIO n=65536 periter_vs_deferred=3.189665
+PASS winC-structural-ablation sink=-1359856914

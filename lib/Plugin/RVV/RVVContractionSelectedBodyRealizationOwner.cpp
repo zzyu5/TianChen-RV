@@ -121,6 +121,27 @@ readLowPrecisionResourceIntegerFact(mlir::Operation *op,
   return integerAttr.getInt();
 }
 
+// Optional string-fact read (nullopt when the fact is absent): used for the N3
+// Win-C reduction-structure axis so an UNSTAMPED body falls closed (I7) to the
+// existing budget-driven behavior instead of erroring.
+llvm::Expected<std::optional<std::string>>
+readLowPrecisionResourceStringFact(mlir::Operation *op,
+                                   llvm::StringRef attrName) {
+  if (!op)
+    return std::nullopt;
+  mlir::Attribute attr = op->getAttr(attrName);
+  if (!attr)
+    return std::nullopt;
+  auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(attr);
+  if (!stringAttr)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires string low-precision direct-contraction "
+                    "resource fact '") +
+        attrName + "'");
+  return stringAttr.getValue().str();
+}
+
 llvm::Error requireLowPrecisionResourceExpectedStringFact(
     mlir::Operation *op, llvm::StringRef attrName,
     llvm::StringRef expected) {
@@ -2617,6 +2638,73 @@ realizePreRealizedRVVContractionOwnerImpl(
       return std::move(error);
     RVVSelectedBodyContractionRealizationPlan plan =
         makeContractionRealizationPlan(dotReduceBody);
+    // N3 Win-C: the reduction-STRUCTURE axis, read FIRST and ORTHOGONAL to the
+    // LMUL/budget (Win-A) axis below. When the gearbox stamped the structure fact
+    // (from the reduction-structure pass option), it OVERRIDES which reduction
+    // structure is emitted, independent of the budget rung:
+    //   per_iteration       -> the per-strip vredsum fall-through (the OFF arm);
+    //                          always m1 (the per-iteration emitter's result
+    //                          constraint), so structure is isolated from LMUL.
+    //   deferred_accumulate -> the deferred chain (loop-carried wide accumulator
+    //                          + ONE trailing reduce, the ON arm); the LMUL still
+    //                          comes from the budget rung (composes with Win-A),
+    //                          falling to the always-available minimal m1 rung if
+    //                          the budget pruned every rung.
+    // Absent fact -> fall closed (I7) to the existing budget-driven behavior
+    // below with ZERO change. Gated to plain (non-strided, non-masked) dot-reduce
+    // so the strided/masked variants stay byte-intact. The executable structure
+    // lives in the realized op identity (deferred_accumulate vs widening_dot_
+    // reduce), never in this string (I5).
+    if (!plan.usesStridedInputs && !plan.usesComputedMask && !pressureProfile) {
+      llvm::Expected<std::optional<std::string>> reductionStructure =
+          readLowPrecisionResourceStringFact(
+              dotReduceBody.getOperation(),
+              kRVVLowPrecisionResourceReductionStructureAttrName);
+      if (!reductionStructure)
+        return reductionStructure.takeError();
+      if (*reductionStructure) {
+        if (**reductionStructure ==
+            kRVVLowPrecisionResourceReductionStructurePerIteration)
+          return realizePreRealizedRVVSelectedContractionFamily(
+              request, requires, plan, pressureProfile);
+        if (**reductionStructure ==
+            kRVVLowPrecisionResourceReductionStructureDeferredAccumulate) {
+          // Honor the deferred structure at the budget-selected LMUL when a rung
+          // survives (composing with Win-A); otherwise the always-available
+          // minimal mf2->m1 deferred rung (pure structure flip vs per_iteration).
+          constexpr std::int64_t kDeferredWideDotReduceReserveRegisterCost = 8;
+          std::optional<RVVDotReduceDeferredWideLMULRung> selected;
+          llvm::Expected<std::optional<std::int64_t>> structureBudget =
+              readLowPrecisionResourceIntegerFact(
+                  dotReduceBody.getOperation(),
+                  kRVVLowPrecisionResourceVectorRegisterBudgetAttrName);
+          if (!structureBudget)
+            return structureBudget.takeError();
+          if (*structureBudget) {
+            llvm::SmallVector<RVVDotReduceDeferredWideLMULRung, 4> rungs =
+                enumerateRVVDotReduceDeferredWideLMULRungs(
+                    **structureBudget, kDeferredWideDotReduceReserveRegisterCost);
+            selected = selectRVVDotReduceDeferredWideMaxLegalLMULRung(rungs);
+          }
+          if (!selected)
+            selected = makeRVVDotReduceMinimalDeferredM1Rung();
+          return realizeDeferredWideDotReduceBody(request, requires, plan,
+                                                  *selected);
+        }
+        // I7: a PRESENT-but-unrecognized structure fact must fail closed with a
+        // bounded diagnostic, never silently fall through to the budget logic
+        // (which would emit a structure the caller did not ask for). The pass
+        // option entry point already rejects bad values; this guards a directly
+        // injected body fact too.
+        return makeRVVPluginError(
+            llvm::Twine("pre-realized RVV dot-reduce realization cannot consume "
+                        "unrecognized reduction_structure fact '") +
+            **reductionStructure + "': expected '" +
+            kRVVLowPrecisionResourceReductionStructureDeferredAccumulate +
+            "' or '" +
+            kRVVLowPrecisionResourceReductionStructurePerIteration + "'");
+      }
+    }
     // N3 autotuner finale for the 2nd kernel family (P-B8): ask the i16 single-
     // widening resource-aware selector whether the vreg budget admits the wide
     // accumulator-LMUL rung. The budget is the pass-stamped architectural vreg-
