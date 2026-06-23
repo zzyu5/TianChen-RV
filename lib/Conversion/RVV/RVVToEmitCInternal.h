@@ -143,6 +143,12 @@ private:
   /// identity is the dispatch key; the emitter owns the structured block-as-lane
   /// multi-output-column expansion with the q4_1 scale+MIN per-column fold.
   static bool isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+  /// The Family-A (symmetric, full-int8) 16x1-REPACKED single-column GEMV
+  /// (decode) recognizer: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_q8_0_q8_0. The op identity is the dispatch key; the
+  /// emitter owns the structured block-as-lane single-output-column expansion
+  /// with FULL int8 weight lanes (NO nibble decode) and i32 in-block accumulation.
+  static bool isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
@@ -1127,6 +1133,30 @@ private:
   /// scalar/in-tree-block-dot reference, NOT byte-exact ggml parity (no upstream
   /// oracle exists); the GEMM's own numeric oracle is deferred this pass.
   mlir::LogicalResult emitRepackGemmQ4_1Q8_1(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// FAMILY-A (symmetric, full-int8) block-as-lane sibling of
+  /// emitRepackGemvQ4_0Q8_0: the q8_0 16x1-REPACKED single-column GEMV (decode).
+  /// The weight side is the block_q8_0x16 block-as-lane layout (16 interleaved
+  /// rows across 16 vector lanes, dot accumulates LANE-WISE, NO cross-lane
+  /// vredsum wall), the activation is ONE plain block_q8_0 stream (stride 34,
+  /// quants at +2). Two kernel-specific parts differ from the q4_0 repacked GEMV
+  /// (q8_0 weights are FULL int8, not packed nibbles):
+  ///   (a) the integer core reads int8 weight lanes DIRECTLY (vle8 -> i8 lane,
+  ///       NO vsll/vsra nibble sign-extend, NO ^0x88, NO lo/hi split). Each
+  ///       block has 32 contraction positions (not 16 nibble-bytes), one int8
+  ///       weight strip per position at qs[i*16 + h*half];
+  ///   (b) full int8 products overflow i16 (127*127*3 > 32767), so accumulation
+  ///       is i32 IN-BLOCK: vwmul_vx (i8xi8 -> i16 product) then vwadd_wv
+  ///       (i32_acc += widened i16 product), NOT q4_0's i16-vwmacc + end-of-block
+  ///       vwadd_vv lo/hi combine. The dual-fp16 scale fold (d_x*d_y) is IDENTICAL
+  ///       to q4_0. Integer accumulation is order-independent so the dot is
+  ///       byte-exact vs a scalar/ggml q8_0 reference.
+  /// The block-format facts are the op's typed attrs (I4 mirror); the emission is
+  /// the op's fixed structure (I5; every value is a node, ZERO raw() strings).
+  mlir::LogicalResult emitRepackGemvQ8_0Q8_0(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

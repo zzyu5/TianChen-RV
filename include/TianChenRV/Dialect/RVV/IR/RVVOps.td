@@ -4593,6 +4593,26 @@ def GgmlRepackGemmQ41Q81Op
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemvQ80Q80Op
+    : TCRVRVV_Op<"repack_gemv_q8_0_q8_0", [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV ggml Q8_0 x Q8_0 16x1-REPACKED GEMV (block-as-lane) op";
+  let description = [{ The block_q8_0x16 16x1-repacked GEMV decode sibling of repack_gemv_q4_0_q8_0.
+    Weights are FULL int8 (block_q8_0x16: 16 interleaved block_q8_0, each = one fp16 scale + 32 int8 quants),
+    so the kernel reads int8 weight lanes DIRECTLY (NO nibble vsll/vsra, NO ^0x88 bias) and accumulates
+    LANE-WISE via vwmacc int8xint8->i32 across 16 column lanes (NO cross-lane vredsum). Activation is one
+    plain block_q8_0 stream (stride 34, qs at +2). Dual-fp16 scale fold d_x*d_y. half_lanes = 8@VLEN128 (two
+    8-lane halves) / 16@VLEN256 (one strip). integer_core_lmul selects mf2 (default) vs m1 (whole-LMUL); the
+    dot is byte-exact either way. Verifier pins the block_q8_0x16 ABI fail-closed (I7). }];
+  let arguments = (ins AnyType:$weight_base, AnyType:$activation_base, AnyType:$output,
+    AnyType:$element_count, AnyType:$column_count, AnyType:$vl, StrAttr:$kind, StrAttr:$scale_model,
+    I64Attr:$qk, I64Attr:$weight_block_stride, I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset, I64Attr:$activation_quant_byte_offset, I64Attr:$weight_interleave,
+    I64Attr:$half_lanes, OptionalAttr<StrAttr>:$integer_core_lmul);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $column_count `,` $vl attr-dict `:` type($weight_base) `,` type($activation_base) `,` type($output) `,` type($element_count) `,` type($column_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ80Q80Op
     : TCRVRVV_Op<"q8_0_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface,
