@@ -1,0 +1,19 @@
+CONFIG family=signed-i16-widening-dot-reduce ablation=3x-DECOMPOSITION-AT-FIXED-LMUL-m1 deferred=budget9(i16mf2->i32m1,vadd+1trailing-vredsum,PASS-EMITTED) periter=budget8(i16mf2->i32m1,vredsum-every-iter+out[0]-mem-roundtrip,PASS-EMITTED) regkept=HAND-WRITTEN-ANALYSIS-KERNEL(i16mf2->i32m1,vredsum-every-iter,reg-kept-scalar-acc,NO-roundtrip) all3=SAME-m1-LMUL-SAME-e32m1-strip warmups=3 repeats=11 iters=16 timing=clock_gettime(MONOTONIC_RAW)
+CORRECTNESS n=257 ok oracle=-50381 (deferred=-50381 periter=-50381 regkept=-50381, tol exact)
+CORRECTNESS n=1000 ok oracle=330390 (deferred=330390 periter=330390 regkept=330390, tol exact)
+CORRECTNESS n=256 ok oracle=-39182 (deferred=-39182 periter=-39182 regkept=-39182, tol exact)
+CORRECTNESS n=1024 ok oracle=325816 (deferred=325816 periter=325816 regkept=325816, tol exact)
+CORRECTNESS n=4096 ok oracle=-519741 (deferred=-519741 periter=-519741 regkept=-519741, tol exact)
+CORRECTNESS n=16384 ok oracle=-503356 (deferred=-503356 periter=-503356 regkept=-503356, tol exact)
+CORRECTNESS n=65536 ok oracle=-3062020 (deferred=-3062020 periter=-3062020 regkept=-3062020, tol exact)
+SUMMARY n=256 deferred_ns=402.500 periter_ns=1223.750 regkept_ns=401.250
+RATIO n=256 bundled(periter/deferred)=3.040373 pure_structure(regkept/deferred)=0.996894 round_trip(periter/regkept)=3.049844
+SUMMARY n=1024 deferred_ns=1473.750 periter_ns=4795.000 regkept_ns=1472.500
+RATIO n=1024 bundled(periter/deferred)=3.253605 pure_structure(regkept/deferred)=0.999152 round_trip(periter/regkept)=3.256367
+SUMMARY n=4096 deferred_ns=5766.250 periter_ns=19085.000 regkept_ns=5763.750
+RATIO n=4096 bundled(periter/deferred)=3.309777 pure_structure(regkept/deferred)=0.999566 round_trip(periter/regkept)=3.311212
+SUMMARY n=16384 deferred_ns=23072.500 periter_ns=76502.500 regkept_ns=23082.500
+RATIO n=16384 bundled(periter/deferred)=3.315744 pure_structure(regkept/deferred)=1.000433 round_trip(periter/regkept)=3.314307
+SUMMARY n=65536 deferred_ns=100205.000 periter_ns=308162.500 regkept_ns=100196.250
+RATIO n=65536 bundled(periter/deferred)=3.075321 pure_structure(regkept/deferred)=0.999913 round_trip(periter/regkept)=3.075589
+PASS winC-structural-ablation sink=-2039785371

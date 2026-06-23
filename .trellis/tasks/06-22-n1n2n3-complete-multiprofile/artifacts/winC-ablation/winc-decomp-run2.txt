@@ -1,0 +1,10 @@
+SUMMARY n=256 deferred_ns=402.500 periter_ns=1222.500 regkept_ns=400.000
+RATIO n=256 bundled(periter/deferred)=3.037267 pure_structure(regkept/deferred)=0.993789 round_trip(periter/regkept)=3.056250
+SUMMARY n=1024 deferred_ns=1473.750 periter_ns=4795.000 regkept_ns=1471.250
+RATIO n=1024 bundled(periter/deferred)=3.253605 pure_structure(regkept/deferred)=0.998304 round_trip(periter/regkept)=3.259133
+SUMMARY n=4096 deferred_ns=5812.500 periter_ns=19091.250 regkept_ns=5808.750
+RATIO n=4096 bundled(periter/deferred)=3.284516 pure_structure(regkept/deferred)=0.999355 round_trip(periter/regkept)=3.286637
+SUMMARY n=16384 deferred_ns=23140.000 periter_ns=76812.500 regkept_ns=23146.250
+RATIO n=16384 bundled(periter/deferred)=3.319468 pure_structure(regkept/deferred)=1.000270 round_trip(periter/regkept)=3.318572
+SUMMARY n=65536 deferred_ns=94456.250 periter_ns=308138.750 regkept_ns=94972.500
+RATIO n=65536 bundled(periter/deferred)=3.262238 pure_structure(regkept/deferred)=1.005465 round_trip(periter/regkept)=3.244505

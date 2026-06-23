@@ -2,11 +2,11 @@
  * family:  out[0] = acc[0] + Sum_i lhs[i]*rhs[i]  (i16*i16 -> i32).
  *
  * THE STRUCTURAL (reduction-structure) ABLATION AT A FIXED LMUL (m1).
- * BOTH timed vector columns are VERBATIM compiler output (tcrv-opt
- * selector/gearbox -> --tcrv-rvv-lower-to-emitc -> mlir-translate --mlir-to-cpp),
- * driven ONLY by the vector_register_budget resource fact crossing the smallest
- * deferred rung's legality threshold (mf2->m1 costs footprint(m1)=1 + reserve 8
- * = 9):
+ * The two PASS-EMITTED columns (deferred, periter) are VERBATIM compiler output
+ * (tcrv-opt selector/gearbox -> --tcrv-rvv-lower-to-emitc -> mlir-translate
+ * --mlir-to-cpp), driven ONLY by the vector_register_budget resource fact
+ * crossing the smallest deferred rung's legality threshold (mf2->m1 costs
+ * footprint(m1)=1 + reserve 8 = 9):
  *
  *   deferred (ON)  : budget 9 -> smallest deferred rung mf2->m1 LEGAL ->
  *                    realizeDeferredWideDotReduceBody: i16mf2 source loads,
@@ -17,18 +17,35 @@
  *                    .cpp:2548) emits the per-iteration WideningDotReduceOp:
  *                    i16mf2 source loads, vwmul_vv_i32m1 product, then a
  *                    vredsum_vs_i32m1 EVERY iteration into the running scalar
- *                    seed (reduction on the loop-carried dependency every iter).
+ *                    seed (reduction on the loop-carried dependency every iter)
+ *                    -- AND round-trips that running scalar through out[0]
+ *                    MEMORY every iter (vmv_v_x splat-load + vse32 store).
  *
- * BOTH are m1 (i16mf2 source, i32m1 product/result; at VLEN=128 both strip 4
- * elements/iter, identical loads, identical vwmul product). The ONLY difference
- * is the REDUCTION STRUCTURE: deferred-accumulate + one trailing reduce vs a
- * per-iteration vredsum on the loop-carried chain. This isolates the STRUCTURAL
- * axis from the LMUL/budget (Win-A) axis. If the ratio is marginal (~1.0-1.2x)
- * there is NO Win-C (it was Win-A in costume); if ~1.5-3x Win-C is real.
+ * THIRD arm (ANALYSIS-ONLY, HAND-WRITTEN, a footnote -- NOT a Win-C arm):
+ *   regkept       : the SAME per-iteration vredsum reduction STRUCTURE as
+ *                   periter, but the running scalar accumulator is KEPT IN A
+ *                   REGISTER (a vint32m1 scalar-element register) across
+ *                   iterations -- NO out[0] read/splat/store inside the loop;
+ *                   stored once after the loop. periter_regkept_body.cpp.
+ *
+ * This decomposes the bundled pass-ON/OFF ~3x into:
+ *   bundled        = periter / deferred  (genuine reduction structure + the
+ *                                          co-occurring per-iter memory round-trip)
+ *   pure-structure = regkept  / deferred  (the PURE reduction-structure delta,
+ *                                          no round-trip on EITHER side)
+ *   round-trip     = periter  / regkept   (the round-trip's isolated cost)
+ * so bundled ~= pure-structure x round-trip.
+ *
+ * ALL three vector bodies are m1 (i16mf2 source, i32m1 product/result; at
+ * VLEN=128 all strip 4 elements/iter via vsetvl_e32m1, identical loads,
+ * identical vwmul product). regkept differs from periter ONLY by the removed
+ * memory round-trip; the structural axis is still isolated from the LMUL/budget
+ * (Win-A) axis.
  *
  * This TU (oracle + driver) is compiled -march=rv64gc so the oracle column is
- * genuinely scalar (no vector ISA). The two emitted bodies live in
- * deferred_body.cpp / periter_body.cpp, compiled -march=rv64gcv.
+ * genuinely scalar (no vector ISA). The three emitted bodies live in
+ * deferred_body.cpp / periter_body.cpp / periter_regkept_body.cpp, compiled
+ * -march=rv64gcv.
  */
 #include <stdint.h>
 #include <stddef.h>
@@ -61,6 +78,10 @@ tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv_deferred
 extern void
 tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv_periter(
     const int16_t *, const int16_t *, const int32_t *, int32_t *, size_t);
+/* HAND-WRITTEN analysis kernel (periter structure, register-kept scalar acc) */
+extern void
+tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv_periter_regkept(
+    const int16_t *, const int16_t *, const int32_t *, int32_t *, size_t);
 
 /* Thin noinline forwarding wrappers so the timed column is the actual compiler
  * output (single tail call, no added vector work). */
@@ -74,6 +95,12 @@ __attribute__((noinline)) void
 dot_periter(const int16_t *lhs, const int16_t *rhs, const int32_t *acc,
             int32_t *out, size_t n) {
   tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv_periter(
+      lhs, rhs, acc, out, n);
+}
+__attribute__((noinline)) void
+dot_regkept(const int16_t *lhs, const int16_t *rhs, const int32_t *acc,
+            int32_t *out, size_t n) {
+  tcrv_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv_periter_regkept(
       lhs, rhs, acc, out, n);
 }
 
@@ -127,6 +154,10 @@ static int check_case(size_t n) {
   dot_periter(lhs, rhs, acc, out, n);
   int32_t got_periter = out[0];
 
+  out[0] = 0;
+  dot_regkept(lhs, rhs, acc, out, n);
+  int32_t got_regkept = out[0];
+
   int rc = 0;
   if (got_deferred != oracle) {
     fprintf(stderr, "MISMATCH deferred n=%zu got=%d oracle=%d\n", n,
@@ -138,9 +169,15 @@ static int check_case(size_t n) {
             oracle);
     rc = 12;
   }
+  if (got_regkept != oracle) {
+    fprintf(stderr, "MISMATCH regkept n=%zu got=%d oracle=%d\n", n, got_regkept,
+            oracle);
+    rc = 12;
+  }
   if (rc == 0)
-    printf("CORRECTNESS n=%zu ok oracle=%d (deferred=%d periter=%d, tol exact)\n",
-           n, oracle, got_deferred, got_periter);
+    printf("CORRECTNESS n=%zu ok oracle=%d (deferred=%d periter=%d regkept=%d, "
+           "tol exact)\n",
+           n, oracle, got_deferred, got_periter, got_regkept);
   free(lhs); free(rhs); free(acc); free(out);
   return rc;
 }
@@ -161,9 +198,9 @@ static int time_case(size_t n) {
   out[0] = 0;
   dot_scalar(lhs, rhs, acc, out, n);
   int32_t oracle = out[0];
-  dot_fn fns[2] = {dot_deferred, dot_periter};
-  const char *names[2] = {"deferred", "periter"};
-  for (int v = 0; v < 2; ++v) {
+  dot_fn fns[3] = {dot_deferred, dot_periter, dot_regkept};
+  const char *names[3] = {"deferred", "periter", "regkept"};
+  for (int v = 0; v < 3; ++v) {
     out[0] = 0;
     fns[v](lhs, rhs, acc, out, n);
     if (out[0] != oracle) {
@@ -175,14 +212,14 @@ static int time_case(size_t n) {
   }
 
   for (int w = 0; w < WARMUPS; ++w)
-    for (int v = 0; v < 2; ++v) {
+    for (int v = 0; v < 3; ++v) {
       fns[v](lhs, rhs, acc, out, n);
       tcrv_sink += out[0];
     }
 
-  double best[2] = {-1.0, -1.0};
+  double best[3] = {-1.0, -1.0, -1.0};
   for (int r = 0; r < REPEATS; ++r)
-    for (int v = 0; v < 2; ++v) {
+    for (int v = 0; v < 3; ++v) {
       unsigned long long start = now_ns();
       for (int it = 0; it < ITERS; ++it) {
         fns[v](lhs, rhs, acc, out, n);
@@ -192,21 +229,30 @@ static int time_case(size_t n) {
       if (best[v] < 0.0 || per_iter < best[v]) best[v] = per_iter;
     }
 
-  double deferred = best[0], periter = best[1];
-  printf("SUMMARY n=%zu deferred_ns=%.3f periter_ns=%.3f\n", n, deferred,
-         periter);
-  printf("RATIO n=%zu periter_vs_deferred=%.6f\n", n,
-         deferred > 0 ? periter / deferred : 0.0);
+  double deferred = best[0], periter = best[1], regkept = best[2];
+  printf("SUMMARY n=%zu deferred_ns=%.3f periter_ns=%.3f regkept_ns=%.3f\n", n,
+         deferred, periter, regkept);
+  /* three decomposition ratios (all OFF/ON => >1):
+   *   bundled        = periter / deferred  (the pass-ON/OFF ~3x)
+   *   pure-structure = regkept / deferred  (NEW: no round-trip on either side)
+   *   round-trip     = periter / regkept   (the round-trip's isolated cost)
+   * identity: bundled ~= pure-structure x round-trip */
+  printf("RATIO n=%zu bundled(periter/deferred)=%.6f "
+         "pure_structure(regkept/deferred)=%.6f round_trip(periter/regkept)=%.6f\n",
+         n, deferred > 0 ? periter / deferred : 0.0,
+         deferred > 0 ? regkept / deferred : 0.0,
+         regkept > 0 ? periter / regkept : 0.0);
   free(lhs); free(rhs); free(acc); free(out);
   return 0;
 }
 
 int main(void) {
   printf("CONFIG family=signed-i16-widening-dot-reduce "
-         "ablation=STRUCTURAL-deferred-vs-periter-AT-FIXED-LMUL-m1 "
-         "deferred=budget9(i16mf2->i32m1,vadd+1trailing-vredsum) "
-         "periter=budget8(i16mf2->i32m1,vredsum-every-iter) "
-         "both=verbatim-compiler-emitted-SAME-m1-LMUL-only-reduction-structure-differs "
+         "ablation=3x-DECOMPOSITION-AT-FIXED-LMUL-m1 "
+         "deferred=budget9(i16mf2->i32m1,vadd+1trailing-vredsum,PASS-EMITTED) "
+         "periter=budget8(i16mf2->i32m1,vredsum-every-iter+out[0]-mem-roundtrip,PASS-EMITTED) "
+         "regkept=HAND-WRITTEN-ANALYSIS-KERNEL(i16mf2->i32m1,vredsum-every-iter,reg-kept-scalar-acc,NO-roundtrip) "
+         "all3=SAME-m1-LMUL-SAME-e32m1-strip "
          "warmups=%d repeats=%d iters=%d timing=clock_gettime(MONOTONIC_RAW)\n",
          WARMUPS, REPEATS, ITERS);
 

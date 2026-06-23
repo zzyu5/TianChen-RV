@@ -36,9 +36,15 @@ compile, time on rvv. This is the make-or-break number. Files: RVVContractionSel
 
 ## RESULT — R1 make-or-break MEASURED (2026-06-24, ssh rvv SG2044 VLEN=128, clang18)
 
-**VERDICT: Win-C is REAL. Structural-only ratio (per-iter ÷ deferred at FIXED m1) = 3.0–3.3×.**
-Well above the 1.5× gate → the effect is NOT Win-A in costume; the reduction structure is a genuine,
-separable axis. Proceed to build the pass.
+**VERDICT: Win-C (the pass ON/OFF) is REAL and reproduced at 3.0–3.3×.**
+Well above the 1.5× gate → the pass ON/OFF effect is NOT Win-A in costume. Proceed to build the pass.
+
+> **CORRECTION (see "3× DECOMPOSITION" section at the bottom of this file).** The phrase "Structural-only
+> ratio = 3.0–3.3×" used below is SUPERSEDED. A later hand-written register-kept analysis kernel decomposed the
+> 3× and found the PURE reduction-structure delta ≈ **1.00×** on SG2044 — the measured 3× is the per-iteration
+> `out[0]` MEMORY round-trip in the compiler's OFF arm, NOT a cross-lane-reduction latency benefit. The pass
+> ON/OFF 3× is still real (the OFF arm genuinely has the round-trip), but it must NOT be called "structural-only."
+> Read the decomposition section before quoting any number from here as a "reduction-structure" benefit.
 
 ### How the same-LMUL ablation was obtained with ZERO code change (measurement-only)
 The structural choice is conflated with the budget at `:2629`, BUT the budget crosses the SMALLEST deferred
@@ -156,3 +162,80 @@ the SAME pass with only the structure fact flipped.
 - FULL SUITE: 692/695 `check-tianchenrv` pass; the 3 failures are PRE-EXISTING (verified identical on clean
   main HEAD with no Win-C changes): 2× computed-masked-strided-dot (a different, untouched kernel family) +
   1× product-reduction-dequant self-test (different family). Win-C adds ZERO new failures.
+
+---
+
+## RESULT — 3× DECOMPOSITION (analysis kernel) (2026-06-24, ssh rvv SG2044 VLEN=128, clang18)
+
+**HEADLINE: the pass-ON/OFF ~3× is the per-iteration `out[0]` MEMORY round-trip, NOT a reduction-structure
+latency benefit. Pure reduction-structure delta on SG2044 = ~1.00×.**
+
+This decomposes the bundled pass-ON/OFF 3.0–3.3× (the R1 number above) into a GENUINE reduction-structure
+component vs a CO-OCCURRING per-iteration scalar memory round-trip, using a third HAND-WRITTEN body. This is an
+ANALYSIS kernel for mechanism attribution — **a footnote, NOT a third Win-C arm.** Win-C stays the compiler's
+ON/OFF (the bundled 3×); the register-kept body is not compiler-emitted, so it cannot be a Win-C arm.
+
+### The three bodies (all FIXED m1 LMUL, same e32m1 strip vl=4 @ VLEN128, same i16mf2 loads + vwmul_vv_i32m1)
+| body | how obtained | reduction structure | loop-carried acc | in-loop out[0] round-trip |
+|---|---|---|---|---|
+| **deferred** (ON) | PASS-emitted (budget 9) | deferred vector-accumulate + ONE trailing vredsum | `vadd.vv v9,v9,v12` (vector reg) | none |
+| **periter** (OFF) | PASS-emitted (budget 8 fall-through `:2548`) | per-iter vredsum every iter | `vredsum.vs` via `out[0]` MEM | YES (`vle32.v`+`vse32.v` every iter) |
+| **regkept** | HAND-WRITTEN analysis kernel | per-iter vredsum every iter | `vredsum.vs v8,v11,v8` (vector reg) | NONE |
+
+`regkept` = `periter` MINUS the round-trip: identical per-iteration `vredsum.vs` STRUCTURE, but the running
+scalar accumulator is KEPT IN A REGISTER (`v8`) across iterations — seeded once from `acc[0]`, stored once
+after the loop. Verified in objdump (`periter_regkept_body.o`): the inner loop `.LBB0_2` contains ONLY
+`vsetvli / vle16.v ×2 / vwmul.vv / vsetvli / vredsum.vs v8,v11,v8` and `add/sub/bltu` — **NO `vle32.v` reload
+of `out[0]`, NO `vse32.v` store of `out[0]` inside the loop** (the single `vse32.v` is at `.LBB0_3`, after the
+loop). Contrast `periter_body.o` `.LBB0_2`, which DOES carry `vle32.v v8,(a3)` + `vse32.v v8,(a3)` every iter.
+So `regkept` faithfully carries the loop-carried reduction dependency THROUGH `vredsum.vs` on the critical path
+(v8→vredsum→v8) — exactly the "per-iter reduction on the critical path" the structural hypothesis was about —
+while removing only the memory traffic.
+
+### Numbers (best-of-11×16, `taskset -c 0`, all THREE timed back-to-back same-load in one interleaved rep loop; 2 runs)
+| n | deferred_ns (ON) | periter_ns (OFF) | regkept_ns | bundled `periter/deferred` | **pure-structure `regkept/deferred`** | round-trip `periter/regkept` |
+|---|---|---|---|---|---|---|
+| 256 | 402.50 | 1223.75 | 401.25 | 3.04× | **1.00×** | 3.05× |
+| 1024 | 1473.75 | 4795.00 | 1472.50 | 3.25× | **1.00×** | 3.26× |
+| 4096 | 5766.25 | 19085.00 | 5763.75 | 3.31× | **1.00×** | 3.31× |
+| 16384 | 23072.50 | 76502.50 | 23082.50 | 3.32× | **1.00×** | 3.31× |
+| 65536 | 100205.00 | 308162.50 | 100196.25 | 3.08× | **1.00×** | 3.08× |
+
+Run 2 reproduced this tightly: pure-structure across BOTH runs = 0.994–1.005× (`regkept` and `deferred` are
+within ≤0.6%, i.e. measurement noise); bundled 3.04–3.32×; round-trip 3.04–3.32×. All three arms NUMERICALLY
+EXACT vs the genuine-scalar oracle on every n INCLUDING the odd tails n=257/1000 (driver TU `-march=rv64gc`,
+objdump vector-op count = 0 → oracle is genuinely scalar). The bundled 3× reproduces the R1 number, proving the
+harness resolves real per-kernel cost differences (the thin noinline wrapper overhead is common-mode and
+cancels in the ratios).
+
+### Interpretation (BOTH halves are true; state both)
+- **(a) The pass-ON/OFF 3× is REAL and reproduced.** By the user's definition Win-C IS the compiler's ON/OFF,
+  and the compiler's OFF arm (the `:2548` fall-through) genuinely emits the per-iteration `out[0]` memory
+  round-trip. So 3.0–3.3× is the legitimate Win-C pass-ON/OFF number and the R1 verdict (proceed to build the
+  pass) stands.
+- **(b) The PURE reduction-structure latency benefit is ≈0 on SG2044.** Once the memory round-trip is removed
+  (register-kept scalar acc), a per-iteration `vredsum.vs` on the loop-carried critical path is as fast as the
+  deferred `vadd.vv`-chain + one trailing reduce (pure-structure ≈ 1.00×). So the measured 3× is ENTIRELY the
+  `out[0]` round-trip, NOT cross-lane-reduction latency.
+
+**Mechanism reattribution:** the deferred structure's win comes from the compiler emitting it WITHOUT the
+per-iteration memory round-trip (the round-trip is a CO-OCCURRING emit cost of today's per-iter-to-scalar
+lowering, not fundamental to the structure). On this microarchitecture the cross-lane reduction itself is not
+on the binding critical path. The decomposition identity `bundled ≡ pure-structure × round-trip` is ALGEBRAIC
+(`periter/deferred ≡ (periter/regkept)·(regkept/deferred)`), so it is NOT independent corroboration — the
+validations are the objdump (round-trip present in periter, absent in regkept, no spill) and the bundled-3×
+reproduction.
+
+### Honest framing + scope
+This SUPERSEDES the "structural-only = 3.0–3.3×" language in the R1 section above (a forward-pointer is dropped
+there). The R1 gate language ("≈1.0× WOULD weaken the structural claim and must be reported, not buried") is
+exactly the case here, and it is reported in full: the structural component is ~1.0×, so the 3× should be
+described as a **pass-ON/OFF round-trip-elimination** win, not a "pure reduction-structure" win. The
+register-kept per-iter body is HAND-WRITTEN (not compiler-emitted) → it is an analysis kernel for mechanism
+attribution only, a footnote, NOT a Win-C arm. SCOPE: this is "on SG2044 VLEN128 for this streaming
+i16 dot-reduce, per-iter `vredsum.vs` is not on the binding critical path" — NOT "vredsum never bottlenecks."
+We did not isolate the microarchitectural cause (vsetvli toggles vs load-use latency vs VLMAX=4 making the
+cross-lane reduce cheap), and that is out of scope.
+
+Artifacts: `winC-ablation/{periter_regkept_body.cpp (new), winc_driver.c (now 3-arm), winc-decomp-run1.txt,
+winc-decomp-run2.txt}`. The pass-emitted `deferred_body.cpp`/`periter_body.cpp` are unchanged.
