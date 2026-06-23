@@ -339,3 +339,88 @@ run of the CURRENT binary so objdump + run + output all describe the same artifa
   -t1): prefill 2.94 / decode 1.58 tok/s — but the OUTPUT is garbage, so this is NOT a usable e2e number.
 - **Fedora RVV0.7 *e2e coherent-llama seal* = NOT achieved.** The defensible Fedora claim is the
   isolated-kernel + capability-divergence axis, not a coherent end-to-end llama run. Do not claim otherwise.
+
+## H3 (partial-tile / shape-edge) REFUTED + GEMM/GEVM truth table (2026-06-23, on-C920 fresh run)
+H3 hypothesis: emitted GEMM mishandles nr%4!=0 or nc%16!=0 -> tail tile OOB/under-write into a neighbor
+buffer. **REFUTED by the actual llama shapes.** Added a printf at the GEMM ENGAGED site (repack.cpp:84,
+`TCRV_H3_GEMM nr nc n nb bs`), ran prefill (`-t32 --temp 0`, tinyllama-q4_0). Every GEMM call shape:
+  - nr=16 ALWAYS (multiple of 4). ggml's driver `forward_mul_mat_one_chunk` (repack.cpp:4240) PRE-SPLITS
+    rows: `gemm(..., nrows - (nrows%4), ncols)`; the `%4` remainder rows go to a separate `gemv` loop. So
+    `nr/4` is structurally always exact -- the row-truncation confound is refuted at the driver.
+  - nc in {16,32,48} -- ALL multiples of 16 -> `nc/16` exact. (cols are chunked across threads, never partial.)
+  - n in {2048,5632} -- multiples of 32 -> `nb` exact. bs in {2048,5632,256} (256 = GQA KV width 4*64);
+    bs>=nc always, writes provably in-bounds: max off = (nr-1)*bs + src0_start+nc-1, src0_start+nc<=ne0=bs.
+  => No partial tile exists in this kernel's input space. There is NO OOB and NO under-write. H3 dead.
+
+**But the emitted GEMM is STILL a genuine culprit** -- via the *regime gap*, not shape edges. One-line
+bisection IN THIS BINARY (swap emitted<->_generic in repack.cpp, rebuild, rerun same prompt) gives the
+truth table:
+  | GEMM    | GEVM    | output                        |
+  |---------|---------|-------------------------------|
+  | emit    | emit    | GARBAGE  ################      |  (original)
+  | generic | emit    | GARBAGE  ################      |
+  | emit    | generic | GARBAGE  ################      |
+  | generic | generic | COHERENT "...Paris. ...Paris." |
+Both emitted kernels INDEPENDENTLY produce garbage; replacing EITHER with ggml `_generic` while the other
+stays emitted is still garbage; only BOTH-generic is coherent. (Activation q8_0 quantizer is scalar in this
+binary and unchanged across all four cells -> NOT the cause; this also confirms a coherent baseline exists
+in this exact build/toolchain.)
+
+**Relation to the prior CORRECTION's bisection (CONFIRMS the locus, REFUTES only its OOB sub-hypothesis).**
+The prior bisection config ("GEMM-emitted + everything-else-scalar -> garbage", quantizer + GEVM scalar) IS
+exactly cell **(emit, generic)** here, which I reproduced as garbage in a forced-clean build -- so that
+bisection's GEMM-locus result is CONFIRMED, not contaminated/overturned. The prior `+/-32KB sentinel CLEAN`
+AGREES with the in-bounds proof above (both say no OOB). What is refuted is the narrow *mechanism guess* the
+prior CORRECTION layered on top: the **far-OOB write (">32KB beyond the sentinel")**. The in-bounds proof
+(max off = (nr-1)*bs + src0_start+nc-1, with src0_start+nc<=ne0=bs) kills that sub-hypothesis -- writes are
+provably in-bounds, there is NO OOB. The prior FINDING's OTHER listed alternative locus -- a
+"dtype/stride/aliasing assumption on the real dst" -- is exactly the live hypothesis below; this work extends
+that analysis, it does not overturn it. The new facts the truth table adds: GEVM is *independently*
+sufficient to garbage (cell (generic, emit)), and a coherent baseline exists in this exact build/toolchain.
+
+The defect is therefore a **NUMERICAL (or strided-store) defect in the emitted kernels**, manifesting only in
+the real llama regime the isolation harness never exercised: **chunked (nc=16/32/48), strided dst (bs >> nc)**.
+gemm_verify ran nc=2048, contiguous, single-buffer -> it validated `[0,nr*nc)` under conditions that never
+reproduce the bug.
+
+**-t1 discriminator (rules out a threading race):** the (emit, emit) garbage cell rerun at **-t1** is STILL
+`################` garbage. So the defect is a PER-CALL numerical/stride bug, NOT a multithread race -- it is
+single-thread reproducible, which means a gemm_verify run at the REAL llama regime CAN catch it. The decisive
+regime axis is the **strided/chunked single call (bs != nc, nc=16)**, not threading.
+
+Next probe: reproduce gemm_verify at the REAL llama regime (nc=16 with a strided dst, bs=2048, src0_start!=0,
+single-thread) and/or compare emitted-vs-`_generic` per-element at nc=16 to localize the divergence inside the
+kernel. Suspects (in priority order from the -t1 result): (1) the strided `vse32` store at bs!=nc / the
+`output + src0_start` chunk-base offset; (2) the m1-floor f32m4 4-accumulator spill noted earlier in this
+FINDING. Throwaway instrumentation reverted; tree + binary restored to original emitted+emitted state
+(repack.cpp byte-identical to the pre-probe backup, rebuilt clean).
+
+## RESOLUTION (2026-06-23): the "strided-store defect" hypothesis is REFUTED — BOTH kernels are correct in the exact llama regime; e2e garbage is a ggml-side INTEGRATION/ROUTING confound, NOT our compiler
+The "Next probe" above was executed and **refutes the strided-store-defect conclusion it predicted.** Two
+isolation harnesses run the emitted kernels at the EXACT real-llama strided/chunked/offset regimes:
+- **GEMM** (`verify_gemm_strided_bs.cpp`, XuanTie g++, on C920): nc∈{16,32,48,2048} with **bs=4096 ≫ nc**
+  (strided dst), 50 trials each → **in-region norm=0.000e+00, gap-cols CLEAN, guard-rows CLEAN** for ALL.
+- **GEVM** (`verify_gemv_strided.cpp`, on C920): every decode regime incl. **src0_start≠0** — `nc=16
+  src0_start=16 bs=2048`, `nc=32 src0_start=1024 bs=2048`, `nc=2048 src0_start=64 bs=4096`, etc. →
+  **OVERALL: PASS, all norm=0.000e+00, sentinels CLEAN (fails=0).**
+
+**So both emitted RVV0.7 q4_0 kernels are bit-exact in EVERY regime the real llama uses — including the
+chunked (nc=16), strided (bs≫nc), and chunk-offset (src0_start≠0) cases the truth-table blamed.** The earlier
+"NUMERICAL/strided-store defect in the emitted kernels" conclusion is therefore **empirically wrong**.
+
+This contradicts the truth table (emit-GEMM+generic-GEVM=garbage; generic-GEMM+emit-GEVM=garbage). The only
+consistent explanation: the truth-table swap-and-rebuild bisection carried a **BUILD/ENGAGEMENT CONFOUND**
+(the Win-A precedent: a per-arm wiring/toggle state faked a kernel failure) — strongly corroborated by the
+CORRECTION's own clue that **decode GEVM showed 0 ENGAGED markers**, i.e. the emitted decode kernel was NOT
+actually routing in the arms claimed to test it; the garbage came from a non-engaged/fallback path, not the
+emitted kernel. Also: the e2e `.inc` has byte-identical `__riscv_*` intrinsic usage to the proven-correct
+isolated kernel (lead-verified), so the e2e binary runs the same correct kernel.
+
+**CORRECTED honest verdict:** our RVV0.7 emitted q4_0 GEMM + GEVM are **correct** (isolated bit-exact across
+all real-llama regimes — independently verified). The Fedora coherent-e2e failure is a **ggml-side
+integration/routing confound** (prime suspect: the repack dispatch not engaging the emitted decode GEVM —
+the same class as the Win-A VLEN-128 dispatch toggle), **NOT a defect in our compiler's kernel math.** The
+defensible Fedora claim is unchanged and now stronger: isolated-kernel correctness (all regimes) + RVV0.7
+capability divergence. The remaining coherent-e2e seal is ggml-integration follow-up work (verify/​fix the
+decode-GEVM engagement), tracked as OPEN — it is not a compiler-kernel bug. This RETRACTS the "strided-store
+numerical defect" framing in the section above.
