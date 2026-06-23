@@ -2201,6 +2201,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
     // 16-lane strip at VLEN=256 covers exactly the two 8-lane halves of VLEN=128).
     // The verifier pins half_lanes in {8,16} dividing 16, fail-closed (I7).
     int64_t numHalves = weightInterleave / half;             // 2 @128, 1 @256
+    // The number of activation columns folded per pass over the contraction
+    // block loop. The RVV1.0 fractional chain (i8mf2 -> i16m1 -> i32m2 -> f32m2)
+    // holds all 4 columns at once -- 4 f32m2 accumulators + 8 i16m1 products =
+    // 16 vregs, well within the 32-register file -- so it folds all 4 in ONE
+    // pass (columnsPerPass = activationInterleave), byte-identical to before.
+    // The RVV0.7.1 whole-LMUL chain (i8m1 -> i16m2 -> i32m4 -> f32m4) DOUBLES
+    // every rung: 4 f32m4 accumulators (16 vregs) that must persist across the
+    // block loop, PLUS 8 i16m2 products (16 vregs) live during the nibble loop
+    // = 32 vregs of state before any load/temp -> forced spill. GCC's spill of
+    // the last (4th) f32m4 accumulator mis-vtypes the zero-seed store to e16,m2
+    // (it zeros only lanes 0-7; lanes 8-15 keep stack garbage), corrupting the
+    // 4th column's upper lanes (observed: worst error always row=3, lane>=8).
+    // Folding ONE column per pass makes the per-pass live set IDENTICAL to the
+    // (bit-exact) GEMV: 1 f32m4 accumulator (4 vregs) + 1 i16m2 lo + 1 i16m2 hi
+    // (2 vregs each) + nibble temps ~= 12-14 vregs peak, well under 32 -> GCC
+    // keeps the accumulator in a vreg across the whole block loop, never spilling
+    // it. (A 2-column split still left 2 f32m4 + 4 i16m2 = 16 vregs of carried
+    // state -- enough for GCC to still spill one accumulator under the e16,m2
+    // nibble-loop vtype, producing the SAME mis-vtyped e32,m4 -> e16,m2 store,
+    // just relocated to the 2nd column; objdump confirmed it.) The cost is
+    // re-decoding the shared weight nibbles once per column (correctness-first;
+    // this is the prefill GEMM -- the hot decode path is the already-bit-exact
+    // GEMV); the whole chain stays whole-LMUL, no fractional symbol. RVV1.0 takes
+    // the else branch (one pass over all 4 columns), emission byte-identical.
+    int64_t columnsPerPass =
+        (coreLmul == "m1") ? 1 : activationInterleave;       // 1 @rvv07; 4 @rvv1.0
     int64_t nibbleBytes = qk / 2;                            // 16 nibble bytes
     // The activation high-half int8 quants start after the 32 low-half quants
     // (the 4 columns x 8 lanes the low half consumes per nibble step). The patch
@@ -2358,29 +2384,40 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
           mlir::Value roff =
               rewriter.create<emitc::MulOp>(loc, sizeType, h, sizeLit(half));
 
-          // vfloat32m2_t sumf_{0..3} = vfmv_v_f(0.0f, 8);  (4x8 f32 accumulators)
+          // ===== Activation-column-PASS loop (compile-time, C++): the columns
+          // [cLo, cLo+columnsPerPass) folded in this pass over the block loop.
+          // RVV1.0 (columnsPerPass=4) runs ONE pass over c in [0,4) -- emission
+          // byte-identical to the un-split form. RVV0.7 (columnsPerPass=1) runs
+          // FOUR passes (c in [0,1),[1,2),[2,3),[3,4)), each re-decoding the
+          // shared weight nibbles but holding only 1 f32m4 accumulator live ->
+          // per-pass live set == the bit-exact GEMV -> no spill (the 2-column
+          // split still spilled; see the columnsPerPass rationale above).
+          for (int64_t cLo = 0; cLo < activationInterleave;
+               cLo += columnsPerPass) {
+          int64_t cHi = cLo + columnsPerPass;
+          // vfloat32m2_t sumf_{cLo..cHi} = vfmv_v_f(0.0f, 8);  (per-pass f32 acc)
           std::string fmvCallee = riscvIntrinsicName("vfmv_v_f", 32, l32, "f32");
-          llvm::SmallVector<mlir::Value> sumf;
-          for (int64_t c = 0; c < activationInterleave; ++c) {
+          llvm::SmallVector<mlir::Value> sumf(activationInterleave);
+          for (int64_t c = cLo; c < cHi; ++c) {
             step(fmvCallee);
             mlir::Value zero =
                 rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f")
                     .getResult();
-            sumf.push_back(
+            sumf[c] =
                 rewriter
                     .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32m2Type},
                                                  fmvCallee,
                                                  mlir::ValueRange{zero, vl8})
-                    .getResult(0));
+                    .getResult(0);
           }
           // Mutable f32 accumulator lvalues (the inner block loop carries them).
-          llvm::SmallVector<mlir::Value> sumfVar;
-          for (int64_t c = 0; c < activationInterleave; ++c) {
+          llvm::SmallVector<mlir::Value> sumfVar(activationInterleave);
+          for (int64_t c = cLo; c < cHi; ++c) {
             auto v = rewriter.create<emitc::VariableOp>(
                 loc, emitc::LValueType::get(f32m2Type),
                 emitc::OpaqueAttr::get(ctx, ""));
             rewriter.create<emitc::AssignOp>(loc, v, sumf[c]);
-            sumfVar.push_back(v);
+            sumfVar[c] = v;
           }
 
           // ===== Inner contraction-BLOCK loop: for (l = 0; l < nb; ++l) =====
@@ -2417,20 +2454,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
                                                mlir::ValueRange{zero, vl8})
                   .getResult(0);
             };
-            llvm::SmallVector<mlir::Value> sumiLoVar, sumiHiVar;
-            for (int64_t c = 0; c < activationInterleave; ++c) {
+            llvm::SmallVector<mlir::Value> sumiLoVar(activationInterleave),
+                sumiHiVar(activationInterleave);
+            for (int64_t c = cLo; c < cHi; ++c) {
               auto vlo = rewriter.create<emitc::VariableOp>(
                   loc, emitc::LValueType::get(i16m1Type),
                   emitc::OpaqueAttr::get(ctx, ""));
               rewriter.create<emitc::AssignOp>(loc, vlo, seedI16());
-              sumiLoVar.push_back(vlo);
+              sumiLoVar[c] = vlo;
             }
-            for (int64_t c = 0; c < activationInterleave; ++c) {
+            for (int64_t c = cLo; c < cHi; ++c) {
               auto vhi = rewriter.create<emitc::VariableOp>(
                   loc, emitc::LValueType::get(i16m1Type),
                   emitc::OpaqueAttr::get(ctx, ""));
               rewriter.create<emitc::AssignOp>(loc, vhi, seedI16());
-              sumiHiVar.push_back(vhi);
+              sumiHiVar[c] = vhi;
             }
 
             // ===== Nibble-step loop: for (i = 0; i < 16; ++i) =====
@@ -2458,7 +2496,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
               mlir::Value i4 = rewriter.create<emitc::MulOp>(
                   loc, sizeType, i, sizeLit(activationInterleave));
 
-              for (int64_t c = 0; c < activationInterleave; ++c) {
+              for (int64_t c = cLo; c < cHi; ++c) {
                 // sumi_c_lo = vwmacc_vx(sumi_c_lo, al.qs[i*4+c], b_lo, 8);
                 step("act_quant_addr_lo");
                 mlir::Value loIdx = rewriter.create<emitc::AddOp>(
@@ -2492,8 +2530,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
 
             // const vint32m2_t sumi_c = vwadd_vv(sumi_c_lo, sumi_c_hi, 8);
             std::string vwaddCallee = ("__riscv_vwadd_vv_i32" + l32).str();
-            llvm::SmallVector<mlir::Value> sumi32;
-            for (int64_t c = 0; c < activationInterleave; ++c) {
+            llvm::SmallVector<mlir::Value> sumi32(activationInterleave);
+            for (int64_t c = cLo; c < cHi; ++c) {
               mlir::Value lo =
                   rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiLoVar[c])
                       .getResult();
@@ -2501,13 +2539,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
                   rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiHiVar[c])
                       .getResult();
               step(vwaddCallee);
-              sumi32.push_back(
+              sumi32[c] =
                   rewriter
                       .create<emitc::CallOpaqueOp>(loc,
                                                    mlir::TypeRange{i32m2Type},
                                                    vwaddCallee,
                                                    mlir::ValueRange{lo, hi, vl8})
-                      .getResult(0));
+                      .getResult(0);
             }
 
             // vfloat16m1_t b_d = vle16(&bl.d[roff], 8);  byte = roff*2.
@@ -2535,7 +2573,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
                                                          "f32");
             std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
             llvm::StringRef f16ReadCallee = "*(const _Float16 *)";
-            for (int64_t c = 0; c < activationInterleave; ++c) {
+            for (int64_t c = cLo; c < cHi; ++c) {
               step("act_scale_scalar");
               mlir::Value aDOff = rewriter.create<emitc::AddOp>(
                   loc, activationPtrType, al, sizeLit(c * 2));
@@ -2584,7 +2622,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
 
           // vse32(s + (y*4 + c)*bs + x*16 + roff, sumf_c, 8);  -- the 4x8 store.
           std::string vseCallee = riscvIntrinsicName("vse", 32, l32, "f32");
-          for (int64_t c = 0; c < activationInterleave; ++c) {
+          for (int64_t c = cLo; c < cHi; ++c) {
             step("output_addr");
             // row = y*4 + c;  off = row*bs + x*16 + roff.
             mlir::Value y4 = rewriter.create<emitc::MulOp>(
@@ -2609,6 +2647,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
                 loc, mlir::TypeRange{}, vseCallee,
                 mlir::ValueRange{dst, sumfVal, vl8});
           }
+          } // end activation-column-PASS loop (cLo)
         }
       }
     }

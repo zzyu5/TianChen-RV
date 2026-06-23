@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gc_xtheadvector --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gc_xtheadvector | FileCheck %s --check-prefix=STAMP
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gc_xtheadvector --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOFRAC
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gc_xtheadvector --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=PASS4
 
 // The GEMM arm of the SECOND repack divergence axis (ISA GENERATION). RVV0.7.1
 // (XuanTie xtheadvector) has NO fractional LMUL, so the GEMM repack's default
@@ -59,3 +60,14 @@ module {
 
 // RVV0.7.1 has NO fractional LMUL -- the whole emission must be fraction-free.
 // NOFRAC-NOT: mf2
+
+// The whole-LMUL chain (i8m1/i16m2/i32m4/f32m4) saturates the 32-vreg file if all
+// 4 activation columns are held live at once -> GCC spilled the 4th f32m4 acc
+// under the e16,m2 nibble vtype (zeroing only 8 of 16 lanes -> col-3 upper-lane
+// garbage). The fix folds ONE column per pass: FOUR independent block loops, each
+// re-decoding the shared weight nibbles, dropping the live set to the bit-exact
+// GEMV's ~12-14 vregs -> no spill. Pin the 4-pass structure by the per-pass weight
+// re-decode count (the single-pass buggy form re-decoded ONCE). The store count is
+// NOT a guard -- both forms emit 4 stores; only the re-decode count discriminates.
+// PASS4-COUNT-4: call_opaque "__riscv_vle8_v_i8m1"
+// PASS4-NOT: call_opaque "__riscv_vle8_v_i8m1"
