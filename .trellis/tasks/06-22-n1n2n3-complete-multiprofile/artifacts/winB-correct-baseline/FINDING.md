@@ -41,8 +41,16 @@ OFF prints nothing (md5-distinct .so's verified).
 |---|---|---|---|---|
 | **t16** | pp256 (prefill) | 17.9 t/s | 3.15 t/s | **5.68×** |
 | **t16** | tg64 (decode) | ~7.0 t/s | 2.71 t/s | **2.6×** |
-| **t1** | pp64 (prefill) | 0.83 t/s | (pending) | — |
-| **t1** | tg32 (decode) | 1.34 t/s | (pending; OFF pathologically slow → ratio ≫ 1.22×, threading ruled out) | — |
+| **t1** | pp64 (prefill) | 0.83 t/s | **0.20 t/s** | **4.15×** |
+| **t1** | tg32 (decode) | 1.34 t/s | **0.19 t/s** | **7.05×** |
+
+(t1 OFF arm measured `~/winB-scratch/winB_t1.log`, so md5 1f2727b5 = ggml's real RVV mul_mat,
+0 TCRV-EMITTED lines; ON md5 cabcd588, GEMV+GEMM ENGAGED. The t1 decode 7.05× confirms the
+memory-locality mechanism: at single-core the repack's contiguous 16-blocks-as-lanes layout
+streams weights far more efficiently than scattered plain-q4_0 — OFF is pathologically
+memory-bound at t1, so the ratio FAR exceeds the isolated-microbench 1.22× compute advantage.
+Threading is ruled out: both arms single-thread. This is a layout/locality win, not baseline
+inflation — OFF is ggml's own optimized 10-RVV-op kernel.)
 
 ### Honest reconciliation of microbench vs e2e (the decode discrepancy — resolved)
 - **Prefill is consistent and solid: microbench 6.36× ≈ e2e 5.68×.** A genuine algorithmic win vs ggml's
