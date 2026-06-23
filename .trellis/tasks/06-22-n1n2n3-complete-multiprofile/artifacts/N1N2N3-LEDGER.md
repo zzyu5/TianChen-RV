@@ -230,7 +230,7 @@ knob differs.
 4–15×" measures only "we vectorized at all," which MLIR autovectorization already provides; it is not reported.
 **Scope:** this is a microbench/selection result on three chips; it has no e2e leg of its own.
 
-#### 4.1b — repack-kernel LMUL-width ablation (just-measured: microbench POSITIVE, e2e BLOCKED)
+#### 4.1b — repack-kernel LMUL-width ablation (microbench POSITIVE; e2e FIXED & MEASURED: prefill wins, decode memory-bound-flat)
 
 A NEW ablation transplanting the LMUL-width knob into the q4_0 repack GEMV/GEMM: WIDE (`m1`, one 16-lane strip)
 vs NARROW (`mf2`, two 8-lane strips). Both arms compiler-emitted, only `integer_core_lmul` differs (disjoint
@@ -248,13 +248,31 @@ anywhere, so widening LMUL halves the strip count cleanly (decode 2.1×). Prefil
 the WIDE whole-LMUL f32m4 chain would spill the 32-vreg file, forcing a documented 4-pass-1-column re-decode
 that re-reads the shared weight nibbles 4× — a real cost that eats the width advantage.
 
-**e2e is BLOCKED for this knob — NO e2e number is claimed.** The WIDE `.so` deterministically fails to route to
-the emitted repack kernel in llama (0 ENGAGED lines, ~3× slower than even OFF, exit 0, empty stderr, survives a
-clean rebuild byte-identical), while the identical-pipeline NARROW `.so` engages perfectly (pp256=18.42 /
-tg64=9.01 t/s, 8 ENGAGED). Since the WIDE kernels are numerically correct (microbench norm=0) and both `.so`
-export identical symbol sets with both emitted funcs T-defined, this is a **llama integration/dispatch
-interaction**, not a kernel-science failure — but it was not root-caused in the time box, so the e2e WIDE/NARROW
-ratio for this knob is **UNMEASURED** (§5). Status: **PARTIAL** (microbench measured, e2e blocked).
+**e2e was initially BLOCKED, then ROOT-CAUSED & FIXED & MEASURED (2026-06-23).** The block was NOT a
+kernel/dispatch defect in our compiler: a parallel 3-probe + fix workflow proved it was a **build-harness
+error** — the WIDE `.so` had been compiled from a `repack.cpp` whose Q4_0 VLEN-128 dispatch case was toggled
+OFF (`case 128: { break; } /* TCRV-WINB-OFF-TOGGLE */`), so at VLEN128 `ggml_repack_get_optimal_repack_type`
+returned nullptr and the (present, correct) WIDE kernel was dead code (objdump: WIDE-dispatch == OFF-dispatch
+≠ NARROW-dispatch). Rebuilding the WIDE arm with the toggle ON (`libggml-cpu.WIDE_FIXED.so` md5 7bf39840)
+made it ENGAGE (7–8 markers). **Measured WIDE_FIXED vs NARROW e2e, 7B Q4_0 (both engaging):**
+
+| regime | WIDE (m1, 1×16) | NARROW (mf2, 2×8) | ratio |
+|---|---|---|---|
+| t1 prefill (pp128) | 1.31 t/s | 0.77 t/s | **1.70× (WIDE wins)** |
+| t16 prefill (pp256) | ~19.9 t/s | ~18.0 t/s | **1.10× (WIDE wins)** |
+| t1 decode (tg32) | ~1.40 | ~1.33 | 1.05× (≈flat, in noise) |
+| t16 decode (tg64) | ~7.0 | ~7.5 | 0.93× (≈flat, in noise; tg variance ±0.5–0.7) |
+
+**Honest interpretation (the opposite regime story from Win-B):** the 2.1× *microbench* decode win is
+matmul-/compute-bound and does NOT transplant to e2e decode — real decode is **memory-bandwidth-bound**, and
+LMUL width changes compute, not memory traffic, so decode is **flat**. But it DOES show in **prefill (1.70× at
+t1, 1.10× at t16)**, which is compute-bound. So the LMUL-width tune IS a real in-llama e2e win, located in
+prefill. Status: **MEASURED** (microbench 2.1× decode; e2e prefill 1.70× t1 / 1.10× t16, decode memory-bound
+flat). The fix is a harness/`.so` artifact (`winA-e2e/FINDING.md`), NOT a compiler change; rvv source tree
+restored. **Durable build-procedure lesson recorded:** the dispatch toggle and kernel `.inc` are different
+TUs — an A/B that swaps the kernel body must carry the matching dispatch state per arm, else the new arm
+silently runs the generic fallback (0 ENGAGED, exit 0, empty stderr — looks like a math bug, is dead-code
+dispatch). Always objdump the FINAL staged `.so` for BOTH dispatch-accepts-VLEN AND kernel-vtype.
 
 #### 4.1c — VLEN-strip selection: the ONLY Win-A result with an e2e number
 
@@ -310,7 +328,7 @@ correct-baseline picture is prefill-strong, decode-modest-but-real.
 | result | bucket | number | e2e? | status |
 |---|---|---|---|---|
 | Win-A i16-contraction LMUL tune | micro | 2.27–3.79× (rvv); 1.8–3.6× K1; 1.4–1.7× C920 | no | **SOLID** (3 chips, all compiler-emitted) |
-| Win-A repack-LMUL ablation | micro | decode 2.1× / prefill 1.3× (rvv), byte-exact | **BLOCKED** | **PARTIAL** (e2e dispatch bug, unmeasured) |
+| Win-A repack-LMUL ablation | micro + e2e | micro decode 2.1× / prefill 1.3×; **e2e prefill 1.70× (t1) / 1.10× (t16), decode flat** | **MEASURED** | e2e engagement bug was a build-harness toggle, FIXED; decode memory-bound-flat, prefill compute-bound-wins |
 | Win-A VLEN-strip selection | micro+e2e | 1.48× micro / **1.31× e2e** (K1) | **yes** | **SOLID** (engagement+correctness SEAL) |
 | Win-B repack prefill | micro+e2e | **6.36× micro / 5.68× e2e** (rvv) | **yes** | **SOLID** |
 | Win-B repack decode | micro+e2e | 1.22× micro / ~2.6× e2e t16 (rvv) | yes | solid-but-regime-dependent; t1 7.05× weak (flagged) |
@@ -337,8 +355,9 @@ Win-C. **Win-C is explicitly unclaimed.**
    far-OOB write (>32 KB) / dtype-aliasing assumption on the real dst / side effect on a neighboring graph
    buffer. Unfixed. **The defensible Fedora claim is the isolated-kernel + capability-divergence axis (§2.3),
    NOT a coherent end-to-end llama run.** Provenance: `fedora-rvv07/FINDING.md` (final verdict, lines 305–341).
-2. **Win-A repack-LMUL e2e is BLOCKED / UNMEASURED.** The WIDE `m1` repack `.so` does not engage in llama
-   (integration/dispatch bug, not kernel science). The e2e WIDE/NARROW ratio for that knob is open (§4.1b).
+2. **Win-A repack-LMUL e2e — RESOLVED (was a harness bug, now MEASURED).** The earlier "WIDE doesn't engage"
+   was a build-harness toggle (VLEN-128 dispatch case OFF in the WIDE arm's repack.cpp), root-caused & fixed;
+   WIDE_FIXED engages, e2e prefill **1.70× t1 / 1.10× t16**, decode memory-bound-flat (§4.1b). No longer open.
 3. **Win-B regresses on K1/X60 (0.74×).** Per-microarch path selection (repack vs autovec'd-generic) is the
    needed-but-unbuilt next N3 layer (§4.2).
 4. **N2 IME performance is UNSTARTED.** N2 proves zero-core-branch + bit-exact emission only; there is no
@@ -368,8 +387,10 @@ fractional-prune flip remains structurally impossible — no contradiction). N2 
 second family: our pass consumes the `spacemit.ime` capability fact and emits `vmadot` with no family-name
 branch in core, bit-exact on real X60 (one honest I5 caveat: a single justified asm leaf, no IME intrinsic
 exists; we do not claim raw()==0; IME perf unstarted). N3 stands on Win-A i16-contraction tune (2.27–3.79×
-microbench, 3 chips, all compiler-emitted) + the Win-A VLEN-strip selection (1.48× micro / 1.31× e2e on K1, the
-only Win-A result with an e2e leg) + Win-B repack prefill (~6× micro and e2e vs ggml's own optimized RVV
-kernel), with decode regime-dependent (1.22× compute → ~2.6× e2e), an honestly-disclosed K1 regression (0.74×),
-a blocked repack-LMUL e2e leg, a weak-and-flagged t1 7.05×, no Win-C, and the Fedora coherent-llama seal NOT
-achieved. No scalar contribution number appears; the three Wins are never conflated.
+microbench, 3 chips, all compiler-emitted) + TWO Win-A results with an e2e leg — the VLEN-strip selection
+(1.48× micro / 1.31× e2e decode on K1) and the repack-LMUL-width tune (2.1× micro decode; **e2e prefill 1.70×
+t1 / 1.10× t16**, decode memory-bound-flat — engagement bug root-caused as a harness toggle and fixed) — +
+Win-B repack prefill (~6× micro and e2e vs ggml's own optimized RVV kernel), with decode regime-dependent
+(1.22× compute → ~2.6× e2e), an honestly-disclosed K1 regression (0.74×), a weak-and-flagged t1 7.05×, no
+Win-C, and the Fedora coherent-llama seal NOT achieved. No scalar contribution number appears; the three Wins
+are never conflated.
