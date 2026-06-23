@@ -243,14 +243,13 @@ verifyIMEMACBoundary(mlir::Operation *op, llvm::StringRef expectedIMEOp,
               "attributes '"
            << kMacMAttrName << "', '" << kMacNAttrName << "', '" << kMacKAttrName
            << "'";
+  // The K depth is the int8 lane count of one VLEN=256/SEW=8 group reduced by
+  // the 4x4 output tile; for the validated X60 unit M=N=4, K=8. Keep the
+  // verifier general over fragment shape but anchored to the int8->int32 MAC:
+  // every fragment dimension must be strictly positive (derived from VLEN/SEW).
   if (macM.getInt() <= 0 || macN.getInt() <= 0 || macK.getInt() <= 0)
     return emitErr() << "MAC fragment shape (mac_m/mac_n/mac_k) must be "
                         "positive (derived from VLEN/SEW)";
-  // The K depth is the int8 lane count of one VLEN=256/SEW=8 group reduced by
-  // the 4x4 output tile; for the validated X60 unit M=N=4, K=8. Keep the
-  // verifier general over fragment shape but anchored to the int8->int32 MAC.
-  if (macM.getInt() * macK.getInt() <= 0 || macN.getInt() * macK.getInt() <= 0)
-    return emitErr() << "MAC fragment shape is degenerate";
 
   if (auto reason = op->getAttrOfType<mlir::StringAttr>(kIMEReasonAttrName)) {
     if (reason.getValue().trim().empty())
