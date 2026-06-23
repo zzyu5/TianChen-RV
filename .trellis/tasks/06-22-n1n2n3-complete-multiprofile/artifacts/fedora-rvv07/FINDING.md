@@ -301,3 +301,32 @@ coherently in real llama once the inputs are correct.
   distinct version → same kernel diverges on RVV0.7 vs RVV1.0 (N1 at the model level, bounded, local).
 - Full RVV0.7 emission + on-C920 e2e run: ~1 eng-week (toolchain + emitter 0.7-policy variant + legality
   gate). Deferred as the follow-on; the hardware/toolchain are ready on Fedora.
+
+## CORRECTION (2026-06-23, disciplined fresh-run): ARM B is REFUTED — e2e seal is OPEN, not sealed
+The section above predicted "ARM B (scalar quantizer + our emitted GEMM+GEMV) will confirm coherent
+output." **A clean disciplined run refutes that prediction.** Discriminating test (advisor-framed: a fresh
+run of the CURRENT binary so objdump + run + output all describe the same artifact):
+- Binary: `build-rvv07/bin/llama-completion` (rebuilt 21:17, this session). `llama-cli` in this build is
+  conversation-only ("--no-conversation is not supported by llama-cli, use llama-completion") — the earlier
+  `-no-cnv` "seal" runs silently fell back to conversation mode, which is why they were noisy/ambiguous.
+- Quantizer: objdump of `llama-completion` confirms **ALL q8_0 quant paths are scalar** — `quantize_row_q8_0`
+  = 0 vec ops, `ggml_quantize_mat_q8_0_4x8` = 0 vec ops, `quantize_q8_0` = 0 vec ops. So the hand-vectorized
+  activation quantizer is NOT in play.
+- Run (`-t 32 -n 16 --temp 0`, chat-templated prompt, exit=0, complete): our emitted GEMM ENGAGES (markers
+  fire) yet output is **`################` GARBAGE**. (Side-clue: GEVM shows 0 ENGAGED markers in decode —
+  the emitted decode kernel may not be routing, OR logits were already corrupt from prefill.)
+- The earlier coherent "The capital of France is Paris." (`v3_greedy.log`) **does NOT reproduce** on a
+  disciplined fresh run of the current binary — it was a transient/different build state, not a durable seal.
+
+**Honest verdict (this is the 3rd over-optimism correction in this campaign; recording it as such):**
+- STANDS (durable, independently verified): RVV0.7 silicon real (SIGILL bisection); all 3 kernel classes
+  emit fraction-free `th.v*` 0.7.1; isolated kernels **bit-exact** (gemm_verify norm=0, GEVM bit-exact,
+  contraction dot PASS); RVV0.7 capability-axis legality divergence in the model.
+- REFUTED: "scalarizing the activation quantizer → coherent e2e." It does not. Scalar quantizer + emitted
+  GEMM engaged → still garbage.
+- OPEN (unisolated): the e2e integration defect is NOT the isolated GEMM math and NOT the activation
+  quantizer. Remaining candidates (ggml-side hand code under xtheadvector, NOT our compiler): the q4_0
+  **weight repack** routine (`ggml::cpu::repack` — feeds our GEMM its packed weights; if miscompiled, our
+  correct GEMM gets garbage INPUT → garbage OUTPUT), or decode-path GEVM routing (the 0-marker clue).
+- **Fedora RVV0.7 *e2e coherent-llama seal* = NOT achieved.** The defensible Fedora claim is the
+  isolated-kernel + capability-divergence axis, not a coherent end-to-end llama run. Do not claim otherwise.

@@ -23,10 +23,19 @@ kernel in real llama.cpp inference on K1 (Spacemit X60, VLEN=256) and produced c
   7B Win-B (5–6×, large model). On a small model at 8 threads, our emitted repack strip does not beat the
   autovec'd reference on the X60 — a real, disclosed limitation.
 - **1×16-emitted vs 2×8-emitted @ t1 (the apples-to-apples SELECTION question, matching the 1.48× microbench):
-  UNMEASURED — BLOCKED.** Two confirmed-distinct `.so` snapshots (`~/libggml-cpu-{1x16,2x8}.so`, differ at
-  byte 154) are staged on K1; resume cost ~2min once K1 is back:
-  `cp ~/libggml-cpu-1x16.so build/bin/libggml-cpu.so.0.15.1 && taskset -c 0 ./build/bin/llama-bench -m
-  models/tinyllama-q4_0.gguf -p 0 -n 32 -t 1 -r 3` then the 2x8 `.so`.
+  MEASURED 2026-06-23 — 1×16 WINS 1.31×.** K1 rebooted (back up); ran both staged `.so` snapshots
+  back-to-back, `taskset -c 0 llama-bench -m models/tinyllama-q4_0.gguf -p 0 -n 32 -t 1 -r 3`:
+  | arm (both compiler-emitted repack, t1, VLEN=256) | tg32 t/s | ENGAGED marker |
+  |---|---|---|
+  | **1×16 strip** (gearbox's VLEN256 selection) | **2.12 ± 0.00** | fired |
+  | 2×8 strip (the VLEN128 shape) | 1.62 ± 0.00 | fired |
+  → **1×16 / 2×8 = 1.31× e2e in real llama decode.** Both arms are verbatim compiler output (same kernel,
+  only strip width differs), both ENGAGED markers fired → this is the pure strip-SELECTION win, IN llama,
+  on real VLEN=256 silicon. It corroborates the isolated-kernel **1.48× microbench** (e2e slightly lower,
+  expected: more memory/overhead at the model level dilutes the per-kernel compute win). **This is distinct
+  from the repack-vs-generic X60 loss below** — that compares repack-path vs autovec'd-generic (a different
+  question); this compares two strip widths within the repack path. The compiler-automatic VLEN→strip
+  selection is the right call at 256, and now demonstrably so end-to-end. Log: `k1_1x16.out` / `k1_2x8.out`.
 
 ## Blocker: K1 is DOWN
 After the benches, K1 went unresponsive (port 22 CLOSED from the jumphost; jumphost + rvv both fine →

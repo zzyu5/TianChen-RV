@@ -53,8 +53,11 @@
 ## Acceptance (evolving) — status 2026-06-22
 - [x] **⑤ tcrv-opt emit competent narrow-deferred → 干净全-compiler LMUL ablation** `[3d2a2b3f]`:budget 32→m8/12→m4/9→m1,
   同 deferred-accumulate 算法、只变 LMUL、两臂都编译器 emit;rvv 实测 wide÷narrow **2.27–3.79×**,两臂数值 EXACT vs scalar oracle `[709bb69d]`。
-- [~] **④-PRIZE: Win-A 进 llama hot path** `[87c540ec]`:advisor 重构后落地为 **VLEN-aware repack strip**(非 max-LMUL 进 block-dot,那会撞 per-block-reduce 墙)。
-  K1 实测:compiler 自动选 1×16@VLEN256,数值 PASS,**1.48× faster** vs 2×8 `[08a11764]`。**剩**:full llama.cpp e2e(K1 上跑真模型)未做(microbench 已证 decode kernel)。
+- [x] **④-PRIZE: Win-A 进 llama hot path** `[87c540ec]`:advisor 重构后落地为 **VLEN-aware repack strip**(非 max-LMUL 进 block-dot,那会撞 per-block-reduce 墙)。
+  K1 microbench:compiler 自动选 1×16@VLEN256,数值 PASS,**1.48×** vs 2×8 `[08a11764]`。
+  **2026-06-23 K1 重启后补完 e2e**:`llama-bench -t1` 真模型 tinyllama-q4_0,两 compiler-emitted 臂 back-to-back,
+  **1×16 = 2.12 t/s vs 2×8 = 1.62 t/s = 1.31× e2e WIN**,两臂 ENGAGED marker 都 fire → strip-SELECTION 在真 llama decode、真 VLEN256 硅上胜出,印证 microbench。
+  (与 repack-vs-generic 的 X60 loss 是不同问题,别混。)artifact `k1-vlen256/e2e-SEAL-and-caveat.md`。
 - [x] **② N1 多-profile 真硅分化** `[4d36bdb3, d6022f58]`:q8_0 winner m2@128→m1@256(同-session,~7%,categorical LMUL-family reversal);
   q4_1 elision flip(K1 +11.2%);q4_0 factor flip(marginal);q5_0/q5_1 null(m1-only,结构性)。static argmin 在**每个 kernel×chip 都错**→ measured>static 普遍必需。
 - [~] **④ / Fedora RVV0.7 — N1 ISA-generation 轴推进 (def25aba, a71aa201)**:
@@ -62,8 +65,14 @@
   手写 `rv64gc_xtheadvector` kernel 出 `th.v*` 0.7.1 编码、**实跑绿**(dot PASS),RVV1.0 binary SIGILL —— 干净二分。
   **capability 模型已加 RVV0.7 版本轴**:`RVVVersion`(1p0/0p7)成 queryable fact,同 kernel 在 RVV0.7 vs RVV1.0 **legality 分化**
   (ta/ma agnostic policy 是 1.0-only → 0.7 上 fail-closed 拒;rv64gcv 输出 byte-identical)。这是 N1 最深轴(ISA 代),补 K1 的 VLEN 轴。
-  **剩**:RVV0.7 **emission**(~1 eng-week 的 0.7-policy emitter variant + th.* 拼写)—— deferred follow-on,工具链/硬件已就绪。
-  N2 第二 family 仍 IME-class、hardware-blocked(RVV0.7 是 RISC-V 家族内的 N1 profile,不是 N2 family)。
+  **RVV0.7 emission 已落地**(`ec548291` GEMM one-col-per-pass + GEVM):3 kernel class 都出 fraction-free `th.v*` 0.7.1、**isolated bit-exact**(gemm_verify norm=0 / GEVM bit-exact / dot PASS)。
+  **诚实修正(2026-06-23, 第3次 over-optimism 纠偏)**:**e2e coherent-llama seal = 未达成**。disciplined fresh run(`llama-completion`,
+  quantizer objdump 确认全 scalar、emitted GEMM ENGAGED)仍输出 `####` 垃圾;之前 `6a864212` 的「scalar化 quantizer→coherent」**被反驳**;
+  早先 v3 的 "Paris" 不可复现。残留 e2e 缺陷未隔离(候选:ggml 手写 q4_0 **weight repack** 在 xtheadvector 下误编、或 decode GEVM 路由——都非我们 compiler)。
+  Fedora 可辩护主张 = isolated-kernel + capability-divergence 轴,**不是** coherent e2e。见 `fedora-rvv07/FINDING.md` CORRECTION。
+- [~] **③ N2 第二 family — IME 硬件候选找到 (2026-06-23, `k1-ime-n2-feasibility.md`)**:K1 Spacemit X60 的 `/proc/cpuinfo` ISA 串尾部带 `ime`(Integer Matrix Extension,挂 RV 核的非-RVV 扩展)=
+  正当 Case-A 第二-family 候选。**N2 不再 hardware-blocked(弱义:硅在)**,但仍 **toolchain+effort-blocked**:Bianbu clang/gcc 无 `ime` march token(只认 SiFive `xsf*` 矩阵扩展,异厂)、无 intrinsics header、无寄存器/编程模型。
+  按用户判据「拿到编程模型后再判」→ 未起任何 codegen。下一步(deferred):取 Spacemit IME spec → 判 capability 形状 → 才 scope emitter。
 - [x] **① N1 breadth**:沿 VLEN 分化拓到 q8_0/q4_1/q4_0/q5 family-coverage map(见上)。
 - [x] **全程**:structured raw()=0 / fail-closed verifier / real ssh 证据 / Win-A(编译器-tune)vs Win-B(kernel-swap)分清 / clean rebuild 绿 / 诚实 ledger(advisor 抓过 verifier 错机器、我抓 q4_1 overturn)。
 - **Open 下一阶段(用户 steer)**:(2) full llama e2e on K1;(3) Fedora RVV0.7 codegen(XuanTie 工具链);(4) consolidate for paper;扩 VLEN strip 到更多 quant repack。
