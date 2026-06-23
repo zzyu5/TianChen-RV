@@ -281,6 +281,20 @@ toggle the c=3 scale-fold / accumulator and re-run to localize. This is a focuse
 (the bug is isolated, the validation gate is built); the GEVM RVV0.7 is bit-exact + engages in real llama,
 so ONLY the GEMM prefill needs it.
 
+## e2e coherence: residual garbage is GGML's HAND quantizer, NOT our compiler (2026-06-23)
+After the GEMM f32m4-spill fix (ec548291), OUR RVV0.7 q4_0 kernels are ALL bit-exact in isolation
+(contraction + GEMV + GEMM, gemm_verify norm=0). But the full-llama e2e with both fixed kernels engaged
+STILL output garbage "####". Isolated culprit: **`ggml_quantize_mat_q8_0_4x8`** (`arch/riscv/repack.cpp`)
+— a HAND-WRITTEN RVV q8_0 activation quantizer (ggml's reference, NOT our compiler's emitted kernel) that
+is buggy under xtheadvector and was VECTORIZED (so the per-file `-march=rv64gc` scalar mitigation, which
+caught `quants.c`, MISSED this one). It produces wrong q8_0 activations → feeds our (correct) GEMM/GEMV
+wrong inputs → garbage. The discriminator ARM B (force the quantizer SCALAR `_generic` + our emitted
+GEMM+GEMV) is the isolating test (rebuild in progress, b7y5mqvsy). **Honest scope**: our compiler-emitted
+RVV0.7 kernels are numerically correct (proven); the residual e2e coherence is gated by ANOTHER ggml
+hand-written RVV reference (the activation quantizer), the same class of upstream-reference RVV1.0
+fractional-LMUL issue as the `quants.c` wall — not our novelty. ARM B verdict will confirm our kernels run
+coherently in real llama once the inputs are correct.
+
 ## Status
 - RVV0.7 hardware: **proven real + targetable** (no blocker).
 - Next increment (this campaign): teach the capability model to recognize RVV0.7 (xtheadvector) as a
