@@ -10,7 +10,7 @@ The three N3 Wins are kept strictly separate and never conflated:
 - **Win-B** = a generated kernel that changes the **ALGORITHM** (the q4_0 repack, 16-blocks-as-lanes GEMM/GEMV).
   Baseline = **llama.cpp's OWN shipped optimized RVV kernel** (`ggml_vec_dot_q4_0_q8_0`, 10 real RVV ops), NOT
   scalar, NOT `_generic`, NOT a hand naive.
-- **Win-C** = an automatic PASS that changes algorithm STRUCTURE. **BUILT + PROVEN (micro)** — deferred-vs-per-iteration reduction, 3.0–3.3× pass-ON/OFF on rvv (§4.4); e2e blocked (monolithic emitters).
+- **Win-C** = an automatic PASS that changes algorithm STRUCTURE. **Pass BUILT, but structural novelty NOT demonstrated** — the deferred-vs-per-iter toggle gives 3.0–3.3× pass-ON/OFF on rvv, but a register-kept decomposition shows the PURE structural delta ≈1.00× (the 3× is a per-iter memory round-trip, §4.4).
 
 Methodology contract: `N3-METHODOLOGY.md`. Invariants referenced: `core-invariants.md` I1/I3/I5/I7/I8.
 
@@ -333,11 +333,11 @@ correct-baseline picture is prefill-strong, decode-modest-but-real.
 | Win-B repack prefill | micro+e2e | **6.36× micro / 5.68× e2e** (rvv) | **yes** | **SOLID** |
 | Win-B repack decode | micro+e2e | 1.22× micro / ~2.6× e2e t16 (rvv) | yes | solid-but-regime-dependent; t1 7.05× weak (flagged) |
 | Win-B on K1 | e2e | **0.74× LOSS** | yes | disclosed regression (X60 autovec) |
-| Win-C reduction-structure | micro | **3.0–3.3× pass-ON/OFF** (rvv, fixed m1, byte-exact) | **N/A** (monolithic-emitter e2e block) | **MEASURED** (§4.4; I5/I7 trellis-check PASS) |
+| Win-C reduction-structure | micro | pass-ON/OFF **3.0–3.3×** BUT pure-structure ≈**1.00× (NULL)** — the 3× is a per-iter memory round-trip, not structure (rvv, byte-exact) | **N/A** (monolithic e2e block) | **STRUCTURAL NULL** — pass built + I5/I7 PASS, novelty NOT demonstrated (§4.4) |
 
-### 4.4 Win-C — BUILT + PROVEN (micro); e2e architecturally blocked
+### 4.4 Win-C — pass BUILT + checked, but structural novelty NOT demonstrated
 
-A Win-C automatic structural-transform pass now EXISTS: a `reduction_structure` body fact (deferred_accumulate | per_iteration), stamped from a `reduction-structure` pass option, read by the realization owner as an axis ORTHOGONAL to the LMUL/budget (Win-A) axis. Make-or-break at FIXED m1 LMUL (both arms compiler-emitted, identical loads/strip/trip-count, only the reduction structure differs): per-iteration `vredsum`-on-loop-carried-chain vs deferred vector-accumulate + 1 trailing reduce = **3.0–3.3× pass-ON/OFF on ssh rvv**, byte-exact vs scalar oracle. I5 (structure in op identity, 0 mirror strings on the active-copy path), I7 (fail-closed at both entry points), regression byte-clean, orthogonality — all trellis-check PASS (forced clean rebuild). HONEST: 3× is the pass-ON/OFF number; it bundles genuine reduction-structure (survives a register-kept accumulator) + a co-occurring per-iter scalar memory round-trip of today's lowering — NOT a pure-structure isolate (a hand-written register-kept analysis kernel will decompose it). e2e is BLOCKED — the llama-routed kernels are monolithic emitters whose reduction structure is not sub-op-toggleable. So Win-C = MEASURED (micro) for the i16 dot-reduce body, N/A-monolithic elsewhere. The repack stays hand-authored Win-B, correctly NOT relabeled Win-C. Provenance: `WIN-C-DESIGN.md`, `winC-ablation/`.
+A `reduction_structure` body fact (deferred_accumulate | per_iteration), stamped from a `reduction-structure` pass option, is read by the realization owner as an axis ORTHOGONAL to the LMUL/budget (Win-A) axis. At FIXED m1 LMUL (both arms compiler-emitted, identical loads/strip/trip-count) the pass ON/OFF gives **3.0–3.3× on ssh rvv**, byte-exact vs scalar oracle; I5/I7/regression/orthogonality all trellis-check PASS. BUT a hand-written register-kept per-iteration analysis kernel (footnote, NOT a Win-C arm) DECOMPOSED the 3×: deferred(ON) vs register-kept-per-iter = **≈1.00× (pure structure, NULL, measured, objdump-verified no `out[0]` spill)**; register-kept vs memory-per-iter = 3.05–3.31× (the round-trip). So the ENTIRE 3× is the per-iteration OFF arm's `out[0]` MEMORY round-trip — an emitter artifact the deferred structure happens to avoid — NOT a reduction-structure-latency benefit (per-iter `vredsum.vs` is not on the binding critical path here). **Win-C-as-structural-novelty = NOT demonstrated** (honest NULL; the over-optimism-correction class — Fedora 3×, the 2–4× re-grounding). The pass is KEPT (correct, checked, byte-exact, orthogonal toggle) but its honest role is as the structural ENABLER of the Win-A LMUL sweep, not a standalone Win-C. No structural Win-C is claimed. Provenance: `WIN-C-DESIGN.md`, `winC-ablation/`.
 
 ---
 
@@ -360,7 +360,7 @@ A Win-C automatic structural-transform pass now EXISTS: a `reduction_structure` 
    needed-but-unbuilt next N3 layer (§4.2).
 4. **N2 IME performance is UNSTARTED.** N2 proves zero-core-branch + bit-exact emission only; there is no
    IME-vs-anything speedup measurement (§3.3).
-5. **Win-C BUILT (micro), e2e blocked** — the deferred-vs-per-iter reduction structural pass is proven 3.0–3.3× pass-ON/OFF on rvv (§4.4); its e2e arm stays blocked by monolithic-emitter hot-path kernels.
+5. **Win-C structural novelty NOT demonstrated** — the deferred-vs-per-iter pass is built + checked + toggles 3.0–3.3× pass-ON/OFF, but a register-kept decomposition shows pure-structure ≈1.00× (the 3× is a per-iter `out[0]` memory round-trip, an emitter artifact); the pass is kept as the Win-A structural enabler, not a standalone Win-C (§4.4).
 6. **RVV0.7 repack-GEMV/GEMM emission is a genuine RE-SCOPE, not a bounded fix.** (The earlier "bounded stamp" /
    "bounded emitter+ODS" framings at commits 8eeace63 / 7eb99b99 are explicitly RETRACTED.) Block-dot's
    `coreLmul` is a free knob because each strip reduces to a scalar int32 before the f32 fold; the repack has NO
@@ -389,7 +389,7 @@ microbench, 3 chips, all compiler-emitted) + TWO Win-A results with an e2e leg �
 (1.48× micro / 1.31× e2e decode on K1) and the repack-LMUL-width tune (2.1× micro decode; **e2e prefill 1.70×
 t1 / 1.10× t16**, decode memory-bound-flat — engagement bug root-caused as a harness toggle and fixed) — +
 Win-B repack prefill (~6× micro and e2e vs ggml's own optimized RVV kernel), with decode regime-dependent
-(1.22× compute → ~2.6× e2e), an honestly-disclosed K1 regression (0.74×), a weak-and-flagged t1 7.05×, a micro Win-C (deferred-vs-per-iter reduction, 3.0–3.3× pass-ON/OFF on rvv; e2e blocked), and the Fedora coherent-llama seal NOT achieved. No scalar contribution number appears; the three Wins
+(1.22× compute → ~2.6× e2e), an honestly-disclosed K1 regression (0.74×), a weak-and-flagged t1 7.05×, a built-but-structurally-NULL Win-C (the deferred-vs-per-iter pass toggles 3.0–3.3× pass-ON/OFF but a register-kept decomposition shows the win is a per-iter memory round-trip, pure-structure ≈1.00× — no structural novelty claimed), and the Fedora coherent-llama seal NOT achieved. No scalar contribution number appears; the three Wins
 are never conflated.
 
 ---
