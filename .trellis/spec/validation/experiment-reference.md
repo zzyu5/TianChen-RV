@@ -241,12 +241,30 @@ number names a real contribution, not an artifact of a weak comparand:
     hand-written "naive", NOT the `_generic` fallback.
   - **Win-C** = an automatic *pass* that changes algorithm structure. Baseline = pass OFF vs ON. A
     hand-authored kernel is Win-B, never relabeled as an automatic-pass contribution.
+    **A pass-ON/OFF number is NOT automatically a *structural* win.** If the ON arm changes BOTH the
+    structure AND an incidental emission property (e.g. it avoids a memory round-trip the OFF arm's emitter
+    happens to incur), the ON/OFF delta conflates the two. To attribute the win to the STRUCTURE you MUST
+    decompose against a *competently-emitted baseline of the SAME structure* (e.g. a register-kept-accumulator
+    per-iteration reduction). If that same-structure competent baseline TIES the ON arm, the structural
+    contribution is **NULL** — report only the pass-ON/OFF number with its real but non-structural mechanism,
+    never a "structural" win. *(Verified 2026-06-24: a deferred-vs-per-iteration reduction pass gave 3× ON/OFF,
+    but the register-kept per-iter control tied the deferred arm at ≈1.00× — the 3× was entirely a per-iter
+    `out[0]` memory round-trip, not reduction-structure latency. Win-C-as-structural-novelty: NOT demonstrated.)*
 - **Both harnesses are required and not interchangeable:** an isolated single-core microbench (clean
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
   appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound) must be
   stated, not hidden behind the larger number.
 - Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
   emitted kernel must be proven (e.g. an ENGAGED marker / objdump of the FINAL staged binary), not assumed.
+- **A new-hardware-unit / build-swap claim needs a can't-possibly-help control.** When a number compares two
+  separately-built artifacts (e.g. an IME-enabled lib vs a non-IME lib), it confounds the new unit with ANY
+  global toolchain/codegen difference between the builds. Include a CONTROL regime where the new unit
+  *physically cannot* contribute (e.g. M=1 memory-bandwidth-bound decode for a matrix/MAC array); if the "win"
+  appears THERE too, it is a global codegen artifact, not the unit. A clean unit-isolation requires the SAME
+  toolchain with only the unit toggled (e.g. `SPACEMIT=ON` vs `OFF` on one compiler), NOT two independently
+  built libs. *(Verified 2026-06-24: a reconstructed clang IME lib showed 1.4–1.95× "prefill", but also 1.25×
+  in M=1 decode where the matrix unit can't help → the gain was clang codegen, not IME; the IME-unit e2e win
+  stayed NULL.)*
 
 ## Forbidden Interpretations
 
@@ -257,6 +275,8 @@ Sophgo offload is RISC-V custom ISA extension.
 Ordinary tile-size tuning is the main theory.
 A vector-vs-scalar speedup is an N3 tune contribution.
 A microbench win is an end-to-end win without an e2e measurement.
+A pass-ON/OFF speedup is a structural-transform contribution without a same-structure competently-emitted control.
+A build-swap speedup (e.g. IME-lib vs non-IME-lib) isolates the new hardware unit without a can't-possibly-help control regime.
 AME is current verified primary hardware.
 Any future extension never needs core changes.
 TianChen-RV is a new high-level tensor IR.
