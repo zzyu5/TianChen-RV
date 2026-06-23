@@ -138,6 +138,12 @@ private:
   /// with the q4_1 scale+MIN fold.
   static bool isRepackGemvQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
 
+  /// The FAMILY-B 16x1-REPACKED full-GEMM (prefill) recognizer: a with_vl scope
+  /// whose ONLY compute op is a single tcrv_rvv.repack_gemm_q4_1_q8_1. The op
+  /// identity is the dispatch key; the emitter owns the structured block-as-lane
+  /// multi-output-column expansion with the q4_1 scale+MIN per-column fold.
+  static bool isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
   static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
@@ -1092,6 +1098,35 @@ private:
   /// facts are the op's typed attrs (I4 mirror); the emission is the op's fixed
   /// structure (I5; every value is a node, ZERO raw() strings).
   mlir::LogicalResult emitRepackGemvQ4_1Q8_1(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// FAMILY-B (scale+MIN, asymmetric) block-as-lane PREFILL sibling of
+  /// emitRepackGemmQ4_0Q8_0: the q4_1 16x1-REPACKED multi-column GEMM. The weight
+  /// side is the block_q4_1x16 block-as-lane layout (16 interleaved rows across 16
+  /// vector lanes, dot accumulates LANE-WISE via vwmacc, NO cross-lane vredsum
+  /// wall), the activation is the interleaved block_q8_1x4 stream (4 columns;
+  /// stride 144, d[4]@+0, s[4]@+8, qs@+16). Two kernel-specific parts differ from
+  /// the q4_0 repacked GEMM (the q4_1 quantization is scale+MIN):
+  ///   (a) the integer core decodes UNSIGNED nibbles [0,15] (vand 0x0F / vsrl
+  ///       0x04 on the u8 weight lane -> reinterpret to i8 -> SAME signed
+  ///       lane-wise vwmacc against the plain q8 quants), NOT the offset-binary
+  ///       sign-extend chain; the repacked nibbles are stored RAW (no ^0x88);
+  ///   (b) the per-column fold carries the per-block MIN correction LANE-WISE:
+  ///       d_x/m_x are VECTOR strips (vle16 at +0 / +32), d_y_c/s_y_c are the
+  ///       per-column SCALARS, and the fold is ggml's per-(row,col) statement
+  ///       sumf += (d_x*d_y_c)*sumi + m_x*s_y_c folded as vfmacc (scale term) then
+  ///       vfadd of vfwmul(m_x, s_y_c) (MIN term), once per activation column.
+  /// The block-format facts are the op's typed attrs (I4 mirror); the emission is
+  /// the op's fixed structure (I5; every value is a node, ZERO raw() strings). The
+  /// ABI is the q4_1 extrapolation of ggml's q4_0 repack (ggml ships NO q4_1 repack
+  /// GEMM/q8_1x4 quantizer): block_q8_1x4 = {fp16 d[4]; fp16 s[4]; int8 qs[128]}
+  /// (stride 144), defined consistent with block_q8_0x4 and the q4_1 GEVM's MIN
+  /// strip. Like the q4_1 GEVM sibling this is validated norm-based against a
+  /// scalar/in-tree-block-dot reference, NOT byte-exact ggml parity (no upstream
+  /// oracle exists); the GEMM's own numeric oracle is deferred this pass.
+  mlir::LogicalResult emitRepackGemmQ4_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
