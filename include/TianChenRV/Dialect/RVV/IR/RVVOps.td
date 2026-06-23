@@ -4599,7 +4599,9 @@ def GgmlRepackGemvQ80Q80Op
   let description = [{ The block_q8_0x16 16x1-repacked GEMV decode sibling of repack_gemv_q4_0_q8_0.
     Weights are FULL int8 (block_q8_0x16: 16 interleaved block_q8_0, each = one fp16 scale + 32 int8 quants),
     so the kernel reads int8 weight lanes DIRECTLY (NO nibble vsll/vsra, NO ^0x88 bias) and accumulates
-    LANE-WISE via vwmacc int8xint8->i32 across 16 column lanes (NO cross-lane vredsum). Activation is one
+    LANE-WISE across 16 column lanes (NO cross-lane vredsum). Full int8 products overflow i16, so the
+    in-block accumulation is i32 (vwmul i8xi8->i16 product + vwadd_wv i32), NOT a single-instruction
+    vwmacc i8xi8->i32. Activation is one
     plain block_q8_0 stream (stride 34, qs at +2). Dual-fp16 scale fold d_x*d_y. half_lanes = 8@VLEN128 (two
     8-lane halves) / 16@VLEN256 (one strip). integer_core_lmul selects mf2 (default) vs m1 (whole-LMUL); the
     dot is byte-exact either way. Verifier pins the block_q8_0x16 ABI fail-closed (I7). }];
