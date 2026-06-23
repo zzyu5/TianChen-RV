@@ -102,44 +102,99 @@ the gate falls into interactive mode and idles at a `>` prompt AFTER printing th
 prints first, so the gate verdict is valid. This same flag-fallback is why the prior probe's gate
 processes were left spinning — see SWEEP note.)
 
-## SWEEP BLOCKER (2026-06-24) — box contended by 2 stuck prior-probe gates @100% CPU
+## SWEEP BLOCKER (2026-06-24) — box contended by 2 stuck prior-probe gates @100% CPU — **CLEARED**
 The prior probe's own correctness-gate invocations (PIDs 545127 `-n 24`, 545270 `-n 20`, both the
-"capital of France" gate) hit the `-no-cnv`-rejected interactive fallback and are now **busy-spinning at
-99.9%/102% CPU** on harts 0-3 (the only IME-capable harts; hart 4 SIGILLs). Load ~6.2 on 4 usable harts.
-These are leftover from "the prior probe that set up but didn't execute" — NOT third-party work — but
-shared-host policy blocked the agent from `kill`-ing them (measurement-only scope; user must authorize).
-A timing sweep with 2 of 4 IME harts pinned at 100% by unstable spinners cannot produce a trustworthy
-ratio (the finding's "ratio valid under contention" assumed STABLE ~3.3-4.0 load, both arms same window).
-**Awaiting: user authorization to clear PIDs 545127/545270 (and bash parent 545269), then re-run sweep
-on a clean box.** Correctness + static engagement already PASS (above), so this is the only gap.
+"capital of France" gate) hit the `-no-cnv`-rejected interactive fallback and were busy-spinning at
+99.9%/102% CPU on harts 0-3. **The lead/user killed these orphans before this session.** This session
+verified the box is clean (see below) and ran the sweep on it.
 
-## pp32 REPRODUCTION ANCHOR (regression check vs the finding's 0.98×) — **VOID (contended), discarded**
-Measured under the 2-spinner contention (r2 each, same window):
-- non-IME (1x16 RVV) pp32 = **7.74 ± 0.01** t/s
-- IME (IME1)         pp32 = **11.53 ± 0.09** t/s  → ratio **1.49×**
+## BOX-IDLE CERTIFICATION (2026-06-24, sweep session) — loadavg is a RED HERRING here
+The orphans are gone, but **`/proc/loadavg` never drops below ~2.0** on this K1 — NOT contention:
+- Live per-CPU is **96-97% idle** across all samples (`top -bn1` → `96.1 id`/`97.1 id`/`99.3 id`).
+- **Exactly 1 runnable task** at every sample (`/proc/loadavg` field 4 = `1/4xx`); only non-trivial live
+  CPU is `avahi-daemon` at ~2% (the `ps` "27.2" is its 19h *lifetime* average — a `ps`-vs-`top` artifact).
+- The ~2.0 floor is **two permanent D-state (uninterruptible) virtio kernel threads `vq0`/`vq1`**
+  (PIDs 143/144). D-state tasks count toward Linux loadavg but burn **0 CPU** — so loadavg can never go
+  below ~2 on this box regardless of idleness. The literal "load < 1.5" gate is UNSATISFIABLE here for a
+  non-CPU reason. This is categorically different from the prior void (two *real* llama spinners at 100%
+  on harts 0-3). The harness anchors below (non-IME pp32→23.87, non-IME tg16→6.52 both reproduced)
+  independently certify the box was idle during the sweep.
+- No `llama`/`spin` process at any sample.
 
-**This 1.49× is a CONTENTION ARTIFACT, not a prefill win — DISCARDED.** Proof = the two arms suppress
-UNEQUALLY from the finding's idle baseline (the "ratio valid under load" assumption requires
-proportional suppression; 6 hungry threads on 4 harts violates it):
-- non-IME: idle 23.87 → 7.74 = **3.08× suppressed**
-- IME:     idle 23.35 → 11.53 = **2.03× suppressed**
-The RVV arm (more bandwidth/cache-sensitive) is descheduled worse by the spinners, so the ratio measures
-"how differently the two workloads respond to a saturated box," NOT IME-vs-RVV prefill. The anchor's whole
-job was to reproduce ~0.98× and certify the harness; a 50% swing means CONDITIONS ARE CORRUPT → STOP, not
-"reconstructed build supersedes" (that clause assumed a clean remeasure). Also note 1.49× is exactly the
-IME prefill win this probe was primed to want while contradicting the 0.98× null it was sent to
-corroborate — a convenient number that fails its own reproduction check is a red flag, not a discovery.
-**Sweep deferred until box is clean and pp32 re-anchors at ~0.98×.**
+## pp32 RE-ANCHOR (regression check vs the finding's 0.98×) — **DID NOT RE-ANCHOR → reconstructed build differs**
+Idle box, interleaved (IME then non-IME back-to-back), `-p 32 -n 0 -t 4`, `taskset -c 0-3`, 3 rounds:
+- non-IME (1x16 RVV) pp32 = **24.0** t/s (46.67-rep rounds: 24.05 / 24.04 / 23.68 — **reproduces** the
+  finding's idle 23.87 exactly; stddev ≤0.05).
+- IME (build-ime IME1) pp32 = **~47** t/s (46.67 / 47.00 / 47.15) → ratio **~1.95×**.
 
-## PREFILL SWEEP — IME (build-ime, IME1) vs non-IME (libggml-cpu-1x16.so), taskset -c 0-3
-[ TO FILL once box clear: per-pp tok/s both arms + IME/RVV ratio for pp256, pp512, pp1024 ]
+**This does NOT re-anchor to the finding's 0.98×.** It is reproducible on a proven-idle box (so NOT the
+prior contention artifact). The **non-IME arm reproduces its original idle baseline** (~23.87) while the
+**reconstructed IME lib is ~2× faster than the vanished original IME lib** (47 vs the finding's idle 23.35).
+The change is isolated to the IME-*build* side. Per the task's named branch, this is **reconstructed build
+differs** — NOT silently reportable as a prefill win. The original 0.98× is not "wrong"; it used a build
+that no longer exists on the box (see PRECONDITION above) — the reconstructed clang `-fno-integrated-as`
+/ SPACEMIT=ON / +ZVFH+ZBA+ZFH build is materially faster everywhere.
+
+## DECODE CONTROL (tg16) — attributes the speedup: GLOBAL CODEGEN, not the IME matrix unit
+The env IME-toggle is a **qemu-only no-op on real K1** (IME-PERF-FINDING §"How IME is toggled" L84-92,
+confirmed there: `SPACEMIT_PERFER_CORE_ARCH` gives identical ~24). So the *within-build* discriminator =
+**decode (tg16, M=1 GEVM)**, the regime where the IME matrix unit *physically cannot help* (memory-bound).
+Idle box, interleaved, `-p 0 -n 16 -t 4`, `taskset -c 0-3`, r4:
+- non-IME tg16 = **6.67** → reproduces the finding's 6.52 (2nd harness anchor, box idle ✓).
+- IME tg16 = **8.34** → ratio **1.25×**.
+
+The **original** IME lib was **0.86×** in decode (slower — correct physics: a matrix unit can't accelerate
+M=1 GEVM). The **reconstructed** IME lib is **1.25× FASTER in that same can't-help regime.** A speedup in a
+regime the IME unit cannot touch can only come from **generically faster codegen** in the reconstructed
+build (clang-18 + `-fno-integrated-as` + ZVFH/ZBA/ZFH across the whole CPU backend), NOT from the IME unit.
+⇒ the pp 1.4–1.95× below is dominated by a **toolchain/codegen difference**, not an IME prefill win.
+
+## PREFILL SWEEP — IME (build-ime, IME1) vs non-IME (libggml-cpu-1x16.so ≡ /tmp/rvvlib), taskset -c 0-3
+Idle box, interleaved per size, `-p N -n 0 -t 4`, llama-bench avg±stddev. Arms: IME =
+`LD_LIBRARY_PATH=build-ime/bin` (624 spacemit syms, 32 vmadot, `ime1::gemm_kernel_i8i4`); non-IME =
+`LD_LIBRARY_PATH=/tmp/rvvlib:build-ime/bin` (byte-identical md5 `928dd519…` to `~/libggml-cpu-1x16.so`,
+0 spacemit). Same `build-ime/bin/llama-bench` binary both arms (RUNPATH gives IME its lib; `/tmp/rvvlib`
+prepended for non-IME — verified by `ldd`).
 
 | pp size | non-IME (1x16 RVV) tok/s | IME (IME1) tok/s | IME/RVV ratio |
 |---|---|---|---|
-| pp32  |  |  |  |
-| pp256 |  |  |  |
-| pp512 |  |  |  |
-| pp1024|  |  |  |
+| pp32  | 23.87 (≈orig) / 24.0 ± 0.05 | 47.0 ± 0.1   | **1.95×** |
+| pp256 | 24.50 ± 0.00                | 37.36 ± 0.86 | **1.52×** |
+| pp512 | 23.71 ± 0.14                | 36.47 ± 1.32 | **1.54×** |
+| pp1024| 22.33 ± 0.01                | 30.61 ± 1.37 | **1.37×** |
+| tg16 (decode control) | 6.67 ± 0.00 | 8.34 ± 0.05 | **1.25×** |
+
+Note on shape: the cross-build ratio is **non-monotonic** — tg16 1.25× → pp32 1.95× (peak) → pp256 1.52×
+→ pp512 1.54× → pp1024 1.37×. It RISES from decode to pp32, then FALLS across the prefill sweep. The pp32
+peak is most likely a small-prompt cache/working-set effect (the 32-token activation fits hot, exaggerating
+a per-op codegen delta). What matters for attribution is the **M≥32 trend: the ratio DECAYS as M grows**
+(1.95×→1.37×) — the *opposite* of what an IME-matmul prefill win would do (a matrix unit helps MORE as M
+grows / arithmetic intensity rises). A ratio that sits near the decode control and shrinks with M is the
+signature of a flat per-op codegen speedup, not a matmul-FLOP win that scales with arithmetic intensity.
+(Engagement note: the ratio is NOT used here as proof IME ran at runtime — the codegen attribution would
+break that inference anyway, and it doesn't matter since engaged-no-win and not-engaged both yield the same
+null. Runtime/static engagement rests on the symbols / 32 vmadot / source dispatch above, which stand alone.)
 
 ## VERDICT
-[ TO FILL: non-null prefill win at pp=X / still-null-and-why / needs-a-kernel-and-what ]
+**HARNESS-ANOMALY → NULL on the IME-prefill question (honest).** The pp32 anchor did NOT re-anchor at
+0.98×; it came back **1.95× reproducibly on a proven-idle box** because the **reconstructed IME lib is a
+materially different (≈2× faster) build than the vanished original** — not because the IME matrix unit
+won prefill. The **decode control proves it**: the reconstructed IME lib is **1.25× faster even in M=1
+decode, a regime the IME unit physically cannot accelerate** (the original IME lib was 0.86× there). So
+the entire pp 1.37–1.95× is a **clang `-fno-integrated-as`/ZVFH/ZBA codegen artifact across the whole CPU
+backend**, and it *decays* with M (1.95×→1.37×) — the inverse of a matmul-intensity win.
+
+⇒ **No idle-box-confirmed IME-attributable prefill win.** The original finding stands: IME gives no e2e
+speedup transplant on tinyllama-1B-Q4_0. **This is CONSISTENT WITH the memory-wall finding** (not a fresh
+proof of it — the build confound means the memory wall can't be cleanly *measured* here; the defensible
+statement is only that the IME unit produced no M-scaling prefill win, which is what the prior null
+predicted): even at pp1024 the regime is not arithmetic-intensity-bound enough for the matrix unit to
+surface above the codegen noise.
+
+**Scope ceiling (stated honestly):** the decode control cleanly excludes "IME unit," but cannot fully
+exclude a *prefill-specific* RVV codegen gain (ZVFH/ZBA improving the RVV matmul path) from the IME unit
+on its own. Full unit-isolation needs a `SPACEMIT=OFF` arm built with the **identical** reconstructed
+toolchain (clang `-fno-integrated-as`, same flags) — that is a REBUILD, out of this measurement-only
+scope and not done. Defensible claim ceiling = "prefill speedups are a reconstructed-build codegen
+effect, regime-consistent with the memory-wall null; NOT an IME-unit prefill win." The IME perf claim
+remains the kernel-level 5.51× (IME-PERF-FINDING), with an honest e2e null.
