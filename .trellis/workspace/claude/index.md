@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
-- **Last Active**: 2026-06-22
+- **Total Sessions**: 22
+- **Last Active**: 2026-06-23
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1213 | Active |
+| `journal-1.md` | ~1251 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-06-23 | N1/N2/N3 campaign: N2 IME plugin PROVEN + breadth, Win-A in llama e2e, Win-B vs real kernel, q4_1 coverage, 3/3 N1 profiles, paper-ready ledger | `2eeabff9`, `22c844a2`, `4f098598`, `c7069111`, `2b1547b0`, `bacebf2d` | `main` |
 | 21 | 2026-06-22 | N1/N2/N3 multi-profile: Win-A in llama (VLEN strip) + all-compiler ablation + 3-profile silicon divergence | `87c540ec`, `d9764407`, `4d36bdb3`, `08a11764`, `3d2a2b3f`, `709bb69d`, `d6022f58`, `3abc9dc5`, `2a349d3b`, `23ac5aae` | `main` |
 | 20 | 2026-06-22 | N1/N2/N3 RVV maturity: compiler emits q4_0 GEMV (whole path) + ①②⑤ sealed | `868de602` | `main` |
 | 19 | 2026-06-18 | closeout: full-set byte-exact proof + roofline honesty | `f9dc05ac` | `main` |

@@ -1211,3 +1211,41 @@ N1: 3 real profiles (rvv SG2044 VLEN128 / K1 X60 VLEN256 / Fedora SG2042 RVV0.7)
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: N1/N2/N3 campaign: N2 IME plugin PROVEN + breadth, Win-A in llama e2e, Win-B vs real kernel, q4_1 coverage, 3/3 N1 profiles, paper-ready ledger
+
+**Date**: 2026-06-23
+**Task**: N1/N2/N3 campaign: N2 IME plugin PROVEN + breadth, Win-A in llama e2e, Win-B vs real kernel, q4_1 coverage, 3/3 N1 profiles, paper-ready ledger
+**Branch**: `main`
+
+### Summary
+
+N2 proven (IME plugin zero-core-branch, K1 bit-exact) + 2nd op mma_u; Win-A in llama e2e (VLEN-strip 1.31x decode K1 + LMUL-width 1.70x prefill rvv; engagement bug was harness toggle, fixed); Win-B re-measured vs ggml's real RVV kernel (prefill ~6x, decode regime-dependent); q4_1 repack coverage added; N1 selection on 3/3 profiles (C920 RVV0.7); N3 scalar baselines dropped (durable spec contract); paper-ready N1N2N3-LEDGER. trellis-check PASS (I1/I3/I5/I7).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2eeabff9` | (see git log) |
+| `22c844a2` | (see git log) |
+| `4f098598` | (see git log) |
+| `c7069111` | (see git log) |
+| `2b1547b0` | (see git log) |
+| `bacebf2d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
