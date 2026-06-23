@@ -394,3 +394,59 @@ Win-B repack prefill (~6× micro and e2e vs ggml's own optimized RVV kernel), wi
 (1.22× compute → ~2.6× e2e), an honestly-disclosed K1 regression (0.74×), a weak-and-flagged t1 7.05×, no
 Win-C, and the Fedora coherent-llama seal NOT achieved. No scalar contribution number appears; the three Wins
 are never conflated.
+
+---
+
+## 7. CAPSTONE — consolidated per-kernel {microbench, llama-e2e} performance matrix
+
+The campaign's single performance table: every kernel that was measured, its contribution class, the
+single-core microbench ratio (with its methodology-correct baseline + chip), the llama.cpp e2e ratio (or the
+honest `blocked`/`null`/`loss` with reason), and status. Every number is transcribed from a committed FINDING
+(provenance cited per row). NO scalar contribution number appears (Rule 0). The two buckets are never
+interchanged — a microbench win that does not survive e2e is shown as such.
+
+| Kernel / Optimization | Class | Kernel microbench (ratio · baseline · chip) | llama e2e (ratio · baseline · chip — or blocked/null/loss + reason) | Status |
+|---|---|---|---|---|
+| **q4_0 GEVM** (decode) | N3-WinB-repack | **1.22×** · vs ggml's OWN shipped RVV `ggml_vec_dot_q4_0_q8_0` (10 real RVV ops) · rvv SG2044 VLEN128 · norm=0 byte-exact | **~2.6×** (t16, tg64 ~7.0 vs 2.71 t/s) · vs same ggml RVV mul_mat · rvv · **HOLDS — memory-locality** (the contiguous 16-blocks-as-lanes layout streams weights better under real RAM pressure; 1.22× compute → 2.6× e2e is a regime effect, not contradiction) | **SOLID** (regime-dependent; t1 7.05× is flagged-weak, NOT headlined) |
+| **q4_0 GEMM** (prefill, M=4) | N3-WinB-repack | **6.36×** · same ggml RVV baseline · rvv SG2044 VLEN128 · norm=0 PASS | **5.68×** (t16, pp256 17.9 vs 3.15 t/s) · same baseline · rvv · **HOLDS — matmul-bound, consistent micro≈e2e** (amortizes weight nibble-decode across M activation columns) | **SOLID** |
+| **q4_1 GEVM** (decode) | N1-coverage | **2.47–2.48×** · vs ggml's OWN shipped RVV `ggml_vec_dot_q4_1_q8_1` (real `__riscv_v` decode) · rvv SG2044 VLEN128 · norm~2e-6 PASS (q4_0 control = 2.38× under same harness → the win is the shared block-as-lane mechanism, not q4_1-specific) | **BLOCKED** — mainline ggml ships no q8_1x4 mat-quantizer and no q4_1-repack mul_mat routing; the spacemit `block_q4_1x16` is a different (integer zero-point) ABI. Upstream-ggml gap, NOT our compiler. | micro **SOLID** / e2e **BLOCKED** |
+| **q4_1 GEMM** (prefill) | N1-coverage | **not measured** — code+lit complete (op + fail-closed verifier + structured emitter raw()==0 + 2 lit + gearbox arm, clean build, no regression), numeric oracle DEFERRED (extrapolated ABI, no ggml q4_1 GEMM oracle exists) | **BLOCKED** — same upstream gap as q4_1 GEVM | code **DONE** / oracle + e2e **DEFERRED/BLOCKED** |
+| **Win-A i16-contraction** (LMUL-width tune) | N3-WinA-tune | **2.27–3.79×** (rvv) · vs tune-OFF narrow-deferred (SAME algorithm, narrow LMUL, ALSO compiler-emitted) · rvv SG2044; **1.8–3.6× K1** VLEN256; **1.4–1.7× C920** RVV0.7 (compression = stronger RVV0.7 baseline floored mf2→m1, NOT a weaker tune) · all byte-exact vs scalar oracle | **none — microbench/selection result, no e2e leg of its own** (the i16 contraction is not a standalone llama hot-path kernel; its e2e analogue is the repack-LMUL row below) | **SOLID** (3 chips, all compiler-emitted; THE Win-A headline) |
+| **Win-A LMUL-in-repack** (WIDE m1 vs NARROW mf2) | N3-WinA-tune | decode **2.11–2.21×** / prefill **1.27–1.38×** · vs NARROW arm (knob-only, both compiler-emitted, disjoint LMUL spellings, 3 distinct `.so` md5s) · rvv SG2044 · norm=0 byte-exact | prefill **1.70× t1** / **1.10× t16** (pp; compute-bound, HOLDS) · **decode FLAT** (tg ≈1.05× t1 / ≈0.93× t16, in noise — memory-bandwidth-bound, LMUL changes compute not traffic) · vs NARROW, rvv 7B Q4_0 · (engagement bug was a build-harness toggle in a different TU — root-caused & FIXED, `libggml-cpu.WIDE_FIXED.so` 7bf39840 engages) | **MEASURED** (micro decode 2.1× does NOT transplant; e2e win is in prefill) |
+| **VLEN-strip selection** (1×16 vs 2×8) | N3-VLEN-strip | **1.48×** · vs 2×8 strip (both compiler-emitted, only strip width differs) · K1 X60 VLEN256, isolated decode kernel | **1.31×** (t1 decode, tg32 2.12 vs 1.62 t/s, both ENGAGED) · vs 2×8 strip · K1 X60 VLEN256 · **HOLDS — selection win in real inference** (engagement+correctness SEAL: emitted strip ran as the literal decode GEVM, output "...Paris.") | **SOLID** (only Win-A result with both a clean micro AND e2e leg) |
+| **IME matmul** (int8→int32 `vmadot`) | N2-IME | **5.51×** · vs a competent RVV vector matmul (`vwmacc`+`vredsum`, NOT ggml's shipped kernel, NOT scalar) · K1 X60 VLEN256, 256³ int8 · both arms bit-exact vs scalar oracle | **0.86–0.98× NULL** (tg16 0.86× / pp32 0.98×) · vs non-IME RVV lib (itself Win-A-tuned 1×16 — a strong baseline) · K1 X60, tinyllama-1B Q4_0 · IME confirmed engaged (not silent RVV) → real "no e2e win," disclosed | micro **SOLID** / e2e **NULL** (matrix unit cannot help memory-bound M=1 decode) |
+
+**Folded-in honest losses/blocks not given their own row (avoid double-counting):**
+- **K1 repack 0.74× LOSS** — on K1/X60 the q4_0 repack *path* loses to ggml's autovec'd generic q4_0 (3.22 vs
+  4.38 t/s, t8, TinyLlama-1.1B). X60-microarch-specific (strong clang-18 autovec on X60), NOT small-model
+  dilution (holding model+threads fixed, only the board flips 0.74× LOSS@K1 ↔ 2.49× WIN@rvv). The repack row's
+  e2e ratios above are the rvv (SG2044) numbers; the X60 board is where the same engine regresses. §4.2.
+- **Fedora RVV0.7 coherent-llama e2e — BLOCKED, and it is GGML-side, not our compiler.** Our compiler emits all
+  probed RVV0.7 kernel classes fraction-free `th.v*` 0.7.1 and the isolated kernels are bit-exact across every
+  real-llama regime (verified). The blocked full-system seal is a ggml-integration/routing confound (ggml's own
+  hand-written RVV reference assumes RVV1.0 fractional LMUL — `quants.c` carries 383 fractional-LMUL intrinsic
+  uses that don't assemble under xtheadvector); it is NOT a defect in our compiler's kernel math. §5 item 1.
+
+### 7.1 Central honest finding (the campaign's load-bearing conclusion)
+
+**Compute-bound kernel speedups (the 1.22–6.36× microbench range above) do NOT, in general, transplant to
+memory-bandwidth-bound LLM decode e2e.** This is the most important honest result of the campaign, and it is
+seen three independent times: the **IME matrix unit** wins **5.51×** on an isolated 256³ int8 matmul but is
+**0.86× (slower) e2e** at M=1 decode — a hardware MAC array cannot help when decode is bandwidth-bound, not
+FLOP-bound; the **Win-A LMUL-width tune** wins **2.1× microbench decode** but goes **flat e2e decode** (the
+wider LMUL changes *compute*, not *memory traffic*); and the **q4_0 GEVM** isolated *compute* advantage is only
+**1.22×** to begin with (decode has one activation column → no amortization). The e2e wins that DO hold are
+exactly the ones that either **change MEMORY behavior** or are **matmul-/prefill-bound**: **Win-B repack prefill
+(~6× micro AND e2e — GEMM amortizes nibble-decode across activation columns, matmul-bound), Win-B repack decode
+(1.22× compute → ~2.6× e2e — the contiguous 16-blocks-as-lanes layout STREAMS weights better under real RAM
+pressure, a memory-locality win whose e2e ratio GROWS beyond the isolated compute number), the Win-A LMUL tune
+in PREFILL (1.70× t1 / 1.10× t16, compute-bound there), and the VLEN-strip SELECTION (1.31× e2e decode on K1).**
+The honest losses/nulls/blocks are stated plainly and not hidden: **IME e2e 0.86× (null — no MAC payoff at
+M=1)**; **K1 q4_0 repack 0.74× (loss — X60 clang-18 autovec beats the repack path; "always repack" is the wrong
+static choice there)**; **q4_1 GEVM/GEMM e2e blocked** (no q8_1x4 quantizer / q4_1-repack routing in mainline
+ggml — an upstream gap, not our compiler); and **Fedora RVV0.7 coherent-llama e2e blocked** (gated by ggml's
+own 383-fractional-LMUL RVV reference — ggml-side, NOT our compiler, whose RVV0.7 kernels are isolated-bit-exact).
+The mechanism, stated once: **a win transplants to decode e2e only if it changes memory behavior or is
+prefill/matmul-bound; a pure-compute kernel win (a matrix unit, a wider accumulator) dilutes to flat-or-null in
+bandwidth-bound decode.** No scalar contribution number appears anywhere in this matrix; Win-A (tune ON/OFF),
+Win-B (vs ggml's own shipped RVV kernel), N1-coverage, N2-IME, and N3-VLEN-strip are kept strictly separate.
