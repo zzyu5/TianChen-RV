@@ -50,6 +50,12 @@
 - 先搞清状况再编;合理 `-j`(fedora 可 -t64;k1 弱→ -j4~8;rvv -j16);用 remote `timeout` 防 zombie;背靠背同-load 比值抗负载。
 - 板子专用目录,绝不碰别人的树;structured emitc raw()=0;fail-closed verifier;real ssh 证据;诚实 ledger(区分 Win-A 编译器-tune vs Win-B kernel-swap)。
 
+## CAMPAIGN OUTCOME (2026-06-23) — canonical record: `artifacts/N1N2N3-LEDGER.md`
+- **N1**: capability→selection divergence **measured on 3/3 real profiles** (rvv m2@128, K1 m1@256, C920 m2@128/RVV0.7 — tracks VLEN, not ISA-gen). **Kernel coverage increased**: repack matrix path q4_0 → q4_0+q4_1 (`c7069111`). Open: winning-*algorithm*-by-profile still unproven; q4_1 GEMM + RVV0.7 block-dot emission deferred.
+- **N2**: **PROVEN** (`2eeabff9`) — IME second family rides the common pipeline, **zero core-branch**, capability-fact dispatch (no string match), K1 bit-exact; **+breadth** 2nd op `mma_u` (`c7069111`). Foundation empirically validated on real X60 (`8bed5961`). Honest: one justified asm leaf (no IME intrinsic), IME perf unstarted.
+- **N3**: methodology fixed (scalar dropped, durable contract → `spec/validation/experiment-reference.md`). **Win-A in llama (two e2e legs)**: VLEN-strip 1.31× decode (K1) + LMUL-width 1.70× prefill (rvv, engagement bug = harness toggle, fixed `2b1547b0`); + 2.27–3.79× contraction microbench. **Win-B** vs ggml's REAL RVV kernel: prefill ~6×, decode regime-dependent (`22c844a2`). Honest: K1 0.74× loss disclosed; Fedora coherent-llama e2e seal NOT achieved.
+- **trellis**: trellis-check PASS on all invariants incl. I3/I5 (`bacebf2d`); methodology promoted to spec.
+
 ## Acceptance (evolving) — status 2026-06-22
 - [x] **⑤ tcrv-opt emit competent narrow-deferred → 干净全-compiler LMUL ablation** `[3d2a2b3f]`:budget 32→m8/12→m4/9→m1,
   同 deferred-accumulate 算法、只变 LMUL、两臂都编译器 emit;rvv 实测 wide÷narrow **2.27–3.79×**,两臂数值 EXACT vs scalar oracle `[709bb69d]`。

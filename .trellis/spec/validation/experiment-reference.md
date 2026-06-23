@@ -225,6 +225,29 @@ capability-aware variant selection
 dispatch with offload threshold
 ```
 
+## N3 Performance-Claim Discipline (baselines — durable contract)
+
+N3 ("capability/resource-aware tune that measurably wins") claims must obey a fixed baseline discipline so a
+number names a real contribution, not an artifact of a weak comparand:
+
+- **Scalar is NEVER a contribution baseline.** vector-vs-scalar measures "we vectorized at all" — which
+  MLIR/autovectorization already provide. It may appear only as an internal sanity check, never as a reported
+  multiple. (The old "wide ÷ scalar 4–15×" framings are retracted.)
+- **Keep the three Wins separate; each has ONE mandated baseline:**
+  - **Win-A** = the compiler-automatic *tune* (e.g. max-legal-LMUL width, VLEN→strip selection). Baseline =
+    the SAME kernel with the tuned knob OFF (both arms compiler-emitted; only the knob differs).
+  - **Win-B** = a generated kernel that changes the *algorithm* (e.g. the repack). Baseline = the framework's
+    OWN shipped optimized kernel for the target ISA (e.g. ggml's real RVV `vec_dot`), NOT scalar, NOT a
+    hand-written "naive", NOT the `_generic` fallback.
+  - **Win-C** = an automatic *pass* that changes algorithm structure. Baseline = pass OFF vs ON. A
+    hand-authored kernel is Win-B, never relabeled as an automatic-pass contribution.
+- **Both harnesses are required and not interchangeable:** an isolated single-core microbench (clean
+  ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
+  appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound) must be
+  stated, not hidden behind the larger number.
+- Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
+  emitted kernel must be proven (e.g. an ENGAGED marker / objdump of the FINAL staged binary), not assumed.
+
 ## Forbidden Interpretations
 
 Do not claim:
@@ -232,6 +255,8 @@ Do not claim:
 ```text
 Sophgo offload is RISC-V custom ISA extension.
 Ordinary tile-size tuning is the main theory.
+A vector-vs-scalar speedup is an N3 tune contribution.
+A microbench win is an end-to-end win without an e2e measurement.
 AME is current verified primary hardware.
 Any future extension never needs core changes.
 TianChen-RV is a new high-level tensor IR.
