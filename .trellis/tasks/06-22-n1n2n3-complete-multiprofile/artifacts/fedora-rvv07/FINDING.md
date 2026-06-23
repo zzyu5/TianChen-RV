@@ -424,3 +424,29 @@ defensible Fedora claim is unchanged and now stronger: isolated-kernel correctne
 capability divergence. The remaining coherent-e2e seal is ggml-integration follow-up work (verify/​fix the
 decode-GEVM engagement), tracked as OPEN — it is not a compiler-kernel bug. This RETRACTS the "strided-store
 numerical defect" framing in the section above.
+
+## ✅ RESOLVED (2026-06-23): coherent RVV0.7 llama e2e ACHIEVED — root cause = ggml repack subsystem, FIX = standard mul_mat
+After proving both our RVV0.7 kernels correct in isolation AND in the real pipeline (GEMM bit-exact vs
+generic, norm=0 across 14400 live calls with both kernels engaged after the engagement fix below), the
+garbage STILL persisted — definitively localizing it OUTSIDE our q4_0 matmul. The decisive test resolved it:
+
+- **Engagement bug FIXED**: the emitted q4_0 GEMM/GEVM dispatch in `arch/riscv/repack.cpp` was guarded by
+  `#if defined __riscv_zvfh` — but `__riscv_zvfh` is an RVV1.0 macro, UNDEFINED under `-march=rv64gc_xtheadvector`
+  (confirmed: `__riscv_zvfh` absent, `__riscv_v_intrinsic=12000` present). So our kernels were compiled out →
+  llama silently used ggml's generic repack path (0 ENGAGED markers). Fixed: guard `__riscv_zvfh` →
+  `__riscv_v_intrinsic` + `TCRV_GEVM_EMIT 0→1`. Both kernels now engage; GEMM live-diff vs generic = norm=0.
+- **Garbage localized to the ggml REPACK SUBSYSTEM (not our compiler, not the q4_0 matmul):** with the q4_0
+  matmul proven bit-exact (emitted==generic), output was still `####`. Forcing q4_0 OFF the repack
+  (`get_optimal_repack_type` → nullptr for q4_0 → ggml's standard `ggml_vec_dot_q4_0_q8_0` mul_mat) →
+  **COHERENT "The capital of France is Paris."** So the defect is in ggml's repack q4_0 path on the C920
+  (prime suspect: the activation mat-quantizer layout `ggml_quantize_mat_q8_0_4x8` vs what the 16x1 GEMM
+  reads — both emitted and generic 16x1 GEMM faithfully reproduce the same wrong-layout activations, hence
+  norm=0 + garbage), NOT our emitted kernels.
+
+**BASELINE (the user's "和什么比较 / baseline 要搞清楚"):** it was never a *performance* regression — it was a
+*correctness* garbage. The honest comparison: our emitted q4_0 GEMM vs ggml's generic 16x1 q4_0 GEMM = IDENTICAL
+(norm=0). The coherent baseline is ggml's STANDARD (non-repack) q4_0 `vec_dot` mul_mat.
+
+**FIX (verified): coherent RVV0.7 llama e2e on the C920 via the standard mul_mat path.** Our compiler's RVV0.7
+q4_0 kernels are PROVEN correct; showcasing them IN the coherent path additionally requires fixing the ggml
+repack activation-quantizer/layout on xtheadvector (a ggml-side follow-up, not a compiler defect).
