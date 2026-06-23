@@ -70,9 +70,10 @@
   quantizer objdump 确认全 scalar、emitted GEMM ENGAGED)仍输出 `####` 垃圾;之前 `6a864212` 的「scalar化 quantizer→coherent」**被反驳**;
   早先 v3 的 "Paris" 不可复现。残留 e2e 缺陷未隔离(候选:ggml 手写 q4_0 **weight repack** 在 xtheadvector 下误编、或 decode GEVM 路由——都非我们 compiler)。
   Fedora 可辩护主张 = isolated-kernel + capability-divergence 轴,**不是** coherent e2e。见 `fedora-rvv07/FINDING.md` CORRECTION。
-- [~] **③ N2 第二 family — IME 硬件候选找到 (2026-06-23, `k1-ime-n2-feasibility.md`)**:K1 Spacemit X60 的 `/proc/cpuinfo` ISA 串尾部带 `ime`(Integer Matrix Extension,挂 RV 核的非-RVV 扩展)=
-  正当 Case-A 第二-family 候选。**N2 不再 hardware-blocked(弱义:硅在)**,但仍 **toolchain+effort-blocked**:Bianbu clang/gcc 无 `ime` march token(只认 SiFive `xsf*` 矩阵扩展,异厂)、无 intrinsics header、无寄存器/编程模型。
-  按用户判据「拿到编程模型后再判」→ 未起任何 codegen。下一步(deferred):取 Spacemit IME spec → 判 capability 形状 → 才 scope emitter。
+- [~] **③ N2 第二 family — IME 现在 ACTIONABLE,foundation 验证中 (2026-06-23, `k1-ime-n2-feasibility.md` CORRECTION + `research/spacemit-ime.md`)**:
+  K1 Spacemit X60 = **IME1**(Integer Matrix Extension,非-RVV 矩阵扩展挂 RV 核)= spec 点名的 N2 非-RVV family。**纠正早先「toolchain-blocked」**(只对 stock Bianbu 成立):
+  march = `xsmtvdotii`(非 `rv64gcv_ime`)+ SpacemiT GCC15.2 fork + 公开 spec(`riscv-ime-extension-spec`/`docs-ai`)+ llama.cpp 已 merge 的 `spacemit/` 后端 oracle(PR#15288)——**四要素齐**。
+  **当前推进(active front)**:N2/IME **foundation 经验验证**——本地装 SpacemiT 交叉工具链 → cross-compile 最小 `vmadot` → **真 K1 上跑、确认不 SIGILL 且 IME==scalar**(验证 A60≡X60 / xsmtvdotii≡Xsmti8i32mm 推断,满足 I8)。pass 后下一增量 = trellis-implement 做 `xsmtvdotii` capability-fact + `vmadot` 零-core-branch emit。**N2 = effort-bounded,不再 blocked**。
 - [x] **① N1 breadth**:沿 VLEN 分化拓到 q8_0/q4_1/q4_0/q5 family-coverage map(见上)。
 - [x] **全程**:structured raw()=0 / fail-closed verifier / real ssh 证据 / Win-A(编译器-tune)vs Win-B(kernel-swap)分清 / clean rebuild 绿 / 诚实 ledger(advisor 抓过 verifier 错机器、我抓 q4_1 overturn)。
 - **Open 下一阶段(用户 steer)**:(2) full llama e2e on K1;(3) Fedora RVV0.7 codegen(XuanTie 工具链);(4) consolidate for paper;扩 VLEN strip 到更多 quant repack。
