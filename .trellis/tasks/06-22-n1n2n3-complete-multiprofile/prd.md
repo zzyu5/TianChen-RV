@@ -56,6 +56,13 @@
 - **N3**: methodology fixed (scalar dropped, durable contract → `spec/validation/experiment-reference.md`). **Win-A in llama (two e2e legs)**: VLEN-strip 1.31× decode (K1) + LMUL-width 1.70× prefill (rvv, engagement bug = harness toggle, fixed `2b1547b0`); + 2.27–3.79× contraction microbench. **Win-B** vs ggml's REAL RVV kernel: prefill ~6×, decode regime-dependent (`22c844a2`). Honest: K1 0.74× loss disclosed; Fedora coherent-llama e2e seal NOT achieved.
 - **trellis**: trellis-check PASS on all invariants incl. I3/I5 (`bacebf2d`); methodology promoted to spec.
 
+## PERF PHASE OUTCOME (2026-06-23, user-directed: kernel+e2e for every kernel) — canonical: `N1N2N3-LEDGER.md §7`
+- **N2 IME perf** (`f8a42258`/`051ebff1`): kernel **5.51× vs RVV** (real K1, int8 256³, bit-exact); e2e **0.86–0.98× NULL** (lib-swap method; my env-toggle draft was a qemu-only no-op = IME-vs-IME, caught + corrected).
+- **N1 q4_1 coverage+perf** (`f1753051`): q4_1 repack **GEMM added** (GEVM+GEMM pair complete); q4_1 GEVM **2.47× vs ggml's real RVV q4_1 kernel** (q4_0 control 2.38× → shared memory-locality mechanism). q4_1 e2e blocked (upstream q8_1x4 quantizer gap).
+- **Fedora bug RESOLVED — not our compiler** (`6c885916`): BOTH RVV0.7 kernels (GEMM+GEVM) proven bit-exact in the EXACT llama strided/chunked/offset regimes; the "strided-store defect" theory refuted; e2e garbage is a ggml-side routing confound (decode GEVM 0 ENGAGED), NOT our kernel math.
+- **CAPSTONE matrix** (`1b4f582a`, ledger §7) + central finding ([[kernel-wins-dont-transplant-to-e2e]]): compute-bound kernel wins (1.22–6.36×) do NOT transplant to memory-bound decode e2e; e2e wins live in memory-layout (Win-B prefill ~6×) / selection (VLEN-strip 1.31×). All nulls/losses/blocks disclosed.
+- **trellis-check** PASS on q4_1 GEMM + IME matmul (I3/I5/I7/structural); 3 pre-existing unrelated masked-strided-dot failures noted (out of scope, last touched `1bf69314`).
+
 ## Acceptance (evolving) — status 2026-06-22
 - [x] **⑤ tcrv-opt emit competent narrow-deferred → 干净全-compiler LMUL ablation** `[3d2a2b3f]`:budget 32→m8/12→m4/9→m1,
   同 deferred-accumulate 算法、只变 LMUL、两臂都编译器 emit;rvv 实测 wide÷narrow **2.27–3.79×**,两臂数值 EXACT vs scalar oracle `[709bb69d]`。
