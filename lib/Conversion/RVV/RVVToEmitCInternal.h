@@ -131,6 +131,13 @@ private:
   /// single-output-column expansion.
   static bool isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The FAMILY-B 16x1-REPACKED single-column GEMV (decode) recognizer: a
+  /// with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_q4_1_q8_1. The op identity is the dispatch key; the
+  /// emitter owns the structured block-as-lane single-output-column expansion
+  /// with the q4_1 scale+MIN fold.
+  static bool isRepackGemvQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
   static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
@@ -1061,6 +1068,30 @@ private:
   /// the byte-exactness proof). All intrinsics are emitc.call_opaque nodes; the
   /// scale fold feeds the raw _Float16 a[l].d into vfwmul_vf (NO float cast).
   mlir::LogicalResult emitRepackGemvQ4_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// FAMILY-B (scale+MIN, asymmetric) block-as-lane sibling of
+  /// emitRepackGemvQ4_0Q8_0: the q4_1 16x1-REPACKED single-column GEMV (decode).
+  /// The weight side is the block_q4_1x16 block-as-lane layout (16 interleaved
+  /// rows across 16 vector lanes, dot accumulates LANE-WISE via vwmacc, NO
+  /// cross-lane vredsum wall), the activation is ONE plain block_q8_1 stream
+  /// (stride 36, quants at +4, scaled-sum s at +2). Two kernel-specific parts
+  /// differ from the q4_0 repacked GEMV (the q4_1 quantization is scale+MIN):
+  ///   (a) the integer core decodes UNSIGNED nibbles [0,15] (vand 0x0F / vsrl
+  ///       0x04 on the u8 weight lane -> reinterpret to i8 -> SAME signed
+  ///       lane-wise vwmacc against the plain q8 quants), NOT the offset-binary
+  ///       sign-extend chain. The repacked nibbles are stored RAW (no ^0x88);
+  ///   (b) the fold carries the per-block MIN correction LANE-WISE: d_x and m_x
+  ///       are VECTOR strips (one lane per weight row, vle16 at +0 / +32), d_y
+  ///       and s_y are the single activation column's SCALARS (+0 / +2), and the
+  ///       fold is ggml's q4_1 statement sumf += (d_x*d_y)*sumi + m_x*s_y folded
+  ///       as vfmacc (scale term) then vfadd of vfwmul(m_x, s_y) (MIN term).
+  /// Each output is byte-exact vs a scalar/ggml q4_1 reference. The block-format
+  /// facts are the op's typed attrs (I4 mirror); the emission is the op's fixed
+  /// structure (I5; every value is a node, ZERO raw() strings).
+  mlir::LogicalResult emitRepackGemvQ4_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

@@ -5,6 +5,7 @@
 
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 
 using namespace tianchenrv::tcrv::ime;
@@ -37,8 +38,11 @@ constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kSourceRoleValue("compute");
 // The validated IME1 int8->int32 envelope (FOUNDATION.md task 3). The verifier
 // admits ONLY this envelope, so no body outside the proven hardware envelope
-// is ever emitted (I7 fail-closed).
-constexpr llvm::StringLiteral kExpectedIMEOp("vmadot");
+// is ever emitted (I7 fail-closed). tcrv.ime.mma is the SIGNED `vmadot`;
+// tcrv.ime.mma_u is the UNSIGNED `vmadotu` — both IME1 signedness forms over the
+// SAME elem_in/accum/MAC-fragment envelope, distinguished only by the mnemonic.
+constexpr llvm::StringLiteral kExpectedSignedIMEOp("vmadot");
+constexpr llvm::StringLiteral kExpectedUnsignedIMEOp("vmadotu");
 constexpr int64_t kExpectedElemInBits = 8;
 constexpr int64_t kExpectedAccumBits = 32;
 
@@ -169,20 +173,19 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
 
 } // namespace
 
-llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceOpName() {
-  return getOperation()->getName().getStringRef();
-}
-
-llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceRole() {
-  return kSourceRoleValue;
-}
-
-mlir::LogicalResult MMAOp::verify() {
-  mlir::Operation *op = getOperation();
-
+/// The shared fail-closed (I7) verifier for an IME MAC boundary op. The ONLY
+/// difference between tcrv.ime.mma (signed `vmadot`) and tcrv.ime.mma_u
+/// (unsigned `vmadotu`) is the admitted mnemonic; everything else (the
+/// int8->int32 envelope, the capability-derived MAC fragment shape, the
+/// selected-path binding, the no-benchmark-claim rule) is identical, so the
+/// signedness is the only structural axis that varies. `emitErr` is the op's own
+/// `emitOpError` so diagnostics are attributed to the concrete op.
+mlir::LogicalResult
+verifyIMEMACBoundary(mlir::Operation *op, llvm::StringRef expectedIMEOp,
+                     llvm::function_ref<mlir::InFlightDiagnostic()> emitErr) {
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     if (!isAllowedMMAAttr(attr.getName().getValue()))
-      return emitOpError()
+      return emitErr()
              << "does not accept generic tensor/tile/benchmark or unknown "
                 "attribute '"
              << attr.getName().getValue() << "'";
@@ -192,75 +195,103 @@ mlir::LogicalResult MMAOp::verify() {
        {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName, kStatusAttrName,
         kIMEOpAttrName, kAvailableHartsAttrName}) {
     if (hasMissingOrEmptyStringAttr(op, attrName))
-      return emitOpError()
-             << "requires non-empty string attribute '" << attrName << "'";
+      return emitErr() << "requires non-empty string attribute '" << attrName
+                       << "'";
   }
 
   auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (origin.getValue() != kIMEPluginName)
-    return emitOpError() << "origin must be '" << kIMEPluginName
-                         << "' because this is the IME plugin execution surface";
+    return emitErr() << "origin must be '" << kIMEPluginName
+                     << "' because this is the IME plugin execution surface";
 
   auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
   if (!isAllowedRole(role.getValue()))
-    return emitOpError()
-           << "role must be '" << kDirectVariantRoleValue << "' or '"
-           << kDispatchCaseRoleValue << "'";
+    return emitErr() << "role must be '" << kDirectVariantRoleValue << "' or '"
+                     << kDispatchCaseRoleValue << "'";
 
   auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
   if (status.getValue() != kRoleOpBoundaryStatusValue)
-    return emitOpError() << "status must be '" << kRoleOpBoundaryStatusValue
-                         << "' because tcrv.ime.mma is an ODS role-op boundary";
+    return emitErr() << "status must be '" << kRoleOpBoundaryStatusValue
+                     << "' because this is an ODS role-op boundary";
 
-  // Fail-closed (I7): admit ONLY the validated IME1 int8->int32 vmadot envelope.
+  // Fail-closed (I7): admit ONLY the validated IME1 int8->int32 MAC instruction
+  // of the EXPECTED signedness for this op (vmadot for the signed surface,
+  // vmadotu for the unsigned surface).
   auto imeOp = op->getAttrOfType<mlir::StringAttr>(kIMEOpAttrName);
-  if (imeOp.getValue() != kExpectedIMEOp)
-    return emitOpError() << "ime_op must be '" << kExpectedIMEOp
-                         << "'; tcrv.ime.mma only models the validated IME1 "
-                            "int8->int32 MAC instruction";
+  if (imeOp.getValue() != expectedIMEOp)
+    return emitErr() << "ime_op must be '" << expectedIMEOp
+                     << "'; this op only models the validated IME1 "
+                        "int8->int32 MAC instruction of its signedness";
 
   auto elemInBits = op->getAttrOfType<mlir::IntegerAttr>(kElemInBitsAttrName);
   if (!elemInBits || elemInBits.getInt() != kExpectedElemInBits)
-    return emitOpError() << "elem_in_bits must be " << kExpectedElemInBits
-                         << " (IME1 vmadot consumes int8 inputs)";
+    return emitErr() << "elem_in_bits must be " << kExpectedElemInBits
+                     << " (IME1 " << expectedIMEOp << " consumes int8 inputs)";
 
   auto accumBits = op->getAttrOfType<mlir::IntegerAttr>(kAccumBitsAttrName);
   if (!accumBits || accumBits.getInt() != kExpectedAccumBits)
-    return emitOpError() << "accum_bits must be " << kExpectedAccumBits
-                         << " (IME1 vmadot accumulates in int32)";
+    return emitErr() << "accum_bits must be " << kExpectedAccumBits
+                     << " (IME1 " << expectedIMEOp
+                     << " accumulates in int32)";
 
   auto macM = op->getAttrOfType<mlir::IntegerAttr>(kMacMAttrName);
   auto macN = op->getAttrOfType<mlir::IntegerAttr>(kMacNAttrName);
   auto macK = op->getAttrOfType<mlir::IntegerAttr>(kMacKAttrName);
   if (!macM || !macN || !macK)
-    return emitOpError()
+    return emitErr()
            << "requires the capability-derived MAC fragment shape integer "
               "attributes '"
            << kMacMAttrName << "', '" << kMacNAttrName << "', '" << kMacKAttrName
            << "'";
   if (macM.getInt() <= 0 || macN.getInt() <= 0 || macK.getInt() <= 0)
-    return emitOpError() << "MAC fragment shape (mac_m/mac_n/mac_k) must be "
-                            "positive (derived from VLEN/SEW)";
+    return emitErr() << "MAC fragment shape (mac_m/mac_n/mac_k) must be "
+                        "positive (derived from VLEN/SEW)";
   // The K depth is the int8 lane count of one VLEN=256/SEW=8 group reduced by
   // the 4x4 output tile; for the validated X60 unit M=N=4, K=8. Keep the
   // verifier general over fragment shape but anchored to the int8->int32 MAC.
   if (macM.getInt() * macK.getInt() <= 0 || macN.getInt() * macK.getInt() <= 0)
-    return emitOpError() << "MAC fragment shape is degenerate";
+    return emitErr() << "MAC fragment shape is degenerate";
 
   if (auto reason = op->getAttrOfType<mlir::StringAttr>(kIMEReasonAttrName)) {
     if (reason.getValue().trim().empty())
-      return emitOpError() << "ime_reason must be non-empty when present";
+      return emitErr() << "ime_reason must be non-empty when present";
     if (containsExecutableClaimWording(reason.getValue()))
-      return emitOpError() << "ime_reason must not claim benchmark or "
-                              "performance evidence in the IR";
+      return emitErr() << "ime_reason must not claim benchmark or "
+                          "performance evidence in the IR";
   }
 
-  mlir::InFlightDiagnostic diag = emitOpError();
+  mlir::InFlightDiagnostic diag = emitErr();
   if (mlir::failed(verifySelectedPathBinding(op, diag)))
     return mlir::failure();
   diag.abandon();
 
   return mlir::success();
+}
+
+llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MMAOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MMAOp::verify() {
+  return verifyIMEMACBoundary(getOperation(), kExpectedSignedIMEOp,
+                              [this]() { return emitOpError(); });
+}
+
+llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MMAUOp::verify() {
+  return verifyIMEMACBoundary(getOperation(), kExpectedUnsignedIMEOp,
+                              [this]() { return emitOpError(); });
 }
 
 void TCRVIMEDialect::initialize() {

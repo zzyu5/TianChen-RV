@@ -143,6 +143,22 @@ public:
           gemv.setHalfLanes(width);
         return;
       }
+      // The FAMILY-B q4_1 repacked GEMV diverges on the SAME resource-aware strip
+      // width axis (the block-as-lane layout is byte-identical in shape to q4_0's
+      // 16-way interleave), so it participates in the same capability-driven
+      // half_lanes / whole-LMUL stamp.
+      if (auto gemv = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ41Q81Op>(op)) {
+        if (isRVV0p7) {
+          gemv.setIntegerCoreLmul("m1");
+          gemv.setHalfLanes(gemv.getWeightInterleave());
+          return;
+        }
+        std::int64_t width =
+            deriveRepackHalfLanes(vlenBits, gemv.getWeightInterleave());
+        if (width > 0)
+          gemv.setHalfLanes(width);
+        return;
+      }
     });
   }
 };

@@ -6,7 +6,9 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/Support/Errc.h"
 
 #include <string>
@@ -23,6 +25,11 @@ constexpr llvm::StringLiteral kIMEPluginVersion("0.1.0");
 constexpr llvm::StringLiteral kIMECapabilityID("spacemit.ime");
 constexpr llvm::StringLiteral kIMECapabilityKind("isa-matrix-vector-backed");
 constexpr llvm::StringLiteral kIMEFirstSliceVariantName("ime_vmadot_mma_slice");
+// The SECOND (unsigned) IME variant. Same capability FACT, different signedness
+// fact => different emitted instruction (`vmadotu`) and boundary op
+// (tcrv.ime.mma_u). This is the N2 plugin-breadth surface.
+constexpr llvm::StringLiteral kIMEUnsignedVariantName(
+    "ime_vmadotu_mma_slice");
 
 constexpr llvm::StringLiteral kIMEPolicy("ime_int8_matmul_vmadot_mac");
 constexpr llvm::StringLiteral kIMECondition("spacemit_ime_capability_available");
@@ -51,12 +58,29 @@ constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kMarchPropertyName("march");
 constexpr llvm::StringLiteral kVlenBitsPropertyName("vlen_bits");
 constexpr llvm::StringLiteral kAvailableHartsPropertyName("available_harts");
+// Which signedness form of the IME1 MAC the kernel requests. This is a
+// capability-derived FACT, NOT a family-name string: the `xsmtvdotii` envelope
+// provides BOTH signed and unsigned MAC (the SpacemiT GCC15 assembler accepts
+// vmadot/vmadotu/vmadotsu/vmadotus under the SAME march token), so the plugin
+// derives the available signedness set from the march fact and picks the
+// requested form. Absent property => "signed" (back-compat with the first
+// slice). An UNSUPPORTED signedness fails closed.
+constexpr llvm::StringLiteral kSignednessPropertyName("ime_signedness");
+constexpr llvm::StringLiteral kSignednessSigned("signed");
+constexpr llvm::StringLiteral kSignednessUnsigned("unsigned");
 
 // The load-bearing IME1 march token (FOUNDATION task 2: absent => assembler
 // rejects `vmadot`). The capability is the proven IME1 envelope ONLY when this
-// token is present.
+// token is present. It assembles BOTH signedness forms below.
 constexpr llvm::StringLiteral kIMEMarchToken("xsmtvdotii");
 constexpr llvm::StringLiteral kIMEOpValue("vmadot");
+constexpr llvm::StringLiteral kIMEUnsignedOpValue("vmadotu");
+// The plugin-owned (dialect-qualified, discardable) variant attribute that
+// records the derived signedness fact on the materialized tcrv.exec.variant so
+// the boundary materializer routes to the matching boundary op (mma vs mma_u)
+// WITHOUT re-deriving — and so selection stays a pure data flow of the
+// capability fact.
+constexpr llvm::StringLiteral kSignednessVariantAttrName("ime.signedness");
 constexpr int64_t kIMEElemInBits = 8;
 constexpr int64_t kIMEAccumBits = 32;
 // Default per-hart availability for the X60 (harts 0-3 carry _ime; hart 4 does
@@ -75,6 +99,9 @@ llvm::Error makeIMEPluginError(llvm::Twine message) {
 /// (the N1 hook): at VLEN=256/SEW=8 the X60 unit is 4x4x8.
 struct IMEMatmulCapability {
   std::string imeOp;
+  // The signedness form this capability derived to ("signed" => vmadot,
+  // "unsigned" => vmadotu). Both are facts of the same `xsmtvdotii` envelope.
+  std::string signedness;
   int64_t elemInBits = 0;
   int64_t accumBits = 0;
   int64_t macM = 0;
@@ -106,8 +133,29 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
         kVlenBitsPropertyName +
         "' must be the integer VLEN in bits (derives the MAC fragment shape)");
 
+  // Derive the requested signedness FACT. The `xsmtvdotii` envelope provides
+  // BOTH signed (vmadot) and unsigned (vmadotu) MAC; which one this kernel wants
+  // is carried as a capability property. Absent => signed (back-compat). Any
+  // other value fails closed (we only validated vmadot/vmadotu on real K1).
+  llvm::StringRef requestedSignedness =
+      capability.getProperty(kSignednessPropertyName).trim();
+  if (requestedSignedness.empty())
+    requestedSignedness = kSignednessSigned;
+
   IMEMatmulCapability derived;
-  derived.imeOp = kIMEOpValue.str();
+  if (requestedSignedness == kSignednessSigned) {
+    derived.imeOp = kIMEOpValue.str();
+    derived.signedness = kSignednessSigned.str();
+  } else if (requestedSignedness == kSignednessUnsigned) {
+    derived.imeOp = kIMEUnsignedOpValue.str();
+    derived.signedness = kSignednessUnsigned.str();
+  } else {
+    return makeIMEPluginError(
+        llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+        kSignednessPropertyName + "' = '" + requestedSignedness +
+        "' is outside the validated IME1 signedness envelope (only 'signed' "
+        "=> vmadot and 'unsigned' => vmadotu are real-K1-validated)");
+  }
   derived.elemInBits = kIMEElemInBits;
   derived.accumBits = kIMEAccumBits;
   if (vlenBits == 256) {
@@ -136,6 +184,18 @@ bool hasAvailableIMECapability(const VariantProposalRequest &request) {
   return capability && capability->isAvailable();
 }
 
+/// Reads the derived signedness fact stamped on the materialized variant (the
+/// `ime.signedness` plugin-owned attribute). Absent => signed (the first slice).
+/// This is a pure read-back of the capability-derived fact, so downstream
+/// boundary/emission selection never re-classifies a family name.
+bool variantRequestsUnsignedIME(tcrv::exec::VariantOp variant) {
+  if (!variant)
+    return false;
+  auto signedness =
+      variant->getAttrOfType<mlir::StringAttr>(kSignednessVariantAttrName);
+  return signedness && signedness.getValue() == kSignednessUnsigned;
+}
+
 llvm::Expected<VariantProposal>
 buildIMEProposal(const VariantProposalRequest &request) {
   const support::CapabilityDescriptor *capability =
@@ -157,11 +217,21 @@ buildIMEProposal(const VariantProposalRequest &request) {
   if (!derived)
     return derived.takeError();
 
-  VariantProposal proposal(kIMEFirstSliceVariantName, kIMEPluginName);
+  // The variant name + the recorded signedness FACT both follow the derived
+  // capability fact (NOT a family-name string). The signedness drives which of
+  // the two IME boundary ops (tcrv.ime.mma / tcrv.ime.mma_u) materializes.
+  bool isUnsigned = derived->signedness == kSignednessUnsigned;
+  VariantProposal proposal(
+      isUnsigned ? kIMEUnsignedVariantName : kIMEFirstSliceVariantName,
+      kIMEPluginName);
   proposal.addRequiredCapabilityID(kIMECapabilityID);
   proposal.setCondition(kIMECondition);
   proposal.setGuard(kIMEGuard);
   proposal.setPolicy(kIMEPolicy);
+  mlir::MLIRContext *context = request.getKernel().getContext();
+  proposal.addPluginAttribute(
+      mlir::StringAttr::get(context, kSignednessVariantAttrName),
+      mlir::StringAttr::get(context, derived->signedness));
   return proposal;
 }
 
@@ -368,19 +438,23 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
+  bool isUnsigned = variantRequestsUnsignedIME(request.getVariant());
+  llvm::StringRef boundaryOpName =
+      isUnsigned ? tcrv::ime::MMAUOp::getOperationName()
+                 : tcrv::ime::MMAOp::getOperationName();
   out = VariantEmissionPlan::getSupported(
       kIMEPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
       "materialized-emitc-cpp-ime-vmadot-mma-module",
       "ime-vmadot-mma-emitc-route",
       "ime-vmadot-mma-runtime-c-abi.v1", "riscv-elf-relocatable-object",
-      "IME selected tcrv_ime.mma boundary lowers the FOUNDATION-validated "
-      "int8->int32 vmadot MAC kernel through the common "
+      "IME selected boundary lowers the FOUNDATION-validated int8->int32 MAC "
+      "kernel (signed vmadot or unsigned vmadotu) through the common "
       "TCRVEmitCLowerableRoute materializer and the MLIR EmitC C/C++ emitter");
   out.setRuntimeABIKind("plugin-owned-runtime-abi");
   out.setRuntimeABIName("ime-vmadot-mma-runtime-c-abi.v1");
   out.setRuntimeGlueRole("emitc-cpp-ime-vmadot-mma-runtime-glue");
-  out.setLoweringBoundaryOpName(tcrv::ime::MMAOp::getOperationName());
+  out.setLoweringBoundaryOpName(boundaryOpName);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -422,13 +496,17 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
-  // The registered MLIR op name is `tcrv_ime.mma` (dialect namespace `tcrv_ime`
-  // + mnemonic `mma`); the architectural family spelling `tcrv.ime.mma` is not a
-  // valid dialect namespace. Use the ODS-registered name so the boundary
-  // round-trips to a real MMAOp (a generic op of a different spelling would
-  // print fine but fail the dyn_cast in validation).
-  mlir::OperationState state(variant.getLoc(),
-                             tcrv::ime::MMAOp::getOperationName());
+  // Route to the boundary op matching the DERIVED signedness fact: signed =>
+  // tcrv.ime.mma (vmadot), unsigned => tcrv.ime.mma_u (vmadotu). Both are
+  // ODS-registered ops of the SAME dialect; the choice is a pure data flow of
+  // the capability-derived fact (recorded on the variant by the materializer),
+  // NOT a family-name branch. (The architectural family spelling `tcrv.ime.*`
+  // is not a valid dialect namespace, so the registered names are tcrv_ime.*.)
+  bool boundaryIsUnsigned = derived->signedness == kSignednessUnsigned;
+  llvm::StringRef boundaryOpName =
+      boundaryIsUnsigned ? tcrv::ime::MMAUOp::getOperationName()
+                         : tcrv::ime::MMAOp::getOperationName();
+  mlir::OperationState state(variant.getLoc(), boundaryOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(
@@ -454,8 +532,9 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   state.addAttribute(
       kIMEReasonAttrName,
       builder.getStringAttr(
-          "capability-derived IME1 int8->int32 vmadot MAC fragment from march "
-          "xsmtvdotii + VLEN/SEW"));
+          llvm::Twine("capability-derived IME1 int8->int32 ") + derived->imeOp +
+          " MAC fragment from march xsmtvdotii + VLEN/SEW (signedness=" +
+          derived->signedness + ")"));
   mlir::Operation *boundary = builder.create(state);
 
   VariantLoweringBoundaryValidationRequest validationRequest(
@@ -471,30 +550,38 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
 
 llvm::Error IMEExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  auto boundary =
-      llvm::dyn_cast_if_present<tcrv::ime::MMAOp>(request.getBoundary());
-  if (!boundary)
+  // The boundary is EITHER the signed tcrv.ime.mma or the unsigned
+  // tcrv.ime.mma_u op — both are the IME plugin execution surface. Accept
+  // either; each op's fail-closed verifier pins its own correct mnemonic.
+  mlir::Operation *boundaryOp = request.getBoundary();
+  bool verifierFailed = false;
+  if (auto mma = llvm::dyn_cast_if_present<tcrv::ime::MMAOp>(boundaryOp))
+    verifierFailed = mlir::failed(mma.verify());
+  else if (auto mmau = llvm::dyn_cast_if_present<tcrv::ime::MMAUOp>(boundaryOp))
+    verifierFailed = mlir::failed(mmau.verify());
+  else
     return makeIMEPluginError(
-        "selected IME path requires a tcrv.ime.mma operation");
+        "selected IME path requires a tcrv.ime.mma or tcrv.ime.mma_u operation");
 
-  // The ODS verifier (fail-closed, I7) already enforces the int8->int32 vmadot
-  // envelope, origin/role/status, and selected-path binding. Re-run it so a
-  // boundary that the verifier would reject is never reported materialized.
-  if (mlir::failed(boundary.verify()))
+  // The ODS verifier (fail-closed, I7) already enforces the int8->int32 MAC
+  // envelope of the op's signedness, origin/role/status, and selected-path
+  // binding. Re-run it so a boundary the verifier would reject is never
+  // reported materialized.
+  if (verifierFailed)
     return makeIMEPluginError(
-        "materialized tcrv.ime.mma boundary failed its fail-closed verifier");
+        "materialized IME boundary failed its fail-closed verifier");
 
-  auto origin = boundary->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  auto origin = boundaryOp->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!origin || origin.getValue() != kIMEPluginName)
-    return makeIMEPluginError(
-        "tcrv.ime.mma boundary origin must be 'ime-plugin'");
+    return makeIMEPluginError("IME boundary origin must be 'ime-plugin'");
 
   auto selectedVariant =
-      boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+      boundaryOp->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kSelectedVariantAttrName);
   if (!selectedVariant ||
       selectedVariant.getValue() != request.getVariant().getSymName())
     return makeIMEPluginError(
-        "tcrv.ime.mma selected_variant must match the selected variant");
+        "IME boundary selected_variant must match the selected variant");
   return llvm::Error::success();
 }
 

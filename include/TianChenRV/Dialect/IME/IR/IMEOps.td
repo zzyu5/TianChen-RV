@@ -78,4 +78,54 @@ def MMAOp : TCRVIME_Op<"mma",
   let hasVerifier = 1;
 }
 
+def MMAUOp : TCRVIME_Op<"mma_u",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "IME uint8->int32 matrix-multiply-accumulate (vmadotu) boundary";
+  let description = [{
+    The SECOND IME execution boundary (plugin breadth, N2): the UNSIGNED
+    int8 form of the MAC unit, realized by the IME1 `vmadotu` instruction.
+    Identical fragment-shape envelope to tcrv.ime.mma (capability-derived from
+    VLEN/SEW: at VLEN=256/SEW=8 the X60 unit is 4x4x8, int32 accumulator), but a
+    GENUINELY DIFFERENT emitted instruction: `vmadotu` (unsigned*unsigned, IME1
+    signedness variant) computes C += A . B^T treating A and B as UNSIGNED
+    int8, vs tcrv.ime.mma's signed `vmadot`. The two have distinct encodings
+    (vmadot=0xe210312b vs vmadotu=0xe210022b) and distinct numeric semantics; on
+    the same all-high-bit-set int8 data the unsigned MAC differs from the signed
+    MAC, so this is not a renamed op.
+
+    Both ops gate on the SAME first-class `spacemit.ime` capability FACT (the
+    `xsmtvdotii` march token assembles all four signedness forms — proven by the
+    SpacemiT GCC15 assembler). Which signedness boundary materializes is a
+    capability-derived fact (the `ime_signedness` request), NOT a family-name
+    string and NOT a second capability id. A fail-closed verifier (I7) admits
+    ONLY the validated IME1 uint8->int32 `vmadotu` envelope.
+
+    This is an IME execution op, not a high-level matmul op. It makes no
+    correctness/performance claim in the IR; correctness is proven by the emitted
+    kernel bit-exact vs an unsigned scalar reference on real K1.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 #endif // TIANCHENRV_DIALECT_IME_IR_IMEOPS_TD

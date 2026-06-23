@@ -50,15 +50,16 @@ module {
 
 // -----
 
-// Fail-closed (I7): only the validated IME1 `vmadot` instruction is admitted;
-// a different mnemonic (e.g. unsigned vmadotu) is rejected so no body outside
-// the proven hardware envelope is ever emitted.
+// Fail-closed (I7): the SIGNED tcrv.ime.mma surface admits ONLY `vmadot`; a
+// different IME1 signedness mnemonic (e.g. the mixed-sign vmadotsu) is rejected
+// here — the unsigned vmadotu has its own op (tcrv.ime.mma_u). No body outside
+// the proven, signedness-correct hardware envelope is ever emitted.
 module {
   tcrv.exec.kernel @ime_mma_wrong_op {
     tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
     tcrv.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
-    // expected-error@+1 {{ime_op must be 'vmadot'; tcrv.ime.mma only models the validated IME1 int8->int32 MAC instruction}}
-    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotu", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    // expected-error@+1 {{ime_op must be 'vmadot'; this op only models the validated IME1 int8->int32 MAC instruction of its signedness}}
+    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotsu", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
   }
 }
 
