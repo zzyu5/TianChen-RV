@@ -324,9 +324,18 @@ run of the CURRENT binary so objdump + run + output all describe the same artifa
   contraction dot PASS); RVV0.7 capability-axis legality divergence in the model.
 - REFUTED: "scalarizing the activation quantizer → coherent e2e." It does not. Scalar quantizer + emitted
   GEMM engaged → still garbage.
-- OPEN (unisolated): the e2e integration defect is NOT the isolated GEMM math and NOT the activation
-  quantizer. Remaining candidates (ggml-side hand code under xtheadvector, NOT our compiler): the q4_0
-  **weight repack** routine (`ggml::cpu::repack` — feeds our GEMM its packed weights; if miscompiled, our
-  correct GEMM gets garbage INPUT → garbage OUTPUT), or decode-path GEVM routing (the 0-marker clue).
+- OPEN (unisolated, but LOCATED sharper by the deep bisection agent a4e03265c2222c557): the e2e defect is
+  NOT the isolated GEMM math and NOT the activation quantizer. **Deep GEMM-only-emitted bisection** (emitted
+  GEMM + everything-else-scalar, forced clean build, objdump-verified) shows the **emitted GEMM's WRITE to
+  the real llama output tensor ALONE produces garbage** — even though (a) in-region values are bit-exact vs
+  ggml `_generic` on the REAL ggml tensors at the exact llama regime (nr=16/nc=2048/n=2048, norm=0), and
+  (b) a ±32KB bidirectional sentinel guard around the dst is CLEAN. So the locus is the emitted GEMM's
+  output-tensor side effect, NOT the weight-repack input: a **far-OOB write (>32KB)**, a **dtype/aliasing
+  assumption on the real dst**, or a side effect on a neighboring graph buffer. GEMV-in-isolation still
+  untested (separate follow-up). **Why gemm_verify missed it:** the gate is single-thread, GEMM-only,
+  single-buffer — it validates `[0,nr*nc)` in-region values and is structurally blind to what the emitted
+  GEMM does to the real dst beyond that region. The e2e (Win-A-in-llama) is exactly what caught it — which
+  validates the user's instinct that Win-A had to appear IN llama. Engaged-kernel perf (real th.v* 0.7.1,
+  -t1): prefill 2.94 / decode 1.58 tok/s — but the OUTPUT is garbage, so this is NOT a usable e2e number.
 - **Fedora RVV0.7 *e2e coherent-llama seal* = NOT achieved.** The defensible Fedora claim is the
   isolated-kernel + capability-divergence axis, not a coherent end-to-end llama run. Do not claim otherwise.
