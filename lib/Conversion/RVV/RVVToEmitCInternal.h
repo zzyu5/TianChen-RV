@@ -143,6 +143,12 @@ private:
   /// identity is the dispatch key; the emitter owns the structured block-as-lane
   /// multi-output-column expansion with the q4_1 scale+MIN per-column fold.
   static bool isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
+  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
+  /// recognizer: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemm_q4_K_q8_K. The op identity is the dispatch key; the
+  /// emitter owns the structured block-as-lane multi-output-column expansion
+  /// with the q4_K dual d/dmin 8-sub-block 6-bit scale fold.
+  static bool isRepackGemmQ4KQ8KBody(tcrvrvv::WithVLOp scope);
   /// The Family-A (symmetric, full-int8) 16x1-REPACKED single-column GEMV
   /// (decode) recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.repack_gemv_q8_0_q8_0. The op identity is the dispatch key; the
@@ -1140,6 +1146,21 @@ private:
   /// scalar/in-tree-block-dot reference, NOT byte-exact ggml parity (no upstream
   /// oracle exists); the GEMM's own numeric oracle is deferred this pass.
   mlir::LogicalResult emitRepackGemmQ4_1Q8_1(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
+  /// emitter: the q4_K sibling of emitRepackGemmQ4_1Q8_1 and the PREFILL sibling
+  /// of emitRepackGemvQ4KQ8K. The weight side is the block_q4_Kx16 block-as-lane
+  /// layout (16 interleaved columns per lane), the activation the interleaved
+  /// block_q8_Kx4 stream (4 rows per group, fp32 d[4]/qs[1024]/bsums[64]). The
+  /// q4_K dual d/dmin 8-sub-block 6-bit scale/min unpack is done ONCE per 16
+  /// weights and REUSED across the M activation columns (the amortization that is
+  /// the prefill e2e-win mechanism). Validated norm-based against the in-tree
+  /// q4_K block-dot reference; the byte-exact ggml_gemm_q4_K_16x1_q8_K oracle is
+  /// a deferred rvv follow-up.
+  mlir::LogicalResult emitRepackGemmQ4KQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
