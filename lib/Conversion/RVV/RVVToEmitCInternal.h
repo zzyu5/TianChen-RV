@@ -1852,6 +1852,23 @@ private:
     int64_t q8Offset;
     int64_t numSubBlocks;
     int64_t half;
+    // The optional integer_core_lmul knob (default "mf2" == today's emit:
+    // TWO 8-lane halves per 16-element sub-block). l8/l16/l32 name the Region-B
+    // MAC chain widths: l8 = the per-strip i8 load anchor, l16 = the vwmul i16
+    // product, l32 = the vwmacc i32 accumulator. mf2: {mf2,m1,m2} (two 8-lane
+    // halves). m1: {m1,m2,m4} (ONE 16-lane strip per sub-block, folded back to
+    // 8). stripWidth = the per-sub-block MAC strip element count (8 @mf2, 16
+    // @m1); foldGroups = stripWidth/8 (1 @mf2 -> no fold; 2 @m1 -> fold the wide
+    // aux32 back to 8 element-wise BEFORE the fp32 cvt, VLEN-agnostically).
+    llvm::StringRef coreLmul;
+    llvm::StringRef l8;
+    llvm::StringRef l16;
+    llvm::StringRef l32;
+    mlir::Type i8WideType;   // vint8<l8>   (the strip load type)
+    mlir::Type i16WideType;  // vint16<l16> (the vwmul product type)
+    mlir::Type i32WideType;  // vint32<l32> (the wide aux32 accumulator type)
+    int64_t stripWidth;      // 8 @mf2, 16 @m1
+    int64_t foldGroups;      // stripWidth / 8: 1 @mf2 (no fold), 2 @m1
   };
 
   /// Emit ONE super-block's integer core (the 6-bit ql+qh unpack into the

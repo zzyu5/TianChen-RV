@@ -6101,9 +6101,25 @@ def GgmlBlockDotQ6KQ8KOp
     Zvl128b => VLEN>=128, the validated target), inheriting K1's integer-core
     striping (one vsetvl_e8m2(32) per 32-element unpack group; e8mf2(8)->i16m1->
     e32m2 per sub-block half) with NO VLEN-robust re-strip loop (the zve32x/zve64x
-    re-strip is a capability item, not built here). No resource shape knobs yet;
-    the K3 measurement tuner will register q6_K's candidate shapes. This K2 op
-    carries only the structural facts.
+    re-strip is a capability item, not built here).
+
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    knob selecting the BASE LMUL of the per-sub-block integer-MAC widening chain
+    i8 -> i16 -> i32 (the *how*, never the *what*; the byte-exact deferred fp32
+    fold order is untouched). It anchors the chain at "mf2" (absent/default --
+    today's TWO 8-lane halves per sub-block, e8mf2(8)->i16m1->e32m2 each), or "m1"
+    (ONE 16-lane strip per sub-block, e8m1(16)->i16m2->e32m4, the 16 i32 lanes
+    folded back element-wise to the canonical 8 before the fp32 cvt). "m1" is the
+    HARD CEILING here -- DIFFERENT from q4_K's "m2" ceiling -- because q6_K's
+    sub_block == 16 elements: i8m1 == 16 elements == exactly ONE sub-block under
+    ONE scalar `scale`; an "m2" base (32 elements) would fold TWO sub-blocks under
+    one scalar scale (identical ground to q4_K's m4 rejection at 32-element
+    sub-blocks). The verifier pins the legal set {"mf2","m1"} fail-closed (I7).
+    The fold-back (the canonical 8-lane regroup of the wide aux32 before the
+    fp32 fold) is VLEN-agnostic (literal element-offset vslidedown, not a
+    register-subgroup vget) so it is bit-exact at VLEN128 AND VLEN256. The K3
+    measurement tuner stamps the chosen anchor; this K2 op carries the structural
+    facts plus this single dormant resource shape knob.
   }];
 
   let arguments = (ins
@@ -6122,7 +6138,8 @@ def GgmlBlockDotQ6KQ8KOp
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$weight_d_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 

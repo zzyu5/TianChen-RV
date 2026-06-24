@@ -578,3 +578,217 @@ arm at BOTH VLENs), superseding the prior "m1@256 / mf2@128" — a single
 `ours.cpp` as `kq-bench/q4_K/ours-{mf2,m1,m2}.cpp` (md5 `2aea89b4`/`2eee81f9`/
 `36541510`). **No blocker** — the fix is in the working tree (uncommitted, per
 instruction), both-board oracle PASSes, the ablate is re-measured and superseded.
+
+---
+
+## q6_K — wide-LMUL Win-A (the q4_K S0-S4 pattern, ceiling CORRECTED to m1)
+
+**Date:** 2026-06-25. **Scope:** extend the wide-LMUL K-quant Win-A to q6_K (the
+next compute-bound K-quant; §9-matrix recorded q6_K LOSS to ggml `_vl256`
+~2.26x). Reuses the PROVEN q4_K S0-S4 pattern (the `integer_core_lmul` attr +
+verifier, the threaded coreLmul/l8/l16/l32, the Region-C MAC widen, and
+CRITICALLY the **VLEN-AGNOSTIC `vslidedown` fold-back FROM THE START** — the
+q4_K first-cut `vget`-subgroup bug is NOT repeated). **One principled deviation
+from the task spec, confirmed before building: q6_K's LMUL ceiling is `m1`, NOT
+`m2`** (next paragraph). No git commit (per instruction).
+
+### THE CEILING IS m1, NOT m2 — q6_K's 16-element sub-block forces it
+
+The task carried over q4_K's legal set `{mf2,m1,m2}` and the "m1 AND m2 MUST PASS"
+gate, but that is **structurally unmeetable for q6_K and was corrected to
+`{mf2,m1}`** (m1 = ceiling). q6_K's verifier pins `sub_block == 16` (16-element
+sub-block scale boundary, `RVVDialectWideningOps.cpp:4639`) and the MAC applies
+ONE scalar `scale = scales[js]` per sub-block. Apply q4_K's own ceiling logic
+(`i8m2 == 32 elements == ONE q4_K sub-block; m4 would fold TWO sub-blocks under
+one scalar → rejected`, RVVOps.td:6329-6333) at q6_K's 16-element granularity:
+**i8m1 == 16 elements == exactly ONE q6_K sub-block; i8m2 == 32 elements would
+fold TWO 16-element sub-blocks under one scalar `scale` → illegal**, the
+identical ground to q4_K's m4 rejection. An m2 strip would scale elements
+`[js·16+16, js·16+32)` (which belong to sub-block js+1) by `scales[js]` — the
+oracle would FAIL unless `scales[js]==scales[js+1]`. So m2 is **verifier-rejected
+fail-closed**, and the ablate is honestly **2-arm (mf2 vs m1)**, which is *more*
+faithful to the q4_K ceiling principle than copying its arm count. (Confirmed
+with the stronger reviewer before building; this is a settled correctness
+decision, not an oscillation.)
+
+### What was added (file:lines)
+
+- **S0 — op attr (`include/TianChenRV/Dialect/RVV/IR/RVVOps.td`):** added
+  `OptionalAttr<StrAttr>:$integer_core_lmul` to `GgmlBlockDotQ6KQ8KOp`
+  (def `:6040`, attr `:6142`) as the last arg after
+  `activation_quant_byte_offset`. Description documents the knob, the **m1
+  ceiling** (with the 16-element-sub-block reason, distinct from q4_K's m2), and
+  that the fold-back is VLEN-agnostic.
+- **S0 — verifier (`lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp`,
+  `GgmlBlockDotQ6KQ8KOp::verify()` `:4582`):** added `integer_core_lmul` to the
+  `isAllowedBlockDotAttr` allow-list + the unexpected-attr error string; added
+  the legal-set check (`:4630-4652`) — `coreLmul ∈ {"mf2","m1"}` else
+  `emitOpError` citing the 16-element sub-block boundary (m2 would illegally fold
+  two sub-blocks). NO `half_lanes` cross-constraint (q6_K carries no half_lanes).
+- **S1-S2 — thread the knob (`RVVToEmitCInternal.h` + `RVVToEmitCKQuant.cpp`):**
+  - `Q6_KIntegerCoreContext` (`RVVToEmitCInternal.h:1834`): added
+    `coreLmul/l8/l16/l32` + the three wide types (`i8WideType/i16WideType/
+    i32WideType`) + `stripWidth/foldGroups`. mf2 ⇒ {mf2,m1,m2}, stripWidth 8,
+    foldGroups 1; m1 ⇒ {m1,m2,m4}, stripWidth 16, foldGroups 2.
+  - q6_K full block-dot site (`emitQ6_KQ8_KBlockDot`, read at `:684`): reads
+    `coreLmul = getIntegerCoreLmul().value_or("mf2")`, derives l8/l16/l32 +
+    stripWidth + foldGroups, builds the wide types, passes them into `cx`.
+  - q6_K K1-partial site (`emitQ6_KQ8_KAux32Partial`, cx`:397`): the partial op
+    carries NO knob → passes the LITERAL mf2 chain
+    (mf2/mf2/m1/m2, i8mf2/i16m1/i32m2, stripWidth 8, foldGroups 1) → byte-identical
+    legacy emit.
+- **S3 — Region-A (the 6-bit ql/qh unpack) HELD constant at e8m2**, matching
+  q4_K's documented held-S3 scope decision (isolates the MAC-core knob for the
+  ablate; Region A is its own throughput axis with its own m2 default).
+- **S4 — Region-B MAC widen + the VLEN-AGNOSTIC fold-back
+  (`emitQ6_KSuperBlockAux32Core`, `:162-360`):** the genuinely-novel piece.
+
+### S4 — the widen + the VLEN-agnostic fold (the correctness piece)
+
+q6_K's Region-B differs structurally from q4_K: aux32 is ALREADY 8-lane
+(`vint32m2`), and each 16-element sub-block runs **TWO 8-lane halves**
+(`emitHalf(0)`/`emitHalf(8)`) summed into the same 8 lanes. The widen replaces
+this with ONE 16-lane strip per sub-block:
+
+| `coreLmul` | aux32 type | per-sub-block | fold groups |
+|---|---|---|---|
+| `mf2` (default) | `vint32m2` (8 lanes) | TWO 8-lane halves (legacy) | 1 (NO fold) |
+| `m1` | `vint32m4` (16 lanes) | ONE 16-lane strip | 2 |
+
+**Two-path structure (mf2 byte-identical BY CONSTRUCTION).** `foldGroups==1`
+emits the UNCHANGED legacy two-`emitStrip(8)` form (== the old two `emitHalf`)
+and skips the fold block entirely; all novelty is behind `foldGroups>1` (m1),
+which did not exist before. The K1-partial and any unknobbed q6_K path always
+pass mf2 ⇒ always the legacy path ⇒ automatically safe.
+
+**The fold-back (VLEN-AGNOSTIC from the start — the q4_K lesson applied).** After
+the js loop, the wide 16-lane aux32 (`vint32m4`) is collapsed to the canonical 8
+BEFORE the fp32 cvt (which stays `f32m2`/8-lane, the byte-exact contract):
+```
+foldWide = aux32_16
+for g in 1..foldGroups-1:                                    // g=1 only @m1
+    slid     = __riscv_vslidedown_vx_i32m4(foldWide, 8*g, /*vl=*/8)  // ELEMENT offset 8
+    foldWide = __riscv_vadd_vv_i32m4(foldWide, slid, /*vl=*/8)
+fold = __riscv_vget_v_i32m4_i32m2(foldWide, 0)               // LOW canonical 8 lanes
+```
+The slide offset is the **LITERAL element offset `8·g`** (here 8), so element
+`8·g+l` lands at lane `l` at ANY VLEN; `vget(.,0)` keeps the LOW 8 lanes
+(subgroup 0 is the low lanes at every VLEN). This implements
+`aux32_8[l] = aux32_16[l] + aux32_16[l+8]` = `Σ_g aux32_16[l+8g]` — bit-identical
+to mf2's two-half accumulation (integer add is associative; each `vwmacc` stays
+within ONE 16-element sub-block under one scalar `scale`). **This is NOT
+`vget`-subgroup (whose lane count is `LMUL·VLEN/SEW` = VLEN-dependent and which
+broke q4_K at VLEN256); it is the element-indexed `vslidedown` fix.**
+
+**Emit verification (the regenerated `ours-{mf2,m1}.cpp`):**
+- **mf2:** md5 `a494d35f` — **BYTE-IDENTICAL to the committed
+  `kq-bench/q6_K/ours.cpp`** (empty diff); NO `aux32_fold_back`/`vslidedown`
+  tokens (the foldGroups==1 guard).
+- **m1:** md5 `00cbf246` — seed `vmv_v_x_i32m4(0,16)`; ONE strip/sub-block
+  (`vsetvl_e8m1(16)` → `vle8_v_i8m1`×2 → `vwmul_vv_i16m2` → `vwmacc_vx_i32m4(.,16)`);
+  fold `vslidedown_vx_i32m4(.,8,8)` + `vadd_vv_i32m4(.,8)` + `vget_v_i32m4_i32m2(.,0)`
+  → `vfcvt_f_x_v_f32m2` consumes **`vint32m2`** (canonical, NO seam); ZERO memory
+  spill; NO leftover 8-lane half tokens.
+
+### PER-LMUL byte-exact oracle — BOTH BOARDS (the load-bearing gate)
+
+Oracle = a q6_K `q6k_validate.cpp` harness (VERBATIM ggml
+`ggml_vec_dot_q6_K_q8_K_generic`, quants.c:800, fp16-shimmed; IEEE-754 bit
+equality on `*s`) vs the regenerated kernel C. `clang++ -O2 -march=rv64gcv
+-mabi=lp64d -ffp-contract=off`. Same kernel md5s fed to both boards (mf2
+`a494d35f` / m1 `00cbf246`).
+
+| board / VLEN | mf2 | m1 |
+|---|---|---|
+| `ssh rvv` SG2044 VLEN128 (VLENB=16, `taskset -c 2`) | PASS 2042/0 | **PASS 2042/0** |
+| `ssh k1` X60 VLEN256 (VLENB=32, `taskset -c 0-3`) | PASS 2042/0 | **PASS 2042/0** |
+
+2042 positive cases (named n {256,512,2048,4096,25600,65536} × 6 seeds + 6 edge
+cases + 2000 random n), 0 failures, EVERY cell. (A 200-case extreme-scale
+auxiliary loop also agrees bit-exact; honest framing — it is extra positives,
+NOT a MIN-term-style negative control that catches a WRONG kernel. The harness's
+discrimination is independently demonstrated IN THIS RUN: the SAME harness flags
+`_vl256` as numerically wrong at VLEN128, `max_rel_norm=1.26e+03`, and the q4_K
+`vget` fold bug was caught by the analogous harness as FAIL 2008/2012 — so the
+gate stands on the 2042/0 bit-exact positives.) **m1 PASSes bit-exact at VLEN256
+from the first cut** — the VLEN-agnostic `vslidedown` fold is empirically correct
+at both VLENs (the q4_K VLEN256-only fold bug is NOT repeated). m2 is
+**verifier-REJECTED** (exit 1, error cites the 16-element sub-block boundary) —
+confirmed empirically, mirroring q4_K's m4 rejection.
+
+### Win-A micro-ablate vs ggml's REAL `_vl256` (the §9 loss question)
+
+`kq-bench/q6_K/harness.cpp` (ours `<lmul>.cpp` vs `kern_ggml` = ggml's SHIPPED
+`ggml_vec_dot_q6_K_q8_K_vl256`, `ggml_ref.cpp`), best-of-200-reps × 2000 iters,
+n=8192. Same oracle-verified kernel md5s.
+
+**`ssh k1` X60 VLEN256 (`taskset -c 0-3`)** — the headline §9 regime (3 runs,
+stable to 4 sig figs):
+
+| LMUL | ours ns/call | ggml `_vl256` ns/call | our slowdown (ours/ggml) | agreement |
+|---|---|---|---|---|
+| **mf2** (§9 baseline) | 13876 | 6325 | **2.19× LOSS** | 2.94e-6 |
+| **m1** | **12080** | 6325 | **1.91× LOSS (FASTEST)** | 2.94e-6 |
+
+**The Win-A LMUL knob NARROWS the §9 loss at VLEN256 — from 2.19× (mf2) to 1.91×
+(m1), a ~13% kernel speedup (13876 → 12080 ns) — but does NOT cross 1.0.** The
+mf2 baseline (2.19×) reproduces the §9-matrix-recorded q6_K LOSS (~2.26x; the
+small delta is harness/board variance — same code path, same `_vl256`
+competitor). m1 is the best arm. Numerical agreement `2.94e-6` at both LMULs is
+the fp-fold-order residual (ours pinned to `_generic`'s sequential fp order,
+`_vl256` reorders via `vredsum`), NOT a correctness defect — the integer core is
+bit-exact vs `_generic` (oracle above).
+
+**`ssh rvv` SG2044 VLEN128 (`taskset -c 2`)** — ARM-ABLATE ONLY (no valid
+`_vl256` baseline here): `_vl256` is a VLEN256-SHAPED algorithm and is
+**numerically WRONG at VLEN128** (`AGREEMENT max_rel_norm=1.26e+03` — its
+`vget_v_i16m2_i16m1` subgroup extraction assumes VLEN256 lane counts), per the
+project VLEN-SHAPE-MATCH discipline. So at VLEN128 report ONLY the knob-vs-mf2
+ablate: **mf2 ~8124 ns → m1 ~5242 ns = 1.55× faster** (both wider arms beat mf2).
+
+**HONEST verdict.** Does a wider LMUL narrow or close the loss to ggml's wide
+`_vl256`? — **It NARROWS it (mf2 2.19× → m1 1.91× at VLEN256, ~13% kernel
+speedup, the best arm) but does NOT close it (`_vl256` still ~1.91× faster).**
+The best arm is **m1 at BOTH measured VLENs** (VLEN256: m1<mf2; VLEN128:
+m1<mf2). "Narrows to 1.91× with m1" is the defensible statement; do NOT
+over-claim parity. The residual gap is `_vl256`'s hand-tuned nibble-split SHAPE
+(a different ALGORITHM — it splits the dot into 8 per-scale `vwmul_vx`/`vredsum`
+streams, not our single wide `vwmacc` — closing it is an emitter-shape rewrite,
+the named N3-Gearbox motivation), not an LMUL knob.
+
+### e2e — SEPARATE, NOT claimed, likely NULL
+
+Win-A is the kernel-isolated LMUL micro (SAME kernel, knob varies; baseline =
+same kernel knob OFF == mf2). **e2e is NOT claimed and NOT measured** — and is
+likely NULL: decode is memory-bandwidth-bound
+([[kernel-wins-dont-transplant-to-e2e]]), and a wider integer-core LMUL changes
+*compute*, not *memory traffic* (the q6_K block footprint is byte-identical
+across LMULs). A ~1.1-1.5× kernel-compute speedup behind the memory wall does
+not surface in decode tok/s. Do NOT read the VLEN256 narrowing as an e2e claim.
+
+### lit + build
+
+- **Forced/clean build** (ODS `.td` touched → `RVVOps.cpp.inc` regenerates;
+  `cmake -B build`, `touch` all 4 sources, `ninja tcrv-opt` — confirmed
+  `RVVToEmitCKQuant.cpp.o` + `RVVDialectWideningOps.cpp.o` compile + `Linking
+  bin/tcrv-opt`).
+- **lit:** `Conversion/RVV` + `Dialect/RVV` = **198/198 PASS** (no regression;
+  the 2 q6_K tests — block-dot conversion + dataflow — PASS, the default-mf2
+  emit being byte-identical).
+
+### Gearbox stamp (S5) — NOT done this increment
+
+The knob is verifier-legal + token-threaded + both-board oracle-validated +
+ablated, but no `deriveKQuantCoreLmul(vlenBits)` materialization was added. The
+auto-tune target is **m1** (best arm at BOTH VLENs) — a single `integer_core_lmul
+= "m1"` stamp wins at both measured VLEN regimes for q6_K.
+
+### Durable artifacts + BLOCKER
+
+- **Durable artifacts:** per-LMUL kernels `kq-bench/q6_K/ours-{mf2,m1}.cpp` (md5
+  `a494d35f`/`00cbf246`; `ours.cpp` == `ours-mf2.cpp` byte-identical) + the
+  oracle `kq-bench/q6_K/q6k_validate.cpp`.
+- **No blocker.** The deliverable (m1 COMPLETE + byte-exact at BOTH VLENs, mf2
+  byte-identical, the ablate measured, the ceiling corrected to m1 and m2
+  verifier-rejected) is done and durable in the working tree (uncommitted, per
+  instruction).

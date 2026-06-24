@@ -4596,7 +4596,8 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
            name == "weight_scales_byte_offset" ||
            name == "weight_d_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4613,9 +4614,37 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KOp::verify() {
                 "'kind', 'scale_model', 'qk', 'sub_block', "
                 "'weight_block_stride', 'activation_block_stride', "
                 "'weight_qh_byte_offset', 'weight_scales_byte_offset', "
-                "'weight_d_byte_offset', 'activation_d_byte_offset', and "
-                "'activation_quant_byte_offset'; unexpected attribute '"
+                "'weight_d_byte_offset', 'activation_d_byte_offset', "
+                "'activation_quant_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
              << attr.getName() << "'";
+  }
+
+  // The optional integer_core_lmul anchors the per-sub-block integer-MAC
+  // widening chain i8 -> i16 -> i32 (the *how*, never the *what*; the byte-exact
+  // deferred fp32 fold order is untouched). Only TWO anchors are legal here --
+  // the ceiling is "m1", NOT q4_K's "m2" -- because q6_K's sub_block == 16
+  // elements (I7, fail-closed):
+  //   * absent / "mf2" -- today's TWO 8-lane halves per sub-block (i8mf2 ->
+  //     i16m1 -> i32m2 each, summed into the carried 8-lane aux32).
+  //   * "m1" -- ONE 16-lane strip per sub-block (i8m1 -> i16m2 -> i32m4), the
+  //     16 i32 lanes folded back element-wise to the canonical 8 before the
+  //     fp32 cvt. i8m1 == 16 elements == exactly ONE sub-block under ONE scalar
+  //     scale.
+  // An "m2" base (32 elements) would fold TWO 16-element sub-blocks under one
+  // scalar `scale` (identical ground to q4_K's m4 rejection at 32-element
+  // sub-blocks) -- rejected.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} (the base LMUL "
+                "of the i8 -> i16 -> i32 integer-MAC chain; \"m1\" is the "
+                "ceiling at one sub-block == 16 elements per scalar scale, so "
+                "\"m2\" would illegally fold two sub-blocks under one scale) "
+                "for the ggml Q6_K x Q8_K super-block full block dot-product "
+                "route; got \""
+             << coreLmul << "\"";
   }
 
   if (getKind() != "ggml_q6_k_q8_k_block_dot")
