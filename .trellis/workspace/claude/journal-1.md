@@ -1402,3 +1402,40 @@ Two milestones. (1) q4_K repack GEVM — the dominant-quant headline + campaign'
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: q4_K GEMM (prefill) built + oracle-VERIFIED + trellis-checked (complete repack pair); amortization REFUTED → the shape-mismatch 2×2 N3 finding + spec discipline
+
+**Date**: 2026-06-24
+**Task**: q4_K GEMM (prefill) built + oracle-VERIFIED + trellis-checked (complete repack pair); amortization REFUTED → the shape-mismatch 2×2 N3 finding + spec discipline
+**Branch**: `main`
+
+### Summary
+
+Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the GEVM's 8-sub-block 6-bit unpack AMORTIZED once per 16-weight group, reused across 4 block_q8_Kx4 activation columns). Oracle PASS (WORST_NORM 7.05e-7, 8 shapes, 3 negative controls incl. the GEMM-new 4-row ROWROT interleave @7.5M× margin) + trellis-check 5/5 (amortization-per-group structurally confirmed: vsll 16 logical not 64). q4_K now has GEVM+GEMM = complete verified repack PAIR on the dominant quant. BUT the amortization-wins hypothesis is REFUTED: Win-B LOSS 0.59-0.89× vs ggml vec_dot_q4_K_vl128 (narrows the GEVM's 0.47-0.66 — the M=4 amortization is real+measurable — but doesn't cross 1.0). This + the q8_0/q4_K GEVM losses = the shape-mismatch 2×2 (ledger §8b): every compiler-emitted block-as-lane repack is VLEN256-shaped → degrades to mf2/8-lane at VLEN128 → LOSES to ggml's VLEN128-native kernels in BOTH decode AND prefill, oracle-clean. So q4_K/q8_0 = correct kernel EXPANSION + the cleanest N3-Gearbox SHAPE-MISMATCH motivation, NO VLEN128 perf win in any regime; VLEN256/K1 tie-likely; the FIX (shape-aware repack variant + selector) = next-session headline. Promoted the VLEN-shape-match discipline to the N3 spec. 7 over-claims caught + corrected across the session; every surviving number refutation-proof.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a6fbc7cf` | (see git log) |
+| `02c41f4d` | (see git log) |
+| `1262b3b2` | (see git log) |
+| `4202ad86` | (see git log) |
+| `5a8f509b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

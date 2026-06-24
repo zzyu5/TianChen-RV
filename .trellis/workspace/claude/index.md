@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
+- **Total Sessions**: 27
 - **Last Active**: 2026-06-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1404 | Active |
+| `journal-1.md` | ~1441 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-06-24 | q4_K GEMM (prefill) built + oracle-VERIFIED + trellis-checked (complete repack pair); amortization REFUTED → the shape-mismatch 2×2 N3 finding + spec discipline | `a6fbc7cf`, `02c41f4d`, `1262b3b2`, `4202ad86`, `5a8f509b` | `main` |
 | 26 | 2026-06-24 | q4_K repack GEVM CORRECT (oracle-verified, hardest kernel) banked as expansion+Gearbox-motivation; N2 clarity DELIVERED (showcase + live 4th IME op vmadotsu silicon-verified 16/16) | `0d5ebc5a`, `73244fae`, `ac66155e`, `70bb845a`, `a75adc27`, `ed0fb37e` | `main` |
 | 25 | 2026-06-24 | Kernel expansion: q8_0 repack GEVM landed (built/checked/merged + Win-A reconciled); q4_K repack foundation (op+verifier+ABI) on main + emitter scaffold banked | `24557f05`, `a3442997`, `d19c7abd`, `cc8551da`, `240f7221`, `abb0d317` | `main` |
 | 24 | 2026-06-24 | Win-C built→structural-NULL (decomposed); IME prefill NULL (codegen artifact); +2 methodology contracts to spec | `1adc631b`, `39eb9c48`, `e93a3b43`, `6c5a66f5`, `69d69c30`, `bca1fb12`, `518a6c36` | `main` |
