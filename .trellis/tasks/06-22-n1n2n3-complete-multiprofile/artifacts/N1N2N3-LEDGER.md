@@ -445,3 +445,32 @@ The mechanism, stated once: **a win transplants to decode e2e only if it changes
 prefill/matmul-bound; a pure-compute kernel win (a matrix unit, a wider accumulator) dilutes to flat-or-null in
 bandwidth-bound decode.** No scalar contribution number appears anywhere in this matrix; Win-A (tune ON/OFF),
 Win-B (vs ggml's own shipped RVV kernel), N1-coverage, N2-IME, and N3-VLEN-strip are kept strictly separate.
+
+## 8. Synthesis — why every NEW repack GEVM is a VLEN128 perf-NULL, and what would change it (2026-06-24)
+
+The two new repack GEVMs this session — **q8_0** and **q4_K** — are both **correct** (oracle-verified: q8_0
+byte-exact, q4_K WORST_NORM 7.07e-7 with 2 negative controls) but both **LOSE to ggml's VLEN128-native
+kernels** in microbench: q8_0 1.3–1.7×, q4_K 1.5–2.1×, each with **byte-exact / ~e-7 agreement** (fair
+same-output, identical footprint). One mechanism explains both: the repack is **block-as-lane** (16 weight
+columns across vector lanes), shaped for **VLEN256** where 16 lanes fit one register. At VLEN128 the 16 lanes
+do NOT fit, so the kernel degrades to the **mf2 / 8-lane 2-strip** path, and that strip-split overhead
+outweighs the per-block `vredsum` the repack removes. (Contrast q4_0, whose repack micro *won* 1.22× decode →
+e2e 2.6×; these lose, so there is no compute headroom to transmit.)
+
+**Therefore the decode e2e for both is a reasoned-NULL, not a measured gap:** byte-identical footprint + a
+compute loss + memory-bound decode → flat (memory wall) or a decode-rate loss; there is **no win branch and
+no new locality** vs ggml (it is the *same* transform, only per-element compute differs). Building a
+`.inc`-swap to measure a foregone "flat" changes no cell label — recorded as reasoned-NULL.
+
+**This is NOT a correctness problem — it is the cleanest N3-Gearbox SHAPE-MISMATCH motivation we have:** the
+repack strip-width selector is VLEN→width only (`deriveRepackHalfLanes`), not *shape*-aware; a
+capability/resource-aware tune should select a **VLEN128-native variant** (or decline the repack at VLEN128),
+which is unbuilt. **The e2e-WIN path for these kernels is** (a) **prefill — the GEMM** (M≫1, compute-bound,
+where a faster kernel transmits, exactly q4_0's 5.68× headline), which needs the q8_0/q4_K **GEMM emitters
+(unbuilt)**; or (b) **VLEN256 (K1)**, where block-as-lane fits natively — but there ggml *also* routes its own
+repack (strong baseline, tie-likely) and the m1 path needs K1 oracle verification. Both are next-session work.
+
+**Bottom line for the portfolio:** new GEVM kernels = **correct kernel-EXPANSION + N3 shape-mismatch
+MOTIVATION**, VLEN128 decode **perf-NULL**, e2e-win path = unbuilt GEMM/prefill or VLEN256. The session's
+*measured* e2e wins remain the prior q4_0 repack (5.68× prefill / ~2.6× decode) and VLEN-strip (1.31× K1);
+those are the kernels that *can* win e2e and already do.
