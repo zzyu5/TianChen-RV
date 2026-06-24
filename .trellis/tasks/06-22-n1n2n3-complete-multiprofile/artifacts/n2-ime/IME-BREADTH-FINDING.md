@@ -33,7 +33,7 @@ verified empirically (NOT from docs) that the SpacemiT GCC15 fork assembles all 
 |----------|------------------------|------------|
 | `vmadot`   | signed × signed (ss)   | `0xe210312b` |
 | **`vmadotu`**  | **unsigned × unsigned (uu)** | **`0xe210022b`** (asm) / `0xe210012b` (in the emitted fn) |
-| `vmadotsu` | signed × unsigned      | `0xe210232b` |
+| `vmadotsu` | signed × unsigned      | `0xe210212b` |
 | `vmadotus` | unsigned × signed      | `0xe210142b` |
 
 So `vmadotu` is (a) a genuinely different MACHINE instruction, and (b) a genuinely different NUMERIC

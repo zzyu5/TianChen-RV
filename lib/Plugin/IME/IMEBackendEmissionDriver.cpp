@@ -41,7 +41,7 @@ constexpr llvm::StringLiteral kVmadotHelperName("tcrv_ime_vmadot_mma_4x4x8");
 constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
 // The FOURTH (mixed-sign) asm-leaf helper — same structure, but the single
 // justified instruction leaf is `vmadotsu` (signed*unsigned int8 MAC), a
-// GENUINELY different instruction (encoding 0xe210232b vs vmadot's 0xe210312b
+// GENUINELY different instruction (encoding 0xe210212b vs vmadot's 0xe210312b
 // and vmadotu's 0xe210022b) with mixed-sign numeric semantics (signed A,
 // unsigned B). There is no IME intrinsic header, so this is likewise ONE
 // justified verbatim leaf reached by a structured call_opaque.

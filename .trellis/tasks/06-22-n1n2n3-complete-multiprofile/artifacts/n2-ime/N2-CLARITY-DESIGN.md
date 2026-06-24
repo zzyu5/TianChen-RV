@@ -21,7 +21,7 @@ absent (grep 0 family tokens in lib/Transforms/*); the negative test ime-mma-cap
 ## Part 2 (OPTIONAL, live worked example) — 4th op `tcrv.ime.mma_su` (vmadotsu, int8 signed × uint8 unsigned → int32)
 Tractable: ~75-90 plugin LOC, 0 core, 0 wiring, HIGH K1 confidence (SpacemiT GCC15.2 already accepts all 4
 mnemonics under xsmtvdotii). Canonical quantized mixed-sign case (signed activations × unsigned weights) —
-meaningful, not cosmetic. Distinct encoding `0xe210232b`. Edits (all sites verified):
+meaningful, not cosmetic. Distinct encoding `0xe210212b`. Edits (all sites verified):
 - `IMEOps.td`: clone `MMAUOp` → `MMASUOp` (~50 lines, same attr schema).
 - `IMEDialect.cpp`: `kExpectedMixedSignIMEOp("vmadotsu")` + `MMASUOp::verify()` calling the
   already-mnemonic-generic `verifyIMEMACBoundary` (~8 lines).
@@ -36,6 +36,6 @@ meaningful, not cosmetic. Distinct encoding `0xe210232b`. Edits (all sites verif
 (`ime_signedness ⇒ vmadotsu`) flowed as DATA through the variant attribute, read at boundary time — NO
 `if(name=="vmadotsu")` in the core; the core never sees the mnemonic. The cheapness IS the thesis.
 **K1 verify plan:** emit → SpacemiT GCC15.2 cross-build (`-march=…xsmtvdotii`) → objdump `smt.vmadotsu`
-(e210232b) → on X60 taskset -c 0-3, high-bit data, mixed-sign scalar oracle; require IME == mixed-sign ref
+(e210212b) → on X60 taskset -c 0-3, high-bit data, mixed-sign scalar oracle; require IME == mixed-sign ref
 AND ≠ pure-signed AND ≠ pure-unsigned (the discriminator).
 **Do NOT pursue int4/int16/fp32 live** (assembler/fragment/silicon unverified in read-only) — future breadth.
