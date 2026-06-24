@@ -47,6 +47,18 @@ constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
 // justified verbatim leaf reached by a structured call_opaque.
 constexpr llvm::StringLiteral kVmadotsuHelperName(
     "tcrv_ime_vmadotsu_mma_4x4x8");
+// The FIFTH IME op: the sliding-window MAC. The justified instruction leaf is
+// `vmadot1`/`vmadot2`/`vmadot3` (funct7 111001, e6..., DISTINCT from the
+// non-slide 111000/e2...). A genuinely different kernel SHAPE: A is an EVEN
+// VS1:VS1+1 PAIR (v0:v1 = 8x8 int8, 64B), the slide window shifts the A read
+// down by `slide` rows. vmadot1 v4,v0,v2 = 0xe620322b (vs vmadot v4,v0,v2 =
+// 0xe220322b). Confirmed bit-exact on real K1 by a 4-way window discriminator.
+constexpr llvm::StringLiteral kVmadot1SlideHelperName(
+    "tcrv_ime_vmadot1_mma_slide_4x4x8");
+constexpr llvm::StringLiteral kVmadot2SlideHelperName(
+    "tcrv_ime_vmadot2_mma_slide_4x4x8");
+constexpr llvm::StringLiteral kVmadot3SlideHelperName(
+    "tcrv_ime_vmadot3_mma_slide_4x4x8");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
@@ -118,6 +130,64 @@ std::string vmadotuHelperBody() {
 
 std::string vmadotsuHelperBody() {
   return macHelperBody(kVmadotsuHelperName, "vmadotsu");
+}
+
+/// The sliding-window MAC helper. UNLIKE macHelperBody (single 32B A fragment),
+/// the slide kernel loads A as an EVEN VS1:VS1+1 PAIR holding an 8x8 int8 block
+/// (v0 = A rows 0..3 at A+0, v1 = A rows 4..7 at A+32; 64B total), B as one 4x8
+/// fragment into v2, and C as the EVEN VD PAIR v4:v5 (4x4 int32). The single
+/// justified asm leaf is `vmadot{1,2,3} v4, v0, v2` — the A read-window shifts
+/// DOWN by `slide` rows (vmadot1=rows1..4). funct7 111001 (e6...) is DISTINCT
+/// from the non-slide MAC. This layout was verified bit-exact on real K1 (the
+/// STEP-0 4-way window discriminator). `helperName`/`mnemonic` parameterize the
+/// only divergence across slide 1/2/3; everything structural is shared.
+std::string macSlideHelperBody(llvm::StringRef helperName,
+                               llvm::StringRef mnemonic) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.asm_leaf=" << helperName
+     << " slide_mac=4x4x8 a_pair=8x8 elem_in=int8 accum=int32 ime_op="
+     << mnemonic << " funct7=111001\n";
+  os << "static inline void " << helperName
+     << "(const int8_t *A, const int8_t *B, int32_t *C) {\n";
+  os << "  __asm__ volatile(\n";
+  os << "      \"vsetvli   t0, zero, e8, m1, ta, ma   \\n\\t\"\n";
+  // A even pair v0:v1 = 8x8 int8 block (v0 rows 0..3, v1 rows 4..7).
+  os << "      \"vle8.v    v0, (%[pa])                \\n\\t\"\n";
+  os << "      \"addi      t1, %[pa], 32              \\n\\t\"\n";
+  os << "      \"vle8.v    v1, (t1)                   \\n\\t\"\n";
+  // B one 4x8 fragment into v2.
+  os << "      \"vle8.v    v2, (%[pb])                \\n\\t\"\n";
+  // Clear the 4x4 int32 accumulator (even VD pair v4:v5).
+  os << "      \"vsetvli   t0, zero, e32, m1, ta, ma  \\n\\t\"\n";
+  os << "      \"vmv.v.i   v4, 0                      \\n\\t\"\n";
+  os << "      \"vmv.v.i   v5, 0                      \\n\\t\"\n";
+  os << "      \"vsetvli   t0, zero, e8, m1, ta, ma   \\n\\t\"\n";
+  // The slide MAC leaf: A window slides DOWN by `slide` rows.
+  os << "      \"" << mnemonic << "   v4, v0, v2                 \\n\\t\"\n";
+  os << "      \"vsetvli   t0, zero, e32, m1, ta, ma  \\n\\t\"\n";
+  os << "      \"vse32.v   v4, (%[pc])                \\n\\t\"\n";
+  os << "      \"addi      t1, %[pc], 32              \\n\\t\"\n";
+  os << "      \"vse32.v   v5, (t1)                   \\n\\t\"\n";
+  os << "      :\n";
+  os << "      : [pa] \"r\"(A), [pb] \"r\"(B), [pc] \"r\"(C)\n";
+  os << "      : \"t0\", \"t1\", \"v0\", \"v1\", \"v2\", \"v4\", \"v5\", "
+        "\"memory\");\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+std::string vmadot1SlideHelperBody() {
+  return macSlideHelperBody(kVmadot1SlideHelperName, "vmadot1");
+}
+
+std::string vmadot2SlideHelperBody() {
+  return macSlideHelperBody(kVmadot2SlideHelperName, "vmadot2");
+}
+
+std::string vmadot3SlideHelperBody() {
+  return macSlideHelperBody(kVmadot3SlideHelperName, "vmadot3");
 }
 
 // The tiled whole-matrix micro-kernel helper names. The single justified asm
@@ -348,6 +418,103 @@ template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperBody() {
   return vmadotsuHelperBody();
 }
 
+/// Lowers the sliding-window IME boundary (`tcrv.ime.mma_slide`) into a
+/// standalone EmitC module. UNLIKE IMEMACToEmitCFunc, the emitted leaf depends
+/// on the `slide` window FACT carried on the op (1=>vmadot1, 2=>vmadot2,
+/// 3=>vmadot3) — a pure data flow of the capability-derived fact, NOT a
+/// family-name branch. The helper loads A as an even VS1:VS1+1 pair (8x8 int8)
+/// and runs the slide MAC leaf. The structured EmitC wrapper (func signature +
+/// A/B/C ptr args + the call) is identical to the non-slide MAC; only the helper
+/// body/name differ.
+class IMEMACSlideToEmitCFunc final
+    : public mlir::OpConversionPattern<tcrv::ime::MMASlideOp> {
+public:
+  using mlir::OpConversionPattern<tcrv::ime::MMASlideOp>::OpConversionPattern;
+  using OpAdaptor =
+      typename mlir::OpConversionPattern<tcrv::ime::MMASlideOp>::OpAdaptor;
+
+  mlir::LogicalResult
+  matchAndRewrite(tcrv::ime::MMASlideOp mma, OpAdaptor /*adaptor*/,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::MLIRContext *context = mma.getContext();
+    mlir::Location loc = mma.getLoc();
+
+    // The slide window FACT selects the emitted leaf (a data flow of the
+    // capability-derived fact stamped on the op, not a family-name branch).
+    int64_t slide = mma.getSlide();
+    llvm::StringRef helperName = slide == 1   ? kVmadot1SlideHelperName
+                                 : slide == 2 ? kVmadot2SlideHelperName
+                                              : kVmadot3SlideHelperName;
+    std::string helperBody = slide == 1   ? vmadot1SlideHelperBody()
+                             : slide == 2 ? vmadot2SlideHelperBody()
+                                          : vmadot3SlideHelperBody();
+
+    auto variant =
+        mma->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    auto sourceKernel = mma->getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!variant || !sourceKernel)
+      return rewriter.notifyMatchFailure(
+          mma, "IME slide MAC boundary requires selected_variant and "
+               "source_kernel attributes");
+    std::string functionName =
+        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+
+    llvm::StringRef sourceOpName = mma.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = mma.getTCRVEmitCLowerableSourceRole();
+
+    auto module = mma->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return rewriter.notifyMatchFailure(mma,
+                                         "IME slide MAC boundary has no module");
+
+    auto i8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const int8_t"));
+    auto i32PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "int32_t"));
+
+    // Module-scope prologue: include + the self-contained asm-leaf helper.
+    {
+      mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
+                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(loc, helperBody);
+    }
+
+    mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+    rewriter.setInsertionPointToEnd(module.getBody());
+
+    llvm::SmallVector<mlir::Type, 3> paramTypes{i8PtrType, i8PtrType,
+                                                i32PtrType};
+    mlir::FunctionType functionType =
+        rewriter.getFunctionType(paramTypes, /*results=*/{});
+    llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
+    funcAttrs.push_back(rewriter.getNamedAttr(
+        "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+    auto func = rewriter.create<emitc::FuncOp>(loc, functionName, functionType,
+                                               funcAttrs);
+    mlir::Block *entry = func.addEntryBlock();
+    rewriter.setInsertionPointToStart(entry);
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, routeSourceComment(sourceOpName, sourceRole));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(sourceOpName, sourceRole, helperName));
+
+    llvm::SmallVector<mlir::Value, 3> callOperands;
+    for (mlir::BlockArgument arg : entry->getArguments())
+      callOperands.push_back(arg);
+    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, helperName,
+                                         callOperands);
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(mma);
+    return mlir::success();
+  }
+};
+
 /// Lowers the tiled whole-matrix IME boundary (`tcrv.ime.matmul`) into a
 /// standalone EmitC module:
 ///   #include <stdint.h>
@@ -478,7 +645,8 @@ public:
   void
   configureConversionTarget(mlir::ConversionTarget &target) const override {
     target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
-                        tcrv::ime::MMASUOp, tcrv::ime::MatMulOp>();
+                        tcrv::ime::MMASUOp, tcrv::ime::MMASlideOp,
+                        tcrv::ime::MatMulOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -487,8 +655,8 @@ public:
                            mlir::RewritePatternSet &patterns) const override {
     patterns.add<IMEMACToEmitCFunc<tcrv::ime::MMAOp>,
                  IMEMACToEmitCFunc<tcrv::ime::MMAUOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>, IMEMatMulToEmitCFunc>(
-        typeConverter, patterns.getContext());
+                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>, IMEMACSlideToEmitCFunc,
+                 IMEMatMulToEmitCFunc>(typeConverter, patterns.getContext());
   }
 
   llvm::LogicalResult

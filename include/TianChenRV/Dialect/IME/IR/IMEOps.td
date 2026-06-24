@@ -182,6 +182,61 @@ def MMASUOp : TCRVIME_Op<"mma_su",
   let hasVerifier = 1;
 }
 
+def MMASlideOp : TCRVIME_Op<"mma_slide",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "IME int8->int32 sliding-window MAC (vmadot1/2/3) boundary";
+  let description = [{
+    The FIFTH IME execution boundary (plugin breadth, N2 rapid-add): the
+    SLIDING-WINDOW form of the MAC unit, realized by the IME1 `vmadot1`/`vmadot2`/
+    `vmadot3` instructions (Xsmti8i32mm_slide, K1's SECOND IME1 sub-extension).
+    This is a genuinely DIFFERENT kernel SHAPE, not a fifth signedness: A is read
+    from an EVEN VS1:VS1+1 register PAIR holding a 2*M x K = 8x8 int8 A-block, and
+    the `slide` field (1/2/3) shifts the A read-window DOWN by `slide` rows. So one
+    loaded 8x8 A-pair feeds overlapping 4x8 matmuls (the 1-D sliding-window /
+    strided-A-reuse convolution primitive): vmadot reads A rows 0..3, vmadot1 rows
+    1..4, vmadot2 rows 2..5, vmadot3 rows 3..6. B (VS2) and C (even VD pair, 4x4
+    int32) are identical to the non-slide MAC. funct7 is `111001` (e6...), DISTINCT
+    from the non-slide `111000` (e2...): vmadot1 v4,v0,v2 = 0xe620322b vs
+    vmadot v4,v0,v2 = 0xe220322b. The slide semantics were CONFIRMED bit-exact on
+    real K1 (X60) by a 4-way window discriminator (vmadot==rows0..3 anchor,
+    vmadot1==rows1..4, != all other windows).
+
+    All IME ops gate on the SAME first-class `spacemit.ime` capability FACT (the
+    `xsmtvdotii` march token assembles BOTH the non-slide and the slide families).
+    Which boundary materializes is a capability-derived fact (the non-slide
+    `ime_signedness` request vs this op's `ime_slide` request), NOT a family-name
+    string and NOT a second capability id. A fail-closed verifier (I7) admits ONLY
+    the validated IME1 slide int8->int32 envelope with `slide` in {1,2,3}.
+
+    This is an IME execution op, not a high-level matmul op. It makes no
+    correctness/performance claim in the IR; correctness is proven by the emitted
+    kernel bit-exact vs a slide scalar reference on real K1.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    I64Attr:$slide,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 def MatMulOp : TCRVIME_Op<"matmul",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",

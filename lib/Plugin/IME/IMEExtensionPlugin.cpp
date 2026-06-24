@@ -36,6 +36,12 @@ constexpr llvm::StringLiteral kIMEUnsignedVariantName(
 // plugin-breadth surface (the canonical quantized mixed-sign case).
 constexpr llvm::StringLiteral kIMEMixedSignVariantName(
     "ime_vmadotsu_mma_slice");
+// The FIFTH (sliding-window) IME variant. Same capability FACT, a different
+// SHAPE fact (the ime_slide window stride) => a different emitted instruction
+// (`vmadot1`/`vmadot2`/`vmadot3`, funct7 111001) and boundary op
+// (tcrv.ime.mma_slide). This is the N2 rapid-add plugin-breadth surface for the
+// Xsmti8i32mm_slide conv/strided-A-reuse primitive (K1's 2nd IME1 sub-extension).
+constexpr llvm::StringLiteral kIMESlideVariantName("ime_vmadot1_mma_slide_slice");
 // The TILED whole-matrix variants (signed/unsigned). Same capability FACT +
 // dispatch, a richer problem shape => the tcrv.ime.matmul boundary op.
 constexpr llvm::StringLiteral kIMEMatmulVariantName("ime_vmadot_matmul_slice");
@@ -63,6 +69,7 @@ constexpr llvm::StringLiteral kMacKAttrName("mac_k");
 constexpr llvm::StringLiteral kMatMAttrName("mat_m");
 constexpr llvm::StringLiteral kMatNAttrName("mat_n");
 constexpr llvm::StringLiteral kMatKAttrName("mat_k");
+constexpr llvm::StringLiteral kSlideAttrName("slide");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
 
@@ -91,6 +98,14 @@ constexpr llvm::StringLiteral kSignednessMixedSign("signed_unsigned");
 // fact, NOT a family-name string: the same capability id + dispatch, a richer
 // problem. Dims must each be a whole multiple of the derived MAC fragment.
 constexpr llvm::StringLiteral kMatmulShapePropertyName("ime_matmul_shape");
+// The optional SLIDING-WINDOW stride FACT. When the capability carries it as
+// "1"|"2"|"3", the kernel requests the IME1 slide boundary (tcrv.ime.mma_slide)
+// over the SAME 8x8 A-pair MAC fragment with the A read-window shifted DOWN by
+// `slide` rows. Absent/"0" => the non-slide MAC (back-compat). Anything else
+// fails closed (only the documented vmadot1/2/3 slide family is modeled at
+// VLEN=256). This is a SHAPE/window fact of the SAME capability, NOT a
+// family-name string and NOT a second capability id.
+constexpr llvm::StringLiteral kSlidePropertyName("ime_slide");
 
 // The load-bearing IME1 march token (FOUNDATION task 2: absent => assembler
 // rejects `vmadot`). The capability is the proven IME1 envelope ONLY when this
@@ -99,12 +114,21 @@ constexpr llvm::StringLiteral kIMEMarchToken("xsmtvdotii");
 constexpr llvm::StringLiteral kIMEOpValue("vmadot");
 constexpr llvm::StringLiteral kIMEUnsignedOpValue("vmadotu");
 constexpr llvm::StringLiteral kIMEMixedSignOpValue("vmadotsu");
+// The slide family mnemonics (funct7 111001), selected by the ime_slide FACT.
+constexpr llvm::StringLiteral kIMESlide1OpValue("vmadot1");
+constexpr llvm::StringLiteral kIMESlide2OpValue("vmadot2");
+constexpr llvm::StringLiteral kIMESlide3OpValue("vmadot3");
 // The plugin-owned (dialect-qualified, discardable) variant attribute that
 // records the derived signedness fact on the materialized tcrv.exec.variant so
 // the boundary materializer routes to the matching boundary op (mma vs mma_u)
 // WITHOUT re-deriving — and so selection stays a pure data flow of the
 // capability fact.
 constexpr llvm::StringLiteral kSignednessVariantAttrName("ime.signedness");
+// The plugin-owned (dialect-qualified, discardable) slide-stride variant attr,
+// recorded on the materialized tcrv.exec.variant so the boundary materializer
+// routes to tcrv.ime.mma_slide (and stamps the slide field) WITHOUT re-deriving.
+// "0"/absent => the non-slide boundary path. A pure data flow of the fact.
+constexpr llvm::StringLiteral kSlideVariantAttrName("ime.slide");
 constexpr int64_t kIMEElemInBits = 8;
 constexpr int64_t kIMEAccumBits = 32;
 // Default per-hart availability for the X60 (harts 0-3 carry _ime; hart 4 does
@@ -137,6 +161,9 @@ struct IMEMatmulCapability {
   int64_t matN = 0;
   int64_t matK = 0;
   bool isMatmul = false;
+  // The sliding-window stride FACT (1/2/3) when the kernel requests the IME1
+  // slide boundary; 0 => non-slide MAC. Derived from the ime_slide property.
+  int64_t slide = 0;
   std::string availableHarts;
 };
 
@@ -250,6 +277,41 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
     derived.isMatmul = true;
   }
 
+  // Optional SLIDING-WINDOW stride FACT. Absent/"0" => non-slide MAC (back-compat).
+  // "1"|"2"|"3" => the IME1 slide boundary (tcrv.ime.mma_slide) over the SAME 8x8
+  // A-pair MAC fragment, the A read-window shifted DOWN by `slide` rows. The slide
+  // family rides the SIGNED form only here (vmadot1/2/3 = signed slide), so it is
+  // fail-closed for the tiled-matmul shape and for the unsigned/mixed-sign forms
+  // (those have no slide emitter). Anything outside {1,2,3} fails closed.
+  llvm::StringRef slideText = capability.getProperty(kSlidePropertyName).trim();
+  if (!slideText.empty() && slideText != "0") {
+    if (derived.isMatmul)
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kSlidePropertyName +
+          "' (sliding-window) is not modeled together with the tiled "
+          "whole-matrix shape '" + kMatmulShapePropertyName +
+          "'; the slide boundary is the single-fragment tcrv.ime.mma_slide only");
+    if (derived.signedness != kSignednessSigned)
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kSlidePropertyName +
+          "' (sliding-window) is only modeled for the signed form "
+          "(vmadot1/2/3); the unsigned/mixed-sign slide siblings have no emitter");
+    long long slide = 0;
+    if (slideText.getAsInteger(10, slide) || slide < 1 || slide > 3)
+      return makeIMEPluginError(
+          llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
+          kSlidePropertyName + "' = '" + slideText +
+          "' is outside the validated IME1 slide envelope (only '1' => vmadot1, "
+          "'2' => vmadot2, '3' => vmadot3 are modeled)");
+    derived.slide = slide;
+    derived.imeOp = (slide == 1   ? kIMESlide1OpValue
+                     : slide == 2 ? kIMESlide2OpValue
+                                  : kIMESlide3OpValue)
+                        .str();
+  }
+
   llvm::StringRef harts = capability.getProperty(kAvailableHartsPropertyName);
   derived.availableHarts =
       harts.trim().empty() ? kIMEDefaultAvailableHarts.str() : harts.trim().str();
@@ -272,6 +334,11 @@ bool hasAvailableIMECapability(const VariantProposalRequest &request) {
 /// tcrv.ime.mma_u, 'signed_unsigned' => tcrv.ime.mma_su, else tcrv.ime.mma.
 llvm::StringRef singleFragmentBoundaryOpForVariant(tcrv::exec::VariantOp variant) {
   if (variant) {
+    // The slide window FACT (if recorded) routes to the sliding-window boundary
+    // regardless of signedness (the slide family is the signed form only).
+    auto slide = variant->getAttrOfType<mlir::StringAttr>(kSlideVariantAttrName);
+    if (slide && !slide.getValue().trim().empty() && slide.getValue() != "0")
+      return tcrv::ime::MMASlideOp::getOperationName();
     auto signedness =
         variant->getAttrOfType<mlir::StringAttr>(kSignednessVariantAttrName);
     if (signedness && signedness.getValue() == kSignednessUnsigned)
@@ -311,8 +378,11 @@ buildIMEProposal(const VariantProposalRequest &request) {
   // fail-closed in derivation), so the matmul arm is binary signed/unsigned.
   bool isUnsigned = derived->signedness == kSignednessUnsigned;
   bool isMixedSign = derived->signedness == kSignednessMixedSign;
+  bool isSlide = derived->slide > 0;
   llvm::StringRef variantName;
-  if (derived->isMatmul)
+  if (isSlide)
+    variantName = kIMESlideVariantName;
+  else if (derived->isMatmul)
     variantName =
         isUnsigned ? kIMEMatmulUVariantName : kIMEMatmulVariantName;
   else if (isMixedSign)
@@ -329,6 +399,12 @@ buildIMEProposal(const VariantProposalRequest &request) {
   proposal.addPluginAttribute(
       mlir::StringAttr::get(context, kSignednessVariantAttrName),
       mlir::StringAttr::get(context, derived->signedness));
+  // Record the slide window FACT as data on the variant so the boundary
+  // materializer routes to tcrv.ime.mma_slide WITHOUT re-classifying a name.
+  if (isSlide)
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(context, kSlideVariantAttrName),
+        mlir::StringAttr::get(context, std::to_string(derived->slide)));
   return proposal;
 }
 
@@ -619,13 +695,17 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
   // derivation).
   bool boundaryIsUnsigned = derived->signedness == kSignednessUnsigned;
   bool boundaryIsMixedSign = derived->signedness == kSignednessMixedSign;
+  bool boundaryIsSlide = derived->slide > 0;
   llvm::StringRef boundaryOpName =
-      derived->isMatmul
-          ? tcrv::ime::MatMulOp::getOperationName()
-          : (boundaryIsMixedSign
-                 ? tcrv::ime::MMASUOp::getOperationName()
-                 : (boundaryIsUnsigned ? tcrv::ime::MMAUOp::getOperationName()
-                                       : tcrv::ime::MMAOp::getOperationName()));
+      boundaryIsSlide
+          ? tcrv::ime::MMASlideOp::getOperationName()
+          : (derived->isMatmul
+                 ? tcrv::ime::MatMulOp::getOperationName()
+                 : (boundaryIsMixedSign
+                        ? tcrv::ime::MMASUOp::getOperationName()
+                        : (boundaryIsUnsigned
+                               ? tcrv::ime::MMAUOp::getOperationName()
+                               : tcrv::ime::MMAOp::getOperationName())));
   mlir::OperationState state(variant.getLoc(), boundaryOpName);
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
@@ -655,6 +735,9 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
     state.addAttribute(kMatKAttrName,
                        builder.getI64IntegerAttr(derived->matK));
   }
+  if (boundaryIsSlide)
+    state.addAttribute(kSlideAttrName,
+                       builder.getI64IntegerAttr(derived->slide));
   state.addAttribute(kAvailableHartsAttrName,
                      builder.getStringAttr(derived->availableHarts));
   state.addAttribute(
@@ -702,13 +785,16 @@ llvm::Error IMEExtensionPlugin::validateSelectedLoweringBoundary(
   else if (auto mmasu =
                llvm::dyn_cast_if_present<tcrv::ime::MMASUOp>(boundaryOp))
     verifierFailed = mlir::failed(mmasu.verify());
+  else if (auto mmaslide =
+               llvm::dyn_cast_if_present<tcrv::ime::MMASlideOp>(boundaryOp))
+    verifierFailed = mlir::failed(mmaslide.verify());
   else if (auto matmul =
                llvm::dyn_cast_if_present<tcrv::ime::MatMulOp>(boundaryOp))
     verifierFailed = mlir::failed(matmul.verify());
   else
     return makeIMEPluginError(
         "selected IME path requires a tcrv.ime.mma, tcrv.ime.mma_u, "
-        "tcrv.ime.mma_su, or tcrv.ime.matmul operation");
+        "tcrv.ime.mma_su, tcrv.ime.mma_slide, or tcrv.ime.matmul operation");
 
   // The ODS verifier (fail-closed, I7) already enforces the int8->int32 MAC
   // envelope of the op's signedness, origin/role/status, and selected-path

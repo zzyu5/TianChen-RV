@@ -34,6 +34,8 @@ constexpr llvm::StringLiteral kMacKAttrName("mac_k");
 constexpr llvm::StringLiteral kMatMAttrName("mat_m");
 constexpr llvm::StringLiteral kMatNAttrName("mat_n");
 constexpr llvm::StringLiteral kMatKAttrName("mat_k");
+// The sliding-window stride FACT carried ONLY by tcrv.ime.mma_slide (1/2/3).
+constexpr llvm::StringLiteral kSlideAttrName("slide");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
 
@@ -51,6 +53,13 @@ constexpr llvm::StringLiteral kExpectedUnsignedIMEOp("vmadotu");
 // fourth IME1 signedness form over the SAME elem_in/accum/MAC-fragment envelope,
 // distinguished only by the mnemonic.
 constexpr llvm::StringLiteral kExpectedMixedSignIMEOp("vmadotsu");
+// tcrv.ime.mma_slide is the SLIDING-WINDOW family `vmadot{1,2,3}` (Xsmti8i32mm_slide,
+// funct7 111001 / e6..., DISTINCT from the non-slide 111000 / e2...). The expected
+// mnemonic is selected by the `slide` FACT (1=>vmadot1, 2=>vmadot2, 3=>vmadot3) over
+// the SAME elem_in/accum/MAC-fragment envelope as the non-slide MAC.
+constexpr llvm::StringLiteral kExpectedSlide1IMEOp("vmadot1");
+constexpr llvm::StringLiteral kExpectedSlide2IMEOp("vmadot2");
+constexpr llvm::StringLiteral kExpectedSlide3IMEOp("vmadot3");
 constexpr int64_t kExpectedElemInBits = 8;
 constexpr int64_t kExpectedAccumBits = 32;
 
@@ -76,6 +85,11 @@ bool isAllowedMMAAttr(llvm::StringRef attrName) {
 bool isAllowedMatMulAttr(llvm::StringRef attrName) {
   return isAllowedMMAAttr(attrName) || attrName == kMatMAttrName ||
          attrName == kMatNAttrName || attrName == kMatKAttrName;
+}
+
+// The sliding-window op admits the same envelope PLUS the slide stride fact.
+bool isAllowedMMASlideAttr(llvm::StringRef attrName) {
+  return isAllowedMMAAttr(attrName) || attrName == kSlideAttrName;
 }
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
@@ -321,6 +335,33 @@ llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceRole() {
 mlir::LogicalResult MMASUOp::verify() {
   return verifyIMEMACBoundary(getOperation(), kExpectedMixedSignIMEOp,
                               isAllowedMMAAttr,
+                              [this]() { return emitOpError(); });
+}
+
+llvm::StringRef MMASlideOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MMASlideOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MMASlideOp::verify() {
+  // Fail-closed (I7): the slide stride is the capability-derived window FACT.
+  // Only slide in {1,2,3} is modeled (slide=0 is the existing non-slide MAC; >=4
+  // is outside the documented vmadot1..3 slide family). Reject before the shared
+  // envelope verifier so the expected mnemonic can be selected from the slide.
+  int64_t slide = getSlide();
+  if (slide < 1 || slide > 3)
+    return emitOpError() << "slide must be in {1,2,3} (vmadot1/vmadot2/vmadot3); "
+                            "slide=0 is the non-slide tcrv.ime.mma and slide>=4 is "
+                            "outside the documented IME1 slide family (fail-closed, "
+                            "I7)";
+  llvm::StringRef expectedIMEOp = slide == 1   ? kExpectedSlide1IMEOp
+                                  : slide == 2 ? kExpectedSlide2IMEOp
+                                               : kExpectedSlide3IMEOp;
+  return verifyIMEMACBoundary(getOperation(), expectedIMEOp,
+                              isAllowedMMASlideAttr,
                               [this]() { return emitOpError(); });
 }
 
