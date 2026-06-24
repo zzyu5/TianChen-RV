@@ -1326,3 +1326,41 @@ Built Win-C (the strongest previously-unclaimed novelty) as a reduction_structur
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Kernel expansion: q8_0 repack GEVM landed (built/checked/merged + Win-A reconciled); q4_K repack foundation (op+verifier+ABI) on main + emitter scaffold banked
+
+**Date**: 2026-06-24
+**Task**: Kernel expansion: q8_0 repack GEVM landed (built/checked/merged + Win-A reconciled); q4_K repack foundation (op+verifier+ABI) on main + emitter scaffold banked
+**Branch**: `main`
+
+### Summary
+
+Expanded the RVV kernel set toward the dominant quants. q8_0 repack GEVM: BUILT + trellis-checked (all 5 incl. merge correctness + I4/I5/I7) + MERGED; Win-A micro measured on rvv(VLEN128) + K1(VLEN256) and RECONCILED — the repack gearbox always emits mf2 on RVV1.0 (code+empirical), so every 'WIDE m1' repack number (q8 5.5x, q4_0 2.1x, q4_1 1.80x) is mf2-vs-RVV0.7-form, NOT an RVV1.0 auto-tune; q4_0 audit confirmed the m1 arm was hand-placed (its 2.1x micro washes to null e2e — memory wall). q4_K repack (dominant-quant headline, NOT upstream-blocked): stage-1a op (GgmlRepackGemvQ4KQ8KOp) + fail-closed verifier MERGED to main (ABI confirmed vs ggml: block_q4_Kx16 stride 2304, block_q8_K stride 292 with bsums@260); the emitter (the multi-day-hard 8-sub-block 6-bit-unpack + dual-fold) timed out twice from-scratch, so banked a compiling scaffold (q4_1 emitter renamed) + a copy-then-adapt build strategy. Stale-base worktree merge tax handled via clean-anchor insertion. Recurring theme: 4 over-claims caught + corrected (Win-C structural-NULL, IME prefill codegen-artifact, repack Win-A axis, q8_0 inversion) — every matrix number survives its obvious refutation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `24557f05` | (see git log) |
+| `a3442997` | (see git log) |
+| `d19c7abd` | (see git log) |
+| `cc8551da` | (see git log) |
+| `240f7221` | (see git log) |
+| `abb0d317` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
