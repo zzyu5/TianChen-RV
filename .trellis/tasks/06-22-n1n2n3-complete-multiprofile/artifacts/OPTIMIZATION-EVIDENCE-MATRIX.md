@@ -99,6 +99,12 @@ Provenance: `N1N2N3-LEDGER.md` §2.1/2.2; `k1-vlen256/q8_0-paired-rvv128-k1256.l
 |---|---|---|---|---|---|
 | **q8_0 repack GEVM** (`repack_gemv_q8_0_q8_0`) | **MEASURED** — *strip-count tune at mf2* (the real RVV1.0 auto-tune): at VLEN256 the gearbox selects hl=16, **1.95× faster** than hl=8 (selects the faster arm); VLEN128 hl=8 forced (16 lanes don't fit one register). Byte-exact (norm 0), oracle PASS. SEPARATELY *mf2 vs RVV0.7-m1 form* (VLEN128) = mf2 **5.5× faster** — an ISA-generation kernel comparison (q8's i32-per-position serial chain), NOT a tune, OPPOSITE of q4 `[REPACK-WINA-AXIS-RECONCILED.md; q8_0-repack-winA-oracle-FINDING.md; commit a3442997]` | **GAP (stage-2b)** — e2e `.inc`-swap pending | **GAP (stage-2b)** — vs ggml `ggml_gemv_q8_0_16x1_q8_0` (@VLEN128 ggml falls back to `vec_dot_q8_0` → beatable) | **GAP (stage-2b)** | N/A |
 
+### 1d-qk. q4_K repack GEVM (K-quant, DOMINANT quant, NEW 2026-06-24) — emitter CORRECT (oracle PASS); the campaign's hardest kernel
+
+| Kernel | Correctness | Win-A·micro | Win-B·micro | Win-B·e2e | Win-C |
+|---|---|---|---|---|---|
+| **q4_K repack GEVM** (`repack_gemv_q4_K_q8_K`) | **MEASURED — CORRECT** · emitter oracle PASS **WORST_NORM 7.07e-7** (8 shapes, rvv VLEN128 mf2 re-derived path), independent pre-repack ref + 2 negative controls (min/bsums @396,000× margin, sub-block-scale @2,080,000× margin); op+verifier+emitter trellis-checked (transcription faithful vs ggml, I3/I5/I7) `[q4_K-repack-oracle-FINDING.md; 240f7221/710ad067/0d5ebc5a]` | **GAP (stage-1c/2)** — strip-count tune at mf2 (like q8_0); needs the Win-A stamp wired into `RVVRepackStripWidthMaterialization.cpp` + the VLEN256 companion | **GAP (stage-2)** — vs ggml's OWN `ggml_gemv_q4_K_16x1_q8_K` (@K1 VLEN256 strong bar / @rvv VLEN128 ggml falls back to `vec_dot_q4_K` → beatable) | **GAP (stage-2)** — via `.inc`-swap; q4_K **NOT upstream-blocked** (ggml ships the full repack) → both micro AND e2e reachable, unlike q4_1 | N/A |
+
 ### 1e. IME — N2 second family (int8→int32 vmadot); own row, not a clean A or B
 
 | Kernel | "Win-A" | "Win-A" e2e | "Win-B" | "Win-B" e2e | Win-C |
