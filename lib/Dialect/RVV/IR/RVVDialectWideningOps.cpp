@@ -896,7 +896,18 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            name == "activation_high_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
            name == "strip_elision" ||
-           name.starts_with("tcrv_rvv.q4_0_schedule.");
+           name.starts_with("tcrv_rvv.q4_0_schedule.") ||
+           // The option-2 stage-B IN-COMPILER contraction-path SELECTION audit
+           // trail. The RVVLowerQuantContraction pass stamps which contraction
+           // ALGORITHM it selected from capability facts (repack vs block-dot),
+           // the stable reason token, and whether the choice is realized here or
+           // its weight materialization is deferred to stage C. Pure provenance
+           // mirror metadata (I4): it records the in-compiler decision, it does
+           // not carry executable config -- emitter-inert, exactly like the
+           // tcrv_rvv.q4_0_schedule.* resource-provenance trail above.
+           name == "tcrv_rvv.contraction_algorithm" ||
+           name == "tcrv_rvv.path_selection_reason" ||
+           name == "tcrv_rvv.path_materialization";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();

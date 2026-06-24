@@ -875,34 +875,42 @@ def RVVLowerToEmitC
 
 def RVVLowerQuantContraction
     : Pass<"tcrv-rvv-lower-quant-contraction", "::mlir::ModuleOp"> {
-  let summary = "Lower the abstract tcrv_rvv.quant_contraction op to a concrete contraction op (stage-A identity default: block-dot)";
+  let summary = "Select + lower the abstract tcrv_rvv.quant_contraction op to a concrete contraction op (stage-B capability-fact-driven path selection)";
   let description = [{
-    The option-2 stage-A front-of-pipeline pass that lowers the abstract,
+    The option-2 front-of-pipeline pass that lowers the abstract,
     algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op to a CONCRETE
-    contraction op, running BEFORE the EmitC lowering. In stage A this is a pure
-    IDENTITY DEFAULT: every quant_contraction request lowers to the concrete
-    tcrv_rvv.q4_0_q8_0_block_dot op with attributes reconstructed verbatim, so
-    the IR after this pass is STRUCTURALLY IDENTICAL to today's hand-authored
-    block-dot body and every downstream pass (schedule materialization, EmitC
-    lowering) runs byte-for-byte unaffected.
+    contraction op, running BEFORE the EmitC lowering.
 
-    The block-dot identity branch DROPS the abstract op's column_count (nc)
-    operand: the block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and
-    delegates the M/N loops to ggml's mul_mat caller, so it is a bare 4-operand
-    vec_dot. The abstract op carries nc ALWAYS so a later repack branch can
-    reach it; here it is dropped to keep the emitted C byte-identical. NO
-    schedule attrs are stamped (integer_core_lmul / multi_block_factor /
-    strip_elision) -- those remain the downstream MaterializeRVVQ40Schedule
-    pass's job, exactly as today.
+    STAGE B makes "the COMPILER itself selects repack-vs-block-dot from
+    capability facts" actually true. Per quant_contraction request the pass
+    derives the target VLEN from the selected -march (deriveMinimumVLEN -- the
+    SAME capability authority every other capability-gated pass uses; the op's
+    advisory min_vlen attr is NOT the source), lifts the committed WHAT attrs
+    (quant, m_regime), and calls the pure, branch-free, capability-fact-driven
+    selectContractionAlgorithm. The decision is stamped on the lowered op as
+    three INERT audit attrs (tcrv_rvv.contraction_algorithm /
+    path_selection_reason / path_materialization) so it is provable in-IR.
 
-    This pass changes ZERO runtime behavior: it is structural scaffolding that
-    makes "the compiler selects the contraction algorithm" expressible
-    in-compiler in later stages (a selection-logic stage adds the repack branch
-    + an algorithm choice; this stage is identity only). The repack lowering
-    branch is a deliberate stage-C ERROR STUB here and is never reached on the
-    wired block-dot path. On any module with no quant_contraction op the pass is
-    a structural no-op.
+    THE CRUX (Option (i)): the concrete repack target needs pre-interleaved
+    block_q4_0x16 weights the abstract op's PLAIN stride-18 weights cannot
+    supply -- that plain->x16 weight materialization is stage C. So this pass
+    emits the BYTE-IDENTICAL tcrv_rvv.q4_0_q8_0_block_dot body for BOTH the
+    Repack-SELECTED and the BlockDot-SELECTED branches, differentiating ONLY via
+    the inert audit attrs (Repack-selected => path_materialization =
+    "deferred-stage-c"). So the emitted C is byte-identical on EVERY path: the
+    compiler MAKES + RECORDS the selection in-compiler (the N3 novelty) with NO
+    e2e algorithm switch and NO perf claim; the e2e materialization is stage C.
+
+    The block-dot branch DROPS the abstract op's column_count (nc) operand: the
+    block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and delegates the
+    M/N loops to ggml's mul_mat caller, so it is a bare 4-operand vec_dot. The
+    abstract op carries nc ALWAYS so a later repack branch can reach it; here it
+    is dropped to keep the emitted C byte-identical. NO schedule attrs are
+    stamped (integer_core_lmul / multi_block_factor / strip_elision) -- those
+    remain the downstream MaterializeRVVQ40Schedule pass's job. On any module
+    with no quant_contraction op the pass is a structural no-op.
   }];
+  let options = kRVVBlockDotScheduleOptions;
   let constructor =
       "::tianchenrv::transforms::createRVVLowerQuantContractionPass()";
   let dependentDialects = [

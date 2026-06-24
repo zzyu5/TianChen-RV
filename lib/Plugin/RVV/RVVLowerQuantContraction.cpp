@@ -1,39 +1,53 @@
 //===- RVVLowerQuantContraction.cpp ---------------------------------------===//
 //
-// The option-2 stage-A front-of-pipeline pass that lowers the abstract,
+// The option-2 front-of-pipeline pass that lowers the abstract,
 // algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op to a CONCRETE contraction
-// op, running BEFORE the EmitC lowering. In stage A this is a pure IDENTITY
-// DEFAULT: every quant_contraction request lowers to the concrete
-// tcrv_rvv.q4_0_q8_0_block_dot op with attributes reconstructed verbatim, so the
-// IR after this pass is STRUCTURALLY IDENTICAL to today's hand-authored
-// block-dot body and every downstream pass runs byte-for-byte unaffected.
+// op, running BEFORE the EmitC lowering.
+//
+// STAGE B (this file): the pass makes "the COMPILER itself selects
+// repack-vs-block-dot from capability facts" actually TRUE. Per walked
+// quant_contraction request it derives the target VLEN from the pass's -march
+// (deriveMinimumVLEN -- the SAME capability authority every other capability-gated
+// pass uses; the op's advisory min_vlen attr is NOT the source), lifts the op's
+// committed WHAT attrs (quant, m_regime) to plain enums, and calls the pure,
+// branch-free, capability-fact-driven selectContractionAlgorithm. The decision is
+// stamped on the lowered op as three INERT audit attrs (tcrv_rvv.*) so it is
+// provable in-IR and lit-CHECKable.
+//
+// THE CRUX (resolved -- Option (i)): the concrete repack target
+// (tcrv_rvv.repack_gemv_q4_0_q8_0) requires pre-interleaved block_q4_0x16 weights
+// (stride 288, interleave 16) the abstract op's PLAIN stride-18 weights cannot
+// supply -- that plain->x16 weight MATERIALIZATION is stage C. So stage B emits
+// the BYTE-IDENTICAL block-dot body for BOTH the Repack-SELECTED and the
+// BlockDot-SELECTED branches, differentiating ONLY via the inert audit attrs
+// (Repack-selected => path_materialization = "deferred-stage-c"). The compiler
+// MAKES + RECORDS the selection in-compiler (the N3 novelty); the emitted C is
+// byte-identical on every path (NO e2e algorithm switch, NO perf claim); the e2e
+// materialization is stage C.
 //
 // The block-dot identity branch DROPS the abstract op's column_count (nc)
 // operand: the block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and
-// delegates the M/N loops to ggml's mul_mat caller (a bare 4-operand vec_dot).
-// The abstract op carries nc ALWAYS so a later repack branch can reach it; here
-// it is dropped to keep the emitted C byte-identical. NO schedule attrs are
-// stamped -- those remain MaterializeRVVQ40Schedule's job downstream.
-//
-// This pass changes ZERO runtime behavior. It is structural scaffolding that
-// makes "the compiler selects the contraction algorithm" expressible
-// in-compiler in later stages. The repack lowering branch is a deliberate
-// stage-C ERROR STUB here and is never reached on the wired block-dot path. On
-// any module with no quant_contraction op the pass is a structural no-op.
+// delegates the M/N loops to ggml's mul_mat caller (a bare 4-operand vec_dot). NO
+// schedule attrs are stamped -- those remain MaterializeRVVQ40Schedule's job
+// downstream. On any module with no quant_contraction op the pass is a no-op.
 //
 //===----------------------------------------------------------------------===//
 
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Plugin/RVV/RVVContractionPathSelection.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
+#include <cstdint>
 #include <memory>
 
 namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
+namespace pluginrvv = ::tianchenrv::plugin::rvv;
 
 namespace tianchenrv::transforms {
 
@@ -41,6 +55,17 @@ namespace tianchenrv::transforms {
 #include "TianChenRV/Transforms/Passes.h.inc"
 
 namespace {
+
+// The inert audit-attr names the stage-B pass stamps on the lowered concrete op.
+// They are pure provenance (no SEW/LMUL/policy/dataflow config) -- the EmitC
+// emitter ignores them, exactly like the MaterializeRVVQ40Schedule pass's
+// additive "tcrv_rvv.q4_0_schedule.*" trail -- so the emitted C is byte-identical
+// with them present. The block-dot verifier's attribute allow-list is widened to
+// accept this bounded namespace (RVVDialectWideningOps.cpp isAllowedBlockDotAttr).
+constexpr llvm::StringLiteral kAlgorithmAttr = "tcrv_rvv.contraction_algorithm";
+constexpr llvm::StringLiteral kReasonAttr = "tcrv_rvv.path_selection_reason";
+constexpr llvm::StringLiteral kMaterializationAttr =
+    "tcrv_rvv.path_materialization";
 
 class RVVLowerQuantContractionPass final
     : public impl::RVVLowerQuantContractionBase<RVVLowerQuantContractionPass> {
@@ -61,33 +86,70 @@ public:
   }
 
 private:
-  // Lower ONE abstract contraction request to a concrete contraction op. Stage A
-  // wires only the q4_0-decode block-dot IDENTITY branch (DESIGN §2.2); every
-  // other cell (the M>>1 prefill/GEMM regime, any non-q4_0 quant) is the
-  // stage-C/repack lowering target and is a deliberate ERROR STUB here, so a
-  // misrouted op fails fail-closed (I7) rather than silently taking block-dot.
-  mlir::LogicalResult lowerOne(tcrvrvv::GgmlQuantContractionOp op) {
-    // The single algorithm decision stage A makes: the IDENTITY DEFAULT to
-    // block-dot, on the q4_0-decode cell ONLY. The selection-logic stage (B)
-    // replaces this gate with a real capability/resource-aware choice and adds
-    // the repack lowering (which needs the stage-C plain->x16 materialization).
-    if (op.getQuant() == "q4_0" && op.getMRegime() == "decode")
-      return lowerToBlockDot(op);
-
-    return op.emitError()
-           << "stage-A quant_contraction lowering wires ONLY the q4_0 decode "
-              "block-dot identity branch; the (quant=\""
-           << op.getQuant() << "\", m_regime=\"" << op.getMRegime()
-           << "\") cell is the stage-C/repack lowering target and is not yet "
-              "implemented (the repack branch needs the stage-C plain->x16 "
-              "weight materialization)";
+  // Lift the abstract op's committed WHAT attr to the selector's pure enum. The
+  // verifier already pins quant=="q4_0"; the full enum is encoded so the selector
+  // is the complete in-compiler static prior, but only q4_0 is reachable here.
+  static mlir::FailureOr<pluginrvv::QuantType>
+  liftQuant(tcrvrvv::GgmlQuantContractionOp op) {
+    if (op.getQuant() == "q4_0")
+      return pluginrvv::QuantType::Q4_0;
+    if (op.getQuant() == "q8_0")
+      return pluginrvv::QuantType::Q8_0;
+    if (op.getQuant() == "q4_K")
+      return pluginrvv::QuantType::Q4_K;
+    return mlir::FailureOr<pluginrvv::QuantType>(
+        op.emitError() << "stage-B contraction-path selection does not "
+                          "recognize quant \""
+                       << op.getQuant() << "\"");
   }
 
-  // The plain->plain IDENTITY branch: reconstruct today's hand-authored
-  // tcrv_rvv.q4_0_q8_0_block_dot op verbatim, DROPPING column_count (nc). The
-  // resulting IR is structurally identical to the hand-authored block-dot body,
-  // so the downstream schedule + EmitC passes emit byte-identical C.
-  mlir::LogicalResult lowerToBlockDot(tcrvrvv::GgmlQuantContractionOp op) {
+  static mlir::FailureOr<pluginrvv::MRegime>
+  liftMRegime(tcrvrvv::GgmlQuantContractionOp op) {
+    if (op.getMRegime() == "decode")
+      return pluginrvv::MRegime::Decode;
+    if (op.getMRegime() == "prefill")
+      return pluginrvv::MRegime::Prefill;
+    return mlir::FailureOr<pluginrvv::MRegime>(
+        op.emitError() << "stage-B contraction-path selection does not "
+                          "recognize m_regime \""
+                       << op.getMRegime() << "\"");
+  }
+
+  // The IN-COMPILER selection: derive the target VLEN from the pass's -march (the
+  // capability authority -- NOT the op's advisory min_vlen attr), lift the
+  // committed WHAT axes, and ask the pure fact-driven selector which algorithm to
+  // commit to. Both branches emit the byte-identical block-dot body (Option (i)),
+  // differentiated only by the inert audit attrs -- so the emitted C is unchanged
+  // on every cell and the repack EFFECT is honestly deferred to stage C.
+  mlir::LogicalResult lowerOne(tcrvrvv::GgmlQuantContractionOp op) {
+    mlir::FailureOr<pluginrvv::QuantType> quant = liftQuant(op);
+    if (mlir::failed(quant))
+      return mlir::failure();
+    mlir::FailureOr<pluginrvv::MRegime> mRegime = liftMRegime(op);
+    if (mlir::failed(mRegime))
+      return mlir::failure();
+
+    // The DERIVED capability fact: the guaranteed minimum VLEN of the configured
+    // target, from the SAME plugin-local authority deriveHasZvl128b /
+    // MaterializeRVVQ40Schedule consume (default -march "" => 0 => no capability
+    // => block-dot, the honest no-capability behavior).
+    std::int64_t minVLEN = pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
+
+    pluginrvv::ContractionSelection selection =
+        pluginrvv::selectContractionAlgorithm(*quant, *mRegime, minVLEN);
+
+    return lowerToBlockDot(op, selection);
+  }
+
+  // Option (i): emit the byte-identical tcrv_rvv.q4_0_q8_0_block_dot body for BOTH
+  // the BlockDot-selected (realized) and the Repack-selected (deferred-stage-c)
+  // cases, reconstructing today's hand-authored attrs verbatim and DROPPING
+  // column_count (nc). The ONLY per-cell difference is the three inert audit attrs
+  // recording the in-compiler decision. The emitted C is byte-identical to today
+  // on every path; the repack op is materialized by stage C, never here.
+  mlir::LogicalResult
+  lowerToBlockDot(tcrvrvv::GgmlQuantContractionOp op,
+                  const pluginrvv::ContractionSelection &selection) {
     mlir::OpBuilder builder(op);
 
     // Operands: DROP column_count (nc) -- the block-dot vec_dot delegates M/N to
@@ -115,6 +177,19 @@ private:
         /*integer_core_lmul=*/::mlir::StringAttr(),
         /*multi_block_factor=*/::mlir::IntegerAttr(),
         /*strip_elision=*/::mlir::StringAttr());
+
+    // Stamp the in-compiler decision as INERT audit attrs (emitter-ignored
+    // provenance, like tcrv_rvv.q4_0_schedule.*). Repack-selected records that
+    // the repack DECISION is real but its weight materialization is deferred to
+    // stage C; BlockDot-selected records the choice as fully realized.
+    bool isRepack =
+        selection.algorithm == pluginrvv::ContractionAlgorithm::Repack;
+    blockDot->setAttr(kAlgorithmAttr,
+                      builder.getStringAttr(isRepack ? "repack" : "block-dot"));
+    blockDot->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    blockDot->setAttr(kMaterializationAttr,
+                      builder.getStringAttr(isRepack ? "deferred-stage-c"
+                                                     : "realized"));
 
     op.getResult().replaceAllUsesWith(blockDot.getResult());
     op.erase();
