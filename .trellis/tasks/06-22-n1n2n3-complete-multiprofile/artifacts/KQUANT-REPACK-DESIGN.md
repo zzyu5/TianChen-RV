@@ -62,3 +62,23 @@ disclosed likely LOSS @K1 like q4_0's 0.74×); Win-C = NONE.
 - `lib/Plugin/RVV/RVVRepackStripWidthMaterialization.cpp` (Win-A half_lanes/integer_core_lmul :78)
 - ggml: `arch/riscv/repack.cpp` (q4_K baseline :260/:983; q8_0 :447/:1336) + `repack.cpp` (routing patch
   sites :4619 q4_K / :4713 q8_0; `make_block_q4_Kx16` :2913)
+
+## STAGE-1b emitter — BUILD STRATEGY (learned: timed out twice on from-scratch reading)
+The q4_K GEVM emitter is the campaign's hardest single piece (compose 3 complex parts). Two from-scratch
+agents tripped the stream-idle timer READING the q4_1 emitter (515 lines) + the 6-bit unpack. Next attempt
+MUST use **copy-then-incrementally-adapt** (each step BUILDS → small, timeout-resistant increments), and the
+LEAD should sed-extract the q4_1 emitter so the agent does NOT read it:
+
+- **1b-i (copy, mechanical):** sed-extract `emitRepackGemvQ4_1Q8_1` (RVVToEmitCBlockQuantLinear.cpp:3167-3681)
+  → paste as `emitRepackGemvQ4KQ8K`, rename ONLY the op cast (`GgmlRepackGemvQ41Q81Op`→`GgmlRepackGemvQ4KQ8KOp`);
+  shared getters (`getWeightBlockStride` etc.) keep their names. Wire dispatch (RVVToEmitC.cpp table +
+  `isRepackGemvQ4KQ8KBody`) + decl (RVVToEmitCInternal.h), mirroring q4_1. BUILD — it COMPILES + lowers
+  (numerically a q4_1-shaped kernel, WRONG, but a durable foundation). Stage-1b-i is bounded + no big reads.
+- **1b-ii (ABI swap):** the op already carries the q4_K ABI attrs (stride 2304, qs@256, scales@64, dmin@32;
+  activation q8_K stride 292, d FLOAT@0, qs@4, bsums@260) — the emitter reads them via getters, so the ABI is
+  mostly automatic; verify the strip/offset arithmetic uses qk=256 / n_subblocks=8. Build.
+- **1b-iii (the real work):** replace q4_1's single per-block scale+min fold with the **8-sub-block** loop:
+  per-sub-block 6-bit scale/min unpack (port the block-dot utmp/kmask dance, RVVToEmitCKQuant.cpp:919-1006,
+  made LANE-WISE), main term `d·Σ(scale_sub·sumi_sub)`, MIN term `dmin·Σ(min_sub·bsums_sub)` (bsums from
+  block_q8_K@260, the q8_1-`s` analogue). Fixed LMUL (m2). Build + lit + byte-exact oracle vs
+  `ggml_gemv_q4_K_16x1_q8_K` (arch/riscv/repack.cpp:260). This is the correctness-critical step.
