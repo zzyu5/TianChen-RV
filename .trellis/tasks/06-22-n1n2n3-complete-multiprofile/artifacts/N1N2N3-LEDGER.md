@@ -569,3 +569,35 @@ coverage surfaced — measured, correctness-gated, honest.
   {mf2,m1,m2}, m2 ceiling: register-group + sub-block boundary), thread it mirroring the proven repack `coreLmul`,
   Region-C MAC needs an oracle-gated integer fold-back-to-8 (the only novel correctness piece). **First = q4_K**
   (shared `emitQ4_KSuperBlockAux32Core` AUTO-covers q5_K). This is the deferred q4_K Win-A knob, finally scoped.
+
+## 10. THE N3 HEADLINE REALIZED — in-compiler capability-aware algorithm SELECTION (option-2, 2026-06-24)
+
+The §8b "measured-best PATH selection {repack, block-dot}" was first scoped as an in-compiler route gate, then found
+NOT buildable that way (CORRECTION #2, §8b: the path is committed by op-identity + weight-layout UPSTREAM; the
+schedule registry is single-algorithm; the e2e gate is the build/load harness). **User chose to make it a REAL
+in-compiler pass** (option-2 A→B→C). The LIT-ONLY half is now BUILT + verified — *the compiler autonomously
+selects, declares, and can produce the algorithm*, all byte-exact, zero behavior change, NO perf/e2e claim:
+
+- **A (`27572edd`)** abstract `GgmlQuantContractionOp` (algorithm-uncommitted, plain weights, nc-always,
+  `weight_layout=plain` fail-closed) + `RVVLowerQuantContraction` identity pass (q4_0-decode→block-dot, others=error
+  stub). Byte-exact, lit-only.
+- **B (`06eb0ff8`) — THE MILESTONE: "the compiler selects the algorithm" is TRUE + demonstrated.**
+  `selectContractionAlgorithm(quant, m_regime, deriveMinimumVLEN(march))` in `lib/Plugin/RVV/` (selection is a PLUGIN
+  concern; pass relocated Conversion→Plugin) — branch-free 3-fact AND, NO op-kind/family string-match (I3/N2). Proven
+  EMPIRICALLY: the SAME binary picks repack@rv64gcv vs block-dot@rv64gcv_zvl256b (the VLEN capability fact flips the
+  decision); emit byte-identical across branches (audit attrs emitter-inert). Static prior = the measured matrix.
+- **C1 (`ed2d0f09`)** the bridge: repack-selected lowers to a REAL `GgmlRepackGemvQ40Q80Op` DECLARING
+  `weight_layout_contract="x16"` (the user's layout-as-input/contract model). Decline cells byte-identical;
+  fixture-only (no real producer → no miscompile).
+- **C1b (`7da87b9c`)** the packer: `GgmlPackQ40ToX16Op` emits a plain→x16 transform, **host memcmp==0 over 5.2M
+  blocks vs ggml `make_block_q4_0x16`** (negative-control-validated). The compiler can PRODUCE the layout it declares.
+  mechanism-(a), e2e-REDUNDANT (ggml packs at load).
+
+**HONEST framing (the industrial-vs-demo line, advisor-locked over-claims #10/#11):** option-2's value is NOVELTY
+("the compiler autonomously selects + drives the measured-best algorithm" — a true architectural N3 claim), NOT a new
+perf number. The selection is **selection-CORRECTNESS** (static "always-repack" is wrong on 3 measured cells); declining
+where it loses = matching ggml = loss-avoidance hygiene. The per-tensor-vs-per-call layout limit **RELOCATES** to the
+system (layout-as-input makes the COMPILER clean; the SYSTEM still picks {dual-store / per-call-repack-prefill /
+pick-one} and pays — it does NOT dissolve), so every e2e number must name its mechanism. **C3-C5 (producer + harness
+honoring + 2 ggml patches + 2-profile e2e) is the remaining hardware/multi-session bulk** (`option2-stageC-revised-
+layout-contract-DESIGN.md`); C1+C1b prove the compiler half lit-only.
