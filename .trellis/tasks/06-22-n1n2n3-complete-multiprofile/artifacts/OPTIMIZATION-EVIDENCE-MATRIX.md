@@ -240,7 +240,7 @@ routes elsewhere; **no** `vmadot`/`spacemit` token is materialized. Dispatch is 
    plugin vtable hooks called BY the generic core passes.
 6. Common EmitC→C++ route — stock `mlir-translate --mlir-to-cpp` (`emitc::translateToCpp`); IME added no exporter.
 
-**Incremental leverage (the wiring cost was paid ONCE):** the 2nd IME op (tiled matmul, commit `0b8c6168`) and
+**Incremental leverage (the wiring cost was paid ONCE):** a **4th op (`mma_su`/`vmadotsu`, mixed-sign) was added LIVE this session** (commits `70bb845a`+`a75adc27`, **0 core / 0 wiring**, trellis-checked, **silicon bit-exact 16/16 on X60**, operand convention confirmed — see standalone `n2-ime/N2-RAPID-ADD-SHOWCASE.md`); the 2nd IME op (tiled matmul, commit `0b8c6168`) and
 3rd op (`mma_u`/`vmadotu`, commit `c7069111`) each touched **ZERO** registration / core-wiring files and added
 **ZERO** core lines — pure family-local growth. **It runs on real silicon:** the compiler-emitted kernel was
 cross-built with the SpacemiT GCC15.2 fork, objdump-confirmed real `smt.vmadot`, and ran **bit-exact (16/16 ==

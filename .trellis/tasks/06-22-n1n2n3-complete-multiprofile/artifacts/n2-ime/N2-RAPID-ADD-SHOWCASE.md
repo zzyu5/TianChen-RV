@@ -67,7 +67,7 @@ request.getCapabilities().lookupProviderByID("spacemit.ime")->isAvailable()
 | Reused interfaces (modified) | 6 reused / **0 modified** | §2 anchors |
 | **2nd op** (`vmadotu`) core + wiring | **0 / 0** | commit `c7069111` |
 | **3rd op** (tiled `matmul`) core + wiring | **0 / 0** | commit `0b8c6168` |
-| **4th op** (`vmadotsu`, mixed-sign — LIVE 2026-06-24) | **0 core / 0 wiring / 0 new id; +175/−37 family-local** | commit `70bb845a`; tree-wide grep 0 core tokens; +54 op def / +18 verifier / +24 emitter leaf / +79−35 signedness-fact derivation. Silicon bit-exact = PENDING (K1 oracle; vmadotsu asymmetric operand order unverified) |
+| **4th op** (`vmadotsu`, mixed-sign — LIVE 2026-06-24) | **0 core / 0 wiring / 0 new id; +175/−37 family-local** | commits `70bb845a`+`a75adc27`; tree-wide grep 0 core tokens; trellis-check PASS (I3/I5/I7); **silicon bit-exact 16/16 on real X60**, operand convention CONFIRMED (signed-A v0 × unsigned-B v1, 4-way discriminator), real encoding `e210212b`. The COMPILER-EMITTED helper was the thing tested |
 | Runs on real silicon | bit-exact 16/16 | SpacemiT GCC15.2, objdump `smt.vmadot`, X60 |
 
 **On the 4th op and the "string-swap" objection (turned into the demonstration):** a near-sibling op
