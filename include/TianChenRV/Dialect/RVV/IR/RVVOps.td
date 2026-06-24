@@ -4747,6 +4747,152 @@ def GgmlRepackGemvQ4KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemmQ4KQ8KOp
+    : TCRVRVV_Op<"repack_gemm_q4_K_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q4_K x Q8_K 16x1-REPACKED GEMM (block-as-lane) op";
+  let description = [{
+    Records the COMPLETE ggml q4_K 16x1-REPACKED GEMM (prefill, M>>1) hot kernel
+    as ONE bounded generic plugin-local typed RVV dataflow step -- the K-QUANT
+    (super-block) PREFILL sibling of tcrv_rvv.repack_gemv_q4_K_q8_K, and the q4_K
+    sibling of tcrv_rvv.repack_gemm_q4_1_q8_1. It is the dominant-quant PREFILL
+    headline path: q4_K is q4_1's dual scale+MIN fold EXTENDED to the K-quant
+    SUPER-BLOCK structure -- 256 elements per super-block split into 8 sub-blocks
+    of 32, EACH sub-block carrying its own 6-bit quantized scale and 6-bit
+    quantized min, with ONE super-block (d, dmin) fp16 pair multiplying the
+    unpacked per-sub-block scales/mins. The weight side is the block_q4_Kx16
+    block-as-lane layout (IDENTICAL to the GEVM weight ABI): the 16 interleaved
+    weight columns of a group occupy 16 distinct vector lanes so the dot
+    accumulates LANE-WISE via vwmacc (NO cross-lane vredsum -- the per-block
+    reduction wall is gone). The DISTINGUISHING fact from the GEVM is the
+    activation: instead of ONE plain block_q8_K stream, the PREFILL kernel
+    consumes the interleaved block_q8_Kx4 stream (4 activation ROWS per group,
+    the q8_K analogue of the q4_0/q4_1 GEMM's block_q8_0x4/block_q8_1x4). The
+    6-bit-per-sub-block unpack cost is AMORTIZED over the 4 (and, across the row
+    loop, M) activation columns -- the structural reason the prefill GEMM is the
+    e2e-win path where the single-column GEVM was not. At VLEN=128 an e8 vector
+    holds only 8 i8 lanes per half, so each 16-block-as-lane group is processed
+    as TWO disjoint contiguous halves of 8 lanes each (cols 0..7 then cols 8..15)
+    inline; at VLEN=256 it is ONE 16-lane strip. Every weight byte is read
+    exactly once.
+
+    Three structural extensions over the Q4_1 repacked GEMM sibling distinguish
+    the K-quant super-block (exactly as the q4_K repacked GEVM differs from the
+    q4_1 repacked GEVM):
+
+    (1) The super-block scale fold is DUAL-LEVEL. block_q4_Kx16 stores, per
+        column lane, ONE fp16 super-block `d` and ONE fp16 super-block `dmin`
+        (the 16 d's then the 16 dmin's inline), then a custom 192-byte `scales`
+        region packing the 8 sub-block 6-bit scales AND 8 sub-block 6-bit mins
+        per column, then the 2048 interleaved nibble bytes. The per-sub-block
+        6-bit scale/min are unpacked LANE-WISE (vle8 across the 16 column lanes,
+        vand 0x0F / vsrl / vsll bit-dance), multiplied by the super-block d/dmin.
+        ggml's exact per-super-block per-COLUMN statement is `sumf += d_y_c *
+        (d * (sum over 8 sub-blocks of scale_j * q_dot_jc) - dmin * (sum over 8
+        sub-blocks of min_j * bsum_pair_jc))`: the scale term accumulates the 8
+        per-sub-block integer dots weighted by the per-sub-block 6-bit scale, the
+        MIN term subtracts the 8 per-sub-block 6-bit mins weighted by that
+        activation column's bsums, and d_y_c is the per-COLUMN fp32 activation
+        scalar. d and dmin are VECTOR strips (one lane per weight column, vle16);
+        the activation `d` is now 4 fp32 SCALARS (one per interleaved column),
+        the per-column analogue of the GEVM's single fp32 d.
+
+    (2) The MIN term consumes the interleaved block_q8_Kx4 `bsums` (per-group-of-16
+        quant sums, PER COLUMN) LANE-WISE. block_q8_Kx4 stores 4 fp32 `d` (NOT
+        fp16, NOT a precomputed scaled `s` like q8_1x4 -- q8_K carries raw bsums,
+        NOT a folded sum), then 256*4 = 1024 int8 quants (4 columns interleaved),
+        then 64 int16 bsums (16 per column * 4 columns). The min correction is
+        folded LANE-WISE via vwmacc into a per-(column,weight-column) i32
+        accumulator then scaled by (dmin*d_y_c) -- the 4-column-interleaved
+        analogue of the GEVM's single-column min fold.
+
+    (3) Eight sub-blocks of 32. The inner integer core loops over the 8 sub-blocks
+        (n_subblocks == 8), each a 32-element 4-bit nibble strip, accumulating a
+        per-sub-block i16/i32 lane-wise product weighted by that sub-block's 6-bit
+        scale -- NO per-sub-block vredsum (lane-wise across the 16 columns).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes SEVEN runtime
+    ABI value operands -- the repacked q4_Kx16 weight base pointer (vx, NC/16
+    column-groups at byte stride (n/QK_K)*2304), the repacked q8_Kx4 activation
+    base pointer (vy, nr/4 row-groups at byte stride (n/QK_K)*1168), the fp32
+    output base pointer (s), the runtime contraction element count (n), the
+    runtime activation-row count (nr) and weight-column count (nc), and the
+    runtime output row stride (bs, in floats) -- plus the active !tcrv_rvv.vl
+    token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token whose lowering
+    writes the nr x nc fp32 results through the output pointer.
+
+    The structural facts -- QK_K=256, the repacked weight super-block stride (2304
+    bytes for block_q4_Kx16 = 16 fp16 d + 16 fp16 dmin + 192 scales/mins + 2048
+    nibble bytes), the interleaved activation super-block stride (1168 bytes for
+    block_q8_Kx4 = 4 fp32 d + 1024 int8 quants + 64 int16 bsums), the repacked
+    weight quant byte offset (qs at +256 after the 32 d/dmin fp16 + 192 scales
+    bytes), the per-column weight dmin byte offset (dmin strip at +32 after the
+    16 d scales), the custom 6-bit per-sub-block scales/mins region byte offset
+    (scales at +64 after the 16 d + 16 dmin fp16), the interleaved activation
+    quant byte offset (qs at +16 after the 4 fp32 d), the activation bsums byte
+    offset (bsums at +1040 after the 4 fp32 d + 1024 quants), the sub-block count
+    (8), the weight interleave width (16 columns), the activation interleave
+    width (4 columns), the resource-aware strip width (half_lanes in {8,16}), and
+    the super-block-d.dmin-plus-bsums-min-4col scale model -- are carried as typed
+    integer/string attributes (I4 mirror only). The fixed emission is the op's
+    lowering, NOT a candidate-mirror string read in the conversion. The bounded
+    surface kind is limited to "ggml_repack_gemm_q4_K_q8_K" and scale_model to
+    "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks-4col". Route ids, helper
+    names, ABI strings, artifact names, status fields, exact intrinsic spellings,
+    operand mirror strings, q8/q4 names, and common EmitC/export code must not
+    infer or choose the block-as-lane repacked GEMM semantics.
+
+    The optional `integer_core_lmul` attribute is the SAME bounded
+    resource/scheduling fact the q4_K repacked GEVM sibling carries (the *how*,
+    never the *what*; the 16-way interleaved repack reads the SAME bytes either
+    way): absent / "mf2" anchors the RVV1.0 fractional chain (half_lanes in
+    {8,16}), "m1" anchors the RVV0.7.1 whole-LMUL chain (half_lanes 16, ONE
+    16-lane strip). The verifier pins the legal (integer_core_lmul, half_lanes)
+    combinations fail-closed (I7); half_lanes must divide the 16-way interleave.
+    A malformed typed body cannot lower under this emission. (NOTE: the lowering
+    emitter, dispatch, recognizer, Win-A LMUL-parametric 6-bit unpack stamp, and
+    lit are STAGE-1b/1c -- this op + verifier are STAGE-1a; the op does not yet
+    lower. The multi-column emitter, whose 6-bit-unpack-amortized-over-M
+    e2e-win-prefill hypothesis is the whole point, is STAGE-1b.)
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$row_count,
+    AnyType:$column_count,
+    AnyType:$output_row_stride,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_dmin_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$activation_bsums_byte_offset,
+    I64Attr:$n_subblocks,
+    I64Attr:$weight_interleave,
+    I64Attr:$activation_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
+    "type($output_row_stride) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ80Q80Op
     : TCRVRVV_Op<"q8_0_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface,
