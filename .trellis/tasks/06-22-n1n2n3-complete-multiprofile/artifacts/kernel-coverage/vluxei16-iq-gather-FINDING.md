@@ -149,3 +149,140 @@ new emit (793 lines, 8× `vluxei16_v_i64m2`).
   harness.cpp <emit>.cpp ggml_ref.cpp -o bench && taskset -c 2 ./bench`.
 - objdump: `objdump -d ours_vlux.o | grep vluxei16`.
 - Staged on rvv: `~/vlux-iq1s/`.
+
+---
+
+# FINDING — vluxei16 IQ-gather revectorization, SECOND kernel (iq1_m)
+
+Extends the proven iq1_s vluxei16 pattern to iq1_m (same 2048-entry uint64
+iq1s_grid, signed ternary bytes, NO sign plane). Same `ssh rvv` regime (SG2044,
+RVV1.0, VLEN128, clang-18, `-O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast`,
+`taskset -c 2`).
+
+## 1. The change (file:lines)
+
+`lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp :: emitIQ1MQ8KBlockDot`
+(method ~:613–1400):
+- Added gather emit types (`vuint16mf4_t`, `vint64m1_t`, the `uint16_t*` /
+  `const int64_t*` ptr types; reused `vint8m1_t`/`vint16m2_t` for the half).
+- iq1_m's grid dot MUST split into TWO halves (groups {0,1}→sum1[0] @ ls1,
+  groups {2,3}→sum1[1] @ ls2) because the halves carry DIFFERENT per-half scales,
+  so iq1_s's single per-sub-block reduce can't be copied literally. The byte-exact,
+  shape-agnostic restructure (advisor-locked, option B over A):
+  - KEEP the 4 scalar 11-bit index computations
+    `idx = qs[ib*4+l] | ((qhSel<<sh)&0x700)` byte-exact (untouched), each `<<3`
+    and stored into a `uint16_t idxoff[4]` stack array.
+  - Per HALF h=0,1: `__riscv_vle16_v_u16mf4(&idxoff[2h], 2)` (index EMUL =
+    (16/64)*1 = 1/4 → **mf4**, NOT mf2 — the lower-LMUL gotcha vs iq1_s) →
+    `__riscv_vluxei16_v_i64m1((const int64_t*)tcrv_iq1m_grid, vidx, 2)` (gather 2
+    grid u64) → `__riscv_vreinterpret_v_i64m1_i8m1` = 16 ternary i8 → `vle8` the 16
+    q8 (`q8Base + ib*32 + h*16`) → `__riscv_vwmul_vv_i16m2` →
+    `__riscv_vwredsum_vs_i16m2_i32m1` → `sum1[h]` ASSIGNED ONCE (not `+=`; the
+    whole half is one shot). Byte-exact: a 16-lane half reduce = Σ(group 2h) +
+    Σ(group 2h+1), integer-identical to the original two 8-lane reduces summed
+    into sum1[h]. i64m1 = ALWAYS 2 u64 = 16 bytes regardless of VLEN, so NO
+    VLEN128-only `vget`-split lane assumption (avoids the VLEN-SHAPE-MATCH trap).
+- KEPT UNCHANGED (byte-exact): the per-GROUP sum2/delta path (it is grid-
+  INDEPENDENT — the gather doesn't touch it): `vsetvl_e8m1`/`vle8_v_i8m1`/
+  `vwredsum_vs_i8m1_i16m1` Σq8 + `delta[l]` per group into sum2[l/2]. Also UNCHANGED:
+  the packed iq1m_scale fp16 reconstruct, `d`, ls1/ls2, the per-super-block fold
+  `sumf += d*((float)sumi1 + 0.125f*(float)sumi2)`, `*s = sumf`. Removed the now-
+  dead `(const int8_t*)` grid byte-view cast (replaced by the in-loop
+  `(const int64_t*)` gather base).
+- Lit test `test/Conversion/RVV/rvv-to-emitc-iq1-m-q8-k-block-dot.mlir` CHECK
+  lines updated to the new gather shape (idxoff array, `<<3`+u16 cast, the
+  `vle16_u16mf4`/`vluxei16_v_i64m1`/`vreinterpret_v_i64m1_i8m1` chain + the kept
+  per-group `vwredsum_vs_i8m1_i16m1` delta path). PASSES.
+- `tcrv-opt` rebuilt FORCED/CLEAN (touched the .cpp). No ODS/.td touched. Emit +
+  `mlir-translate-20 --mlir-to-cpp` clean (1780-line `ours.cpp`, 16× `vluxei16`).
+- Full `check-tianchenrv`: 707/710. The same 3 pre-existing unrelated failures
+  (`rvv-generated-bundle-abi-e2e-*computed-masked-strided-input-widening-dot-
+  reduce-add*` + abi-e2e self-test, a `vlse16` strided-load op; zero reference to
+  iq1_m/ternary/vluxei). iq1_m + iq1_s emit tests both pass.
+
+## 2. Byte-exact oracle — PASS (bit-identical)
+
+Old-scalar-emit iq1_m vs new-vluxei-emit iq1_m, distinct symbols, same binary,
+8 seeds × 6 sizes, raw float bits `memcmp`'d:
+
+```
+BYTE-EXACT-ORACLE cases=48 mismatches=0 -> PASS (bit-identical)
+```
+
+48/48 bit-identical. The revectorization is byte-exact-correct. (Also: micro
+harness AGREEMENT vs ggml `max_rel_norm=0.000e+00` for BOTH emits.)
+
+## 3. objdump engagement proof — vluxei16 PRESENT (yes)
+
+```
+$ objdump -d k_vlux.o | grep -c vluxei16     # new kernel
+16    # (8 sub-blocks × 2 halves, i64m1 gathers)
+   1d8: vluxei16.v v12,(s7),v11
+   20c: vluxei16.v v11,(s7),v9
+   ...
+$ objdump -d k_scalar.o | grep -c vluxei16   # prior scalar kernel
+0
+```
+
+The new binary contains the hardware indexed gather (16×); the scalar baseline has
+none. Engagement proven.
+
+## 4. Micro ratio vs ggml — kernel 1.50x faster, gap NARROWED ~9.3x → ~5.8x, NOT parity (HONEST)
+
+`blockdot-bench/iq1_m` micro (timing_n=32*QK_K, iters=2000, reps=200, best-of-min,
+`taskset -c 2`), ours = OUR emit, ggml = shipped `_vl128`:
+
+| emit | ours (ns) | ggml (ns) | RATIO ggml/ours | gap (ggml faster by) |
+|---|---|---|---|---|
+| SCALAR (prior) | 58907.2 | 6354.9 | 0.108 | ~9.3x |
+| VLUX (new)     | 39256.1 | 6765.7 | 0.155–0.172 | ~5.8x |
+
+- **The robust, noise-free number: our kernel got 1.50x faster (58907 → 39256 ns).**
+  This is our-vs-our (same harness, same input), not subject to ggml-baseline drift.
+- The gap to ggml NARROWED from ~9.3x to ~5.8x. **These gap ratios are APPROXIMATE**:
+  the two rows used slightly different ggml best-of-min baselines (6355 vs 6766 ns,
+  ggml's own run variance), so the gap numbers mix baselines — read them as "the
+  remaining gap roughly halved," not as an exact 9.3→5.8.
+- **This is NOT parity** (advisor-locked expectation was maturity/gap-closing, not a
+  tie and NOT "we beat ggml"). We adopted ggml's exact hardware gather (`vluxei16`,
+  objdump-confirmed, byte-exact).
+- Note: iq1_m's residual is LARGER than iq1_s's 2.3x. This is NOT a regression vs
+  iq1_s — it's a different kernel with more non-gather machinery (see below). Do NOT
+  cross-compare the two residuals as if same-axis; each is "ours vs ggml on THAT
+  kernel."
+- Defensible claim: **"we now emit the same hardware indexed gather ggml uses
+  (`vluxei16`, byte-exact-correct); the iq1_m kernel is 1.50x faster and the
+  remaining gap to ggml roughly halved (~9.3x → ~5.8x)."**
+
+### Why the residual is larger than iq1_s's 2.3x (honest mechanism — NOT "vluxei16")
+The gather instruction is now identical to ggml's; the residual is everything else.
+iq1_m adds TWO iq1_m-specific residual sources over iq1_s (un-isolated — listed, not
+quantitatively ranked; isolating gather-width from delta would need an i64m2-gather
+variant, beyond this maturity scope):
+1. **Narrower gather + a reduce ggml avoids.** We gather 2 u64 = 16 i8 per
+   `vluxei16_v_i64m1` (m1) + one `vwredsum` per half. This is NARROWER than even
+   iq1_s's own gather (`i64m2`, 4 entries), and far narrower than ggml's iq1_m
+   `vluxei16_v_u64m4` (m4 = 4× our LMUL, 8 u64 = 64 i8), which `vget`-splits,
+   `vwmul i16m4` over 32 lanes, and accumulates via `vwmacc` with NO per-block
+   reduce (quants.c:3216-3239). So both more gather issue AND a reduce-per-half we
+   pay and ggml doesn't. (The narrower i64m1 was the shape-agnostic byte-exact
+   choice for the per-half scale split; an i64m2+vget variant is the named wider
+   follow-on.)
+2. **Scalar index assembly.** We keep the 4 index derivations + 4 `idxoff[]` stores
+   on the SCALAR unit (byte-exact-safe). ggml builds the whole index vector
+   in-register (`vzext`/`vsll`/`vor`/`vand` over u16m2, quants.c:3200-3203).
+3. **Per-group scalar/Σq8 delta path (iq1_m-SPECIFIC, untouched here).** Our delta
+   term is 4 per-group `vle8`/`vwredsum_i8m1` Σq8 reduces × scalar `delta[l]`. ggml
+   vectorizes the delta as a full ±1 `delta` vector (`vmsgtu` mask → `vmerge`) and
+   folds it with a second `vwmul i16m4`/`vwmacc` (quants.c:3207-3239) — no per-group
+   reduce. This path is grid-INDEPENDENT, so the gather change correctly does not
+   touch it. All three are named, scoped follow-ons (DESIGN step 2-wide /
+   vectorized-index / vectorized-delta), not regressions.
+
+## 5. Scope / honesty notes (iq1_m)
+- Compute-side micro only; e2e decode is memory-bound → NOT an e2e win, NOT claimed
+  (MEMORY: kernel-wins-dont-transplant-to-e2e).
+- Byte-exact gate is the correctness proof; tolerance micro is not.
+- No git commit (lead commits).
+- Staged on rvv: `~/vlux-iq1m/` (k_scalar/k_vlux/oracle, ours_scalar/ours_vlux/
+  harness/ggml_ref for micro).

@@ -39,8 +39,6 @@ module {
 // The function-scoped fp32 accumulator + the super-block count nb = n / 256.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// The grid byte view (NO kmask load -- the ternary grid is itself signed).
-// CHECK: cast %{{.*}} : {{.*}}const uint64_t{{.*}} to {{.*}}const int8_t
 // The outer super-block loop.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
 // The packed iq1m_scale reconstruction: the 4 scales[] words OR'd into a uint16 lvalue.
@@ -55,17 +53,31 @@ module {
 // CHECK: "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int32_t">>
 // The uint8 qh bytes + per-group delta sign.
 // CHECK: load %{{.*}} : <!emitc.opaque<"const uint8_t">>
-// The 11-bit grid index: (qh << sh) & 0x700 OR'd with the qs index byte.
+// The 11-bit grid index: (qh << sh) & 0x700 OR'd with the qs index byte, then
+// <<3 to a byte offset and stored into the uint16_t idxoff[4] scratch (the index
+// computation is KEPT byte-exact; the destination is now a byte-offset store).
+// CHECK: %[[IDXOFF:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<4x!emitc.opaque<"uint16_t">>
 // CHECK: bitwise_left_shift %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
-// The GRID lookup: indexed pointer arith (grid_i8 + idx*8) then vle8 (NO sign apply).
+// CHECK: cast %{{.*}} : !emitc.opaque<"int"> to !emitc.opaque<"uint16_t">
+// The per-group Sum(q8) reduce (the delta term -- bsums unusable; grid-independent,
+// stays per-group on vle8/i8m1).
 // CHECK: call_opaque "__riscv_vsetvl_e8m1"
 // CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// The signed widening grid product + reduce.
-// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
-// The per-group Sum(q8) reduce (the NEW delta term -- bsums unusable).
 // CHECK: call_opaque "__riscv_vwredsum_vs_i8m1_i16m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i16m1_i16"
+// The grid table base cast to (const int64_t *) for the indexed gather (ggml's
+// (const int64_t *)iq1s_grid; NO kmask -- the ternary grid is itself signed).
+// CHECK: cast %{{.*}} : {{.*}}const uint64_t{{.*}} to {{.*}}const int64_t
+// The vluxei16 HARDWARE indexed grid gather, per HALF: vle16 mf4 index (EMUL
+// (16/64)*1 = 1/4) -> vluxei16_v_i64m1 (2 u64 entries) -> reinterpret i8m1 (16
+// ternary bytes) -> vle8 the 16 q8 -> vwmul i16m2 -> ONE vwredsum per half.
+// CHECK: apply "&"
+// CHECK: call_opaque "__riscv_vle16_v_u16mf4"
+// CHECK: call_opaque "__riscv_vluxei16_v_i64m1"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i64m1_i8m1"
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // The per-super-block fold: ONE expression d*((float)sumi1 + 0.125f*(float)sumi2).
 // CHECK: expression : !emitc.opaque<"float">
 // CHECK: cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
