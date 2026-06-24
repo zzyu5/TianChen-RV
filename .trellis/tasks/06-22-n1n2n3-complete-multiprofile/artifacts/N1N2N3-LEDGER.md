@@ -458,6 +458,23 @@ Win-B (vs ggml's own shipped RVV kernel), N1-coverage, N2-IME, and N3-VLEN-strip
 > hand-tuned `_vl128` (q4_K) it loses. The fix is a measured-best PATH selection {repack, block-dot} (decline
 > where losing = match ggml = a correct SELECTION, NOT a Win-B). Authoritative: `SHAPE-AWARE-REPACK-TUNE-DESIGN.md`.
 
+> **CORRECTION #2 (architectural, 2026-06-24, `path-selection-tune-DESIGN.md`):** the "build the PATH selection as
+> an in-compiler route-materialization gate" plan is **NOT VIABLE as a compiler novelty** — two confirmed blockers.
+> (1) The repack-vs-block-dot path is committed by **op identity in the INPUT IR, upstream of the compiler** (distinct
+> ops, distinct `kind`, **distinct weight layouts** — repack `block_q4_0x16` stride 288 +nc vs block-dot `block_q4_0`
+> stride 18); `RVVVectorSourceFrontDoor.cpp` only materializes *elementwise* RVV-vs-scalar ops, never sees contraction
+> ops, can't synthesize the layout-incompatible sibling. (2) `RVVScheduleDescriptorRegistry` is one-key→one-shape
+> (the single-algorithm **Win-A** axis); it **structurally cannot enumerate two algorithms**. The real gate is at the
+> **producer / weight-packing build harness** (declining must also stop pre-repacking the weights — a build/load
+> decision); a pure-MLIR pass is insufficient for e2e. In-compiler the selector is **AUDIT-ONLY** (a `contraction_algorithm`
+> note on the `low_precision_resource` mirror). **And the "q4_0@K1 0.74×→tie" is NOT a second novelty:** declining =
+> matching what ggml already does (ggml gates its own 16x1 repack off there, `case 128: break`) = avoiding a
+> self-inflicted pessimization = engineering hygiene, NOT a win. **The real defensible e2e N3 result is the EXISTING
+> q4_0@128 repack WIN (2.6×); selection-on-top is only "know when NOT to apply it" (build-side, loss-avoidance).**
+> This is an honest NEGATIVE architectural finding (the valuable deliverable). The path-selection BUILD is a user fork:
+> option-1 honest-characterization (table→build-harness + audit field, modest) vs option-2 genuine compiler ownership
+> (a new un-committed abstract contraction op + move weight-packing INTO the compiler, multi-day+) — escalated, not defaulted.
+
 
 The two new repack GEVMs this session — **q8_0** and **q4_K** — are both **correct** (oracle-verified: q8_0
 byte-exact, q4_K WORST_NORM 7.07e-7 with 2 negative controls) but both **LOSE to ggml's VLEN128-native
@@ -504,9 +521,12 @@ VLEN≥256 register; on VLEN128 RVV1.0 it runs the fractional mf2 / 8-lane 2-str
 hand-tuned VLEN128-native kernels. (2) The M=4 weight-decode amortization is **real and measurable** (q4_K
 0.47-0.66 → 0.59-0.89) but insufficient to overcome the strip-split. (3) VLEN256/K1 is **tie-likely** (ggml
 routes its own hand-tuned repack there). **So q4_K/q8_0 = correct kernel EXPANSION with NO VLEN128 perf win in
-ANY regime.** The FIX is a **shape-aware repack tune**: emit a VLEN128-native variant (not the VLEN256-shaped
-block-as-lane) or have the selector DECLINE the repack at VLEN128 — a new capability/resource-aware cost-model
-pass. **That pass is the N3 next-session headline**; this 2×2 is the evidence that justifies its design.
+ANY regime.** The FIX is to have the selector DECLINE the repack where it loses (= match ggml) — but per
+CORRECTION #2 above, that selection is **NOT an in-compiler pass** (the path is committed upstream by op identity +
+weight layout; the registry is single-algorithm). It is a **producer/build-harness** decision the compiler can only
+**audit**, and declining = matching ggml = loss-avoidance hygiene, NOT a novelty. This 2×2 remains valid evidence
+that always-repack is the wrong static default; whether to BUILD the selector (option-1 characterization vs option-2
+genuine compiler ownership) is an **escalated user fork**, not a headline I assert.
 
 ## 9. Block-dot single-kernel coverage — MATURITY (all correct) + 2 named emitter targets (2026-06-24)
 

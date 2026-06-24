@@ -1,5 +1,16 @@
 # Shape-aware repack tune — design + honest verdict (2026-06-24); CORRECTS the §8/§8b "shape-mismatch" framing
 
+> **⚠ SUPERSEDED in part by `path-selection-tune-DESIGN.md` (2026-06-24): the "Option B = in-compiler
+> route-materialization gate in `RVVVectorSourceFrontDoor.cpp`, enumerated candidates via
+> `RVVScheduleDescriptorRegistry`" plan below is NOT VIABLE.** Inspection proved: (1) the repack-vs-block-dot path
+> is committed by **op identity + weight layout in the INPUT IR, upstream of the compiler** — the FrontDoor only
+> materializes elementwise RVV-vs-scalar ops, never sees contraction ops, can't synthesize the layout-incompatible
+> sibling; (2) the registry is one-key→one-shape (single-algorithm Win-A axis), **cannot enumerate two algorithms**.
+> The real gate is the **producer / weight-packing build harness**; in-compiler the selector is **AUDIT-ONLY**.
+> Declining = matching ggml (`case 128: break`) = loss-avoidance **hygiene, NOT a novelty**; the real e2e N3 win is
+> the EXISTING q4_0@128 repack 2.6×. Whether to build it (option-1 characterization vs option-2 compiler-ownership)
+> is an escalated **user fork**. The diagnosis below (competitor-strength × compute-density; the win/loss table) stands.
+
 **Headline correction (the 8th over-claim caught this session — mine):** the §8/§8b explanation that the
 block-as-lane repack "is VLEN256-shaped and DEGRADES to mf2/8-lane strips at VLEN128, strip-split overhead
 outweighing the removed vredsum" is **MECHANISTICALLY WRONG**. Two proofs:
