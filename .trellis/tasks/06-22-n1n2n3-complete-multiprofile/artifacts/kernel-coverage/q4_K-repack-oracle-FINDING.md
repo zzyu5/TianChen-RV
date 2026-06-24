@@ -115,3 +115,79 @@ SG2044). Emitted `.cpp` scp'd to rvv, compiled with `clang++-18 -O3 -march=rv64g
 - Caveat (carried from q4_1/q8_0): the SG2044 binutils `objdump` does not decode RVV vector mnemonics
   (emits `.word`), so no binary vsetvli histogram. Correctness is established by the independent-ref
   norm + the two quantified negative controls, which is the gate that matters here.
+
+---
+
+# q4_K repack GEVM — Win-B·micro (algorithm-change contribution, vs ggml's REAL RVV kernel)
+
+**Date:** 2026-06-24. **Provenance:** `ssh rvv` (Sophgo SG2044, RVV1.0, **VLEN128**, 64 cores),
+clang18 (`-O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast`), `taskset -c 0`, best-of-reps min.
+Per N3-METHODOLOGY: **Win-B baseline = ggml's OWN shipped RVV kernel, NOT scalar/naive.**
+
+## THE BASELINE (methodology-correct — ggml's real VLEN128 RVV kernel)
+
+At VLEN128 ggml does **NOT** route q4_K through its repack: `repack.cpp:4619`
+`case 128: { break; } // TODO` → the q4_K x16 repack returns `nullptr` at VLEN128 (the
+`q4_K_16x1_q8_K` repack is VLEN256-only). So ggml falls back to the plain per-row block-dot
+`ggml_vec_dot_q4_K_q8_K`, which on this part dispatches (`quants.c:2068-2074`,
+`__riscv_vlenb()*8 == 128`) to **`ggml_vec_dot_q4_K_q8_K_vl128`** — a **hand-written RVV inline-asm
+kernel specifically for VLEN128** (`quants.c:1770`). That is ggml's real, optimized RVV path for
+this hardware, and is the methodology-correct Win-B baseline. (NOT `_vl256` — wrong VLEN, would
+miscompute; NOT `_generic`/scalar.) Lifted **verbatim** + a same-output GEVM loop (call `_vl128`
+`nc` times, one per output column, reading the **ORIGINAL pre-repack `block_q4_K`** weights — the
+same q4_K values our repack GEVM consumes, just in the un-repacked layout).
+
+## VERDICT — LOSS at all 4 shapes (reported honestly). ggml's `_vl128` is ~1.5–2.1× faster.
+
+The predicted "block-as-lane (16 cols across lanes, no per-block vredsum) beats per-row vredsum" win
+**does not materialize on VLEN128.** Same N3-gap class as the q4_K block-dot Win-B LOSS (0.583, see
+`kquant-winB-micro-FINDING.md`) — not a new finding.
+
+| shape (nc × n) | ours ns (min/3) | ggml `_vl128` ns (min/3) | **ratio (ggml/ours)** | agreement norm | verdict |
+|---|---:|---:|---:|---:|---|
+| 16 × 4096   |    19097.8 |  12443.9 | **0.628–0.652** | 1.814e-07 | LOSS (ggml ~1.6× faster) |
+| 16 × 11008  |    53966.0 |  35485.8 | **0.655–0.664** | 4.220e-07 | LOSS (ggml ~1.5× faster) |
+| 256 × 4096  |   321611.5 | 203311.1 | **0.629–0.636** | 3.502e-07 | LOSS (ggml ~1.6× faster) |
+| 256 × 11008 |  1198802.3 | 570912.9 | **0.468–0.476** | 3.621e-07 | LOSS (ggml ~2.1× faster) |
+
+`ratio = ggml_vec_dot_time / our_repack_time` (>1 ⇒ our repack FASTER = Win-B win; <1 ⇒ loss).
+**Ratio is the headline** — common-mode-cancelled and stable across 3 runs (spread <2% for the three
+smaller shapes, <2% for the largest). Absolute ns vary with the shared 64-core box's load (e.g.
+16×11008 ours_min swung 54k→140k across runs when the machine was loaded); the table reports
+**min-across-3-runs** absolutes, but the ratio is the stable invariant.
+
+## Fair-comparison check (the agreement norm — PASS)
+
+Both sides produce the **full nc-output vector** and are element-aligned (both indexed by output
+column `gcol`). `agreement = max|ours − ggml| / rms(ggml)` over the entire nc vector lands at
+**1.8e-07 … 4.2e-07** — same fp32-fold-order residual as the q4_K block-dot agreement (5.8e-7,
+`kquant-winB`); the integer dot is identical, only the f32 scale-fold order differs. This is a
+**genuinely fair same-output comparison**, not two layouts of one bug agreeing: ours reads the
+repacked `block_q4_Kx16`, ggml reads the **original** `block_q4_K` (pre-repack) — different layouts,
+same values, numerically identical results. Weight byte-footprint is identical too: `block_q4_Kx16` =
+2304 B = exactly 16 × 144 B (`block_q4_K`), so both stream the same ~1.58 MB of weight — no
+memory-traffic asymmetry. The comparison is, if anything, *generous to ours*: ggml eats `nc` function
+calls and re-reads the activation `nc` times, and still wins.
+
+## Why our repack GEVM loses here (probable cause — consistent with the oracle re-derivation note)
+
+Our q4_K repack GEVM is a **VLEN256-shaped 16-lane "block-as-lane" algorithm run via the fractional
+mf2 / `half_lanes=8` 2×8-lane-strip path** on VLEN128 (documented in the oracle FINDING above: RVV1.0
+leaves `integer_core_lmul` unset → the mf2 chain; ggml's own `q4_K_16x1_q8_K` repack "cannot even run
+correctly on this VLEN128 part"). The intended block-as-lane advantage needs 16 e32 column
+accumulators live in one vector register — which requires VLEN≥256; on VLEN128 they don't fit, so the
+lane-parallel form degrades to the 8-lane-strip path and loses to ggml's **VLEN128-native** hand-tuned
+`_vl128` (split hi/low nibble streams, `m2` widening redsum, lane-extract scale folds). This is a
+**capability/resource-aware-tune (N3 Gearbox) shape-mismatch gap** — the repack-GEVM *shape* is
+mismatched to VLEN128 — NOT a kernel-correctness problem (oracle PASS, WORST_NORM 7.07e-7 stands; the
+Win-B agreement norm re-confirms correctness against ggml's real kernel).
+
+## Win-B·micro artifacts
+- `q4_K-winB-micro.log` (on rvv `~/q4k-oracle-agent/`) — 3-run canonical log: 4-shape ratio table +
+  agreement norm per run.
+- `~/q4k-oracle-agent/winb_gemv_q4K.cpp` — the Win-B harness: oracle data-construction verbatim
+  (block builders + `make_block_q4_Kx16` repack + adversarial q8_K activation), `ggml_vec_dot_q4_K_q8_K_vl128`
+  lifted verbatim from `quants.c:1770` + a same-output GEVM loop over the original `block_q4_K`, best-of-reps
+  min timing of the full nc-vector for both sides.
+- Built: `clang++-18 -O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast -c {winb_gemv_q4K.cpp,k_gemv_q4K.cpp}`
+  then link → `winb_q4k`. (`restrict` in the lifted C body → `__restrict__` for C++; semantics identical.)
