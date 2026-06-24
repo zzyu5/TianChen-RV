@@ -474,3 +474,25 @@ repack (strong baseline, tie-likely) and the m1 path needs K1 oracle verificatio
 MOTIVATION**, VLEN128 decode **perf-NULL**, e2e-win path = unbuilt GEMM/prefill or VLEN256. The session's
 *measured* e2e wins remain the prior q4_0 repack (5.68× prefill / ~2.6× decode) and VLEN-strip (1.31× K1);
 those are the kernels that *can* win e2e and already do.
+
+### 8b. The shape-mismatch 2×2 (the N3 contribution — evidence the Gearbox must be SHAPE-aware)
+
+The q4_K GEMM (prefill) was built + oracle-verified CORRECT (7.05e-7, complete repack PAIR on the dominant
+quant) specifically to test whether the 6-bit unpack **amortizing over M=4 columns** wins where the GEVM lost.
+It does NOT — but it NARROWS the gap, and the resulting 2×2 is the cleanest motivation for a shape-aware
+repack tune we have (all vs ggml's OWN VLEN128 kernels, ratio = ggml/ours, <1 ⇒ our repack LOSES):
+
+| kernel | decode (GEVM, single col) | prefill (GEMM, M=4 cols, unpack amortized) |
+|---|---|---|
+| **q8_0** repack | **0.59–0.66×** LOSS | (GEMM not built) |
+| **q4_K** repack | **0.47–0.66×** LOSS | **0.59–0.89×** LOSS (amortization narrows, does NOT cross 1.0) |
+
+**Reading:** (1) Every compiler-emitted block-as-lane repack GEVM/GEMM **LOSES at VLEN128** — correctness-clean
+(oracle PASS), the loss is purely the **N3-Gearbox shape mismatch**: a 16-lane block-as-lane wants one
+VLEN≥256 register; on VLEN128 RVV1.0 it runs the fractional mf2 / 8-lane 2-strip path and loses to ggml's
+hand-tuned VLEN128-native kernels. (2) The M=4 weight-decode amortization is **real and measurable** (q4_K
+0.47-0.66 → 0.59-0.89) but insufficient to overcome the strip-split. (3) VLEN256/K1 is **tie-likely** (ggml
+routes its own hand-tuned repack there). **So q4_K/q8_0 = correct kernel EXPANSION with NO VLEN128 perf win in
+ANY regime.** The FIX is a **shape-aware repack tune**: emit a VLEN128-native variant (not the VLEN256-shaped
+block-as-lane) or have the selector DECLINE the repack at VLEN128 — a new capability/resource-aware cost-model
+pass. **That pass is the N3 next-session headline**; this 2×2 is the evidence that justifies its design.
