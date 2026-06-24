@@ -82,3 +82,143 @@ rvv oracle finds garbage, check those byte formulas FIRST (esp. `gsub*8+m / gsub
 - `lib/Conversion/RVV/RVVToEmitC.cpp` — dispatch entry + `isRepackGemmQ4KQ8KBody` recognizer.
 - `lib/Conversion/RVV/RVVToEmitCInternal.h` — 2 decls.
 - `test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir` — structural lit (CHECK+NOWALL PASS).
+
+---
+
+# q4_K x q8_K 16x1-REPACKED PREFILL GEMM — numeric oracle (M=4 rows, mf2/VLEN128) — FINDING
+
+**Date:** 2026-06-24. **Provenance:** `ssh rvv` (Sophgo SG2044, RVV1.0, **VLEN128**, 64 cores),
+clang18 (`-O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast`), `taskset -c 0`.
+This is the GATING correctness step for the q4_K repack **GEMM** emitter
+`tcrv_rvv.repack_gemm_q4_K_q8_K` (committed on main `02c41f4d`, structurally complete but
+numerically UNVERIFIED). Methodology per `N3-METHODOLOGY.md`: this is a CORRECTNESS check (norm).
+
+## VERDICT — PASS (correct). The q4_K GEMM emitter is now NUMERICALLY VALIDATED.
+
+The compiler-emitted `tcrv_emitc_..._ggml_repack_gemm_q4_K_q8_K` matches an INDEPENDENT scalar
+q4_K dequant-MATMUL reference (M=4 activation rows × nc weight columns) within fp32 rounding across
+**all 8 shapes**. **WORST_NORM = 7.05e-7**, bar = norm < 1e-4. This upgrades the GEMM from
+"structurally complete, numerically UNVERIFIED" to "**correct**." No kernel code modified; the kernel
+is the frozen on-main emit (`tcrv-opt … --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp`).
+
+| shape (nc × n) | max_abs_err | rms(ref) | **norm** | rel | verdict |
+|---|---|---|---|---|---|
+| 16 × 256    | 1.526e-05 | 6.419e+01 | **2.377e-07** | 3.87e-07 | PASS |
+| 16 × 4096   | 1.221e-04 | 3.049e+02 | **4.004e-07** | 2.58e-06 | PASS |
+| 16 × 11008  | 4.272e-04 | 6.750e+02 | **6.329e-07** | 1.33e-05 | PASS |
+| 32 × 256    | 1.526e-05 | 1.098e+02 | **1.389e-07** | 1.72e-07 | PASS |
+| 32 × 4096   | 1.221e-04 | 2.696e+02 | **4.527e-07** | 4.41e-06 | PASS |
+| 256 × 256   | 3.052e-05 | 7.859e+01 | **3.883e-07** | 1.16e-05 | PASS |
+| 256 × 4096  | 1.831e-04 | 3.794e+02 | **4.826e-07** | 2.84e-04 | PASS |
+| 256 × 11008 | 3.662e-04 | 5.198e+02 | **7.045e-07** | 6.37e-05 | PASS |
+
+Norm sits at ~1e-7 (same regime as the q4_K GEVM oracle ~7e-7) — the integer dot is exact; the only
+fp deltas are the fp16 d/dmin scale strips + the f32 block-fold vs the reference's double accumulation.
+`out` zero-init per trial → an unwritten element reads 0 vs ref ~O(60–680) and would spike the norm;
+norm ~1e-7 confirms the FULL M×nc output is correct, not spot-checked.
+
+## Oracle framing (independent reference; the GEMM-NEW axis = the 4-row interleave)
+
+Reference = INDEPENDENT scalar dequant-matmul from the **ORIGINAL pre-repack `block_q4_K`** weights,
+dotted PER-ROW with the per-row `block_q8_K` int8 quants (`−dmin·m` baked into each dequantized weight
+float, so the min/bsums correction is tested implicitly + exactly). The kernel reads the **INTERLEAVED
+`block_q8_Kx4`** activation (stride 1168); the ref reads the 4 per-row `block_q8_K` **directly and never
+de-interleaves** → a kernel de-interleave bug cannot agree. The decisive new axis vs the GEVM oracle is
+the **4-ROW INTERLEAVE**: we build 4 DISTINCT per-row `block_q8_K` (distinct d + DC/qs per row) and
+interleave into `block_q8_Kx4` via ggml's VERBATIM index math (`ggml_quantize_mat_q8_K_4x1`,
+repack.cpp:90: `m=j%4, e=j/4; qs_x4[j]=row[m].qs[e]; index=((j>>6)<<2)+(j&3); bsums_x4[index]+=…`).
+The byte ABI is exactly the FINDING handoff: act-qs `al+16+gsub*128+i*4+m`, act-bsums
+`al+1040+(gsub*8+m)*2 / +(gsub*8+m+4)*2`, act-d `al+m*4` (fp32), store `s[(y*4+m)*bs + x*16 + j]`.
+
+## Why the PASS is a TRUSTWORTHY gate — THREE negative controls, all spike hard (shape 256×4096)
+
+Each control perturbs the REFERENCE; the resulting norm-vs-kernel SPIKE proves the corresponding
+kernel structure is genuinely exercised (the correct test would catch that class of kernel bug):
+
+- **bsums diagnostic:** q8_Kx4 `mean|bsum| = 183.1, max|bsum| = 714` (nonzero → min term active).
+- **NOMIN** (zero the min term in ref): norm **1.71e-1** → min/bsums path exercised at **354,886×** the
+  true-ref norm. A min-term sign/index bug spikes at ~1e-1, far above the 1e-4 bar.
+- **PERM** (rotate per-sub-block 6-bit scale +1 in ref): norm **1.93e0** → distinct-sub-block-scale
+  pairing exercised at **4,005,994×**. A sub-block-offset ("every 8th element") bug spikes at ~2e0.
+- **ROWROT** (ref dots activation row `(m+1)%4`) — **the GEMM-new control for the 4-row interleave**:
+  norm **3.66e0** → the 4-row mapping is exercised at **7,578,336×**. A kernel that mis-mapped/swapped
+  the interleaved activation rows would match this perturbed ref, not the true one; it doesn't.
+
+So the ~1e-7 PASS is not "small because the test is weak" — the min term, the sub-block-scale teeth,
+AND the load-bearing 4-row activation interleave (the one thing no build/lit catches) are all driven at
+≥10⁵× margin, and the kernel still matches to fp-rounding.
+
+## Oracle artifacts
+- `q4_K-emit/oracle_gemm_q4K.cpp` — harness (independent scalar dequant-matmul ref, `make_block_q4_Kx16`
+  + `make_block_q8_Kx4` verbatim interleave, 4-distinct-row builder, `--controls` mode w/ ROWROT).
+- `q4_K-emit/k_gemm_q4K.cpp` — the compiler-emitted GEMM kernel under test (frozen on-main emit).
+- On rvv `~/q4k-oracle-agent/`: same sources + `oracle_gemm_q4k` binary + `q4_K-gemm-oracle.log`.
+
+---
+
+# q4_K repack PREFILL GEMM — Win-B·micro (the decisive amortization test, vs ggml's REAL RVV kernel)
+
+**Date:** 2026-06-24. **Provenance:** `ssh rvv` (Sophgo SG2044, RVV1.0, **VLEN128**, 64 cores),
+clang18 (`-O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast`), `taskset -c 0`, best-of-reps min,
+3 runs. Per N3-METHODOLOGY: **Win-B baseline = ggml's OWN shipped RVV kernel, NOT scalar/naive.**
+
+## THE BASELINE (methodology-correct — ggml's real VLEN128 prefill fallback)
+
+At VLEN128 ggml does **NOT** route q4_K through its repack (`repack.cpp:4619` `case 128: break // TODO`
+→ nullptr; the `q4_K_16x1_q8_K` repack is VLEN256-only). So prefill falls back to the plain per-row
+block-dot `ggml_vec_dot_q4_K_q8_K`, which on this part is the hand-written RVV inline-asm
+**`ggml_vec_dot_q4_K_q8_K_vl128`** (`quants.c:1770`). For a prefill GEMM (M=4 rows) ggml has no GEMM,
+so it calls `_vl128` **M×nc times** — once per (row, output column) — re-streaming + re-decoding the
+weights M=4× (lifted **verbatim**, reads the **ORIGINAL pre-repack `block_q4_K`** weights + per-row
+`block_q8_K`, the same q4_K/q8_K values our GEMM consumes in the interleaved layout). Both sides produce
+the **full M×nc output**; the agreement norm over the entire M×nc vector confirms a fair same-output
+comparison (NOT two layouts of one bug agreeing — ours reads `block_q4_Kx16`+`block_q8_Kx4`, ggml reads
+the originals + per-row q8_K).
+
+## VERDICT — LOSS at all 4 shapes (reported honestly). The amortization does NOT win.
+
+**The HYPOTHESIS — ours decodes each weight group's 6-bit unpack + nibbles ONCE and reuses it across
+the 4 activation rows (ggml re-decodes M=4×), so the GEMM wins where the GEVM lost — DOES NOT
+materialize on VLEN128.** ggml's `_vl128` is ~1.1–1.7× faster. ratio = ggml/ours (>1 ⇒ ours faster).
+
+| shape (nc × n) | ours ns (min/3) | ggml `_vl128`×Mnc ns (min/3) | **ratio (ggml/ours)** | agreement norm | verdict |
+|---|---:|---:|---:|---:|---|
+| 16 × 4096   |   58138.3 |   51846.2 | **0.885–0.892** | 3.00e-07 | LOSS (ggml ~1.13× faster) |
+| 16 × 11008  |  164340.6 |  143534.6 | **0.870–0.873** | 2.99e-07 | LOSS (ggml ~1.15× faster) |
+| 256 × 4096  |  987729.9 |  813432.0 | **0.815–0.829** | 4.28e-07 | LOSS (ggml ~1.22× faster) |
+| 256 × 11008 | 3501102.5 | 2239889.5 | **0.588–0.640** | 5.90e-07 | LOSS (ggml ~1.6× faster) |
+
+**Ratio is the headline** — common-mode-cancelled, stable across 3 runs (the three smaller-ratio shapes
+spread <2%; the 256×11008 ratio swings 0.588–0.640 as the shared 64-core box loads, but stays a clear
+LOSS). Absolute ns vary with box load (e.g. 16×4096 ours swung 58k→98k across runs); the table reports
+**min-across-3-runs** absolutes, ratio is the stable invariant. Agreement norm 3e-7…5.9e-7 = same
+fp32-fold-order residual as the oracle — genuinely fair same-output comparison.
+
+## What the number says (honest read — it is a NARROWER loss than the GEVM, not a win)
+
+The amortization is **real but insufficient on VLEN128**. The GEMM ratio (0.59–0.89) is materially
+BETTER than the q4_K GEVM Win-B loss (0.47–0.66, same hardware): the M=4 weight-decode + weight-traffic
+amortization does close part of the gap — most at the small shapes (0.87–0.89 at nc=16) and least at
+the large compute-bound shape (0.59 at 256×11008, where ggml's VLEN128-native hand-tuned asm pulls
+furthest ahead). But it never crosses 1.0. Root cause is unchanged from the GEVM Win-B
+(`q4_K-repack-oracle-FINDING.md`): our block-as-lane form is **VLEN256-shaped** (16 e32 column
+accumulators want one vector register, which needs VLEN≥256); on VLEN128 RVV1.0 leaves
+`integer_core_lmul` unset → the fractional **mf2 / half_lanes=8 2×8-lane-strip** path, which loses to
+ggml's VLEN128-native `_vl128` (split hi/low nibble streams, m2 widening redsum, lane-extract scale
+folds). This is an **N3 Gearbox capability/resource-aware-tune SHAPE-MISMATCH gap** (the repack-GEMM
+*shape* is mismatched to VLEN128), **NOT a kernel-correctness problem** — the oracle PASS
+(WORST_NORM 7.05e-7) stands and the Win-B agreement norm re-confirms correctness against ggml's real
+kernel. Contrast q4_0, whose GEMM **won 6.36×**: q4_0's simpler block (no 6-bit super-block scale/min
+unpack, no per-sub-block fold) maps cleanly to the VLEN128 strip; the q4_K super-block structure does
+not. **Consistent with the campaign-central finding (memory): compute-bound kernel microbench wins
+don't always materialize, and here the amortization that should help is throttled by the VLEN128 shape
+mismatch.** Reported as a KERNEL MICROBENCH (not an e2e claim).
+
+## Win-B·micro artifacts
+- `q4_K-emit/winb_gemm_q4K.cpp` — Win-B harness: oracle data construction verbatim (distinct weights +
+  4 distinct rows + `make_block_q4_Kx16`/`make_block_q8_Kx4` interleave), `ggml_vec_dot_q4_K_q8_K_vl128`
+  lifted verbatim from `quants.c:1770` + an M×nc same-output GEMM loop over the originals, best-of-reps
+  min timing of the full M×nc output for both sides.
+- On rvv `~/q4k-oracle-agent/`: `winb_gemm_q4k` binary + `q4_K-gemm-winB-micro.log` (3-run canonical log).
+- Built: `clang++-18 -O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast -c {winb_gemm_q4K,k_gemm_q4K}.cpp`
+  then link → `winb_gemm_q4k`. (`restrict` in the lifted C body → `__restrict__` for C++; semantics identical.)
