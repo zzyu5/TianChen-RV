@@ -126,6 +126,14 @@ Provenance: `N1N2N3-LEDGER.md` §2.1/2.2; `k1-vlen256/q8_0-paired-rvv128-k1256.l
 > 5–22× (worst iq3_xxs). A CONCRETE emitter lowering target (lower IQ grid/sign gather to vluxei16+vrgather),
 > not a tune. **Block-dot coverage now ~17 kernels: ALL emit CORRECT (maturity ✓); 2 micro-WINS (q2_K, iq4_nl —
 > gather); rest LOSE to ggml's wide-LMUL (compute-bound) or vluxei16 (IQ-gather) — both named emitter targets.**
+> **FP4 family DONE (`fp4-coverage-FINDING.md`) — coverage now spans ALL quant families (K/standard/IQ/ternary/FP4):**
+> mxfp4_q8_0 **bit-exact** (rel-norm 0.0 vs ggml's REAL `_vl128`, incl. the new E8M0 denormal branch) **1.20–1.22×
+> WIN** — IDENTICAL mechanism to iq4_nl (split 16-lane `vrgather` over the 16-entry codebook fills VLEN128 i8m1,
+> beats ggml's 32-lane i8m2). nvfp4_q8_0 **bit-exact** but **0.57× = vector-vs-SCALAR** (ggml ships NO RVV nvfp4
+> kernel → N/A, not a real loss; nvfp4's 16-elem sub-blocks force sub-VLMAX 8-lane strips). **3rd micro-WIN
+> (q2_K, iq4_nl 1.32×, mxfp4 1.21×) → the rule HOLDS: register `vrgather` over a tiny ≤16-entry FP4 codebook at
+> the VLEN-native 16-lane shape WINS; the win generalizes WITHIN the tiny-codebook bucket, NOT to large IQ grids
+> (those are an indexed-memory `vluxei16` PARITY target, a distinct mechanism — advisor-locked, over-claim #9).**
 
 ### 1f. Emit-only kernel families (no togglable Win-A; not wired; grouped per inventory)
 
@@ -138,7 +146,7 @@ genuinely **N/A (hard-pinned / emit-only)**. Win-B is per-op-vs-ggml but **micro
 | **K-quant block-dots** q6_K/q4_K/q5_K/q2_K/q3_K (+aux32) | **N/A** emit-only — *but* q4_K Win-A knob = **emitter parametrization** (deferred, scoped): fixed-m2 emit IS why Win-B loses to ggml `_vl256` `[commit 79db10f0]` | **MEASURED, MIXED** vs ggml's OWN `_vl256` (K1 VLEN256, norm 5e-7..3e-6): q2_K **WIN 1.016×**, q5_K **TIE 0.998×**, q4_K **LOSS** (ggml 1.72×), q6_K **LOSS** (ggml 2.26×), q3_K **LOSS** (ggml 2.13×) — single-LMUL `_generic` fp-order port vs ggml's hand-tuned nibble-split `[commit d27c512a]` | **GAP** not-wired (no §7 e2e row) | NONE (§4.4) |
 | **IQ-quant block-dots** iq4_xs/iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m | **N/A** emit-only | vs per-op `ggml_vec_dot_iq*_q8_K` — **GAP** | **GAP** not-wired | NONE (§4.4) |
 | **Ternary block-dots** tq2_0/tq1_0 | **N/A** emit-only | vs `ggml_vec_dot_tq{2,1}_0_q8_K` — **GAP** | **GAP** not-wired | NONE (§4.4) |
-| **FP4-codebook block-dots** iq4_nl/mxfp4/nvfp4/q1_0 | **N/A** — `coreLmul` read in emitter but **no pass stamps it** (attr-present-not-selected) | vs per-op ggml (q1_0 not mainline → nominal) — **GAP** | **GAP** not-wired | NONE (§4.4) |
+| **FP4-codebook block-dots** iq4_nl/mxfp4/nvfp4/q1_0 | **N/A** — `coreLmul` read in emitter but **no pass stamps it** (attr-present-not-selected) | **MEASURED @VLEN128 (`fp4-coverage-FINDING.md`):** iq4_nl **1.32× WIN**, mxfp4 **1.21× WIN** (both bit-exact vs ggml's real `_vl128`; tiny-codebook `vrgather`); nvfp4 bit-exact but **N/A** (ggml ships no RVV nvfp4 kernel — vs-scalar 0.57×) | **GAP** not-wired (micro-only; compute-side → e2e NULL for decode by the memory wall) | NONE (§4.4) |
 | **Forward-pass hard-pinned** silu / softmax / quantize_row_q8_0 / rope_norm (fixed f32m2) | **N/A** hard-pinned (no `strip_lmul` knob) | **N/A** bit-identical reimpl of the ggml fn (same algorithm) | **GAP** not-wired | NONE (§4.4) |
 | **q4_0 GEMM-tile** (`q4_0_q8_0_gemm_tile`) | **N/A** — no own knob; composes the parent GEMM's M-knob | M× `ggml_vec_dot_q4_0_q8_0` (algorithm = shared weight decode) — building block, superseded e2e by repack | **GAP** (no standalone row) | NONE (§4.4) |
 

@@ -525,3 +525,27 @@ hard IQ codebook/sign/grid decodes — no string-matching, no emitter bug.** Mic
 Both are **emitter codegen maturity targets** (would turn losses→ties/wins), distinct from the N3 repack
 path-selection tune (§8b). They are the concrete "continue maturing the compiler" next-work the block-dot
 coverage surfaced — measured, correctness-gated, honest.
+
+### 9.1 FP4 family closes the sweep — coverage now spans ALL quant families (2026-06-24, `fp4-coverage-FINDING.md`)
+- **mxfp4_q8_0**: bit-exact (rel-norm 0.0) vs ggml's REAL `_vl128` (incl. the new E8M0 `x<2` denormal branch),
+  **1.20–1.22× WIN** — the iq4_nl mechanism reproduces (split 16-lane `vrgather` over the 16-entry e2m1 codebook
+  fully fills the VLEN128 i8m1 register, beats ggml's 32-lane i8m2 gather).
+- **nvfp4_q8_0**: bit-exact (rel-norm 0.0, incl. UE4M3 specials + exp==0 denormal, probe-hit) but **0.57× =
+  vector-vs-SCALAR** — ggml ships NO RVV nvfp4 kernel (arch maps generic→real), so generalization is **N/A, not a
+  meaningful loss**; nvfp4's 16-elem sub-blocks force sub-VLMAX 8-lane gather strips + scalar `ldexpf`.
+- **3rd micro-WIN of the session (q2_K, iq4_nl 1.32×, mxfp4 1.21×).** The rule HOLDS and is now bucket-scoped
+  (advisor-locked, over-claim #9 averted): *register `vrgather` over a tiny ≤16-entry FP4 codebook at the
+  VLEN-native 16-lane shape WINS* — generalizes WITHIN the tiny-codebook bucket, **NOT** to the large IQ grids
+  (those are an indexed-MEMORY `vluxei16` **PARITY** target — a different instruction class, a different story).
+
+### 9.2 Both emitter targets now SCOPED with first-kernel build plans (2026-06-24)
+- **vluxei16 IQ-gather** (`vluxei16-iq-gather-DESIGN.md`): FEASIBLE per-kernel revectorization onto the existing
+  `riscvIndexedMemoryIntrinsicName("vluxei",16,…)` name-builder (RVVToEmitCSupport.cpp:191). **First = iq1_s** (no
+  sign-plane; ggml's `__riscv_vluxei16_v_i64m4`, quants.c:2800, index fits u16). The **iq2 family is BLOCKED** on a
+  `keven_signs_q2xs` (signs64) table the op doesn't carry → correctly a separate task. **Expected outcome = PARITY**
+  (we adopt the SAME hardware gather ggml uses → tie = the maturity result, 5–22× gap closed), micro-only,
+  **e2e NULL for decode** (compute-side fix, memory wall) — NOT a "we beat ggml" claim.
+- **wide-LMUL K-quant** (`wide-lmul-kquant-DESIGN.md`): FEASIBLE — add one `integer_core_lmul` attr (legal
+  {mf2,m1,m2}, m2 ceiling: register-group + sub-block boundary), thread it mirroring the proven repack `coreLmul`,
+  Region-C MAC needs an oracle-gated integer fold-back-to-8 (the only novel correctness piece). **First = q4_K**
+  (shared `emitQ4_KSuperBlockAux32Core` AUTO-covers q5_K). This is the deferred q4_K Win-A knob, finally scoped.
