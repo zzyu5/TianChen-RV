@@ -1,3 +1,13 @@
+> **SUPERSEDED (2026-06-25):** the **5.51× kernel number below is INVALID** — it measured the IME
+> against a FORBIDDEN hand-rolled `vwmacc`+`vredsum` i8 baseline, not ggml's shipped RVV kernel. The
+> honest, **compiler-controlled** re-baseline against ggml's REAL shipped RVV `ggml_vec_dot_q4_0_q8_0`
+> (the literal clang-18 `quants.c.o` object, same Q4_0×Q8_0 op, NMSE-vs-oracle gate, `vmadot`
+> objdump-confirmed) is **5.66× at M=1 (rising to ~12.9× with GEMM blocking)** and is the defensible
+> figure. See **`IME-PERF-REBASELINE-FINDING.md`**. (A first re-cut read 14.3×, but that mixed GCC for
+> the RVV arm with clang for the IME arm — a compiler confound; with both arms clang the honest number
+> is 5.66×.) The control there shows ggml's shipped Q4_0 kernel is 2.35× slower than the hand-rolled
+> i8 (its per-block-reduce wall). The §E2E section below (0.86–0.98× NULL) remains valid.
+
 # IME vs RVV int8 matmul — kernel speedup on real K1 (Spacemit X60)
 
 **Date:** 2026-06-23
