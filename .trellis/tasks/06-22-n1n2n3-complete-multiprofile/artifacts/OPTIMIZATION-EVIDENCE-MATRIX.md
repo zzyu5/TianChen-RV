@@ -113,6 +113,14 @@ Provenance: `N1N2N3-LEDGER.md` §2.1/2.2; `k1-vlen256/q8_0-paired-rvv128-k1256.l
 | **IME matmul** (`tcrv_ime.mma`, `vmadot`) | **N/A** — no LMUL/strip/repack knob; the 4×4×8 MAC fragment is **VLEN-DERIVED** (`deriveIMEMatmulCapability`), an N1 capability hook, not an ablatable tune | (see e2e) | **N2-demonstration 5.51×** · vs a *competent RVV vector matmul* (`vwmacc`+`vredsum`) — NOT ggml-shipped, NOT scalar, NOT tune-on/off → neither a clean Win-A nor Win-B · K1 X60 256³ int8, both arms bit-exact `[n2-ime/IME-PERF-FINDING.md]` | **NULL — decode AND prefill** — orig-lib: tg16 0.86× / pp32 0.98× (lib-swap, IME ENGAGED) vs non-IME 1×16 RVV · K1 tinyllama-1B Q4_0 · matrix unit can't help memory-bound M=1 decode. **Prefill probe** (reconstructed clang IME lib, pp256–1024): apparent 1.37–1.95× is a BUILD-CODEGEN artifact, NOT the IME unit — the **decode control** (tg16 1.25× in M=1, where the matrix unit physically CAN'T help) isolates it to global clang `-fno-integrated-as`/ZVFH codegen; ratio DECAYS with M (inverse of a matmul win). Clean isolation needs a SPACEMIT=OFF same-toolchain arm. **[MEASURED-NULL]** `[n2-ime/IME-PREFILL-PROBE.md]` | NONE (§4.4) |
 | **N2 zero-core-branch emission** (the *proven* N2 claim) | — | — | not a perf cell: compiler-emitted vmadot runs **bit-exact 16/16** on real X60, **zero core family-name branch** (I3 verified), capability-FACT gated on `spacemit.ime` `[n2-ime/PLUGIN-SLICE.md, FOUNDATION.md]` | — | NONE |
 
+> **BLOCK-DOT COVERAGE MEASURED (2026-06-24, `blockdot-coverage-FINDING.md`):** 5 more emit-only block-dots
+> verified CORRECT vs ggml's own RVV kernel (maturity ✓, all bit-exact / fp-fold-order) + micro-timed @VLEN128:
+> q5_0 **0.26×** LOSS, q5_1 **0.29×** LOSS, **iq4_nl 1.32× WIN** (gather-heavy FP4 — our split 16-lane vrgather
+> beats ggml's 32-lane), tq2_0 **0.60×** LOSS, tq1_0 **0.44×** LOSS. Same-algorithm our-emit-vs-ggml (maturity+
+> micro, NOT a Win-B algorithm change). **Refined N3 pattern: GATHER-heavy kernels WIN (iq4_nl, q2_K — our
+> narrower split-gather); COMPUTE-bound LOSE (ggml's wider fused m2/m4 LMUL).** IQ-quants (iq2/iq3) are also
+> gather-heavy → likely wins, being measured.
+
 ### 1f. Emit-only kernel families (no togglable Win-A; not wired; grouped per inventory)
 
 These carry **no `TunableScheduleOpInterface`** and **no `lookupRVVScheduleDescriptor` case** → Win-A is
