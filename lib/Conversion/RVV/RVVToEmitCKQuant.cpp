@@ -782,7 +782,8 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
     int64_t qk = cx.subBlock * cx.numSubBlocks; // 256
-    int64_t quarter = cx.quarter;               // 8
+    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
+    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
@@ -1049,7 +1050,9 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     // Region-C MAC chain callees keyed off the integer_core_lmul anchor
     // (cx.l8/l16/l32). At the default mf2 -> m1 -> m2 these render the exact
     // legacy callee strings (vmv_v_x_i32m2 / vsetvl_e8mf2 / vle8_v_i8mf2 /
-    // vwmul_vv_i16m1 / vwmacc_vx_i32m2).
+    // vwmul_vv_i16m1 / vwmacc_vx_i32m2) with vl == stripWidth == 8. At m1/m2 the
+    // running aux32 is the WIDE vint32<l32> over stripWidth lanes (16/32); the
+    // fold-back (Region-C tail) collapses it to the canonical 8 before Region F.
     std::string aux32SeedCallee = ("__riscv_vmv_v_x_i32" + cx.l32).str();
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, aux32SeedCallee));
@@ -1057,9 +1060,9 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
         rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
     mlir::Value aux32Zero =
         rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{cx.i32m2Type},
-                                         aux32SeedCallee,
-                                         mlir::ValueRange{zeroImm, sizeLit(8)})
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{cx.i32m2Type}, aux32SeedCallee,
+                mlir::ValueRange{zeroImm, sizeLit(cx.stripWidth)})
             .getResult(0);
     rewriter.create<emitc::AssignOp>(loc, aux32Var, aux32Zero);
 
@@ -1095,7 +1098,12 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
           rewriter.create<emitc::MulOp>(loc, cx.sizeType, js,
                                         sizeLit(cx.subBlock));
 
-      auto emitQuarter = [&](int64_t quarterOffset) {
+      // One MAC strip of cx.stripWidth elements at byte offset stripOffset into
+      // the sub-block: vsetvl_e8<l8>(stripWidth) -> two vle8 (q8 + aux8) ->
+      // vwmul i16<l16> -> vwmacc i32<l32> into the running (wide) aux32. At mf2
+      // stripWidth==8 == the legacy quarter, 4 strips/sub-block; at m1/m2 the
+      // strip is 16/32-wide (2/1 strips), writing the wide aux32's upper lanes.
+      auto emitStrip = [&](int64_t stripOffset) {
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, "sub_block_quarter"));
         std::string quarterSetvl = ("__riscv_vsetvl_e8" + cx.l8).str();
@@ -1103,14 +1111,14 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
             loc, stepComment(opName, role, quarterSetvl));
         mlir::Value vl8 =
             rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{cx.sizeType},
-                                             quarterSetvl,
-                                             mlir::ValueRange{sizeLit(quarter)})
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{cx.sizeType}, quarterSetvl,
+                    mlir::ValueRange{sizeLit(cx.stripWidth)})
                 .getResult(0);
         mlir::Value off = subBase;
-        if (quarterOffset != 0)
+        if (stripOffset != 0)
           off = rewriter.create<emitc::AddOp>(loc, cx.sizeType, subBase,
-                                              sizeLit(quarterOffset));
+                                              sizeLit(stripOffset));
         mlir::Value q8Ptr =
             rewriter.create<emitc::AddOp>(loc, cx.i8PtrType, q8Base, off)
                 .getResult();
@@ -1159,15 +1167,88 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
             loc, assignComment("aux32", opName, role));
         rewriter.create<emitc::AssignOp>(loc, aux32Var, aux32Next);
       };
-      emitQuarter(0);
-      emitQuarter(quarter);
-      emitQuarter(2 * quarter);
-      emitQuarter(3 * quarter);
+      for (int64_t s = 0; s < cx.numStrips; ++s)
+        emitStrip(s * cx.stripWidth);
     }
 
-    return Q4_KCoreResult{
-        llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32Var.getResult()),
-        scalesU8};
+    // ---- (C-tail) integer fold-back of the WIDE aux32 to the canonical 8 ----
+    // At mf2 (foldGroups == 1) the running aux32 IS already the canonical 8-lane
+    // vint32m2; nothing is emitted and the result is byte-identical to today. At
+    // m1/m2 the wide aux32 holds stripWidth = 16/32 lanes whose group-of-8
+    // residues must be summed: aux32_8[l] = Sum_k aux32_wide[l + 8*k], k in
+    // [0,foldGroups). Integer add is associative/order-free, and within each
+    // strip the per-sub-block `scale` was folded in during the vwmacc (constant
+    // across the lanes being summed) -- so this regroup is provably bit-exact at
+    // every legal LMUL (DESIGN sec 0). Emitted REGISTER-ONLY via vget (extract
+    // the k-th 8-lane m2 subgroup from the wide register group) + vadd -- NO
+    // memory spill (the per-super-block round-trip a vse/vle pair would cost),
+    // keeping the canonical 8-lane vint32m2 that Region F consumes.
+    mlir::TypedValue<emitc::LValueType> resultAux32Var =
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32Var.getResult());
+    if (cx.foldGroups > 1) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "aux32_fold_back_to_8"));
+      mlir::Value aux32WideVal =
+          rewriter.create<emitc::LoadOp>(loc, cx.i32m2Type, aux32Var).getResult();
+      // VLEN-AGNOSTIC regroup (the prior vget(.,k) form was VLEN128-ONLY): the
+      // k-th group occupies ELEMENT window [8*k, 8*k+8) of the wide register --
+      // NOT the k-th vget register-subgroup (whose lane count = LMUL*VLEN/SEW =
+      // VLEN/16 = 8 at VLEN128 but 16 at VLEN256, so vget(.,k) reads [16k,16k+16)
+      // and folds the WRONG lanes at VLEN256). We instead vslidedown the wide
+      // register by the LITERAL element offset 8*k (k = 1..foldGroups-1) so
+      // element 8*k+l lands at lane l, then vadd at vl==8 IN THE WIDE TYPE --
+      // both ops are element-indexed and so VLEN-correct at any VLEN. The final
+      // vget(.,0) extracts the low canonical 8-lane group (lanes [0,8), always
+      // correct -- the byte-exact Region-F type). Slide offsets max at 8*3=24 at
+      // m2 (reads [24,32) ⊂ [0,32), all written) -- never touches seed tail.
+      std::string slideCallee = ("__riscv_vslidedown_vx_i32" + cx.l32).str();
+      std::string wideAddCallee = ("__riscv_vadd_vv_i32" + cx.l32).str();
+      std::string getCallee = ("__riscv_vget_v_i32" + cx.l32 + "_i32m2").str();
+      mlir::Value foldWide = aux32WideVal; // k=0 group = lanes [0,8)
+      for (int64_t k = 1; k < cx.foldGroups; ++k) {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, slideCallee));
+        mlir::Value slid =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{cx.i32m2Type}, slideCallee,
+                    mlir::ValueRange{aux32WideVal, sizeLit(8 * k), sizeLit(8)})
+                .getResult(0);
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, wideAddCallee));
+        foldWide = rewriter
+                       .create<emitc::CallOpaqueOp>(
+                           loc, mlir::TypeRange{cx.i32m2Type}, wideAddCallee,
+                           mlir::ValueRange{foldWide, slid, sizeLit(8)})
+                       .getResult(0);
+      }
+      // vint32m2_t fold = __riscv_vget_v_i32<l32>_i32m2(foldWide, 0);  -- the low
+      // canonical 8-lane group (lanes [0,8)); the accumulated residues now live
+      // there. Subgroup 0 is the low lanes at every VLEN, so this extract is safe.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, getCallee));
+      mlir::Value zeroImm =
+          rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, "0");
+      mlir::Value fold =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc,
+                                           mlir::TypeRange{cx.i32Canon8Type},
+                                           getCallee,
+                                           mlir::ValueRange{foldWide, zeroImm})
+              .getResult(0);
+      // vint32m2_t aux32c = <fold>;  -- the canonical 8-lane accumulator the fp
+      // fold (Region F) consumes, replacing the wide aux32 lvalue.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, localVariableComment("aux32c", opName, role));
+      auto aux32cVar = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(cx.i32Canon8Type),
+          emitc::OpaqueAttr::get(ctx, ""));
+      rewriter.create<emitc::AssignOp>(loc, aux32cVar, fold);
+      resultAux32Var =
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
+    }
+
+    return Q4_KCoreResult{resultAux32Var, scalesU8};
   }
 
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
@@ -1399,6 +1480,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     llvm::StringRef l8 = coreLmul;                                        // base
     llvm::StringRef l16 = coreLmul == "m2" ? "m4" : (coreLmul == "m1" ? "m2" : "m1");
     llvm::StringRef l32 = coreLmul == "m2" ? "m8" : (coreLmul == "m1" ? "m4" : "m2");
+    // S3-S4: the Region-C MAC strip width follows l8 (the i8 base LMUL): mf2 is
+    // the 8-wide quarter strip (today, 4 strips/sub-block); m1 a 16-wide strip
+    // (2/sub-block); m2 a 32-wide strip (1/sub-block == the whole sub-block in
+    // one MAC). The wider strip writes the upper aux32 lanes, then the integer
+    // fold-back (Region C tail) collapses those foldGroups = stripWidth/8 lane
+    // groups back to the canonical 8 BEFORE the byte-exact fp fold (Region F),
+    // which stays 8-lane vint32m2_t forever.
+    int64_t stripWidth = coreLmul == "m2" ? 32 : (coreLmul == "m1" ? 16 : 8);
+    int64_t numStrips = subBlock / stripWidth; // 32/8=4, 32/16=2, 32/32=1
+    int64_t foldGroups = stripWidth / 8;        // 1 (mf2), 2 (m1), 4 (m2)
 
     // The integer-core vector types (shared with K4a via the context) + the fp32
     // fold types. The Region-A unpack types (u8m2/i8m2) are fixed at m2; the
@@ -1408,6 +1499,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
     mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
+    // The CANONICAL 8-lane integer accumulator type the wide aux32 folds back
+    // into and the fp fold (Region F) consumes -- ALWAYS vint32m2_t (8 lanes at
+    // SEW32, the byte-exact contract). At mf2 it equals i32m2Type (no widen).
+    mlir::Type i32Canon8Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
     mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
     mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
     mlir::Type i8PtrType =
@@ -1529,7 +1624,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
         u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
         activationPtrType, subBlock,  scalesOffset,  qsOffset,
         q8Offset,      numSubBlocks,  quarter,       coreLmul,
-        l8,            l16,           l32};
+        l8,            l16,           l32,           stripWidth,
+        numStrips,     foldGroups,    i32Canon8Type};
 
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
     rewriter.create<emitc::VerbatimOp>(
@@ -1670,8 +1766,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
           rewriter.create<emitc::MulOp>(loc, floatType, dx, dy).getResult();
 
       // vfloat32m2_t af = __riscv_vfcvt_f_x_v_f32m2(aux32, 8);
+      // The helper returns the CANONICAL 8-lane vint32m2 (the S4 fold-back
+      // collapses the wide aux32 at m1/m2; at mf2/q5_K it is the running aux32,
+      // same type) -- load it as i32Canon8Type (always vint32m2_t), NOT the wide
+      // i32m2Type (vint32<l32>), byte-identical at mf2 and type-correct at m1/m2.
       mlir::Value aux32Val =
-          rewriter.create<emitc::LoadOp>(loc, i32m2Type, aux32Var).getResult();
+          rewriter.create<emitc::LoadOp>(loc, i32Canon8Type, aux32Var)
+              .getResult();
       std::string cvtCallee = "__riscv_vfcvt_f_x_v_f32m2";
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, cvtCallee));
@@ -1879,6 +1980,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_KQ8_KBlockDot(
     mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, "vint8mf2_t");
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
     mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    // q5_K reuses the q4_K core only at the mf2 default this increment, so the
+    // canonical 8-lane type equals i32m2Type — passed directly into the cx
+    // struct init below (no separate local needed; the wide fold-back branch is
+    // unreached on the mf2/q5_K path).
     mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
     mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
     mlir::Type i8PtrType =
@@ -2002,6 +2107,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_KQ8_KBlockDot(
         // integer_core_lmul knob this increment) -- the Region-C chain stays
         // mf2 -> m1 -> m2, byte-identical to the legacy emit.
         /*coreLmul=*/"mf2", /*l8=*/"mf2", /*l16=*/"m1", /*l32=*/"m2",
+        // S3-S4 strip params at the mf2 default: 8-wide strip, 4 strips/sub-block,
+        // foldGroups=1 (no fold-back -- the legacy emitQuarter path runs). The
+        // canonical-8 type is unused on the mf2 path (the wide fold-back branch is
+        // unreached); pass i32m2Type (== canonical at mf2) to keep it non-null.
+        /*stripWidth=*/8, /*numStrips=*/4, /*foldGroups=*/1,
+        /*i32Canon8Type=*/i32m2Type,
         /*hasQh=*/true,
         /*qhOffset=*/qhOffset};
 
@@ -3372,7 +3483,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ3_KQ8_KBlockDot(
       mlir::Value d =
           rewriter.create<emitc::MulOp>(loc, floatType, dx, dy).getResult();
 
-      // vfloat32m2_t af = __riscv_vfcvt_f_x_v_f32m2(aux32, 8);
+      // vfloat32m2_t af = __riscv_vfcvt_f_x_v_f32m2(aux32, 8);  -- q3_K carries a
+      // PRIVATE inline aux32 (not the shared q4_K core's fold-back), so it loads
+      // its own 8-lane vint32m2_t i32m2Type unchanged (the integer_core_lmul knob
+      // does not reach this inline body this increment).
       mlir::Value aux32Val =
           rewriter.create<emitc::LoadOp>(loc, i32m2Type, aux32Var).getResult();
       std::string cvtCallee = "__riscv_vfcvt_f_x_v_f32m2";

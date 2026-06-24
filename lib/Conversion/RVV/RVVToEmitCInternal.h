@@ -1994,6 +1994,20 @@ private:
     llvm::StringRef l8 = "mf2";
     llvm::StringRef l16 = "m1";
     llvm::StringRef l32 = "m2";
+    // S3-S4 Region-C widen: the per-sub-block MAC strip width derived from l8
+    // (mf2 -> 8, m1 -> 16, m2 -> 32) and the resulting strip count over the
+    // 32-element sub-block (32/stripWidth = 4/2/1). foldGroups = stripWidth/8 is
+    // the number of canonical-8-lane groups the wide aux32 must be folded back
+    // into (1 at mf2 == no fold). i32Canon8Type is the CANONICAL 8-lane
+    // vint32m2_t the fold-back collapses into -- it is the byte-exact fp-fold
+    // (Region F) contract type and stays vint32m2_t at EVERY l8 (the wide aux32
+    // running type is cx.i32m2Type = vint32<l32>). At mf2 stripWidth==8,
+    // foldGroups==1, i32Canon8Type==i32m2Type, so the wide path is unreached and
+    // the legacy emitQuarter path runs byte-identically.
+    int64_t stripWidth = 8;
+    int64_t numStrips = 4;
+    int64_t foldGroups = 1;
+    mlir::Type i32Canon8Type;
     // The q5_K 5th-bit (qh high-bit-plane) injection, the ONLY q5_K vs q4_K
     // difference. When hasQh is false (q4_K), the core emits BYTE-IDENTICAL
     // nodes (no qh load, no inject). When true (q5_K), each unpacked nibble gets
