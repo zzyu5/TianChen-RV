@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
+- **Total Sessions**: 26
 - **Last Active**: 2026-06-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1366 | Active |
+| `journal-1.md` | ~1404 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-06-24 | q4_K repack GEVM CORRECT (oracle-verified, hardest kernel) banked as expansion+Gearbox-motivation; N2 clarity DELIVERED (showcase + live 4th IME op vmadotsu silicon-verified 16/16) | `0d5ebc5a`, `73244fae`, `ac66155e`, `70bb845a`, `a75adc27`, `ed0fb37e` | `main` |
 | 25 | 2026-06-24 | Kernel expansion: q8_0 repack GEVM landed (built/checked/merged + Win-A reconciled); q4_K repack foundation (op+verifier+ABI) on main + emitter scaffold banked | `24557f05`, `a3442997`, `d19c7abd`, `cc8551da`, `240f7221`, `abb0d317` | `main` |
 | 24 | 2026-06-24 | Win-C built→structural-NULL (decomposed); IME prefill NULL (codegen artifact); +2 methodology contracts to spec | `1adc631b`, `39eb9c48`, `e93a3b43`, `6c5a66f5`, `69d69c30`, `bca1fb12`, `518a6c36` | `main` |
 | 23 | 2026-06-23 | N1/N2/N3 perf phase: IME kernel 5.51x + e2e-null, q4_1 GEMM+2.47x, Fedora kernels exonerated, capstone {micro,e2e} matrix + memory-wall finding | `6c885916`, `f8a42258`, `051ebff1`, `f1753051`, `0b8c6168`, `1b4f582a` | `main` |

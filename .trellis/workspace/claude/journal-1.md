@@ -1364,3 +1364,41 @@ Expanded the RVV kernel set toward the dominant quants. q8_0 repack GEVM: BUILT 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: q4_K repack GEVM CORRECT (oracle-verified, hardest kernel) banked as expansion+Gearbox-motivation; N2 clarity DELIVERED (showcase + live 4th IME op vmadotsu silicon-verified 16/16)
+
+**Date**: 2026-06-24
+**Task**: q4_K repack GEVM CORRECT (oracle-verified, hardest kernel) banked as expansion+Gearbox-motivation; N2 clarity DELIVERED (showcase + live 4th IME op vmadotsu silicon-verified 16/16)
+**Branch**: `main`
+
+### Summary
+
+Two milestones. (1) q4_K repack GEVM — the dominant-quant headline + campaign's hardest piece: op+verifier+emitter (8-sub-block 6-bit lane-wise unpack + dual d/dmin fold w/ bsums, transcribed from ggml), trellis-checked, NUMERICALLY VERIFIED CORRECT (rvv oracle WORST_NORM 7.07e-7, independent pre-repack ref + 2 negative controls @396k/2.08M margin). Banked HONESTLY: Win-B micro is a LOSS (ggml _vl128 1.5-2.1x faster — our VLEN256-shaped repack mismatched to VLEN128), e2e a reasoned NULL (byte-identical footprint + memory-bound → no win branch). q4_K = correct kernel-EXPANSION + the cleanest N3-Gearbox shape-mismatch MOTIVATION, NOT a perf win. The de-risk that beat 2 emitter timeouts: lead sed-extracts the template, agent sed-inserts WITHOUT reading. (2) N2/IME clarity (user's thrice-flagged ask) DELIVERED both halves: a standalone N2-RAPID-ADD-SHOWCASE.md (explain) + a LIVE 4th IME op tcrv.ime.mma_su/vmadotsu (demonstrate) — 0 core/0 wiring/0 new id (grep-verified), trellis-checked I3/I5/I7, silicon bit-exact 16/16 on real X60 (operand convention confirmed, encoding corrected e210232b->e210212b). Four zero-core ops now = wiring-paid-once shown not asserted. Plus the repack-Win-A-axis reconciliation (RVV1.0 always mf2) + q4_0/q4_1 audit. Recurring discipline: 5+ over-claims caught and corrected; every surviving number refutation-proof.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0d5ebc5a` | (see git log) |
+| `73244fae` | (see git log) |
+| `ac66155e` | (see git log) |
+| `70bb845a` | (see git log) |
+| `a75adc27` | (see git log) |
+| `ed0fb37e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
