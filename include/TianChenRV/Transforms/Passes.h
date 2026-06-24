@@ -82,6 +82,7 @@ std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
     const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createRVVLowerToEmitCPass();
+std::unique_ptr<::mlir::Pass> createRVVLowerQuantContractionPass();
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass();
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass(
     const plugin::ExtensionPluginRegistry &plugins,

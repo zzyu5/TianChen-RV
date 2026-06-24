@@ -111,6 +111,9 @@ llvm::Error registerTianChenRVOptPasses(
   mlir::registerPass([] {
     return tianchenrv::transforms::createRVVLowerToEmitCPass();
   });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createRVVLowerQuantContractionPass();
+  });
   llvm::SmallVector<tianchenrv::plugin::SourceFrontDoorPassRegistration, 4>
       sourceFrontDoorPasses;
   if (llvm::Error error =

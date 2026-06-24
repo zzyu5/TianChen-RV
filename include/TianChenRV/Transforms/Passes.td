@@ -873,4 +873,41 @@ def RVVLowerToEmitC
   ];
 }
 
+def RVVLowerQuantContraction
+    : Pass<"tcrv-rvv-lower-quant-contraction", "::mlir::ModuleOp"> {
+  let summary = "Lower the abstract tcrv_rvv.quant_contraction op to a concrete contraction op (stage-A identity default: block-dot)";
+  let description = [{
+    The option-2 stage-A front-of-pipeline pass that lowers the abstract,
+    algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op to a CONCRETE
+    contraction op, running BEFORE the EmitC lowering. In stage A this is a pure
+    IDENTITY DEFAULT: every quant_contraction request lowers to the concrete
+    tcrv_rvv.q4_0_q8_0_block_dot op with attributes reconstructed verbatim, so
+    the IR after this pass is STRUCTURALLY IDENTICAL to today's hand-authored
+    block-dot body and every downstream pass (schedule materialization, EmitC
+    lowering) runs byte-for-byte unaffected.
+
+    The block-dot identity branch DROPS the abstract op's column_count (nc)
+    operand: the block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and
+    delegates the M/N loops to ggml's mul_mat caller, so it is a bare 4-operand
+    vec_dot. The abstract op carries nc ALWAYS so a later repack branch can
+    reach it; here it is dropped to keep the emitted C byte-identical. NO
+    schedule attrs are stamped (integer_core_lmul / multi_block_factor /
+    strip_elision) -- those remain the downstream MaterializeRVVQ40Schedule
+    pass's job, exactly as today.
+
+    This pass changes ZERO runtime behavior: it is structural scaffolding that
+    makes "the compiler selects the contraction algorithm" expressible
+    in-compiler in later stages (a selection-logic stage adds the repack branch
+    + an algorithm choice; this stage is identity only). The repack lowering
+    branch is a deliberate stage-C ERROR STUB here and is never reached on the
+    wired block-dot path. On any module with no quant_contraction op the pass is
+    a structural no-op.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createRVVLowerQuantContractionPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

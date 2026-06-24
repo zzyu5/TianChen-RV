@@ -1055,6 +1055,163 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlQuantContractionOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The abstract option-2 stage-A contraction request carries ONLY its bounded
+  // WHAT attrs (I4): the quant type, the dual-fp16 scale model, the M-regime,
+  // the PLAIN weight-layout commitment, the plain block-format byte facts, and
+  // an optional advisory min_vlen capability snapshot. Anything else -- a
+  // forbidden local element_count/SEW/LMUL/policy attr, an unexpected name, or
+  // any REPACK-only layout fact (weight_interleave / half_lanes / the x16 stride
+  // 288) -- is rejected fail-closed (I7). The repack-only facts are deliberately
+  // absent: this op is PRE-weight-layout-commitment.
+  auto isAllowedQuantContractionAttr = [](llvm::StringRef name) {
+    return name == "quant" || name == "scale_model" || name == "m_regime" ||
+           name == "qk" || name == "weight_layout" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" || name == "quant_byte_offset" ||
+           name == "activation_high_byte_offset" || name == "min_vlen";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.quant_contraction keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/nc/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedQuantContractionAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded abstract contraction attributes "
+                "'quant', 'scale_model', 'm_regime', 'qk', 'weight_layout', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'quant_byte_offset', 'activation_high_byte_offset', and the "
+                "advisory 'min_vlen'; unexpected attribute '"
+             << attr.getName()
+             << "' (the repack-only weight_interleave / half_lanes / x16 layout "
+                "facts are a stage-C materialization and may not be carried "
+                "here)";
+  }
+
+  // weight_layout is PINNED "plain" fail-closed: this op is
+  // pre-weight-layout-commitment, so it may never carry the repacked "x16"
+  // layout (that is a stage-C plain->x16 materialization, not an input fact).
+  if (getWeightLayout() != "plain")
+    return emitOpError()
+           << "requires weight_layout \"plain\" (the abstract quant_contraction "
+              "op is pre-weight-layout-commitment and takes un-repacked plain "
+              "weights; the repacked \"x16\" layout is a stage-C materialization "
+              "the compiler drives, never an input fact); got \""
+           << getWeightLayout() << "\"";
+
+  // The committed WHAT axes. quant is bounded to the stage-A identity-supported
+  // set; scale_model and m_regime are pinned to the block-dot-compatible values.
+  if (getQuant() != "q4_0")
+    return emitOpError()
+           << "currently supports only quant \"q4_0\" for the abstract "
+              "block-quantized contraction request (the stage-A identity "
+              "lowering target is the ggml Q4_0 x Q8_0 block dot-product); got \""
+           << getQuant() << "\"";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" for the "
+              "abstract block-quantized contraction request";
+  if (getMRegime() != "decode" && getMRegime() != "prefill")
+    return emitOpError()
+           << "requires m_regime in {\"decode\", \"prefill\"} (the M==1 GEVM "
+              "vs M>>1 GEMM regime) for the abstract block-quantized "
+              "contraction request; got \""
+           << getMRegime() << "\"";
+
+  // The PLAIN block-format byte facts, pinned IDENTICALLY to the block-dot
+  // verifier so a malformed body cannot lower under the identity emission:
+  // QK8_0 == 32, block_q4_0 stride 18, block_q8_0 stride 34, quants at +2, the
+  // q8 high half at +16.
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK8_0) for the abstract "
+                            "block-quantized contraction request";
+  if (getWeightBlockStride() != 18)
+    return emitOpError()
+           << "requires weight_block_stride == 18 (sizeof block_q4_0, the PLAIN "
+              "weight layout) for the abstract block-quantized contraction "
+              "request";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the abstract block-quantized contraction request";
+  if (getQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires quant_byte_offset == 2 (quants follow the inline fp16 "
+              "scale) for the abstract block-quantized contraction request";
+  if (getActivationHighByteOffset() != 16)
+    return emitOpError()
+           << "requires activation_high_byte_offset == 16 (q8 high half) for "
+              "the abstract block-quantized contraction request";
+
+  // Six runtime ABI value operands -- the plain weight base, the plain
+  // activation base, the fp32 output, the runtime element count n, the runtime
+  // column count nc (carried ALWAYS so the repack branch can reach it; the
+  // block-dot identity lowering DROPS it), and the !tcrv_rvv.vl token.
+  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one plain weight base pointer, one plain activation "
+              "base pointer, one output pointer, one runtime element-count, one "
+              "runtime column-count (nc), one !tcrv_rvv.vl operand, and one i32 "
+              "LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS PLAIN block_q4_0 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc, the number of weight columns; carried always so a later "
+              "repack branch can reach it, dropped by the block-dot identity "
+              "lowering)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the abstract block-quantized contraction request";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the abstract block-quantized contraction request";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlGemmTileQ40Q80Op::verify() {
   mlir::Operation *op = getOperation();
 

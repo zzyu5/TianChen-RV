@@ -3972,6 +3972,79 @@ def GgmlBlockDotQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlQuantContractionOp
+    : TCRVRVV_Op<"quant_contraction",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "abstract algorithm-UNCOMMITTED block-quantized contraction request "
+      "(plain weights)";
+  let description = [{
+    Records a block-quantized contraction REQUEST (weight x activation -> fp32)
+    that is deliberately NOT yet committed to a concrete kernel ALGORITHM. It is
+    the option-2 stage-A abstraction over the two concrete contraction targets
+    (tcrv_rvv.q4_0_q8_0_block_dot and tcrv_rvv.repack_gemv_q4_0_q8_0): today the
+    repack-vs-block-dot path is frozen by OP IDENTITY in the hand-authored input
+    IR, upstream of the compiler. This op moves that choice INTO the compiler by
+    carrying the WHAT (quant type, scale model, m_regime, plain block byte
+    layout, the runtime column count nc) WITHOUT committing the weight LAYOUT or
+    the integration GRANULARITY:
+
+    - **Weight LAYOUT is uncommitted.** The op takes PLAIN (un-repacked) weights
+      and pins `weight_layout = "plain"` fail-closed. block-dot reads plain
+      bytes (stride 18) -- a plain->plain identity. The repacked GEMV reads
+      pre-interleaved block_q4_0x16 (stride 288, interleave 16); that is a
+      plain->x16 weight MATERIALIZATION the compiler drives in a later stage, so
+      this op deliberately does NOT carry the x16 stride 288, weight_interleave,
+      or half_lanes -- it is not pre-committed to the repacked layout.
+
+    - **Integration GRANULARITY is uncommitted.** block-dot (ggml's
+      `ggml_vec_dot_q4_0_q8_0`) writes ONE fp32 and DELEGATES the M and N loops
+      to ggml's `mul_mat` caller (4 operands, no column loop). The repacked GEMV
+      INTERNALIZES the N loop and writes nc fp32 (5 operands, +nc). So this op
+      carries `column_count` (nc) ALWAYS so the repack branch can reach it; the
+      block-dot lowering DROPS nc and emits the bare per-column vec_dot.
+
+    The op carries the `TCRVEmitCLowerableOpInterface` for parallelism with its
+    concrete siblings, but it is NOT added to the EmitC recognizer table: it is
+    lowered to a concrete contraction op by the stage-A
+    `--tcrv-rvv-lower-quant-contraction` pass BEFORE the EmitC pass runs, so it
+    never reaches the EmitC conversion. It has no emitter of its own; the
+    identity lowering to block-dot is therefore total and byte-exact.
+
+    The `min_vlen` attribute, when present, is a read-only advisory capability
+    snapshot (a deriveMinimumVLEN(march) value) consumed by a later
+    selection-logic stage; it never gates correctness in the identity stage.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    AnyType:$vl,
+    StrAttr:$quant,
+    StrAttr:$scale_model,
+    StrAttr:$m_regime,
+    I64Attr:$qk,
+    StrAttr:$weight_layout,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$activation_high_byte_offset,
+    OptionalAttr<I64Attr>:$min_vlen
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$column_count `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($column_count) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlGemmTileQ40Q80Op
     : TCRVRVV_Op<"q4_0_q8_0_gemm_tile",
     [TCRVEmitCLowerableOpInterface]> {

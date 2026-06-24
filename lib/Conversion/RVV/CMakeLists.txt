@@ -8,6 +8,7 @@ add_mlir_library(TianChenRVConversionRVV
   RVVToEmitCKQuant.cpp
   RVVToEmitCTernaryBinary.cpp
   RVVToEmitCSupport.cpp
+  RVVLowerQuantContraction.cpp
 
   DEPENDS
   TianChenRVPassesIncGen
