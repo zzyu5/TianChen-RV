@@ -6678,8 +6678,25 @@ def GgmlBlockDotQ3KQ8KOp
 
     q3_K emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
     Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip loop
-    (the zve32x/zve64x re-strip is a capability item, not built here). No resource
-    shape knobs yet; this op carries only the structural facts.
+    (the zve32x/zve64x re-strip is a capability item, not built here).
+
+    The OPTIONAL `integer_core_lmul` anchors the base LMUL of the per-sub-block
+    integer-MAC widening chain i8 -> i16 -> i32 (the *how*, never the *what*; the
+    byte-exact deferred fp32 fold order, the 2-bit/subtractive-hmask unpack, and
+    the signed 6-bit scale dance are all UNTOUCHED). Only TWO anchors are legal --
+    the ceiling is "m1", NOT q4_K's "m2" -- because q3_K's sub_block == 16 elements
+    (mirroring q6_K, distinct from q4_K's 32-element sub-block):
+    - absent / "mf2": today's TWO 8-lane halves per 16-element sub-block (i8mf2 ->
+      i16m1 -> i32m2 each, summed into the carried 8-lane aux32). Byte-identical to
+      the pre-knob emit.
+    - "m1": ONE 16-lane strip per sub-block (i8m1 -> i16m2 -> i32m4), the 16 i32
+      lanes folded back element-wise to the canonical 8 BEFORE the fp32 cvt via a
+      VLEN-AGNOSTIC `vslidedown` by LITERAL element offset 8 + `vadd` + `vget(.,0)`
+      (NOT a vget-subgroup extract, whose lane count is VLEN-dependent). i8m1 == 16
+      elements == exactly ONE sub-block under ONE scalar `scale = scales[js]-32`.
+    An "m2" base (32 elements) would fold TWO 16-element sub-blocks under one scalar
+    scale (identical ground to q4_K's m4 rejection) -- verifier-rejected fail-closed.
+    The signed scale/hmask bit-dance is scalar/LMUL-free.
   }];
 
   let arguments = (ins
@@ -6699,7 +6716,8 @@ def GgmlBlockDotQ3KQ8KOp
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$weight_d_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 
