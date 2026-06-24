@@ -254,13 +254,16 @@ number names a real contribution, not an artifact of a weak comparand:
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
   appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound) must be
   stated, not hidden behind the larger number.
-- **A repack / block-as-lane kernel is VLEN-SHAPED; its perf claim must name the VLEN regime AND compare
-  vs the framework's VLEN-NATIVE kernel.** A kernel whose lane structure targets VLEN256 (e.g. 16 columns
-  across lanes wanting one register) DEGRADES on VLEN128 (fractional / strip-split path) and LOSES to the
-  framework's VLEN128-native kernel — that is an N3-tune **SHAPE-MISMATCH** gap (the selector should emit a
-  VLEN-native variant or decline the repack), NOT a kernel bug (oracle-clean). *(Verified 2026-06-24: q4_K &
-  q8_0 block-as-lane repacks (VLEN256-shaped) lose 0.47–0.89× to ggml's VLEN128-native kernels in BOTH decode
-  (GEVM) and prefill (GEMM); the M-column unpack amortization narrows but does not cross 1.0 — ledger §8b 2×2.)*
+- **A repack / block-as-lane kernel's perf claim must name the VLEN regime AND compare vs the framework's
+  ACTUAL same-VLEN baseline** (its hand-tuned VLEN-native kernel if one ships, else its generic fallback) —
+  never a different-VLEN kernel. Whether the repack wins is set by **competitor strength × compute-density**,
+  NOT by the repack's lane-shape (the 2×8 mf2 form IS the correct VLEN128 tiling; the 2-strip split is
+  beneficial ILP — the q8_0 NARROW>WIDE ISO datum). The repack wins only when the same-VLEN fallback is a
+  HEAVY kernel it out-streams; against a LEAN fallback or a hand-tuned VLEN-native kernel it LOSES, and the
+  resource-aware tune should DECLINE it (select the fallback = match the framework) — a correct measured-best
+  PATH selection (N3), NOT a kernel bug and NOT a Win-B speedup. *(Verified 2026-06-24: q4_0 repack WINS
+  @VLEN128 vs ggml's HEAVY vec_dot; q8_0 LOSES vs ggml's LEAN vec_dot; q4_K LOSES vs ggml's hand-tuned
+  _vl128 — all at the SAME correct 2×8 mf2 shape. See SHAPE-AWARE-REPACK-TUNE-DESIGN.md.)*
 - Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
   emitted kernel must be proven (e.g. an ENGAGED marker / objdump of the FINAL staged binary), not assumed.
 - **A new-hardware-unit / build-swap claim needs a can't-possibly-help control.** When a number compares two

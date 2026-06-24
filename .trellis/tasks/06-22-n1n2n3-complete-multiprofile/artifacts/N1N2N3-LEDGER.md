@@ -448,6 +448,17 @@ Win-B (vs ggml's own shipped RVV kernel), N1-coverage, N2-IME, and N3-VLEN-strip
 
 ## 8. Synthesis — why every NEW repack GEVM is a VLEN128 perf-NULL, and what would change it (2026-06-24)
 
+> **CORRECTION (post-design, supersedes the 'VLEN256-shape degradation' mechanism in §8/§8b below):** the
+> loss mechanism stated below — 'block-as-lane is VLEN256-shaped and DEGRADES to mf2/8-lane strips at VLEN128,
+> strip-split overhead outweighing the removed vredsum' — is **WRONG** (the 8th over-claim caught, mine).
+> Lane-math: at VLEN128 e8mf2 VLMAX=8, so the **2×8 mf2 form IS the correct full-utilization VLEN128 shape**,
+> not a degradation; our own q8_0 ISO datum shows the 2-strip split is FASTER (ILP), not overhead. The TRUE
+> discriminator is **competitor strength × compute-density**: the repack wins @VLEN128 only when ggml's
+> same-VLEN fallback is a HEAVY block-dot it out-streams (q4_0); against a LEAN block-dot (q8_0) or a
+> hand-tuned `_vl128` (q4_K) it loses. The fix is a measured-best PATH selection {repack, block-dot} (decline
+> where losing = match ggml = a correct SELECTION, NOT a Win-B). Authoritative: `SHAPE-AWARE-REPACK-TUNE-DESIGN.md`.
+
+
 The two new repack GEVMs this session — **q8_0** and **q4_K** — are both **correct** (oracle-verified: q8_0
 byte-exact, q4_K WORST_NORM 7.07e-7 with 2 negative controls) but both **LOSE to ggml's VLEN128-native
 kernels** in microbench: q8_0 1.3–1.7×, q4_K 1.5–2.1×, each with **byte-exact / ~e-7 agreement** (fair
