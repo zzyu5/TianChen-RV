@@ -120,6 +120,12 @@ Provenance: `N1N2N3-LEDGER.md` §2.1/2.2; `k1-vlen256/q8_0-paired-rvv128-k1256.l
 > micro, NOT a Win-B algorithm change). **Refined N3 pattern: GATHER-heavy kernels WIN (iq4_nl, q2_K — our
 > narrower split-gather); COMPUTE-bound LOSE (ggml's wider fused m2/m4 LMUL).** IQ-quants (iq2/iq3) are also
 > gather-heavy → likely wins, being measured.
+> **IQ-quant coverage DONE (7/7): all bit-exact CORRECT, all LOSS 5–22×** — hypothesis REJECTED. iq4_nl won on a
+> tiny 16-entry REGISTER vrgather; iq2/iq3/iq1 gather from LARGE 256–1024-entry grids where **OUR emitter does
+> SCALAR per-element gather (0 vluxei/vrgather) vs ggml's hardware `vluxei16` indexed vector loads** → loses
+> 5–22× (worst iq3_xxs). A CONCRETE emitter lowering target (lower IQ grid/sign gather to vluxei16+vrgather),
+> not a tune. **Block-dot coverage now ~17 kernels: ALL emit CORRECT (maturity ✓); 2 micro-WINS (q2_K, iq4_nl —
+> gather); rest LOSE to ggml's wide-LMUL (compute-bound) or vluxei16 (IQ-gather) — both named emitter targets.**
 
 ### 1f. Emit-only kernel families (no togglable Win-A; not wired; grouped per inventory)
 

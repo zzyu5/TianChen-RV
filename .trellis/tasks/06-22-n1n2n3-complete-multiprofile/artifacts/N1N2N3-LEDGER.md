@@ -507,3 +507,21 @@ routes its own hand-tuned repack there). **So q4_K/q8_0 = correct kernel EXPANSI
 ANY regime.** The FIX is a **shape-aware repack tune**: emit a VLEN128-native variant (not the VLEN256-shaped
 block-as-lane) or have the selector DECLINE the repack at VLEN128 — a new capability/resource-aware cost-model
 pass. **That pass is the N3 next-session headline**; this 2×2 is the evidence that justifies its design.
+
+## 9. Block-dot single-kernel coverage — MATURITY (all correct) + 2 named emitter targets (2026-06-24)
+
+The "单个kernel测试 for ALL kernels" axis, block-dot family: **~17 emit-only block-dots VERIFIED CORRECT vs
+ggml's own shipped RVV kernel** (q4_K/q6_K/q5_K/q2_K/q3_K K-quants + q5_0/q5_1 + iq4_nl + tq2_0/tq1_0 +
+iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m) — every one bit-exact (or fp-fold-order, matched-assoc 0.0).
+**This is the maturity statement: our compiler correctly emits every standard/K/IQ/ternary block-dot, incl. the
+hard IQ codebook/sign/grid decodes — no string-matching, no emitter bug.** Micro-perf vs ggml @VLEN128:
+- **WINS (2):** q2_K (gather), iq4_nl 1.32× (tiny 16-entry register-codebook `vrgather` beats ggml's 32-lane).
+- **LOSSES (rest):** two distinct, NAMED, concrete emitter-improvement targets (mature-compiler gaps, NOT tunes):
+  1. **compute-bound K-quants/q5** lose to ggml's **wider fused LMUL** (m2/m4) — our emit is single-LMUL
+     (RVVToEmitCKQuant.cpp hardcodes m2). Target: LMUL-parametric K-quant emit (the deferred q4_K Win-A knob).
+  2. **IQ-quants** lose 5–22× because **our emitter lowers the large-grid codebook/sign gather to SCALAR
+     per-element indexing (0 `vluxei`/`vrgather`)** vs ggml's hardware `__riscv_vluxei16` indexed vector loads +
+     `vrgather` sign broadcast. Target: lower IQ grid/sign lookup to indexed-vector-load intrinsics.
+Both are **emitter codegen maturity targets** (would turn losses→ties/wins), distinct from the N3 repack
+path-selection tune (§8b). They are the concrete "continue maturing the compiler" next-work the block-dot
+coverage surfaced — measured, correctness-gated, honest.
