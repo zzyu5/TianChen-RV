@@ -2671,6 +2671,185 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0(
     return mlir::success();
   }
 
+mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::GgmlPackQ40ToX16Op pack;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto p = llvm::dyn_cast<tcrvrvv::GgmlPackQ40ToX16Op>(op))
+        pack = p;
+    }
+    if (!pack)
+      return rewriter.notifyMatchFailure(scope, "pack body missing op");
+
+    mlir::Value src = valueMap.lookup(pack.getSrc());
+    mlir::Value dst = valueMap.lookup(pack.getDst());
+    mlir::Value nblocks = valueMap.lookup(pack.getNblocks());
+    if (!src || !dst || !nblocks)
+      return rewriter.notifyMatchFailure(pack, "pack ABI operand unmapped");
+
+    llvm::StringRef opName = pack.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = pack.getTCRVEmitCLowerableSourceRole();
+
+    // The plain q4_0 -> q4_0x16 PACK structural facts (I4 mirror, pinned by the
+    // verifier): QK=32, block_q4_0 source stride 18 (1 inline fp16 scale @+0, 16
+    // nibble bytes @+2), block_q4_0x16 destination stride 288 (16 inline fp16
+    // scales @0..32, 256 interleaved nibble bytes @32..288), 16 source blocks
+    // interleaved per output block, offset-binary XOR mask 0x88. The transform
+    // is the live make_block_q4_0x16 blck_size_interleave==1 branch: pure scalar
+    // byte gather + XOR, NO vector machinery.
+    int64_t srcStride = pack.getSrcBlockStride();          // 18
+    int64_t dstStride = pack.getDstBlockStride();          // 288
+    int64_t srcQuantOff = pack.getSrcQuantByteOffset();    // 2
+    int64_t dstQuantOff = pack.getDstQuantByteOffset();    // 32
+    int64_t interleave = pack.getWeightInterleave();       // 16
+    int64_t xorMask = pack.getXorMask();                   // 0x88
+    int64_t qk = pack.getQk();                             // 32
+    int64_t nibbleBytes = qk / 2;                          // 16 (qs bytes/block)
+    int64_t scaleBytes = srcQuantOff;                      // 2 (fp16 d bytes)
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+    auto step = [&](llvm::StringRef s) {
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(src) ||
+        !llvm::isa<mlir::TypedValue<emitc::PointerType>>(dst))
+      return rewriter.notifyMatchFailure(pack, "pack src/dst not pointers");
+    auto srcPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(src);
+    auto dstPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(dst);
+    // The byte rvalue types follow the pointer pointees: src is `const uint8_t*`
+    // (pointee `const uint8_t`), dst is `uint8_t*` (pointee `uint8_t`). The XOR
+    // literal and the bitwise_xor result carry the dst element type so the store
+    // assign and the xor verify cleanly.
+    mlir::Type srcEltType = srcPtr.getType().getPointee();
+    mlir::Type dstEltType = dstPtr.getType().getPointee();
+
+    // Read one source byte src[idx] (idx a size_t value) as a const-byte rvalue.
+    auto srcByte = [&](mlir::Value idx) -> mlir::Value {
+      emitc::SubscriptOp sub =
+          rewriter.create<emitc::SubscriptOp>(loc, srcPtr, idx);
+      return rewriter.create<emitc::LoadOp>(loc, srcEltType, sub.getResult())
+          .getResult();
+    };
+    // Write value (a uint8_t rvalue) to dst[idx].
+    auto dstStore = [&](mlir::Value idx, mlir::Value value) {
+      emitc::SubscriptOp sub =
+          rewriter.create<emitc::SubscriptOp>(loc, dstPtr, idx);
+      rewriter.create<emitc::AssignOp>(loc, sub.getResult(), value);
+    };
+    // idx = a + b
+    auto add = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+      return rewriter.create<emitc::AddOp>(loc, sizeType, a, b);
+    };
+    // idx = a * lit
+    auto mul = [&](mlir::Value a, int64_t lit) -> mlir::Value {
+      return rewriter.create<emitc::MulOp>(loc, sizeType, a, sizeLit(lit));
+    };
+
+    // The pack walks each output block b in [0, nblocks): gather the 16
+    // consecutive source block_q4_0 (one block from each interleaved column) and
+    // emit one block_q4_0x16.
+    //
+    //   for (size_t b = 0; b < nblocks; b++) {
+    //     size_t sbase = b*16*18;  size_t dbase = b*288;
+    //     // scales (verbatim copy, NO xor):  out.d[j] = in[j].d  (2 bytes each)
+    //     for (size_t j = 0; j < 16; j++)
+    //       for (size_t k = 0; k < 2; k++)
+    //         dst[dbase + j*2 + k] = src[sbase + j*18 + k];
+    //     // quants (16-way interleave + ^0x88):  out.qs[off*16+blk] =
+    //     //   in[blk].qs[off] ^ 0x88   (block-major-within-byte)
+    //     for (size_t off = 0; off < 16; off++)
+    //       for (size_t blk = 0; blk < 16; blk++)
+    //         dst[dbase + 32 + off*16 + blk] =
+    //           src[sbase + blk*18 + 2 + off] ^ 0x88;
+    //   }
+    step("pack_block_loop");
+    auto blockLoop = rewriter.create<emitc::ForOp>(
+        loc, sizeLit(0), nblocks, sizeLit(1), /*bodyBuilder=*/nullptr);
+    mlir::LogicalResult status = mlir::success();
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value b = blockLoop.getInductionVar();
+      // size_t sbase = b * (16*18);   size_t dbase = b * 288;
+      mlir::Value sbase = mul(b, interleave * srcStride);
+      mlir::Value dbase = mul(b, dstStride);
+
+      // Scales: 16 source d (2 bytes each) copied VERBATIM into dst d[16].
+      step("pack_scales");
+      auto scaleLoop = rewriter.create<emitc::ForOp>(
+          loc, sizeLit(0), sizeLit(interleave), sizeLit(1),
+          /*bodyBuilder=*/nullptr);
+      {
+        mlir::OpBuilder::InsertionGuard sg(rewriter);
+        rewriter.setInsertionPointToStart(scaleLoop.getBody());
+        mlir::Value j = scaleLoop.getInductionVar();
+        // src d at sbase + j*18 ; dst d at dbase + j*2
+        mlir::Value sd = add(sbase, mul(j, srcStride));
+        mlir::Value dd = add(dbase, mul(j, scaleBytes));
+        for (int64_t k = 0; k < scaleBytes; ++k) {
+          mlir::Value kLit = sizeLit(k);
+          // Cast the const src byte to the dst element type for the store.
+          mlir::Value sval = rewriter.create<emitc::CastOp>(
+              loc, dstEltType, srcByte(add(sd, kLit)));
+          dstStore(add(dd, kLit), sval);
+        }
+      }
+
+      // Quants: 16-way interleave + ^0x88. out.qs[off*16 + blk] =
+      // in[blk].qs[off] ^ 0x88. Outer loop walks the nibble offset (0..16),
+      // inner loop walks the 16 interleaved blocks (block-major-within-byte).
+      step("pack_quants_xor");
+      mlir::Value xorLit = rewriter.create<emitc::LiteralOp>(
+          loc, dstEltType, std::to_string(xorMask));
+      mlir::Value dstQuantBase = add(dbase, sizeLit(dstQuantOff));
+      auto offLoop = rewriter.create<emitc::ForOp>(
+          loc, sizeLit(0), sizeLit(nibbleBytes), sizeLit(1),
+          /*bodyBuilder=*/nullptr);
+      {
+        mlir::OpBuilder::InsertionGuard og(rewriter);
+        rewriter.setInsertionPointToStart(offLoop.getBody());
+        mlir::Value off = offLoop.getInductionVar();
+        // dst quant row base for this offset: dstQuantBase + off*16
+        mlir::Value dRowBase = add(dstQuantBase, mul(off, interleave));
+        // src byte offset within each block for this nibble: srcQuantOff + off
+        mlir::Value sByteOff = add(sizeLit(srcQuantOff), off);
+        auto blkLoop = rewriter.create<emitc::ForOp>(
+            loc, sizeLit(0), sizeLit(interleave), sizeLit(1),
+            /*bodyBuilder=*/nullptr);
+        {
+          mlir::OpBuilder::InsertionGuard bg(rewriter);
+          rewriter.setInsertionPointToStart(blkLoop.getBody());
+          mlir::Value blk = blkLoop.getInductionVar();
+          // src index = sbase + blk*18 + (2 + off)
+          mlir::Value sIdx = add(add(sbase, mul(blk, srcStride)), sByteOff);
+          // dst index = dRowBase + blk
+          mlir::Value dIdx = add(dRowBase, blk);
+          // Cast the const src byte to the dst element type, then ^0x88.
+          mlir::Value packed = rewriter.create<emitc::CastOp>(
+              loc, dstEltType, srcByte(sIdx));
+          mlir::Value biased = rewriter.create<emitc::BitwiseXorOp>(
+              loc, dstEltType, packed, xorLit);
+          dstStore(dIdx, biased);
+        }
+      }
+    }
+    if (mlir::failed(status))
+      return mlir::failure();
+
+    // The pack produces no live value; the result token is the dataflow sink.
+    // Materialize a benign 0 literal so the with_vl yield has a mapped value.
+    mlir::Value resultTok = sizeLit(0);
+    valueMap[pack.getResult()] = resultTok;
+    return mlir::success();
+  }
+
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,

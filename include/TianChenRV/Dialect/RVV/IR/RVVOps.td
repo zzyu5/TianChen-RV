@@ -4447,6 +4447,82 @@ def GgmlRepackGemvQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlPackQ40ToX16Op
+    : TCRVRVV_Op<"pack_q4_0_to_q4_0x16",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml plain block_q4_0 -> block_q4_0x16 PACK (materialize) op";
+  let description = [{
+    Records the COMPLETE ggml plain->x16 weight MATERIALIZATION transform
+    (make_block_q4_0x16, the live blck_size_interleave==1 branch of
+    repack_q4_0_to_q4_0_16_bl) as ONE bounded generic plugin-local typed RVV
+    dataflow step. It is the option-2 stage-C1b PRODUCER sibling of the
+    block-as-lane CONSUMER repack-GEMV/GEMM ops: those ops READ pre-x16 bytes;
+    this op EMITS the pack that PRODUCES them. The compiler thus does not merely
+    CONSUME the x16 layout it declares (every existing Ggml*RepackGemv* emitter
+    does that) -- it can also PRODUCE the layout it declares.
+
+    The transform is a PURE byte gather + XOR -- NO fp arithmetic, NO
+    quantization, NO vector reduction, NO setvl/with_vl machinery in the emitted
+    body (this op is a STRICT SUBSET of the repack-GEMV op: NO vl/LMUL,
+    activation, scale-fold, accumulator, or half-lane strip). The input is a
+    plain block_q4_0 stream (stride 18: fp16 d @+0, 16 nibble bytes @+2). The
+    output is a block_q4_0x16 stream (stride 288: 16 inline fp16 scales d[16]
+    @0..32, 256 interleaved nibble bytes qs[256] @32..288). For each output
+    block, given the 16 consecutive source blocks in[0..16):
+      * scales (copy, no transform): out.d[i] = in[i].d for i in [0,16);
+      * quants (16-way interleave + ^0x88 bias bake): for i in [0,256),
+        out.qs[i] = in[i%16].qs[i/16] ^ 0x88. The interleave is
+        block-major-within-byte (consecutive output bytes walk the 16 source
+        blocks at a fixed source offset, then advance the offset); the ^0x88
+        flips both nibbles' sign bit to the offset-binary bias the consumer GEMV
+        already expects.
+
+    The op consumes TWO runtime ABI value operands -- the plain q4_0 source base
+    pointer (src, const uint8_t*) and the x16 destination base pointer (dst,
+    uint8_t*) -- plus the runtime output-block count (nblocks). It produces ONE
+    bounded token result (the dataflow sink); the lowering writes the packed x16
+    bytes through the destination pointer and the result carries no live value.
+
+    The structural facts -- QK=32, the source block stride (18 bytes for
+    block_q4_0), the destination block stride (288 bytes for block_q4_0x16), the
+    source quant byte offset (qs at +2 after the single inline fp16 scale), the
+    destination quant byte offset (qs at +32 after the 16 inline fp16 scales),
+    the interleave width (16 source blocks per output block), and the offset-binary
+    XOR mask (0x88) -- are carried as typed integer attributes (I4 mirror only).
+    The fixed pack emission (the scalar gather + XOR loop DERIVED from these
+    attrs) is the op's lowering, NOT a candidate-mirror string read in the
+    conversion. The bounded surface kind is limited to "ggml_pack_q4_0_to_q4_0x16".
+
+    This op pins the pack ABI fail-closed (I7): the byte layout the materializer
+    depends on (src stride 18 / quant +2, dst stride 288 / quant +32, interleave
+    16, qk 32, xor 0x88) is the make_block_q4_0x16 contract. A malformed typed
+    body cannot lower under this emission.
+  }];
+
+  let arguments = (ins
+    AnyType:$src,
+    AnyType:$dst,
+    AnyType:$nblocks,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$src_block_stride,
+    I64Attr:$dst_block_stride,
+    I64Attr:$src_quant_byte_offset,
+    I64Attr:$dst_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$xor_mask
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$src `,` $dst `,` $nblocks `,` $vl attr-dict "
+    "`:` type($src) `,` type($dst) `,` type($nblocks) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlRepackGemvQ41Q81Op
     : TCRVRVV_Op<"repack_gemv_q4_1_q8_1",
     [TCRVEmitCLowerableOpInterface]> {

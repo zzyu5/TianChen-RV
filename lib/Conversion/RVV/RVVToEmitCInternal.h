@@ -131,6 +131,11 @@ private:
   /// single-output-column expansion.
   static bool isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The option-2 stage-C1b PACK (materialize) recognizer: a with_vl scope whose
+  /// ONLY compute op is a single tcrv_rvv.pack_q4_0_to_q4_0x16. The op identity
+  /// is the dispatch key; the emitter owns the scalar gather + ^0x88 pack body.
+  static bool isPackQ4_0ToX16Body(tcrvrvv::WithVLOp scope);
+
   /// The FAMILY-B 16x1-REPACKED single-column GEMV (decode) recognizer: a
   /// with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.repack_gemv_q4_1_q8_1. The op identity is the dispatch key; the
@@ -1093,6 +1098,24 @@ private:
   /// the byte-exactness proof). All intrinsics are emitc.call_opaque nodes; the
   /// scale fold feeds the raw _Float16 a[l].d into vfwmul_vf (NO float cast).
   mlir::LogicalResult emitRepackGemvQ4_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The option-2 stage-C1b PACK (materialize) emitter: the PRODUCER sibling of
+  /// the block-as-lane CONSUMER repack-GEMV/GEMM emitters. It emits ggml's
+  /// make_block_q4_0x16 transform (the live blck_size_interleave==1 branch) as a
+  /// PURE scalar byte gather + ^0x88 XOR -- NO setvl/with_vl/LMUL/vector ops, NO
+  /// fp arithmetic. For each of nblocks output blocks, given the 16 consecutive
+  /// source block_q4_0 (stride 18, fp16 d @+0, 16 nibble bytes @+2): copy the 16
+  /// fp16 scales VERBATIM into dst d[16] @0..32, then write the 256 interleaved
+  /// nibble bytes dst.qs[i] = src[i%16].qs[i/16] ^ 0x88 @32..288 (block_q4_0x16
+  /// stride 288). The pack facts (strides/offsets/interleave/xor) are the op's
+  /// typed attrs (I4 mirror); the emission is the op's fixed structure (I5,
+  /// every value a node). Validated HOST-side byte-exact (memcmp==0) vs ggml's
+  /// own inlined make_block_q4_0x16 -- an ISOLATED materialization-capability
+  /// proof, e2e-REDUNDANT (ggml packs at load), NEVER a kernel/perf/e2e win.
+  mlir::LogicalResult emitPackQ4_0ToX16(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

@@ -346,6 +346,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0},
         {&isRepackGemvQ4_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0},
+        {&isPackQ4_0ToX16Body,
+         &VariantToEmitCFunc::emitPackQ4_0ToX16},
         {&isRepackGemvQ4_1Q8_1Body,
          &VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1},
         {&isRepackGemmQ4_1Q8_1Body,
@@ -1098,6 +1100,20 @@ bool VariantToEmitCFunc::isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawGemv;
+  }
+
+bool VariantToEmitCFunc::isPackQ4_0ToX16Body(tcrvrvv::WithVLOp scope) {
+    bool sawPack = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlPackQ40ToX16Op>(op)) {
+        if (sawPack)
+          return false;
+        sawPack = true;
+      } else {
+        return false;
+      }
+    }
+    return sawPack;
   }
 
 bool VariantToEmitCFunc::isRepackGemvQ4_1Q8_1Body(tcrvrvv::WithVLOp scope) {

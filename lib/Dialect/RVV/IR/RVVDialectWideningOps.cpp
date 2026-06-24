@@ -1933,6 +1933,82 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlPackQ40ToX16Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The option-2 stage-C1b PACK op carries ONLY its bounded mirror attrs (I4):
+  // the operation kind and the plain block_q4_0 -> block_q4_0x16 pack structural
+  // facts. Anything else -- a forbidden local element_count/SEW/LMUL/policy
+  // attr, or an unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "src_block_stride" ||
+           name == "dst_block_stride" || name == "src_quant_byte_offset" ||
+           name == "dst_quant_byte_offset" || name == "weight_interleave" ||
+           name == "xor_mask";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.pack_q4_0_to_q4_0x16 is a pure scalar byte "
+                "transform and keeps SEW/LMUL/policy on setvl/with_vl, runtime "
+                "nblocks in the surrounding control-plane IR";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml plain q4_0 -> q4_0x16 pack "
+                "attributes 'kind', 'qk', 'src_block_stride', "
+                "'dst_block_stride', 'src_quant_byte_offset', "
+                "'dst_quant_byte_offset', 'weight_interleave', and 'xor_mask'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_pack_q4_0_to_q4_0x16")
+    return emitOpError()
+           << "currently supports only kind \"ggml_pack_q4_0_to_q4_0x16\" for "
+              "the bounded ggml plain q4_0 -> q4_0x16 pack typed surface";
+
+  // The pack ABI (the byte layout make_block_q4_0x16 depends on, pinned
+  // fail-closed I7): QK == 32, block_q4_0 source stride 18 (1 inline fp16 scale
+  // + 16 nibble bytes), block_q4_0x16 destination stride 288 (16 inline fp16
+  // scales + 256 interleaved nibble bytes), source quants at byte offset +2
+  // (after the 1 fp16 scale), destination quants at byte offset +32 (after the
+  // 16 fp16 scales), 16 source blocks interleaved per output block, and the
+  // offset-binary XOR mask 0x88.
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK4_0) for the ggml plain q4_0 "
+                            "-> q4_0x16 pack route";
+  if (getSrcBlockStride() != 18)
+    return emitOpError()
+           << "requires src_block_stride == 18 (sizeof block_q4_0) for the ggml "
+              "plain q4_0 -> q4_0x16 pack route";
+  if (getDstBlockStride() != 288)
+    return emitOpError()
+           << "requires dst_block_stride == 288 (sizeof block_q4_0x16) for the "
+              "ggml plain q4_0 -> q4_0x16 pack route";
+  if (getSrcQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires src_quant_byte_offset == 2 (the single inline fp16 "
+              "scale precedes the 16 nibble bytes) for the ggml plain q4_0 -> "
+              "q4_0x16 pack route";
+  if (getDstQuantByteOffset() != 32)
+    return emitOpError()
+           << "requires dst_quant_byte_offset == 32 (the 16 inline fp16 scales "
+              "precede the 256 interleaved nibble bytes) for the ggml plain q4_0 "
+              "-> q4_0x16 pack route";
+  if (getWeightInterleave() != 16)
+    return emitOpError() << "requires weight_interleave == 16 (the 16-way "
+                            "block-as-lane interleave width) for the ggml plain "
+                            "q4_0 -> q4_0x16 pack route";
+  if (getXorMask() != 0x88)
+    return emitOpError()
+           << "requires xor_mask == 0x88 (the offset-binary bias the consumer "
+              "GEMV expects) for the ggml plain q4_0 -> q4_0x16 pack route";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlRepackGemvQ80Q80Op::verify() {
   mlir::Operation *op = getOperation();
 
