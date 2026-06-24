@@ -42,6 +42,11 @@ totals; divide by 2 for the per-(col,strip) logical shape.
 | `vfnmsac_vv_f32m2` (min subtract) | 16 | 8 | 4 cols × 2 strips |
 | `vse32_v_f32m2` (store) | 16 | 8 | 4 cols × 2 strips |
 | `redsum` | **0** | 0 | lane-wise wall-free (NOWALL) |
+> **COUNT CORRECTION (trellis-check fresh clean-build, authoritative):** 5 inner-loop rows above were
+> over-counted — act-qs 2048→1024, bsums 128→64, `vwmacc_vx_i16m1` 8192→4096, `vwmacc_vv_i32m2` 512→256,
+> `vwmacc_vx_i32m2` 256→128 (the 2× legalize-doubling does NOT apply uniformly). The `vsll`=16-logical headline
+> + the per-group amortization + the logical shapes are unaffected; numeric authority is the oracle (PASS 7.05e-7).
+
 
 ## rvv-oracle HANDOFF — the EXACT indices the byte-exact oracle must check
 

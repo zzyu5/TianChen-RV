@@ -254,6 +254,13 @@ number names a real contribution, not an artifact of a weak comparand:
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
   appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound) must be
   stated, not hidden behind the larger number.
+- **A repack / block-as-lane kernel is VLEN-SHAPED; its perf claim must name the VLEN regime AND compare
+  vs the framework's VLEN-NATIVE kernel.** A kernel whose lane structure targets VLEN256 (e.g. 16 columns
+  across lanes wanting one register) DEGRADES on VLEN128 (fractional / strip-split path) and LOSES to the
+  framework's VLEN128-native kernel — that is an N3-tune **SHAPE-MISMATCH** gap (the selector should emit a
+  VLEN-native variant or decline the repack), NOT a kernel bug (oracle-clean). *(Verified 2026-06-24: q4_K &
+  q8_0 block-as-lane repacks (VLEN256-shaped) lose 0.47–0.89× to ggml's VLEN128-native kernels in BOTH decode
+  (GEVM) and prefill (GEMM); the M-column unpack amortization narrows but does not cross 1.0 — ledger §8b 2×2.)*
 - Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
   emitted kernel must be proven (e.g. an ENGAGED marker / objdump of the FINAL staged binary), not assumed.
 - **A new-hardware-unit / build-swap claim needs a can't-possibly-help control.** When a number compares two
