@@ -128,6 +128,60 @@ def MMAUOp : TCRVIME_Op<"mma_u",
   let hasVerifier = 1;
 }
 
+def MMASUOp : TCRVIME_Op<"mma_su",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "IME mixed-sign int8->int32 matrix-multiply-accumulate (vmadotsu) boundary";
+  let description = [{
+    The FOURTH IME execution boundary (plugin breadth, N2 rapid-add): the
+    MIXED-SIGN form of the MAC unit, realized by the IME1 `vmadotsu`
+    instruction. This is the canonical quantized mixed-sign case: A is treated
+    as SIGNED int8 (activations) and B as UNSIGNED int8 (weights), C += A . B^T
+    accumulated in int32. Identical fragment-shape envelope to tcrv.ime.mma
+    (capability-derived from VLEN/SEW: at VLEN=256/SEW=8 the X60 unit is 4x4x8,
+    int32 accumulator), but a GENUINELY DIFFERENT emitted instruction:
+    `vmadotsu` (signed*unsigned int8 MAC, IME1 mixed-sign signedness variant)
+    computes a numerically different result than tcrv.ime.mma's `vmadot`
+    (signed*signed) and tcrv.ime.mma_u's `vmadotu` (unsigned*unsigned). The
+    three have distinct encodings (vmadot=0xe210312b, vmadotu=0xe210022b,
+    vmadotsu=0xe210232b) and distinct numeric semantics; on the same
+    all-high-bit-set int8 data the mixed-sign MAC differs from BOTH the signed
+    and the unsigned MAC, so this is not a renamed op.
+
+    All four ops gate on the SAME first-class `spacemit.ime` capability FACT (the
+    `xsmtvdotii` march token assembles all four signedness forms — proven by the
+    SpacemiT GCC15 assembler). Which signedness boundary materializes is a
+    capability-derived fact (the `ime_signedness` request), NOT a family-name
+    string and NOT a second capability id. A fail-closed verifier (I7) admits
+    ONLY the validated IME1 mixed-sign int8->int32 `vmadotsu` envelope.
+
+    This is an IME execution op, not a high-level matmul op. It makes no
+    correctness/performance claim in the IR; correctness is proven by the emitted
+    kernel bit-exact vs a mixed-sign scalar reference on real K1.
+  }];
+
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
 def MatMulOp : TCRVIME_Op<"matmul",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",

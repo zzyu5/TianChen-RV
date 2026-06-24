@@ -47,6 +47,10 @@ constexpr llvm::StringLiteral kSourceRoleValue("compute");
 // SAME elem_in/accum/MAC-fragment envelope, distinguished only by the mnemonic.
 constexpr llvm::StringLiteral kExpectedSignedIMEOp("vmadot");
 constexpr llvm::StringLiteral kExpectedUnsignedIMEOp("vmadotu");
+// tcrv.ime.mma_su is the MIXED-SIGN `vmadotsu` (signed*unsigned int8 MAC) — the
+// fourth IME1 signedness form over the SAME elem_in/accum/MAC-fragment envelope,
+// distinguished only by the mnemonic.
+constexpr llvm::StringLiteral kExpectedMixedSignIMEOp("vmadotsu");
 constexpr int64_t kExpectedElemInBits = 8;
 constexpr int64_t kExpectedAccumBits = 32;
 
@@ -302,6 +306,20 @@ llvm::StringRef MMAUOp::getTCRVEmitCLowerableSourceRole() {
 
 mlir::LogicalResult MMAUOp::verify() {
   return verifyIMEMACBoundary(getOperation(), kExpectedUnsignedIMEOp,
+                              isAllowedMMAAttr,
+                              [this]() { return emitOpError(); });
+}
+
+llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MMASUOp::verify() {
+  return verifyIMEMACBoundary(getOperation(), kExpectedMixedSignIMEOp,
                               isAllowedMMAAttr,
                               [this]() { return emitOpError(); });
 }

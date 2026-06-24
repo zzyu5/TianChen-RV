@@ -51,15 +51,18 @@ module {
 // -----
 
 // Fail-closed (I7): the SIGNED tcrv.ime.mma surface admits ONLY `vmadot`; a
-// different IME1 signedness mnemonic (e.g. the mixed-sign vmadotsu) is rejected
-// here — the unsigned vmadotu has its own op (tcrv.ime.mma_u). No body outside
-// the proven, signedness-correct hardware envelope is ever emitted.
+// different IME1 signedness mnemonic (e.g. the reversed-order mixed-sign sibling
+// vmadotus) is rejected here — the unsigned vmadotu has its own op
+// (tcrv.ime.mma_u) and the modeled mixed-sign vmadotsu has its own op
+// (tcrv.ime.mma_su). No body outside the proven, signedness-correct hardware
+// envelope is ever emitted. (vmadotus is a still-rejected sibling: it has no
+// boundary op of its own, so it fails closed on every surface.)
 module {
   tcrv.exec.kernel @ime_mma_wrong_op {
     tcrv.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
     tcrv.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
     // expected-error@+1 {{ime_op must be 'vmadot'; this op only models the validated IME1 int8->int32 MAC instruction of its signedness}}
-    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotsu", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    tcrv_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotus", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
   }
 }
 

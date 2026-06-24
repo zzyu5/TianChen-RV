@@ -39,6 +39,14 @@ constexpr llvm::StringLiteral kVmadotHelperName("tcrv_ime_vmadot_mma_4x4x8");
 // with unsigned numeric semantics. There is no IME intrinsic header, so this is
 // likewise ONE justified verbatim leaf reached by a structured call_opaque.
 constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
+// The FOURTH (mixed-sign) asm-leaf helper — same structure, but the single
+// justified instruction leaf is `vmadotsu` (signed*unsigned int8 MAC), a
+// GENUINELY different instruction (encoding 0xe210232b vs vmadot's 0xe210312b
+// and vmadotu's 0xe210022b) with mixed-sign numeric semantics (signed A,
+// unsigned B). There is no IME intrinsic header, so this is likewise ONE
+// justified verbatim leaf reached by a structured call_opaque.
+constexpr llvm::StringLiteral kVmadotsuHelperName(
+    "tcrv_ime_vmadotsu_mma_4x4x8");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
@@ -106,6 +114,10 @@ std::string vmadotHelperBody() {
 
 std::string vmadotuHelperBody() {
   return macHelperBody(kVmadotuHelperName, "vmadotu");
+}
+
+std::string vmadotsuHelperBody() {
+  return macHelperBody(kVmadotsuHelperName, "vmadotsu");
 }
 
 // The tiled whole-matrix micro-kernel helper names. The single justified asm
@@ -327,6 +339,15 @@ template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUOp>::helperBody() {
   return vmadotuHelperBody();
 }
 
+// Mixed-sign surface: tcrv.ime.mma_su -> the vmadotsu asm leaf (the fourth op).
+template <>
+llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperName() {
+  return kVmadotsuHelperName;
+}
+template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperBody() {
+  return vmadotsuHelperBody();
+}
+
 /// Lowers the tiled whole-matrix IME boundary (`tcrv.ime.matmul`) into a
 /// standalone EmitC module:
 ///   #include <stdint.h>
@@ -457,7 +478,7 @@ public:
   void
   configureConversionTarget(mlir::ConversionTarget &target) const override {
     target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
-                        tcrv::ime::MatMulOp>();
+                        tcrv::ime::MMASUOp, tcrv::ime::MatMulOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -465,7 +486,8 @@ public:
   populateLoweringPatterns(mlir::TypeConverter &typeConverter,
                            mlir::RewritePatternSet &patterns) const override {
     patterns.add<IMEMACToEmitCFunc<tcrv::ime::MMAOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMAUOp>, IMEMatMulToEmitCFunc>(
+                 IMEMACToEmitCFunc<tcrv::ime::MMAUOp>,
+                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>, IMEMatMulToEmitCFunc>(
         typeConverter, patterns.getContext());
   }
 
