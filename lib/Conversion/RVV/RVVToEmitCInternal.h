@@ -150,6 +150,13 @@ private:
   /// with FULL int8 weight lanes (NO nibble decode) and i32 in-block accumulation.
   static bool isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The K-QUANT (super-block) 16x1-REPACKED single-column GEVM recognizer: a
+  /// with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_q4_K_q8_K. The op identity is the dispatch key; the
+  /// emitter owns the structured block-as-lane single-output-column expansion
+  /// with the q4_K 8-sub-block dual (scale + bsums-min) 6-bit fold.
+  static bool isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope);
+
   /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
   static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
@@ -1157,6 +1164,17 @@ private:
   /// The block-format facts are the op's typed attrs (I4 mirror); the emission is
   /// the op's fixed structure (I5; every value is a node, ZERO raw() strings).
   mlir::LogicalResult emitRepackGemvQ8_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane GEVM for one
+  /// tcrv_rvv.repack_gemv_q4_K_q8_K op as fully STRUCTURED emitc nodes (I5; no
+  /// raw() strings). The K-quant super-block sibling of emitRepackGemvQ4_1Q8_1:
+  /// 8 sub-blocks of 32, per-sub-block 6-bit scale/min unpacked LANE-WISE across
+  /// the 16 weight columns, main term d*Sum(scale_sub*sumi_sub) and MIN term
+  /// dmin*Sum(min_sub*bsums_sub). Lane-wise accumulator (NO vredsum).
+  mlir::LogicalResult emitRepackGemvQ4KQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
