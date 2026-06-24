@@ -41,8 +41,8 @@ module {
 // The function-scoped fp32 accumulator + the super-block count nb = n / 256.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// The two kmask halves broadcast-loaded ONCE (above the super-block loop), u8m1.
-// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// The FULL 8-bit kmask broadcast-loaded ONCE (above the super-block loop), u8m1
+// (the vluxei16 revectorization uses a single 8-lane kmask, not two 4-lane halves).
 // CHECK: call_opaque "__riscv_vle8_v_u8m1"
 // The outer super-block loop.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
@@ -56,8 +56,13 @@ module {
 // CHECK: bitwise_or
 // ls = 2*(aux32>>28)+1.
 // CHECK: bitwise_right_shift
-// The GRID-of-4 lookup: indexed pointer arith (grid_i8 + idx*4) then vle8 at width 4.
-// CHECK: call_opaque "__riscv_vsetvl_e8m1"
+// The GRID-of-4 GROUP gather: the uint16_t tmp[2] idx*4 byte-offsets, vle16 index,
+// then the HARDWARE __riscv_vluxei16_v_i32m1 over the i32 grid base, reinterpreted to
+// i8m1 grid bytes, then the 8-lane q8 load.
+// CHECK: "emitc.variable"() {{.*}} -> !emitc.array<2x!emitc.opaque<"uint16_t">>
+// CHECK: call_opaque "__riscv_vle16_v_u16mf2"
+// CHECK: call_opaque "__riscv_vluxei16_v_i32m1"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
 // CHECK: call_opaque "__riscv_vle8_v_i8m1"
 // The SIGN plane: broadcast signs / vand kmask / vmsne / vneg / vmerge.
 // CHECK: call_opaque "__riscv_vmv_v_x_u8m1"

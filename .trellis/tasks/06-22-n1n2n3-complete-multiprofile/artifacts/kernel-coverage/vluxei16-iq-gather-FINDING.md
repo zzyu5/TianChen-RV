@@ -286,3 +286,160 @@ variant, beyond this maturity scope):
 - No git commit (lead commits).
 - Staged on rvv: `~/vlux-iq1m/` (k_scalar/k_vlux/oracle, ours_scalar/ours_vlux/
   harness/ggml_ref for micro).
+
+---
+
+# FINDING — vluxei16 IQ-gather revectorization, THIRD+FOURTH kernels (iq3_xxs + iq3_s)
+
+Extends the proven iq1_s/iq1_m vluxei16 pattern to the iq3 family. Both done, both
+byte-exact. Same `ssh rvv` regime (SG2044, RVV1.0, VLEN128, clang-18,
+`-O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast`, `taskset -c 2`).
+
+## 0. SIGN-PLANE BLOCKER CHECK — NOT signs64-blocked (the load-bearing fact)
+
+The DESIGN doc flagged iq2 as BLOCKED: its *vectorized* sign-fold needs the
+`keven_signs_q2xs` (signs64) table, which the op does NOT carry. **iq3 is NOT
+blocked** — verified against the emitters:
+- `emitIQ3XXSQ8KBlockDot` reads its sign byte as `tcrv_iq3xxs_ksigns[(aux32>>7l)&127]`
+  — the u8 selector table the op DOES carry via `getKsigns()` (`RVVToEmitCGridCodebook
+  .cpp` grid+ksigns decls).
+- `emitIQ3SQ8KBlockDot` reads explicit per-group sign bytes DIRECTLY from the weight
+  signs region (`xb+74`) — NO table at all.
+Neither needs signs64. The task is to vectorize only the integer grid GATHER; the
+scalar-broadcast ksigns/kmask/vmsne/vneg/vmerge sign-fold STAYS UNCHANGED (it is
+byte-exact with itself — that is the gate, not ggml's mechanism). ggml's iq3 happens
+to use signs64 + `vrsub`, but we keep our existing sign path. → BOTH iq3_xxs and
+iq3_s done; no op-attr extension needed.
+
+## 1. The change (file:lines)
+
+`lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp`:
+- `emitIQ3XXSQ8KBlockDot` (grid is `uint32[256]`, 4 bytes/entry) and
+  `emitIQ3SQ8KBlockDot` (grid `uint32[512]`) — SAME revectorization in both.
+- Added gather emit types (`vuint16mf2_t`, `uint16_t*`, `const int32_t*`; reused
+  `vint8m1_t`/`vint16m2_t`/`vint32m1_t`). Added `groupLanes = 8`. Removed now-dead
+  `entryLanes`.
+- Replaced `gridOf4Pass` (ONE 4-lane scalar pass: `vle8(grid_i8+idx*4, 4)` + sign-fold
+  + `vwmul i16m2` + `vwredsum`, called TWICE per sign group = 8 passes/sub-block) with
+  `gridOf4Group` (ONE 8-lane body per sign group = 4 groups/sub-block):
+  - KEEP the scalar grid indices byte-exact: iq3_xxs `idx1=qg[2l]`, `idx2=qg[2l+1]`;
+    iq3_s `idx1/idx2` qh-9th-bit-injected (`qs[...] | ((qh<<sh)&256)`) — UNCHANGED.
+    Each `<<2` (byte offset = idx*4 for the u32 grid) into a `uint16_t tmp[2]`.
+  - `__riscv_vle16_v_u16mf2(&tmp[0], 2)` → index (EMUL = (16/32)*m1 = mf2).
+  - `__riscv_vluxei16_v_i32m1((const int32_t*)tcrv_iq3{xxs,s}_grid, vidx, 2)` → gather
+    the 2 grid u32 entries → `__riscv_vreinterpret_v_i32m1_i8m1` = the 8 grid bytes
+    (mirror iq1_s's signed-i64 gather; each grid byte ≤62 (xxs)/≤15 (s) < 128, so the
+    i8 reinterpret = ggml's identical u8 grid values).
+  - sign-fold UNCHANGED ops, vl 4→8, FULL 8-bit kmask `{1,2,4,8,16,32,64,128}` (was
+    split kmaskLo/kmaskHi for the two 4-lane passes): `vmv_v_x_u8m1(signs)` / `vand` /
+    `vmsne_vx_u8m1_b8` / `vneg_v_i8m1` / `vmerge_vvm_i8m1`.
+  - `vle8_v_i8m1(q8Group, 8)` → `vwmul_vv_i16m2` → `vwredsum_vs_i16m2_i32m1` into the
+    same `sumiAcc`.
+- KEPT UNCHANGED (byte-exact FP/scale/sign): the ksigns/explicit-signs read, `ls`,
+  `bsum`/`sumi`, the per-super-block fold, iq3_xxs's trailing `*s = 0.25f*sumf`,
+  iq3_s's `*s = sumf` (no factor). Grid table decls untouched.
+
+Lane-mapping byte-exactness proof: group lanes 0..3 = grid1 / q8[0..3] / kmask
+{1,2,4,8} (= old pass A), lanes 4..7 = grid2 / q8[4..7] / kmask {16,32,64,128} (= old
+pass B). Per-lane products byte-identical; the i32 `vwredsum` is order-free, so
+collapsing the two 4-lane reductions into one 8-lane reduce per group is byte-safe.
+EMUL gotcha (advisor-flagged): `vluxei16_v_i32m1` wants a `vuint16mf2_t` index; gather
++ `vle16` take vl=2 (entries), sign-fold + q8 + vwmul + vwredsum take vl=8 (lanes) —
+literals, NO captured `vsetvl`.
+
+`tcrv-opt`/`tcrv-translate` rebuilt FORCED/CLEAN (`rm -f build/bin/tcrv-opt
+build/bin/tcrv-translate && ninja bin/tcrv-opt bin/tcrv-translate`). No ODS/.td
+touched. Emit clean: iq3_xxs 1663-line + iq3_s 1667-line `ours.cpp`, each with 32
+real `vluxei16_v_i32m1` (8 sub-blocks × 4 groups).
+
+## 2. Byte-exact oracle — PASS (bit-identical), BOTH kernels
+
+Old-scalar-emit vs new-vluxei-emit, distinct symbols (`iq3{xxs,s}_scalar` /
+`iq3{xxs,s}_vlux`) in one binary, 8 seeds × 6 sizes, raw float bits `memcmp`'d:
+
+```
+BYTE-EXACT-ORACLE [iq3_xxs] cases=48 mismatches=0 -> PASS (bit-identical)
+BYTE-EXACT-ORACLE [iq3_s]   cases=48 mismatches=0 -> PASS (bit-identical)
+TOTAL mismatches=0 -> ALL PASS
+```
+
+96/96 bit-identical. The revectorization is byte-exact-correct on both. (Also: micro
+harness AGREEMENT vs ggml `max_rel_norm=0.000e+00` for all four emits.)
+
+## 3. objdump engagement proof — vluxei16 PRESENT (yes)
+
+```
+$ for f in iq3xxs_scalar iq3xxs_vlux iq3s_scalar iq3s_vlux; do
+    objdump -d $f.o | grep -c vluxei16; done
+iq3xxs_scalar vluxei16=0
+iq3xxs_vlux   vluxei16=32
+iq3s_scalar   vluxei16=0
+iq3s_vlux     vluxei16=32
+```
+
+The new binaries contain the hardware indexed gather (32× each = 8 sub-blocks × 4
+groups); the scalar baselines have none. Engagement proven.
+
+## 4. Micro ratio vs ggml — gaps CLOSED, NOT parity (HONEST)
+
+Measured in ONE combined binary (scalar + vlux + ggml, symmetric warmup, same layout
+→ the our-vs-our ratio is confound-free), `timing_n=32*QK_K`, iters=2000, reps=200,
+best-of-min, `taskset -c 2`. ggml = shipped `_vl128`:
+
+| kernel | scalar (ns) | vlux (ns) | ggml (ns) | our-vs-our (vlux faster) | gap scalar→ggml | gap vlux→ggml |
+|---|---|---|---|---|---|---|
+| iq3_xxs | 123830 | 45089 | 5540 | **2.75x** | 22.35x | **8.14x** |
+| iq3_s   |  47143 | 40389 | 8011 | **1.17x** |  5.88x | **5.04x** |
+
+- **Robust number = our-vs-our** (same harness/input, not subject to ggml-baseline
+  drift): iq3_xxs **2.75x faster**, iq3_s **1.17x faster**. In-family with iq1_s 2.8x
+  / iq1_m 1.5x.
+- The gap to ggml CLOSED: iq3_xxs 22.35x → **8.14x**; iq3_s 5.88x → **5.04x**.
+- **This is NOT parity** (advisor-locked expectation = maturity / gap-closing, NOT a
+  tie and NOT "we beat ggml on iq3"). We adopted ggml's exact hardware gather
+  (`vluxei16`, objdump-confirmed, byte-exact).
+- Defensible claim: **"we now emit the same hardware indexed gather ggml uses
+  (`vluxei16`, byte-exact-correct); iq3_xxs is 2.75x faster (gap 22.4x→8.1x) and iq3_s
+  1.17x faster (gap 5.9x→5.0x)."**
+
+### ggml-baseline-per-binary contamination (caught + handled, like iq1_m)
+The SPLIT vlux bench (vlux ours linked with ggml, separate binary) reported ggml
+~564000 ns — a reproducible 100x per-binary timing contamination of the ggml ref when
+the vlux kernel precedes it in the warmup (NOT random noise: best-of-min over 200 reps,
+reproduced across runs; the vlux `ours` itself timed FAST + stable at 45577 across 3
+runs, so vector state is fine — contamination only slows, it didn't touch ours). The
+vlux-free SCALAR binary gave a clean ggml = 5511 ns (twice, byte-identical ggml source),
+and the COMBINED binary above reproduces clean ggml = 5540/8011 — those are the valid
+baselines. The 564000 / 12.4x ratio is a measurement artifact and is NOT reported.
+
+### Why iq3_s gains less than iq3_xxs (honest mechanism — NOT "vluxei16")
+iq3_s's scalar baseline was already ~2.6x faster than iq3_xxs's (47k vs 124k ns), so
+less of its time was in the gather → less to recover. Both residuals are NOT the gather
+(now identical to ggml's), but: (1) narrow 2-entry `i32m1` gather LMUL vs ggml's
+wider multi-entry gather (iq3_xxs `u32m4`/16-entry, iq3_xxs/ggml_ref.cpp:52; iq3_s
+`u32m2`/8-entry, iq3_s/ggml_ref.cpp:65); (2) scalar index assembly (iq3_s also pays the qh-9th-bit
+injection on the scalar unit; ggml builds the index vector in-register); (3) scalar
+sign-byte derivation. All named, scoped follow-ons (DESIGN step 2-wide / 32-lane
+vectorized-index), not regressions. The 32-lane ggml shape (one gather over all 8
+group entries + a vrgather-assembled 32-lane sign mask) is the named follow-on, not
+this step.
+
+## 5. Scope / honesty notes (iq3)
+- Compute-side micro only; e2e decode is memory-bound → NOT an e2e win, NOT claimed
+  (MEMORY: kernel-wins-dont-transplant-to-e2e). Compute-side gather → e2e decode NULL.
+- Byte-exact gate is the correctness proof; the tolerance micro is not.
+- No git commit (lead commits).
+- Staged on rvv: `~/vlux-iq3/` (iq3{xxs,s}_{scalar,vlux}.cpp + byte_exact_oracle_iq3
+  + combined bench + ggml_{xxs,s}); `~/blockdot-cov/iq3_{xxs,s}/ours_vlux.cpp` is the
+  new emit for the split micro harness.
+
+## Reproduce
+- emit: `build/bin/tcrv-opt test/Conversion/RVV/rvv-to-emitc-iq3-{xxs,s}-q8-k-block-dot
+  .mlir --tcrv-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp` (dev host, forced
+  clean tcrv-opt).
+- oracle (rvv): `clang-18 -O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast
+  byte_exact_oracle_iq3.cpp iq3xxs_scalar.cpp iq3xxs_vlux.cpp iq3s_scalar.cpp
+  iq3s_vlux.cpp -o oracle && taskset -c 2 ./oracle`.
+- micro (rvv, combined): `clang-18 ... combined_bench_iq3.cpp iq3{xxs,s}_{scalar,vlux}
+  .cpp ggml_{xxs,s}.cpp -o combined && taskset -c 2 ./combined`.
+- objdump: `objdump -d iq3xxs_vlux.o | grep -c vluxei16` → 32.

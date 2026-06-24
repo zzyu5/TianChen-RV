@@ -14,2103 +14,1653 @@ extern "C" void tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_ggml_vec_dot_iq3_s_q8_
   // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=super_block_count
   size_t v7 = v1 / 256;
   // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=kmask_table_load
-  vuint8m1_t v8 = __riscv_vle8_v_u8m1(tcrv_iq3s_kmask, 4);
-  const uint8_t* v9 = tcrv_iq3s_kmask + 4;
-  vuint8m1_t v10 = __riscv_vle8_v_u8m1(v9, 4);
-  // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_table_byte_view
-  const int8_t* v11 = (const int8_t*) tcrv_iq3s_grid;
+  vuint8m1_t v8 = __riscv_vle8_v_u8m1(tcrv_iq3s_kmask, 8);
+  // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_table_i32_view
+  const int32_t* v9 = (const int32_t*) tcrv_iq3s_grid;
   // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=super_block_loop
-  for (size_t v12 = 0; v12 < v7; v12 += 1) {
+  for (size_t v10 = 0; v10 < v7; v10 += 1) {
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=super_block_base_x
-    size_t v13 = v12 * 110;
-    const uint8_t* v14 = v3 + v13;
+    size_t v11 = v10 * 110;
+    const uint8_t* v12 = v3 + v11;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=super_block_base_y
-    size_t v15 = v12 * 292;
-    const uint8_t* v16 = v4 + v15;
+    size_t v13 = v10 * 292;
+    const uint8_t* v14 = v4 + v13;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=fcvt.s.h
-    float v17 = (float)*(const _Float16 *)(v14);
+    float v15 = (float)*(const _Float16 *)(v12);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=fold_activation_d
-    const float* v18 = (const float*) v16;
-    const float v19 = v18[0];
+    const float* v16 = (const float*) v14;
+    const float v17 = v16[0];
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=fold_scale_d
-    float v20 = v17 * v19;
-    const uint8_t* v21 = v14 + 2;
+    float v18 = v15 * v17;
+    const uint8_t* v19 = v12 + 2;
+    const uint8_t* v20 = (const uint8_t*) v19;
+    const uint8_t* v21 = v12 + 66;
     const uint8_t* v22 = (const uint8_t*) v21;
-    const uint8_t* v23 = v14 + 66;
+    const uint8_t* v23 = v12 + 74;
     const uint8_t* v24 = (const uint8_t*) v23;
-    const uint8_t* v25 = v14 + 74;
+    const uint8_t* v25 = v12 + 106;
     const uint8_t* v26 = (const uint8_t*) v25;
-    const uint8_t* v27 = v14 + 106;
-    const uint8_t* v28 = (const uint8_t*) v27;
-    const uint8_t* v29 = v16 + 4;
-    const int8_t* v30 = (const int8_t*) v29;
+    const uint8_t* v27 = v14 + 4;
+    const int8_t* v28 = (const int8_t*) v27;
     // tcrv_emitc.local_variable=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    int32_t v31;
-    v31 = 0;
+    int32_t v29;
+    v29 = 0;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v32 = v28[0];
-    int v33 = (int) v32;
-    int v34 = v33 & 15;
-    int v35 = v34 * 2;
-    int v36 = v35 + 1;
+    const uint8_t v30 = v26[0];
+    int v31 = (int) v30;
+    int v32 = v31 & 15;
+    int v33 = v32 * 2;
+    int v34 = v33 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v37 = v24[0];
-    int v38 = (int) v37;
+    const uint8_t v35 = v22[0];
+    int v36 = (int) v35;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v39 = __riscv_vmv_v_x_i32m1(0, 1);
+    vint32m1_t v37 = __riscv_vmv_v_x_i32m1(0, 1);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v40 = v26[0];
+    const uint8_t v38 = v24[0];
+    int v39 = (int) v38;
+    const uint8_t v40 = v20[0];
     int v41 = (int) v40;
-    const uint8_t v42 = v22[0];
-    int v43 = (int) v42;
-    int v44 = v38 << 8;
-    int v45 = v44 & 256;
-    int v46 = v43 | v45;
-    const uint8_t v47 = v22[1];
-    int v48 = (int) v47;
-    int v49 = v38 << 7;
-    int v50 = v49 & 256;
-    int v51 = v48 | v50;
-    const int8_t* v52 = v30 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v53 = __riscv_vsetvl_e8m1(4);
-    size_t v54 = v46 * 4;
-    const int8_t* v55 = v11 + v54;
+    int v42 = v36 << 8;
+    int v43 = v42 & 256;
+    int v44 = v41 | v43;
+    const uint8_t v45 = v20[1];
+    int v46 = (int) v45;
+    int v47 = v36 << 7;
+    int v48 = v47 & 256;
+    int v49 = v46 | v48;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v50[2];
+    int v51 = v44 << 2;
+    uint16_t v52 = (uint16_t) v51;
+    v50[0] = v52;
+    int v53 = v49 << 2;
+    uint16_t v54 = (uint16_t) v53;
+    v50[1] = v54;
+    uint16_t* v55 = &v50[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v56 = __riscv_vle16_v_u16mf2(v55, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v57 = __riscv_vluxei16_v_i32m1(v9, v56, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v58 = __riscv_vreinterpret_v_i32m1_i8m1(v57);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v56 = __riscv_vle8_v_i8m1(v55, v53);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v57 = __riscv_vle8_v_i8m1(v30, v53);
+    vint8m1_t v59 = __riscv_vle8_v_i8m1(v28, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v58 = __riscv_vmv_v_x_u8m1(v41, v53);
+    vuint8m1_t v60 = __riscv_vmv_v_x_u8m1(v39, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v59 = __riscv_vand_vv_u8m1(v58, v8, v53);
+    vuint8m1_t v61 = __riscv_vand_vv_u8m1(v60, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v60 = __riscv_vmsne_vx_u8m1_b8(v59, 0, v53);
+    vbool8_t v62 = __riscv_vmsne_vx_u8m1_b8(v61, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v61 = __riscv_vneg_v_i8m1(v56, v53);
+    vint8m1_t v63 = __riscv_vneg_v_i8m1(v58, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v62 = __riscv_vmerge_vvm_i8m1(v56, v61, v60, v53);
+    vint8m1_t v64 = __riscv_vmerge_vvm_i8m1(v58, v63, v62, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v63 = __riscv_vwmul_vv_i16m2(v62, v57, v53);
+    vint16m2_t v65 = __riscv_vwmul_vv_i16m2(v64, v59, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v64 = __riscv_vwredsum_vs_i16m2_i32m1(v63, v39, v53);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v65 = __riscv_vsetvl_e8m1(4);
-    size_t v66 = v51 * 4;
-    const int8_t* v67 = v11 + v66;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v68 = __riscv_vle8_v_i8m1(v67, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v69 = __riscv_vle8_v_i8m1(v52, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v70 = __riscv_vmv_v_x_u8m1(v41, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v71 = __riscv_vand_vv_u8m1(v70, v10, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v72 = __riscv_vmsne_vx_u8m1_b8(v71, 0, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v73 = __riscv_vneg_v_i8m1(v68, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v74 = __riscv_vmerge_vvm_i8m1(v68, v73, v72, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v75 = __riscv_vwmul_vv_i16m2(v74, v69, v65);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v76 = __riscv_vwredsum_vs_i16m2_i32m1(v75, v64, v65);
-    const int8_t* v77 = v30 + 8;
+    vint32m1_t v66 = __riscv_vwredsum_vs_i16m2_i32m1(v65, v37, 8);
+    const int8_t* v67 = v28 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v78 = v26[1];
-    int v79 = (int) v78;
-    const uint8_t v80 = v22[2];
-    int v81 = (int) v80;
-    int v82 = v38 << 6;
-    int v83 = v82 & 256;
-    int v84 = v81 | v83;
-    const uint8_t v85 = v22[3];
-    int v86 = (int) v85;
-    int v87 = v38 << 5;
-    int v88 = v87 & 256;
-    int v89 = v86 | v88;
-    const int8_t* v90 = v77 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v91 = __riscv_vsetvl_e8m1(4);
-    size_t v92 = v84 * 4;
-    const int8_t* v93 = v11 + v92;
+    const uint8_t v68 = v24[1];
+    int v69 = (int) v68;
+    const uint8_t v70 = v20[2];
+    int v71 = (int) v70;
+    int v72 = v36 << 6;
+    int v73 = v72 & 256;
+    int v74 = v71 | v73;
+    const uint8_t v75 = v20[3];
+    int v76 = (int) v75;
+    int v77 = v36 << 5;
+    int v78 = v77 & 256;
+    int v79 = v76 | v78;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v80[2];
+    int v81 = v74 << 2;
+    uint16_t v82 = (uint16_t) v81;
+    v80[0] = v82;
+    int v83 = v79 << 2;
+    uint16_t v84 = (uint16_t) v83;
+    v80[1] = v84;
+    uint16_t* v85 = &v80[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v86 = __riscv_vle16_v_u16mf2(v85, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v87 = __riscv_vluxei16_v_i32m1(v9, v86, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v88 = __riscv_vreinterpret_v_i32m1_i8m1(v87);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v94 = __riscv_vle8_v_i8m1(v93, v91);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v95 = __riscv_vle8_v_i8m1(v77, v91);
+    vint8m1_t v89 = __riscv_vle8_v_i8m1(v67, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v96 = __riscv_vmv_v_x_u8m1(v79, v91);
+    vuint8m1_t v90 = __riscv_vmv_v_x_u8m1(v69, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v97 = __riscv_vand_vv_u8m1(v96, v8, v91);
+    vuint8m1_t v91 = __riscv_vand_vv_u8m1(v90, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v98 = __riscv_vmsne_vx_u8m1_b8(v97, 0, v91);
+    vbool8_t v92 = __riscv_vmsne_vx_u8m1_b8(v91, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v99 = __riscv_vneg_v_i8m1(v94, v91);
+    vint8m1_t v93 = __riscv_vneg_v_i8m1(v88, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v100 = __riscv_vmerge_vvm_i8m1(v94, v99, v98, v91);
+    vint8m1_t v94 = __riscv_vmerge_vvm_i8m1(v88, v93, v92, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v101 = __riscv_vwmul_vv_i16m2(v100, v95, v91);
+    vint16m2_t v95 = __riscv_vwmul_vv_i16m2(v94, v89, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v102 = __riscv_vwredsum_vs_i16m2_i32m1(v101, v76, v91);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v103 = __riscv_vsetvl_e8m1(4);
-    size_t v104 = v89 * 4;
-    const int8_t* v105 = v11 + v104;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v106 = __riscv_vle8_v_i8m1(v105, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v107 = __riscv_vle8_v_i8m1(v90, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v108 = __riscv_vmv_v_x_u8m1(v79, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v109 = __riscv_vand_vv_u8m1(v108, v10, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v110 = __riscv_vmsne_vx_u8m1_b8(v109, 0, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v111 = __riscv_vneg_v_i8m1(v106, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v112 = __riscv_vmerge_vvm_i8m1(v106, v111, v110, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v113 = __riscv_vwmul_vv_i16m2(v112, v107, v103);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v114 = __riscv_vwredsum_vs_i16m2_i32m1(v113, v102, v103);
-    const int8_t* v115 = v77 + 8;
+    vint32m1_t v96 = __riscv_vwredsum_vs_i16m2_i32m1(v95, v66, 8);
+    const int8_t* v97 = v67 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v116 = v26[2];
-    int v117 = (int) v116;
-    const uint8_t v118 = v22[4];
-    int v119 = (int) v118;
-    int v120 = v38 << 4;
-    int v121 = v120 & 256;
-    int v122 = v119 | v121;
-    const uint8_t v123 = v22[5];
-    int v124 = (int) v123;
-    int v125 = v38 << 3;
-    int v126 = v125 & 256;
-    int v127 = v124 | v126;
-    const int8_t* v128 = v115 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v129 = __riscv_vsetvl_e8m1(4);
-    size_t v130 = v122 * 4;
-    const int8_t* v131 = v11 + v130;
+    const uint8_t v98 = v24[2];
+    int v99 = (int) v98;
+    const uint8_t v100 = v20[4];
+    int v101 = (int) v100;
+    int v102 = v36 << 4;
+    int v103 = v102 & 256;
+    int v104 = v101 | v103;
+    const uint8_t v105 = v20[5];
+    int v106 = (int) v105;
+    int v107 = v36 << 3;
+    int v108 = v107 & 256;
+    int v109 = v106 | v108;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v110[2];
+    int v111 = v104 << 2;
+    uint16_t v112 = (uint16_t) v111;
+    v110[0] = v112;
+    int v113 = v109 << 2;
+    uint16_t v114 = (uint16_t) v113;
+    v110[1] = v114;
+    uint16_t* v115 = &v110[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v116 = __riscv_vle16_v_u16mf2(v115, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v117 = __riscv_vluxei16_v_i32m1(v9, v116, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v118 = __riscv_vreinterpret_v_i32m1_i8m1(v117);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v132 = __riscv_vle8_v_i8m1(v131, v129);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v133 = __riscv_vle8_v_i8m1(v115, v129);
+    vint8m1_t v119 = __riscv_vle8_v_i8m1(v97, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v134 = __riscv_vmv_v_x_u8m1(v117, v129);
+    vuint8m1_t v120 = __riscv_vmv_v_x_u8m1(v99, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v135 = __riscv_vand_vv_u8m1(v134, v8, v129);
+    vuint8m1_t v121 = __riscv_vand_vv_u8m1(v120, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v136 = __riscv_vmsne_vx_u8m1_b8(v135, 0, v129);
+    vbool8_t v122 = __riscv_vmsne_vx_u8m1_b8(v121, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v137 = __riscv_vneg_v_i8m1(v132, v129);
+    vint8m1_t v123 = __riscv_vneg_v_i8m1(v118, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v138 = __riscv_vmerge_vvm_i8m1(v132, v137, v136, v129);
+    vint8m1_t v124 = __riscv_vmerge_vvm_i8m1(v118, v123, v122, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v139 = __riscv_vwmul_vv_i16m2(v138, v133, v129);
+    vint16m2_t v125 = __riscv_vwmul_vv_i16m2(v124, v119, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v140 = __riscv_vwredsum_vs_i16m2_i32m1(v139, v114, v129);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v141 = __riscv_vsetvl_e8m1(4);
-    size_t v142 = v127 * 4;
-    const int8_t* v143 = v11 + v142;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v144 = __riscv_vle8_v_i8m1(v143, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v145 = __riscv_vle8_v_i8m1(v128, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v146 = __riscv_vmv_v_x_u8m1(v117, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v147 = __riscv_vand_vv_u8m1(v146, v10, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v148 = __riscv_vmsne_vx_u8m1_b8(v147, 0, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v149 = __riscv_vneg_v_i8m1(v144, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v150 = __riscv_vmerge_vvm_i8m1(v144, v149, v148, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v151 = __riscv_vwmul_vv_i16m2(v150, v145, v141);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v152 = __riscv_vwredsum_vs_i16m2_i32m1(v151, v140, v141);
-    const int8_t* v153 = v115 + 8;
+    vint32m1_t v126 = __riscv_vwredsum_vs_i16m2_i32m1(v125, v96, 8);
+    const int8_t* v127 = v97 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v154 = v26[3];
-    int v155 = (int) v154;
-    const uint8_t v156 = v22[6];
-    int v157 = (int) v156;
-    int v158 = v38 << 2;
-    int v159 = v158 & 256;
-    int v160 = v157 | v159;
-    const uint8_t v161 = v22[7];
-    int v162 = (int) v161;
-    int v163 = v38 << 1;
-    int v164 = v163 & 256;
-    int v165 = v162 | v164;
-    const int8_t* v166 = v153 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v167 = __riscv_vsetvl_e8m1(4);
-    size_t v168 = v160 * 4;
-    const int8_t* v169 = v11 + v168;
+    const uint8_t v128 = v24[3];
+    int v129 = (int) v128;
+    const uint8_t v130 = v20[6];
+    int v131 = (int) v130;
+    int v132 = v36 << 2;
+    int v133 = v132 & 256;
+    int v134 = v131 | v133;
+    const uint8_t v135 = v20[7];
+    int v136 = (int) v135;
+    int v137 = v36 << 1;
+    int v138 = v137 & 256;
+    int v139 = v136 | v138;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v140[2];
+    int v141 = v134 << 2;
+    uint16_t v142 = (uint16_t) v141;
+    v140[0] = v142;
+    int v143 = v139 << 2;
+    uint16_t v144 = (uint16_t) v143;
+    v140[1] = v144;
+    uint16_t* v145 = &v140[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v146 = __riscv_vle16_v_u16mf2(v145, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v147 = __riscv_vluxei16_v_i32m1(v9, v146, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v148 = __riscv_vreinterpret_v_i32m1_i8m1(v147);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v170 = __riscv_vle8_v_i8m1(v169, v167);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v171 = __riscv_vle8_v_i8m1(v153, v167);
+    vint8m1_t v149 = __riscv_vle8_v_i8m1(v127, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v172 = __riscv_vmv_v_x_u8m1(v155, v167);
+    vuint8m1_t v150 = __riscv_vmv_v_x_u8m1(v129, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v173 = __riscv_vand_vv_u8m1(v172, v8, v167);
+    vuint8m1_t v151 = __riscv_vand_vv_u8m1(v150, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v174 = __riscv_vmsne_vx_u8m1_b8(v173, 0, v167);
+    vbool8_t v152 = __riscv_vmsne_vx_u8m1_b8(v151, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v175 = __riscv_vneg_v_i8m1(v170, v167);
+    vint8m1_t v153 = __riscv_vneg_v_i8m1(v148, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v176 = __riscv_vmerge_vvm_i8m1(v170, v175, v174, v167);
+    vint8m1_t v154 = __riscv_vmerge_vvm_i8m1(v148, v153, v152, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v177 = __riscv_vwmul_vv_i16m2(v176, v171, v167);
+    vint16m2_t v155 = __riscv_vwmul_vv_i16m2(v154, v149, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v178 = __riscv_vwredsum_vs_i16m2_i32m1(v177, v152, v167);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v179 = __riscv_vsetvl_e8m1(4);
-    size_t v180 = v165 * 4;
-    const int8_t* v181 = v11 + v180;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v182 = __riscv_vle8_v_i8m1(v181, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v183 = __riscv_vle8_v_i8m1(v166, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v184 = __riscv_vmv_v_x_u8m1(v155, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v185 = __riscv_vand_vv_u8m1(v184, v10, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v186 = __riscv_vmsne_vx_u8m1_b8(v185, 0, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v187 = __riscv_vneg_v_i8m1(v182, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v188 = __riscv_vmerge_vvm_i8m1(v182, v187, v186, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v189 = __riscv_vwmul_vv_i16m2(v188, v183, v179);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v190 = __riscv_vwredsum_vs_i16m2_i32m1(v189, v178, v179);
-    const int8_t* v191 = v153 + 8;
+    vint32m1_t v156 = __riscv_vwredsum_vs_i16m2_i32m1(v155, v126, 8);
+    const int8_t* v157 = v127 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v192 = __riscv_vmv_x_s_i32m1_i32(v190);
+    int32_t v158 = __riscv_vmv_x_s_i32m1_i32(v156);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v193 = v31;
-    int32_t v194 = (int32_t) v36;
-    int32_t v195 = v192 * v194;
-    int32_t v196 = v193 + v195;
+    int32_t v159 = v29;
+    int32_t v160 = (int32_t) v34;
+    int32_t v161 = v158 * v160;
+    int32_t v162 = v159 + v161;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v196;
+    v29 = v162;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v197 = v28[0];
-    int v198 = (int) v197;
-    int v199 = v198 >> 4;
-    int v200 = v199 * 2;
-    int v201 = v200 + 1;
+    const uint8_t v163 = v26[0];
+    int v164 = (int) v163;
+    int v165 = v164 >> 4;
+    int v166 = v165 * 2;
+    int v167 = v166 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v202 = v24[1];
+    const uint8_t v168 = v22[1];
+    int v169 = (int) v168;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
+    vint32m1_t v170 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v171 = v28 + 32;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v172 = v24[4];
+    int v173 = (int) v172;
+    const uint8_t v174 = v20[8];
+    int v175 = (int) v174;
+    int v176 = v169 << 8;
+    int v177 = v176 & 256;
+    int v178 = v175 | v177;
+    const uint8_t v179 = v20[9];
+    int v180 = (int) v179;
+    int v181 = v169 << 7;
+    int v182 = v181 & 256;
+    int v183 = v180 | v182;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v184[2];
+    int v185 = v178 << 2;
+    uint16_t v186 = (uint16_t) v185;
+    v184[0] = v186;
+    int v187 = v183 << 2;
+    uint16_t v188 = (uint16_t) v187;
+    v184[1] = v188;
+    uint16_t* v189 = &v184[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v190 = __riscv_vle16_v_u16mf2(v189, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v191 = __riscv_vluxei16_v_i32m1(v9, v190, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v192 = __riscv_vreinterpret_v_i32m1_i8m1(v191);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v193 = __riscv_vle8_v_i8m1(v171, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v194 = __riscv_vmv_v_x_u8m1(v173, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v195 = __riscv_vand_vv_u8m1(v194, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v196 = __riscv_vmsne_vx_u8m1_b8(v195, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v197 = __riscv_vneg_v_i8m1(v192, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v198 = __riscv_vmerge_vvm_i8m1(v192, v197, v196, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v199 = __riscv_vwmul_vv_i16m2(v198, v193, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v200 = __riscv_vwredsum_vs_i16m2_i32m1(v199, v170, 8);
+    const int8_t* v201 = v171 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v202 = v24[5];
     int v203 = (int) v202;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v204 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v205 = v30 + 32;
+    const uint8_t v204 = v20[10];
+    int v205 = (int) v204;
+    int v206 = v169 << 6;
+    int v207 = v206 & 256;
+    int v208 = v205 | v207;
+    const uint8_t v209 = v20[11];
+    int v210 = (int) v209;
+    int v211 = v169 << 5;
+    int v212 = v211 & 256;
+    int v213 = v210 | v212;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v214[2];
+    int v215 = v208 << 2;
+    uint16_t v216 = (uint16_t) v215;
+    v214[0] = v216;
+    int v217 = v213 << 2;
+    uint16_t v218 = (uint16_t) v217;
+    v214[1] = v218;
+    uint16_t* v219 = &v214[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v220 = __riscv_vle16_v_u16mf2(v219, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v221 = __riscv_vluxei16_v_i32m1(v9, v220, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v222 = __riscv_vreinterpret_v_i32m1_i8m1(v221);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v223 = __riscv_vle8_v_i8m1(v201, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v224 = __riscv_vmv_v_x_u8m1(v203, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v225 = __riscv_vand_vv_u8m1(v224, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v226 = __riscv_vmsne_vx_u8m1_b8(v225, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v227 = __riscv_vneg_v_i8m1(v222, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v228 = __riscv_vmerge_vvm_i8m1(v222, v227, v226, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v229 = __riscv_vwmul_vv_i16m2(v228, v223, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v230 = __riscv_vwredsum_vs_i16m2_i32m1(v229, v200, 8);
+    const int8_t* v231 = v201 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v206 = v26[4];
-    int v207 = (int) v206;
-    const uint8_t v208 = v22[8];
-    int v209 = (int) v208;
-    int v210 = v203 << 8;
-    int v211 = v210 & 256;
-    int v212 = v209 | v211;
-    const uint8_t v213 = v22[9];
-    int v214 = (int) v213;
-    int v215 = v203 << 7;
-    int v216 = v215 & 256;
-    int v217 = v214 | v216;
-    const int8_t* v218 = v205 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v219 = __riscv_vsetvl_e8m1(4);
-    size_t v220 = v212 * 4;
-    const int8_t* v221 = v11 + v220;
+    const uint8_t v232 = v24[6];
+    int v233 = (int) v232;
+    const uint8_t v234 = v20[12];
+    int v235 = (int) v234;
+    int v236 = v169 << 4;
+    int v237 = v236 & 256;
+    int v238 = v235 | v237;
+    const uint8_t v239 = v20[13];
+    int v240 = (int) v239;
+    int v241 = v169 << 3;
+    int v242 = v241 & 256;
+    int v243 = v240 | v242;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v244[2];
+    int v245 = v238 << 2;
+    uint16_t v246 = (uint16_t) v245;
+    v244[0] = v246;
+    int v247 = v243 << 2;
+    uint16_t v248 = (uint16_t) v247;
+    v244[1] = v248;
+    uint16_t* v249 = &v244[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v250 = __riscv_vle16_v_u16mf2(v249, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v251 = __riscv_vluxei16_v_i32m1(v9, v250, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v252 = __riscv_vreinterpret_v_i32m1_i8m1(v251);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v222 = __riscv_vle8_v_i8m1(v221, v219);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v223 = __riscv_vle8_v_i8m1(v205, v219);
+    vint8m1_t v253 = __riscv_vle8_v_i8m1(v231, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v224 = __riscv_vmv_v_x_u8m1(v207, v219);
+    vuint8m1_t v254 = __riscv_vmv_v_x_u8m1(v233, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v225 = __riscv_vand_vv_u8m1(v224, v8, v219);
+    vuint8m1_t v255 = __riscv_vand_vv_u8m1(v254, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v226 = __riscv_vmsne_vx_u8m1_b8(v225, 0, v219);
+    vbool8_t v256 = __riscv_vmsne_vx_u8m1_b8(v255, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v227 = __riscv_vneg_v_i8m1(v222, v219);
+    vint8m1_t v257 = __riscv_vneg_v_i8m1(v252, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v228 = __riscv_vmerge_vvm_i8m1(v222, v227, v226, v219);
+    vint8m1_t v258 = __riscv_vmerge_vvm_i8m1(v252, v257, v256, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v229 = __riscv_vwmul_vv_i16m2(v228, v223, v219);
+    vint16m2_t v259 = __riscv_vwmul_vv_i16m2(v258, v253, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v230 = __riscv_vwredsum_vs_i16m2_i32m1(v229, v204, v219);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v231 = __riscv_vsetvl_e8m1(4);
-    size_t v232 = v217 * 4;
-    const int8_t* v233 = v11 + v232;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v234 = __riscv_vle8_v_i8m1(v233, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v235 = __riscv_vle8_v_i8m1(v218, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v236 = __riscv_vmv_v_x_u8m1(v207, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v237 = __riscv_vand_vv_u8m1(v236, v10, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v238 = __riscv_vmsne_vx_u8m1_b8(v237, 0, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v239 = __riscv_vneg_v_i8m1(v234, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v240 = __riscv_vmerge_vvm_i8m1(v234, v239, v238, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v241 = __riscv_vwmul_vv_i16m2(v240, v235, v231);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v242 = __riscv_vwredsum_vs_i16m2_i32m1(v241, v230, v231);
-    const int8_t* v243 = v205 + 8;
+    vint32m1_t v260 = __riscv_vwredsum_vs_i16m2_i32m1(v259, v230, 8);
+    const int8_t* v261 = v231 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v244 = v26[5];
-    int v245 = (int) v244;
-    const uint8_t v246 = v22[10];
-    int v247 = (int) v246;
-    int v248 = v203 << 6;
-    int v249 = v248 & 256;
-    int v250 = v247 | v249;
-    const uint8_t v251 = v22[11];
-    int v252 = (int) v251;
-    int v253 = v203 << 5;
-    int v254 = v253 & 256;
-    int v255 = v252 | v254;
-    const int8_t* v256 = v243 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v257 = __riscv_vsetvl_e8m1(4);
-    size_t v258 = v250 * 4;
-    const int8_t* v259 = v11 + v258;
+    const uint8_t v262 = v24[7];
+    int v263 = (int) v262;
+    const uint8_t v264 = v20[14];
+    int v265 = (int) v264;
+    int v266 = v169 << 2;
+    int v267 = v266 & 256;
+    int v268 = v265 | v267;
+    const uint8_t v269 = v20[15];
+    int v270 = (int) v269;
+    int v271 = v169 << 1;
+    int v272 = v271 & 256;
+    int v273 = v270 | v272;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v274[2];
+    int v275 = v268 << 2;
+    uint16_t v276 = (uint16_t) v275;
+    v274[0] = v276;
+    int v277 = v273 << 2;
+    uint16_t v278 = (uint16_t) v277;
+    v274[1] = v278;
+    uint16_t* v279 = &v274[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v280 = __riscv_vle16_v_u16mf2(v279, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v281 = __riscv_vluxei16_v_i32m1(v9, v280, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v282 = __riscv_vreinterpret_v_i32m1_i8m1(v281);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v260 = __riscv_vle8_v_i8m1(v259, v257);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v261 = __riscv_vle8_v_i8m1(v243, v257);
+    vint8m1_t v283 = __riscv_vle8_v_i8m1(v261, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v262 = __riscv_vmv_v_x_u8m1(v245, v257);
+    vuint8m1_t v284 = __riscv_vmv_v_x_u8m1(v263, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v263 = __riscv_vand_vv_u8m1(v262, v8, v257);
+    vuint8m1_t v285 = __riscv_vand_vv_u8m1(v284, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v264 = __riscv_vmsne_vx_u8m1_b8(v263, 0, v257);
+    vbool8_t v286 = __riscv_vmsne_vx_u8m1_b8(v285, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v265 = __riscv_vneg_v_i8m1(v260, v257);
+    vint8m1_t v287 = __riscv_vneg_v_i8m1(v282, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v266 = __riscv_vmerge_vvm_i8m1(v260, v265, v264, v257);
+    vint8m1_t v288 = __riscv_vmerge_vvm_i8m1(v282, v287, v286, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v267 = __riscv_vwmul_vv_i16m2(v266, v261, v257);
+    vint16m2_t v289 = __riscv_vwmul_vv_i16m2(v288, v283, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v268 = __riscv_vwredsum_vs_i16m2_i32m1(v267, v242, v257);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v269 = __riscv_vsetvl_e8m1(4);
-    size_t v270 = v255 * 4;
-    const int8_t* v271 = v11 + v270;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v272 = __riscv_vle8_v_i8m1(v271, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v273 = __riscv_vle8_v_i8m1(v256, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v274 = __riscv_vmv_v_x_u8m1(v245, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v275 = __riscv_vand_vv_u8m1(v274, v10, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v276 = __riscv_vmsne_vx_u8m1_b8(v275, 0, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v277 = __riscv_vneg_v_i8m1(v272, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v278 = __riscv_vmerge_vvm_i8m1(v272, v277, v276, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v279 = __riscv_vwmul_vv_i16m2(v278, v273, v269);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v280 = __riscv_vwredsum_vs_i16m2_i32m1(v279, v268, v269);
-    const int8_t* v281 = v243 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v282 = v26[6];
-    int v283 = (int) v282;
-    const uint8_t v284 = v22[12];
-    int v285 = (int) v284;
-    int v286 = v203 << 4;
-    int v287 = v286 & 256;
-    int v288 = v285 | v287;
-    const uint8_t v289 = v22[13];
-    int v290 = (int) v289;
-    int v291 = v203 << 3;
-    int v292 = v291 & 256;
-    int v293 = v290 | v292;
-    const int8_t* v294 = v281 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v295 = __riscv_vsetvl_e8m1(4);
-    size_t v296 = v288 * 4;
-    const int8_t* v297 = v11 + v296;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v298 = __riscv_vle8_v_i8m1(v297, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v299 = __riscv_vle8_v_i8m1(v281, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v300 = __riscv_vmv_v_x_u8m1(v283, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v301 = __riscv_vand_vv_u8m1(v300, v8, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v302 = __riscv_vmsne_vx_u8m1_b8(v301, 0, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v303 = __riscv_vneg_v_i8m1(v298, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v304 = __riscv_vmerge_vvm_i8m1(v298, v303, v302, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v305 = __riscv_vwmul_vv_i16m2(v304, v299, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v306 = __riscv_vwredsum_vs_i16m2_i32m1(v305, v280, v295);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v307 = __riscv_vsetvl_e8m1(4);
-    size_t v308 = v293 * 4;
-    const int8_t* v309 = v11 + v308;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v310 = __riscv_vle8_v_i8m1(v309, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v311 = __riscv_vle8_v_i8m1(v294, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v312 = __riscv_vmv_v_x_u8m1(v283, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v313 = __riscv_vand_vv_u8m1(v312, v10, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v314 = __riscv_vmsne_vx_u8m1_b8(v313, 0, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v315 = __riscv_vneg_v_i8m1(v310, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v316 = __riscv_vmerge_vvm_i8m1(v310, v315, v314, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v317 = __riscv_vwmul_vv_i16m2(v316, v311, v307);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v318 = __riscv_vwredsum_vs_i16m2_i32m1(v317, v306, v307);
-    const int8_t* v319 = v281 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v320 = v26[7];
-    int v321 = (int) v320;
-    const uint8_t v322 = v22[14];
-    int v323 = (int) v322;
-    int v324 = v203 << 2;
-    int v325 = v324 & 256;
-    int v326 = v323 | v325;
-    const uint8_t v327 = v22[15];
-    int v328 = (int) v327;
-    int v329 = v203 << 1;
-    int v330 = v329 & 256;
-    int v331 = v328 | v330;
-    const int8_t* v332 = v319 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v333 = __riscv_vsetvl_e8m1(4);
-    size_t v334 = v326 * 4;
-    const int8_t* v335 = v11 + v334;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v336 = __riscv_vle8_v_i8m1(v335, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v337 = __riscv_vle8_v_i8m1(v319, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v338 = __riscv_vmv_v_x_u8m1(v321, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v339 = __riscv_vand_vv_u8m1(v338, v8, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v340 = __riscv_vmsne_vx_u8m1_b8(v339, 0, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v341 = __riscv_vneg_v_i8m1(v336, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v342 = __riscv_vmerge_vvm_i8m1(v336, v341, v340, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v343 = __riscv_vwmul_vv_i16m2(v342, v337, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v344 = __riscv_vwredsum_vs_i16m2_i32m1(v343, v318, v333);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v345 = __riscv_vsetvl_e8m1(4);
-    size_t v346 = v331 * 4;
-    const int8_t* v347 = v11 + v346;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v348 = __riscv_vle8_v_i8m1(v347, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v349 = __riscv_vle8_v_i8m1(v332, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v350 = __riscv_vmv_v_x_u8m1(v321, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v351 = __riscv_vand_vv_u8m1(v350, v10, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v352 = __riscv_vmsne_vx_u8m1_b8(v351, 0, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v353 = __riscv_vneg_v_i8m1(v348, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v354 = __riscv_vmerge_vvm_i8m1(v348, v353, v352, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v355 = __riscv_vwmul_vv_i16m2(v354, v349, v345);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v356 = __riscv_vwredsum_vs_i16m2_i32m1(v355, v344, v345);
-    const int8_t* v357 = v319 + 8;
+    vint32m1_t v290 = __riscv_vwredsum_vs_i16m2_i32m1(v289, v260, 8);
+    const int8_t* v291 = v261 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v358 = __riscv_vmv_x_s_i32m1_i32(v356);
+    int32_t v292 = __riscv_vmv_x_s_i32m1_i32(v290);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v359 = v31;
-    int32_t v360 = (int32_t) v201;
-    int32_t v361 = v358 * v360;
-    int32_t v362 = v359 + v361;
+    int32_t v293 = v29;
+    int32_t v294 = (int32_t) v167;
+    int32_t v295 = v292 * v294;
+    int32_t v296 = v293 + v295;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v362;
+    v29 = v296;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v363 = v28[1];
-    int v364 = (int) v363;
-    int v365 = v364 & 15;
-    int v366 = v365 * 2;
-    int v367 = v366 + 1;
+    const uint8_t v297 = v26[1];
+    int v298 = (int) v297;
+    int v299 = v298 & 15;
+    int v300 = v299 * 2;
+    int v301 = v300 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v368 = v24[2];
+    const uint8_t v302 = v22[2];
+    int v303 = (int) v302;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
+    vint32m1_t v304 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v305 = v28 + 64;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v306 = v24[8];
+    int v307 = (int) v306;
+    const uint8_t v308 = v20[16];
+    int v309 = (int) v308;
+    int v310 = v303 << 8;
+    int v311 = v310 & 256;
+    int v312 = v309 | v311;
+    const uint8_t v313 = v20[17];
+    int v314 = (int) v313;
+    int v315 = v303 << 7;
+    int v316 = v315 & 256;
+    int v317 = v314 | v316;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v318[2];
+    int v319 = v312 << 2;
+    uint16_t v320 = (uint16_t) v319;
+    v318[0] = v320;
+    int v321 = v317 << 2;
+    uint16_t v322 = (uint16_t) v321;
+    v318[1] = v322;
+    uint16_t* v323 = &v318[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v324 = __riscv_vle16_v_u16mf2(v323, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v325 = __riscv_vluxei16_v_i32m1(v9, v324, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v326 = __riscv_vreinterpret_v_i32m1_i8m1(v325);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v327 = __riscv_vle8_v_i8m1(v305, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v328 = __riscv_vmv_v_x_u8m1(v307, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v329 = __riscv_vand_vv_u8m1(v328, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v330 = __riscv_vmsne_vx_u8m1_b8(v329, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v331 = __riscv_vneg_v_i8m1(v326, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v332 = __riscv_vmerge_vvm_i8m1(v326, v331, v330, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v333 = __riscv_vwmul_vv_i16m2(v332, v327, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v334 = __riscv_vwredsum_vs_i16m2_i32m1(v333, v304, 8);
+    const int8_t* v335 = v305 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v336 = v24[9];
+    int v337 = (int) v336;
+    const uint8_t v338 = v20[18];
+    int v339 = (int) v338;
+    int v340 = v303 << 6;
+    int v341 = v340 & 256;
+    int v342 = v339 | v341;
+    const uint8_t v343 = v20[19];
+    int v344 = (int) v343;
+    int v345 = v303 << 5;
+    int v346 = v345 & 256;
+    int v347 = v344 | v346;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v348[2];
+    int v349 = v342 << 2;
+    uint16_t v350 = (uint16_t) v349;
+    v348[0] = v350;
+    int v351 = v347 << 2;
+    uint16_t v352 = (uint16_t) v351;
+    v348[1] = v352;
+    uint16_t* v353 = &v348[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v354 = __riscv_vle16_v_u16mf2(v353, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v355 = __riscv_vluxei16_v_i32m1(v9, v354, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v356 = __riscv_vreinterpret_v_i32m1_i8m1(v355);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v357 = __riscv_vle8_v_i8m1(v335, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v358 = __riscv_vmv_v_x_u8m1(v337, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v359 = __riscv_vand_vv_u8m1(v358, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v360 = __riscv_vmsne_vx_u8m1_b8(v359, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v361 = __riscv_vneg_v_i8m1(v356, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v362 = __riscv_vmerge_vvm_i8m1(v356, v361, v360, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v363 = __riscv_vwmul_vv_i16m2(v362, v357, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v364 = __riscv_vwredsum_vs_i16m2_i32m1(v363, v334, 8);
+    const int8_t* v365 = v335 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v366 = v24[10];
+    int v367 = (int) v366;
+    const uint8_t v368 = v20[20];
     int v369 = (int) v368;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v370 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v371 = v30 + 64;
+    int v370 = v303 << 4;
+    int v371 = v370 & 256;
+    int v372 = v369 | v371;
+    const uint8_t v373 = v20[21];
+    int v374 = (int) v373;
+    int v375 = v303 << 3;
+    int v376 = v375 & 256;
+    int v377 = v374 | v376;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v378[2];
+    int v379 = v372 << 2;
+    uint16_t v380 = (uint16_t) v379;
+    v378[0] = v380;
+    int v381 = v377 << 2;
+    uint16_t v382 = (uint16_t) v381;
+    v378[1] = v382;
+    uint16_t* v383 = &v378[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v384 = __riscv_vle16_v_u16mf2(v383, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v385 = __riscv_vluxei16_v_i32m1(v9, v384, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v386 = __riscv_vreinterpret_v_i32m1_i8m1(v385);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v387 = __riscv_vle8_v_i8m1(v365, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v388 = __riscv_vmv_v_x_u8m1(v367, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v389 = __riscv_vand_vv_u8m1(v388, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v390 = __riscv_vmsne_vx_u8m1_b8(v389, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v391 = __riscv_vneg_v_i8m1(v386, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v392 = __riscv_vmerge_vvm_i8m1(v386, v391, v390, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v393 = __riscv_vwmul_vv_i16m2(v392, v387, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v394 = __riscv_vwredsum_vs_i16m2_i32m1(v393, v364, 8);
+    const int8_t* v395 = v365 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v372 = v26[8];
-    int v373 = (int) v372;
-    const uint8_t v374 = v22[16];
-    int v375 = (int) v374;
-    int v376 = v369 << 8;
-    int v377 = v376 & 256;
-    int v378 = v375 | v377;
-    const uint8_t v379 = v22[17];
-    int v380 = (int) v379;
-    int v381 = v369 << 7;
-    int v382 = v381 & 256;
-    int v383 = v380 | v382;
-    const int8_t* v384 = v371 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v385 = __riscv_vsetvl_e8m1(4);
-    size_t v386 = v378 * 4;
-    const int8_t* v387 = v11 + v386;
+    const uint8_t v396 = v24[11];
+    int v397 = (int) v396;
+    const uint8_t v398 = v20[22];
+    int v399 = (int) v398;
+    int v400 = v303 << 2;
+    int v401 = v400 & 256;
+    int v402 = v399 | v401;
+    const uint8_t v403 = v20[23];
+    int v404 = (int) v403;
+    int v405 = v303 << 1;
+    int v406 = v405 & 256;
+    int v407 = v404 | v406;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v408[2];
+    int v409 = v402 << 2;
+    uint16_t v410 = (uint16_t) v409;
+    v408[0] = v410;
+    int v411 = v407 << 2;
+    uint16_t v412 = (uint16_t) v411;
+    v408[1] = v412;
+    uint16_t* v413 = &v408[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v414 = __riscv_vle16_v_u16mf2(v413, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v415 = __riscv_vluxei16_v_i32m1(v9, v414, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v416 = __riscv_vreinterpret_v_i32m1_i8m1(v415);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v388 = __riscv_vle8_v_i8m1(v387, v385);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v389 = __riscv_vle8_v_i8m1(v371, v385);
+    vint8m1_t v417 = __riscv_vle8_v_i8m1(v395, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v390 = __riscv_vmv_v_x_u8m1(v373, v385);
+    vuint8m1_t v418 = __riscv_vmv_v_x_u8m1(v397, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v391 = __riscv_vand_vv_u8m1(v390, v8, v385);
+    vuint8m1_t v419 = __riscv_vand_vv_u8m1(v418, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v392 = __riscv_vmsne_vx_u8m1_b8(v391, 0, v385);
+    vbool8_t v420 = __riscv_vmsne_vx_u8m1_b8(v419, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v393 = __riscv_vneg_v_i8m1(v388, v385);
+    vint8m1_t v421 = __riscv_vneg_v_i8m1(v416, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v394 = __riscv_vmerge_vvm_i8m1(v388, v393, v392, v385);
+    vint8m1_t v422 = __riscv_vmerge_vvm_i8m1(v416, v421, v420, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v395 = __riscv_vwmul_vv_i16m2(v394, v389, v385);
+    vint16m2_t v423 = __riscv_vwmul_vv_i16m2(v422, v417, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v396 = __riscv_vwredsum_vs_i16m2_i32m1(v395, v370, v385);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v397 = __riscv_vsetvl_e8m1(4);
-    size_t v398 = v383 * 4;
-    const int8_t* v399 = v11 + v398;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v400 = __riscv_vle8_v_i8m1(v399, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v401 = __riscv_vle8_v_i8m1(v384, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v402 = __riscv_vmv_v_x_u8m1(v373, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v403 = __riscv_vand_vv_u8m1(v402, v10, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v404 = __riscv_vmsne_vx_u8m1_b8(v403, 0, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v405 = __riscv_vneg_v_i8m1(v400, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v406 = __riscv_vmerge_vvm_i8m1(v400, v405, v404, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v407 = __riscv_vwmul_vv_i16m2(v406, v401, v397);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v408 = __riscv_vwredsum_vs_i16m2_i32m1(v407, v396, v397);
-    const int8_t* v409 = v371 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v410 = v26[9];
-    int v411 = (int) v410;
-    const uint8_t v412 = v22[18];
-    int v413 = (int) v412;
-    int v414 = v369 << 6;
-    int v415 = v414 & 256;
-    int v416 = v413 | v415;
-    const uint8_t v417 = v22[19];
-    int v418 = (int) v417;
-    int v419 = v369 << 5;
-    int v420 = v419 & 256;
-    int v421 = v418 | v420;
-    const int8_t* v422 = v409 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v423 = __riscv_vsetvl_e8m1(4);
-    size_t v424 = v416 * 4;
-    const int8_t* v425 = v11 + v424;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v426 = __riscv_vle8_v_i8m1(v425, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v427 = __riscv_vle8_v_i8m1(v409, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v428 = __riscv_vmv_v_x_u8m1(v411, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v429 = __riscv_vand_vv_u8m1(v428, v8, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v430 = __riscv_vmsne_vx_u8m1_b8(v429, 0, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v431 = __riscv_vneg_v_i8m1(v426, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v432 = __riscv_vmerge_vvm_i8m1(v426, v431, v430, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v433 = __riscv_vwmul_vv_i16m2(v432, v427, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v434 = __riscv_vwredsum_vs_i16m2_i32m1(v433, v408, v423);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v435 = __riscv_vsetvl_e8m1(4);
-    size_t v436 = v421 * 4;
-    const int8_t* v437 = v11 + v436;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v438 = __riscv_vle8_v_i8m1(v437, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v439 = __riscv_vle8_v_i8m1(v422, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v440 = __riscv_vmv_v_x_u8m1(v411, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v441 = __riscv_vand_vv_u8m1(v440, v10, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v442 = __riscv_vmsne_vx_u8m1_b8(v441, 0, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v443 = __riscv_vneg_v_i8m1(v438, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v444 = __riscv_vmerge_vvm_i8m1(v438, v443, v442, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v445 = __riscv_vwmul_vv_i16m2(v444, v439, v435);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v446 = __riscv_vwredsum_vs_i16m2_i32m1(v445, v434, v435);
-    const int8_t* v447 = v409 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v448 = v26[10];
-    int v449 = (int) v448;
-    const uint8_t v450 = v22[20];
-    int v451 = (int) v450;
-    int v452 = v369 << 4;
-    int v453 = v452 & 256;
-    int v454 = v451 | v453;
-    const uint8_t v455 = v22[21];
-    int v456 = (int) v455;
-    int v457 = v369 << 3;
-    int v458 = v457 & 256;
-    int v459 = v456 | v458;
-    const int8_t* v460 = v447 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v461 = __riscv_vsetvl_e8m1(4);
-    size_t v462 = v454 * 4;
-    const int8_t* v463 = v11 + v462;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v464 = __riscv_vle8_v_i8m1(v463, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v465 = __riscv_vle8_v_i8m1(v447, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v466 = __riscv_vmv_v_x_u8m1(v449, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v467 = __riscv_vand_vv_u8m1(v466, v8, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v468 = __riscv_vmsne_vx_u8m1_b8(v467, 0, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v469 = __riscv_vneg_v_i8m1(v464, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v470 = __riscv_vmerge_vvm_i8m1(v464, v469, v468, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v471 = __riscv_vwmul_vv_i16m2(v470, v465, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v472 = __riscv_vwredsum_vs_i16m2_i32m1(v471, v446, v461);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v473 = __riscv_vsetvl_e8m1(4);
-    size_t v474 = v459 * 4;
-    const int8_t* v475 = v11 + v474;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v476 = __riscv_vle8_v_i8m1(v475, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v477 = __riscv_vle8_v_i8m1(v460, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v478 = __riscv_vmv_v_x_u8m1(v449, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v479 = __riscv_vand_vv_u8m1(v478, v10, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v480 = __riscv_vmsne_vx_u8m1_b8(v479, 0, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v481 = __riscv_vneg_v_i8m1(v476, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v482 = __riscv_vmerge_vvm_i8m1(v476, v481, v480, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v483 = __riscv_vwmul_vv_i16m2(v482, v477, v473);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v484 = __riscv_vwredsum_vs_i16m2_i32m1(v483, v472, v473);
-    const int8_t* v485 = v447 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v486 = v26[11];
-    int v487 = (int) v486;
-    const uint8_t v488 = v22[22];
-    int v489 = (int) v488;
-    int v490 = v369 << 2;
-    int v491 = v490 & 256;
-    int v492 = v489 | v491;
-    const uint8_t v493 = v22[23];
-    int v494 = (int) v493;
-    int v495 = v369 << 1;
-    int v496 = v495 & 256;
-    int v497 = v494 | v496;
-    const int8_t* v498 = v485 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v499 = __riscv_vsetvl_e8m1(4);
-    size_t v500 = v492 * 4;
-    const int8_t* v501 = v11 + v500;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v502 = __riscv_vle8_v_i8m1(v501, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v503 = __riscv_vle8_v_i8m1(v485, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v504 = __riscv_vmv_v_x_u8m1(v487, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v505 = __riscv_vand_vv_u8m1(v504, v8, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v506 = __riscv_vmsne_vx_u8m1_b8(v505, 0, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v507 = __riscv_vneg_v_i8m1(v502, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v508 = __riscv_vmerge_vvm_i8m1(v502, v507, v506, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v509 = __riscv_vwmul_vv_i16m2(v508, v503, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v510 = __riscv_vwredsum_vs_i16m2_i32m1(v509, v484, v499);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v511 = __riscv_vsetvl_e8m1(4);
-    size_t v512 = v497 * 4;
-    const int8_t* v513 = v11 + v512;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v514 = __riscv_vle8_v_i8m1(v513, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v515 = __riscv_vle8_v_i8m1(v498, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v516 = __riscv_vmv_v_x_u8m1(v487, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v517 = __riscv_vand_vv_u8m1(v516, v10, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v518 = __riscv_vmsne_vx_u8m1_b8(v517, 0, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v519 = __riscv_vneg_v_i8m1(v514, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v520 = __riscv_vmerge_vvm_i8m1(v514, v519, v518, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v521 = __riscv_vwmul_vv_i16m2(v520, v515, v511);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v522 = __riscv_vwredsum_vs_i16m2_i32m1(v521, v510, v511);
-    const int8_t* v523 = v485 + 8;
+    vint32m1_t v424 = __riscv_vwredsum_vs_i16m2_i32m1(v423, v394, 8);
+    const int8_t* v425 = v395 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v524 = __riscv_vmv_x_s_i32m1_i32(v522);
+    int32_t v426 = __riscv_vmv_x_s_i32m1_i32(v424);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v525 = v31;
-    int32_t v526 = (int32_t) v367;
-    int32_t v527 = v524 * v526;
-    int32_t v528 = v525 + v527;
+    int32_t v427 = v29;
+    int32_t v428 = (int32_t) v301;
+    int32_t v429 = v426 * v428;
+    int32_t v430 = v427 + v429;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v528;
+    v29 = v430;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v529 = v28[1];
-    int v530 = (int) v529;
-    int v531 = v530 >> 4;
-    int v532 = v531 * 2;
-    int v533 = v532 + 1;
+    const uint8_t v431 = v26[1];
+    int v432 = (int) v431;
+    int v433 = v432 >> 4;
+    int v434 = v433 * 2;
+    int v435 = v434 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v534 = v24[3];
-    int v535 = (int) v534;
+    const uint8_t v436 = v22[3];
+    int v437 = (int) v436;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v536 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v537 = v30 + 96;
+    vint32m1_t v438 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v439 = v28 + 96;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v538 = v26[12];
-    int v539 = (int) v538;
-    const uint8_t v540 = v22[24];
-    int v541 = (int) v540;
-    int v542 = v535 << 8;
-    int v543 = v542 & 256;
-    int v544 = v541 | v543;
-    const uint8_t v545 = v22[25];
-    int v546 = (int) v545;
-    int v547 = v535 << 7;
-    int v548 = v547 & 256;
-    int v549 = v546 | v548;
-    const int8_t* v550 = v537 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v551 = __riscv_vsetvl_e8m1(4);
-    size_t v552 = v544 * 4;
-    const int8_t* v553 = v11 + v552;
+    const uint8_t v440 = v24[12];
+    int v441 = (int) v440;
+    const uint8_t v442 = v20[24];
+    int v443 = (int) v442;
+    int v444 = v437 << 8;
+    int v445 = v444 & 256;
+    int v446 = v443 | v445;
+    const uint8_t v447 = v20[25];
+    int v448 = (int) v447;
+    int v449 = v437 << 7;
+    int v450 = v449 & 256;
+    int v451 = v448 | v450;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v452[2];
+    int v453 = v446 << 2;
+    uint16_t v454 = (uint16_t) v453;
+    v452[0] = v454;
+    int v455 = v451 << 2;
+    uint16_t v456 = (uint16_t) v455;
+    v452[1] = v456;
+    uint16_t* v457 = &v452[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v458 = __riscv_vle16_v_u16mf2(v457, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v459 = __riscv_vluxei16_v_i32m1(v9, v458, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v460 = __riscv_vreinterpret_v_i32m1_i8m1(v459);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v554 = __riscv_vle8_v_i8m1(v553, v551);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v555 = __riscv_vle8_v_i8m1(v537, v551);
+    vint8m1_t v461 = __riscv_vle8_v_i8m1(v439, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v556 = __riscv_vmv_v_x_u8m1(v539, v551);
+    vuint8m1_t v462 = __riscv_vmv_v_x_u8m1(v441, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v557 = __riscv_vand_vv_u8m1(v556, v8, v551);
+    vuint8m1_t v463 = __riscv_vand_vv_u8m1(v462, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v558 = __riscv_vmsne_vx_u8m1_b8(v557, 0, v551);
+    vbool8_t v464 = __riscv_vmsne_vx_u8m1_b8(v463, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v559 = __riscv_vneg_v_i8m1(v554, v551);
+    vint8m1_t v465 = __riscv_vneg_v_i8m1(v460, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v560 = __riscv_vmerge_vvm_i8m1(v554, v559, v558, v551);
+    vint8m1_t v466 = __riscv_vmerge_vvm_i8m1(v460, v465, v464, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v561 = __riscv_vwmul_vv_i16m2(v560, v555, v551);
+    vint16m2_t v467 = __riscv_vwmul_vv_i16m2(v466, v461, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v562 = __riscv_vwredsum_vs_i16m2_i32m1(v561, v536, v551);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v563 = __riscv_vsetvl_e8m1(4);
-    size_t v564 = v549 * 4;
-    const int8_t* v565 = v11 + v564;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v566 = __riscv_vle8_v_i8m1(v565, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v567 = __riscv_vle8_v_i8m1(v550, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v568 = __riscv_vmv_v_x_u8m1(v539, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v569 = __riscv_vand_vv_u8m1(v568, v10, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v570 = __riscv_vmsne_vx_u8m1_b8(v569, 0, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v571 = __riscv_vneg_v_i8m1(v566, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v572 = __riscv_vmerge_vvm_i8m1(v566, v571, v570, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v573 = __riscv_vwmul_vv_i16m2(v572, v567, v563);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v574 = __riscv_vwredsum_vs_i16m2_i32m1(v573, v562, v563);
-    const int8_t* v575 = v537 + 8;
+    vint32m1_t v468 = __riscv_vwredsum_vs_i16m2_i32m1(v467, v438, 8);
+    const int8_t* v469 = v439 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v576 = v26[13];
+    const uint8_t v470 = v24[13];
+    int v471 = (int) v470;
+    const uint8_t v472 = v20[26];
+    int v473 = (int) v472;
+    int v474 = v437 << 6;
+    int v475 = v474 & 256;
+    int v476 = v473 | v475;
+    const uint8_t v477 = v20[27];
+    int v478 = (int) v477;
+    int v479 = v437 << 5;
+    int v480 = v479 & 256;
+    int v481 = v478 | v480;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v482[2];
+    int v483 = v476 << 2;
+    uint16_t v484 = (uint16_t) v483;
+    v482[0] = v484;
+    int v485 = v481 << 2;
+    uint16_t v486 = (uint16_t) v485;
+    v482[1] = v486;
+    uint16_t* v487 = &v482[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v488 = __riscv_vle16_v_u16mf2(v487, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v489 = __riscv_vluxei16_v_i32m1(v9, v488, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v490 = __riscv_vreinterpret_v_i32m1_i8m1(v489);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v491 = __riscv_vle8_v_i8m1(v469, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v492 = __riscv_vmv_v_x_u8m1(v471, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v493 = __riscv_vand_vv_u8m1(v492, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v494 = __riscv_vmsne_vx_u8m1_b8(v493, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v495 = __riscv_vneg_v_i8m1(v490, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v496 = __riscv_vmerge_vvm_i8m1(v490, v495, v494, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v497 = __riscv_vwmul_vv_i16m2(v496, v491, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v498 = __riscv_vwredsum_vs_i16m2_i32m1(v497, v468, 8);
+    const int8_t* v499 = v469 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v500 = v24[14];
+    int v501 = (int) v500;
+    const uint8_t v502 = v20[28];
+    int v503 = (int) v502;
+    int v504 = v437 << 4;
+    int v505 = v504 & 256;
+    int v506 = v503 | v505;
+    const uint8_t v507 = v20[29];
+    int v508 = (int) v507;
+    int v509 = v437 << 3;
+    int v510 = v509 & 256;
+    int v511 = v508 | v510;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v512[2];
+    int v513 = v506 << 2;
+    uint16_t v514 = (uint16_t) v513;
+    v512[0] = v514;
+    int v515 = v511 << 2;
+    uint16_t v516 = (uint16_t) v515;
+    v512[1] = v516;
+    uint16_t* v517 = &v512[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v518 = __riscv_vle16_v_u16mf2(v517, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v519 = __riscv_vluxei16_v_i32m1(v9, v518, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v520 = __riscv_vreinterpret_v_i32m1_i8m1(v519);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v521 = __riscv_vle8_v_i8m1(v499, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v522 = __riscv_vmv_v_x_u8m1(v501, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v523 = __riscv_vand_vv_u8m1(v522, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v524 = __riscv_vmsne_vx_u8m1_b8(v523, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v525 = __riscv_vneg_v_i8m1(v520, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v526 = __riscv_vmerge_vvm_i8m1(v520, v525, v524, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v527 = __riscv_vwmul_vv_i16m2(v526, v521, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v528 = __riscv_vwredsum_vs_i16m2_i32m1(v527, v498, 8);
+    const int8_t* v529 = v499 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v530 = v24[15];
+    int v531 = (int) v530;
+    const uint8_t v532 = v20[30];
+    int v533 = (int) v532;
+    int v534 = v437 << 2;
+    int v535 = v534 & 256;
+    int v536 = v533 | v535;
+    const uint8_t v537 = v20[31];
+    int v538 = (int) v537;
+    int v539 = v437 << 1;
+    int v540 = v539 & 256;
+    int v541 = v538 | v540;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v542[2];
+    int v543 = v536 << 2;
+    uint16_t v544 = (uint16_t) v543;
+    v542[0] = v544;
+    int v545 = v541 << 2;
+    uint16_t v546 = (uint16_t) v545;
+    v542[1] = v546;
+    uint16_t* v547 = &v542[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v548 = __riscv_vle16_v_u16mf2(v547, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v549 = __riscv_vluxei16_v_i32m1(v9, v548, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v550 = __riscv_vreinterpret_v_i32m1_i8m1(v549);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v551 = __riscv_vle8_v_i8m1(v529, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v552 = __riscv_vmv_v_x_u8m1(v531, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v553 = __riscv_vand_vv_u8m1(v552, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v554 = __riscv_vmsne_vx_u8m1_b8(v553, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v555 = __riscv_vneg_v_i8m1(v550, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v556 = __riscv_vmerge_vvm_i8m1(v550, v555, v554, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v557 = __riscv_vwmul_vv_i16m2(v556, v551, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v558 = __riscv_vwredsum_vs_i16m2_i32m1(v557, v528, 8);
+    const int8_t* v559 = v529 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
+    int32_t v560 = __riscv_vmv_x_s_i32m1_i32(v558);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
+    int32_t v561 = v29;
+    int32_t v562 = (int32_t) v435;
+    int32_t v563 = v560 * v562;
+    int32_t v564 = v561 + v563;
+    // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    v29 = v564;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
+    const uint8_t v565 = v26[2];
+    int v566 = (int) v565;
+    int v567 = v566 & 15;
+    int v568 = v567 * 2;
+    int v569 = v568 + 1;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
+    const uint8_t v570 = v22[4];
+    int v571 = (int) v570;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
+    vint32m1_t v572 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v573 = v28 + 128;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v574 = v24[16];
+    int v575 = (int) v574;
+    const uint8_t v576 = v20[32];
     int v577 = (int) v576;
-    const uint8_t v578 = v22[26];
-    int v579 = (int) v578;
-    int v580 = v535 << 6;
-    int v581 = v580 & 256;
-    int v582 = v579 | v581;
-    const uint8_t v583 = v22[27];
-    int v584 = (int) v583;
-    int v585 = v535 << 5;
-    int v586 = v585 & 256;
-    int v587 = v584 | v586;
-    const int8_t* v588 = v575 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v589 = __riscv_vsetvl_e8m1(4);
-    size_t v590 = v582 * 4;
-    const int8_t* v591 = v11 + v590;
+    int v578 = v571 << 8;
+    int v579 = v578 & 256;
+    int v580 = v577 | v579;
+    const uint8_t v581 = v20[33];
+    int v582 = (int) v581;
+    int v583 = v571 << 7;
+    int v584 = v583 & 256;
+    int v585 = v582 | v584;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v586[2];
+    int v587 = v580 << 2;
+    uint16_t v588 = (uint16_t) v587;
+    v586[0] = v588;
+    int v589 = v585 << 2;
+    uint16_t v590 = (uint16_t) v589;
+    v586[1] = v590;
+    uint16_t* v591 = &v586[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v592 = __riscv_vle16_v_u16mf2(v591, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v593 = __riscv_vluxei16_v_i32m1(v9, v592, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v594 = __riscv_vreinterpret_v_i32m1_i8m1(v593);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v592 = __riscv_vle8_v_i8m1(v591, v589);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v593 = __riscv_vle8_v_i8m1(v575, v589);
+    vint8m1_t v595 = __riscv_vle8_v_i8m1(v573, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v594 = __riscv_vmv_v_x_u8m1(v577, v589);
+    vuint8m1_t v596 = __riscv_vmv_v_x_u8m1(v575, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v595 = __riscv_vand_vv_u8m1(v594, v8, v589);
+    vuint8m1_t v597 = __riscv_vand_vv_u8m1(v596, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v596 = __riscv_vmsne_vx_u8m1_b8(v595, 0, v589);
+    vbool8_t v598 = __riscv_vmsne_vx_u8m1_b8(v597, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v597 = __riscv_vneg_v_i8m1(v592, v589);
+    vint8m1_t v599 = __riscv_vneg_v_i8m1(v594, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v598 = __riscv_vmerge_vvm_i8m1(v592, v597, v596, v589);
+    vint8m1_t v600 = __riscv_vmerge_vvm_i8m1(v594, v599, v598, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v599 = __riscv_vwmul_vv_i16m2(v598, v593, v589);
+    vint16m2_t v601 = __riscv_vwmul_vv_i16m2(v600, v595, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v600 = __riscv_vwredsum_vs_i16m2_i32m1(v599, v574, v589);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v601 = __riscv_vsetvl_e8m1(4);
-    size_t v602 = v587 * 4;
-    const int8_t* v603 = v11 + v602;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v604 = __riscv_vle8_v_i8m1(v603, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v605 = __riscv_vle8_v_i8m1(v588, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v606 = __riscv_vmv_v_x_u8m1(v577, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v607 = __riscv_vand_vv_u8m1(v606, v10, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v608 = __riscv_vmsne_vx_u8m1_b8(v607, 0, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v609 = __riscv_vneg_v_i8m1(v604, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v610 = __riscv_vmerge_vvm_i8m1(v604, v609, v608, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v611 = __riscv_vwmul_vv_i16m2(v610, v605, v601);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v612 = __riscv_vwredsum_vs_i16m2_i32m1(v611, v600, v601);
-    const int8_t* v613 = v575 + 8;
+    vint32m1_t v602 = __riscv_vwredsum_vs_i16m2_i32m1(v601, v572, 8);
+    const int8_t* v603 = v573 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v614 = v26[14];
-    int v615 = (int) v614;
-    const uint8_t v616 = v22[28];
-    int v617 = (int) v616;
-    int v618 = v535 << 4;
-    int v619 = v618 & 256;
-    int v620 = v617 | v619;
-    const uint8_t v621 = v22[29];
-    int v622 = (int) v621;
-    int v623 = v535 << 3;
-    int v624 = v623 & 256;
-    int v625 = v622 | v624;
-    const int8_t* v626 = v613 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v627 = __riscv_vsetvl_e8m1(4);
-    size_t v628 = v620 * 4;
-    const int8_t* v629 = v11 + v628;
+    const uint8_t v604 = v24[17];
+    int v605 = (int) v604;
+    const uint8_t v606 = v20[34];
+    int v607 = (int) v606;
+    int v608 = v571 << 6;
+    int v609 = v608 & 256;
+    int v610 = v607 | v609;
+    const uint8_t v611 = v20[35];
+    int v612 = (int) v611;
+    int v613 = v571 << 5;
+    int v614 = v613 & 256;
+    int v615 = v612 | v614;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v616[2];
+    int v617 = v610 << 2;
+    uint16_t v618 = (uint16_t) v617;
+    v616[0] = v618;
+    int v619 = v615 << 2;
+    uint16_t v620 = (uint16_t) v619;
+    v616[1] = v620;
+    uint16_t* v621 = &v616[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v622 = __riscv_vle16_v_u16mf2(v621, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v623 = __riscv_vluxei16_v_i32m1(v9, v622, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v624 = __riscv_vreinterpret_v_i32m1_i8m1(v623);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v630 = __riscv_vle8_v_i8m1(v629, v627);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v631 = __riscv_vle8_v_i8m1(v613, v627);
+    vint8m1_t v625 = __riscv_vle8_v_i8m1(v603, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v632 = __riscv_vmv_v_x_u8m1(v615, v627);
+    vuint8m1_t v626 = __riscv_vmv_v_x_u8m1(v605, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v633 = __riscv_vand_vv_u8m1(v632, v8, v627);
+    vuint8m1_t v627 = __riscv_vand_vv_u8m1(v626, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v634 = __riscv_vmsne_vx_u8m1_b8(v633, 0, v627);
+    vbool8_t v628 = __riscv_vmsne_vx_u8m1_b8(v627, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v635 = __riscv_vneg_v_i8m1(v630, v627);
+    vint8m1_t v629 = __riscv_vneg_v_i8m1(v624, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v636 = __riscv_vmerge_vvm_i8m1(v630, v635, v634, v627);
+    vint8m1_t v630 = __riscv_vmerge_vvm_i8m1(v624, v629, v628, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v637 = __riscv_vwmul_vv_i16m2(v636, v631, v627);
+    vint16m2_t v631 = __riscv_vwmul_vv_i16m2(v630, v625, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v638 = __riscv_vwredsum_vs_i16m2_i32m1(v637, v612, v627);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v639 = __riscv_vsetvl_e8m1(4);
-    size_t v640 = v625 * 4;
-    const int8_t* v641 = v11 + v640;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v642 = __riscv_vle8_v_i8m1(v641, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v643 = __riscv_vle8_v_i8m1(v626, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v644 = __riscv_vmv_v_x_u8m1(v615, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v645 = __riscv_vand_vv_u8m1(v644, v10, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v646 = __riscv_vmsne_vx_u8m1_b8(v645, 0, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v647 = __riscv_vneg_v_i8m1(v642, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v648 = __riscv_vmerge_vvm_i8m1(v642, v647, v646, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v649 = __riscv_vwmul_vv_i16m2(v648, v643, v639);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v650 = __riscv_vwredsum_vs_i16m2_i32m1(v649, v638, v639);
-    const int8_t* v651 = v613 + 8;
+    vint32m1_t v632 = __riscv_vwredsum_vs_i16m2_i32m1(v631, v602, 8);
+    const int8_t* v633 = v603 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v652 = v26[15];
-    int v653 = (int) v652;
-    const uint8_t v654 = v22[30];
-    int v655 = (int) v654;
-    int v656 = v535 << 2;
-    int v657 = v656 & 256;
-    int v658 = v655 | v657;
-    const uint8_t v659 = v22[31];
-    int v660 = (int) v659;
-    int v661 = v535 << 1;
-    int v662 = v661 & 256;
-    int v663 = v660 | v662;
-    const int8_t* v664 = v651 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v665 = __riscv_vsetvl_e8m1(4);
-    size_t v666 = v658 * 4;
-    const int8_t* v667 = v11 + v666;
+    const uint8_t v634 = v24[18];
+    int v635 = (int) v634;
+    const uint8_t v636 = v20[36];
+    int v637 = (int) v636;
+    int v638 = v571 << 4;
+    int v639 = v638 & 256;
+    int v640 = v637 | v639;
+    const uint8_t v641 = v20[37];
+    int v642 = (int) v641;
+    int v643 = v571 << 3;
+    int v644 = v643 & 256;
+    int v645 = v642 | v644;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v646[2];
+    int v647 = v640 << 2;
+    uint16_t v648 = (uint16_t) v647;
+    v646[0] = v648;
+    int v649 = v645 << 2;
+    uint16_t v650 = (uint16_t) v649;
+    v646[1] = v650;
+    uint16_t* v651 = &v646[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v652 = __riscv_vle16_v_u16mf2(v651, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v653 = __riscv_vluxei16_v_i32m1(v9, v652, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v654 = __riscv_vreinterpret_v_i32m1_i8m1(v653);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v668 = __riscv_vle8_v_i8m1(v667, v665);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v669 = __riscv_vle8_v_i8m1(v651, v665);
+    vint8m1_t v655 = __riscv_vle8_v_i8m1(v633, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v670 = __riscv_vmv_v_x_u8m1(v653, v665);
+    vuint8m1_t v656 = __riscv_vmv_v_x_u8m1(v635, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v671 = __riscv_vand_vv_u8m1(v670, v8, v665);
+    vuint8m1_t v657 = __riscv_vand_vv_u8m1(v656, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v672 = __riscv_vmsne_vx_u8m1_b8(v671, 0, v665);
+    vbool8_t v658 = __riscv_vmsne_vx_u8m1_b8(v657, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v673 = __riscv_vneg_v_i8m1(v668, v665);
+    vint8m1_t v659 = __riscv_vneg_v_i8m1(v654, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v674 = __riscv_vmerge_vvm_i8m1(v668, v673, v672, v665);
+    vint8m1_t v660 = __riscv_vmerge_vvm_i8m1(v654, v659, v658, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v675 = __riscv_vwmul_vv_i16m2(v674, v669, v665);
+    vint16m2_t v661 = __riscv_vwmul_vv_i16m2(v660, v655, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v676 = __riscv_vwredsum_vs_i16m2_i32m1(v675, v650, v665);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v677 = __riscv_vsetvl_e8m1(4);
-    size_t v678 = v663 * 4;
-    const int8_t* v679 = v11 + v678;
+    vint32m1_t v662 = __riscv_vwredsum_vs_i16m2_i32m1(v661, v632, 8);
+    const int8_t* v663 = v633 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v664 = v24[19];
+    int v665 = (int) v664;
+    const uint8_t v666 = v20[38];
+    int v667 = (int) v666;
+    int v668 = v571 << 2;
+    int v669 = v668 & 256;
+    int v670 = v667 | v669;
+    const uint8_t v671 = v20[39];
+    int v672 = (int) v671;
+    int v673 = v571 << 1;
+    int v674 = v673 & 256;
+    int v675 = v672 | v674;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v676[2];
+    int v677 = v670 << 2;
+    uint16_t v678 = (uint16_t) v677;
+    v676[0] = v678;
+    int v679 = v675 << 2;
+    uint16_t v680 = (uint16_t) v679;
+    v676[1] = v680;
+    uint16_t* v681 = &v676[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v682 = __riscv_vle16_v_u16mf2(v681, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v683 = __riscv_vluxei16_v_i32m1(v9, v682, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v684 = __riscv_vreinterpret_v_i32m1_i8m1(v683);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v680 = __riscv_vle8_v_i8m1(v679, v677);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v681 = __riscv_vle8_v_i8m1(v664, v677);
+    vint8m1_t v685 = __riscv_vle8_v_i8m1(v663, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v682 = __riscv_vmv_v_x_u8m1(v653, v677);
+    vuint8m1_t v686 = __riscv_vmv_v_x_u8m1(v665, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v683 = __riscv_vand_vv_u8m1(v682, v10, v677);
+    vuint8m1_t v687 = __riscv_vand_vv_u8m1(v686, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v684 = __riscv_vmsne_vx_u8m1_b8(v683, 0, v677);
+    vbool8_t v688 = __riscv_vmsne_vx_u8m1_b8(v687, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v685 = __riscv_vneg_v_i8m1(v680, v677);
+    vint8m1_t v689 = __riscv_vneg_v_i8m1(v684, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v686 = __riscv_vmerge_vvm_i8m1(v680, v685, v684, v677);
+    vint8m1_t v690 = __riscv_vmerge_vvm_i8m1(v684, v689, v688, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v687 = __riscv_vwmul_vv_i16m2(v686, v681, v677);
+    vint16m2_t v691 = __riscv_vwmul_vv_i16m2(v690, v685, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v688 = __riscv_vwredsum_vs_i16m2_i32m1(v687, v676, v677);
-    const int8_t* v689 = v651 + 8;
+    vint32m1_t v692 = __riscv_vwredsum_vs_i16m2_i32m1(v691, v662, 8);
+    const int8_t* v693 = v663 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v690 = __riscv_vmv_x_s_i32m1_i32(v688);
+    int32_t v694 = __riscv_vmv_x_s_i32m1_i32(v692);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v691 = v31;
-    int32_t v692 = (int32_t) v533;
-    int32_t v693 = v690 * v692;
-    int32_t v694 = v691 + v693;
+    int32_t v695 = v29;
+    int32_t v696 = (int32_t) v569;
+    int32_t v697 = v694 * v696;
+    int32_t v698 = v695 + v697;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v694;
+    v29 = v698;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v695 = v28[2];
-    int v696 = (int) v695;
-    int v697 = v696 & 15;
-    int v698 = v697 * 2;
-    int v699 = v698 + 1;
+    const uint8_t v699 = v26[2];
+    int v700 = (int) v699;
+    int v701 = v700 >> 4;
+    int v702 = v701 * 2;
+    int v703 = v702 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v700 = v24[4];
-    int v701 = (int) v700;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v702 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v703 = v30 + 128;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v704 = v26[16];
+    const uint8_t v704 = v22[5];
     int v705 = (int) v704;
-    const uint8_t v706 = v22[32];
-    int v707 = (int) v706;
-    int v708 = v701 << 8;
-    int v709 = v708 & 256;
-    int v710 = v707 | v709;
-    const uint8_t v711 = v22[33];
-    int v712 = (int) v711;
-    int v713 = v701 << 7;
-    int v714 = v713 & 256;
-    int v715 = v712 | v714;
-    const int8_t* v716 = v703 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v717 = __riscv_vsetvl_e8m1(4);
-    size_t v718 = v710 * 4;
-    const int8_t* v719 = v11 + v718;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v720 = __riscv_vle8_v_i8m1(v719, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v721 = __riscv_vle8_v_i8m1(v703, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v722 = __riscv_vmv_v_x_u8m1(v705, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v723 = __riscv_vand_vv_u8m1(v722, v8, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v724 = __riscv_vmsne_vx_u8m1_b8(v723, 0, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v725 = __riscv_vneg_v_i8m1(v720, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v726 = __riscv_vmerge_vvm_i8m1(v720, v725, v724, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v727 = __riscv_vwmul_vv_i16m2(v726, v721, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v728 = __riscv_vwredsum_vs_i16m2_i32m1(v727, v702, v717);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v729 = __riscv_vsetvl_e8m1(4);
-    size_t v730 = v715 * 4;
-    const int8_t* v731 = v11 + v730;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v732 = __riscv_vle8_v_i8m1(v731, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v733 = __riscv_vle8_v_i8m1(v716, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v734 = __riscv_vmv_v_x_u8m1(v705, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v735 = __riscv_vand_vv_u8m1(v734, v10, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v736 = __riscv_vmsne_vx_u8m1_b8(v735, 0, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v737 = __riscv_vneg_v_i8m1(v732, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v738 = __riscv_vmerge_vvm_i8m1(v732, v737, v736, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v739 = __riscv_vwmul_vv_i16m2(v738, v733, v729);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v740 = __riscv_vwredsum_vs_i16m2_i32m1(v739, v728, v729);
-    const int8_t* v741 = v703 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v742 = v26[17];
-    int v743 = (int) v742;
-    const uint8_t v744 = v22[34];
-    int v745 = (int) v744;
-    int v746 = v701 << 6;
-    int v747 = v746 & 256;
-    int v748 = v745 | v747;
-    const uint8_t v749 = v22[35];
-    int v750 = (int) v749;
-    int v751 = v701 << 5;
-    int v752 = v751 & 256;
-    int v753 = v750 | v752;
-    const int8_t* v754 = v741 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v755 = __riscv_vsetvl_e8m1(4);
-    size_t v756 = v748 * 4;
-    const int8_t* v757 = v11 + v756;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v758 = __riscv_vle8_v_i8m1(v757, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v759 = __riscv_vle8_v_i8m1(v741, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v760 = __riscv_vmv_v_x_u8m1(v743, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v761 = __riscv_vand_vv_u8m1(v760, v8, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v762 = __riscv_vmsne_vx_u8m1_b8(v761, 0, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v763 = __riscv_vneg_v_i8m1(v758, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v764 = __riscv_vmerge_vvm_i8m1(v758, v763, v762, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v765 = __riscv_vwmul_vv_i16m2(v764, v759, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v766 = __riscv_vwredsum_vs_i16m2_i32m1(v765, v740, v755);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v767 = __riscv_vsetvl_e8m1(4);
-    size_t v768 = v753 * 4;
-    const int8_t* v769 = v11 + v768;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v770 = __riscv_vle8_v_i8m1(v769, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v771 = __riscv_vle8_v_i8m1(v754, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v772 = __riscv_vmv_v_x_u8m1(v743, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v773 = __riscv_vand_vv_u8m1(v772, v10, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v774 = __riscv_vmsne_vx_u8m1_b8(v773, 0, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v775 = __riscv_vneg_v_i8m1(v770, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v776 = __riscv_vmerge_vvm_i8m1(v770, v775, v774, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v777 = __riscv_vwmul_vv_i16m2(v776, v771, v767);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v778 = __riscv_vwredsum_vs_i16m2_i32m1(v777, v766, v767);
-    const int8_t* v779 = v741 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v780 = v26[18];
-    int v781 = (int) v780;
-    const uint8_t v782 = v22[36];
-    int v783 = (int) v782;
-    int v784 = v701 << 4;
-    int v785 = v784 & 256;
-    int v786 = v783 | v785;
-    const uint8_t v787 = v22[37];
-    int v788 = (int) v787;
-    int v789 = v701 << 3;
-    int v790 = v789 & 256;
-    int v791 = v788 | v790;
-    const int8_t* v792 = v779 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v793 = __riscv_vsetvl_e8m1(4);
-    size_t v794 = v786 * 4;
-    const int8_t* v795 = v11 + v794;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v796 = __riscv_vle8_v_i8m1(v795, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v797 = __riscv_vle8_v_i8m1(v779, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v798 = __riscv_vmv_v_x_u8m1(v781, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v799 = __riscv_vand_vv_u8m1(v798, v8, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v800 = __riscv_vmsne_vx_u8m1_b8(v799, 0, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v801 = __riscv_vneg_v_i8m1(v796, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v802 = __riscv_vmerge_vvm_i8m1(v796, v801, v800, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v803 = __riscv_vwmul_vv_i16m2(v802, v797, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v804 = __riscv_vwredsum_vs_i16m2_i32m1(v803, v778, v793);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v805 = __riscv_vsetvl_e8m1(4);
-    size_t v806 = v791 * 4;
-    const int8_t* v807 = v11 + v806;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v808 = __riscv_vle8_v_i8m1(v807, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v809 = __riscv_vle8_v_i8m1(v792, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v810 = __riscv_vmv_v_x_u8m1(v781, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v811 = __riscv_vand_vv_u8m1(v810, v10, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v812 = __riscv_vmsne_vx_u8m1_b8(v811, 0, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v813 = __riscv_vneg_v_i8m1(v808, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v814 = __riscv_vmerge_vvm_i8m1(v808, v813, v812, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v815 = __riscv_vwmul_vv_i16m2(v814, v809, v805);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v816 = __riscv_vwredsum_vs_i16m2_i32m1(v815, v804, v805);
-    const int8_t* v817 = v779 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v818 = v26[19];
-    int v819 = (int) v818;
-    const uint8_t v820 = v22[38];
-    int v821 = (int) v820;
-    int v822 = v701 << 2;
-    int v823 = v822 & 256;
-    int v824 = v821 | v823;
-    const uint8_t v825 = v22[39];
-    int v826 = (int) v825;
-    int v827 = v701 << 1;
-    int v828 = v827 & 256;
-    int v829 = v826 | v828;
-    const int8_t* v830 = v817 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v831 = __riscv_vsetvl_e8m1(4);
-    size_t v832 = v824 * 4;
-    const int8_t* v833 = v11 + v832;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v834 = __riscv_vle8_v_i8m1(v833, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v835 = __riscv_vle8_v_i8m1(v817, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v836 = __riscv_vmv_v_x_u8m1(v819, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v837 = __riscv_vand_vv_u8m1(v836, v8, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v838 = __riscv_vmsne_vx_u8m1_b8(v837, 0, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v839 = __riscv_vneg_v_i8m1(v834, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v840 = __riscv_vmerge_vvm_i8m1(v834, v839, v838, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v841 = __riscv_vwmul_vv_i16m2(v840, v835, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v842 = __riscv_vwredsum_vs_i16m2_i32m1(v841, v816, v831);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v843 = __riscv_vsetvl_e8m1(4);
-    size_t v844 = v829 * 4;
-    const int8_t* v845 = v11 + v844;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v846 = __riscv_vle8_v_i8m1(v845, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v847 = __riscv_vle8_v_i8m1(v830, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v848 = __riscv_vmv_v_x_u8m1(v819, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v849 = __riscv_vand_vv_u8m1(v848, v10, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v850 = __riscv_vmsne_vx_u8m1_b8(v849, 0, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v851 = __riscv_vneg_v_i8m1(v846, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v852 = __riscv_vmerge_vvm_i8m1(v846, v851, v850, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v853 = __riscv_vwmul_vv_i16m2(v852, v847, v843);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v854 = __riscv_vwredsum_vs_i16m2_i32m1(v853, v842, v843);
-    const int8_t* v855 = v817 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v856 = __riscv_vmv_x_s_i32m1_i32(v854);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v857 = v31;
-    int32_t v858 = (int32_t) v699;
-    int32_t v859 = v856 * v858;
-    int32_t v860 = v857 + v859;
-    // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v860;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v861 = v28[2];
-    int v862 = (int) v861;
-    int v863 = v862 >> 4;
-    int v864 = v863 * 2;
-    int v865 = v864 + 1;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v866 = v24[5];
-    int v867 = (int) v866;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v868 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v869 = v30 + 160;
+    vint32m1_t v706 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v707 = v28 + 160;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v870 = v26[20];
-    int v871 = (int) v870;
-    const uint8_t v872 = v22[40];
+    const uint8_t v708 = v24[20];
+    int v709 = (int) v708;
+    const uint8_t v710 = v20[40];
+    int v711 = (int) v710;
+    int v712 = v705 << 8;
+    int v713 = v712 & 256;
+    int v714 = v711 | v713;
+    const uint8_t v715 = v20[41];
+    int v716 = (int) v715;
+    int v717 = v705 << 7;
+    int v718 = v717 & 256;
+    int v719 = v716 | v718;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v720[2];
+    int v721 = v714 << 2;
+    uint16_t v722 = (uint16_t) v721;
+    v720[0] = v722;
+    int v723 = v719 << 2;
+    uint16_t v724 = (uint16_t) v723;
+    v720[1] = v724;
+    uint16_t* v725 = &v720[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v726 = __riscv_vle16_v_u16mf2(v725, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v727 = __riscv_vluxei16_v_i32m1(v9, v726, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v728 = __riscv_vreinterpret_v_i32m1_i8m1(v727);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v729 = __riscv_vle8_v_i8m1(v707, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v730 = __riscv_vmv_v_x_u8m1(v709, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v731 = __riscv_vand_vv_u8m1(v730, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v732 = __riscv_vmsne_vx_u8m1_b8(v731, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v733 = __riscv_vneg_v_i8m1(v728, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v734 = __riscv_vmerge_vvm_i8m1(v728, v733, v732, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v735 = __riscv_vwmul_vv_i16m2(v734, v729, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v736 = __riscv_vwredsum_vs_i16m2_i32m1(v735, v706, 8);
+    const int8_t* v737 = v707 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v738 = v24[21];
+    int v739 = (int) v738;
+    const uint8_t v740 = v20[42];
+    int v741 = (int) v740;
+    int v742 = v705 << 6;
+    int v743 = v742 & 256;
+    int v744 = v741 | v743;
+    const uint8_t v745 = v20[43];
+    int v746 = (int) v745;
+    int v747 = v705 << 5;
+    int v748 = v747 & 256;
+    int v749 = v746 | v748;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v750[2];
+    int v751 = v744 << 2;
+    uint16_t v752 = (uint16_t) v751;
+    v750[0] = v752;
+    int v753 = v749 << 2;
+    uint16_t v754 = (uint16_t) v753;
+    v750[1] = v754;
+    uint16_t* v755 = &v750[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v756 = __riscv_vle16_v_u16mf2(v755, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v757 = __riscv_vluxei16_v_i32m1(v9, v756, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v758 = __riscv_vreinterpret_v_i32m1_i8m1(v757);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v759 = __riscv_vle8_v_i8m1(v737, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v760 = __riscv_vmv_v_x_u8m1(v739, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v761 = __riscv_vand_vv_u8m1(v760, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v762 = __riscv_vmsne_vx_u8m1_b8(v761, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v763 = __riscv_vneg_v_i8m1(v758, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v764 = __riscv_vmerge_vvm_i8m1(v758, v763, v762, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v765 = __riscv_vwmul_vv_i16m2(v764, v759, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v766 = __riscv_vwredsum_vs_i16m2_i32m1(v765, v736, 8);
+    const int8_t* v767 = v737 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v768 = v24[22];
+    int v769 = (int) v768;
+    const uint8_t v770 = v20[44];
+    int v771 = (int) v770;
+    int v772 = v705 << 4;
+    int v773 = v772 & 256;
+    int v774 = v771 | v773;
+    const uint8_t v775 = v20[45];
+    int v776 = (int) v775;
+    int v777 = v705 << 3;
+    int v778 = v777 & 256;
+    int v779 = v776 | v778;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v780[2];
+    int v781 = v774 << 2;
+    uint16_t v782 = (uint16_t) v781;
+    v780[0] = v782;
+    int v783 = v779 << 2;
+    uint16_t v784 = (uint16_t) v783;
+    v780[1] = v784;
+    uint16_t* v785 = &v780[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v786 = __riscv_vle16_v_u16mf2(v785, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v787 = __riscv_vluxei16_v_i32m1(v9, v786, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v788 = __riscv_vreinterpret_v_i32m1_i8m1(v787);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v789 = __riscv_vle8_v_i8m1(v767, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v790 = __riscv_vmv_v_x_u8m1(v769, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v791 = __riscv_vand_vv_u8m1(v790, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v792 = __riscv_vmsne_vx_u8m1_b8(v791, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v793 = __riscv_vneg_v_i8m1(v788, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v794 = __riscv_vmerge_vvm_i8m1(v788, v793, v792, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v795 = __riscv_vwmul_vv_i16m2(v794, v789, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v796 = __riscv_vwredsum_vs_i16m2_i32m1(v795, v766, 8);
+    const int8_t* v797 = v767 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v798 = v24[23];
+    int v799 = (int) v798;
+    const uint8_t v800 = v20[46];
+    int v801 = (int) v800;
+    int v802 = v705 << 2;
+    int v803 = v802 & 256;
+    int v804 = v801 | v803;
+    const uint8_t v805 = v20[47];
+    int v806 = (int) v805;
+    int v807 = v705 << 1;
+    int v808 = v807 & 256;
+    int v809 = v806 | v808;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v810[2];
+    int v811 = v804 << 2;
+    uint16_t v812 = (uint16_t) v811;
+    v810[0] = v812;
+    int v813 = v809 << 2;
+    uint16_t v814 = (uint16_t) v813;
+    v810[1] = v814;
+    uint16_t* v815 = &v810[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v816 = __riscv_vle16_v_u16mf2(v815, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v817 = __riscv_vluxei16_v_i32m1(v9, v816, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v818 = __riscv_vreinterpret_v_i32m1_i8m1(v817);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v819 = __riscv_vle8_v_i8m1(v797, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v820 = __riscv_vmv_v_x_u8m1(v799, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v821 = __riscv_vand_vv_u8m1(v820, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v822 = __riscv_vmsne_vx_u8m1_b8(v821, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v823 = __riscv_vneg_v_i8m1(v818, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v824 = __riscv_vmerge_vvm_i8m1(v818, v823, v822, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v825 = __riscv_vwmul_vv_i16m2(v824, v819, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v826 = __riscv_vwredsum_vs_i16m2_i32m1(v825, v796, 8);
+    const int8_t* v827 = v797 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
+    int32_t v828 = __riscv_vmv_x_s_i32m1_i32(v826);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
+    int32_t v829 = v29;
+    int32_t v830 = (int32_t) v703;
+    int32_t v831 = v828 * v830;
+    int32_t v832 = v829 + v831;
+    // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    v29 = v832;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
+    const uint8_t v833 = v26[3];
+    int v834 = (int) v833;
+    int v835 = v834 & 15;
+    int v836 = v835 * 2;
+    int v837 = v836 + 1;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
+    const uint8_t v838 = v22[6];
+    int v839 = (int) v838;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
+    vint32m1_t v840 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v841 = v28 + 192;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v842 = v24[24];
+    int v843 = (int) v842;
+    const uint8_t v844 = v20[48];
+    int v845 = (int) v844;
+    int v846 = v839 << 8;
+    int v847 = v846 & 256;
+    int v848 = v845 | v847;
+    const uint8_t v849 = v20[49];
+    int v850 = (int) v849;
+    int v851 = v839 << 7;
+    int v852 = v851 & 256;
+    int v853 = v850 | v852;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v854[2];
+    int v855 = v848 << 2;
+    uint16_t v856 = (uint16_t) v855;
+    v854[0] = v856;
+    int v857 = v853 << 2;
+    uint16_t v858 = (uint16_t) v857;
+    v854[1] = v858;
+    uint16_t* v859 = &v854[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v860 = __riscv_vle16_v_u16mf2(v859, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v861 = __riscv_vluxei16_v_i32m1(v9, v860, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v862 = __riscv_vreinterpret_v_i32m1_i8m1(v861);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v863 = __riscv_vle8_v_i8m1(v841, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v864 = __riscv_vmv_v_x_u8m1(v843, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v865 = __riscv_vand_vv_u8m1(v864, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v866 = __riscv_vmsne_vx_u8m1_b8(v865, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v867 = __riscv_vneg_v_i8m1(v862, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v868 = __riscv_vmerge_vvm_i8m1(v862, v867, v866, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v869 = __riscv_vwmul_vv_i16m2(v868, v863, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v870 = __riscv_vwredsum_vs_i16m2_i32m1(v869, v840, 8);
+    const int8_t* v871 = v841 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v872 = v24[25];
     int v873 = (int) v872;
-    int v874 = v867 << 8;
-    int v875 = v874 & 256;
-    int v876 = v873 | v875;
-    const uint8_t v877 = v22[41];
-    int v878 = (int) v877;
-    int v879 = v867 << 7;
-    int v880 = v879 & 256;
-    int v881 = v878 | v880;
-    const int8_t* v882 = v869 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v883 = __riscv_vsetvl_e8m1(4);
-    size_t v884 = v876 * 4;
-    const int8_t* v885 = v11 + v884;
+    const uint8_t v874 = v20[50];
+    int v875 = (int) v874;
+    int v876 = v839 << 6;
+    int v877 = v876 & 256;
+    int v878 = v875 | v877;
+    const uint8_t v879 = v20[51];
+    int v880 = (int) v879;
+    int v881 = v839 << 5;
+    int v882 = v881 & 256;
+    int v883 = v880 | v882;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v884[2];
+    int v885 = v878 << 2;
+    uint16_t v886 = (uint16_t) v885;
+    v884[0] = v886;
+    int v887 = v883 << 2;
+    uint16_t v888 = (uint16_t) v887;
+    v884[1] = v888;
+    uint16_t* v889 = &v884[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v890 = __riscv_vle16_v_u16mf2(v889, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v891 = __riscv_vluxei16_v_i32m1(v9, v890, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v892 = __riscv_vreinterpret_v_i32m1_i8m1(v891);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v886 = __riscv_vle8_v_i8m1(v885, v883);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v887 = __riscv_vle8_v_i8m1(v869, v883);
+    vint8m1_t v893 = __riscv_vle8_v_i8m1(v871, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v888 = __riscv_vmv_v_x_u8m1(v871, v883);
+    vuint8m1_t v894 = __riscv_vmv_v_x_u8m1(v873, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v889 = __riscv_vand_vv_u8m1(v888, v8, v883);
+    vuint8m1_t v895 = __riscv_vand_vv_u8m1(v894, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v890 = __riscv_vmsne_vx_u8m1_b8(v889, 0, v883);
+    vbool8_t v896 = __riscv_vmsne_vx_u8m1_b8(v895, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v891 = __riscv_vneg_v_i8m1(v886, v883);
+    vint8m1_t v897 = __riscv_vneg_v_i8m1(v892, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v892 = __riscv_vmerge_vvm_i8m1(v886, v891, v890, v883);
+    vint8m1_t v898 = __riscv_vmerge_vvm_i8m1(v892, v897, v896, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v893 = __riscv_vwmul_vv_i16m2(v892, v887, v883);
+    vint16m2_t v899 = __riscv_vwmul_vv_i16m2(v898, v893, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v894 = __riscv_vwredsum_vs_i16m2_i32m1(v893, v868, v883);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v895 = __riscv_vsetvl_e8m1(4);
-    size_t v896 = v881 * 4;
-    const int8_t* v897 = v11 + v896;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v898 = __riscv_vle8_v_i8m1(v897, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v899 = __riscv_vle8_v_i8m1(v882, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v900 = __riscv_vmv_v_x_u8m1(v871, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v901 = __riscv_vand_vv_u8m1(v900, v10, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v902 = __riscv_vmsne_vx_u8m1_b8(v901, 0, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v903 = __riscv_vneg_v_i8m1(v898, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v904 = __riscv_vmerge_vvm_i8m1(v898, v903, v902, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v905 = __riscv_vwmul_vv_i16m2(v904, v899, v895);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v906 = __riscv_vwredsum_vs_i16m2_i32m1(v905, v894, v895);
-    const int8_t* v907 = v869 + 8;
+    vint32m1_t v900 = __riscv_vwredsum_vs_i16m2_i32m1(v899, v870, 8);
+    const int8_t* v901 = v871 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v908 = v26[21];
-    int v909 = (int) v908;
-    const uint8_t v910 = v22[42];
-    int v911 = (int) v910;
-    int v912 = v867 << 6;
-    int v913 = v912 & 256;
-    int v914 = v911 | v913;
-    const uint8_t v915 = v22[43];
-    int v916 = (int) v915;
-    int v917 = v867 << 5;
-    int v918 = v917 & 256;
-    int v919 = v916 | v918;
-    const int8_t* v920 = v907 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v921 = __riscv_vsetvl_e8m1(4);
-    size_t v922 = v914 * 4;
-    const int8_t* v923 = v11 + v922;
+    const uint8_t v902 = v24[26];
+    int v903 = (int) v902;
+    const uint8_t v904 = v20[52];
+    int v905 = (int) v904;
+    int v906 = v839 << 4;
+    int v907 = v906 & 256;
+    int v908 = v905 | v907;
+    const uint8_t v909 = v20[53];
+    int v910 = (int) v909;
+    int v911 = v839 << 3;
+    int v912 = v911 & 256;
+    int v913 = v910 | v912;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v914[2];
+    int v915 = v908 << 2;
+    uint16_t v916 = (uint16_t) v915;
+    v914[0] = v916;
+    int v917 = v913 << 2;
+    uint16_t v918 = (uint16_t) v917;
+    v914[1] = v918;
+    uint16_t* v919 = &v914[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v920 = __riscv_vle16_v_u16mf2(v919, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v921 = __riscv_vluxei16_v_i32m1(v9, v920, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v922 = __riscv_vreinterpret_v_i32m1_i8m1(v921);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v924 = __riscv_vle8_v_i8m1(v923, v921);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v925 = __riscv_vle8_v_i8m1(v907, v921);
+    vint8m1_t v923 = __riscv_vle8_v_i8m1(v901, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v926 = __riscv_vmv_v_x_u8m1(v909, v921);
+    vuint8m1_t v924 = __riscv_vmv_v_x_u8m1(v903, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v927 = __riscv_vand_vv_u8m1(v926, v8, v921);
+    vuint8m1_t v925 = __riscv_vand_vv_u8m1(v924, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v928 = __riscv_vmsne_vx_u8m1_b8(v927, 0, v921);
+    vbool8_t v926 = __riscv_vmsne_vx_u8m1_b8(v925, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v929 = __riscv_vneg_v_i8m1(v924, v921);
+    vint8m1_t v927 = __riscv_vneg_v_i8m1(v922, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v930 = __riscv_vmerge_vvm_i8m1(v924, v929, v928, v921);
+    vint8m1_t v928 = __riscv_vmerge_vvm_i8m1(v922, v927, v926, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v931 = __riscv_vwmul_vv_i16m2(v930, v925, v921);
+    vint16m2_t v929 = __riscv_vwmul_vv_i16m2(v928, v923, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v932 = __riscv_vwredsum_vs_i16m2_i32m1(v931, v906, v921);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v933 = __riscv_vsetvl_e8m1(4);
-    size_t v934 = v919 * 4;
-    const int8_t* v935 = v11 + v934;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v936 = __riscv_vle8_v_i8m1(v935, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v937 = __riscv_vle8_v_i8m1(v920, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v938 = __riscv_vmv_v_x_u8m1(v909, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v939 = __riscv_vand_vv_u8m1(v938, v10, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v940 = __riscv_vmsne_vx_u8m1_b8(v939, 0, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v941 = __riscv_vneg_v_i8m1(v936, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v942 = __riscv_vmerge_vvm_i8m1(v936, v941, v940, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v943 = __riscv_vwmul_vv_i16m2(v942, v937, v933);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v944 = __riscv_vwredsum_vs_i16m2_i32m1(v943, v932, v933);
-    const int8_t* v945 = v907 + 8;
+    vint32m1_t v930 = __riscv_vwredsum_vs_i16m2_i32m1(v929, v900, 8);
+    const int8_t* v931 = v901 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v946 = v26[22];
-    int v947 = (int) v946;
-    const uint8_t v948 = v22[44];
-    int v949 = (int) v948;
-    int v950 = v867 << 4;
-    int v951 = v950 & 256;
-    int v952 = v949 | v951;
-    const uint8_t v953 = v22[45];
-    int v954 = (int) v953;
-    int v955 = v867 << 3;
-    int v956 = v955 & 256;
-    int v957 = v954 | v956;
-    const int8_t* v958 = v945 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v959 = __riscv_vsetvl_e8m1(4);
-    size_t v960 = v952 * 4;
-    const int8_t* v961 = v11 + v960;
+    const uint8_t v932 = v24[27];
+    int v933 = (int) v932;
+    const uint8_t v934 = v20[54];
+    int v935 = (int) v934;
+    int v936 = v839 << 2;
+    int v937 = v936 & 256;
+    int v938 = v935 | v937;
+    const uint8_t v939 = v20[55];
+    int v940 = (int) v939;
+    int v941 = v839 << 1;
+    int v942 = v941 & 256;
+    int v943 = v940 | v942;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v944[2];
+    int v945 = v938 << 2;
+    uint16_t v946 = (uint16_t) v945;
+    v944[0] = v946;
+    int v947 = v943 << 2;
+    uint16_t v948 = (uint16_t) v947;
+    v944[1] = v948;
+    uint16_t* v949 = &v944[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v950 = __riscv_vle16_v_u16mf2(v949, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v951 = __riscv_vluxei16_v_i32m1(v9, v950, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v952 = __riscv_vreinterpret_v_i32m1_i8m1(v951);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v962 = __riscv_vle8_v_i8m1(v961, v959);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v963 = __riscv_vle8_v_i8m1(v945, v959);
+    vint8m1_t v953 = __riscv_vle8_v_i8m1(v931, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v964 = __riscv_vmv_v_x_u8m1(v947, v959);
+    vuint8m1_t v954 = __riscv_vmv_v_x_u8m1(v933, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v965 = __riscv_vand_vv_u8m1(v964, v8, v959);
+    vuint8m1_t v955 = __riscv_vand_vv_u8m1(v954, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v966 = __riscv_vmsne_vx_u8m1_b8(v965, 0, v959);
+    vbool8_t v956 = __riscv_vmsne_vx_u8m1_b8(v955, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v967 = __riscv_vneg_v_i8m1(v962, v959);
+    vint8m1_t v957 = __riscv_vneg_v_i8m1(v952, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v968 = __riscv_vmerge_vvm_i8m1(v962, v967, v966, v959);
+    vint8m1_t v958 = __riscv_vmerge_vvm_i8m1(v952, v957, v956, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v969 = __riscv_vwmul_vv_i16m2(v968, v963, v959);
+    vint16m2_t v959 = __riscv_vwmul_vv_i16m2(v958, v953, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v970 = __riscv_vwredsum_vs_i16m2_i32m1(v969, v944, v959);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v971 = __riscv_vsetvl_e8m1(4);
-    size_t v972 = v957 * 4;
-    const int8_t* v973 = v11 + v972;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v974 = __riscv_vle8_v_i8m1(v973, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v975 = __riscv_vle8_v_i8m1(v958, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v976 = __riscv_vmv_v_x_u8m1(v947, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v977 = __riscv_vand_vv_u8m1(v976, v10, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v978 = __riscv_vmsne_vx_u8m1_b8(v977, 0, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v979 = __riscv_vneg_v_i8m1(v974, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v980 = __riscv_vmerge_vvm_i8m1(v974, v979, v978, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v981 = __riscv_vwmul_vv_i16m2(v980, v975, v971);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v982 = __riscv_vwredsum_vs_i16m2_i32m1(v981, v970, v971);
-    const int8_t* v983 = v945 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v984 = v26[23];
-    int v985 = (int) v984;
-    const uint8_t v986 = v22[46];
-    int v987 = (int) v986;
-    int v988 = v867 << 2;
-    int v989 = v988 & 256;
-    int v990 = v987 | v989;
-    const uint8_t v991 = v22[47];
-    int v992 = (int) v991;
-    int v993 = v867 << 1;
-    int v994 = v993 & 256;
-    int v995 = v992 | v994;
-    const int8_t* v996 = v983 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v997 = __riscv_vsetvl_e8m1(4);
-    size_t v998 = v990 * 4;
-    const int8_t* v999 = v11 + v998;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1000 = __riscv_vle8_v_i8m1(v999, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1001 = __riscv_vle8_v_i8m1(v983, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1002 = __riscv_vmv_v_x_u8m1(v985, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1003 = __riscv_vand_vv_u8m1(v1002, v8, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1004 = __riscv_vmsne_vx_u8m1_b8(v1003, 0, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1005 = __riscv_vneg_v_i8m1(v1000, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1006 = __riscv_vmerge_vvm_i8m1(v1000, v1005, v1004, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1007 = __riscv_vwmul_vv_i16m2(v1006, v1001, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1008 = __riscv_vwredsum_vs_i16m2_i32m1(v1007, v982, v997);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1009 = __riscv_vsetvl_e8m1(4);
-    size_t v1010 = v995 * 4;
-    const int8_t* v1011 = v11 + v1010;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1012 = __riscv_vle8_v_i8m1(v1011, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1013 = __riscv_vle8_v_i8m1(v996, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1014 = __riscv_vmv_v_x_u8m1(v985, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1015 = __riscv_vand_vv_u8m1(v1014, v10, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1016 = __riscv_vmsne_vx_u8m1_b8(v1015, 0, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1017 = __riscv_vneg_v_i8m1(v1012, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1018 = __riscv_vmerge_vvm_i8m1(v1012, v1017, v1016, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1019 = __riscv_vwmul_vv_i16m2(v1018, v1013, v1009);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1020 = __riscv_vwredsum_vs_i16m2_i32m1(v1019, v1008, v1009);
-    const int8_t* v1021 = v983 + 8;
+    vint32m1_t v960 = __riscv_vwredsum_vs_i16m2_i32m1(v959, v930, 8);
+    const int8_t* v961 = v931 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v1022 = __riscv_vmv_x_s_i32m1_i32(v1020);
+    int32_t v962 = __riscv_vmv_x_s_i32m1_i32(v960);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v1023 = v31;
-    int32_t v1024 = (int32_t) v865;
-    int32_t v1025 = v1022 * v1024;
-    int32_t v1026 = v1023 + v1025;
+    int32_t v963 = v29;
+    int32_t v964 = (int32_t) v837;
+    int32_t v965 = v962 * v964;
+    int32_t v966 = v963 + v965;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v1026;
+    v29 = v966;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v1027 = v28[3];
-    int v1028 = (int) v1027;
-    int v1029 = v1028 & 15;
-    int v1030 = v1029 * 2;
-    int v1031 = v1030 + 1;
+    const uint8_t v967 = v26[3];
+    int v968 = (int) v967;
+    int v969 = v968 >> 4;
+    int v970 = v969 * 2;
+    int v971 = v970 + 1;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v1032 = v24[6];
-    int v1033 = (int) v1032;
+    const uint8_t v972 = v22[7];
+    int v973 = (int) v972;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v1034 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v1035 = v30 + 192;
+    vint32m1_t v974 = __riscv_vmv_v_x_i32m1(0, 1);
+    const int8_t* v975 = v28 + 224;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1036 = v26[24];
+    const uint8_t v976 = v24[28];
+    int v977 = (int) v976;
+    const uint8_t v978 = v20[56];
+    int v979 = (int) v978;
+    int v980 = v973 << 8;
+    int v981 = v980 & 256;
+    int v982 = v979 | v981;
+    const uint8_t v983 = v20[57];
+    int v984 = (int) v983;
+    int v985 = v973 << 7;
+    int v986 = v985 & 256;
+    int v987 = v984 | v986;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v988[2];
+    int v989 = v982 << 2;
+    uint16_t v990 = (uint16_t) v989;
+    v988[0] = v990;
+    int v991 = v987 << 2;
+    uint16_t v992 = (uint16_t) v991;
+    v988[1] = v992;
+    uint16_t* v993 = &v988[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v994 = __riscv_vle16_v_u16mf2(v993, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v995 = __riscv_vluxei16_v_i32m1(v9, v994, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v996 = __riscv_vreinterpret_v_i32m1_i8m1(v995);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v997 = __riscv_vle8_v_i8m1(v975, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v998 = __riscv_vmv_v_x_u8m1(v977, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v999 = __riscv_vand_vv_u8m1(v998, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v1000 = __riscv_vmsne_vx_u8m1_b8(v999, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v1001 = __riscv_vneg_v_i8m1(v996, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v1002 = __riscv_vmerge_vvm_i8m1(v996, v1001, v1000, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v1003 = __riscv_vwmul_vv_i16m2(v1002, v997, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v1004 = __riscv_vwredsum_vs_i16m2_i32m1(v1003, v974, 8);
+    const int8_t* v1005 = v975 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v1006 = v24[29];
+    int v1007 = (int) v1006;
+    const uint8_t v1008 = v20[58];
+    int v1009 = (int) v1008;
+    int v1010 = v973 << 6;
+    int v1011 = v1010 & 256;
+    int v1012 = v1009 | v1011;
+    const uint8_t v1013 = v20[59];
+    int v1014 = (int) v1013;
+    int v1015 = v973 << 5;
+    int v1016 = v1015 & 256;
+    int v1017 = v1014 | v1016;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v1018[2];
+    int v1019 = v1012 << 2;
+    uint16_t v1020 = (uint16_t) v1019;
+    v1018[0] = v1020;
+    int v1021 = v1017 << 2;
+    uint16_t v1022 = (uint16_t) v1021;
+    v1018[1] = v1022;
+    uint16_t* v1023 = &v1018[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v1024 = __riscv_vle16_v_u16mf2(v1023, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v1025 = __riscv_vluxei16_v_i32m1(v9, v1024, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v1026 = __riscv_vreinterpret_v_i32m1_i8m1(v1025);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
+    vint8m1_t v1027 = __riscv_vle8_v_i8m1(v1005, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
+    vuint8m1_t v1028 = __riscv_vmv_v_x_u8m1(v1007, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
+    vuint8m1_t v1029 = __riscv_vand_vv_u8m1(v1028, v8, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
+    vbool8_t v1030 = __riscv_vmsne_vx_u8m1_b8(v1029, 0, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
+    vint8m1_t v1031 = __riscv_vneg_v_i8m1(v1026, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
+    vint8m1_t v1032 = __riscv_vmerge_vvm_i8m1(v1026, v1031, v1030, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
+    vint16m2_t v1033 = __riscv_vwmul_vv_i16m2(v1032, v1027, 8);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
+    vint32m1_t v1034 = __riscv_vwredsum_vs_i16m2_i32m1(v1033, v1004, 8);
+    const int8_t* v1035 = v1005 + 8;
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
+    const uint8_t v1036 = v24[30];
     int v1037 = (int) v1036;
-    const uint8_t v1038 = v22[48];
+    const uint8_t v1038 = v20[60];
     int v1039 = (int) v1038;
-    int v1040 = v1033 << 8;
+    int v1040 = v973 << 4;
     int v1041 = v1040 & 256;
     int v1042 = v1039 | v1041;
-    const uint8_t v1043 = v22[49];
+    const uint8_t v1043 = v20[61];
     int v1044 = (int) v1043;
-    int v1045 = v1033 << 7;
+    int v1045 = v973 << 3;
     int v1046 = v1045 & 256;
     int v1047 = v1044 | v1046;
-    const int8_t* v1048 = v1035 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1049 = __riscv_vsetvl_e8m1(4);
-    size_t v1050 = v1042 * 4;
-    const int8_t* v1051 = v11 + v1050;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v1048[2];
+    int v1049 = v1042 << 2;
+    uint16_t v1050 = (uint16_t) v1049;
+    v1048[0] = v1050;
+    int v1051 = v1047 << 2;
+    uint16_t v1052 = (uint16_t) v1051;
+    v1048[1] = v1052;
+    uint16_t* v1053 = &v1048[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v1054 = __riscv_vle16_v_u16mf2(v1053, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v1055 = __riscv_vluxei16_v_i32m1(v9, v1054, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v1056 = __riscv_vreinterpret_v_i32m1_i8m1(v1055);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1052 = __riscv_vle8_v_i8m1(v1051, v1049);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1053 = __riscv_vle8_v_i8m1(v1035, v1049);
+    vint8m1_t v1057 = __riscv_vle8_v_i8m1(v1035, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1054 = __riscv_vmv_v_x_u8m1(v1037, v1049);
+    vuint8m1_t v1058 = __riscv_vmv_v_x_u8m1(v1037, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1055 = __riscv_vand_vv_u8m1(v1054, v8, v1049);
+    vuint8m1_t v1059 = __riscv_vand_vv_u8m1(v1058, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1056 = __riscv_vmsne_vx_u8m1_b8(v1055, 0, v1049);
+    vbool8_t v1060 = __riscv_vmsne_vx_u8m1_b8(v1059, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1057 = __riscv_vneg_v_i8m1(v1052, v1049);
+    vint8m1_t v1061 = __riscv_vneg_v_i8m1(v1056, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1058 = __riscv_vmerge_vvm_i8m1(v1052, v1057, v1056, v1049);
+    vint8m1_t v1062 = __riscv_vmerge_vvm_i8m1(v1056, v1061, v1060, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1059 = __riscv_vwmul_vv_i16m2(v1058, v1053, v1049);
+    vint16m2_t v1063 = __riscv_vwmul_vv_i16m2(v1062, v1057, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1060 = __riscv_vwredsum_vs_i16m2_i32m1(v1059, v1034, v1049);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1061 = __riscv_vsetvl_e8m1(4);
-    size_t v1062 = v1047 * 4;
-    const int8_t* v1063 = v11 + v1062;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1064 = __riscv_vle8_v_i8m1(v1063, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1065 = __riscv_vle8_v_i8m1(v1048, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1066 = __riscv_vmv_v_x_u8m1(v1037, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1067 = __riscv_vand_vv_u8m1(v1066, v10, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1068 = __riscv_vmsne_vx_u8m1_b8(v1067, 0, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1069 = __riscv_vneg_v_i8m1(v1064, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1070 = __riscv_vmerge_vvm_i8m1(v1064, v1069, v1068, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1071 = __riscv_vwmul_vv_i16m2(v1070, v1065, v1061);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1072 = __riscv_vwredsum_vs_i16m2_i32m1(v1071, v1060, v1061);
-    const int8_t* v1073 = v1035 + 8;
+    vint32m1_t v1064 = __riscv_vwredsum_vs_i16m2_i32m1(v1063, v1034, 8);
+    const int8_t* v1065 = v1035 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1074 = v26[25];
-    int v1075 = (int) v1074;
-    const uint8_t v1076 = v22[50];
-    int v1077 = (int) v1076;
-    int v1078 = v1033 << 6;
-    int v1079 = v1078 & 256;
-    int v1080 = v1077 | v1079;
-    const uint8_t v1081 = v22[51];
-    int v1082 = (int) v1081;
-    int v1083 = v1033 << 5;
-    int v1084 = v1083 & 256;
-    int v1085 = v1082 | v1084;
-    const int8_t* v1086 = v1073 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1087 = __riscv_vsetvl_e8m1(4);
-    size_t v1088 = v1080 * 4;
-    const int8_t* v1089 = v11 + v1088;
+    const uint8_t v1066 = v24[31];
+    int v1067 = (int) v1066;
+    const uint8_t v1068 = v20[62];
+    int v1069 = (int) v1068;
+    int v1070 = v973 << 2;
+    int v1071 = v1070 & 256;
+    int v1072 = v1069 | v1071;
+    const uint8_t v1073 = v20[63];
+    int v1074 = (int) v1073;
+    int v1075 = v973 << 1;
+    int v1076 = v1075 & 256;
+    int v1077 = v1074 | v1076;
+    // tcrv_emitc.local_variable=idxoff source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
+    uint16_t v1078[2];
+    int v1079 = v1072 << 2;
+    uint16_t v1080 = (uint16_t) v1079;
+    v1078[0] = v1080;
+    int v1081 = v1077 << 2;
+    uint16_t v1082 = (uint16_t) v1081;
+    v1078[1] = v1082;
+    uint16_t* v1083 = &v1078[0];
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle16_v_u16mf2
+    vuint16mf2_t v1084 = __riscv_vle16_v_u16mf2(v1083, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vluxei16_v_i32m1
+    vint32m1_t v1085 = __riscv_vluxei16_v_i32m1(v9, v1084, 2);
+    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vreinterpret_v_i32m1_i8m1
+    vint8m1_t v1086 = __riscv_vreinterpret_v_i32m1_i8m1(v1085);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1090 = __riscv_vle8_v_i8m1(v1089, v1087);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1091 = __riscv_vle8_v_i8m1(v1073, v1087);
+    vint8m1_t v1087 = __riscv_vle8_v_i8m1(v1065, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1092 = __riscv_vmv_v_x_u8m1(v1075, v1087);
+    vuint8m1_t v1088 = __riscv_vmv_v_x_u8m1(v1067, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1093 = __riscv_vand_vv_u8m1(v1092, v8, v1087);
+    vuint8m1_t v1089 = __riscv_vand_vv_u8m1(v1088, v8, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1094 = __riscv_vmsne_vx_u8m1_b8(v1093, 0, v1087);
+    vbool8_t v1090 = __riscv_vmsne_vx_u8m1_b8(v1089, 0, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1095 = __riscv_vneg_v_i8m1(v1090, v1087);
+    vint8m1_t v1091 = __riscv_vneg_v_i8m1(v1086, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1096 = __riscv_vmerge_vvm_i8m1(v1090, v1095, v1094, v1087);
+    vint8m1_t v1092 = __riscv_vmerge_vvm_i8m1(v1086, v1091, v1090, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1097 = __riscv_vwmul_vv_i16m2(v1096, v1091, v1087);
+    vint16m2_t v1093 = __riscv_vwmul_vv_i16m2(v1092, v1087, 8);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1098 = __riscv_vwredsum_vs_i16m2_i32m1(v1097, v1072, v1087);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1099 = __riscv_vsetvl_e8m1(4);
-    size_t v1100 = v1085 * 4;
-    const int8_t* v1101 = v11 + v1100;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1102 = __riscv_vle8_v_i8m1(v1101, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1103 = __riscv_vle8_v_i8m1(v1086, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1104 = __riscv_vmv_v_x_u8m1(v1075, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1105 = __riscv_vand_vv_u8m1(v1104, v10, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1106 = __riscv_vmsne_vx_u8m1_b8(v1105, 0, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1107 = __riscv_vneg_v_i8m1(v1102, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1108 = __riscv_vmerge_vvm_i8m1(v1102, v1107, v1106, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1109 = __riscv_vwmul_vv_i16m2(v1108, v1103, v1099);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1110 = __riscv_vwredsum_vs_i16m2_i32m1(v1109, v1098, v1099);
-    const int8_t* v1111 = v1073 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1112 = v26[26];
-    int v1113 = (int) v1112;
-    const uint8_t v1114 = v22[52];
-    int v1115 = (int) v1114;
-    int v1116 = v1033 << 4;
-    int v1117 = v1116 & 256;
-    int v1118 = v1115 | v1117;
-    const uint8_t v1119 = v22[53];
-    int v1120 = (int) v1119;
-    int v1121 = v1033 << 3;
-    int v1122 = v1121 & 256;
-    int v1123 = v1120 | v1122;
-    const int8_t* v1124 = v1111 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1125 = __riscv_vsetvl_e8m1(4);
-    size_t v1126 = v1118 * 4;
-    const int8_t* v1127 = v11 + v1126;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1128 = __riscv_vle8_v_i8m1(v1127, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1129 = __riscv_vle8_v_i8m1(v1111, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1130 = __riscv_vmv_v_x_u8m1(v1113, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1131 = __riscv_vand_vv_u8m1(v1130, v8, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1132 = __riscv_vmsne_vx_u8m1_b8(v1131, 0, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1133 = __riscv_vneg_v_i8m1(v1128, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1134 = __riscv_vmerge_vvm_i8m1(v1128, v1133, v1132, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1135 = __riscv_vwmul_vv_i16m2(v1134, v1129, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1136 = __riscv_vwredsum_vs_i16m2_i32m1(v1135, v1110, v1125);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1137 = __riscv_vsetvl_e8m1(4);
-    size_t v1138 = v1123 * 4;
-    const int8_t* v1139 = v11 + v1138;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1140 = __riscv_vle8_v_i8m1(v1139, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1141 = __riscv_vle8_v_i8m1(v1124, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1142 = __riscv_vmv_v_x_u8m1(v1113, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1143 = __riscv_vand_vv_u8m1(v1142, v10, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1144 = __riscv_vmsne_vx_u8m1_b8(v1143, 0, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1145 = __riscv_vneg_v_i8m1(v1140, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1146 = __riscv_vmerge_vvm_i8m1(v1140, v1145, v1144, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1147 = __riscv_vwmul_vv_i16m2(v1146, v1141, v1137);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1148 = __riscv_vwredsum_vs_i16m2_i32m1(v1147, v1136, v1137);
-    const int8_t* v1149 = v1111 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1150 = v26[27];
-    int v1151 = (int) v1150;
-    const uint8_t v1152 = v22[54];
-    int v1153 = (int) v1152;
-    int v1154 = v1033 << 2;
-    int v1155 = v1154 & 256;
-    int v1156 = v1153 | v1155;
-    const uint8_t v1157 = v22[55];
-    int v1158 = (int) v1157;
-    int v1159 = v1033 << 1;
-    int v1160 = v1159 & 256;
-    int v1161 = v1158 | v1160;
-    const int8_t* v1162 = v1149 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1163 = __riscv_vsetvl_e8m1(4);
-    size_t v1164 = v1156 * 4;
-    const int8_t* v1165 = v11 + v1164;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1166 = __riscv_vle8_v_i8m1(v1165, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1167 = __riscv_vle8_v_i8m1(v1149, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1168 = __riscv_vmv_v_x_u8m1(v1151, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1169 = __riscv_vand_vv_u8m1(v1168, v8, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1170 = __riscv_vmsne_vx_u8m1_b8(v1169, 0, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1171 = __riscv_vneg_v_i8m1(v1166, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1172 = __riscv_vmerge_vvm_i8m1(v1166, v1171, v1170, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1173 = __riscv_vwmul_vv_i16m2(v1172, v1167, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1174 = __riscv_vwredsum_vs_i16m2_i32m1(v1173, v1148, v1163);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1175 = __riscv_vsetvl_e8m1(4);
-    size_t v1176 = v1161 * 4;
-    const int8_t* v1177 = v11 + v1176;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1178 = __riscv_vle8_v_i8m1(v1177, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1179 = __riscv_vle8_v_i8m1(v1162, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1180 = __riscv_vmv_v_x_u8m1(v1151, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1181 = __riscv_vand_vv_u8m1(v1180, v10, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1182 = __riscv_vmsne_vx_u8m1_b8(v1181, 0, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1183 = __riscv_vneg_v_i8m1(v1178, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1184 = __riscv_vmerge_vvm_i8m1(v1178, v1183, v1182, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1185 = __riscv_vwmul_vv_i16m2(v1184, v1179, v1175);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1186 = __riscv_vwredsum_vs_i16m2_i32m1(v1185, v1174, v1175);
-    const int8_t* v1187 = v1149 + 8;
+    vint32m1_t v1094 = __riscv_vwredsum_vs_i16m2_i32m1(v1093, v1064, 8);
+    const int8_t* v1095 = v1065 + 8;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v1188 = __riscv_vmv_x_s_i32m1_i32(v1186);
+    int32_t v1096 = __riscv_vmv_x_s_i32m1_i32(v1094);
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v1189 = v31;
-    int32_t v1190 = (int32_t) v1031;
-    int32_t v1191 = v1188 * v1190;
-    int32_t v1192 = v1189 + v1191;
+    int32_t v1097 = v29;
+    int32_t v1098 = (int32_t) v971;
+    int32_t v1099 = v1096 * v1098;
+    int32_t v1100 = v1097 + v1099;
     // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v1192;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=sub_block_explicit_scale
-    const uint8_t v1193 = v28[3];
-    int v1194 = (int) v1193;
-    int v1195 = v1194 >> 4;
-    int v1196 = v1195 * 2;
-    int v1197 = v1196 + 1;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=qh_plane_byte
-    const uint8_t v1198 = v24[7];
-    int v1199 = (int) v1198;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_i32m1
-    vint32m1_t v1200 = __riscv_vmv_v_x_i32m1(0, 1);
-    const int8_t* v1201 = v30 + 224;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1202 = v26[28];
-    int v1203 = (int) v1202;
-    const uint8_t v1204 = v22[56];
-    int v1205 = (int) v1204;
-    int v1206 = v1199 << 8;
-    int v1207 = v1206 & 256;
-    int v1208 = v1205 | v1207;
-    const uint8_t v1209 = v22[57];
-    int v1210 = (int) v1209;
-    int v1211 = v1199 << 7;
-    int v1212 = v1211 & 256;
-    int v1213 = v1210 | v1212;
-    const int8_t* v1214 = v1201 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1215 = __riscv_vsetvl_e8m1(4);
-    size_t v1216 = v1208 * 4;
-    const int8_t* v1217 = v11 + v1216;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1218 = __riscv_vle8_v_i8m1(v1217, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1219 = __riscv_vle8_v_i8m1(v1201, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1220 = __riscv_vmv_v_x_u8m1(v1203, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1221 = __riscv_vand_vv_u8m1(v1220, v8, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1222 = __riscv_vmsne_vx_u8m1_b8(v1221, 0, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1223 = __riscv_vneg_v_i8m1(v1218, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1224 = __riscv_vmerge_vvm_i8m1(v1218, v1223, v1222, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1225 = __riscv_vwmul_vv_i16m2(v1224, v1219, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1226 = __riscv_vwredsum_vs_i16m2_i32m1(v1225, v1200, v1215);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1227 = __riscv_vsetvl_e8m1(4);
-    size_t v1228 = v1213 * 4;
-    const int8_t* v1229 = v11 + v1228;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1230 = __riscv_vle8_v_i8m1(v1229, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1231 = __riscv_vle8_v_i8m1(v1214, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1232 = __riscv_vmv_v_x_u8m1(v1203, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1233 = __riscv_vand_vv_u8m1(v1232, v10, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1234 = __riscv_vmsne_vx_u8m1_b8(v1233, 0, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1235 = __riscv_vneg_v_i8m1(v1230, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1236 = __riscv_vmerge_vvm_i8m1(v1230, v1235, v1234, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1237 = __riscv_vwmul_vv_i16m2(v1236, v1231, v1227);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1238 = __riscv_vwredsum_vs_i16m2_i32m1(v1237, v1226, v1227);
-    const int8_t* v1239 = v1201 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1240 = v26[29];
-    int v1241 = (int) v1240;
-    const uint8_t v1242 = v22[58];
-    int v1243 = (int) v1242;
-    int v1244 = v1199 << 6;
-    int v1245 = v1244 & 256;
-    int v1246 = v1243 | v1245;
-    const uint8_t v1247 = v22[59];
-    int v1248 = (int) v1247;
-    int v1249 = v1199 << 5;
-    int v1250 = v1249 & 256;
-    int v1251 = v1248 | v1250;
-    const int8_t* v1252 = v1239 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1253 = __riscv_vsetvl_e8m1(4);
-    size_t v1254 = v1246 * 4;
-    const int8_t* v1255 = v11 + v1254;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1256 = __riscv_vle8_v_i8m1(v1255, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1257 = __riscv_vle8_v_i8m1(v1239, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1258 = __riscv_vmv_v_x_u8m1(v1241, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1259 = __riscv_vand_vv_u8m1(v1258, v8, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1260 = __riscv_vmsne_vx_u8m1_b8(v1259, 0, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1261 = __riscv_vneg_v_i8m1(v1256, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1262 = __riscv_vmerge_vvm_i8m1(v1256, v1261, v1260, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1263 = __riscv_vwmul_vv_i16m2(v1262, v1257, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1264 = __riscv_vwredsum_vs_i16m2_i32m1(v1263, v1238, v1253);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1265 = __riscv_vsetvl_e8m1(4);
-    size_t v1266 = v1251 * 4;
-    const int8_t* v1267 = v11 + v1266;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1268 = __riscv_vle8_v_i8m1(v1267, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1269 = __riscv_vle8_v_i8m1(v1252, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1270 = __riscv_vmv_v_x_u8m1(v1241, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1271 = __riscv_vand_vv_u8m1(v1270, v10, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1272 = __riscv_vmsne_vx_u8m1_b8(v1271, 0, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1273 = __riscv_vneg_v_i8m1(v1268, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1274 = __riscv_vmerge_vvm_i8m1(v1268, v1273, v1272, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1275 = __riscv_vwmul_vv_i16m2(v1274, v1269, v1265);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1276 = __riscv_vwredsum_vs_i16m2_i32m1(v1275, v1264, v1265);
-    const int8_t* v1277 = v1239 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1278 = v26[30];
-    int v1279 = (int) v1278;
-    const uint8_t v1280 = v22[60];
-    int v1281 = (int) v1280;
-    int v1282 = v1199 << 4;
-    int v1283 = v1282 & 256;
-    int v1284 = v1281 | v1283;
-    const uint8_t v1285 = v22[61];
-    int v1286 = (int) v1285;
-    int v1287 = v1199 << 3;
-    int v1288 = v1287 & 256;
-    int v1289 = v1286 | v1288;
-    const int8_t* v1290 = v1277 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1291 = __riscv_vsetvl_e8m1(4);
-    size_t v1292 = v1284 * 4;
-    const int8_t* v1293 = v11 + v1292;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1294 = __riscv_vle8_v_i8m1(v1293, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1295 = __riscv_vle8_v_i8m1(v1277, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1296 = __riscv_vmv_v_x_u8m1(v1279, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1297 = __riscv_vand_vv_u8m1(v1296, v8, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1298 = __riscv_vmsne_vx_u8m1_b8(v1297, 0, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1299 = __riscv_vneg_v_i8m1(v1294, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1300 = __riscv_vmerge_vvm_i8m1(v1294, v1299, v1298, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1301 = __riscv_vwmul_vv_i16m2(v1300, v1295, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1302 = __riscv_vwredsum_vs_i16m2_i32m1(v1301, v1276, v1291);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1303 = __riscv_vsetvl_e8m1(4);
-    size_t v1304 = v1289 * 4;
-    const int8_t* v1305 = v11 + v1304;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1306 = __riscv_vle8_v_i8m1(v1305, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1307 = __riscv_vle8_v_i8m1(v1290, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1308 = __riscv_vmv_v_x_u8m1(v1279, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1309 = __riscv_vand_vv_u8m1(v1308, v10, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1310 = __riscv_vmsne_vx_u8m1_b8(v1309, 0, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1311 = __riscv_vneg_v_i8m1(v1306, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1312 = __riscv_vmerge_vvm_i8m1(v1306, v1311, v1310, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1313 = __riscv_vwmul_vv_i16m2(v1312, v1307, v1303);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1314 = __riscv_vwredsum_vs_i16m2_i32m1(v1313, v1302, v1303);
-    const int8_t* v1315 = v1277 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=grid_sign_group
-    const uint8_t v1316 = v26[31];
-    int v1317 = (int) v1316;
-    const uint8_t v1318 = v22[62];
-    int v1319 = (int) v1318;
-    int v1320 = v1199 << 2;
-    int v1321 = v1320 & 256;
-    int v1322 = v1319 | v1321;
-    const uint8_t v1323 = v22[63];
-    int v1324 = (int) v1323;
-    int v1325 = v1199 << 1;
-    int v1326 = v1325 & 256;
-    int v1327 = v1324 | v1326;
-    const int8_t* v1328 = v1315 + 4;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1329 = __riscv_vsetvl_e8m1(4);
-    size_t v1330 = v1322 * 4;
-    const int8_t* v1331 = v11 + v1330;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1332 = __riscv_vle8_v_i8m1(v1331, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1333 = __riscv_vle8_v_i8m1(v1315, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1334 = __riscv_vmv_v_x_u8m1(v1317, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1335 = __riscv_vand_vv_u8m1(v1334, v8, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1336 = __riscv_vmsne_vx_u8m1_b8(v1335, 0, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1337 = __riscv_vneg_v_i8m1(v1332, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1338 = __riscv_vmerge_vvm_i8m1(v1332, v1337, v1336, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1339 = __riscv_vwmul_vv_i16m2(v1338, v1333, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1340 = __riscv_vwredsum_vs_i16m2_i32m1(v1339, v1314, v1329);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e8m1
-    size_t v1341 = __riscv_vsetvl_e8m1(4);
-    size_t v1342 = v1327 * 4;
-    const int8_t* v1343 = v11 + v1342;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1344 = __riscv_vle8_v_i8m1(v1343, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle8_v_i8m1
-    vint8m1_t v1345 = __riscv_vle8_v_i8m1(v1328, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_v_x_u8m1
-    vuint8m1_t v1346 = __riscv_vmv_v_x_u8m1(v1317, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vand_vv_u8m1
-    vuint8m1_t v1347 = __riscv_vand_vv_u8m1(v1346, v10, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmsne_vx_u8m1_b8
-    vbool8_t v1348 = __riscv_vmsne_vx_u8m1_b8(v1347, 0, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vneg_v_i8m1
-    vint8m1_t v1349 = __riscv_vneg_v_i8m1(v1344, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmerge_vvm_i8m1
-    vint8m1_t v1350 = __riscv_vmerge_vvm_i8m1(v1344, v1349, v1348, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwmul_vv_i16m2
-    vint16m2_t v1351 = __riscv_vwmul_vv_i16m2(v1350, v1345, v1341);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vwredsum_vs_i16m2_i32m1
-    vint32m1_t v1352 = __riscv_vwredsum_vs_i16m2_i32m1(v1351, v1340, v1341);
-    const int8_t* v1353 = v1315 + 8;
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vmv_x_s_i32m1_i32
-    int32_t v1354 = __riscv_vmv_x_s_i32m1_i32(v1352);
-    // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=bsum_accumulate
-    int32_t v1355 = v31;
-    int32_t v1356 = (int32_t) v1197;
-    int32_t v1357 = v1354 * v1356;
-    int32_t v1358 = v1355 + v1357;
-    // tcrv_emitc.assign target=bsum source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v31 = v1358;
+    v29 = v1100;
     // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=fp32_accumulate
-    int32_t v1359 = v31;
-    float v1360 = v6;
+    int32_t v1101 = v29;
+    float v1102 = v6;
     // tcrv_emitc.assign target=sumf source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface
-    v6 = v1360 + v20 * (float) v1359;
+    v6 = v1102 + v18 * (float) v1101;
   }
   // tcrv_emitc.source_op=tcrv_rvv.iq3_s_q8_k_block_dot role=compute op_interface=TCRVEmitCLowerableOpInterface callee=store_s
-  float v1361 = v6;
-  v2[0] = v1361;
+  float v1103 = v6;
+  v2[0] = v1103;
   return;
 }
 
