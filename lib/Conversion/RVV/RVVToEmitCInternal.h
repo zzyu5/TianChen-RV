@@ -1960,6 +1960,17 @@ private:
     int64_t q8Offset;
     int64_t numSubBlocks;
     int64_t quarter;
+    // The integer-core MAC chain (Region C) LMUL anchor, sourced from the op's
+    // optional integer_core_lmul (default "mf2" == today's emit). l8/l16/l32 are
+    // the three element-width rungs of the i8 -> i16 -> i32 widening chain. The
+    // default (mf2 -> m1 -> m2) reproduces the byte-identical legacy form; m1 ->
+    // (m1, m2, m4); m2 -> (m2, m4, m8). The Region-A 6-bit unpack (u8m2/i8m2) is
+    // NOT driven by this knob -- it stays fixed at m2 (its own throughput axis,
+    // widened in a later increment), so the Region-A types/callees are hardcoded.
+    llvm::StringRef coreLmul = "mf2";
+    llvm::StringRef l8 = "mf2";
+    llvm::StringRef l16 = "m1";
+    llvm::StringRef l32 = "m2";
     // The q5_K 5th-bit (qh high-bit-plane) injection, the ONLY q5_K vs q4_K
     // difference. When hasQh is false (q4_K), the core emits BYTE-IDENTICAL
     // nodes (no qh load, no inject). When true (q5_K), each unpacked nibble gets

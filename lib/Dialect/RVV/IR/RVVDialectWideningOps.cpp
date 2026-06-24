@@ -4630,7 +4630,8 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
            name == "weight_qs_byte_offset" ||
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "activation_bsums_byte_offset";
+           name == "activation_bsums_byte_offset" ||
+           name == "integer_core_lmul";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4648,9 +4649,33 @@ mlir::LogicalResult GgmlBlockDotQ4KQ8KOp::verify() {
                 "'weight_block_stride', 'activation_block_stride', "
                 "'weight_d_byte_offset', 'weight_dmin_byte_offset', "
                 "'weight_scales_byte_offset', 'weight_qs_byte_offset', "
-                "'activation_d_byte_offset', 'activation_quant_byte_offset', and "
-                "'activation_bsums_byte_offset'; unexpected attribute '"
+                "'activation_d_byte_offset', 'activation_quant_byte_offset', "
+                "'activation_bsums_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
              << attr.getName() << "'";
+  }
+
+  // The optional integer_core_lmul anchors the per-sub-block integer-MAC
+  // widening chain i8 -> i16 -> i32 (the *how*, never the *what*; the byte-exact
+  // fp32 fold order is untouched). Only three anchors are legal, bounded on TWO
+  // independent grounds (I7, fail-closed):
+  //   * absent / "mf2" -- today's fractional chain (i8mf2 -> i16m1 -> i32m2).
+  //   * "m1" -- the whole-LMUL chain shifted up one notch (i8m1 -> i16m2 ->
+  //     i32m4).
+  //   * "m2" -- the hard ceiling (i8m2 -> i16m4 -> i32m8): i8m2 == 32 elements
+  //     == exactly ONE sub-block under ONE scalar scale. A wider "m4" base would
+  //     need an illegal i32m16 product AND would fold TWO sub-blocks under one
+  //     scalar -- rejected.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\"} (the "
+                "base LMUL of the i8 -> i16 -> i32 integer-MAC chain; \"m2\" is "
+                "the ceiling at one sub-block == 32 elements per scalar scale) "
+                "for the ggml Q4_K x Q8_K super-block full block dot-product "
+                "route; got \""
+             << coreLmul << "\"";
   }
 
   if (getKind() != "ggml_q4_k_q8_k_block_dot")

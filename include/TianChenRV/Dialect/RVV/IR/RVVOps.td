@@ -6170,9 +6170,21 @@ def GgmlBlockDotQ4KQ8KOp
     Zvl128b => VLEN>=128, the validated target), inheriting K4a's integer-core
     striping (one vsetvl_e8m2(32) per 32-element nibble group; e8mf2(8)->i16m1->
     e32m2 per sub-block quarter) with NO VLEN-robust re-strip loop (the
-    zve32x/zve64x re-strip is a capability item, not built here). No resource
-    shape knobs yet; the K3 measurement tuner will register q4_K's candidate
-    shapes. This K4b op carries only the structural facts.
+    zve32x/zve64x re-strip is a capability item, not built here).
+
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    knob selecting the BASE LMUL of the per-sub-block integer-MAC widening chain
+    i8 -> i16 -> i32 (the *how*, never the *what*; the byte-exact fp32 fold order
+    is untouched). It anchors the chain at "mf2" (absent/default -- today's
+    e8mf2(8)->i16m1->e32m2 form), "m1" (e8m1->i16m2->e32m4), or "m2"
+    (e8m2->i16m4->e32m8). "m2" is the hard ceiling on TWO independent grounds:
+    the register-group limit (an m4 base would need an illegal i32m16 product)
+    AND the sub-block-scale boundary (i8m2 == 32 elements == exactly one
+    sub-block under one scalar `scale`; m4 would fold TWO sub-blocks under one
+    scalar). The verifier pins the legal set {"mf2","m1","m2"} fail-closed (I7).
+    The 6-bit scale/min bit-dance is scalar (LMUL-free) and is untouched by this
+    knob. The K3 measurement tuner stamps the chosen anchor; this K4b op carries
+    the structural facts plus this single dormant resource shape knob.
   }];
 
   let arguments = (ins
@@ -6193,7 +6205,8 @@ def GgmlBlockDotQ4KQ8KOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$activation_d_byte_offset,
     I64Attr:$activation_quant_byte_offset,
-    I64Attr:$activation_bsums_byte_offset
+    I64Attr:$activation_bsums_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs AnyType:$result);
 

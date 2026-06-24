@@ -1046,7 +1046,11 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     auto aux32Var = rewriter.create<emitc::VariableOp>(
         loc, emitc::LValueType::get(cx.i32m2Type),
         emitc::OpaqueAttr::get(ctx, ""));
-    std::string aux32SeedCallee = "__riscv_vmv_v_x_i32m2";
+    // Region-C MAC chain callees keyed off the integer_core_lmul anchor
+    // (cx.l8/l16/l32). At the default mf2 -> m1 -> m2 these render the exact
+    // legacy callee strings (vmv_v_x_i32m2 / vsetvl_e8mf2 / vle8_v_i8mf2 /
+    // vwmul_vv_i16m1 / vwmacc_vx_i32m2).
+    std::string aux32SeedCallee = ("__riscv_vmv_v_x_i32" + cx.l32).str();
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, aux32SeedCallee));
     mlir::Value zeroImm =
@@ -1094,7 +1098,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
       auto emitQuarter = [&](int64_t quarterOffset) {
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, "sub_block_quarter"));
-        std::string quarterSetvl = "__riscv_vsetvl_e8mf2";
+        std::string quarterSetvl = ("__riscv_vsetvl_e8" + cx.l8).str();
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, quarterSetvl));
         mlir::Value vl8 =
@@ -1113,7 +1117,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
         mlir::Value aPtr =
             rewriter.create<emitc::AddOp>(loc, cx.i8PtrType, aux8Base, off)
                 .getResult();
-        std::string loadCallee = "__riscv_vle8_v_i8mf2";
+        std::string loadCallee = ("__riscv_vle8_v_i8" + cx.l8).str();
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, loadCallee));
         mlir::Value q8v =
@@ -1130,7 +1134,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
                                              loadCallee,
                                              mlir::ValueRange{aPtr, vl8})
                 .getResult(0);
-        std::string mulCallee = "__riscv_vwmul_vv_i16m1";
+        std::string mulCallee = ("__riscv_vwmul_vv_i16" + cx.l16).str();
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, mulCallee));
         mlir::Value p =
@@ -1139,7 +1143,7 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
                                              mulCallee,
                                              mlir::ValueRange{q8v, av, vl8})
                 .getResult(0);
-        std::string maccCallee = "__riscv_vwmacc_vx_i32m2";
+        std::string maccCallee = ("__riscv_vwmacc_vx_i32" + cx.l32).str();
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, maccCallee));
         mlir::Value aux32Cur =
@@ -1386,13 +1390,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     int64_t numLanes = 8;                             // aux32/sums lanes
     int64_t numBsums = qk / 16;                       //  16
 
+    // The Region-C integer-MAC LMUL anchor, sourced from the optional
+    // integer_core_lmul (default "mf2" == today's byte-identical emit). l8/l16/l32
+    // are the three rungs of the i8 -> i16 -> i32 widening chain; the default
+    // (mf2 -> m1 -> m2) reproduces the legacy callee/type strings exactly. The
+    // Region-A 6-bit unpack (u8m2/i8m2) is NOT on this knob -- it stays fixed.
+    llvm::StringRef coreLmul = blockDot.getIntegerCoreLmul().value_or("mf2");
+    llvm::StringRef l8 = coreLmul;                                        // base
+    llvm::StringRef l16 = coreLmul == "m2" ? "m4" : (coreLmul == "m1" ? "m2" : "m1");
+    llvm::StringRef l32 = coreLmul == "m2" ? "m8" : (coreLmul == "m1" ? "m4" : "m2");
+
     // The integer-core vector types (shared with K4a via the context) + the fp32
-    // fold types.
+    // fold types. The Region-A unpack types (u8m2/i8m2) are fixed at m2; the
+    // Region-C MAC types are derived from the l8/l16/l32 chain.
     mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
     mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
-    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, "vint8mf2_t");
-    mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
-    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+    mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
+    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
     mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
     mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
     mlir::Type i8PtrType =
@@ -1505,14 +1520,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
 
     // The integer-core context shared with K4a (identical unpack + bit-dance +
     // per-sub-block-loop nodes). K4b passes a null scaleMinOutput / ib so the
-    // helper does NOT emit the K4a-only 16-byte scale/min store.
+    // helper does NOT emit the K4a-only 16-byte scale/min store. The Region-C
+    // LMUL chain (coreLmul/l8/l16/l32) flows through the context to the helper.
     Q4_KIntegerCoreContext cx{
         opName,        role,          sizeType,      i32ImmType,
         u32Type,       i8ElemType,    u8m2Type,      i8m2Type,
         i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
         u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
         activationPtrType, subBlock,  scalesOffset,  qsOffset,
-        q8Offset,      numSubBlocks,  quarter};
+        q8Offset,      numSubBlocks,  quarter,       coreLmul,
+        l8,            l16,           l32};
 
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
     rewriter.create<emitc::VerbatimOp>(
@@ -1980,7 +1997,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_KQ8_KBlockDot(
         i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
         u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
         activationPtrType, subBlock,  scalesOffset,  qsOffset,
-        q8Offset,      numSubBlocks,  quarter,       /*hasQh=*/true,
+        q8Offset,      numSubBlocks,  quarter,
+        // q5_K reuses the q4_K core at the DEFAULT mf2 anchor (its op carries no
+        // integer_core_lmul knob this increment) -- the Region-C chain stays
+        // mf2 -> m1 -> m2, byte-identical to the legacy emit.
+        /*coreLmul=*/"mf2", /*l8=*/"mf2", /*l16=*/"m1", /*l32=*/"m2",
+        /*hasQh=*/true,
         /*qhOffset=*/qhOffset};
 
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
