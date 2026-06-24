@@ -205,3 +205,102 @@ VLEN-dependent effect and "VLEN128-specific" is defensible.
   /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp`; the WIDE arm via
   `--tcrv-rvv-materialize-repack-strip-width=march=rv64gc_xtheadvector` (stamp-time m1 trigger), both
   compiled on the SG2044 with clang18 `-O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast`.
+
+---
+
+# q8_0 repack GEVM — Win-B·micro (algorithm-change contribution, vs ggml's REAL RVV q8_0 kernel)
+
+**Date:** 2026-06-24. **Provenance:** `ssh rvv` (Sophgo SG2044, RVV1.0, **VLEN128**, 64 cores),
+clang18 (`-O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast`), `taskset -c 0`, best-of-reps min,
+3 runs × 4 shapes. Per N3-METHODOLOGY: **Win-B baseline = ggml's OWN shipped RVV kernel, NOT scalar/naive.**
+"Ours" = the **NARROW** (mf2/VLEN128) arm — the Win-A finding above proves NARROW (no-stamp default) is
+**byte-identical** to the `rv64gcv` stamp = the SG2044 tune's ACTUAL emit; Win-B must compare the arm the
+tune SHIPS (using WIDE would report a fake ~5.5× loss). This cell gates the q8_0 decode e2e decision.
+
+## THE BASELINE (methodology-correct — ggml's only RVV q8_0 dot; weaker than q4_K's hand-tuned _vl128)
+
+At VLEN128 ggml does **NOT** route q8_0 through its repack: `repack.cpp:4713`
+`ggml_repack_get_optimal_repack_type`, `GGML_TYPE_Q8_0` branch, `switch(__riscv_vlenb()*8){ case 128:
+{ break; } … case 256: { … return &q8_0_16x1_q8_0; } }` → the q8_0 x16 repack returns `nullptr` at
+VLEN128 (it is **VLEN256-only**). So ggml falls back to the plain per-row block-dot
+**`ggml_vec_dot_q8_0_q8_0`** (`quants.c:435`). **UNLIKE q4_K, q8_0 has NO `_vl128`/`_vl256` split** —
+there is a SINGLE `#if defined(__riscv_v)` body (`vle8_v_i8m2` ⇒ `vwmul_vv_i16m4` ⇒ a per-block
+cross-lane `vwredsum_vs_i16m4_i32m1`, one reduction per block). That generic RVV body is exactly what
+runs at VLEN128 and is the methodology-correct Win-B baseline. This is a **weaker, non-VLEN-specialized**
+baseline than q4_K's hand-tuned `_vl128` inline-asm path — which is precisely why a q8_0 win was *a
+priori* more plausible. Lifted **verbatim** (`fp16→fp32` via native `_Float16`, no `ggml_table_f32_f16`
+dependency) + a same-output GEVM loop: call the dot `nc` times (one per output column) over the
+**ORIGINAL pre-repack `block_q8_0`** weights — the same q8_0 values our repack GEVM consumes, un-repacked.
+
+## VERDICT — LOSS at all 4 shapes (reported honestly). ggml's q8_0 dot is ~1.3–1.7× faster.
+
+The "block-as-lane (16 cols across lanes, NO per-block vredsum) beats per-block vwredsum" win **does NOT
+materialize on VLEN128 for q8_0** — same direction as the q4_K Win-B LOSS, though milder. Even though
+q8_0 has neither nibble-decode nor min-term (the costs that sank q4_K's repack), our repack GEVM is still
+the VLEN256-shaped 16-lane "block-as-lane" algorithm degraded to the **fractional mf2 / `half_lanes=8`
+2×8-lane-strip** path at VLEN128 — 16 e32 column accumulators don't fit one vector register at VLEN128 —
+and that overhead outweighs the redsum it removes. ggml's per-block `vwredsum` over a single full-`m2`
+(VLEN128 → 32-lane) block is the cheaper algorithm here.
+
+| shape (nc × n) | ours NARROW ns (min/3) | ggml q8_0 dot ns (min/3) | **ratio (ggml/ours)** | agreement norm | verdict |
+|---|---:|---:|---:|---:|---|
+| 16 × 4096   |    25960 |   15360 | **0.59–0.75** (band) | 0.000e+00 BYTE-EXACT | LOSS (ggml ~1.5× faster) |
+| 16 × 11008  |    69800 |   44280 | **0.63–0.65**        | 0.000e+00 BYTE-EXACT | LOSS (ggml ~1.6× faster) |
+| 256 × 4096  |   415741 |  255441 | **0.61–0.62**        | 0.000e+00 BYTE-EXACT | LOSS (ggml ~1.6× faster) |
+| 256 × 11008 |  1118323 |  739082 | **0.65–0.67**        | 0.000e+00 BYTE-EXACT | LOSS (ggml ~1.5× faster) |
+
+`ratio = ggml_dot_time / our_repack_time` (>1 ⇒ ours FASTER = Win-B WIN; <1 ⇒ LOSS). **Ratio is the
+headline** — common-mode-cancelled, stable across 3 runs. Per-shape 3-run ratio bands: 16×4096
+**0.592–0.747**, 16×11008 **0.634–0.651**, 256×4096 **0.614–0.619**, 256×11008 **0.649–0.668**. The
+16×4096 spread is wide only because it is the smallest/fastest shape (most jitter-sensitive on the shared
+64-core box); the larger, more decode-representative shapes are tight at ~0.61–0.67×. Absolute ns swing
+with box load (e.g. 256×11008 ours_min 1.12M→1.55M across runs); the table reports min-across-3-runs
+absolutes, but the **ratio is the stable invariant** and sits firmly below 1.0 at every shape.
+
+## Fair-comparison check (agreement norm = BYTE-EXACT, the strongest possible gate)
+
+`agreement = max|ours − ggml| / rms(ggml)` over the entire nc-output vector lands at **0.000e+00
+(BYTE-EXACT) at every shape**. This is *tighter* than q4_K's ~3e-7 Win-B residual and is structurally
+expected for q8_0: the integer `sumi = Σ(w·a)` is exact, and **both sides fold the same per-block
+`d_x·d_y·sumi` in f32 in the same block order** (ours accumulates per-column in f32; ggml accumulates
+per-block into `sumf`) → bit-identical. Had the harness mis-strided or mis-aligned the output columns,
+the norm would not be 0. This is a **genuinely fair same-output comparison**, not two layouts of one bug:
+ours reads the repacked `block_q8_0x16` (stride 544, block-as-lane interleave), ggml reads the
+**ORIGINAL** `block_q8_0` (stride 34, pre-repack) — different layouts, same values, bit-identical results.
+Output col `g·16+r` ↔ original weight row `g·16+r` (the `make_block16` lane→row map), direct index
+alignment. Weight byte-footprint is identical (`block_q8_0x16` = 544 B = 16 × 34 B = 16 × `block_q8_0`),
+so both stream the same weight bytes — no memory-traffic asymmetry. The comparison is, if anything,
+*generous to ours*: ggml eats `nc` function calls and re-reads the activation `nc` times, and still wins.
+
+## E2E-GATING RECOMMENDATION — REASONED-FLAT (NOT promising)
+
+Per the task's gating rule (if our repack BEATS ggml here, the decode e2e is promising like q4_0's; if it
+LOSES like q4_K, the e2e is a reasoned-flat): **q8_0 LOSES the micro-cell at every shape (ratio <1)**, so
+the q8_0 decode e2e is a **reasoned-flat**, NOT promising. The micro-LOSS class is the same as q4_K's
+Win-B LOSS (kernel wins don't transplant when the kernel itself loses the micro): our block-as-lane repack
+GEVM is mismatched to VLEN128 (16-lane form degraded to the mf2 2×8-strip path), and the algorithm change
+does not pay for itself at this VLEN. This is a **capability/resource-aware-tune (N3 Gearbox) shape-mismatch
+gap** — NOT a kernel-correctness problem (Win-A oracle PASS at ~1e-6 stands; the Win-B agreement is now
+byte-exact, re-confirming correctness against ggml's real kernel). The honest call: do NOT chase a q8_0
+decode e2e win — it is reasoned-flat at VLEN128. (Note the Win-A VLEN256 ISO follow-up above shows only an
+INTERNAL knob flip — ours-WIDE beats ours-NARROW ~1.9× at VLEN256, where the 16-lane strip fits one
+register — it says nothing about ours-vs-ggml there. A VLEN256 *Win-B* would NOT face the block-dot: at
+VLEN256 ggml routes q8_0 through its OWN `q8_0_16x1_q8_0` repack (`repack.cpp:4714` `case 256`), a
+different and stronger baseline not established here. So "VLEN256 is the regime where this repack could
+transplant" is an open question, not a claim this cell supports.)
+
+## Win-B·micro artifacts
+- `q8_0-emit/winb_gemv_q80.cpp` — the Win-B harness: q8_0 block builders + `make_block16` repack +
+  q8_0 activation quant lifted from the Win-A `ablation_micro_q80.cpp`; `ggml_vec_dot_q8_0_q8_0` lifted
+  verbatim from `quants.c:435` (the single `#if __riscv_v` body — no `_vl128` variant exists) + a
+  same-output GEVM loop over the original `block_q8_0`; byte-exact agreement check + best-of-reps min
+  timing of the full nc-vector for both sides. On rvv `~/q80-gap-agent/`: same source + binary `winb_q80`.
+- `q8_0-emit/winb_gemv_q80.cpp` links the SAME compiler-emitted `k_gemv_NARROW.cpp` (the SG2044-tune
+  arm) used by the Win-A ablation — "ours" is the tune's actual emit, not a re-derivation.
+- On rvv `~/q80-gap-agent/q8_0-winB-micro.log` — canonical 3-run × 4-shape log (AGREE byte-exact + RESULT
+  ratio per run).
+- Built: `clang++-18 -O3 -march=rv64gcv_zvfh -mabi=lp64d -ffp-contract=fast -c {winb_gemv_q80,k_gemv_NARROW}.cpp`
+  then link → `winb_q80`.
+- Caveat (carried from Win-A): SG2044 binutils `objdump` does not decode RVV vector mnemonics, so no
+  binary vsetvli histogram; the fair-comparison evidence is the byte-exact agreement norm + source-level
+  algorithm contrast (ours = no redsum / block-as-lane; ggml = per-block `vwredsum`).
