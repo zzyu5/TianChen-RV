@@ -1,5 +1,15 @@
 # Option-2 STAGE C3 — the REAL PRODUCER (build-side abstract-op author + selection-pass driver) — DESIGN (2026-06-24)
 
+> **⚠ M1 REFERENCE CORRECTION (advisor, over-claim #12 averted):** the M1 milestone below grounds on
+> `tcrv_emitted_repack_gemv_rvv07.cpp` (m1 / RVV0.7) — that is the WRONG reference and the DROPPED regime.
+> Provenance: the **1.22→2.6× decode e2e is the mf2 / RVV1.0** repack (rvv SG2044 VLEN128, Win-B vs ggml block-dot,
+> ledger:405); the rvv07/m1 kernel is a DIFFERENT kernel (the Win-A WIDE arm) whose e2e is **1.10× prefill / NULL
+> decode**. M1-vs-rvv07 would weld 2.6× to the ~null kernel. **CORRECTED M1 = compare option-2's RVV1.0 auto-selected
+> emit (abstract→select→C1→repack→mf2/hl=8) vs the DIRECT repack-op emit (mf2/hl=8), HOST-only, EMIT-IDENTITY ONLY**
+> (proves the auto-SELECTION gap is closed — the compiler auto-emits the byte-identical kernel hand-authoring the repack
+> op produces). It does NOT inherit the 2.6× — that is a FRESH RVV1.0 measurement (M2, ssh rvv). Ground ALL option-2
+> e2e on RVV1.0 (rvv VLEN128 / K1 VLEN256); the convenient RVV0.7 reference must NOT revive the dropped regime.
+
 READ-ONLY design. **NO `lib/` edits.** Scopes C3 of `option2-stageC-revised-layout-contract-DESIGN.md`
 (C3 = producer; C4 = harness honoring + the 2 ggml patches; C5 = e2e). State committed: A (abstract
 `GgmlQuantContractionOp`) + B (in-compiler `selectContractionAlgorithm`) + C1 (the in-IR bridge
