@@ -37,8 +37,6 @@ module {
 // The function-scoped fp32 accumulator + the super-block count nb = n / 256.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// The grid byte view (NO kmask load -- the ternary grid is itself signed).
-// CHECK: cast %{{.*}} : {{.*}}const uint64_t{{.*}} to {{.*}}const int8_t
 // The outer super-block loop.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
 // The fp16 weight d read + the fp32 activation d load -> d mul.
@@ -50,15 +48,24 @@ module {
 // CHECK: load %{{.*}} : <!emitc.opaque<"const uint16_t">>
 // CHECK: bitwise_right_shift %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
 // CHECK: bitwise_and %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
-// The 11-bit grid index: ((qh>>3l)&7)<<8 OR'd with the qs index byte.
+// The vluxei16 IQ-gather scratch: a uint16_t tmp[4] holding the 4 idx*8 byte offsets.
+// CHECK: "emitc.variable"() {{.*}} -> !emitc.array<4x!emitc.opaque<"uint16_t">>
+// The 11-bit grid index: ((qh>>3l)&7)<<8 OR'd with the qs index byte, then <<3 (idx*8).
 // CHECK: bitwise_left_shift %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
 // CHECK: bitwise_or %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
-// The GRID lookup: indexed pointer arith (grid_i8 + idx*8) then vle8 (NO sign apply).
-// CHECK: call_opaque "__riscv_vsetvl_e8m1"
-// CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// The signed widening product + the chained vwredsum + scalar extract.
-// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
+// CHECK: bitwise_left_shift %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
+// CHECK: cast %{{.*}} : !emitc.opaque<"int"> to !emitc.opaque<"uint16_t">
+// CHECK: assign %{{.*}} : !emitc.opaque<"uint16_t"> to %{{.*}} : <!emitc.opaque<"uint16_t">>
+// The HARDWARE indexed gather: vle16 the byte-offset indices (mf2 EMUL), gather the
+// 4 grid u64 entries via vluxei16 over (const int64_t *)grid, reinterpret to 32 i8.
+// CHECK: call_opaque "__riscv_vle16_v_u16mf2"
+// CHECK: cast %{{.*}} : {{.*}}const uint64_t{{.*}} to {{.*}}const int64_t
+// CHECK: call_opaque "__riscv_vluxei16_v_i64m2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
+// The full 32-lane activation load + signed widening product + ONE vwredsum + extract.
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vwmul_vv_i16m4"
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // The DELTA term: the int16 bsums load + ls*delta*(bsums[2ib]+bsums[2ib+1]).
 // CHECK: load %{{.*}} : <!emitc.opaque<"const int16_t">>

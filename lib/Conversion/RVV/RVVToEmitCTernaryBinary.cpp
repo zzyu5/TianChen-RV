@@ -68,13 +68,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ1SQ8KBlockDot(
     int64_t bsumsOffset = blockDot.getActivationBsumsByteOffset();  // 260
     int64_t numSubBlocks = qk / subBlock;                           //   8
     int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
-    int64_t groupLanes = 8;    // 8 grid values per group
 
-    llvm::StringRef coreLmul = "m1";
-    llvm::StringRef wideLmul = "m2";
-    mlir::Type i8CoreType = emitc::OpaqueType::get(ctx, "vint8m1_t");
-    mlir::Type i16WideType = emitc::OpaqueType::get(ctx, "vint16m2_t");
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+    // vluxei16 IQ-gather revectorization (emitter-maturity, adopts ggml's
+    // __riscv_vluxei16 indexed grid gather). One 32-lane body per sub-block:
+    //   vluxei16_v_i64m2 (gather 4 grid u64 entries via u16 byte-offset indices)
+    //   -> reinterpret i8m2 (32 ternary int8 grid values) -> vwmul i16m4 -> ONE
+    //   vwredsum per sub-block. The 4 scalar 11-bit index computations are KEPT
+    //   byte-exact; only the order-free integer gather+product+reduce is fused.
+    mlir::Type u16ElemType = emitc::OpaqueType::get(ctx, "uint16_t");
+    mlir::Type u16mf2Type = emitc::OpaqueType::get(ctx, "vuint16mf2_t");
+    mlir::Type i64m2Type = emitc::OpaqueType::get(ctx, "vint64m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
+    mlir::Type u16PtrTypeMut =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "uint16_t"));
+    mlir::Type i64PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int64_t"));
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -141,17 +151,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ1SQ8KBlockDot(
     mlir::Value nb =
         rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
-    // const int8_t *grid_i8 = (const int8_t *)tcrv_iq1s_grid;  (byte view of the
-    // grid table; grid_i8 + idx*8 addresses the 8 int8 ternary values of entry idx --
-    // exactly ggml's `(const int8_t *)(iq1s_grid + idx)` byte address).
+    // const uint64_t *grid = tcrv_iq1s_grid;  (the u64 grid base; the vluxei16 gather
+    // reads it as (const int64_t *) with u16 byte-offset indices idx*8 -- exactly
+    // ggml's (const int64_t *)iq1s_grid indexed gather.)
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "grid_table_byte_view"));
     mlir::Type u64PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
     mlir::Value gridArrayName =
         rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "tcrv_iq1s_grid");
-    mlir::Value gridName =
-        rewriter.create<emitc::CastOp>(loc, i8PtrType, gridArrayName).getResult();
 
     // Per-super-block base address arithmetic: xb = vx + ibl*50; yb = vy + ibl*292.
     auto blockBaseValue = [&](mlir::Value ibl, mlir::Value base,
@@ -367,8 +375,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ1SQ8KBlockDot(
                                             sizeLit(ib * subBlock))
                       .getResult();
 
-        // int32_t lacc = 0;  (the chained i32m1 reduction seed for the 4 groups; the
-        // ternary grid dot; integer add is order-free).
+        // int32_t lacc = 0;  (the i32m1 reduction seed for the sub-block's ternary
+        // grid dot; integer add is order-free).
         std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
         rewriter.create<emitc::VerbatimOp>(
             loc, stepComment(opName, role, seedCallee));
@@ -382,9 +390,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ1SQ8KBlockDot(
                                                               sizeLit(1)})
                 .getResult(0);
 
+        // uint16_t tmp[4];  (scratch holding the 4 grid byte-offset indices idx*8;
+        // EEW=16 byte offsets feed the vluxei16 indexed gather. Max idx 2047 -> 2047
+        // * 8 = 16376 < 65535 fits u16.)
+        rewriter.create<emitc::VerbatimOp>(
+            loc, localVariableComment("idxoff", opName, role));
+        mlir::Type idxArrayType =
+            emitc::ArrayType::get({groupsPerSub}, u16ElemType);
+        auto idxVar = rewriter.create<emitc::VariableOp>(
+            loc, idxArrayType, emitc::OpaqueAttr::get(ctx, ""));
+        auto idxArray =
+            llvm::cast<mlir::TypedValue<emitc::ArrayType>>(idxVar.getResult());
+
+        // KEEP the 4 scalar 11-bit index computations (byte-exact, untouched), each
+        // shifted <<3 to a byte offset and stored into tmp[l].
         for (int64_t l = 0; l < groupsPerSub; ++l) {
           rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, "ternary_grid_group"));
+              loc, stepComment(opName, role, "ternary_grid_index"));
           // idx = qs[ib*4 + l] | (((qhw >> (3*l)) & 7) << 8).  The low 8 bits are a
           // single qs index byte; the high 3 bits are taken from the (3*l)-shifted qh
           // field masked to bits [8,10] (shift 0,3,6,9 for l=0,1,2,3). The whole index
@@ -412,80 +434,117 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ1SQ8KBlockDot(
                   .create<emitc::BitwiseOrOp>(loc, intType, qsIdxByte,
                                               qhHighBits)
                   .getResult();
-
-          // __riscv_vsetvl_e8m1(8);  (the group is 8 elements; m1 covers it).
-          std::string innerSetvlCallee =
-              riscvIntrinsicName("vsetvl", 8, "m1", "");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, innerSetvlCallee));
-          mlir::Value vl =
+          // tmp[l] = (uint16_t)(idx << 3);  (idx*8 byte offset into the u64 grid).
+          mlir::Value byteOff =
               rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{sizeType}, innerSetvlCallee,
-                      mlir::ValueRange{sizeLit(groupLanes)})
-                  .getResult(0);
-
-          // const int8_t *grid = grid_i8 + idx*8;  (indexed pointer arith).
-          mlir::Value idxLane =
-              rewriter.create<emitc::MulOp>(loc, sizeType, idx, sizeLit(8))
+                  .create<emitc::BitwiseLeftShiftOp>(loc, intType, idx,
+                                                     intLit(3))
                   .getResult();
-          mlir::Value gridPtr =
-              rewriter.create<emitc::AddOp>(loc, i8PtrType, gridName, idxLane)
+          mlir::Value byteOffU16 =
+              rewriter.create<emitc::CastOp>(loc, u16ElemType, byteOff)
                   .getResult();
-          // grid_v = vle8_v_i8m1(grid, vl);  q8_v = vle8_v_i8m1(q8Group, vl).
-          std::string i8LoadCallee =
-              riscvIntrinsicName("vle", 8, coreLmul, "i8");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, i8LoadCallee));
-          mlir::Value gridV =
+          mlir::Value tmpIdx = rewriter.create<emitc::LiteralOp>(
+              loc, rewriter.getIndexType(), std::to_string(l));
+          mlir::Value tmpElem =
               rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                               i8LoadCallee,
-                                               mlir::ValueRange{gridPtr, vl})
-                  .getResult(0);
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, i8LoadCallee));
-          mlir::Value q8V =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                               i8LoadCallee,
-                                               mlir::ValueRange{q8Group, vl})
-                  .getResult(0);
-
-          // p = vwmul_i16m2(grid, q8_v);  (signed widening product. The ternary grid
-          // bytes are ALREADY signed {-1,0,+1}, so NO sign-apply step; each lane is at
-          // most 1*127 = 127, fits i16.)
-          std::string wmulCallee = ("__riscv_vwmul_vv_i16" + wideLmul).str();
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, wmulCallee));
-          mlir::Value product =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i16WideType}, wmulCallee,
-                      mlir::ValueRange{gridV, q8V, vl})
-                  .getResult(0);
-
-          // laccAcc = vwredsum(product, laccAcc, vl);  (chain the i32 reduction;
-          // integer add is order-free, so seeding from the running accumulator is
-          // byte-exact across the 4 groups of this sub-block).
-          std::string reduceCallee =
-              ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, reduceCallee));
-          laccAcc =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i32m1Type}, reduceCallee,
-                      mlir::ValueRange{product, laccAcc, vl})
-                  .getResult(0);
-
-          // q8Group += 8 (advance to the next group's 8 activations).
-          q8Group =
-              rewriter
-                  .create<emitc::AddOp>(loc, i8PtrType, q8Group,
-                                        sizeLit(groupLanes))
+                  .create<emitc::SubscriptOp>(loc, idxArray,
+                                              mlir::ValueRange{tmpIdx})
                   .getResult();
+          rewriter.create<emitc::AssignOp>(
+              loc, llvm::cast<mlir::TypedValue<emitc::LValueType>>(tmpElem),
+              byteOffU16);
         }
+
+        // vuint16mf2_t vidx = __riscv_vle16_v_u16mf2(&tmp[0], 4);  (index EMUL =
+        // (EEW_idx/SEW_data)*LMUL_data = (16/64)*2 = 1/2 -> mf2 for the i64m2 gather.)
+        mlir::Value idxBaseIndex0 =
+            rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+        mlir::Value idxBaseElem0 =
+            rewriter
+                .create<emitc::SubscriptOp>(loc, idxArray,
+                                            mlir::ValueRange{idxBaseIndex0})
+                .getResult();
+        mlir::Value idxBase =
+            rewriter
+                .create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", idxBaseElem0)
+                .getResult();
+        std::string idxLoadCallee =
+            riscvIntrinsicName("vle", 16, "mf2", "u16");
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, idxLoadCallee));
+        mlir::Value vidx =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{u16mf2Type}, idxLoadCallee,
+                    mlir::ValueRange{idxBase, sizeLit(groupsPerSub)})
+                .getResult(0);
+
+        // grid64 = (const int64_t *)tcrv_iq1s_grid;  (the u64 grid as int64 base for
+        // the indexed gather -- exactly ggml's (const int64_t *)iq1s_grid.)
+        mlir::Value grid64 =
+            rewriter.create<emitc::CastOp>(loc, i64PtrType, gridArrayName)
+                .getResult();
+
+        // vint64m2_t g64 = __riscv_vluxei16_v_i64m2(grid64, vidx, 4);  -- the HARDWARE
+        // indexed gather of the 4 grid u64 entries (ggml's __riscv_vluxei16), then
+        // reinterpret to i8m2 = 32 signed ternary grid bytes.
+        std::string gatherCallee =
+            riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", "m2");
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, gatherCallee));
+        mlir::Value gathered =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{i64m2Type}, gatherCallee,
+                    mlir::ValueRange{grid64, vidx, sizeLit(groupsPerSub)})
+                .getResult(0);
+        std::string reinterpretCallee = "__riscv_vreinterpret_v_i64m2_i8m2";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, reinterpretCallee));
+        mlir::Value gridV =
+            rewriter
+                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8m2Type},
+                                             reinterpretCallee,
+                                             mlir::ValueRange{gathered})
+                .getResult(0);
+
+        // vint8m2_t q8v = __riscv_vle8_v_i8m2(q8Group, 32);  (the full 32-lane
+        // sub-block activations, one contiguous load.)
+        std::string q8LoadCallee = riscvIntrinsicName("vle", 8, "m2", "i8");
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, q8LoadCallee));
+        mlir::Value q8V =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{i8m2Type}, q8LoadCallee,
+                    mlir::ValueRange{q8Group, sizeLit(subBlock)})
+                .getResult(0);
+
+        // p = __riscv_vwmul_vv_i16m4(grid, q8v, 32);  (signed widening product; the
+        // ternary grid bytes are ALREADY signed {-1,0,+1}, NO sign-apply.)
+        std::string wmulCallee = "__riscv_vwmul_vv_i16m4";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, wmulCallee));
+        mlir::Value product =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{i16m4Type}, wmulCallee,
+                    mlir::ValueRange{gridV, q8V, sizeLit(subBlock)})
+                .getResult(0);
+
+        // lacc = __riscv_vwredsum_vs_i16m4_i32m1(p, lacc, 32);  -- ONE reduction per
+        // sub-block (per the byte-exact guard: ls is per-sub-block). The 32-lane sum
+        // over |product|<=127*32=4064 fits i32 and is integer-associative with the
+        // prior 4x8-lane reductions -> byte-exact.
+        std::string reduceCallee = "__riscv_vwredsum_vs_i16m4_i32m1";
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, reduceCallee));
+        laccAcc =
+            rewriter
+                .create<emitc::CallOpaqueOp>(
+                    loc, mlir::TypeRange{i32m1Type}, reduceCallee,
+                    mlir::ValueRange{product, laccAcc, sizeLit(subBlock)})
+                .getResult(0);
 
         // int lsum = __riscv_vmv_x_s_i32m1_i32(laccAcc);  (extract the ternary dot of
         // this sub-block's 4 groups).

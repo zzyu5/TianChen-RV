@@ -182,12 +182,16 @@ std::string riscvIndexScaleIntrinsicName(llvm::StringRef idtype,
   return name;
 }
 
-/// The ordered indexed memory intrinsic name:
-///   __riscv_vloxei<eew>_v_<dtype><lmul> (gather) /
-///   __riscv_vsoxei<eew>_v_<dtype><lmul> (scatter)
-/// where eew is the index element width (32). The "ox" form is the ordered
-/// indexed access -- byte-identical to the legacy indexed-load/store oracle
-/// (`__riscv_vloxei32_v_i32m1` / `__riscv_vsoxei32_v_i32m1`).
+/// The indexed memory intrinsic name (mnemonic-agnostic):
+///   __riscv_<mnemonic><eew>_v_<dtype><lmul>
+/// where eew is the INDEX element width. The mnemonic selects the family:
+///   - ordered: `vloxei` (gather) / `vsoxei` (scatter) -- byte-identical to the
+///     legacy indexed-load/store oracle (`__riscv_vloxei32_v_i32m1` /
+///     `__riscv_vsoxei32_v_i32m1`).
+///   - unordered: `vluxei` (gather) / `vsuxei` (scatter) -- same lane->index
+///     mapping, ordering unconstrained (used by the iq1_s grid gather,
+///     `__riscv_vluxei16_v_i64m2`; order-free because the result feeds an
+///     integer-associative reduction, so byte-exact vs the scalar gather).
 std::string riscvIndexedMemoryIntrinsicName(llvm::StringRef mnemonic,
                                             unsigned indexEEW,
                                             llvm::StringRef dtype,
