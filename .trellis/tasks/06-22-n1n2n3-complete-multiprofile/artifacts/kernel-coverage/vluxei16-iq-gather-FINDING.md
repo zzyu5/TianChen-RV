@@ -443,3 +443,142 @@ this step.
 - micro (rvv, combined): `clang-18 ... combined_bench_iq3.cpp iq3{xxs,s}_{scalar,vlux}
   .cpp ggml_{xxs,s}.cpp -o combined && taskset -c 2 ./combined`.
 - objdump: `objdump -d iq3xxs_vlux.o | grep -c vluxei16` → 32.
+
+# FINDING — vluxei16 IQ-gather revectorization, iq2_xxs (LAST IQ family, FIRST member)
+
+Completes the IQ family (after iq1_s/iq1_m/iq3_xxs/iq3_s). Same `ssh rvv` regime
+(SG2044, RVV1.0, VLEN128, clang-18, `-O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast`,
+`taskset -c 2`).
+
+## 0. SIGN-PLANE BLOCKER (signs64) — RESOLVED by EMIT-CONST (option a), NO ODS change
+
+The DESIGN doc flagged iq2 as BLOCKED: its *vectorized* sign-fold needs the
+`keven_signs_q2xs` (signs64) table the op "doesn't carry." **iq2 IS genuinely
+sign-table-bound** (unlike iq3 — see below), but the blocker is resolved WITHOUT an
+op-attr extension:
+
+- **Why iq3's trick does NOT carry to iq2 (the load-bearing structural fact):** iq3's
+  per-group was TWO u32 grid entries → its vluxei16 merged them into ONE 8-lane body
+  (the 2→1 within-group merge WAS its win), and a single sign byte covered those 8
+  lanes via the scalar-broadcast ksigns fold. iq2's per-group is ALREADY one 8-lane
+  body (1 u64 entry = 8 grid bytes, 1 sign byte) — there is NO within-group merge left.
+  The only collapse available for iq2 is **cross-group** (4 groups → one 32-lane
+  sub-block body), and that needs **32 per-lane signs = signs64** (exactly ggml's
+  vl128 body). Mirroring iq3 grid-only at vl=1 would REGRESS (vl=8 unit-stride vle8 →
+  vl=1 indexed load + index packing, no collapse). So signs64 is required, not optional.
+- **Resolution = option (a) EMIT-CONST, the preferred path.** The op already carries
+  `ksigns` (the 128-entry `ksigns_iq2xs` u8 SELECTOR via `getKsigns()`). The expanded
+  `keven_signs_q2xs[1024]` is DERIVED in-emitter from it with the EXACT relation the
+  OLD scalar fold used: `signs64[j*8+b] = (ksigns_iq2xs[j] & (1<<b)) ? -1 : +1`.
+  Verified against ggml's literal `keven_signs_q2xs` (quants.c:4235): **0/1024
+  mismatch**. Emitted as a `static const int8_t tcrv_iq2xxs_signs64[1024]` (mirrors how
+  `tcrv_iq2xxs_grid` is already a static const) and gathered via `__riscv_vluxei16`.
+  **NO ODS change, NO op-attr, NO `RVVOps.td` touch** — option (b) was unnecessary.
+
+## 1. The change (file:lines)
+
+`lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp::emitIQ2XXSQ8KBlockDot` (method @29):
+- **signs64 emit-const** (~@142): derive + emit `static const int8_t
+  tcrv_iq2xxs_signs64[1024]` from the `ksigns` attr; drop the now-dead
+  `tcrv_iq2xxs_ksigns[128]` and `tcrv_iq2xxs_kmask[8]` decls (the scalar bcast/kmask
+  path is gone).
+- **i64 views** (~@200): `tcrv_iq2xxs_grid` (already `int64_t*`) + signs64 cast to
+  `const int64_t*` as the two `vluxei16` gather bases.
+- **inner-loop replacement** (~@400): the OLD 4-group `l`-loop (per-group vl=8 vle8
+  grid + scalar ksigns/vand/vmsne/vneg/vmerge + per-group vwmul/vwredsum) → ONE 32-lane
+  sub-block body: pack 4 grid offsets (`a[l]*8`) + 4 sign offsets (`((aux1>>7l)&127)*8`)
+  into two `uint16_t[4]`, TWO `vluxei16_v_i64m2` gathers (grid64 + signs64) → reinterpret
+  `i8m2`, `vmul_vv_i8m2(grid, signs)`, `vwmul_vv_i16m4(gridSigned, q8)`, ONE
+  `vwredsum_vs_i16m4_i32m1`. The scalar index/selector derivation is KEPT (validated
+  path). The FP/scale/bsum/sumf folds + `*s=0.125f*sumf` are UNCHANGED (byte-exact).
+- Sign-apply changes FORM (`vmerge(grid, vneg(grid))` → `vmul(grid, ±1)`) but the
+  per-lane value is identical for ALL q8; the 4 chained reductions → 1 per sub-block is
+  order-free.
+
+### BYTE-EXACTNESS TRAP CAUGHT + FIXED — fold the ±1 onto the GRID, NOT q8
+First cut folded the sign onto q8 (`vmul_vv_i8m2(q8, signs)`, mirroring ggml's `q8 *
+signs`). That is **NOT** byte-exact to the old scalar emit on the full int8 domain: the
+i8 product WRAPS. q8_K's quantizer uses `iscale = -128/max`, so each block's max-abs
+element maps to exactly **q8 = -128**, and `vmul_vv_i8m2(-128, -1) = 128` wraps to
+`-128` (wrong sign). The old scalar path folded the sign onto the GRID (`vmerge(grid,
+vneg(grid))`, grid ∈ [8,43], never overflows). A clamped oracle (q8 ∈ [-32,31], the
+harness default) MISSED this — a full-int8 oracle FAILED **305/384**. FIX: fold the ±1
+onto the grid (`vmul_vv_i8m2(grid, signs)`, grid*(±1) ∈ [-43,43], no overflow) — matches
+the old emit bit-exactly for every q8. (Caveat surfaced in §4.)
+
+## 2. Byte-exact oracle — PASS (bit-identical), FULL int8 q8 range incl. -128
+
+OLD scalar emit vs NEW vluxei16 emit, identical inputs, `memcmp` of the float result,
+64 seeds × 6 sizes. The oracle uses the **FULL int8 q8 range AND forces lane 0 = -128
+in every block** (the byte-exactness-critical edge — see §1 trap):
+```
+BYTE_EXACT total=384 mismatches=0 any_nonzero=1 max_abs_diff=0.000e+00
+ORACLE PASS (bit-exact)
+```
+(BEFORE/AFTER equality, not the stale absolute fingerprints.) The earlier sign-onto-q8
+cut FAILED this full-range oracle 305/384 (q8=-128 wrap); the grid-side fix PASSES the
+full range AND the clamped (q8∈[-32,31]) range.
+
+## 3. objdump engagement proof — vluxei16 PRESENT (yes)
+
+`objdump -d iq2xxs_vlux.o | grep -c vluxei16` → **16** (2 gathers × 8 unrolled
+sub-blocks). Scalar object → **0**.
+
+## 4. Micro ratio vs ggml — gap CLOSED 6.81x → 1.91x, our-vs-our 3.57x (HONEST)
+
+Combined binary (scalar+vlux+ggml, avoids per-binary ggml contamination),
+`timing_n=32*QK_K`, iters=2000, reps=200, best-of-min, `taskset -c 2`. ggml = shipped
+`_vl128` (post-fix run; the grid-side sign swap is instruction-count-neutral, ~same as
+the pre-fix 3.58x / 1.86x):
+
+| kernel | scalar (ns) | vlux (ns) | ggml (ns) | our-vs-our (vlux faster) | gap scalar→ggml | gap vlux→ggml |
+|---|---|---|---|---|---|---|
+| iq2_xxs | 27430 | 7690 | 4028 | **3.57x** | 6.81x | **1.91x** |
+
+- **Robust number = our-vs-our 3.57x faster** (same harness/input, ggml-drift-free) —
+  the BEST in-family result (iq1_s 2.8x / iq1_m 1.5x / iq3_xxs 2.75x / iq3_s 1.17x).
+- Gap to ggml CLOSED **6.81x → 1.91x** — the closest-to-parity IQ kernel so far.
+- **NOT parity / NOT beat-ggml** (over-claim #9 guard). We adopted ggml's exact hardware
+  gathers (TWO `vluxei16` — grid64 + signs64, objdump-confirmed). Residual
+  ~1.9x is NOT the gather (now identical to ggml's): it is (1) ggml builds the grid/sign
+  INDEX vectors in-register (`vwcvtu`/`vsll`/`vsrl`/`vncvt`) while we keep the scalar
+  `a[l]`/`(aux1>>7l)&127` derivation + a `uint16_t[4]` store→`vle16` round-trip per
+  sub-block; (2) ggml pairs two sub-blocks per loop body (`ib32+=2`, two gathers issued
+  back-to-back) — named, scoped follow-ons (DESIGN vectorized-index), not regressions.
+
+### Numeric-agreement caveat (HONEST — we match the OLD scalar emit, NOT ggml at -128)
+The gate is **byte-exact vs the old scalar emit**, and we are bit-exact to it across the
+FULL int8 q8 range (§2). We DIVERGE from ggml's `_vl128` ONLY at the **q8 = -128** lane:
+ggml folds the sign onto q8 (`vmul_vv_i8m2(q8, signs)`) which WRAPS `-128*-1 → -128`,
+while our emit (and the old scalar emit) folds onto the grid and yields `+128*grid`.
+i.e. ggml's own RVV kernel is NOT bit-exact to ggml's scalar reference at that edge —
+we match the (correct) scalar fold, ggml's vl128 doesn't. The combined bench's clamped
+fill (q8∈[-32,31]) shows `vlux_vs_ggml=0.000e+00`, but that is the clamp hiding the edge;
+on real q8_K (which contains -128) vlux and ggml-vl128 differ by exactly the -128-lane
+wrap. We do NOT claim bit-exact-vs-ggml; we claim bit-exact-vs-old-scalar (the gate).
+
+## 5. Scope / honesty notes (iq2_xxs)
+
+- Compute-side micro only; e2e decode is memory-bound → NOT an e2e win, NOT claimed
+  (MEMORY: kernel-wins-dont-transplant-to-e2e). Compute-side gather → e2e decode NULL.
+- Byte-exact gate is the correctness proof; the tolerance micro is not.
+- No git commit (lead commits).
+- **iq2_xs / iq2_s = noted follow-ons** (same family, same signs64 emit-const approach;
+  iq2_s adds a per-element sign-bit qh plane, iq2_xs a different scale layout — same
+  `emitIQ2XSQ8KBlockDot`/`emitIQ2SQ8KBlockDot` file). Not done here.
+- Conformance lit test updated: `test/Conversion/RVV/rvv-to-emitc-iq2-xxs-q8-k-block-dot
+  .mlir` CHECKs rewritten to the vluxei16 body (signs64 decl, two `vluxei16_v_i64m2`,
+  `vmul_vv_i8m2`, `vwmul_vv_i16m4`, `vwredsum_vs_i16m4_i32m1`) — FileCheck PASS.
+
+## Reproduce (iq2_xxs)
+- emit: `build/bin/tcrv-opt test/Conversion/RVV/rvv-to-emitc-iq2-xxs-q8-k-block-dot.mlir
+  --tcrv-rvv-lower-to-emitc | mlir-translate-20 --mlir-to-cpp` (dev host, forced clean
+  tcrv-opt; ODS `RVVOps.cpp.inc` regenerates each build but no `.td` was touched).
+- staged on rvv: `~/vlux-iq2xxs/` (iq2xxs_{scalar,vlux}.cpp + byte_exact_oracle +
+  combined_bench + ggml_ref + ggml-common.h + keven_signs_q2xs.inc).
+- oracle (rvv): `clang-18 -O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast
+  byte_exact_oracle.cpp iq2xxs_scalar.cpp iq2xxs_vlux.cpp -o oracle && taskset -c 2
+  ./oracle`.
+- micro (rvv): `clang-18 ... combined_bench.cpp iq2xxs_scalar.cpp iq2xxs_vlux.cpp
+  ggml_ref.cpp -o combined && taskset -c 2 ./combined`.
+- objdump: `objdump -d iq2xxs_vlux.o | grep -c vluxei16` → 16.

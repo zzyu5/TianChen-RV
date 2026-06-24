@@ -6,13 +6,17 @@
 // outer super-block loop over nb = n / 256, the per-super-block address arithmetic
 // (weight stride 66, activation stride 292), the d = fp16(x.d) * fp32(y.d) scale, an
 // int32 bsum reset per super-block, a FLAT loop over 8 sub-blocks each reassembling
-// aux1 from 4 little-endian byte loads, the 4-bit scale ls = 2*(aux1>>28)+1, and a
-// loop over 4 groups of 8 elements doing the GRID lookup (indexed vle8 over grid_i8 +
-// idx*8), the SIGN-plane application (broadcast signs / vand kmask / vmsne / vmerge
-// with vneg grid), the signed widening product, and the chained vwredsum into sumi.
-// Then bsum += sumi*ls (integer domain), the per-super-block fold sumf += d*(float)bsum
-// (ONE expression), and *s = 0.125f*sumf. The grid + ksigns tables are emitted as
-// structured static const decls (NOT vrgather: the 2048-byte grid cannot broadcast).
+// aux1 from 4 little-endian byte loads, the 4-bit scale ls = 2*(aux1>>28)+1, and -- the
+// vluxei16 IQ-gather revectorization -- ONE 32-lane sub-block body: the 4 grid indices
+// a[l] and 4 sign selectors (aux1>>7l)&127 packed as u16 byte-offsets, TWO __riscv_
+// vluxei16_v_i64m2 hardware indexed gathers (over the i64 grid64 and the DERIVED signs64
+// = keven_signs_q2xs +-1 table), each reinterpreted to i8m2, the sign applied by
+// vmul_vv_i8m2(grid, signs) onto the GRID (NOT q8 -- byte-exact vs the old scalar
+// vmerge fold; folding onto q8 wraps at the q8=-128 lane), the signed widening
+// product vwmul_vv_i16m4, and ONE
+// vwredsum_vs_i16m4_i32m1 per sub-block. Then bsum += sumi*ls (integer domain), the
+// per-super-block fold sumf += d*(float)bsum (ONE expression), and *s = 0.125f*sumf. The
+// grid + DERIVED signs64 tables are emitted as structured static const decls.
 
 module {
   tcrv.exec.kernel @ggml_vec_dot_iq2_xxs_q8_K_kernel {
@@ -33,15 +37,15 @@ module {
 // CHECK-NOT: tcrv_rvv.{{[a-z]}}
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_ggml_vec_dot_iq2_xxs_q8_K(
-// The GRID codebook + sign plane emitted as structured static const decls.
+// The GRID codebook + DERIVED signs64 sign table emitted as structured static const
+// decls (signs64 = keven_signs_q2xs, expanded in-emitter from the ksigns selector).
 // CHECK: verbatim "static const int64_t tcrv_iq2xxs_grid[256] = {0x0808080808080808ULL,
-// CHECK: verbatim "static const uint8_t tcrv_iq2xxs_ksigns[128] = {0, 129, 130, 3,
-// CHECK: verbatim "static const uint8_t tcrv_iq2xxs_kmask[8] = {1, 2, 4, 8, 16, 32, 64, 128};"
+// CHECK: verbatim "static const int8_t tcrv_iq2xxs_signs64[1024] = {1, 1, 1, 1, 1, 1, 1, 1, -1,
 // The function-scoped fp32 accumulator + the super-block count nb = n / 256.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// The kmask broadcast-loaded ONCE (above the super-block loop), u8m1.
-// CHECK: call_opaque "__riscv_vle8_v_u8m1"
+// The i64 grid + signs64 views set up ONCE (above the super-block loop).
+// CHECK: cast %{{.*}} : !emitc.ptr<!emitc.opaque<"const int8_t">> to !emitc.ptr<!emitc.opaque<"const int64_t">>
 // The outer super-block loop.
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
 // The fp16 weight d read + the fp32 activation d load -> d mul.
@@ -54,18 +58,17 @@ module {
 // CHECK: bitwise_or
 // ls = 2*(aux1>>28)+1.
 // CHECK: bitwise_right_shift
-// The GRID lookup: indexed pointer arith (grid_i8 + idx*8) then vle8.
-// CHECK: call_opaque "__riscv_vsetvl_e8m1"
-// CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// The SIGN plane: broadcast signs / vand kmask / vmsne / vneg / vmerge.
-// CHECK: call_opaque "__riscv_vmv_v_x_u8m1"
-// CHECK: call_opaque "__riscv_vand_vv_u8m1"
-// CHECK: call_opaque "__riscv_vmsne_vx_u8m1_b8"
-// CHECK: call_opaque "__riscv_vneg_v_i8m1"
-// CHECK: call_opaque "__riscv_vmerge_vvm_i8m1"
-// The signed widening product + the chained vwredsum + scalar extract.
-// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
+// The vluxei16 sub-block body: u16 index load, TWO i64m2 indexed gathers (grid64 +
+// signs64), each reinterpreted to i8m2, then vmul-fold the +-1 signs onto the GRID.
+// CHECK: call_opaque "__riscv_vle16_v_u16mf2"
+// CHECK: call_opaque "__riscv_vluxei16_v_i64m2"
+// CHECK: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
+// CHECK: call_opaque "__riscv_vluxei16_v_i64m2"
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vmul_vv_i8m2"
+// The signed widening product + ONE vwredsum per sub-block + scalar extract.
+// CHECK: call_opaque "__riscv_vwmul_vv_i16m4"
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // bsum += sumi*ls (integer domain).
 // CHECK: mul %{{.*}}, %{{.*}} : (!emitc.opaque<"int32_t">, !emitc.opaque<"int32_t">)
