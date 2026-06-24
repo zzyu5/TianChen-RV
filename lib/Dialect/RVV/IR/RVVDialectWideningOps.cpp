@@ -1741,7 +1741,25 @@ mlir::LogicalResult GgmlRepackGemvQ40Q80Op::verify() {
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "weight_interleave" || name == "half_lanes" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" ||
+           // The option-2 stage-C1 in-IR BRIDGE. When the
+           // RVVLowerQuantContraction pass lowers a repack-SELECTED abstract
+           // quant_contraction to this REAL repack-GEMV op, it stamps the SAME
+           // inert in-compiler SELECTION-audit trail it stamps on the block-dot
+           // sibling (which contraction ALGORITHM it selected from capability
+           // facts, the stable reason token, and that the choice is realized
+           // here) PLUS the stage-C1 DECLARED OUTPUT CONTRACT
+           // tcrv_rvv.weight_layout_contract = "x16" -- the ASSERTION that the
+           // weight bytes this kernel reads are in the block_q4_0x16 layout (the
+           // weight_block_stride == 288 contract pinned below). All four are pure
+           // DECLARED provenance some later layer (the load-time / JIT producer,
+           // stages C3-C4) must honor; never executable config -- emitter-inert,
+           // exactly like the block-dot's tcrv_rvv.path_* trail. Bounded to these
+           // four stage-B/C1 carrier names (I4 mirror / I7 fail-closed).
+           name == "tcrv_rvv.contraction_algorithm" ||
+           name == "tcrv_rvv.path_selection_reason" ||
+           name == "tcrv_rvv.path_materialization" ||
+           name == "tcrv_rvv.weight_layout_contract";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();

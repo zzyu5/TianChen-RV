@@ -1,16 +1,21 @@
-// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction | FileCheck %s
-
-// OPTION-2 STAGE B -- the q4_0 PREFILL cell of the IN-COMPILER contraction-path
-// SELECTION. (Stage A made this cell a fail-closed ERROR STUB; stage B makes it
-// reachable-and-handled: the selector's fact 3 keeps Repack for ANY prefill
-// regime, M-amortized, INDEPENDENT of VLEN -- so q4_0 prefill selects Repack even
-// at the default -march "" (VLEN 0).)
+// OPTION-2 STAGE B + C1 -- the q4_0 PREFILL cell of the IN-COMPILER
+// contraction-path SELECTION (B) and the C1 in-IR BRIDGE. The selector's fact 3
+// keeps Repack for ANY prefill regime, M-amortized, INDEPENDENT of VLEN -- so
+// q4_0 prefill selects Repack even at the default -march "" (VLEN 0). C1 then
+// REALIZES that Repack selection as a real repack op ONLY where the capability
+// affords an e16m1 strip width (deriveRepackHalfLanes(minVLEN) in {8,16}, i.e.
+// minVLEN >= 128); at VLEN0 there is no strip width, so the bridge keeps the
+// deferred block-dot stub. This fixture proves BOTH prefill arms:
 //
-// Per the Option-(i) crux, Repack-SELECTED does NOT materialize a repack op (the
-// plain->x16 weight materialization is stage C). It emits the byte-identical
-// tcrv_rvv.q4_0_q8_0_block_dot body + the audit attrs recording that REPACK was
-// selected but its materialization is DEFERRED to stage C. The emitted C is
-// byte-identical to the decode-realized block-dot; only the audit token differs.
+// DEFERRED (VLEN0): prefill Repack-SELECTED but no capability strip width ->
+// deferred block-dot stub (byte-identical to stage B; materialization deferred).
+// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction | FileCheck %s --check-prefix=DEFERRED
+//
+// REALIZED (VLEN128, rv64gcv => Zvl128b => 128): prefill Repack-SELECTED AND a
+// capability strip width (half_lanes 8) -> REALIZED as the real repack op +
+// weight_layout_contract = "x16", with the PREFILL reason token (distinct from
+// the decode reason in the stage-b-selection fixture).
+// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=REALIZED
 //
 // LATENT-MISPICK HONESTY: fact 3 keeps Repack for ANY prefill, so q4_0 @
 // K1-VLEN256 *prefill* is auto-kept though only the *decode* cell was measured.
@@ -32,11 +37,27 @@ module {
   }
 }
 
-// The abstract op is lowered; NO repack op is materialized (Option (i)); the
-// prefill cell audits REPACK selected, materialization deferred to stage C.
-// CHECK-NOT: tcrv_rvv.quant_contraction
-// CHECK-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0
-// CHECK: tcrv_rvv.q4_0_q8_0_block_dot
-// CHECK-SAME: tcrv_rvv.contraction_algorithm = "repack"
-// CHECK-SAME: tcrv_rvv.path_materialization = "deferred-stage-c"
-// CHECK-SAME: tcrv_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
+// DEFERRED (VLEN0): the abstract op is lowered; Repack was SELECTED but with no
+// capability strip width it CANNOT form an x16 repack op, so the deferred
+// block-dot stub is kept (materialization deferred to stage C/system).
+// DEFERRED-NOT: tcrv_rvv.quant_contraction
+// DEFERRED-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0
+// DEFERRED: tcrv_rvv.q4_0_q8_0_block_dot
+// DEFERRED-SAME: tcrv_rvv.contraction_algorithm = "repack"
+// DEFERRED-SAME: tcrv_rvv.path_materialization = "deferred-stage-c"
+// DEFERRED-SAME: tcrv_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
+
+// REALIZED (VLEN128): the prefill Repack selection is REALIZED as the real
+// repack-GEMV op (C1) carrying the x16 facts (half_lanes 8) + the OUTPUT CONTRACT
+// weight_layout_contract = "x16", with the PREFILL reason token. This proves the
+// prefill realization arm (the decode arm is proven in the stage-b-selection
+// fixture); both arms share the SAME lowerToRepackGemv bridge.
+// REALIZED-NOT: tcrv_rvv.quant_contraction
+// REALIZED-NOT: tcrv_rvv.q4_0_q8_0_block_dot
+// REALIZED: tcrv_rvv.repack_gemv_q4_0_q8_0
+// REALIZED-SAME: half_lanes = 8 : i64
+// REALIZED-SAME: tcrv_rvv.contraction_algorithm = "repack"
+// REALIZED-SAME: tcrv_rvv.path_materialization = "realized"
+// REALIZED-SAME: tcrv_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
+// REALIZED-SAME: tcrv_rvv.weight_layout_contract = "x16"
+// REALIZED-SAME: weight_block_stride = 288 : i64
