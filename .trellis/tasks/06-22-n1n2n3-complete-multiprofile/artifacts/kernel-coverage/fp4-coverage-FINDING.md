@@ -1,10 +1,13 @@
-# FP4-codebook block-dot coverage — mxfp4, nvfp4 (the LAST quant family)
+# FP4-codebook block-dot coverage — mxfp4, nvfp4, iq4_xs (closes the FP4/IQ codebook family)
 
 This closes the block-dot coverage sweep: the FP4 (e2m1) codebook family — `mxfp4`
-(MXFP4, E8M0 shared-exponent per 32-block) and `nvfp4` (NVIDIA FP4, UE4M3 per-16-elem
-scale on a 64-elem super-block). Both reuse the SAME 16-entry e2m1 codebook as ggml's
-`kvalues_mxfp4 = {0,1,2,3,4,6,8,12,0,-1,-2,-3,-4,-6,-8,-12}` — the exact tiny register
-codebook the iq4_nl 1.32x WIN rode on. The KEY question: does that win GENERALIZE?
+(MXFP4, E8M0 shared-exponent per 32-block), `nvfp4` (NVIDIA FP4, UE4M3 per-16-elem
+scale on a 64-elem super-block), and `iq4_xs` (the q8_K SUPER-BLOCK variant of iq4_nl,
+256 weights / 136B block, per-sub-block signed 6-bit scale). mxfp4 reuses ggml's
+`kvalues_mxfp4 = {0,1,2,3,4,6,8,12,0,-1,-2,-3,-4,-6,-8,-12}`; iq4_xs reuses the EXACT
+`kvalues_iq4nl` table iq4_nl uses — both the tiny ≤16-entry register codebook the iq4_nl
+1.32x WIN rode on. The KEY question: does that win GENERALIZE — across scale formats
+(mxfp4) AND across block GEOMETRY (iq4_xs's q8_K super-block)?
 
 ## Per-kernel result table (VLEN128, Sophgo SG2044, RVV1.0, clang-18)
 
@@ -12,10 +15,62 @@ codebook the iq4_nl 1.32x WIN rode on. The KEY question: does that win GENERALIZ
 |--------|----------------------|-----------------|------------------------|---------------|---------------------|
 | mxfp4  | **0.000e+00** (bit-exact) | **1.22** | **WIN — generalizes** | REAL `_vl128` RVV | split lo/hi **16-lane** `vrgather_vv_i8m1` ×2 over 16-entry register codebook |
 | nvfp4  | **0.000e+00** (bit-exact) | 0.57 | **N/A (scalar-only baseline)** | **scalar `_generic`** (no RVV kernel ships) | **8-lane** `vrgather_vv_i8m1` ×16 (4 sub-blk × 2 lo/hi × 2 strips) + 12× scalar `ldexpf` |
+| iq4_xs | **0.000e+00** (matched-assoc; **1.16e-5** vs verbatim = fp reassoc, integer bit-exact) | **1.28** | **WIN — generalizes (super-block too)** | REAL `_vl128` RVV | split lo/hi **16-lane** `vrgather_vv_i8m1` ×2 per sub-block, **16 m1 gathers / 256-elem q8_K super-block**, codebook broadcast-loaded ONCE |
 
 nvfp4's 0.57 is **vector-vs-SCALAR** (ggml ships no RVV nvfp4 kernel), so it does NOT
 answer the gather-shape question — it is N/A, not a meaningful LOSS. Ratios are best-of-200
-min, taskset -c 2; mxfp4 reproduced at 1.20–1.22 across runs.
+min, taskset -c 2; mxfp4 reproduced at 1.20–1.22 across runs; iq4_xs reproduced at
+**1.28x** (6/8 runs 1.282–1.284, the one 1.205 a noisy outlier). iq4_xs re-run on
+ssh rvv during QC (VLEN probe `VLENB=16` = VLEN128; on-board sources md5-identical to
+these artifacts): steady **1.284x** ×3, `vs_matched_assoc=0.000e+00`,
+`vs_verbatim_ggml=1.163e-05` — log saved at `blockdot-bench/iq4_xs/iq4_xs-bench.log`.
+
+## iq4_xs — the SUPER-BLOCK FP4-codebook rung (completes the FP4/IQ family)
+`iq4_xs` is the **q8_K super-block** variant of iq4_nl: it reuses the SAME 16-entry
+non-linear FP4 codebook `kvalues_iq4nl = {-127,-104,-83,-65,-49,-35,-22,-10,1,13,25,38,53,
+69,89,113}` but packs 256 weights into a 136B super-block (d@0 fp16, scales_h@2 u16,
+scales_l[4]@4, qs[128]@8) against a 292B `block_q8_K` activation, with a per-sub-block
+SIGNED 6-bit scale (`((scales_l>>4*(s&1))&0xf | ((scales_h>>2s)&3)<<4) - 32`). The KEY
+question this closes: does the tiny-codebook `vrgather` win survive the q8_K super-block's
+per-sub-block scalar scale-extraction overhead? **It does — 1.28x, in line with iq4_nl
+(1.32x) and mxfp4 (1.22x).**
+
+- **ggml baseline = REAL `_vl128` RVV** (`ggml_vec_dot_iq4_xs_q8_K_vl128`, quants.c:5608),
+  NOT scalar/_generic. ggml's vl128 does ONE wide **i8m4 64-lane `vrgather_vv_i8m4`** over
+  2 sub-blocks/iter (with a 4-way `vget`/`vmv`/`vcreate` reorder), `vwmul_i16m8`, two
+  `vwredsum` (acc0/acc1), and a per-super-block fp fold `sumf += d*(sumi1+sumi2)`. So this
+  is a genuine **vector-vs-vector gather-shape contest** (the discriminating test), not the
+  trivial vector-vs-scalar nvfp4 case.
+
+- **OURS = the iq4_nl register-vrgather mechanism, applied per sub-block.** Codebook
+  broadcast-loaded ONCE above the super-block loop (`vle8_v_i8m1(kvalues,16)`), then per
+  sub-block: `vsetvl_e8m1(16)`, two **16-lane** `vrgather_vv_i8m1` (lo=`vand 0x0F`,
+  hi=`vsrl 0x04`), `vwmul_i16m2`+`vwmacc_i16m2`, seed-0 `vwredsum_i16m2`. Verified from the
+  emit: **16 `vrgather_vv_i8m1` (2/sub-block × 8), 0 `vluxei`, 8 `vsetvl_e8m1` per super-block** — exactly
+  the register-codebook win primitive (NOT the IQ-quants' scalar table indexing). At
+  VLEN128 the i8m1 VLMAX is exactly 16, so each gather FULLY fills the register; our two
+  16-lane gathers beat ggml's single 64-lane i8m4 gather (which spans 4 registers) — the
+  SAME mechanism + margin as iq4_nl/mxfp4. **The gathers are at VLMAX (vl=16), NOT
+  sub-VLMAX — so this is the WIN case, not the nvfp4-dissolve case.**
+
+- **CORRECTNESS — integer decode bit-exact (the tq1_0 fp-reassoc story).** rel-norm vs
+  VERBATIM ggml = **1.163e-05** (finite, nonzero), but **0.000e+00** against a
+  matched-association scalar ref (`ggml_ref_matched.cpp`) that reproduces ggml's integer
+  decode EXACTLY but uses OURS's per-sub-block DISTRIBUTED fp fold. PROOF the 1.16e-5 is
+  pure fp32 reassociation, not a decode bug: ggml folds the per-sub-block 6-bit scale
+  INTO the INTEGER accumulator (`sumi1/sumi2 += acc*ls` across all 8 sub-blocks, all
+  integer-exact) then does ONE fp mul-add per super-block, while OURS folds the scale in
+  FLOAT (`d1 = d4d8*(float)ls`) and accumulates `sumf += d1*(float)sumi` per sub-block —
+  many more fp32 roundings, amplified by cross-super-block sign cancellation in `sumf`.
+  Matching the association collapses the norm to exactly 0.0 — IDENTICAL
+  to the tq1_0 finding (where ggml's two ternary kernels disagreed on assoc). Every
+  per-sub-block signed 6-bit scale (scales_h `h>>=4`/`(h<<4)&0x30` proven equivalent to
+  OURS's `(scales_h>>2s)&3<<4`), nibble unpack, codebook gather, and `vwredsum` is
+  bit-exact. NO emitter bug. iq4_xs emit was already in the block-dot coverage; **re-confirmed**.
+
+- **NO even-nb caveat** (unlike iq4_nl/mxfp4's q8_0 2-blocks/iter tail-drop). iq4_xs loops
+  one super-block at a time, inner loop ALWAYS 4×2=8 sub-blocks — sizes just need to be
+  multiples of QK_K=256. Cleaner apples-to-apples comparison than iq4_nl.
 
 ## GENERALIZATION VERDICT — the FP4-codebook win GENERALIZES to mxfp4, is N/A for nvfp4
 
@@ -71,13 +126,20 @@ min, taskset -c 2; mxfp4 reproduced at 1.20–1.22 across runs.
 
 ## Status — FP4 family DONE (closes the block-dot sweep)
 - mxfp4: DONE (WIN 1.20x, bit-exact). nvfp4: DONE (bit-exact; perf N/A — scalar-only ggml).
+- **iq4_xs: DONE (WIN 1.28x; integer bit-exact, 1.16e-5 vs verbatim = fp reassoc).** The
+  super-block FP4-codebook rung — confirms the tiny-codebook `vrgather` win survives the
+  q8_K per-sub-block scalar scale-extraction. FP4-codebook family micro coverage COMPLETE
+  (iq4_nl 1.32x WIN, mxfp4 1.21x WIN, iq4_xs 1.28x WIN; nvfp4 N/A scalar-only).
 
 ## Coverage-sweep synthesis (FP4 family in context of the ~17-kernel sweep)
 - The "gather-heavy ⇒ WIN" pattern is now precisely bounded by THREE FP4-family +
   prior-sweep data points:
   - **WIN** ⟺ register `vrgather` over a tiny ≤16-entry codebook AT the VLEN-native lane
-    width: iq4_nl (1.32x), **mxfp4 (1.20x)**, q2_K (the lone K-quant win). Our split lo/hi
-    16-lane i8m1 beats ggml's 32-lane i8m2 on VLEN128.
+    width: iq4_nl (1.32x), **mxfp4 (1.20x)**, **iq4_xs (1.28x — super-block)**, q2_K (the
+    lone K-quant win). Our split lo/hi 16-lane i8m1 beats ggml's wider i8m2/i8m4 gather on
+    VLEN128. **The win is NOT confined to q8_0-paired blocks: iq4_xs proves it survives the
+    q8_K super-block structure** — the per-sub-block scalar 6-bit scale extraction does NOT
+    dissolve it (contrast nvfp4, where sub-VLMAX strips + 12 scalar ldexpf DO dissolve it).
   - **DISSOLVES** when the block format forces **sub-VLMAX** gather strips: **nvfp4**
     (8-lane strips + 12 scalar ldexpf/super-block) loses even to ggml's scalar `_generic`.
   - **LOSS** ⟺ either ggml uses a wider-LMUL fused fold (q5_*, tq*, most K-quants) OR the
@@ -105,8 +167,22 @@ min, taskset -c 2; mxfp4 reproduced at 1.20–1.22 across runs.
 - nvfp4 ggml_ref.cpp = `ggml_vec_dot_nvfp4_q8_0_generic` (the SCALAR oracle = the real
   riscv board kernel) lifted verbatim from `ggml-cpu/quants.c:279` (block_nvfp4 36B:
   d[4]@0 UE4M3, qs[32]@4; two block_q8_0 per super-block), inline `ggml_ue4m3_to_fp32`.
+- iq4_xs sources in `blockdot-bench/iq4_xs/` (copy-then-adapted from `tq2_0/`, the proven
+  q8_K super-block harness): ours.cpp (`build/bin/tcrv-opt
+  test/Conversion/RVV/rvv-to-emitc-iq4-xs-q8-k-block-dot.mlir --tcrv-rvv-lower-to-emitc |
+  mlir-translate-20 --mlir-to-cpp`, 416 lines, 16 vrgather / 0 vluxei / 8 vsetvl_e8m1
+  code calls per super-block — i.e. 2 gathers + 1 vsetvl per sub-block × 8 sub-blocks;
+  raw `grep -c` over the emit reports 32/16 because each call is preceded by a
+  `// …callee=__riscv_…` annotation line);
+  ggml_ref.cpp = `ggml_vec_dot_iq4_xs_q8_K_vl128` (the REAL RVV kernel) lifted verbatim
+  from `ggml-cpu/arch/riscv/quants.c:5608` against raw byte offsets (block_iq4_xs 136B:
+  d@0 fp16, scales_h@2 u16, scales_l[4]@4, qs[128]@8; block_q8_K 292B), 4-arg ABI adapter;
+  ggml_ref_matched.cpp = the tq1_0-style matched-association scalar diagnostic (ggml's
+  integer decode + OURS's per-sub-block distributed fp fold → OURS hits 0.0). iq4_xs binary
+  `~/blockdot-cov/iq4_xs/`. No even-nb caveat (one super-block/iter, always 8 sub-blocks).
 - On rvv: `clang-18 -O3 -march=rv64gcv_zfh_zvfh -ffp-contract=fast harness.cpp ours.cpp
-  ggml_ref.cpp -lm -o bench && taskset -c 2 ./bench`. Binaries: `~/fp4cov/{mxfp4,nvfp4}/`.
+  ggml_ref.cpp [ggml_ref_matched.cpp] -lm -o bench && taskset -c 2 ./bench`. Binaries:
+  `~/fp4cov/{mxfp4,nvfp4}/`, `~/blockdot-cov/iq4_xs/`.
 - Agreement over 8 seeds × 6 sizes; timing best-of-200-min, iters 4000.
 - Fill (honest): the AGREEMENT run goes WIDE on the scale bytes to exercise the
   genuinely-new decode branches — mxfp4 mixes e∈{0,1} (x<2 denormal) with e∈[118,136];
