@@ -5554,13 +5554,22 @@ def GgmlBlockDotIQ4NLQ80Op
     names, and common EmitC/export code must not infer or choose block-quantized
     dot-product semantics.
 
-    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
-    attributes are the SAME bounded resource/scheduling shape knobs the Family-A
-    siblings carry (the *how*, never the *what*; the dot-product is byte-exact for
-    any legal combination because integer addition is order-independent and the
-    per-block fp32 fold stays in strict ascending block order). The codebook gather
-    constrains integer_core_lmul to "m1" only (the VLMAX >= 16 table-index legality
-    fact above); the verifier rejects any other anchor fail-closed (I7).
+    The optional `integer_core_lmul`, `multi_block_factor`, `strip_elision`, and
+    `minimum_vlen` attributes are the SAME bounded resource/scheduling shape knobs the
+    Family-A siblings carry (the *how*, never the *what*; the dot-product is byte-exact
+    for any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). The codebook gather's
+    legal integer_core_lmul anchor is a VLEN-capability fact, NOT a fixed "m1": the
+    broadcast `values` table register's VLMAX must be >= 16 to index all 16 entries.
+    At VLEN=128 only m1 reaches VLMAX 16 (mf2 -> 8 < 16); at VLEN>=256 mf2 ALSO reaches
+    VLMAX 16 (a FULL mf2 register), so mf2 (the ggml `_vl256` shape: mf2 + a 2-block
+    unroll filling the wider register) becomes legal+byte-exact. `minimum_vlen` is the
+    GUARANTEED minimum VLEN bits the schedule was selected against (the
+    deriveMinimumVLEN capability fact, NOT the audit has_zvl128b mirror); the verifier
+    recomputes the gather legality from the SAME VLMAX formula the gearbox uses (single
+    source of truth) and rejects an anchor whose VLMAX < 16 at that minimum_vlen
+    fail-closed (I7). Absent, minimum_vlen defaults to 128 (the conservative floor: only
+    m1 is legal), so every existing m1 schedule is byte-unchanged.
   }];
 
   let arguments = (ins
@@ -5579,7 +5588,8 @@ def GgmlBlockDotIQ4NLQ80Op
     DenseI8ArrayAttr:$codebook,
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$multi_block_factor,
-    OptionalAttr<StrAttr>:$strip_elision
+    OptionalAttr<StrAttr>:$strip_elision,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 
@@ -5664,13 +5674,19 @@ def GgmlBlockDotMXFP4Q80Op
     mirror strings, q8/mxfp4 names, and common EmitC/export code must not infer or
     choose block-quantized dot-product semantics.
 
-    The optional `integer_core_lmul`, `multi_block_factor`, and `strip_elision`
-    attributes are the SAME bounded resource/scheduling shape knobs the codebook
-    siblings carry (the *how*, never the *what*; the dot-product is byte-exact for
-    any legal combination because integer addition is order-independent and the
-    per-block fp32 fold stays in strict ascending block order). The codebook gather
-    constrains integer_core_lmul to "m1" only; the verifier rejects any other anchor
-    fail-closed (I7).
+    The optional `integer_core_lmul`, `multi_block_factor`, `strip_elision`, and
+    `minimum_vlen` attributes are the SAME bounded resource/scheduling shape knobs the
+    codebook siblings carry (the *how*, never the *what*; the dot-product is byte-exact
+    for any legal combination because integer addition is order-independent and the
+    per-block fp32 fold stays in strict ascending block order). The codebook gather's
+    legal integer_core_lmul anchor is a VLEN-capability fact (the broadcast `values`
+    table register's VLMAX must be >= 16): at VLEN=128 only m1 reaches VLMAX 16; at
+    VLEN>=256 mf2 also reaches VLMAX 16, so the ggml `_vl256` mf2 + 2-block-unroll shape
+    becomes legal+byte-exact. `minimum_vlen` is the GUARANTEED minimum VLEN bits the
+    schedule was selected against; the verifier recomputes the gather legality from the
+    SAME VLMAX formula the gearbox uses and rejects an anchor whose VLMAX < 16 at that
+    minimum_vlen fail-closed (I7). Absent, it defaults to 128 (only m1 legal), so every
+    existing m1 schedule is byte-unchanged.
   }];
 
   let arguments = (ins
@@ -5690,7 +5706,8 @@ def GgmlBlockDotMXFP4Q80Op
     DenseI8ArrayAttr:$codebook,
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$multi_block_factor,
-    OptionalAttr<StrAttr>:$strip_elision
+    OptionalAttr<StrAttr>:$strip_elision,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 

@@ -93,20 +93,85 @@ module {
 
 // -----
 
-// Reject a non-m1 integer-core anchor (the 16-entry codebook gather needs the
-// broadcast table register's VLMAX >= 16, which mf4 cannot provide at VLEN=128;
-// the silently-wrong combo is fail-closed, I7).
+// Reject an integer-core anchor whose codebook-gather VLMAX < 16 at the guaranteed
+// minimum_vlen (the 16-entry gather needs the broadcast table register's VLMAX >= 16;
+// mf4 -> VLMAX 4 at any VLEN -- a nibble index >= VLMAX silently reads 0, fail-closed I7).
 module {
-  tcrv.exec.kernel @iq4_nl_q8_0_block_dot_rejects_non_m1_anchor {
+  tcrv.exec.kernel @iq4_nl_q8_0_block_dot_rejects_mf4_anchor {
     tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "iq4_nl_q8_0_block_dot_rejects_non_m1_anchor", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{only accepts integer_core_lmul "m1"}}
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "iq4_nl_q8_0_block_dot_rejects_mf4_anchor", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{integer_core_lmul "mf4" cannot host the 16-entry codebook gather}}
         %dot = tcrv_rvv.iq4_nl_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_iq4_nl_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, integer_core_lmul = "mf4"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// Reject the mf2 anchor at minimum_vlen 128 (mf2 -> VLMAX 8 < 16: the VLEN256 `_vl256`
+// shape is NOT legal on a 128-bit board; the VLEN-capability fact gates it, fail-closed).
+module {
+  tcrv.exec.kernel @iq4_nl_q8_0_block_dot_rejects_mf2_at_vlen128 {
+    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "iq4_nl_q8_0_block_dot_rejects_mf2_at_vlen128", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{integer_core_lmul "mf2" cannot host the 16-entry codebook gather at minimum_vlen 128}}
+        %dot = tcrv_rvv.iq4_nl_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_iq4_nl_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, integer_core_lmul = "mf2", minimum_vlen = 128 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// Reject the m2 anchor even though its gather VLMAX (32 at VLEN128) clears the >= 16 fact:
+// the emitter handles ONLY m1 / mf2, so a wider anchor would be mis-widened (the i16 product
+// ternary would emit m2 for an m2 source = one step too narrow). Emitter-supported-set gate,
+// fail-closed I7 -- locks the over-admission the bare VLMAX gate would otherwise allow.
+module {
+  tcrv.exec.kernel @iq4_nl_q8_0_block_dot_rejects_unsupported_m2_anchor {
+    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "iq4_nl_q8_0_block_dot_rejects_unsupported_m2_anchor", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{integer_core_lmul "m2" is not an emitter-supported codebook anchor}}
+        %dot = tcrv_rvv.iq4_nl_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_iq4_nl_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, integer_core_lmul = "m2", minimum_vlen = 256 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// Accept the mf2 anchor at minimum_vlen 256 (mf2 -> VLMAX 16 = a FULL mf2 register: the
+// ggml `_vl256` shape becomes legal+byte-exact when the VLEN-capability fact admits it).
+// The 256 threshold EMERGES from VLMAX = minimum_vlen / 16 >= 16, not a hardcoded const.
+// CHECK-LABEL: tcrv.exec.kernel @iq4_nl_q8_0_block_dot_accepts_mf2_at_vlen256
+module {
+  tcrv.exec.kernel @iq4_nl_q8_0_block_dot_accepts_mf2_at_vlen256 {
+    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "iq4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "iq4_nl_q8_0_block_dot_accepts_mf2_at_vlen256", status = "selected-lowering-boundary"} {
+        // CHECK: integer_core_lmul = "mf2"
+        // CHECK-SAME: minimum_vlen = 256
+        %dot = tcrv_rvv.iq4_nl_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_iq4_nl_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>, integer_core_lmul = "mf2", multi_block_factor = 2 : i64, strip_elision = "elided", minimum_vlen = 256 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }

@@ -54,18 +54,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16 to index all 16
-    // table entries); the verifier rejects any other spelling, so the anchor is
-    // fixed to m1 here. The chosen i8 source LMUL ("m1") drives the widened i16
-    // product LMUL ("m2") and the i8 load/vsetvl/vrgather spelling.
+    // The codebook gather's i8 anchor is a VLEN-capability fact (the verifier admits
+    // m1 at any VLEN, and mf2 ONLY at minimum_vlen >= 256 where mf2's VLMAX reaches 16
+    // = a full mf2 register, the ggml `_vl256` shape). The chosen i8 source LMUL drives
+    // the widened i16 product LMUL and the i8 load/vsetvl/vrgather spelling. Default m1
+    // (VLEN128 form) keeps every existing schedule byte-identical.
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
       coreLmul = *attrLmul;
     int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
     llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
     bool stripElided = stripElision == "elided";
-    // i8 source LMUL m1 -> the next-wider i16 product LMUL m2.
-    llvm::StringRef wideLmul = "m2";
+    // The widened i16 product LMUL is ONE step wider than the i8 source LMUL: m1 -> m2
+    // (the VLEN128 form), mf2 -> m1 (the VLEN256 `_vl256` form). The vwredsum reduction
+    // destination + seed stay m1 in BOTH (a 16-element reduction is an m1 reduce).
+    llvm::StringRef wideLmul = coreLmul == "mf2" ? "m1" : "m2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -300,8 +303,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
       rewriter.create<emitc::AssignOp>(
           loc, sumiVar, rewriter.create<emitc::LiteralOp>(loc, i32Type, "0"));
 
-      // The codebook anchor is ALWAYS m1: vsetvl_e8m1.
-      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
+      // The codebook strip vsetvl is spelled at the i8 anchor LMUL: e8m1 (VLEN128
+      // form, VLMAX 16) or e8mf2 (VLEN256 `_vl256` form, a full mf2 register = VLMAX
+      // 16). Both cap the active vl at the half-block count 16; the reduction stays m1.
+      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, coreLmul, "");
 
       if (!forceRobust && stripElided) {
         // Elided core (m1, VLEN >= 128): ONE vsetvl_e8m1(16) (caps the active vl
@@ -1019,15 +1024,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16); the verifier fixes
-    // it to m1. The i8 source LMUL ("m1") drives the i16 product LMUL ("m2").
+    // The codebook gather's i8 anchor is a VLEN-capability fact (the verifier admits
+    // m1 at any VLEN, mf2 only at minimum_vlen >= 256 = the ggml `_vl256` shape). The
+    // i8 source LMUL drives the i16 product LMUL and the load/vsetvl/vrgather spelling;
+    // default m1 (VLEN128) keeps every existing schedule byte-identical.
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
       coreLmul = *attrLmul;
     int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
     llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
     bool stripElided = stripElision == "elided";
-    llvm::StringRef wideLmul = "m2";
+    // The widened i16 product LMUL is one step wider than the i8 source: m1 -> m2
+    // (VLEN128), mf2 -> m1 (VLEN256). The vwredsum destination + seed stay m1 in both.
+    llvm::StringRef wideLmul = coreLmul == "mf2" ? "m1" : "m2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -1367,7 +1376,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
       rewriter.create<emitc::AssignOp>(
           loc, sumiVar, rewriter.create<emitc::LiteralOp>(loc, i32Type, "0"));
 
-      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
+      // The codebook strip vsetvl is spelled at the i8 anchor LMUL: e8m1 (VLEN128) or
+      // e8mf2 (VLEN256 `_vl256`); both cap the active vl at 16, the reduction stays m1.
+      std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, coreLmul, "");
 
       if (!forceRobust && stripElided) {
         rewriter.create<emitc::VerbatimOp>(

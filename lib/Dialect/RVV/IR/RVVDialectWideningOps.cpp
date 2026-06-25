@@ -3772,7 +3772,7 @@ mlir::LogicalResult GgmlBlockDotIQ4NLQ80Op::verify() {
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" || name == "codebook" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" ||
+           name == "strip_elision" || name == "minimum_vlen" ||
            name.starts_with("tcrv_rvv.iq4_nl_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -3839,18 +3839,44 @@ mlir::LogicalResult GgmlBlockDotIQ4NLQ80Op::verify() {
               "non-linear nibble->int8 lookup table kvalues_iq4nl[16]); got "
            << getCodebook().size();
 
-  // The codebook gather pins the m1 integer-core anchor: to index ALL 16 table
-  // entries the broadcast `values` register's VLMAX must be >= 16. At VLEN=128
-  // e8, m1 -> VLMAX=16 (the whole half-block); mf4 -> VLMAX=4 would silently
-  // return 0 for any nibble index >= 4. Reject a non-m1 anchor fail-closed (I7).
+  // The codebook gather's legal integer-core anchor is a VLEN-CAPABILITY fact, not a
+  // fixed "m1": to index ALL 16 table entries the broadcast `values` register's VLMAX
+  // must be >= 16. WHICH anchor reaches that MOVES with VLEN. At VLEN=128 e8 only m1 ->
+  // VLMAX=16 (mf2 -> 8 < 16, mf4 -> 4 < 16 silently return 0 for index >= VLMAX); at
+  // VLEN>=256 mf2 ALSO reaches VLMAX 16 (a full mf2 register = the ggml `_vl256` shape).
+  // The legality is recomputed here from the SAME VLMAX formula the gearbox selects with
+  // (getRVVStripVLMAXElements -- this verifier is the single source of truth) against the
+  // `minimum_vlen` capability fact (the deriveMinimumVLEN bits, NOT the audit has_zvl128b
+  // mirror); absent it defaults to 128 (the conservative floor: only m1 is legal, so
+  // every existing m1 schedule stays byte-identical). Reject a VLMAX<16 anchor fail-closed
+  // (I7). The reduction (vwredsum) destination + seed stay m1 regardless of the i8 anchor.
   if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
-    if (*coreLmul != "m1")
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kCodebookTableEntries = 16; // index range [0,15].
+    std::int64_t gatherVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul), minimumVLEN);
+    if (gatherVLMAX < kCodebookTableEntries)
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" for the ggml IQ4_NL x "
-                "Q8_0 block dot-product (the 16-entry codebook gather requires "
-                "the broadcast table register's VLMAX >= 16, which mf4 cannot "
-                "provide at VLEN=128); got \""
-             << *coreLmul << "\"";
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" cannot host the 16-entry codebook gather at minimum_vlen "
+             << minimumVLEN << ": the broadcast table register's VLMAX is "
+             << gatherVLMAX
+             << " (< 16, so a nibble index >= VLMAX silently reads 0). At "
+                "minimum_vlen 128 the gather requires m1; at 256 mf2 also reaches "
+                "VLMAX 16 (the ggml _vl256 shape)";
+    // The VLMAX>=16 fact admits m1/mf2 (the two VLEN regimes) but ALSO any wider
+    // anchor (m2 -> VLMAX 32 at VLEN128). The emitter handles ONLY m1 (i16 product
+    // m2) and mf2 (i16 product m1): its wideLmul ternary would widen a wider anchor
+    // to m2 (one step too narrow for an m2 source) and emit broken C. Restrict to
+    // the emitter-supported set fail-closed (I7) -- the guard the old m1-pin carried.
+    if (*coreLmul != "m1" && *coreLmul != "mf2")
+      return emitOpError()
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" is not an emitter-supported codebook anchor: the ggml IQ4_NL x "
+                "Q8_0 block dot-product emits only m1 (the VLEN128 form, i16 product "
+                "m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a wider anchor "
+                "would be mis-widened";
   }
 
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
@@ -3948,7 +3974,7 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
            name == "activation_quant_byte_offset" ||
            name == "activation_high_byte_offset" || name == "codebook" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" ||
+           name == "strip_elision" || name == "minimum_vlen" ||
            name.starts_with("tcrv_rvv.mxfp4_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -4028,17 +4054,41 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
               "e2m1 nibble->int8 lookup table kvalues_mxfp4[16]); got "
            << getCodebook().size();
 
-  // The codebook gather pins the m1 integer-core anchor: to index ALL 16 table
-  // entries the broadcast `values` register's VLMAX must be >= 16. Reject a
-  // non-m1 anchor fail-closed (I7).
+  // The codebook gather's legal integer-core anchor is a VLEN-CAPABILITY fact, not a
+  // fixed "m1" (the SAME rule as the iq4_nl sibling): to index ALL 16 table entries the
+  // broadcast `values` register's VLMAX must be >= 16, and WHICH anchor reaches that
+  // MOVES with VLEN. At VLEN=128 only m1 -> VLMAX=16; at VLEN>=256 mf2 also reaches
+  // VLMAX 16 (the ggml `_vl256` mf2 + 2-block-unroll shape). Recomputed from the SAME
+  // VLMAX formula the gearbox selects with against `minimum_vlen` (default 128: only m1
+  // legal, every existing schedule byte-identical). Reject VLMAX<16 fail-closed (I7).
+  // The vwredsum destination + seed stay m1 regardless of the i8 anchor.
   if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
-    if (*coreLmul != "m1")
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kCodebookTableEntries = 16; // index range [0,15].
+    std::int64_t gatherVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul), minimumVLEN);
+    if (gatherVLMAX < kCodebookTableEntries)
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" for the ggml MXFP4 x "
-                "Q8_0 block dot-product (the 16-entry codebook gather requires "
-                "the broadcast table register's VLMAX >= 16, which mf4 cannot "
-                "provide at VLEN=128); got \""
-             << *coreLmul << "\"";
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" cannot host the 16-entry codebook gather at minimum_vlen "
+             << minimumVLEN << ": the broadcast table register's VLMAX is "
+             << gatherVLMAX
+             << " (< 16, so a nibble index >= VLMAX silently reads 0). At "
+                "minimum_vlen 128 the gather requires m1; at 256 mf2 also reaches "
+                "VLMAX 16 (the ggml _vl256 shape)";
+    // The VLMAX>=16 fact admits m1/mf2 but ALSO any wider anchor (m2 -> VLMAX 32 at
+    // VLEN128). The emitter handles ONLY m1 (i16 product m2) and mf2 (i16 product m1):
+    // its wideLmul ternary would widen a wider anchor to m2 (one step too narrow for
+    // an m2 source) and emit broken C. Restrict to the emitter-supported set fail-
+    // closed (I7) -- the same guard the old m1-pin carried.
+    if (*coreLmul != "m1" && *coreLmul != "mf2")
+      return emitOpError()
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" is not an emitter-supported codebook anchor: the ggml MXFP4 x "
+                "Q8_0 block dot-product emits only m1 (the VLEN128 form, i16 product "
+                "m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a wider anchor "
+                "would be mis-widened";
   }
 
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
