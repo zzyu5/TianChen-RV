@@ -54,11 +54,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
+    // I7 FAIL-CLOSED: an UN-scheduled (attr-less, no integer_core_lmul) codebook op
+    // must NOT lower. The codebook gather indexes a broadcast 16-entry table; the
+    // emitter's default m1 anchor has gather VLMAX < 16 below VLEN=128, so a high
+    // nibble index would silently read 0. The materialize-schedule pass at a sub-128
+    // tier leaves the op attr-less (no legal anchor exists -- the codebook class is
+    // Zvl128b-gated) AND stamps NO minimum_vlen, so the VERIFIER cannot tell it from
+    // the legal pre-schedule input. The lowering boundary CAN: every VLEN>=128 path
+    // stamps a legal m1/mf2 first (V implies VLEN >= 128), so an op that reaches the
+    // emitter WITHOUT an anchor can only be the unsafe sub-128 leftover. Refuse it.
+    if (!blockDot.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          blockDot,
+          "refusing to lower an UN-scheduled codebook op (no integer_core_lmul): "
+          "the codebook class is Zvl128b-gated and the emitter's default m1 anchor "
+          "cannot host the 16-entry gather below VLEN=128 (a nibble index >= VLMAX "
+          "silently reads 0); the gearbox must stamp a legal anchor first "
+          "(materialize-schedule on a VLEN>=128 target) -- fail-closed (I7)");
     // The codebook gather's i8 anchor is a VLEN-capability fact (the verifier admits
     // m1 at any VLEN, and mf2 ONLY at minimum_vlen >= 256 where mf2's VLMAX reaches 16
     // = a full mf2 register, the ggml `_vl256` shape). The chosen i8 source LMUL drives
-    // the widened i16 product LMUL and the i8 load/vsetvl/vrgather spelling. Default m1
-    // (VLEN128 form) keeps every existing schedule byte-identical.
+    // the widened i16 product LMUL and the i8 load/vsetvl/vrgather spelling. The
+    // scheduled anchor (always present past the guard above) drives it.
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
       coreLmul = *attrLmul;
@@ -1024,10 +1041,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
+    // I7 FAIL-CLOSED (SAME as the iq4_nl sibling): an UN-scheduled (attr-less, no
+    // integer_core_lmul) codebook op must NOT lower. The codebook gather indexes a
+    // broadcast 16-entry table; the emitter's default m1 anchor has gather VLMAX < 16
+    // below VLEN=128, so a high nibble index would silently read 0. The sub-128 pass
+    // run leaves the op attr-less with NO minimum_vlen (the codebook class is
+    // Zvl128b-gated, no legal anchor exists), verifier-indistinguishable from the
+    // legal pre-schedule input -- but the lowering boundary CAN refuse it: every
+    // VLEN>=128 path stamps a legal m1/mf2 first, so an anchor-less op here is the
+    // unsafe sub-128 leftover. Refuse fail-closed.
+    if (!blockDot.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          blockDot,
+          "refusing to lower an UN-scheduled codebook op (no integer_core_lmul): "
+          "the codebook class is Zvl128b-gated and the emitter's default m1 anchor "
+          "cannot host the 16-entry gather below VLEN=128 (a nibble index >= VLMAX "
+          "silently reads 0); the gearbox must stamp a legal anchor first "
+          "(materialize-schedule on a VLEN>=128 target) -- fail-closed (I7)");
     // The codebook gather's i8 anchor is a VLEN-capability fact (the verifier admits
     // m1 at any VLEN, mf2 only at minimum_vlen >= 256 = the ggml `_vl256` shape). The
     // i8 source LMUL drives the i16 product LMUL and the load/vsetvl/vrgather spelling;
-    // default m1 (VLEN128) keeps every existing schedule byte-identical.
+    // the scheduled anchor (always present past the guard above) drives it.
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
       coreLmul = *attrLmul;

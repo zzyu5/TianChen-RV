@@ -5480,7 +5480,8 @@ def GgmlBlockDotQ50Q80Op
 
 def GgmlBlockDotIQ4NLQ80Op
     : TCRVRVV_Op<"iq4_nl_q8_0_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml IQ4_NL x Q8_0 dot-product op";
   let description = [{
@@ -5602,7 +5603,8 @@ def GgmlBlockDotIQ4NLQ80Op
 
 def GgmlBlockDotMXFP4Q80Op
     : TCRVRVV_Op<"mxfp4_q8_0_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV block-quantized ggml MXFP4 x Q8_0 dot-product op";
   let description = [{

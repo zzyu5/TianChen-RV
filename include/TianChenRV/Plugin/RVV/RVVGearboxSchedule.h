@@ -2439,6 +2439,15 @@ inline std::int64_t getRVVBlockDotDecodePrefixLength(llvm::StringRef quantFormat
     return 8;
   if (quantFormat == "nibble-5bit-unsigned")
     return 7;
+  if (quantFormat == "codebook-gather")
+    // The CODEBOOK class (iq4_nl/mxfp4): the unsigned nibble unpack (vand 0x0F /
+    // vsrl 0x04, 2 ops) THEN the dependent table GATHER (vrgather_vv_i8, 1 op)
+    // before the widening product -- a 3-op decode prefix. Like the other
+    // long-chain formats its EXACT value is immaterial to the picks (any depth
+    // >= 4 saturates the {1,2,4} unroll range); what is STRUCTURAL is that the
+    // codebook decode EXCEEDS the unroll range (the deep-decode family, factor 4),
+    // derived from the format, not a hand-set constant.
+    return 3;
   return 0; // plain-int8 and any other already-int8 stream.
 }
 
@@ -2557,6 +2566,30 @@ struct RVVBlockDotKernelDescriptor {
   std::int64_t blockLen = 0;         // element span ONE elided cover must reach.
   std::int64_t (*stripSEW)(llvm::StringRef coreLMUL) = nullptr; // strip vsetvl SEW.
   std::int64_t (*vectorRegisterCost)(llvm::StringRef coreLMUL) = nullptr;
+  /// The non-zero codebook table-index span for a CODEBOOK-class kernel
+  /// (iq4_nl/mxfp4: 16, the kvalues lookup range [0,15]). A codebook gather indexes
+  /// the broadcast `values` register, so EVERY candidate (robust AND elided) at an
+  /// anchor whose strip VLMAX is < this span would silently read 0 for a high
+  /// nibble index -- so it is pruned fail-closed, exactly the legality the dialect
+  /// verifier recomputes from the SAME getRVVStripVLMAXElements formula (single
+  /// source of truth). Default 0 = NOT a codebook kernel: the gather prune is a
+  /// no-op, so the linear-decode block-dots (q4_0/q8_0/q4_1/q5_0/q5_1) are
+  /// byte-identical. This is what FLIPS the codebook anchor with VLEN: the mf2
+  /// anchor's strip VLMAX is 8 (< 16) at VLEN128 -> pruned, but 16 (>= 16) at
+  /// VLEN256 -> admitted (the ggml `_vl256` shape).
+  std::int64_t gatherTableEntries = 0;
+  /// The MAX multi_block_factor admitted into the candidate enumeration (the upper
+  /// bound on the {1,2,4} outer-loop unroll range). Default 4 = the full range = a
+  /// NO-OP: every linear-decode block-dot (q4_0/q8_0/q4_1/q5_0/q5_1) keeps its
+  /// argmin factor (q4_0's deep chain -> 4) byte-identical. A descriptor that sets
+  /// it LOWER restricts the unroll AXIS for that kernel only -- the codebook class
+  /// sets `factorCap = 1`, pinning multi_block_factor to 1 so its VLEN128 default
+  /// emit is the already-board-validated m1/factor-1/elided pinned form (zero new
+  /// VLEN128 board work). The factor-4 unroll is a legal Win-A axis, but it is
+  /// isolated as its OWN brick (verified separately); this caps the codebook brick
+  /// to the anchor-flip (m1@128 -> mf2@256) novelty alone. It does NOT touch the
+  /// cost formula or the anchor pin -- it only trims which factor candidates exist.
+  std::int64_t factorCap = 4;
 };
 
 /// The vsetvl SEW the integer-core strip uses at the given anchor. The m1/m2 byte
@@ -2635,7 +2668,16 @@ enumerateBlockDotShapeCandidates(const RVVBlockDotKernelDescriptor &descriptor,
     // > 0 since rankVLEN >= 128).
     const std::int64_t reductions =
         (descriptor.blockLen + rankVLMAX - 1) / rankVLMAX;
-    for (std::int64_t factor : kFactors)
+    for (std::int64_t factor : kFactors) {
+      // The multi_block_factor unroll AXIS is bounded by the descriptor's factorCap
+      // (default 4 = the full {1,2,4} range = a no-op for the linear-decode kernels).
+      // The codebook class caps it at 1 so its enumeration only ever offers factor 1
+      // -- isolating the codebook brick to the anchor-flip novelty, with NO emitted
+      // by-4 outer loop (the VLEN128 default returns to the board-validated pinned
+      // form). It trims the candidate SET only; the cost formula + anchor pin are
+      // untouched, so a capped factor never changes the argmin among what remains.
+      if (factor > descriptor.factorCap)
+        continue;
       for (llvm::StringRef elision : kElisions) {
         RVVBlockDotShapeCandidate candidate;
         candidate.integerCoreLMUL = coreLMUL;
@@ -2651,11 +2693,25 @@ enumerateBlockDotShapeCandidates(const RVVBlockDotKernelDescriptor &descriptor,
         bool elisionLegal = true;
         if (elision == "elided")
           elisionLegal = elisionVLMAX >= descriptor.blockLen;
+        // (a') CODEBOOK gather-index legality (codebook kernels only,
+        // gatherTableEntries > 0): the broadcast `values` register's strip VLMAX
+        // must span the WHOLE table-index range [0, gatherTableEntries) at the
+        // GUARANTEED minimum VLEN, for BOTH robust and elided forms (a gather is
+        // not a strip cover -- it reads an arbitrary table index, so a VLMAX below
+        // the span silently returns 0 for a high index). Uses the RAW elisionVLMAX
+        // (raw minimumVLEN, 0 -> pruned), the SAME quantity the dialect verifier
+        // recomputes the gather legality from (getRVVStripVLMAXElements: single
+        // source of truth). This is what FLIPS the codebook anchor: mf2's VLMAX is
+        // 8 (< 16) at VLEN128 -> pruned, 16 (>= 16) at VLEN256 -> admitted. Default
+        // gatherTableEntries == 0 makes this a no-op for the linear-decode kernels.
+        bool gatherLegal = descriptor.gatherTableEntries == 0 ||
+                           elisionVLMAX >= descriptor.gatherTableEntries;
         // (b) vreg-budget legality.
         bool budgetLegal = candidate.vectorRegisterCost <= vectorRegisterBudget;
-        candidate.isLegal = elisionLegal && budgetLegal;
+        candidate.isLegal = elisionLegal && gatherLegal && budgetLegal;
         candidates.push_back(candidate);
       }
+    }
   }
   return candidates;
 }
@@ -3104,6 +3160,57 @@ enumerateRVVQ80Q80ShapeCandidates(std::int64_t minimumVLEN,
                                          getRVVQ80ShapeVectorRegisterCost};
   return enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
                                           vectorRegisterBudget);
+}
+
+/// The CODEBOOK-class block-dot vreg-register budget (the same architectural ceiling
+/// the linear-decode kernels use; the codebook table register is +1 over the q4_0
+/// footprint but the prune never binds at this budget).
+constexpr std::int64_t kRVVCodebookShapeVectorRegisterBudget = 32;
+
+/// Enumerate the CODEBOOK-class (iq4_nl / mxfp4) shape candidate space, pruned by
+/// the codebook gather-index legality. The codebook integer core is the 16-element
+/// nibble HALF-BLOCK (byte-identical span to q4_0), so blockLen = 16 and its vreg
+/// footprint shares q4_0's; the genuinely-new prune is `gatherTableEntries = 16`: a
+/// candidate is legal only when its anchor's strip VLMAX spans the whole 16-entry
+/// codebook table-index range at the GUARANTEED minimum VLEN, for BOTH robust and
+/// elided (a gather reads an arbitrary table index, NOT a strip cover). This is what
+/// FLIPS the anchor with the REAL VLEN fact:
+///   * VLEN==128: m1 -> VLMAX 16 (>= 16, admitted), mf2 -> VLMAX 8 (< 16, PRUNED).
+///     The argmin selects m1 (the only legal anchor, reduction count 1).
+///   * VLEN>=256: m1 AND mf2 both reach VLMAX 16 (mf2 is the ggml `_vl256` shape),
+///     so both are legal at reduction count 1 -> the capability-blind cost TIES, and
+///     the lighter peak-live footprint (mf2's i16-product is m1 = 5 vregs < m1's i16
+///     m2 = 6) breaks the tie to mf2 -- the anchor MOVES with VLEN, byte-different
+///     emitted C (vint8mf2 / vsetvl_e8mf2 / i16m1 product vs vint8m1 / vsetvl_e8m1 /
+///     i16m2). At VLEN==0 (no guaranteed tier: zve32x/zve64x) every codebook
+///     candidate is PRUNED (VLMAX 0 < 16) -- fail-closed, the codebook class being
+///     inherently Zvl128b-gated (an N1 capability-legality fact, not a coverage gap).
+/// The unroll AXIS is CAPPED at 1 (`factorCap = 1`): the candidate space is
+/// {m1, mf2} x {1} x {robust,elided} = 4 candidates, so the codebook default
+/// multi_block_factor is ALWAYS 1. This ISOLATES the codebook brick to the
+/// anchor-flip (m1@128 -> mf2@256) novelty: the VLEN128 default emit is the
+/// already-board-validated m1/factor-1/elided PINNED form (zero new VLEN128 board
+/// work), and only the VLEN256 mf2/factor-1/elided shape is net-new. (The deep
+/// codebook-decode chain WOULD make the latency-aware argmin saturate the unroll at
+/// 4 like q4_0 -- but the factor-4 unroll is a legal Win-A axis verified as its OWN
+/// brick, NOT folded into this one.) The decode format is "codebook-gather"
+/// (latency depth 5 = the nibble-unpack + gather prefix + product/reduce floor).
+/// iq4_nl and mxfp4 share this enumeration verbatim (they differ ONLY in block
+/// strides + codebook values, neither touching the shape axes); the registry keys
+/// them to two descriptors that both call this fn.
+inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
+enumerateRVVCodebookShapeCandidates(std::int64_t minimumVLEN,
+                                    std::int64_t vectorRegisterBudget) {
+  static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "mf2"};
+  RVVBlockDotKernelDescriptor descriptor{kCoreLMULs, "codebook-gather",
+                                         /*blockLen=*/16, getRVVBlockDotStripSEW,
+                                         getRVVQ40ShapeVectorRegisterCost,
+                                         /*gatherTableEntries=*/16,
+                                         /*factorCap=*/1};
+  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
+      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
+                                       vectorRegisterBudget);
+  return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
 //===----------------------------------------------------------------------===//

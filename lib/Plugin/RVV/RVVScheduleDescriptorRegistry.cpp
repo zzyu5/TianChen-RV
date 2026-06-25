@@ -119,6 +119,51 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
         /*vectorRegisterBudget=*/kRVVQ51ShapeVectorRegisterBudget,
         /*enumerate12=*/enumerateRVVQ51Q81ShapeCandidates);
 
+  // The CODEBOOK class (FP4 family): iq4_nl + mxfp4. They share the codebook
+  // enumeration verbatim (the {m1, mf2} anchor set + the gather-VLMAX>=16 prune);
+  // they differ ONLY in block strides + codebook values (DATA the gearbox never
+  // reasons over). Like q8_0 their elided-correct anchor MOVES with VLEN -- the mf2
+  // anchor is pruned at VLEN128 (gather VLMAX 8 < 16) but admitted at VLEN256 (the
+  // ggml `_vl256` shape), so the SEMANTIC minimum_vlen attr the verifier recomputes
+  // the gather legality from is stamped (single source of truth).
+  if (kernelKey == "iq4_nl") {
+    RVVScheduleMaterializationDescriptor descriptor =
+        makeBlockDotScheduleDescriptor(
+            /*kernelKey=*/"iq4_nl",
+            /*attrPrefix=*/"tcrv_rvv.iq4_nl_schedule",
+            /*producerName=*/"rvv-iq4-nl-autotuner",
+            /*measuredReason=*/
+            "measured-fastest legal IQ4_NL shape (on-board best-of-N; "
+            "tuning-record-backed)",
+            /*staticReason=*/
+            "min-cost legal IQ4_NL codebook shape (capability-blind structural "
+            "cost shared with Q4_0; the codebook i8 gather anchor admitted only "
+            "where its VLMAX spans the 16-entry table at the derived minimum VLEN)",
+            /*vectorRegisterBudget=*/kRVVCodebookShapeVectorRegisterBudget,
+            /*enumerate12=*/enumerateRVVCodebookShapeCandidates);
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    return descriptor;
+  }
+
+  if (kernelKey == "mxfp4") {
+    RVVScheduleMaterializationDescriptor descriptor =
+        makeBlockDotScheduleDescriptor(
+            /*kernelKey=*/"mxfp4",
+            /*attrPrefix=*/"tcrv_rvv.mxfp4_schedule",
+            /*producerName=*/"rvv-mxfp4-autotuner",
+            /*measuredReason=*/
+            "measured-fastest legal MXFP4 shape (on-board best-of-N; "
+            "tuning-record-backed)",
+            /*staticReason=*/
+            "min-cost legal MXFP4 codebook shape (capability-blind structural "
+            "cost shared with Q4_0; the codebook i8 gather anchor admitted only "
+            "where its VLMAX spans the 16-entry table at the derived minimum VLEN)",
+            /*vectorRegisterBudget=*/kRVVCodebookShapeVectorRegisterBudget,
+            /*enumerate12=*/enumerateRVVCodebookShapeCandidates);
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    return descriptor;
+  }
+
   if (kernelKey == "q4_0_q8_0_gemm") {
     // The GEMM descriptor: a SINGLE M knob (activation_cols), the vreg-ceiling
     // resource bound, and the GEMM-specific audit flavor. stampHasZvl128b is left

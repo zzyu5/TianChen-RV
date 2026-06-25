@@ -867,6 +867,28 @@ bool GgmlBlockDotQ51Q81Op::isSchedulePinned() {
          static_cast<bool>(getStripElision());
 }
 
+// The CODEBOOK-class block-dots (FP4 family). They carry the SAME bounded shape
+// knobs the Family-A siblings do (integer_core_lmul / multi_block_factor /
+// strip_elision), so the SAME pin predicate applies; their gearbox descriptor
+// enumerates the codebook anchor set {m1, mf2} (the i8 gather VLMAX>=16 fact).
+llvm::StringRef GgmlBlockDotIQ4NLQ80Op::getScheduleKernelKey() {
+  return "iq4_nl";
+}
+bool GgmlBlockDotIQ4NLQ80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
+llvm::StringRef GgmlBlockDotMXFP4Q80Op::getScheduleKernelKey() {
+  return "mxfp4";
+}
+bool GgmlBlockDotMXFP4Q80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul()) ||
+         static_cast<bool>(getMultiBlockFactor()) ||
+         static_cast<bool>(getStripElision());
+}
+
 llvm::StringRef GgmlGemmQ40Q80Op::getScheduleKernelKey() {
   return "q4_0_q8_0_gemm";
 }
@@ -3878,6 +3900,14 @@ mlir::LogicalResult GgmlBlockDotIQ4NLQ80Op::verify() {
                 "m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a wider anchor "
                 "would be mis-widened";
   }
+  // NOTE the I7 fail-closed guard for the UN-scheduled (attr-less) codebook op at a
+  // sub-128 target is NOT here: an attr-less op with no minimum_vlen is the LEGAL
+  // pre-schedule input the materialize-schedule pass must verify to run on it, and
+  // the sub-128 pass run leaves the op attr-less with NO minimum_vlen stamped -- so
+  // the verifier cannot distinguish the legal pre-schedule input from the unsafe
+  // sub-128 leftover. The guard lives at the LOWERING boundary instead (the emitter
+  // refuses an attr-less codebook op fail-closed), where the unscheduled op can only
+  // be the unsafe one: every VLEN>=128 lowering path stamps a legal m1/mf2 first.
 
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
   // the outer block loop processes 1 (default), 2, or 4 blocks per iteration. It
@@ -4090,6 +4120,13 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
                 "m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a wider anchor "
                 "would be mis-widened";
   }
+  // NOTE (SAME as the iq4_nl sibling): the I7 fail-closed guard for the UN-scheduled
+  // (attr-less) codebook op at a sub-128 target is NOT here. An attr-less op with no
+  // minimum_vlen is the LEGAL pre-schedule input the materialize-schedule pass must
+  // verify, and the sub-128 pass run leaves it attr-less with NO minimum_vlen -- so
+  // the verifier cannot distinguish the legal input from the unsafe leftover. The
+  // guard lives at the LOWERING boundary (the emitter refuses an attr-less codebook
+  // op fail-closed), where the unscheduled op can only be the unsafe one.
 
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
   // 1 (default), 2, or 4 blocks per outer iteration (byte-exact: the per-block
