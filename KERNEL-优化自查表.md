@@ -24,7 +24,7 @@
 | q3_K |  | 1.15× |  |  | 0.55× |  | N/A |
 | q5_K |  | 1.30× |  |  | 1.00× |  | N/A |
 | q2_K | N/A | N/A |  |  | 1.02× |  | N/A |
-| q8_0 | 1.07×(注1) | 1.07×(注1) |  |  |  |  | N/A |
+| q8_0 | 1.08×(注12) | **1.17×(注12)** |  |  |  |  | N/A |
 | q4_1 | 1.03×(注1) | 1.11×(注1) |  |  |  |  | N/A |
 | q4_0 | 1.01×(注1) |  |  |  |  |  | N/A |
 | q5_0 | N/A | N/A |  |  |  |  | N/A |
@@ -140,6 +140,7 @@
 - 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
 - 注10:**IQ k1 micro(2026-06-25,12 格 vs-ggml·k1 全填)**——对手 = ggml 出厂在 k1 实际派发的 `_vl256` kernel(不是 rvv 列用的 `_vl128`;k1 `vlenb=32→VLEN256` 已 1 行二进制 probe)。**全 7 个 IQ 都 byte-exact(0.000e+00)、全 LOSS,比值 0.20–0.66**(ggml 1.5–5.1× 快)。注意:k1 比 rvv 列「好很多」(iq3_xxs 0.12→0.20)**是 emitter 从「标量查表」成熟到「真 vluxei16 整块查」**带来的,**不是 VLEN256 效应**——rvv 列那些数是旧 0-vluxei emit,两列不可直接比。残留 1.5–5× = gather LMUL/打包旋钮,非 primitive 缺失。详见 `k1-micro-fill-FINDING.md`。
 - 注11:**FP4/ternary k1 micro(同上,vs `_vl256`)**——rvv 上的 FP4「赢」**不传导到 k1**:iq4_nl 1.32→0.84、mxfp4 1.21→0.80、iq4_xs 1.28→**1.04 TIE**(稳定 ×3,唯一非 LOSS,已按纪律复核);tq2_0 0.60→0.36、tq1_0 0.44→0.36。原因:VLEN256 上 ggml `_vl256` 用的正是我们在 VLEN128 上靠它赢的 mf2 split-16 gather 形状 + 2-blocks/iter 打包,而我们的 emit 仍是 VLEN128 形(`vsetvl_e8m1(16)`=VLEN256 下半个 m1 寄存器,sub-VLMAX)。rvv FP4 赢是 VLEN128 形状产物、非可移植优势。全部 byte-exact(iq4_xs/tq1_0 整数 bit-exact + 小 fp-reassoc)。命名 gearbox 目标 = VLEN-aware FP4/ternary lowering(VLEN256 出 mf2/e8m1-at-32 而非硬钉 vsetvl(16))。
+- 注12:**q8_0 = Win-A 砖#1「能力驱动 lowering」成熟化(2026-06-25,commit a874a56b,两板封印)**——以前 q8_0 的档是 capability-blind cost model 写死选 m2。现在 **gearbox 按真 VLEN fact 选**:VLEN128→m2-elided / VLEN256→m1-elided,**256 阈值从 strip-VLMAX 算术涌现**(非硬编码 `if VLEN>=256`)。**两板 byte-exact 各 2400/2400**(k1 m1-elided 是全新 emit,load-bearing,无 fold-back 回归)。micro:k1 m1 比 m2 **+17.2%**、rvv m2 比 m1 +7.9%(对齐历史)。**关键:这不只是「挑快的」——在 VLEN128 强行 m1-elided 会 11/12 算错(半个 block 没加),所以这个选择是 gearbox `VLMAX≥blockLen` 剪枝守住的【正确性边界】**。这是"同一算子按能力 lower 成不同、且各自正确的码"的首个非-NULL 实证。详见 `q8-vlen-flip-BOARD-FINDING.md`。
 
 ---
 
@@ -161,8 +162,8 @@
 | 维度 | Triton 后端会做 | 我们现在 | 判定 |
 |---|---|---|---|
 | **派发**(选哪个 family/target) | 按 target 选后端 | capability-fact 选 RVV/IME,**零 core 分支、非字符串匹配** | ✅ 成熟、且是 novelty(N1/N2) |
-| **算法选择**(repack vs block-dot) | Triton 不做(用户写) | option-2 编译器按能力选,实测对 | ✅ 比 Triton 还多一层(N3) |
-| **宽度/LMUL 选择** | 自动 layout assignment | Gearbox 按 VLEN 自动选 LMUL/strip(2-3 选 1 + 可选实测) | 🟡 有,但只 1 个 capability bit,弱 |
+| **算法选择**(repack vs block-dot) | Triton 不做(用户写) | repack/option-2 = **前端贡献**(改算法/布局),有价值但**不是后端 novelty**;伸进 ggml 加载布局已越界,demote | ⬜ 前端栏,不计入后端成熟度 |
+| **宽度/LMUL 选择** | 自动 layout assignment | Gearbox 按**真 VLEN fact** 选 LMUL——**砖#1 q8_0 已封印**:VLEN128→m2/VLEN256→m1,阈值从 VLMAX 算术涌现,两板 byte-exact,且是正确性边界(注12) | 🟢 砖#1 done;待推广更多 kernel + 真资源 fact 剪枝 |
 | **向量化 + 指令选择** | 从 tile IR **自动**生成向量指令 | **手写**:emitter 里逐条敲 `__riscv_*`(~100 个),每个 quant 一个 emit 方法 | ❌ **手写,非自动**——「像玩具」的根源 |
 | **软件流水 / ILP** | **自动**流水 pass | **手写**:emitter 里手摆 2-strip 交错;无任何自动流水 pass | ❌ 手写 |
 | **通用 lowering** | 一个通用 pass 处理所有 kernel | **部分**:有通用 `emitWideningDotReduce`/`emitDequantize` 原语,但每个 quant 的解包是逐 kernel 手写(24 个) | 🟡 半通用 |
