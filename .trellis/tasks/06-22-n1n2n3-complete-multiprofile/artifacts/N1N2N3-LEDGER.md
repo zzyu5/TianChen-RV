@@ -601,3 +601,18 @@ system (layout-as-input makes the COMPILER clean; the SYSTEM still picks {dual-s
 pick-one} and pays — it does NOT dissolve), so every e2e number must name its mechanism. **C3-C5 (producer + harness
 honoring + 2 ggml patches + 2-profile e2e) is the remaining hardware/multi-session bulk** (`option2-stageC-revised-
 layout-contract-DESIGN.md`); C1+C1b prove the compiler half lit-only.
+
+### 10.1 M1 + M2 — the in-compiler selection is now GROUNDED in a real e2e (2026-06-25)
+- **M1 (`a1f04f0e`, emit-identity, host):** the auto-SELECTED path (abstract op → `--tcrv-rvv-lower-quant-contraction=
+  march=rv64gcv` → repack op → emitc) emits a kernel **byte-identical** (SHA `9da66267`) to the DIRECT repack-op emit —
+  the compiler now AUTO-SELECTS the repack (previously hand-chosen in the input IR, [[repack-winA-always-mf2]]) and
+  auto-emits the same mf2/RVV1.0 kernel. Closes the auto-SELECTION gap. (NOT the 2.6× — that is M2.)
+- **M2 (`67ace606`, e2e SEAL, ssh rvv):** three-way byte-seal (SHA `dacef0be` = fresh emit == archived 06-22 emitted-mf2
+  == board `.inc`; emitted-not-hand via 46 `source_op` annotations) + live-board objdump engagement (`ggml_gemv_q4_0_16x1_
+  q8_0` → the tcrv-emitted mf2 kernel) + in-session A/B vs ggml's REAL RVV `ggml_vec_dot_q4_0_q8_0` (objdump-confirmed
+  vector): **t1 7.0× (reproduces the prior 7.05× exactly), t16 ~2.6–3.3×.** So the AUTO-SELECTED kernel achieves the e2e
+  win — **option-2's in-compiler selection is now sealed to a real e2e number.** HONEST: it is a **SEAL** (byte-
+  predetermined — the auto-selected kernel IS the e2e-winning emitted kernel), NOT an independent new number; anchor on
+  the reproducible t1 7.0× + the byte-identity (t16 didn't reproduce on either arm). Mechanism = **STORED-x16** (load-time
+  pack, memory-locality; NOT per-call JIT). **C3 integration-AUTOMATION still OPEN** (M2 uses hand patches + hand
+  `.inc`-swap = C4); the producer that auto-authors the abstract op in the real pipeline is unbuilt.
