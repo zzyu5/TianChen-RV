@@ -135,7 +135,7 @@
 - 注2:ggml 在 riscv 上根本没写 nvfp4 的向量 kernel(只有标量),没有合法对手 = N/A。
 - 注3:q4_1 repack 想跑 llama,需要 ggml 提供一个配套的激活打包器,ggml 没有 → 接不进去(不是我们没做)。
 - 注4:**q4_1 repack 的 prefill(GEMM)旋钮 = 1.24×(WIDE/NARROW),byte-exact(2026-06-25,rvv VLEN128)**——WIDE(m1)比 NARROW(mf2)快,同一个 `repack_gemm_q4_1_q8_1` op、改 strip-width 旋钮(默认 mf2 / xtheadvector-stamp m1)、读同样的字节、WIDE↔NARROW norm 0.000e+00。LMUL 两档 source-grep 证明 disjoint(SG2044 objdump 解不了 RVV vtype)。报 min(min 是 best-of-reps 正确估计:噪声只会加时间),square 最低 1.24× / mlp 1.31×;更高的 1.5× 是 NARROW 在板子负载累积下 min 抬高的上界噪声,非更大真赢。**这是手动 stamp 的 m1 vs 默认 mf2 旋钮 ON/OFF,不是 RVV1.0 auto-tune 赢**。机理未隔离(GEMM 的 WIDE 反而 vle8 更多,与 GEVM 相反,所以不是 strip-count 减半——只报实测比值)。e2e 仍上游卡(无 q8_1x4 量化器)。GEMM 正确性 vs scalar oracle 早已验过(archive GAP 2,norm ≤7.6e-6)。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-q41-q10-FINDING.md`。
-- 注5:q8_0 在 k1 上选宽档比窄档快 1.95×,但这个选择有没有传导到 llama e2e 还没测(最该补的)。
+- 注5:**q8_0 repack e2e routing 已查清(2026-06-25,k1)**——routing **有利**:q8_0 decode 在 k1 VLEN256 确实走我们的 repack GEVM(`ggml_gemv_q8_0_16x1_q8_0`,**不像 q4_K 被 GEMM 绕过**),我们的 kernel 是出厂 decode 路径。但两个定性结论已定了战略答案:① **没有 q8_0 GEMM emitter** → 旋钮只管 decode,prefill flat-by-construction;② **ggml 出厂的 `q8_0_16x1` 本身就是 WIDE 档**(单 16-lane mf2 strip),我们 gearbox 从 VLEN256 fact 推出同一 WIDE → **parity(选择器收敛到专家手写选择)**,同 q4_0 0.997× TIE,**不是赢 ggml**。精确 WIDE/NARROW decode 比值(确认 1.95× micro 是否传导)需在 k1 重建 ggml-cpu 跑 llama-bench,**卡在权限门未取**(staged 可逆);但战略答案=parity 已清楚。详见 `q8-repack-e2e-FINDING.md`。
 - 注6/7/8:见表 4、表 5 上文。
 - 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
 - 注10:**IQ k1 micro(2026-06-25,12 格 vs-ggml·k1 全填)**——对手 = ggml 出厂在 k1 实际派发的 `_vl256` kernel(不是 rvv 列用的 `_vl128`;k1 `vlenb=32→VLEN256` 已 1 行二进制 probe)。**全 7 个 IQ 都 byte-exact(0.000e+00)、全 LOSS,比值 0.20–0.66**(ggml 1.5–5.1× 快)。注意:k1 比 rvv 列「好很多」(iq3_xxs 0.12→0.20)**是 emitter 从「标量查表」成熟到「真 vluxei16 整块查」**带来的,**不是 VLEN256 效应**——rvv 列那些数是旧 0-vluxei emit,两列不可直接比。残留 1.5–5× = gather LMUL/打包旋钮,非 primitive 缺失。详见 `k1-micro-fill-FINDING.md`。
@@ -174,11 +174,11 @@
 |---|---|---|---|
 | **派发**(选哪个 family/target) | 按 target 选后端 | capability-fact 选 RVV/IME,**零 core 分支、非字符串匹配** | ✅ 成熟、且是 novelty(N1/N2) |
 | **算法选择**(repack vs block-dot) | Triton 不做(用户写) | repack/option-2 = **前端贡献**(改算法/布局),有价值但**不是后端 novelty**;伸进 ggml 加载布局已越界,demote | ⬜ 前端栏,不计入后端成熟度 |
-| **宽度/LMUL 选择** | 自动 layout assignment | Gearbox 按**真 VLEN fact** 选 LMUL——**砖#1 q8_0 已封印**:VLEN128→m2/VLEN256→m1,阈值从 VLMAX 算术涌现,两板 byte-exact,且是正确性边界(注12) | 🟢 砖#1 done;待推广更多 kernel + 真资源 fact 剪枝 |
+| **宽度/LMUL 选择** | 自动 layout assignment | Gearbox 按**真 VLEN fact** 选 LMUL,阈值从 VLMAX 算术涌现、两板 byte-exact。**砖#1 q8_0**(VLEN128→m2/VLEN256→m1,正确性边界,注12)+ **砖#2 FP4 codebook**(VLEN256 自动选 mf2 宽形,把 0.80 LOSS 拉回 parity,注14)**已封印**;gearbox 已泛化到 q8_0/q4_0/q5_0/codebook 等 | 🟢 2 砖 done,真后端在做;待推广更多 kernel + cost model 真资源 fact 剪枝(现仍 1-bit) |
 | **向量化 + 指令选择** | 从 tile IR **自动**生成向量指令 | **手写**:emitter 里逐条敲 `__riscv_*`(~100 个),每个 quant 一个 emit 方法 | ❌ **手写,非自动**——「像玩具」的根源 |
 | **软件流水 / ILP** | **自动**流水 pass | **手写**:emitter 里手摆 2-strip 交错;无任何自动流水 pass | ❌ 手写 |
 | **通用 lowering** | 一个通用 pass 处理所有 kernel | **部分**:有通用 `emitWideningDotReduce`/`emitDequantize` 原语,但每个 quant 的解包是逐 kernel 手写(24 个) | 🟡 半通用 |
 
-**一句话**:我们现在是「**capability 驱动的选择/派发层 + 手写 kernel 体**」。**选择/派发那层是真后端、是 novelty**(派发非字符串、还能选算法);但**代码生成那层(向量化/流水)是手写的,没有从 tile IR 自动 lower**——这就是为什么「去了字符串匹配,却还是手写 kernel 库」。
+**一句话(2026-06-25 更新)**:**后端的"能力驱动 lowering 选择"这一层,从"capability-blind、写死一档"升级成了"按真 VLEN fact 自动选、两板 byte-exact、阈值从 VLMAX 算术涌现"——2 块砖封印(q8_0 正确性边界 + FP4 codebook LOSS→parity),且 gearbox 泛化到多个 kernel。这是真后端在做能力驱动 lowering、是 novelty,不再是"只会选不会 lower"。** 但要诚实分清还没做的:**指令级代码生成(向量化/软件流水)仍是手写的**(emitter 逐条敲 `__riscv_*`,无自动向量化/流水 pass),所以现在是「**能力驱动的 lowering-选择 + 手写指令体**」。前端那栏(repack/算法选择)价值另算、不混进后端 novelty。
 
-**通往成熟 Triton 后端的关键一步**(不是重写整个项目):把**一个** kernel 类(比如 dot-reduce)做成「从 tile/vector-dialect 级表示**自动**向量化 + 自动选 LMUL + 自动流水」的通用 lowering,证明后端能**自动生成**而不只是手写。这是把「玩具感」变「成熟 compiler」最直接、可论证的一步。**MLIR 的 vector/linalg dialect 我们现在一个都没用**(直接手写 EmitC)——这正是要补的入口。
+**还差什么(诚实)**:(1) cost model 仍 capability-blind(只 1-bit),真资源 fact 剪枝(ELEN/vreg/mask/tail)没做;(2) 指令级 emit 仍手写,**没有从 tile/vector-dialect 自动向量化+自动流水**(MLIR vector/linalg 一个没用)——这是"成熟 Triton 后端"最大的一块,但是改方向的大工程,当独立决策。**当前 2 砖证明了"能力驱动选择"这条是真后端、可两板封印,这是把"玩具感"变"成熟 compiler"已经落地的部分。**
