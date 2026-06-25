@@ -131,6 +131,12 @@ private:
   /// single-output-column expansion.
   static bool isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The q5_0 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl
+  /// scope whose ONLY compute op is a single tcrv_rvv.repack_gemv_q5_0_q8_0. The
+  /// op identity is the dispatch key; the emitter owns the block-as-lane
+  /// expansion with the transposed bit-packed qh 5th-bit decode.
+  static bool isRepackGemvQ5_0Q8_0Body(tcrvrvv::WithVLOp scope);
+
   /// The option-2 stage-C1b PACK (materialize) recognizer: a with_vl scope whose
   /// ONLY compute op is a single tcrv_rvv.pack_q4_0_to_q4_0x16. The op identity
   /// is the dispatch key; the emitter owns the scalar gather + ^0x88 pack body.
@@ -1098,6 +1104,20 @@ private:
   /// the byte-exactness proof). All intrinsics are emitc.call_opaque nodes; the
   /// scale fold feeds the raw _Float16 a[l].d into vfwmul_vf (NO float cast).
   mlir::LogicalResult emitRepackGemvQ4_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The q5_0 block-as-lane sibling of emitRepackGemvQ4_0Q8_0: q5_0 is q4_0 plus
+  /// the 5th high bit. The weight side is block_q5_0x16 (16 interleaved rows, RAW
+  /// nibbles at +32, a 64-byte TRANSPOSED bit-packed qh region at +288 carrying
+  /// one 16-bit mask per element step, NON-inverted bias bit). Per nibble step
+  /// the lane decode expands the qh mask (mask[i] >> h*half, splat, vsrl by lane
+  /// id, vand 1 -> qh_bit), assembles the UNSIGNED A = nibble | (qh_bit<<4),
+  /// reinterprets u8->i8, then subtracts 16 (vsub) -- the q5_0 offset-binary -16
+  /// ((nibble | (qh_bit<<4)) - 16). Activation + dual-fp16 scale fold are
+  /// byte-identical to the q4_0 GEMV.
+  mlir::LogicalResult emitRepackGemvQ5_0Q8_0(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

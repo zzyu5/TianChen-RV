@@ -4447,6 +4447,107 @@ def GgmlRepackGemvQ40Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemvQ50Q80Op
+    : TCRVRVV_Op<"repack_gemv_q5_0_q8_0",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q5_0 x Q8_0 16x1-REPACKED GEMV (block-as-lane) op";
+  let description = [{
+    Records the COMPLETE ggml q5_0 16x1-REPACKED GEMV hot kernel as ONE bounded
+    generic plugin-local typed RVV dataflow step. It is the SINGLE-OUTPUT-COLUMN
+    (decode) q5_0 sibling of tcrv_rvv.repack_gemv_q4_0_q8_0: the weight side is a
+    block_q5_0x16 block-as-lane layout (the 16 interleaved weight rows of a group
+    occupy 16 distinct vector lanes so the dot accumulates LANE-WISE via vwmacc,
+    NO cross-lane vredsum -- the per-block reduction wall is gone), and the
+    activation is ONE plain block_q8_0 stream (NOT the GEMM's interleaved
+    block_q8_0x4): a single activation column.
+
+    q5_0 is q4_0 PLUS the 5th high bit. Each weight is reconstructed
+    `((qs_4bit) | (qh_1bit << 4)) - 16` (ggml dequantize_row_q5_0 /
+    ggml_vec_dot_q5_0_q8_0): the low-half element j (j in [0,16)) takes qh bit j,
+    the high-half element j+16 takes qh bit j+16. To stay a LANE-WISE streaming
+    kernel the block_q5_0x16 repack TRANSPOSES the qh field (lanes are the 16
+    blocks, not the 32 elements): a 64-byte bit-packed qh region carries, for each
+    of the 32 element steps, ONE 16-bit mask whose bit b is block b's qh bit for
+    that element. The 5th-bit bias is stored NON-inverted (mask bit = qh_bit) so
+    the lane decode assembles the UNSIGNED `A = nibble | (qh_bit << 4)` in [0,31],
+    reinterprets u8->i8 (value-identity), then subtracts 16 (`vsub`) to land the
+    offset-binary weight in [-16,15] -- the PROVEN block-dot reconstruct
+    (`((nibble) | (qh_bit << 4)) - 16`, the q5_0 analog of q4_0's `^0x88`
+    two's-complement bake). The qs nibbles keep the SAME 16-way
+    interleave as block_q4_0x16, stored RAW (the bias lives in the assembled
+    5-bit field, NOT the nibble), so the nibble-load path is byte-identical to the
+    q4_0 GEMV. The bit-packed qh keeps the repacked block stride at 352 = 16*22,
+    byte-exactly the plain q5_0 bytes for the same 512 weights (no byte blow-up;
+    the win comes from killing the per-block vredsum + scattered qh reads, the
+    q4_0 1.22->2.6x regime, NOT from fewer bytes).
+
+    At VLEN=128 an e16m1 vector holds only 8 i16 lanes, so each 16-block-as-lane
+    group is processed as TWO disjoint contiguous halves of 8 lanes each (rows
+    0..7 then rows 8..15) inline; the per-half qh mask is `mask[e] >> (h*half)`.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
+    ABI value operands -- the repacked q5_0x16 weight base pointer (vx), the plain
+    q8_0 activation base pointer (vy), the fp32 output base pointer (s) -- plus the
+    runtime contraction element count (n) and the runtime weight-column count (nc),
+    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the nc fp32 results through the
+    output pointer.
+
+    The structural facts -- QK=32, the repacked weight block stride (352 for
+    block_q5_0x16), the plain activation block stride (34 for block_q8_0), the
+    repacked weight nibble byte offset (qs at +32 after the 16 inline fp16 scales),
+    the repacked weight qh byte offset (the transposed bit-packed qh masks at +288
+    after the 256 nibble bytes), the plain activation quant byte offset (qs at +2),
+    the weight interleave width (16), the resource-aware e16m1 strip width
+    (half_lanes, 8 at VLEN=128, 16 at VLEN=256), and the dual-fp16 scale model --
+    are carried as typed integer/string attributes (I4 mirror only). The fixed
+    emission is the op's lowering, NOT a candidate-mirror string read. The bounded
+    surface kind is limited to "ggml_repack_gemv_q5_0_q8_0" and scale_model to
+    "dual-fp16-per-block-d_x.d_y".
+
+    The optional `integer_core_lmul` attribute is the bounded resource/scheduling
+    anchor (the *how*, never the *what*): "mf2" (default, the RVV1.0 fractional
+    chain i8mf2 -> i16m1 -> i32m2 -> f32m2 at half_lanes e16m1 lanes per strip) or
+    "m1" (the RVV0.7.1 whole-LMUL chain i8m1 -> i16m2 -> i32m4 -> f32m4, ONE
+    16-lane strip; half_lanes MUST be 16). The verifier pins the legal
+    (integer_core_lmul, half_lanes) combinations fail-closed (I7).
+
+    This op pins the 16x1 repacked q5_0 GEMV ABI fail-closed (I7): the byte layout
+    the kernel depends on (weight 352/+32 qs/+288 qh/16, activation 34/+2). A
+    malformed typed body cannot lower under this emission.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$column_count `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($column_count) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlPackQ40ToX16Op
     : TCRVRVV_Op<"pack_q4_0_to_q4_0x16",
     [TCRVEmitCLowerableOpInterface]> {
