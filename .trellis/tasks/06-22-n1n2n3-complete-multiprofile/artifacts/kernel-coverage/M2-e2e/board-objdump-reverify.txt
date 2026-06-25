@@ -1,0 +1,31 @@
+# M2 objdump re-verification on live board libggml-cpu.so (Jun 25 01:06, .inc dacef0be)
+# Captured fresh during check-agent verification.
+
+## board .inc sha256
+dacef0bef36dc9774a49025e75019b8998dbbc83fbe93b07e3555b3220e8030a  /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/arch/riscv/tcrv_emitted_repack_gemv.inc
+
+## ENGAGED: ggml_gemv_q4_0_16x1_q8_0 tail-jumps to emitted kernel
+0000000000014e60 <tcrv_emitc_ggml_repack_gemv_q4_0_q8_0_kernel_ggml_repack_gemv_q4_0_q8_0@plt>:
+
+## emitted kernel window (0x9b1c4..0x9b6da) vset configs -- mf2 NARROW, NO WIDE e8,m1/e16,m2
+      2  0c707057 vsetvli zero,zero,e8,mf2,ta,ma
+      2  0c807057 vsetvli zero,zero,e16,m1,ta,ma
+      1  0d107057 vsetvli zero,zero,e32,m2,ta,ma
+      1  cc747057 vsetivli zero,8,e8,mf2,ta,ma
+      1  cd147057 vsetivli zero,8,e32,m2,ta,ma
+
+## emitted kernel compute ops (vwmacc strip, vse32 stores, NO vwredsum)
+      2 vfmacc.vv
+      2 vfwmul.vf
+      6 vse32.v
+     64 vwmacc.vx
+
+## OFF baseline ggml_vec_dot_q4_0_q8_0 -- REAL RVV, not scalar (design risk #2)
+      2 vadd.vi
+      1 vand.vi
+      3 vle8.v
+      1 vsetvli
+      1 vsrl.vi
+      1 vwmacc.vv
+      1 vwmul.vv
+      1 vwredsum.vs
