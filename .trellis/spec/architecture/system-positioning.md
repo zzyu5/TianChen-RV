@@ -46,7 +46,13 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 
 **N3 — capability/resource-aware 跨 family tuning.** 在 capability 条件下选实现变体并调 variant-local resource 参数（RVV: LMUL/SEW/VL policy/unroll/thread partition；IME: fragment shape/K blocking/accumulator/packing；Offload: transfer threshold/batch/async overlap/buffer reuse）。影响生成代码的选择必须 realize 进 typed body（不是 status 或 metadata-only plan）。契约见 [variant-pipeline](../variant-pipeline/generation-selection-tuning.md)。
 
-> "variant 容器""plugin 化"本身不是 novelty——MLIR 已提供。novelty 在 N1–N3 的**整合 + 证据**：异构 capability 建模、零-core-branch 泛化（用第二 family 证明）、capability 驱动且实测胜出的 tuning。
+**对标 Triton 后端，不是 TVM.** 我们是"拿**给定的算子 + 给定的布局**自动生成该硬件最优码"的能力驱动后端，不是自动搜调度 / 选算法的 TVM。N3 的后端面就是这条：capability 驱动的 lowering 选择/生成。
+
+**前端 vs 后端的判别（契约级，其他文件引用此处，不重抄）**：一个选择属于后端 N3 ⟺ 它只改"一个**固定的** op+layout 怎么被 lower / tune"（codegen 内部）；它属于**前端**（库 / autotuner / 框架的事）⟺ 它改了交给后端的那个 **op 或 layout 本身**。
+- 后端 N3（对）：capability 决定 VLEN→LMUL/SEW/VL-policy/宽度选择、自动生成 body——对**给定 op+layout** 调 codegen。
+- 前端（错，当作 N3 后端 novelty 是误判）：编译器"选 repack-vs-block-dot 算法"、weight-packing/repack、伸进框架（ggml）的加载布局——这些改的是 op/algorithm/layout 本身，是库/autotuner 贡献（有价值，但不是后端 novelty）。这条判别**修订**了"N3 = 编译器选 repack-vs-block-dot 算法"的旧表述：那条 demote 到前端栏。
+
+> "variant 容器""plugin 化"本身不是 novelty——MLIR 已提供。novelty 在 N1–N3 的**整合 + 证据**：异构 capability 建模、零-core-branch 泛化（用第二 family 证明）、capability 驱动且实测胜出的 tuning（对给定 op+layout 的能力驱动 lowering，不是选/改算法）。
 
 ## Non-Architecture
 

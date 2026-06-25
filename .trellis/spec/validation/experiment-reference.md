@@ -239,6 +239,10 @@ number names a real contribution, not an artifact of a weak comparand:
   - **Win-B** = a generated kernel that changes the *algorithm* (e.g. the repack). Baseline = the framework's
     OWN shipped optimized kernel for the target ISA (e.g. ggml's real RVV `vec_dot`), NOT scalar, NOT a
     hand-written "naive", NOT the `_generic` fallback.
+    *(Changing the algorithm/layout is a frontend/library contribution, NOT a backend N3 novelty — the
+    backend N3 face is capability-driven lowering of a FIXED op+layout; see the frontend-vs-backend
+    discriminator in [system-positioning](../architecture/system-positioning.md) N3 boundary. Win-B is kept here
+    as honest-measurement discipline, not as an N3 backend claim.)*
   - **Win-C** = an automatic *pass* that changes algorithm structure. Baseline = pass OFF vs ON. A
     hand-authored kernel is Win-B, never relabeled as an automatic-pass contribution.
     **A pass-ON/OFF number is NOT automatically a *structural* win.** If the ON arm changes BOTH the
@@ -260,8 +264,11 @@ number names a real contribution, not an artifact of a weak comparand:
   NOT by the repack's lane-shape (the 2×8 mf2 form IS the correct VLEN128 tiling; the 2-strip split is
   beneficial ILP — the q8_0 NARROW>WIDE ISO datum). The repack wins only when the same-VLEN fallback is a
   HEAVY kernel it out-streams; against a LEAN fallback or a hand-tuned VLEN-native kernel it LOSES, and the
-  resource-aware tune should DECLINE it (select the fallback = match the framework) — a correct measured-best
-  PATH selection (N3), NOT a kernel bug and NOT a Win-B speedup. *(Verified 2026-06-24: q4_0 repack WINS
+  tune should DECLINE it (select the fallback = match the framework's own algorithm) — declining = matching
+  the framework = loss-avoidance, NOT a backend N3 contribution. Choosing repack-vs-fallback is an
+  algorithm/layout choice (frontend/library), NOT capability-driven lowering of a fixed op+layout (the
+  backend N3 face); see [system-positioning](../architecture/system-positioning.md) N3 boundary. It is NOT a
+  kernel bug and NOT a Win-B speedup. *(Verified 2026-06-24: q4_0 repack WINS
   @VLEN128 vs ggml's HEAVY vec_dot; q8_0 LOSES vs ggml's LEAN vec_dot; q4_K LOSES vs ggml's hand-tuned
   _vl128 — all at the SAME correct 2×8 mf2 shape. See SHAPE-AWARE-REPACK-TUNE-DESIGN.md.)*
 - Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
