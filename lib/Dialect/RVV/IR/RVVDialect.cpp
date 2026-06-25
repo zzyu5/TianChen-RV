@@ -2998,18 +2998,22 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for standalone reduction scalar result dataflow";
-  // The scalar accumulator/result channel of a WIDENING reduction is the i32
-  // reduction TARGET, which is structurally wider than a sub-word strip SEW: a
-  // byte-anchor (SEW8) or i16 (SEW16) strip widens INTO an i32m1 scalar lane.
-  // For these widening strip scopes the result-width-vs-strip-SEW agreement does
-  // NOT apply (the channel is the reduction target, not the strip width); the
-  // i32 SEW32 element width is enforced structurally by the widening-reduce
-  // branch in StandaloneReduceOp::verify above. The non-widening (SEW32-strip)
-  // route still requires the result element width to match the scope SEW.
-  const bool isSubWordWideningStripScope =
-      expectedSEW.getInt() == getRVVSEW8Bits() ||
-      expectedSEW.getInt() == getRVVSEW16Bits();
-  if (!isSubWordWideningStripScope &&
+  // The scalar accumulator/result channel of the Track B byte-anchor WIDENING
+  // dot-reduce is the i32 reduction TARGET, which is structurally wider than the
+  // SEW8 byte-anchor strip: a SEW8 strip widens INTO an i32m1 scalar lane. On
+  // that byte-anchor scope the result-width-vs-strip-SEW agreement does NOT apply
+  // (the channel is the reduction target, not the strip width); the i32 SEW32
+  // element width is enforced structurally by the byte-anchor widening-reduce
+  // branch in StandaloneReduceOp::verify above. Every other route -- including
+  // the i16-strip (SEW16) deferred-wide trailing reduce, which reaches this
+  // helper with an i32m1 result via the deferred_accumulate marker and is
+  // verified by its own branches, and the non-widening SEW32-strip route -- still
+  // requires the result element width to match the scope SEW. (The SEW16 clause
+  // was over-broad dead surface: removing it left all 727 lit tests green, so it
+  // is pinned to SEW8 only -- admit only inside the byte-anchor window.)
+  const bool isByteAnchorWideningStripScope =
+      expectedSEW.getInt() == getRVVSEW8Bits();
+  if (!isByteAnchorWideningStripScope &&
       expectedSEW.getInt() != integerType.getWidth())
     return op->emitOpError()
            << "requires " << role << " element width "
