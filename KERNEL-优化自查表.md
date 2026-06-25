@@ -82,12 +82,12 @@
 
 | 算子 | 能否生成 | k1 硅片正确性 | perf·micro | perf·e2e |
 |---|---|---|---|---|
-| vmadot(有符号×有符号) | ✓ | 对 16/16 |  |  |
-| vmadotu(无×无) | ✓ | 对 16/16 |  |  |
-| vmadotsu(有×无) | ✓ | 对 16/16 |  |  |
-| vmadotus(无×有) | ✓ | 对 16/16 |  |  |
-| mma_slide(滑窗) | ✓ | 对 16/16 |  |  |
-| tiled-matmul | ✓ | 对 |  |  |
+| vmadot(有符号×有符号) | ✓ | 对 16/16 | N/A(注21) | N/A(注21) |
+| vmadotu(无×无) | ✓ | 对 16/16 | N/A(注21) | N/A(注21) |
+| vmadotsu(有×无) | ✓ | 对 16/16 | N/A(注21) | N/A(注21) |
+| vmadotus(无×有) | ✓ | 对 16/16 | N/A(注21) | N/A(注21) |
+| mma_slide(滑窗) | ✓ | 对 16/16 | N/A(注21) | N/A(注21) |
+| tiled-matmul | ✓ | 对 | N/A(注21) | N/A(注21) |
 | IME GEMM 整体性能 | — | — | **5.66×~12.9×**(注6) | 1.0×(注7) |
 
 ---
@@ -155,6 +155,7 @@
 
 - 注19:**标准 quant block-dot vs-ggml·rvv micro 全填(2026-06-25,rvv VLEN128,现有 tcrv-opt 无 rebuild、不改 lib/)**——填 q8_0/q4_1/q4_0/q5_0/q5_1 这 5 格(原全空)。对手 = ggml 出厂真向量 `ggml_vec_dot_*_q8_*`(verbatim 自 quants.c,q5_0/q5_1 走 `vlenb==16` VLEN128 分支),`taskset -c 0` min-of-reps,**5/5 byte-exact gate 先过(max_rel 0.000e+00,8 seed × 6 size)再报 perf**。结果:**q8_0 = 1.19× WIN**(唯一赢)、**q4_0 0.21× / q4_1 0.26× / q5_0 0.26× / q5_1 0.29× = 4 LOSS**(慢 3.4–4.8×)。**单一机理(grep .cpp 确认):是我们 emitter 选的 LMUL/strip 形状,非算法**——q8_0 block-dot **无 nibble 解包**,我们 emit 取 **m2 满 32-lane 单 strip**(`vle8m2`/`vwmul_i16m4`/一次 vwredsum),VLEN128 下 e8m2 VLMAX=32 → 内 strip 循环**恰跑一次**,和 ggml **同形**却仍稳定更快 **~1.17–1.20× WIN**——**两个判别器排除了廉价解释**:① 把 ggml 的 `vmv_v_x_i32m1(0)` 提出循环(loop-invariant)→ 仍 1.167–1.192×(**不是 zero-mv 提升**);② 反转计时顺序(先测 ours)→ 仍 1.200–1.201×(**不是 ordering/cache 假象**)。所以是真·同形 edge,但**机理未隔离**(大概率是我们 emit 的 load 调度/显式临时变量 vs ggml 嵌套表达式),**报 WIN 但不声明机理**;而 4 个 nibble-decode quant 我们都 emit 成 **mf4(¼-LMUL,8-lane)sub-VLMAX strip + 每 strip vsetvl 开销**,ggml 用 m1(16-lane)半块 → 我们 ~2× 更多更窄 strip → LOSS。这是**记录在案的 N3「窄 strip、没调 LMUL/shape」emitter 成熟度坑**(同 q1_0 0.033× / IQ block-dot 一家),**非正确性/选算法问题**;命名 emitter 目标 = **nibble-decode quant 的 wide-LMUL(mf4→m1)block-dot emit**。诚实:这 4 个标准 quant 的算法家在 **repack**(q4_0 repack 是真 2.6× e2e WIN,表2),block-dot 是构件,此处 LOSS 不与 repack WIN 矛盾(不同轴);q8_0 block-dot 本身就是 lean kernel(无 nibble)所以是真宽-strip parity+edge。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-standard-quant-FINDING.md`。
 - 注20:**Track B = 成熟类-Triton 后端核心,第一块两板封印(2026-06-26,commit 85c7f1ab/0ed17da4)**——编译器从一个 **generic `vector.multi_reduction`**(int8→int32 dot-reduce,K=32)**自动构造** RVV body(新前端 `RVVReductionSourceFrontDoor`,LMUL 从 gearbox 能力 fact `deriveMinimumVLEN`+schedule authority 推、**非硬开关**),**不动手写 emitter**。能力翻转:VLEN128→e8m2/vwmul_i16m4、VLEN256→e8m1/vwmul_i16m2。**两板 byte-exact 封印**(rvv 16/16+8/8、k1 16/16+8/8 vs scalar oracle,全 i8 范围 ±127/−128 + 累加循环精确)。trellis-check PASS(verifier 放宽 fail-closed、收紧了 1 处 dead-permissive SEW16、2 砖无回归)。**这是"后端按能力自动生成 lowering(非 per-kernel 手写)"的首个非-NULL+硅片证明**;诚实:窄 novelty=能力 fact 驱动选择融进 vector→tcrv→EmitC(vector→RVV 上游已有,我们不声明"造了 Triton 后端"),只 1 个 bounded contraction,推广全 quant zoo 是后续。一个 tooling gap:production export 路对新 m2 body 默认走 block-quant mf4、需后续接。详见 `trackB-auto-lowering-DESIGN.md` + `trackB-board-FINDING.md`。
+- 注21:**IME 6 个 leaf op 的 perf·micro/e2e = N/A**——它们是**单条 MAC 指令**(vmadot 等),没有"独立 kernel 的性能"可测(一条指令的 perf 无意义);IME 的性能在 **GEMM 层**(末行:micro 5.66~12.9× 是 ggml-spacemit 用这些 leaf 拼的 GEMM、e2e 1.0×=矩阵单元净贡献≈0,注6/7)。leaf 这层能测的是**硅片正确性**(已 16/16 bit-exact),perf 本质 N/A。
 
 ---
 
