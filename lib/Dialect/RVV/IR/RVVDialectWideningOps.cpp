@@ -918,6 +918,15 @@ bool GgmlBlockDotQ51Q81Op::isSchedulePinned() {
          static_cast<bool>(getStripElision());
 }
 
+// q1_0 (the BINARY-sign class) carries ONLY the integer_core_lmul knob (no
+// multi_block_factor / strip_elision), so its pin predicate tests just that knob.
+// Its 32-element sub-block straddles m1's i8 VLMAX boundary between VLEN128/256
+// (like q8_0), so the gearbox stamps "m2" at VLEN128 / "m1" at VLEN256.
+llvm::StringRef GgmlBlockDotQ10Q80Op::getScheduleKernelKey() { return "q1_0"; }
+bool GgmlBlockDotQ10Q80Op::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul());
+}
+
 // The CODEBOOK-class block-dots (FP4 family). They carry the SAME bounded shape
 // knobs the Family-A siblings do (integer_core_lmul / multi_block_factor /
 // strip_elision), so the SAME pin predicate applies; their gearbox descriptor
@@ -4436,7 +4445,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
            name == "activation_blocks_per_weight" ||
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul" ||
+           name == "integer_core_lmul" || name == "minimum_vlen" ||
            name.starts_with("tcrv_rvv.q1_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -4454,7 +4463,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
                 "'scale_model', 'qk', 'weight_block_stride', "
                 "'activation_block_stride', 'activation_blocks_per_weight', "
                 "'weight_quant_byte_offset', 'activation_quant_byte_offset', "
-                "and 'integer_core_lmul'; unexpected attribute '"
+                "'integer_core_lmul', and 'minimum_vlen'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -4506,17 +4515,48 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
               "the inline fp16 scale) for the ggml Q1_0 x Q8_0 block "
               "dot-product route";
 
-  // The binary sign decode anchors at the m1 8-lane sign-plane groups: the
-  // bit-selector / vmsne / vmerge run over 8 q8 lanes at a time. Reject any other
-  // anchor fail-closed (I7).
-  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
-    if (*coreLmul != "m1")
+  // The binary sign decode runs ONE 32-lane sub-block body (vlm_v_b{ratio} the 4
+  // packed bit-bytes straight into the i8 sign mask, vle8 the 32 q8 quants,
+  // i8-domain vneg/vmerge -> signed q8, ONE vwredsum i8->i16m1 per sub-block).
+  // There is NO multi-strip fallback: the single vsetvl_e8<anchor>(32) cover is
+  // correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED minimum VLEN
+  // spans the whole 32-element sub-block. WHICH anchor that is MOVES with VLEN
+  // exactly like the q8_0 sibling: at VLEN=128 only m2 spans it (e8m1 VLMAX 16 <
+  // 32), at VLEN=256 m1's VLMAX also reaches 32. Any other spelling is rejected
+  // fail-closed (I7); the VLMAX legality is recomputed here from the SAME formula
+  // the gearbox selects with (getRVVStripVLMAXElements -- this verifier is the
+  // single source of truth, catching a future inconsistent stamp, not blindly
+  // trusting one). The semantic input is the `minimum_vlen` attr (the
+  // deriveMinimumVLEN capability fact); absent, it defaults to 128 (the
+  // conservative floor: only m2 holds at VLEN=128). The anchor defaults to "m2"
+  // (the emitter's VLEN-universal-safe default: e8m2 VLMAX 32 spans the sub-block
+  // at every VLEN), so an attr-less op verifies + lowers correctly and the gearbox
+  // is free to REFINE m2->m1 at VLEN>=256. The explicit aggressive anchor m1 is
+  // REJECTED at minimum_vlen 128 (e8m1 VLMAX 16 < 32) -- the silent-wrong guard.
+  {
+    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
+    if (anchor != "m1" && anchor != "m2")
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" for the ggml Q1_0 x "
-                "Q8_0 block dot-product (the binary sign decode runs the "
-                "kmask/vmsne/vmerge sign plane over 8-lane groups at the m1 "
-                "anchor); got \""
-             << *coreLmul << "\"";
+             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
+                "Q1_0 x Q8_0 block dot-product (the binary sign decode runs ONE "
+                "32-lane sub-block body at the whole-LMUL anchor whose i8 strip "
+                "VLMAX spans the 32-element sub-block: m2 at VLEN128, m1 at "
+                "VLEN256); got \""
+             << anchor << "\"";
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
+    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    if (stripVLMAX < kQ10SubBlockLen)
+      return emitOpError()
+             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
+                "32-element q8 sub-block at the guaranteed minimum_vlen ("
+             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
+             << stripVLMAX
+             << " (the single-vsetvl whole-sub-block cover would drop lanes). At "
+                "minimum_vlen 128 the binary sign decode requires m2; at 256 m1 "
+                "also spans the sub-block";
   }
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)

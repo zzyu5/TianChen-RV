@@ -1914,13 +1914,11 @@ private:
   /// tcrv_rvv.q1_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-control-flow blob -- every value is a node in the IR graph). It
   /// is the BINARY ({-1,+1}) class: each q1_0 weight bit is a SIGN (set -> +q8,
-  /// clear -> -q8) and the q8 value itself is the magnitude. It REUSES the
-  /// iq2_xxs kmask/vmsne sign-plane primitive (the {1,2,4,...,128} bit-selector +
-  /// vmsne != 0 -> a per-lane sign mask) over 8-lane groups, but with NO codebook,
-  /// NO nibble unpack, NO offset-binary `-8` bias. The structured shape is:
-  ///   static const uint8_t tcrv_q1_0_kmask[8] = {1,2,4,8,16,32,64,128};
+  /// clear -> -q8) and the q8 value itself is the magnitude. It runs ggml's
+  /// shipped _vl128 lane structure -- ONE 32-lane sub-block body with NO kmask
+  /// table, NO vand/vmsne decode, NO codebook, NO nibble unpack, NO offset-binary
+  /// `-8` bias. The structured shape is:
   ///   float sumf = 0.0f;  size_t nb = n / 128;
-  ///   vuint8m1_t kmask = __riscv_vle8_v_u8m1(tcrv_q1_0_kmask, 8);   // ONCE
   ///   for (size_t ib = 0; ib < nb; ib += 1) {
   ///     const uint8_t *xb = vx + ib*18;
   ///     float d0 = (float)*(const _Float16 *)(xb);
@@ -1928,34 +1926,30 @@ private:
   ///     for (k = 0; k < 4; ++k) {                      // UNROLLED sub-blocks
   ///       const uint8_t *yb = vy + (ib*4 + k)*34;
   ///       float d1 = (float)*(const _Float16 *)(yb);
-  ///       int32_t sumi_block = 0;  size_t vl = __riscv_vsetvl_e8m1(8);
-  ///       for (b = 0; b < 4; ++b) {                    // UNROLLED 8-lane groups
-  ///         uint8_t bits = *(const uint8_t *)(xb + 2 + k*4 + b);
-  ///         vuint8m1_t m_bits = __riscv_vand_vv_u8m1(
-  ///             __riscv_vmv_v_x_u8m1(bits, vl), kmask, vl);
-  ///         vbool8_t   m = __riscv_vmsne_vx_u8m1_b8(m_bits, 0, vl);
-  ///         vint8m1_t  q8 = __riscv_vle8_v_i8m1(yb + 2 + b*8, vl);
-  ///         vint16m2_t q8w = __riscv_vwcvt_x_x_v_i16m2(q8, vl);  // widen FIRST
-  ///         vint16m2_t w = __riscv_vmerge_vvm_i16m2(
-  ///             __riscv_vneg_v_i16m2(q8w, vl), q8w, m, vl);  // +q8 if bit set
-  ///         vint32m1_t seed = __riscv_vmv_v_x_i32m1(sumi_block, 1);
-  ///         sumi_block = __riscv_vmv_x_s_i32m1_i32(
-  ///             __riscv_vwredsum_vs_i16m2_i32m1(w, seed, vl));
-  ///       }
+  ///       size_t vl = __riscv_vsetvl_e8<anchor>(32);   // anchor: m2@128 / m1@256
+  ///       // the 4 packed bit-bytes ARE the i8 sign mask (bit 8b+i -> lane 8b+i):
+  ///       vbool<r>_t m = __riscv_vlm_v_b<r>(xb + 2 + k*4, vl); // r=4 (m2)/8 (m1)
+  ///       vint8<a>_t q8 = __riscv_vle8_v_i8<a>(yb + 2, vl);
+  ///       vint8<a>_t sy = __riscv_vmerge_vvm_i8<a>(            // i8-DOMAIN sign
+  ///           __riscv_vneg_v_i8<a>(q8, vl), q8, m, vl);       // +q8 if bit set
+  ///       int sumi_block = __riscv_vmv_x_s_i16m1_i16(          // ONE reduce/block
+  ///           __riscv_vwredsum_vs_i8<a>_i16m1(sy, vmv_v_x_i16m1(0,1), vl));
   ///       sumi = sumi + d1 * (float)sumi_block;          // ggml exact order
   ///     }
   ///     sumf = sumf + d0 * sumi;                          // ggml exact order
   ///   }
   ///   *s = sumf;
-  /// The q8 group is WIDENED to i16 before the negate/merge so the sign of the
-  /// int8 boundary value -128 (+128) is representable -- an i8 vneg of -128
-  /// overflows back to -128, but ggml's _generic negates in the int domain, so the
-  /// i16-domain decode is byte-exact over the FULL int8 range (not only ggml's
-  /// [-127,127] q8 domain). The 8-lane sign-plane groups keep the core VLEN-robust
-  /// (8 <= e8m1 VLMAX at any VLEN >= 64; rv64gcv guarantees >= 128). The
-  /// block-format facts are the op's typed attrs (I4 mirror); the emission is the
-  /// op's fixed structure. The five fp16 reads (d0 + d1_{0..3}) are the only
-  /// sanctioned opaque scalar pieces.
+  /// The negate/merge is in the i8 DOMAIN (ggml _vl128 exact); the real q8 quant
+  /// domain is [-127,127] so the i8 vneg is byte-exact on every gate input (only
+  /// the unreachable -128 boundary would overflow -- matching ggml _vl128, not the
+  /// old i16-widen superset). The anchor MOVES with VLEN: the 32-element sub-block
+  /// straddles m1's i8 VLMAX boundary between 128/256, so the gearbox stamps m2 at
+  /// VLEN128 (e8m1 VLMAX 16 < 32) and the lighter m1 at VLEN256; the default is the
+  /// VLEN-universal-safe m2. The 32-lane reduce is pure within-block lowering (vl
+  /// stays 32, never crosses into a second sub-block). The block-format facts are
+  /// the op's typed attrs (I4 mirror); the emission is the op's fixed structure.
+  /// The five fp16 reads (d0 + d1_{0..3}) are the only sanctioned opaque scalar
+  /// pieces.
   mlir::LogicalResult emitQ1_0Q8_0BlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
