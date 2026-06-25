@@ -232,20 +232,44 @@ module {
 
 // -----
 
-// Reject strip_elision = "elided" without the m2 anchor (m1's vsetvl_e8m1 VLMAX
-// would drop block bytes; the silently-wrong combo is fail-closed, I7, so the
-// autotuner cannot request it).
+// Reject strip_elision = "elided" at the m1 anchor WITHOUT a minimum_vlen >= 256
+// (it defaults to the conservative 128 floor, where m1's vsetvl_e8m1 VLMAX is 16 <
+// 32 and would drop block bytes; the silently-wrong combo is fail-closed, I7, so a
+// hand-authored op cannot request it). The verifier recomputes the VLMAX-vs-block
+// legality from the SAME formula the gearbox selects with.
 module {
-  tcrv.exec.kernel @q8_0_q8_0_block_dot_rejects_elided_non_m2 {
+  tcrv.exec.kernel @q8_0_q8_0_block_dot_rejects_elided_m1_at_vlen128 {
     tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q8_0_q8_0_block_dot_rejects_elided_non_m2", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{strip_elision "elided" requires integer_core_lmul "m2"}}
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q8_0_q8_0_block_dot_rejects_elided_m1_at_vlen128", status = "selected-lowering-boundary"} {
+        // expected-error @+1 {{strip_elision "elided" requires an integer_core_lmul whose strip VLMAX spans the 32-element block at the guaranteed minimum_vlen (128): the "m1" anchor's VLMAX is 16}}
         %dot = tcrv_rvv.q8_0_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q8_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, integer_core_lmul = "m1", strip_elision = "elided"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+// ACCEPT strip_elision = "elided" at the m1 anchor WHEN minimum_vlen = 256: at
+// VLEN >= 256 the m1 strip VLMAX is 32 and spans the whole 32-element block, so the
+// single-vsetvl_e8m1(32) elided cover is correct. This is the capability fact the
+// gearbox stamps for the k1 VLEN256 profile -- the verifier admits the NARROWER
+// anchor's elided cover once the VLEN guarantees it. (No expected-error: VALID.)
+module {
+  tcrv.exec.kernel @q8_0_q8_0_block_dot_accepts_elided_m1_at_vlen256 {
+    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q8_0_q8_0_block_dot_accepts_elided_m1_at_vlen256", status = "selected-lowering-boundary"} {
+        %dot = tcrv_rvv.q8_0_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q8_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, integer_core_lmul = "m1", strip_elision = "elided", minimum_vlen = 256 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }

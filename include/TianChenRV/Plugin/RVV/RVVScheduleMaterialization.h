@@ -77,12 +77,22 @@ struct RVVScheduleMaterializationDescriptor {
   bool stampPeakLiveVregs = false;
   /// Whether to stamp `<prefix>.has_zvl128b` (both do, but kept explicit).
   bool stampHasZvl128b = true;
+  /// The SEMANTIC op-attr name that carries the guaranteed minimum VLEN bits the
+  /// schedule was selected for (e.g. q8_0's "minimum_vlen"), stamped DIRECTLY (no
+  /// prefix) so the op verifier reads it to recompute the elided-cover VLMAX
+  /// legality. This is a CORRECTNESS input the verifier reasons over -- distinct
+  /// from the `has_zvl128b` audit mirror -- so only kernels whose elided-correct
+  /// anchor moves with VLEN (q8_0) set it. Empty => not stamped.
+  llvm::StringRef minimumVLENAttrName;
   /// The record keys the knob set requires (so a malformed record is skipped).
   llvm::SmallVector<llvm::StringRef, 3> requiredKnobKeys;
   /// Enumerate the kernel's generic candidate space (already knob-tagged) given
-  /// the derived Zvl128b fact + the resource budget/ceiling.
+  /// the DERIVED minimum VLEN (the real capability fact -- bits, not a 1-bit
+  /// Zvl128b boolean: deriveMinimumVLEN) + the resource budget/ceiling. The
+  /// block-dot enumerations derive the per-anchor reduction count AND the elided-
+  /// cover legality from VLMAX(anchor, minimumVLEN); GEMM ignores VLEN.
   std::function<llvm::SmallVector<GenericScheduleCandidate>(
-      bool hasZvl128b, std::int64_t budget)>
+      std::int64_t minimumVLEN, std::int64_t budget)>
       enumerate;
   /// The candidate's peak-live vreg footprint, for the audit stamp (block-dot
   /// only; null when stampPeakLiveVregs is false).
@@ -100,10 +110,10 @@ inline RVVScheduleMaterializationDescriptor makeBlockDotScheduleDescriptor(
     llvm::StringRef producerName, llvm::StringRef measuredReason,
     llvm::StringRef staticReason, std::int64_t vectorRegisterBudget,
     std::function<llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(
-        bool, std::int64_t)>
+        std::int64_t, std::int64_t)>
         enumerate12,
     std::function<llvm::SmallVector<RVVBlockDotShapeCandidate, 18>(
-        bool, std::int64_t)>
+        std::int64_t, std::int64_t)>
         enumerate18 = nullptr) {
   RVVScheduleMaterializationDescriptor descriptor;
   descriptor.kernelKey = kernelKey;
@@ -115,16 +125,16 @@ inline RVVScheduleMaterializationDescriptor makeBlockDotScheduleDescriptor(
   descriptor.budgetValue = vectorRegisterBudget;
   descriptor.stampPeakLiveVregs = true;
   descriptor.requiredKnobKeys = {"lmul", "factor", "elision"};
-  descriptor.enumerate = [enumerate12, enumerate18](bool hasZvl128b,
+  descriptor.enumerate = [enumerate12, enumerate18](std::int64_t minimumVLEN,
                                                     std::int64_t budget) {
     llvm::SmallVector<GenericScheduleCandidate> generic;
     if (enumerate18) {
       for (const RVVBlockDotShapeCandidate &candidate :
-           enumerate18(hasZvl128b, budget))
+           enumerate18(minimumVLEN, budget))
         generic.push_back(toGenericBlockDotCandidate(candidate));
     } else {
       for (const RVVBlockDotShapeCandidate &candidate :
-           enumerate12(hasZvl128b, budget))
+           enumerate12(minimumVLEN, budget))
         generic.push_back(toGenericBlockDotCandidate(candidate));
     }
     return generic;
@@ -152,7 +162,8 @@ inline RVVScheduleMaterializationDescriptor makeBlockDotScheduleDescriptor(
 inline void stampRVVSchedule(
     mlir::MLIRContext *ctx, mlir::Operation *op,
     const RVVScheduleMaterializationDescriptor &descriptor, bool hasZvl128b,
-    std::int64_t candidateCount, const GenericScheduleSelection &selection) {
+    std::int64_t minimumVLEN, std::int64_t candidateCount,
+    const GenericScheduleSelection &selection) {
   auto i64 = [&](std::int64_t v) {
     return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), v);
   };
@@ -173,6 +184,12 @@ inline void stampRVVSchedule(
       op->setAttr(knob.attrName, str(knob.value));
     }
   }
+
+  // (1b) The SEMANTIC minimum-VLEN legality input (q8_0 only): the guaranteed VLEN
+  // the elided-cover anchor was admitted for. The op verifier recomputes its VLMAX
+  // legality from this, so it is stamped as a real op attr (not an audit mirror).
+  if (!descriptor.minimumVLENAttrName.empty())
+    op->setAttr(descriptor.minimumVLENAttrName, i64(minimumVLEN));
 
   // (2) The resource-provenance audit trail.
   op->setAttr(prefixed("producer"), str(descriptor.producerName));

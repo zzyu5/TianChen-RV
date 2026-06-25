@@ -3206,7 +3206,7 @@ mlir::LogicalResult GgmlBlockDotQ80Q80Op::verify() {
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" ||
+           name == "strip_elision" || name == "minimum_vlen" ||
            name.starts_with("tcrv_rvv.q8_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -3295,18 +3295,33 @@ mlir::LogicalResult GgmlBlockDotQ80Q80Op::verify() {
                 "block dot-product); got \""
              << *stripElision << "\"";
     // The elided form drops the inner strip loop and emits a single
-    // vsetvl_e8m2(32) per block; it is correct only when the integer core
-    // anchors at m2 (m1's vsetvl_e8m1 VLMAX is 16 at VLEN=128, mf4's
-    // vsetvl_e32m1 VLMAX is 4 -- either would silently drop block bytes). Reject
-    // the silently-wrong combination fail-closed (I7) so the autotuner cannot
-    // request it.
-    if (*stripElision == "elided" &&
-        getIntegerCoreLmul().value_or("mf4") != "m2")
-      return emitOpError()
-             << "strip_elision \"elided\" requires integer_core_lmul \"m2\" "
-                "(the single-vsetvl_e8m2(32) whole-block cover is correct only "
-                "at the m2 anchor; the m1/mf4 anchors' VLMAX would drop block "
-                "bytes)";
+    // vsetvl_e8<anchor>(32) per block; it is correct only when the anchor's strip
+    // VLMAX at the GUARANTEED minimum VLEN spans the whole 32-element block. WHICH
+    // anchor that is MOVES with VLEN: at VLEN=128 only m2 spans it (VLMAX 32); at
+    // VLEN=256 m1's VLMAX also reaches 32. The legality is recomputed here from the
+    // SAME VLMAX formula the gearbox selects with (getRVVStripVLMAXElements -- this
+    // verifier is the single source of truth, catching a future inconsistent stamp,
+    // not blindly trusting one). The semantic input is the `minimum_vlen` attr (the
+    // deriveMinimumVLEN capability fact), NOT the audit `has_zvl128b` mirror; absent
+    // it defaults to 128 (the conservative floor: only m2 elided holds at VLEN=128).
+    if (*stripElision == "elided") {
+      llvm::StringRef anchor = getIntegerCoreLmul().value_or("mf4");
+      std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+      constexpr std::int64_t kQ80BlockLen = 32; // the contiguous int8 block span.
+      std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+          ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+          ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+      if (stripVLMAX < kQ80BlockLen)
+        return emitOpError()
+               << "strip_elision \"elided\" requires an integer_core_lmul whose "
+                  "strip VLMAX spans the 32-element block at the guaranteed "
+                  "minimum_vlen ("
+               << minimumVLEN << "): the \"" << anchor
+               << "\" anchor's VLMAX is " << stripVLMAX
+               << " (the single-vsetvl whole-block cover would drop block bytes). "
+                  "At minimum_vlen 128 elided requires m2; at 256 m1 also spans "
+                  "the block";
+    }
   }
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)

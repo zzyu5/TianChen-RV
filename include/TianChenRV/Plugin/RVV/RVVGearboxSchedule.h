@@ -2220,6 +2220,16 @@ struct NamedKnob {
 struct GenericScheduleCandidate {
   std::int64_t cost = 0;
   bool isLegal = false;
+  /// The resource-pressure tiebreak consulted ONLY on an EXACT cost tie (lower
+  /// wins): the candidate's peak-live vreg footprint. The capability-blind cost is
+  /// the primary key; when two legal candidates are cost-identical (e.g. q8_0's
+  /// m1-elided vs m2-elided at VLEN=256, both 1050), the lighter register footprint
+  /// is the principled discriminator -- so the pick is attributable to a RESOURCE
+  /// fact (m1's 6 vregs < m2's 9), NOT to enumeration array order. Defaults to 0,
+  /// which leaves every existing single-argmin selection (the other 4 block-dots +
+  /// GEMM, whose argmins are cost-UNIQUE) byte-identical: a uniform 0 tiebreak
+  /// never reorders a strict-`<` cost comparison.
+  std::int64_t tieBreakVregCost = 0;
   llvm::SmallVector<NamedKnob, 3> knobs;
 };
 
@@ -2252,7 +2262,15 @@ selectGenericMinCostCandidate(
   for (const GenericScheduleCandidate &candidate : candidates) {
     if (!candidate.isLegal)
       continue;
-    if (!best || candidate.cost < best->cost)
+    if (!best || candidate.cost < best->cost) {
+      best = candidate;
+      continue;
+    }
+    // EXACT cost tie: the lighter peak-live vreg footprint wins (a resource fact,
+    // not array order). With a uniform-0 tiebreak (every non-block-dot candidate)
+    // this never fires, so existing cost-unique argmins are byte-identical.
+    if (candidate.cost == best->cost &&
+        candidate.tieBreakVregCost < best->tieBreakVregCost)
       best = candidate;
   }
   return best;
@@ -2485,80 +2503,186 @@ inline std::int64_t computeRVVQ40ShapeCost(llvm::StringRef coreLMUL,
 // existing call sites + the selection unit test).
 //===----------------------------------------------------------------------===//
 
+/// The numerator/denominator of an LMUL as a fraction (mf8=1/8 .. m8=8/1). Used
+/// to derive a strip's VLMAX in elements: VLMAX = minimumVLEN * lmulNum /
+/// (lmulDen * SEW). A structural fact of the vector grouping, not a lookup.
+inline std::pair<std::int64_t, std::int64_t>
+getRVVLMULFraction(llvm::StringRef lmul) {
+  if (lmul == "mf8")
+    return {1, 8};
+  if (lmul == "mf4")
+    return {1, 4};
+  if (lmul == "mf2")
+    return {1, 2};
+  if (lmul == "m1")
+    return {1, 1};
+  if (lmul == "m2")
+    return {2, 1};
+  if (lmul == "m4")
+    return {4, 1};
+  if (lmul == "m8")
+    return {8, 1};
+  return {1, 1};
+}
+
+/// The per-strip VLMAX in ELEMENTS the integer core covers at one vsetvl, DERIVED
+/// from the real minimum VLEN: VLMAX = minimumVLEN * lmulNum / (lmulDen * stripSEW).
+/// This is the structural fact that makes the per-block reduction count AND the
+/// elided-cover legality VLEN-aware -- the SAME quantity drives both, so a wider
+/// VLEN both shrinks the reduction count and frees an elided whole-block cover at a
+/// narrower anchor. Returns 0 when no concrete VLEN is guaranteed (minimumVLEN==0:
+/// the embedded zve32x/zve64x tier), which fail-closes every elided cover.
+inline std::int64_t getRVVStripVLMAXElements(llvm::StringRef coreLMUL,
+                                             std::int64_t stripSEW,
+                                             std::int64_t minimumVLEN) {
+  if (minimumVLEN <= 0 || stripSEW <= 0)
+    return 0;
+  std::pair<std::int64_t, std::int64_t> frac = getRVVLMULFraction(coreLMUL);
+  return (minimumVLEN * frac.first) / (frac.second * stripSEW);
+}
+
 /// The per-kernel structural facts the shared block-dot enumeration reasons over.
-/// The fn-pointer fields capture the two per-anchor structural counts (reductions,
-/// vreg footprint) that differ between the nibble-half-block kernels (q4_*/q5_*)
-/// and the contiguous-int8 q8_0; `quantFormat` selects the DERIVED latency depth.
+/// The fn-pointer fields capture the two per-anchor structural counts (the strip
+/// SEW, the vreg footprint) that differ between the nibble-half-block kernels
+/// (q4_*/q5_*) and the contiguous-int8 q8_0; `quantFormat` selects the DERIVED
+/// latency depth, and `blockLen` is the element span ONE strip-elided cover must
+/// reach (16 for the nibble half-block kernels, 32 for q8_0's contiguous block).
+/// The per-anchor reduction count and the elided-cover legality are NO LONGER
+/// hand-set per kernel: both are DERIVED from VLMAX(anchor, minimumVLEN) vs
+/// blockLen, so the SAME VLEN fact that shrinks the reduction count also frees the
+/// elided cover at a narrower anchor on a wider VLEN.
 struct RVVBlockDotKernelDescriptor {
   llvm::ArrayRef<llvm::StringLiteral> coreLMULs; // anchor set (q8_0 adds "m2").
-  llvm::StringRef elidedLegalAnchor; // LMUL where strip-elision is legal ("m1"/"m2").
   llvm::StringRef quantFormat;       // decode-prefix format -> latency depth.
-  std::int64_t (*reductionsPerBlock)(llvm::StringRef coreLMUL) = nullptr;
+  std::int64_t blockLen = 0;         // element span ONE elided cover must reach.
+  std::int64_t (*stripSEW)(llvm::StringRef coreLMUL) = nullptr; // strip vsetvl SEW.
   std::int64_t (*vectorRegisterCost)(llvm::StringRef coreLMUL) = nullptr;
 };
 
+/// The vsetvl SEW the integer-core strip uses at the given anchor. The m1/m2 byte
+/// anchors strip with vsetvl_e8<lmul> (SEW=8); the mf4 anchor strips with
+/// vsetvl_e32m1 (SEW=32, 4-element strips at VLEN=128). This is the emitter's
+/// actual strip spelling, read as a structural fact so VLMAX is computed against
+/// the right element width (the mf4 SEW=32 wrinkle the design doc flags).
+inline std::int64_t getRVVBlockDotStripSEW(llvm::StringRef coreLMUL) {
+  return coreLMUL == "mf4" ? 32 : 8;
+}
+
+/// The vsetvl LMUL the integer-core strip uses at the given anchor. The m1/m2 byte
+/// anchors strip at their own LMUL (vsetvl_e8<lmul>); the mf4 anchor strips with
+/// vsetvl_e32M1 -- i.e. LMUL=m1, NOT mf4 (the i8 LOAD is mf4, but the strip vsetvl
+/// the emitter issues is e32m1). The strip VLMAX must be computed against THIS LMUL
+/// (paired with getRVVBlockDotStripSEW) to match the emitted vsetvl, so mf4's
+/// 4-element strips at VLEN=128 (= 128*1/32) come out right, not 128/4/32 = 1.
+inline llvm::StringRef getRVVBlockDotStripLMUL(llvm::StringRef coreLMUL) {
+  return coreLMUL == "mf4" ? llvm::StringRef("m1") : coreLMUL;
+}
+
 /// Enumerate a block-dot kernel's full shape candidate space ({anchors} x {1,2,4}
 /// x {robust,elided}) and PRUNE each by two facts:
-///   (a) LEGALITY -- strip_elision "elided" is correct only when the integer core
-///       anchors at the kernel's elided-legal anchor (the wider anchors' VLMAX
-///       would silently drop block bytes) AND the target guarantees Zvl128b
-///       (VLEN >= 128). This is the ONLY place capability enters the selection.
+///   (a) LEGALITY -- strip_elision "elided" is a SINGLE-vsetvl whole-block cover,
+///       correct only when the anchor's VLMAX at the GUARANTEED minimum VLEN spans
+///       the whole block (VLMAX(anchor, minimumVLEN) >= blockLen). This is the ONLY
+///       place capability enters the selection, and it is now the REAL VLEN fact
+///       (deriveMinimumVLEN bits), NOT a 1-bit Zvl128b boolean + a hand-set anchor:
+///       it SUBSUMES the boolean (a narrower anchor frees the elided cover only on a
+///       wider VLEN, and minimumVLEN==0 fail-closes every cover) -- so the SAME VLEN
+///       capability that shrinks the reduction count also flips the legal anchor.
 ///   (b) BUDGET -- the peak-live vreg footprint must fit the architectural
 ///       vector-register-file budget. It never binds on these light kernels, but
 ///       the prune is genuine: a shrunk budget rejects the wider-footprint shapes.
-/// Each candidate's cost is the shared capability-blind structural cost (the
-/// kernel's per-anchor reduction count + its DERIVED latency depth fed into
-/// computeBlockDotShapeCostCore). Fixed enumeration order: anchors in descriptor
-/// order, ascending factor, robust before elided.
+/// Each candidate's per-block reduction count is DERIVED from VLMAX too
+/// (ceil(blockLen / VLMAX(anchor, minimumVLEN))), and that count + the DERIVED
+/// latency depth feed the SAME capability-blind cost formula
+/// (computeBlockDotShapeCostCore -- it carries no VLEN argument; VLEN enters ONLY
+/// the structural reduction count + the legality prune here). Fixed enumeration
+/// order: anchors in descriptor order, ascending factor, robust before elided.
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 18>
 enumerateBlockDotShapeCandidates(const RVVBlockDotKernelDescriptor &descriptor,
-                                 bool hasZvl128b,
+                                 std::int64_t minimumVLEN,
                                  std::int64_t vectorRegisterBudget) {
   llvm::SmallVector<RVVBlockDotShapeCandidate, 18> candidates;
   static constexpr std::int64_t kFactors[] = {1, 2, 4};
   static constexpr llvm::StringLiteral kElisions[] = {"robust", "elided"};
   const std::int64_t coreLatencyDepth =
       getRVVBlockDotCoreLatencyDepth(descriptor.quantFormat);
-  for (llvm::StringRef coreLMUL : descriptor.coreLMULs)
+  // The reduction-count RANK and the elided-cover LEGALITY ask DIFFERENT questions
+  // of the VLEN, so they read DIFFERENT VLEN values:
+  //   * LEGALITY: "is a single-vsetvl whole-block cover GUARANTEED correct?" -> the
+  //     REAL guaranteed minimum (raw minimumVLEN), fail-closed when none is named.
+  //   * REDUCTION RANK: "how do the anchors ORDER by strip count?" -> a calibration-
+  //     reference proxy. The robust strip loop re-strips at the TRUE runtime VLMAX
+  //     regardless; the static count only feeds the argmin's RELATIVE ordering, and
+  //     the cost constants are measurement-calibrated to the VLEN=128 ssh-rvv sweep.
+  //     So an unnamed tier (minimumVLEN < 128) ranks at the 128 reference -- which
+  //     reproduces the old unconditional VLEN=128 reduction counts (mf4=4/m1=1 for
+  //     the nibble half-block; m2=1/m1=2/mf4=8 for q8_0) EXACTLY, so the non-Zvl128b
+  //     anchor ordering is unchanged; only a guaranteed wider tier (>=256) deviates.
+  const std::int64_t rankVLEN = minimumVLEN >= 128 ? minimumVLEN : 128;
+  for (llvm::StringRef coreLMUL : descriptor.coreLMULs) {
+    // The strip's ACTUAL vsetvl spelling (SEW + LMUL): m1/m2 strip at e8<lmul>,
+    // mf4 strips at e32m1 (LMUL m1, not mf4). VLMAX is computed against THIS, so
+    // the per-anchor strip width matches the emitted code.
+    const std::int64_t stripSEW = descriptor.stripSEW(coreLMUL);
+    const llvm::StringRef stripLMUL = getRVVBlockDotStripLMUL(coreLMUL);
+    // The elided-cover legality VLMAX uses the REAL guaranteed minimum (0 -> every
+    // cover pruned). The reduction-rank VLMAX uses the >=128 calibration reference.
+    const std::int64_t elisionVLMAX =
+        getRVVStripVLMAXElements(stripLMUL, stripSEW, minimumVLEN);
+    const std::int64_t rankVLMAX =
+        getRVVStripVLMAXElements(stripLMUL, stripSEW, rankVLEN);
+    // ceil(blockLen / VLMAX) reductions at the rank reference (rankVLMAX is always
+    // > 0 since rankVLEN >= 128).
+    const std::int64_t reductions =
+        (descriptor.blockLen + rankVLMAX - 1) / rankVLMAX;
     for (std::int64_t factor : kFactors)
       for (llvm::StringRef elision : kElisions) {
         RVVBlockDotShapeCandidate candidate;
         candidate.integerCoreLMUL = coreLMUL;
         candidate.multiBlockFactor = factor;
         candidate.stripElision = elision;
-        candidate.reductionsPerHalfBlock =
-            descriptor.reductionsPerBlock(coreLMUL);
+        candidate.reductionsPerHalfBlock = reductions;
         candidate.vectorRegisterCost = descriptor.vectorRegisterCost(coreLMUL);
         candidate.cost = computeBlockDotShapeCostCore(
             candidate.reductionsPerHalfBlock, factor, elision, coreLatencyDepth);
-        // (a) capability/anchor legality of strip elision.
+        // (a) VLMAX-derived legality of the strip-elided whole-block cover: the
+        // single vsetvl must span the whole block at the GUARANTEED minimum VLEN
+        // (elisionVLMAX, raw minimumVLEN -- 0 prunes every cover, fail-closed).
         bool elisionLegal = true;
         if (elision == "elided")
-          elisionLegal = (coreLMUL == descriptor.elidedLegalAnchor) && hasZvl128b;
+          elisionLegal = elisionVLMAX >= descriptor.blockLen;
         // (b) vreg-budget legality.
         bool budgetLegal = candidate.vectorRegisterCost <= vectorRegisterBudget;
         candidate.isLegal = elisionLegal && budgetLegal;
         candidates.push_back(candidate);
       }
+  }
   return candidates;
 }
 
 /// The q4_0 x q8_0 kernel descriptor: the nibble half-block anchors {mf4,m1}, the
-/// m1 elided anchor, and the deep offset-binary decode prefix (latency depth 7).
+/// 16-element half-block span, and the deep offset-binary decode prefix (latency
+/// depth 7). The elided-cover legality + reduction count are DERIVED from VLMAX vs
+/// the 16-element span (m1's VLMAX 16 at VLEN=128 spans it -> elided legal + 1
+/// reduction; mf4's VLMAX 4 never spans it -> 4 reductions, never elided).
 inline RVVBlockDotKernelDescriptor getRVVQ40Q80KernelDescriptor() {
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
-  return {kCoreLMULs, "m1", "nibble-offset-binary",
-          getRVVQ40ReductionsPerHalfBlock, getRVVQ40ShapeVectorRegisterCost};
+  return {kCoreLMULs, "nibble-offset-binary", /*blockLen=*/16,
+          getRVVBlockDotStripSEW, getRVVQ40ShapeVectorRegisterCost};
 }
 
 /// Enumerate the full Q4_0 x Q8_0 shape candidate space ({mf4,m1} x {1,2,4} x
 /// {robust,elided} = 12 candidates) via the shared descriptor-driven enumeration.
+/// `minimumVLEN` is the guaranteed minimum VLEN bits (deriveMinimumVLEN): the
+/// elided-cover legality + reduction count are derived from it. At VLEN >= 128 the
+/// m1 anchor spans the 16-element half-block (the committed VLEN=128 picks); at
+/// VLEN==0 (no guaranteed tier) every elided cover is pruned.
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
-enumerateRVVQ40Q80ShapeCandidates(bool hasZvl128b,
+enumerateRVVQ40Q80ShapeCandidates(std::int64_t minimumVLEN,
                                   std::int64_t vectorRegisterBudget) {
   llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
       enumerateBlockDotShapeCandidates(getRVVQ40Q80KernelDescriptor(),
-                                       hasZvl128b, vectorRegisterBudget);
+                                       minimumVLEN, vectorRegisterBudget);
   return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
 
@@ -2739,18 +2863,19 @@ inline std::int64_t computeRVVQ41ShapeCost(llvm::StringRef coreLMUL,
 /// budget. Each candidate's cost is the capability-blind q4_1 structural cost
 /// above (the SAME formula, with q4_1's derived latency depth).
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
-enumerateRVVQ41Q81ShapeCandidates(bool hasZvl128b,
+enumerateRVVQ41Q81ShapeCandidates(std::int64_t minimumVLEN,
                                   std::int64_t vectorRegisterBudget) {
-  // q4_1 shares q4_0's nibble-half-block SHAPE (same anchors + reduction +
+  // q4_1 shares q4_0's nibble-half-block SHAPE (same anchors + 16-element span +
   // footprint); the ONLY structural difference is the SHORTER unsigned-nibble
   // decode prefix ("nibble-unsigned" -> latency depth 4), fed into the SAME
-  // descriptor-driven enumeration.
+  // descriptor-driven enumeration (the reduction count + elided legality are
+  // VLMAX-derived from the 16-element span, identical to q4_0's).
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
   RVVBlockDotKernelDescriptor descriptor{
-      kCoreLMULs, "m1", "nibble-unsigned", getRVVQ40ReductionsPerHalfBlock,
+      kCoreLMULs, "nibble-unsigned", /*blockLen=*/16, getRVVBlockDotStripSEW,
       getRVVQ40ShapeVectorRegisterCost};
   llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
-      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
                                        vectorRegisterBudget);
   return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
@@ -2802,18 +2927,19 @@ inline std::int64_t computeRVVQ50ShapeCost(llvm::StringRef coreLMUL,
 /// budget. Each candidate's cost is the capability-blind q5_0 structural cost
 /// above (the SAME formula, with q5_0's derived latency depth).
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
-enumerateRVVQ50Q80ShapeCandidates(bool hasZvl128b,
+enumerateRVVQ50Q80ShapeCandidates(std::int64_t minimumVLEN,
                                   std::int64_t vectorRegisterBudget) {
-  // q5_0 shares q4_0's nibble-half-block SHAPE; the ONLY structural difference is
-  // its LONGEST decode prefix (unsigned nibble + 5th-bit injection + offset-binary
-  // `-16` bias -> "nibble-5bit-offset-binary", latency depth 10), fed into the
-  // SAME descriptor-driven enumeration.
+  // q5_0 shares q4_0's nibble-half-block SHAPE (same 16-element span); the ONLY
+  // structural difference is its LONGEST decode prefix (unsigned nibble + 5th-bit
+  // injection + offset-binary `-16` bias -> "nibble-5bit-offset-binary", latency
+  // depth 10), fed into the SAME descriptor-driven enumeration (reduction count +
+  // elided legality VLMAX-derived from the 16-element span, identical to q4_0's).
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
   RVVBlockDotKernelDescriptor descriptor{
-      kCoreLMULs, "m1", "nibble-5bit-offset-binary",
-      getRVVQ40ReductionsPerHalfBlock, getRVVQ40ShapeVectorRegisterCost};
+      kCoreLMULs, "nibble-5bit-offset-binary", /*blockLen=*/16,
+      getRVVBlockDotStripSEW, getRVVQ40ShapeVectorRegisterCost};
   llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
-      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
                                        vectorRegisterBudget);
   return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
@@ -2864,17 +2990,19 @@ inline std::int64_t computeRVVQ51ShapeCost(llvm::StringRef coreLMUL,
 /// budget. Each candidate's cost is the capability-blind q5_1 structural cost
 /// above (the SAME formula, with q5_1's derived latency depth).
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 12>
-enumerateRVVQ51Q81ShapeCandidates(bool hasZvl128b,
+enumerateRVVQ51Q81ShapeCandidates(std::int64_t minimumVLEN,
                                   std::int64_t vectorRegisterBudget) {
-  // q5_1 shares q4_0's nibble-half-block SHAPE; the ONLY structural difference is
-  // its decode prefix -- q5_0's 5-bit chain MINUS the `-16` bias ("nibble-5bit-
-  // unsigned", latency depth 9), fed into the SAME descriptor-driven enumeration.
+  // q5_1 shares q4_0's nibble-half-block SHAPE (same 16-element span); the ONLY
+  // structural difference is its decode prefix -- q5_0's 5-bit chain MINUS the
+  // `-16` bias ("nibble-5bit-unsigned", latency depth 9), fed into the SAME
+  // descriptor-driven enumeration (reduction count + elided legality VLMAX-derived
+  // from the 16-element span, identical to q4_0's).
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1"};
   RVVBlockDotKernelDescriptor descriptor{
-      kCoreLMULs, "m1", "nibble-5bit-unsigned", getRVVQ40ReductionsPerHalfBlock,
+      kCoreLMULs, "nibble-5bit-unsigned", /*blockLen=*/16, getRVVBlockDotStripSEW,
       getRVVQ40ShapeVectorRegisterCost};
   llvm::SmallVector<RVVBlockDotShapeCandidate, 18> all =
-      enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
                                        vectorRegisterBudget);
   return llvm::SmallVector<RVVBlockDotShapeCandidate, 12>(all.begin(), all.end());
 }
@@ -2957,18 +3085,24 @@ inline std::int64_t computeRVVQ80ShapeCost(llvm::StringRef coreLMUL,
 ///       the prune is genuine: a shrunk budget rejects the wider m2 footprint.
 /// Each candidate's cost is the shared capability-blind structural cost above.
 inline llvm::SmallVector<RVVBlockDotShapeCandidate, 18>
-enumerateRVVQ80Q80ShapeCandidates(bool hasZvl128b,
+enumerateRVVQ80Q80ShapeCandidates(std::int64_t minimumVLEN,
                                   std::int64_t vectorRegisterBudget) {
   // q8_0's block is 32 CONTIGUOUS int8, so its descriptor differs from the nibble
-  // kernels in DATA: the anchor set adds "m2", the elided anchor IS m2, the
-  // per-anchor reduction + vreg counts are the q8_0 ones, and the format is
+  // kernels in DATA: the anchor set adds "m2", the elided-cover span is the whole
+  // 32-element block, the vreg footprint is the q8_0 one, and the format is
   // plain-int8 (latency depth 2 -- the shallow product->reduce chain). Same shared
-  // descriptor-driven enumeration; only the descriptor data changes.
+  // descriptor-driven enumeration; the reduction count + elided-cover legality are
+  // VLMAX-derived from the 32-element span. This is where the VLEN fact FLIPS the
+  // anchor: at VLEN==128 only m2's VLMAX (32) spans the block -> m2 elided wins; at
+  // VLEN==256 the m1 anchor's VLMAX also reaches 32 -> m1's reduction count drops
+  // 2->1 AND its elided cover becomes legal, so m1 (the lighter footprint) ties the
+  // cost and wins on the vreg-footprint tiebreak. The narrower-anchor flip falls
+  // out of the SAME VLMAX-vs-blockLen fact that gates m2 at VLEN==128.
   static constexpr llvm::StringLiteral kCoreLMULs[] = {"mf4", "m1", "m2"};
-  RVVBlockDotKernelDescriptor descriptor{kCoreLMULs, "m2", "plain-int8",
-                                         getRVVQ80ReductionsPerBlock,
+  RVVBlockDotKernelDescriptor descriptor{kCoreLMULs, "plain-int8", /*blockLen=*/32,
+                                         getRVVBlockDotStripSEW,
                                          getRVVQ80ShapeVectorRegisterCost};
-  return enumerateBlockDotShapeCandidates(descriptor, hasZvl128b,
+  return enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
                                           vectorRegisterBudget);
 }
 
@@ -3154,6 +3288,10 @@ toGenericBlockDotCandidate(const RVVBlockDotShapeCandidate &candidate) {
   GenericScheduleCandidate generic;
   generic.cost = candidate.cost;
   generic.isLegal = candidate.isLegal;
+  // Carry the peak-live vreg footprint as the exact-cost-tie discriminator (the
+  // lighter anchor wins a tie on a real resource fact, e.g. q8_0 m1=6 vs m2=9 at
+  // VLEN=256). The block-dot enumeration already computed it.
+  generic.tieBreakVregCost = candidate.vectorRegisterCost;
   generic.knobs.push_back(
       {"lmul", "integer_core_lmul", candidate.integerCoreLMUL.str(), false});
   generic.knobs.push_back(

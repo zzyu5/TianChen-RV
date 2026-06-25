@@ -54,20 +54,28 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
         /*vectorRegisterBudget=*/kRVVQ40ShapeVectorRegisterBudget,
         /*enumerate12=*/enumerateRVVQ40Q80ShapeCandidates);
 
-  if (kernelKey == "q8_0")
-    return makeBlockDotScheduleDescriptor(
-        /*kernelKey=*/"q8_0",
-        /*attrPrefix=*/"tcrv_rvv.q8_0_schedule",
-        /*producerName=*/"rvv-q8-0-autotuner",
-        /*measuredReason=*/
-        "measured-fastest legal Q8_0 shape (on-board best-of-N; "
-        "tuning-record-backed)",
-        /*staticReason=*/
-        "min-cost legal Q8_0 shape (capability-blind structural cost shared "
-        "with Q4_0; strip-elision gated on Zvl128b at the m2 anchor)",
-        /*vectorRegisterBudget=*/kRVVQ80ShapeVectorRegisterBudget,
-        /*enumerate12=*/nullptr,
-        /*enumerate18=*/enumerateRVVQ80Q80ShapeCandidates);
+  if (kernelKey == "q8_0") {
+    RVVScheduleMaterializationDescriptor descriptor =
+        makeBlockDotScheduleDescriptor(
+            /*kernelKey=*/"q8_0",
+            /*attrPrefix=*/"tcrv_rvv.q8_0_schedule",
+            /*producerName=*/"rvv-q8-0-autotuner",
+            /*measuredReason=*/
+            "measured-fastest legal Q8_0 shape (on-board best-of-N; "
+            "tuning-record-backed)",
+            /*staticReason=*/
+            "min-cost legal Q8_0 shape (capability-blind structural cost shared "
+            "with Q4_0; strip-elision admitted at the narrowest anchor whose "
+            "VLMAX spans the block at the derived minimum VLEN)",
+            /*vectorRegisterBudget=*/kRVVQ80ShapeVectorRegisterBudget,
+            /*enumerate12=*/nullptr,
+            /*enumerate18=*/enumerateRVVQ80Q80ShapeCandidates);
+    // q8_0 is the ONE block-dot kernel whose elided-correct anchor moves with VLEN
+    // (its 32-element block straddles m1's VLMAX boundary between 128/256). Stamp
+    // the SEMANTIC minimum_vlen attr its verifier recomputes legality from.
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    return descriptor;
+  }
 
   if (kernelKey == "q4_1")
     return makeBlockDotScheduleDescriptor(
@@ -130,7 +138,8 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     descriptor.budgetValue = kRVVGemmMaxActivationCols;
     descriptor.stampPeakLiveVregs = false; // GEMM has no peak-live-vreg stamp.
     descriptor.requiredKnobKeys = {"activation_cols"};
-    descriptor.enumerate = [](bool /*hasZvl128b*/, std::int64_t vregCeiling) {
+    descriptor.enumerate = [](std::int64_t /*minimumVLEN*/,
+                              std::int64_t vregCeiling) {
       llvm::SmallVector<GenericScheduleCandidate> generic;
       for (const RVVGemmMCandidate &candidate :
            enumerateRVVGemmMCandidates(vregCeiling))
@@ -149,8 +158,14 @@ void runRVVScheduleMaterializationViaInterface(
     std::optional<mlir::TypeID> onlyOpType) {
   mlir::MLIRContext *ctx = module.getContext();
 
-  // (1) Derive the Zvl128b capability fact ONCE (the ONLY capability input; the
-  // cost model is capability-blind). For GEMM this is audit-only.
+  // (1) Derive the capability VLEN facts ONCE. The block-dot enumerations now
+  // reason over the REAL minimum VLEN bits (deriveMinimumVLEN: 0/128/256/512...),
+  // which drives the per-anchor reduction count AND the elided-cover legality via
+  // VLMAX -- replacing the old 1-bit Zvl128b boolean as the selection input. The
+  // boolean is still derived (== minimumVLEN >= 128) for the audit stamp's
+  // `has_zvl128b` attr (the cost FORMULA itself remains capability-blind). For
+  // GEMM both are audit-only.
+  std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
   bool hasZvl128b = deriveHasZvl128b(march, isaVectorHints);
 
   // (4) Load the optional measurement record ONCE (absent/unreadable => static
@@ -187,7 +202,7 @@ void runRVVScheduleMaterializationViaInterface(
       if (!descriptor)
         continue;
       llvm::SmallVector<GenericScheduleCandidate> candidates =
-          descriptor->enumerate(hasZvl128b, descriptor->budgetValue);
+          descriptor->enumerate(minimumVLEN, descriptor->budgetValue);
       dumpGenericLegalCandidates(llvm::outs(), descriptor->kernelKey, march,
                                  candidates);
     }
@@ -207,9 +222,10 @@ void runRVVScheduleMaterializationViaInterface(
     if (!descriptor)
       continue;
 
-    // (2) Enumerate + prune the generic candidate space.
+    // (2) Enumerate + prune the generic candidate space (VLEN-derived for the
+    // block-dot kernels: reduction count + elided legality from VLMAX).
     llvm::SmallVector<GenericScheduleCandidate> candidates =
-        descriptor->enumerate(hasZvl128b, descriptor->budgetValue);
+        descriptor->enumerate(minimumVLEN, descriptor->budgetValue);
 
     // (6) Select: measured-best (still-legal record) else the static argmin.
     // Fail-closed (I7): nullopt only when every candidate was pruned.
@@ -219,9 +235,11 @@ void runRVVScheduleMaterializationViaInterface(
     if (!selected)
       continue;
 
-    // (7) Stamp the chosen knobs + the provenance audit trail.
+    // (7) Stamp the chosen knobs + the provenance audit trail + (q8_0) the
+    // semantic minimum_vlen legality input.
     stampRVVSchedule(ctx, iface.getOperation(), *descriptor, hasZvl128b,
-                     static_cast<std::int64_t>(candidates.size()), *selected);
+                     minimumVLEN, static_cast<std::int64_t>(candidates.size()),
+                     *selected);
   }
 }
 

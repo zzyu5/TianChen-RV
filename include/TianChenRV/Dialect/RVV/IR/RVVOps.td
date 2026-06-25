@@ -5201,13 +5201,21 @@ def GgmlBlockDotQ80Q80Op
       fp32 folds always emitted in strict ascending block order.
     - `strip_elision` selects whether the inner strip loop is kept ("robust",
       default -- correct at any VLEN) or elided ("elided" -- a single
-      vsetvl_e8m2(32) + one vwredsum over the whole block, NO inner strip loop).
-      The elided form is correct ONLY at VLEN >= 128 (vsetvl_e8m2(32) caps the
-      active vl at 32 when VLMAX is >= 32) and therefore requires the m2 anchor
-      (m1/mf4 VLMAX at VLEN=128 would silently drop block bytes). The verifier
-      rejects the "elided" + non-m2 combination fail-closed (I7); the capability-
-      aware autotuner gates "elided" on the Zvl128b capability. The `nb % factor`
-      tail always uses the robust single-block core regardless of strip_elision.
+      vsetvl_e8<anchor>(32) + one vwredsum over the whole block, NO inner strip
+      loop). The elided whole-block cover is correct only when the anchor's VLMAX
+      at the GUARANTEED minimum VLEN spans the whole 32-element block. Which anchor
+      that is MOVES with VLEN: at VLEN=128 only m2 spans it (VLMAX 32), so elided
+      requires m2; at VLEN=256 the m1 anchor's VLMAX also reaches 32, so m1 elided
+      becomes correct too. The verifier checks this VLMAX-vs-block-length legality
+      against the `minimum_vlen` attr (see below), fail-closed (I7).
+    - `minimum_vlen` is the GUARANTEED minimum VLEN bits the schedule was selected
+      for (the deriveMinimumVLEN capability fact: 128 / 256 / ...). It is the
+      SEMANTIC legality input the verifier reads to admit an elided cover at the
+      narrowest anchor whose VLMAX spans the block at that VLEN (NOT the audit
+      `has_zvl128b` mirror). Absent it defaults to 128 (the conservative floor: a
+      hand-authored elided cover must hold at VLEN=128, so only m2 elided is
+      admitted), keeping every pre-existing op valid. The `nb % factor` tail always
+      uses the robust single-block core regardless of strip_elision.
   }];
 
   let arguments = (ins
@@ -5224,7 +5232,8 @@ def GgmlBlockDotQ80Q80Op
     I64Attr:$quant_byte_offset,
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$multi_block_factor,
-    OptionalAttr<StrAttr>:$strip_elision
+    OptionalAttr<StrAttr>:$strip_elision,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 

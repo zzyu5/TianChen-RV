@@ -29,9 +29,21 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-FULLV
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gc_zve32x | FileCheck %s --check-prefix=STAMP-ZVE32X
 //
+// The HEADLINE Win-A enrichment: the REAL VLEN fact (not a 1-bit Zvl128b boolean)
+// FLIPS the integer-core LMUL anchor. The SAME attr-less op selects m2 at VLEN128
+// but m1 at VLEN256 -- the optimal anchor MOVES with VLEN (m1's VLMAX reaches the
+// 32-element block only at VLEN >= 256, dropping its reduction count 2->1 and
+// freeing its elided cover; the lighter footprint then breaks the cost tie to m1).
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
+//
 // Then the EMISSION-LEVEL proof: the selected shape carries through the lowering.
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=FULLV
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gc_zve32x --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=ZVE32X
+//
+// The NON-NULL emission proof: VLEN256 emits a BYTE-DIFFERENT kernel from VLEN128
+// (vint8m1 / vsetvl_e8m1 / vwredsum i16m2 vs vint8m2 / vsetvl_e8m2 / vwredsum
+// i16m4). A capability FACT changes the lowering -- NOT a structural NULL.
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q8-0-schedule=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 
 module {
   tcrv.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel {
@@ -76,6 +88,20 @@ module {
 // STAMP-ZVE32X-SAME: multi_block_factor = 2 : i64
 // STAMP-ZVE32X-SAME: strip_elision = "robust"
 // STAMP-ZVE32X-SAME: tcrv_rvv.q8_0_schedule.has_zvl128b = false
+//
+// rv64gcv_zvl256b (VLEN256): the SAME op FLIPS to (m1, factor=2, elided). The REAL
+// VLEN fact -- stamped as the SEMANTIC minimum_vlen = 256 the verifier reads -- makes
+// m1's strip VLMAX reach 32 (it spans the whole 32-element block in ONE vsetvl), so
+// m1's reduction count drops 2->1 AND its elided cover becomes legal; m1-elided then
+// TIES m2-elided on the capability-blind cost (both 1050) and the lighter peak-live
+// footprint (6 < 9) breaks the tie to m1. The anchor MOVES with VLEN -- the headline
+// Win-A enrichment (1-bit Zvl128b boolean -> real VLEN-bits-driven lowering).
+// STAMP-VLEN256: tcrv_rvv.q8_0_q8_0_block_dot
+// STAMP-VLEN256-SAME: integer_core_lmul = "m1"
+// STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
+// STAMP-VLEN256-SAME: multi_block_factor = 2 : i64
+// STAMP-VLEN256-SAME: strip_elision = "elided"
+// STAMP-VLEN256-SAME: tcrv_rvv.q8_0_schedule.peak_live_vector_registers = 6 : i64
 
 // =============================== FULL-V (rv64gcv) ===========================
 // The compiler SELECTED (m2, factor=2, elided): the by-2 outer loop, TWO
@@ -113,3 +139,23 @@ module {
 // ZVE32X: for %{{.*}} = %{{.*}} to %{{.*}} step
 // ZVE32X: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // ZVE32X: return
+
+// ===================== VLEN256 (rv64gcv_zvl256b) — the FLIP ==================
+// The compiler SELECTED (m1, factor=2, elided): a BYTE-DIFFERENT kernel from the
+// VLEN128 m2 shape. The integer core narrows to the m1 anchor -- vsetvl_e8m1 (NOT
+// e8m2), the i8m1 x i8m1 widening product into i16m2 (NOT i16m4), and the
+// vwredsum_vs_i16m2 reduce (NOT i16m4). The elided whole-block cover is now correct
+// at m1 because VLEN256 gives m1 a VLMAX of 32 (it spans the whole block in ONE
+// vsetvl). This is the NON-NULL proof: the two VLENs do NOT emit the same bytes.
+// VLEN256: emitc.func @tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0(
+// The by-2 main loop, the two elided m1 cores (ONE vsetvl_e8m1 + ONE vwredsum each).
+// VLEN256: %[[REM:.*]] = rem %{{.*}}, %{{.*}}
+// VLEN256: %[[MAIN:.*]] = sub %{{.*}}, %[[REM]]
+// VLEN256: for %[[IB:.*]] = %{{.*}} to %[[MAIN]] step
+// The m1 anchor: vsetvl_e8m1 (the FLIP from e8m2) -- byte-different vsetvl.
+// VLEN256: call_opaque "__riscv_vsetvl_e8m1"
+// VLEN256-NOT: call_opaque "__riscv_vsetvl_e8m2"
+// The m1 elided cores reduce through i16m2 (the FLIP from i16m4).
+// VLEN256: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
+// VLEN256-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
+// VLEN256: return
