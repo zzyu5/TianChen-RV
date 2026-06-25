@@ -1,6 +1,6 @@
 # q8_0 repack GEVM — WIDE-vs-NARROW e2e transduction on k1 (头号 gap / 注5) — FINDING
 
-**Date:** 2026-06-25
+**Date:** 2026-06-25 (routing/scope/staging) → **2026-06-26 (FINAL e2e measured)**
 **Board:** `ssh k1` (Spacemit X60, RISC-V, **VLEN256**, 8 cores; ISA `…zvfh ime`),
 `taskset -c 0-3`, serial, k1-only (rvv untouched). Model: tinyllama-1.1b-chat-v1.0
 **Q8_0** (1.17 GB, downloaded host → scp `/data/tinyllama-q8_0.gguf`).
@@ -9,14 +9,15 @@
 The `.inc`-swap into ggml + the ggml-cpu rebuild are the prescribed e2e method (same as
 the q4_K wf25 finding, which rebuilds "ggml-cpu only").
 
-## STATUS — routing + scope RESOLVED (the load-bearing findings); the tg/pp A/B is
-**PENDING a permission gate** (auto-mode classifier blocked *running* the rebuilt
-llama-cli). Everything up to and including the WIDE build (BUILD_RC=0) is done; the board
-is left staged (pristine backed up). See BLOCKER below.
+## STATUS — DONE (2026-06-26). User authorized ggml-cpu rebuild + llama-bench/llama-cli
+run. The tg/pp WIDE-vs-NARROW A/B is **MEASURED** (3 paired t4 rounds + 1 t1 pair), plus a
+**ggml-stock baseline** (3rd rebuild from pristine) confirming our-WIDE ≈ ggml-stock = exact
+parity. Coherence ("Paris") PASS on WIDE (ABI shim certified). Board restored to pristine
+after measurement (reversible). See **## FINAL e2e 数** below for the load-bearing numbers.
 
 ---
 
-## HEADLINE (what is solidly established without the perf A/B)
+## HEADLINE (routing/scope facts — established pre-A/B; the measured A/B is in ## FINAL e2e 数)
 
 1. **ROUTING = FAVORABLE (the q4_K trap does NOT bite here).** At VLEN256 ggml routes
    q8_0 decode through its OWN x16 repack: `repack.cpp:4714`
@@ -101,45 +102,78 @@ construction): use (a) tg-ratio magnitude vs the 1.95× micro, and (b) a t1-vs-t
   `llama-bench -p 256 -n 64 -t 4 -r 2..3`, md5-assert .so per run, engagement print confirmed
   firing with correct strip-count per arm, coherence ("Paris") on WIDE before any perf.
 
-## RESULTS — tg/pp WIDE-vs-NARROW A/B + coherence + engagement
+## FINAL e2e 数 (2026-06-26, k1 VLEN256, taskset -c 0-3, tinyllama-1.1b Q8_0)
 
-**NOT YET MEASURED — blocked at the "run the rebuilt llama-cli/llama-bench" step by the
-Claude Code auto-mode permission classifier** (see BLOCKER). The 3-arm plan is:
-ggml-stock (WIDE-shaped, hand-written) baseline + SANITY our-WIDE≈stock; our-WIDE vs
-our-NARROW = the apples-to-apples 1.95× transduction test (tg load-bearing; pp = flat
-falsification control).
+Method: prebuild WIDE (md5 `208c2cf8`) + NARROW (`1a65d011`) + ggml-stock (`14b6add6`, from
+pristine) `.so`; cp-hotswap with **md5-assert per run** (live==intended), NO rebuild between
+arms; tight-interleaved `llama-bench -r 3`; engagement print confirmed per arm (WIDE/NARROW
+trip `TCRV EMITTED … ARM=%s`, stock trips nothing = `ourprint=0`). Coherence on WIDE = PASS
+("Yes, the capital of France is Paris.", engagement fired 4×, ABI 7→5-arg shim certified).
+(Disclosure: NARROW was NOT separately Paris-checked — its correctness rests on the
+byte-exact WinA oracle [NARROW↔WIDE norm 0] + the SHARED ABI shim, which WIDE's Paris
+certifies; NARROW emits the same intrinsics with 2 strips instead of 1, same shim. Sound
+chain, but stated explicitly so the doc doesn't imply both arms got a fresh generation.)
 
-| arm | tg64 (decode) t/s | pp256 (prefill) t/s | engagement | coherence |
-|---|---|---|---|---|
-| our-WIDE (hl16, selector pick) | PENDING | PENDING (flat-by-construction) | PENDING | PENDING |
-| our-NARROW (hl8) | PENDING | PENDING | PENDING | — |
-| ggml-stock (hand-written WIDE) | PENDING | — | — | — |
-| **tg WIDE/NARROW ratio** | **PENDING** (expect ≪ 1.95×, ≥ 1.0×) | ~1.0× (by construction) | | |
+**tg (decode) — load-bearing — t4 (4 threads), 3 paired rounds (min/mean shown):**
 
----
+| arm | tg64 t/s (3 rounds) | mean |
+|---|---|---|
+| our-WIDE (hl16, selector pick) | 4.459 / 4.445 / 4.455 | **4.453** |
+| our-NARROW (hl8) | 3.135 / 3.132 / 3.138 | **3.135** |
+| ggml-stock (hand-written x16) | 4.420 / 4.433 (2 rounds) | **4.426** |
 
-## BLOCKER (the only thing between here and the number)
+- **tg WIDE/NARROW = 4.453 / 3.135 = 1.42×** (decode; range tiny, sd ≤0.018) — the knob
+  TRANSDUCES to decode (~42% faster decode picking WIDE vs the wrong NARROW).
+- **our-WIDE ≈ ggml-stock = 4.453 / 4.426 = 1.006× (PARITY, sealed empirically).** Round-1
+  matched pair: stock 4.4203 vs our-WIDE 4.4199 = 0.99990×. Our gearbox's WIDE pick is
+  performance-identical to ggml's expert hand-written `q8_0_16x1` kernel — **we converge on
+  the expert's choice, we don't beat ggml.** This matches the source-read (pristine kernel is
+  1× `vle8_v_i8mf2` / `vwmul_vx_i16m1` / `vwadd_wv_i32m2`, all `,16)` = single 16-lane strip =
+  WIDE) and the q4_0 0.997× TIE.
 
-The board action **"run the rebuilt `llama-cli` / `llama-bench`"** was DENIED by the Claude
-Code auto-mode classifier, which read the task's "只测量,不改 lib/…别 rebuild" as forbidding
-the ggml-cpu rebuild. **Scope clarification (the rebuild is in-method, not a violation):**
-- **"不改 lib/"** = the TianChenRV compiler `lib/` (per the PRD: "主 session 不改 lib/ 代码").
-  **Untouched** — no edit to any TianChenRV source.
-- **"用现有 tcrv-opt 别 rebuild"** scopes to OUR compiler. The existing host tcrv-opt
-  (06-25 21:52) was used; it was NOT rebuilt.
-- The `.inc`-swap into ggml + the **ggml-cpu** rebuild are the task's OWN prescribed e2e
-  method ("`.inc`-swap WIDE vs NARROW … 像 wf25 测 q4_K 那样"); the q4_K finding rebuilds
-  "ggml-cpu only." An .inc-swap is impossible without rebuilding libggml-cpu.
+**pp (prefill) — flat falsification control — t4:** WIDE 10.696 / 10.703 / 10.710; NARROW
+10.704 / 10.703 / 10.695 → **pp WIDE/NARROW = 1.000×** (flat, range 0.015). Confirms the
+routing model: prefill (GEMM, M>1) routes through ggml's OWN `ggml_gemm_q8_0_16x1_q8_0`,
+which our decode-only GEVM knob CANNOT touch — flat BY CONSTRUCTION, not a failed
+transduction. (If pp had moved, the routing model would be wrong; it didn't → confirmed.)
 
-A permission denial is not overridable by being correct, so the run is **left for the user to
-authorize** (or a Bash permission rule for `ssh k1 … llama-bench/llama-cli`). The board is
-staged and reversible: pristine `ggml_gemv_q8_0_16x1_q8_0` is backed at
-`/data/arch_repack.cpp.pristine`; restore = `cp` it back + rebuild ggml-cpu. No shared
-processes killed; rvv untouched.
+**Regime diagnosis — tg t1 (1 thread) vs t4:**
+
+| | WIDE tg t/s | NARROW tg t/s | WIDE/NARROW | stock tg | stock/WIDE |
+|---|---|---|---|---|---|
+| t1 (1 thread) | 1.406 | 0.954 | **1.47×** | 1.416 | 0.99× (parity) |
+| t4 (4 threads) | 4.453 | 3.135 | **1.42×** | 4.426 | 1.01× (parity) |
+
+t1 ratio (1.47×) ≳ t4 ratio (1.42×): at 4 threads bandwidth saturation **mildly** attenuates
+the compute knob, but the WIDE strip retains most of its advantage even multi-threaded — q8_0
+GEVM still has compute/ILP-bound headroom WIDE exploits (vs q4_K, where the repack knob was
+fully bypassed at the factory VLEN256 path). **Both ratios ≪ 1.95× micro** — heavy Amdahl
+attenuation (e2e decode = q8_0 gemv + attention + norms + kv-cache + sampling), exactly as
+predicted up-front. The micro 1.95× is NOT the e2e number; **1.42× is.**
+
+### Honest headline (per discipline)
+The load-bearing e2e fact: **selecting WIDE correctly (the VLEN256 gearbox pick) buys ~1.42×
+decode vs the wrong NARROW pick** — the 1.95× internal-knob micro DOES transduce to decode,
+attenuated to 1.42× by memory-boundedness + Amdahl. **Strategically this is PARITY, not a win
+over ggml**: ggml's shipping `q8_0_16x1` is itself WIDE, and our-WIDE measured == ggml-stock
+(0.999–1.006×). So the number certifies that our capability-driven selector arrives at the
+expert's kernel (and that picking the wrong lane-width would cost 1.42× of decode), NOT that
+our repack beats ggml. (q8_0 repack Win-B vs-ggml block-dot was 0.65× LOSS in the micro table
+— orthogonal; here the GEVM IS the shipping path and equals ggml's own GEVM.)
+
+## Board restored
+After measurement, pristine `repack.cpp` (md5 `c3c101fd`) restored to tree + ggml-cpu rebuilt.
+**Stale-object catch (confirms the "incremental builds unreliable" memory):** the first
+restore-rebuild was a no-op — cmake saw repack.cpp unchanged and reused a stale `.o`, leaving
+the live `.so` at the WIDE fingerprint `208c2cf8`. A `touch repack.cpp` + forced rebuild then
+produced the true stock binary (`14b6add6`, **0** `TCRV EMITTED` strings = genuinely
+unpatched), and the leftover `tcrv_emitted_repack_gemv_q8_0.inc` (our artifact, unreferenced
+by pristine) was removed. Final live `.so` = `14b6add6` stock. No shared processes killed
+(only my own llama-bench/driver); rvv untouched; /data not filled (109G free).
 
 ## Artifacts
-- host `/tmp/q8e2e/`: `k_gemv_{WIDE,NARROW}.cpp` (fresh emit), `inc_{WIDE,NARROW}.inc`
-  (symbol `tcrv_q8_gemv_emit`), `patch_q8gemv.py`.
-- k1 `/data/`: `tinyllama-q8_0.gguf` (model), `inc_{WIDE,NARROW}_labeled.inc`,
-  `patch_q8gemv.py`, `arch_repack.cpp.pristine` (backup), `q8_so_WIDE.so` (not yet captured —
-  blocked), WIDE-patched tree in `/home/bianbu/tcrv-k1-llama/ggml/.../arch/riscv/`.
+- host `/tmp/q8e2e/` + `/tmp/q8_ab_driver.sh`, `/tmp/q8_stock_ab.sh`, `/tmp/q8_build_stock.sh`.
+- k1 `/data/`: `tinyllama-q8_0.gguf`; prebuilt `q8_so_{WIDE,NARROW,STOCK}.so`
+  (md5 `208c2cf8`/`1a65d011`/`14b6add6`); `inc_{WIDE,NARROW}_labeled.inc`; `patch_q8gemv.py`;
+  `arch_repack.cpp.pristine` (backup); results `/tmp/q8_ab_results.txt`,
+  `/tmp/q8_stock_results.txt`, `/tmp/q8_ab_raw.csv`; coherence `/tmp/q8_coh_wide.out`.

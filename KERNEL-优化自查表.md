@@ -24,11 +24,11 @@
 | q3_K |  | 1.15× |  |  | 0.55× |  | N/A |
 | q5_K |  | 1.30× |  |  | 1.00× |  | N/A |
 | q2_K | N/A | N/A |  |  | 1.02× |  | N/A |
-| q8_0 | 1.08×(注12) | **1.17×(注12)** |  |  |  |  | N/A |
-| q4_1 | 1.03×(注1) | 1.11×(注1) |  |  |  |  | N/A |
-| q4_0 | 1.01×(注1) |  |  |  |  |  | N/A |
-| q5_0 | N/A | N/A |  |  |  |  | N/A |
-| q5_1 | N/A | N/A |  |  |  |  | N/A |
+| q8_0 | 1.08×(注12) | **1.17×(注12)** |  | **1.19×(注19)** |  |  | N/A |
+| q4_1 | 1.03×(注1) | 1.11×(注1) |  | 0.26×(注19) |  |  | N/A |
+| q4_0 | 1.01×(注1) |  |  | 0.21×(注19) |  |  | N/A |
+| q5_0 | N/A | N/A |  | 0.26×(注19) |  |  | N/A |
+| q5_1 | N/A | N/A |  | 0.29×(注19) |  |  | N/A |
 | iq1_s | N/A | N/A |  | 0.43× | 0.36×(注10) |  | N/A |
 | iq1_m | N/A | N/A |  | 0.17× | 0.24×(注10) |  | N/A |
 | iq3_xxs | N/A | N/A |  | 0.12× | 0.20×(注10) |  | N/A |
@@ -56,7 +56,7 @@
 | q4_0 repack(prefill) | 1.30× |  | 6.36× | 0.997×(注16) | **5.68×** |  |
 | q4_1 repack(decode) |  |  | 正确性✓ |  | 上游卡(注3) | 上游卡 |
 | q4_1 repack(prefill) | 1.24×(注4) |  | 正确性✓ |  | 上游卡 | 上游卡 |
-| q8_0 repack(decode) |  | 1.95× | 0.65× |  | 推定平 | 未测(注5) |
+| q8_0 repack(decode) |  | 1.95× | 0.65× |  | 推定平 | 平=vs-ggml-stock 1.00×(注5) |
 | q4_K repack(decode) |  |  | 0.55× | 正确✓(注17) | 推定平 |  |
 | q4_K repack(prefill) |  |  | 0.74× |  | 推定输 |  |
 | q5_0 repack(decode) |  |  | 0.77× | 0.821×(注18) |  |  |
@@ -135,7 +135,7 @@
 - 注2:ggml 在 riscv 上根本没写 nvfp4 的向量 kernel(只有标量),没有合法对手 = N/A。
 - 注3:q4_1 repack 想跑 llama,需要 ggml 提供一个配套的激活打包器,ggml 没有 → 接不进去(不是我们没做)。
 - 注4:**q4_1 repack 的 prefill(GEMM)旋钮 = 1.24×(WIDE/NARROW),byte-exact(2026-06-25,rvv VLEN128)**——WIDE(m1)比 NARROW(mf2)快,同一个 `repack_gemm_q4_1_q8_1` op、改 strip-width 旋钮(默认 mf2 / xtheadvector-stamp m1)、读同样的字节、WIDE↔NARROW norm 0.000e+00。LMUL 两档 source-grep 证明 disjoint(SG2044 objdump 解不了 RVV vtype)。报 min(min 是 best-of-reps 正确估计:噪声只会加时间),square 最低 1.24× / mlp 1.31×;更高的 1.5× 是 NARROW 在板子负载累积下 min 抬高的上界噪声,非更大真赢。**这是手动 stamp 的 m1 vs 默认 mf2 旋钮 ON/OFF,不是 RVV1.0 auto-tune 赢**。机理未隔离(GEMM 的 WIDE 反而 vle8 更多,与 GEVM 相反,所以不是 strip-count 减半——只报实测比值)。e2e 仍上游卡(无 q8_1x4 量化器)。GEMM 正确性 vs scalar oracle 早已验过(archive GAP 2,norm ≤7.6e-6)。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-q41-q10-FINDING.md`。
-- 注5:**q8_0 repack e2e routing 已查清(2026-06-25,k1)**——routing **有利**:q8_0 decode 在 k1 VLEN256 确实走我们的 repack GEVM(`ggml_gemv_q8_0_16x1_q8_0`,**不像 q4_K 被 GEMM 绕过**),我们的 kernel 是出厂 decode 路径。但两个定性结论已定了战略答案:① **没有 q8_0 GEMM emitter** → 旋钮只管 decode,prefill flat-by-construction;② **ggml 出厂的 `q8_0_16x1` 本身就是 WIDE 档**(单 16-lane mf2 strip),我们 gearbox 从 VLEN256 fact 推出同一 WIDE → **parity(选择器收敛到专家手写选择)**,同 q4_0 0.997× TIE,**不是赢 ggml**。精确 WIDE/NARROW decode 比值(确认 1.95× micro 是否传导)需在 k1 重建 ggml-cpu 跑 llama-bench,**卡在权限门未取**(staged 可逆);但战略答案=parity 已清楚。详见 `q8-repack-e2e-FINDING.md`。
+- 注5:**q8_0 repack e2e 已实测(2026-06-26,k1 VLEN256,taskset 0-3,tinyllama-1.1b Q8_0;用户授权重建 ggml-cpu + 跑 llama-bench/cli;不改我们 lib/、用现有 tcrv-opt)**——routing **有利**:q8_0 decode 在 k1 走我们的 repack GEVM(`ggml_gemv_q8_0_16x1_q8_0`,**不像 q4_K 被 GEMM 绕过**),是出厂 decode 路径。3 种 .so prebuild + md5-assert 热插不重建、tight-interleave、engagement print 每档确认、coherence("Paris")PASS(ABI 7→5 arg shim 验过)。**两个结果**:① **WIDE/NARROW 旋钮传导**:decode tg **1.42×**(t4 配对 3 轮:WIDE 4.453 / NARROW 3.135,sd≤0.018;t1 配对 1.47×→t4 1.42×=多线程带宽只轻微吃掉旋钮),prefill pp **1.00×**(WIDE 10.70/NARROW 10.70,flat-by-construction:prefill 走 ggml 自己的 GEMM、我们 decode-only GEVM 旋钮碰不到,是证伪对照而非失败传导)。**1.42× ≪ 1.95× micro**——内存受限+Amdahl(decode 含 attention/norm/kv/sampling)重度衰减,**1.95× 是内部旋钮 micro、不是 e2e;1.42× 才是**。② **vs ggml-stock = PARITY**:从 pristine 重建 ggml 出厂 kernel 做基线,our-WIDE **== ggml-stock**(t4 配对 round-1 4.4199 vs 4.4203=**0.99990×**;t4/t1 综合 0.99–1.01×)——我们 gearbox 的 WIDE 选择**性能等同 ggml 专家手写的 `q8_0_16x1`**,同 q4_0 0.997× TIE,**收敛到专家选择、不是赢 ggml**(与 micro 表里 q8_0 repack Win-B 0.65× LOSS 正交:那是 vs block-dot;这里 GEVM 就是出厂路径、等于 ggml 自己的 GEVM)。**诚实定位:1.42× 证明"选对 lane-width 的能力驱动 lowering 买到 42% decode",战略上是 parity 非 beat-ggml。**板子跑后已 forced-rebuild 复原 pristine(注意:第一次 restore 是 stale-object no-op 出 WIDE 指纹,touch+强制重建后 live .so=stock 14b6add6、0 个 TCRV 串=真干净——印证"增量构建不可靠"memory)。详见 `q8-repack-e2e-FINDING.md` 的 ## FINAL e2e 数。
 - 注6/7/8:见表 4、表 5 上文。
 - 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
 - 注10:**IQ k1 micro(2026-06-25,12 格 vs-ggml·k1 全填)**——对手 = ggml 出厂在 k1 实际派发的 `_vl256` kernel(不是 rvv 列用的 `_vl128`;k1 `vlenb=32→VLEN256` 已 1 行二进制 probe)。**全 7 个 IQ 都 byte-exact(0.000e+00)、全 LOSS,比值 0.20–0.66**(ggml 1.5–5.1× 快)。注意:k1 比 rvv 列「好很多」(iq3_xxs 0.12→0.20)**是 emitter 从「标量查表」成熟到「真 vluxei16 整块查」**带来的,**不是 VLEN256 效应**——rvv 列那些数是旧 0-vluxei emit,两列不可直接比。残留 1.5–5× = gather LMUL/打包旋钮,非 primitive 缺失。详见 `k1-micro-fill-FINDING.md`。
@@ -153,6 +153,8 @@
 
 - 注18:**q5_0 repack GEVM 在 k1 micro = 0.821× LOSS(best anchor,2026-06-25,k1 VLEN256,现有 tcrv-opt 无 rebuild)**——对手 = ggml 真向量 q5_0 **block-dot**(`ggml_vec_dot_q5_0_q8_0` 的 unified `__riscv_v` body,`vlenb==32` 走 VLEN256 `vslideup`+`vlmul_ext` 分支;ggml 不出 q5_0 repack → per-column block-dot 是方法论正确 baseline)逐列跑 16 次。**byte-exact gate 先过**:两 anchor(mf2/m1)norm **0.000e+00** @ NC∈{16,32,64,336},SANITY ours==ggml-per-col max_rel 0。比值:**mf2(h16 native 16-lane 单 strip)0.821×**、**m1(h16 over-provision 32-lane)0.562×**——best anchor mf2 **0.821× LOSS**(ggml ~1.22× 快)。setup **handicap ggml / 利我们**(ggml 每组重读激活 16×、我们读 1×)、对比对**我们慷慨**,仍输 → LOSS 反而**更稳健**(去掉 ggml 的 handicap → ggml 更快 → 我们输更多),钉在 COMPUTE 轴非内存假象。**h16 同样是手动 stamp(默认 h8,无 auto-select)**。原因 = q5_0 compute-bound:ggml 一个宽 masked `vsub` 折 qh,我们须逐 nibble lane-wise 展开 transposed qh mask(vid/vsrl/vand/vsll/vncvt)= 记录的 N3 模式「gather-heavy 赢、compute-bound 输 ggml wide LMUL」。**k1 0.821× 比 rvv 0.769× 略好**——native 16-lane strip 恰配 VLEN256,rvv VLEN128 拆两 8-lane strip。详见 `k1-repack-fill-FINDING.md`。
 
+- 注19:**标准 quant block-dot vs-ggml·rvv micro 全填(2026-06-25,rvv VLEN128,现有 tcrv-opt 无 rebuild、不改 lib/)**——填 q8_0/q4_1/q4_0/q5_0/q5_1 这 5 格(原全空)。对手 = ggml 出厂真向量 `ggml_vec_dot_*_q8_*`(verbatim 自 quants.c,q5_0/q5_1 走 `vlenb==16` VLEN128 分支),`taskset -c 0` min-of-reps,**5/5 byte-exact gate 先过(max_rel 0.000e+00,8 seed × 6 size)再报 perf**。结果:**q8_0 = 1.19× WIN**(唯一赢)、**q4_0 0.21× / q4_1 0.26× / q5_0 0.26× / q5_1 0.29× = 4 LOSS**(慢 3.4–4.8×)。**单一机理(grep .cpp 确认):是我们 emitter 选的 LMUL/strip 形状,非算法**——q8_0 block-dot **无 nibble 解包**,我们 emit 取 **m2 满 32-lane 单 strip**(`vle8m2`/`vwmul_i16m4`/一次 vwredsum),VLEN128 下 e8m2 VLMAX=32 → 内 strip 循环**恰跑一次**,和 ggml **同形**却仍稳定更快 **~1.17–1.20× WIN**——**两个判别器排除了廉价解释**:① 把 ggml 的 `vmv_v_x_i32m1(0)` 提出循环(loop-invariant)→ 仍 1.167–1.192×(**不是 zero-mv 提升**);② 反转计时顺序(先测 ours)→ 仍 1.200–1.201×(**不是 ordering/cache 假象**)。所以是真·同形 edge,但**机理未隔离**(大概率是我们 emit 的 load 调度/显式临时变量 vs ggml 嵌套表达式),**报 WIN 但不声明机理**;而 4 个 nibble-decode quant 我们都 emit 成 **mf4(¼-LMUL,8-lane)sub-VLMAX strip + 每 strip vsetvl 开销**,ggml 用 m1(16-lane)半块 → 我们 ~2× 更多更窄 strip → LOSS。这是**记录在案的 N3「窄 strip、没调 LMUL/shape」emitter 成熟度坑**(同 q1_0 0.033× / IQ block-dot 一家),**非正确性/选算法问题**;命名 emitter 目标 = **nibble-decode quant 的 wide-LMUL(mf4→m1)block-dot emit**。诚实:这 4 个标准 quant 的算法家在 **repack**(q4_0 repack 是真 2.6× e2e WIN,表2),block-dot 是构件,此处 LOSS 不与 repack WIN 矛盾(不同轴);q8_0 block-dot 本身就是 lean kernel(无 nibble)所以是真宽-strip parity+edge。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-standard-quant-FINDING.md`。
+
 ---
 
 # 没做清单(自查漏洞,如实列)
@@ -162,7 +164,8 @@
 3. ~~**q4_0 repack 在 k1、q5_0 repack 在 k1、q4_K repack 在 k1 都没做;q4_K repack k1 的正确性 oracle 还没跑**。~~ **DONE 2026-06-25(k1 VLEN256,现有 tcrv-opt 无 rebuild、不改 lib/,`k1-repack-fill-FINDING.md`)**:① q4_K repack k1 正确性 oracle = **PASS,WORST_NORM 7.07e-7**(VLEN256-native h16 单 strip,2 negative control 硬触发,注17);② q5_0 repack k1 micro = **0.821× LOSS**(best anchor mf2;m1 0.562×;两 anchor byte-exact norm 0,注18);③ q4_0 repack prefill GEMM k1 = **正确✓(norm 9.06e-6)+ 0.997× TIE** vs ggml 真 16x1 GEMM(注16)。**残留**:k1 q4_K MICRO(vs ggml 自己 VLEN256 repack,更强对手)+ q5_0/q4_0 e2e 未做(只测 micro/oracle 轴)。
 4. ~~**6 个前向算子(softmax 等)0 性能测试**。~~ **DONE 2026-06-25 micro(rvv VLEN128,注15)**:6/6 byte-exact;4 TIE(scale/rms_norm/rope/quantize)+ 2 LOSS(silu 0.840×/softmax 0.854×,root-cause = 缺 ggml exp 多项式的 `vcpop` 快路径短路)。e2e 仍空(本任务只测 micro)。
 5. ~~q1_0 block-dot 没测~~ **DONE 2026-06-25**:q1_0 vs-ggml·rvv = **0.033×(byte-exact,LOSS ~30×,注13)**——非 N/A(ggml 有 `_vl128`);q5_0/q5_1 block-dot 的旋钮仍是 m1-only(没东西可调)。
-6. **能补的真 gap**:q8_0 在 k1 的选择 e2e(头号)、~~q4_1 repack prefill 旋钮(最易)~~ **DONE 2026-06-25 = 1.24×(注4)**、option-2 的真 pipeline 自动化 C3(深活)。
+5b. ~~**标准 quant(q8_0/q4_1/q4_0/q5_0/q5_1)的 block-dot vs-ggml·rvv 全空**。~~ **DONE 2026-06-25(rvv VLEN128,注19)**:5/5 byte-exact;**q8_0 1.19× WIN**(满 m2 32-lane 单 strip = ggml 同形)+ q4_0 0.21×/q4_1 0.26×/q5_0 0.26×/q5_1 0.29× **4 LOSS**(mf4 ¼-LMUL 窄 strip vs ggml m1,命名 emitter 目标 = nibble-decode quant 的 wide-LMUL block-dot emit)。这些是构件 micro,nibble quant 的算法家在 repack(表2)。
+6. **能补的真 gap**:~~q8_0 在 k1 的选择 e2e(头号)~~ **DONE 2026-06-26 = decode 1.42×传导 / pp 1.00× flat / vs-ggml-stock parity 0.99–1.01×(注5)**、~~q4_1 repack prefill 旋钮(最易)~~ **DONE 2026-06-25 = 1.24×(注4)**、option-2 的真 pipeline 自动化 C3(深活)。
 
 ---
 
