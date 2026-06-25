@@ -11,7 +11,7 @@
 - **Win-A·e2e 的数字 = 旋钮开 vs 关传导到 llama 整体多少**(不是 vs ggml)。
 - 板子:**rvv** = SG2044 VLEN128;**k1** = X60 VLEN256;**ime** = X60 的矩阵单元。
 
-> **★内存墙纠正(2026-06-25 实测)**:我之前断言「算力侧优化在 decode 被内存墙washes成 1.0」是**错的**。wf25 在 k1 实测 q4_K 的 Win-A(m1 vs mf2,纯算力旋钮):**decode 也传导了 ~1.22×、prefill ~1.26×**(初步,配对版确认中)。说明 **decode 没把内存带宽占满,算力变快真的让解码变快**——和你「改 kernel 变快就真变快」的记忆一致。所以下表 Win-A·e2e 不再写「推定 NULL」;没测的就空着。
+> **★内存墙——诚实版(2026-06-25 配对实测,纠我自己一次过度声明)**:我先前说「decode 算力 win 被内存墙washes成 1.0」过于绝对,但随后说「你完全对、内存墙不是绝对的」**又过头了**。配对实测(k1,8 对)真相更细:q4_K 的 m1 vs mf2 旋钮在 **decode 传导 1.221×、prefill 1.258×**(极稳,range 0.003)——**但这是「把 q4_K repack 关掉、强制走 per-row vec_dot」的 regime**;关掉 repack 后 decode 也变成算力受限(所以传导是预期的,不构成对内存墙的反驳)。**而出厂默认 VLEN256 会把 q4_K repack 成 GEMM、完全绕过这个 kernel → 这个旋钮对出厂 decode 的 e2e 影响 = 0**。诚实判定:**既没证实也没推翻内存墙**;真正的内存受限判官(8B 模型 @VLEN128 on rvv)还**没跑成**(rvv 板子掉线 blocked)。你的直觉对**部分** kernel 成立(q4_0 repack 改了内存搬运 → e2e 真 2.6×),但 q4_K 这种 block-dot 旋钮在出厂路径上被 repack 绕过了。
 
 ---
 
@@ -19,7 +19,7 @@
 
 | 算子 | Win-A·rvv | Win-A·k1 | Win-A·e2e | vs-ggml·rvv | vs-ggml·k1 | vs-ggml·e2e | ime |
 |---|---|---|---|---|---|---|---|
-| q4_K | 1.26× | 1.30× | **1.22~1.26×实测**(注9) |  | 0.72× |  | N/A |
+| q4_K | 1.26× | 1.30× | 1.22×decode/1.26×pp(注9) |  | 0.72× |  | N/A |
 | q6_K |  | 1.15× |  |  | 0.52× |  | N/A |
 | q3_K |  | 1.15× |  |  | 0.55× |  | N/A |
 | q5_K |  | 1.30× |  |  | 1.00× |  | N/A |
@@ -137,7 +137,7 @@
 - 注4:q4_1 repack 的 prefill 旋钮没测(最容易补的一格)。
 - 注5:q8_0 在 k1 上选宽档比窄档快 1.95×,但这个选择有没有传导到 llama e2e 还没测(最该补的)。
 - 注6/7/8:见表 4、表 5 上文。
-- 注9:**k1 实测**——q4_K 的 m1 vs mf2 旋钮传导到 llama:prefill ~1.26×、**decode ~1.22×**(初步,配对版确认中)。是「repack 关掉走 per-row vec_dot」regime 下隔离的旋钮效果,**不是说 vec_dot 打败了 repack GEMM**。意义:推翻了「decode 内存墙washes一切算力 win」。
+- 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
 
 ---
 
