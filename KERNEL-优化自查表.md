@@ -8,8 +8,10 @@
 - **Win-A 列的数字 = 旋钮开 vs 关**(同一个 kernel,把向量寄存器从窄调到宽,快多少)。例:`1.30×` = 调宽后快 30%。
 - **空格 = 这个板子/这一项没做**(如实留空,不是不适用)。
 - **N/A = 本质不适用**(这个 kernel 没有这个轴可做)。
-- **跑中 = 正在测**(wf25 在测 K-quant 的 e2e)。
+- **Win-A·e2e 的数字 = 旋钮开 vs 关传导到 llama 整体多少**(不是 vs ggml)。
 - 板子:**rvv** = SG2044 VLEN128;**k1** = X60 VLEN256;**ime** = X60 的矩阵单元。
+
+> **★内存墙纠正(2026-06-25 实测)**:我之前断言「算力侧优化在 decode 被内存墙washes成 1.0」是**错的**。wf25 在 k1 实测 q4_K 的 Win-A(m1 vs mf2,纯算力旋钮):**decode 也传导了 ~1.22×、prefill ~1.26×**(初步,配对版确认中)。说明 **decode 没把内存带宽占满,算力变快真的让解码变快**——和你「改 kernel 变快就真变快」的记忆一致。所以下表 Win-A·e2e 不再写「推定 NULL」;没测的就空着。
 
 ---
 
@@ -17,9 +19,9 @@
 
 | 算子 | Win-A·rvv | Win-A·k1 | Win-A·e2e | vs-ggml·rvv | vs-ggml·k1 | vs-ggml·e2e | ime |
 |---|---|---|---|---|---|---|---|
-| q4_K | 1.26× | 1.30× | 跑中 |  | 0.72× | 跑中 | N/A |
-| q6_K |  | 1.15× | 跑中 |  | 0.52× | 跑中 | N/A |
-| q3_K |  | 1.15× | 跑中 |  | 0.55× | 跑中 | N/A |
+| q4_K | 1.26× | 1.30× | **1.22~1.26×实测**(注9) |  | 0.72× |  | N/A |
+| q6_K |  | 1.15× |  |  | 0.52× |  | N/A |
+| q3_K |  | 1.15× |  |  | 0.55× |  | N/A |
 | q5_K |  | 1.30× |  |  | 1.00× |  | N/A |
 | q2_K | N/A | N/A |  |  | 1.02× |  | N/A |
 | q8_0 | 1.07×(注1) | 1.07×(注1) |  |  |  |  | N/A |
@@ -135,14 +137,34 @@
 - 注4:q4_1 repack 的 prefill 旋钮没测(最容易补的一格)。
 - 注5:q8_0 在 k1 上选宽档比窄档快 1.95×,但这个选择有没有传导到 llama e2e 还没测(最该补的)。
 - 注6/7/8:见表 4、表 5 上文。
+- 注9:**k1 实测**——q4_K 的 m1 vs mf2 旋钮传导到 llama:prefill ~1.26×、**decode ~1.22×**(初步,配对版确认中)。是「repack 关掉走 per-row vec_dot」regime 下隔离的旋钮效果,**不是说 vec_dot 打败了 repack GEMM**。意义:推翻了「decode 内存墙washes一切算力 win」。
 
 ---
 
 # 没做清单(自查漏洞,如实列)
 
-1. **所有 block-dot 的 e2e 没真测**(正用 wf25 测 q4_K)。
+1. **block-dot e2e:只测了 q4_K(注9,~1.22×传导)**,其余 block-dot 的 e2e 还没测。
 2. **IQ / FP4 / ternary 在 k1 上的 micro 全没测**(只在 rvv 测了)。
 3. **q4_0 repack 在 k1、q5_0 repack 在 k1、q4_K repack 在 k1 都没做;q4_K repack k1 的正确性 oracle 还没跑**。
 4. **6 个前向算子(softmax 等)0 性能测试**。
 5. **q1_0 block-dot 没测;q5_0/q5_1 block-dot 的旋钮是 m1-only(没东西可调)**。
 6. **能补的真 gap**:q8_0 在 k1 的选择 e2e(头号)、q4_1 repack prefill 旋钮(最易)、option-2 的真 pipeline 自动化 C3(深活)。
+
+---
+
+# 成熟度定位(对标 Triton 后端,不是 TVM)
+
+我们对标的是 **Triton 的「偏后端」部分**(拿 tile 级 IR,自动做 layout/向量化/指令选择/软件流水 → 硬件码),**不是 TVM**(自动搜索调度空间)。按这个尺子诚实定位:
+
+| 维度 | Triton 后端会做 | 我们现在 | 判定 |
+|---|---|---|---|
+| **派发**(选哪个 family/target) | 按 target 选后端 | capability-fact 选 RVV/IME,**零 core 分支、非字符串匹配** | ✅ 成熟、且是 novelty(N1/N2) |
+| **算法选择**(repack vs block-dot) | Triton 不做(用户写) | option-2 编译器按能力选,实测对 | ✅ 比 Triton 还多一层(N3) |
+| **宽度/LMUL 选择** | 自动 layout assignment | Gearbox 按 VLEN 自动选 LMUL/strip(2-3 选 1 + 可选实测) | 🟡 有,但只 1 个 capability bit,弱 |
+| **向量化 + 指令选择** | 从 tile IR **自动**生成向量指令 | **手写**:emitter 里逐条敲 `__riscv_*`(~100 个),每个 quant 一个 emit 方法 | ❌ **手写,非自动**——「像玩具」的根源 |
+| **软件流水 / ILP** | **自动**流水 pass | **手写**:emitter 里手摆 2-strip 交错;无任何自动流水 pass | ❌ 手写 |
+| **通用 lowering** | 一个通用 pass 处理所有 kernel | **部分**:有通用 `emitWideningDotReduce`/`emitDequantize` 原语,但每个 quant 的解包是逐 kernel 手写(24 个) | 🟡 半通用 |
+
+**一句话**:我们现在是「**capability 驱动的选择/派发层 + 手写 kernel 体**」。**选择/派发那层是真后端、是 novelty**(派发非字符串、还能选算法);但**代码生成那层(向量化/流水)是手写的,没有从 tile IR 自动 lower**——这就是为什么「去了字符串匹配,却还是手写 kernel 库」。
+
+**通往成熟 Triton 后端的关键一步**(不是重写整个项目):把**一个** kernel 类(比如 dot-reduce)做成「从 tile/vector-dialect 级表示**自动**向量化 + 自动选 LMUL + 自动流水」的通用 lowering,证明后端能**自动生成**而不只是手写。这是把「玩具感」变「成熟 compiler」最直接、可论证的一步。**MLIR 的 vector/linalg dialect 我们现在一个都没用**(直接手写 EmitC)——这正是要补的入口。
