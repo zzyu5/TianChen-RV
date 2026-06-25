@@ -397,7 +397,42 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
-  if (isWideningReduce) {
+  // The BYTE-ANCHOR widening dot-reduce strip scope (Track B auto-lowering bar
+  // A): the enclosing with_vl is SEW8 LMUL m1/m2 (the integer-core byte anchor),
+  // the i16 widening-product source is one EMUL step wider (m2 for the m1 anchor,
+  // m4 for the m2 anchor), and the i32m1 scalar accumulator/result is unchanged.
+  // This is a PARALLEL signed branch admitted only on the byte-anchor scope; the
+  // narrow i16mf2->i32m1 first-slice branch below is untouched. It mirrors the
+  // existing deferred-wide byte-strip scopes (isBoundedDeferredWideProductSource
+  // Load), letting the SAME generic vwredsum spell e8m2/i16m4 vs e8m1/i16m2 by
+  // capability -- the e8m2/e8m1 flip on a generic vector.multi_reduction source.
+  auto scopeSEW = (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto scopeLMUL = (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  const bool isByteAnchorScope =
+      scopeSEW && scopeLMUL &&
+      scopeSEW.getInt() == getRVVSEW8Bits() &&
+      (scopeLMUL.getValue() == getRVVLMULM1() ||
+       scopeLMUL.getValue() == getRVVLMULM2());
+  const bool isByteAnchorWideningReduce =
+      isSignedWideningReduce && isByteAnchorScope;
+
+  if (isByteAnchorWideningReduce) {
+    // The i16 product LMUL is one EMUL rung wider than the byte anchor.
+    llvm::StringRef expectedProductLMUL =
+        scopeLMUL.getValue() == getRVVLMULM2() ? getRVVLMULM4()
+                                               : getRVVLMULM2();
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getInput().getType(), getRVVSEW16Bits(), expectedProductLMUL))
+      return emitOpError()
+             << "requires the byte-anchor signed widening standalone reduction "
+                "source vector to have type !tcrv_rvv.vector<i16, \""
+             << expectedProductLMUL
+             << "\"> (one EMUL step wider than the SEW8 byte anchor)";
+    if (!isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires the byte-anchor signed widening standalone reduction "
+                "result vector to have type !tcrv_rvv.vector<i32, \"m1\">";
+  } else if (isWideningReduce) {
     if (isSignedWideningReduce &&
         !isGenericRVVVectorI16MF2(getInput().getType()))
       return emitOpError()
@@ -432,7 +467,10 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit source "
               "SEW/LMUL metadata for standalone reduction";
   std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
-  if (isWideningReduce) {
+  if (isByteAnchorWideningReduce) {
+    // The byte-anchor scope is verified above (SEW8 LMUL m1/m2). The i32m1
+    // accumulator/result channel is the separate widening reduction target.
+  } else if (isWideningReduce) {
     if (!isRVVSelectedBodyM1Config(sew, expectedLMUL.getValue()))
       return emitOpError()
              << "requires enclosing tcrv_rvv.with_vl accumulator/result "

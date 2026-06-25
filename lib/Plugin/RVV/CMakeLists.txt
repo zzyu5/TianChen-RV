@@ -31,6 +31,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVStandaloneReductionSelectedBodyRealizationOwner.cpp
   RVVWideningConversionSelectedBodyRealizationOwner.cpp
   RVVVectorSourceFrontDoor.cpp
+  RVVReductionSourceFrontDoor.cpp
 
   DEPENDS
   TianChenRVPassesIncGen

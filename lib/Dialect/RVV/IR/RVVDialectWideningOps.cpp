@@ -317,6 +317,57 @@ mlir::LogicalResult WideningProductOp::verify() {
                 "metadata for widening product";
     return mlir::success();
   }
+  // The Track B byte-anchor dot-reduce m1 rung (e8m1 anchor, VLEN256): i8m1 x
+  // i8m1 -> i16m2 feeding tcrv_rvv.standalone_reduce. PARALLEL signed branch; the
+  // i8m2 rung above (e8m2, VLEN128) and the narrow i8mf4 branch are unchanged.
+  // (The m2 byte-anchor dot-reduce reuses the isWideDeferredProduct branch above
+  // -- the i8m2 -> i16m4 product type-check is identical; only the consumer op
+  // differs, which the load/reduce verifiers gate.)
+  const bool isByteAnchorM1Product =
+      getKind() == "signed_widening_product" &&
+      getProductRelation() == "signed-i8m1xi8m1-to-i16m2";
+  if (isByteAnchorM1Product) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getLhs().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            getRhs().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+      return emitOpError()
+             << "requires lhs and rhs source vectors to have type "
+                "!tcrv_rvv.vector<i8, \"m1\"> for the byte-anchor m1 "
+                "widening-product dot-reduce rung";
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<i16, \"m2\"> for the byte-anchor m1 "
+                "widening-product dot-reduce rung";
+    if (!llvm::isa<VLType>(getVl().getType()))
+      return emitOpError() << "requires runtime VL operand to have "
+                              "!tcrv_rvv.vl type";
+    auto withVL = verifyNestedDataflowOp(op);
+    if (mlir::failed(withVL))
+      return mlir::failure();
+    if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+      return mlir::failure();
+    auto expectedSEW =
+        (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+    auto expectedLMUL =
+        (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+    if (!expectedSEW || !expectedLMUL)
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+                "SEW/LMUL metadata for the byte-anchor widening product";
+    if (expectedSEW.getInt() != getRVVSEW8Bits() ||
+        expectedLMUL.getValue() != getRVVLMULM1())
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl config to be SEW8 LMUL m1 "
+                "for the byte-anchor m1 widening-product dot-reduce rung";
+    if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+                "metadata for widening product";
+    return mlir::success();
+  }
   // The 2nd-family (i16 dot-reduce) deferred-wide rung: i16m4 x i16m4 -> i32m8,
   // a SINGLE widening step where the widened product already equals the i32
   // accumulator width. Feeds a NON-widening tcrv_rvv.deferred_accumulate

@@ -1880,6 +1880,10 @@ bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
          relation == "unsigned-u8mf4xu8mf4-to-u16mf2" ||
          // The deferred-wide max-legal-LMUL schedule (N3) wide product rung.
          relation == "signed-i8m2xi8m2-to-i16m4" ||
+         // The Track B byte-anchor widening dot-reduce m1 rung (e8m1 anchor at
+         // VLEN256): i8m1 x i8m1 -> i16m2. The m2 rung (e8m2 anchor at VLEN128)
+         // reuses the deferred-wide "signed-i8m2xi8m2-to-i16m4" relation above.
+         isSupportedGenericWideningProductByteAnchorDotReduceRelation(relation) ||
          // The 2nd-family (i16 dot-reduce) deferred-wide single-widening rung at
          // ANY budget-selected source LMUL ({mf2,m1,m2,m4} -> i32 one step wider).
          // Parsed, not a static allowlist, so the narrow ablation rungs are
@@ -1890,6 +1894,15 @@ bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
 bool isSupportedGenericWideningProductWideDeferredRelation(
     llvm::StringRef relation) {
   return relation == "signed-i8m2xi8m2-to-i16m4";
+}
+
+bool isSupportedGenericWideningProductByteAnchorDotReduceRelation(
+    llvm::StringRef relation) {
+  // The byte-anchor dot-reduce product rungs: the m2 anchor (i8m2 -> i16m4,
+  // shared with the deferred-wide relation) and the net-new m1 anchor (i8m1 ->
+  // i16m2). These are the e8m2 (VLEN128) and e8m1 (VLEN256) byte-anchor flips.
+  return relation == "signed-i8m2xi8m2-to-i16m4" ||
+         relation == "signed-i8m1xi8m1-to-i16m2";
 }
 
 llvm::StringRef getRVVDotReduceProductSourceLMUL(llvm::StringRef relation) {
@@ -2985,7 +2998,19 @@ verifyStandaloneReductionScalarResultVectorForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for standalone reduction scalar result dataflow";
-  if (expectedSEW.getInt() != integerType.getWidth())
+  // The scalar accumulator/result channel of a WIDENING reduction is the i32
+  // reduction TARGET, which is structurally wider than a sub-word strip SEW: a
+  // byte-anchor (SEW8) or i16 (SEW16) strip widens INTO an i32m1 scalar lane.
+  // For these widening strip scopes the result-width-vs-strip-SEW agreement does
+  // NOT apply (the channel is the reduction target, not the strip width); the
+  // i32 SEW32 element width is enforced structurally by the widening-reduce
+  // branch in StandaloneReduceOp::verify above. The non-widening (SEW32-strip)
+  // route still requires the result element width to match the scope SEW.
+  const bool isSubWordWideningStripScope =
+      expectedSEW.getInt() == getRVVSEW8Bits() ||
+      expectedSEW.getInt() == getRVVSEW16Bits();
+  if (!isSubWordWideningStripScope &&
+      expectedSEW.getInt() != integerType.getWidth())
     return op->emitOpError()
            << "requires " << role << " element width "
            << integerType.getWidth()
@@ -3403,6 +3428,40 @@ bool isBoundedDeferredWideDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
     hasWideProductUse = true;
   }
   return hasWideProductUse;
+}
+
+bool isBoundedByteAnchorDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The Track B byte-anchor dot-reduce strip config is SEW8 at the gearbox-
+  // selected integer-core anchor (m1 at VLEN256, m2 at VLEN128). The i8 load LMUL
+  // must match the with_vl strip LMUL.
+  if (!isRVVByteAnchorDotReduceStripConfig(sew.getInt(), lmul.getValue()))
+    return false;
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          load.getLoaded().getType(), getRVVSEW8Bits(), lmul.getValue()))
+    return false;
+
+  bool hasByteAnchorProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<WideningProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getLhs() != load.getLoaded() &&
+         product.getRhs() != load.getLoaded()))
+      return false;
+    if (product.getKind() != "signed_widening_product" ||
+        !isSupportedGenericWideningProductByteAnchorDotReduceRelation(
+            product.getProductRelation()))
+      return false;
+    hasByteAnchorProductUse = true;
+  }
+  return hasByteAnchorProductUse;
 }
 
 bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,

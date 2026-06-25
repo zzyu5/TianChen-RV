@@ -92,6 +92,14 @@ bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
                                            llvm::StringRef lmul);
+// The Track B byte-anchor widening dot-reduce strip config: i8 loads at the
+// capability-selected integer-core anchor (SEW8, LMUL m1 or m2) widening into an
+// i16 product (one EMUL rung wider) and reducing into an i32m1 scalar. PARALLEL
+// to the deferred-wide strip configs; admitted on the byte-anchor dot-reduce
+// setvl/with_vl scope so the SAME generic source emits e8m2 at VLEN128 and e8m1
+// at VLEN256 (the capability flip). It does NOT loosen
+// isRVVFirstSliceDataflowConfig.
+bool isRVVByteAnchorDotReduceStripConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);

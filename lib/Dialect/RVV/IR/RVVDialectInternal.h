@@ -483,6 +483,12 @@ bool isSupportedGenericWideningAccumulateRelation(llvm::StringRef relation);
 bool isSupportedGenericWideningProductWideDeferredRelation(
     llvm::StringRef relation);
 
+// True iff the relation is a Track B byte-anchor widening dot-reduce product
+// rung: "signed-i8m2xi8m2-to-i16m4" (e8m2, VLEN128) or
+// "signed-i8m1xi8m1-to-i16m2" (e8m1, VLEN256).
+bool isSupportedGenericWideningProductByteAnchorDotReduceRelation(
+    llvm::StringRef relation);
+
 // True iff the relation is the deferred-wide max-legal-LMUL dot-reduce
 // widening-product rung (i16m4 x i16m4 -> i32m8, a SINGLE widening step where
 // the widened product type already equals the i32 accumulator type). This is
@@ -1328,6 +1334,7 @@ bool isBoundedDeferredWideProductSourceLoad(LoadOp load, WithVLOp withVL);
 // strip load (with_vl SEW16 LMUL m4) feeding a signed-i16m4xi16m4-to-i32m8
 // widening product. A PARALLEL matcher for the wide dot-reduce deferred path.
 bool isBoundedDeferredWideDotReduceSourceLoad(LoadOp load, WithVLOp withVL);
+bool isBoundedByteAnchorDotReduceSourceLoad(LoadOp load, WithVLOp withVL);
 
 bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
                                                    WithVLOp withVL);

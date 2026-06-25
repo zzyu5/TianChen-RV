@@ -5123,7 +5123,10 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         // narrow rung) and the i16 grid spans {mf2,m1,m2,m4}.
         bool inScope = false;
         if (sew == 8)
-          inScope = lmul == "mf4" || lmul == "m2";
+          // mf4 = the narrow first-slice i8 load; m2 = the deferred-wide /
+          // byte-anchor VLEN128 strip; m1 = the Track B byte-anchor VLEN256
+          // strip (e8m1) -- the net-new rung for the capability flip.
+          inScope = lmul == "mf4" || lmul == "m1" || lmul == "m2";
         else if (sew == 16)
           inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2" ||
                     lmul == "m4";

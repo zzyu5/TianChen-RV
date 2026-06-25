@@ -392,6 +392,17 @@ bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVSEW8Bits && lmul == kRVVLMULM2;
 }
 
+bool isRVVByteAnchorDotReduceStripConfig(std::int64_t sew,
+                                         llvm::StringRef lmul) {
+  // Track B byte-anchor widening dot-reduce strip: i8 loads at the gearbox-
+  // selected integer-core anchor (m1 at VLEN256, m2 at VLEN128), SEW=8. The i16
+  // product (one EMUL rung wider) and the i32m1 scalar reduction follow from the
+  // anchor. PARALLEL config admitted only on the byte-anchor dot-reduce
+  // setvl/with_vl scope; it does NOT loosen isRVVFirstSliceDataflowConfig.
+  return sew == kRVVSEW8Bits &&
+         (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
+}
+
 bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
                                            llvm::StringRef lmul) {
   // The 2nd-family (i16 dot-reduce) deferred-wide strip config: i16 loads at the
