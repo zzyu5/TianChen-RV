@@ -1,150 +1,188 @@
-# TianChen-RV 阶段性总结 — 逐 (kernel × 板子) 优化证据表(2026-06-25 重写)
+# TianChen-RV 自查表 — 逐 (kernel × 板子) 优化证据(2026-06-25 v3,自查不自嗨)
 
-> 规则:**同一个 kernel,rvv 的结果和 k1 的结果各占一行**。每个格子直接写「结论 + 一句原因」。
+> 原子单位 = kernel。分三部分:**Part 1 只有 Win-A(同原版算法,只 pass on/off)** / **Part 2 又有 Win-A 又有 Win-B(我们自创算法的 kernel)** / **Part 3 Win-C**。
+> 同一 kernel,**rvv 和 k1 各占一行**;没做就写「未做」,不省略。
 
----
+## 0. 术语(每个都讲清「为什么」)
 
-## 0. 先把术语讲清楚(NULL / BLOCK / GAP 到底是什么、为什么)
+| 记号 | 含义 + 为什么 |
+|---|---|
+| **✅实测** | 真跑了,数字是结果(胜/平/负都算)。 |
+| **❌LOSS** | 实测,比 ggml 慢(诚实负)。 |
+| **⚪未测·推定NULL** | 没真跑 e2e,**只是推定**。推定理由:decode(M=1)每 token 把全部权重从 RAM 读一遍,若内存带宽是瓶颈,则只改算力(LMUL/gather 指令)的优化时间被读卡住 ≈ 1.0。**注意:这是假设不是结论**,本次正在用 `wf25` 实测验证(见 §尾)。 |
+| **⬜未测·GAP** | 能测、会出真数字,只是还没跑。 |
+| **⛔BLOCKED** | 想测但缺**上游 ggml 组件**(如 q4_1 repack 要 ggml 的 `block_q8_1x4` 量化器+路由,ggml 没有),接不进 e2e。不是我们没做。 |
+| **N/A** | 本质不适用(emit-only block-dot 无 LMUL 旋钮 → 无 Win-A 可 toggle;或 ggml 在 riscv 上根本没这个 kernel → 无合法 baseline)。 |
 
-| 记号 | 中文 | 含义 + **为什么** |
-|---|---|---|
-| **✅** | 实测 | 真在板子上跑了,数字就是结果(胜/平/负都算实测)。 |
-| **⚪ reasoned-NULL** | 推定无 e2e 提升 | **不用真跑 llama 也能判定 e2e ≈ 持平**。**为什么**:这类优化只改「**算力**」(把 compute 做快,比如加宽 LMUL、换 gather 指令),**不改「内存搬运量」**;而 llama 的 **decode**(每生成 1 token,矩阵宽 M=1)是**内存带宽瓶颈**——权重每步都要从 RAM 流过,算力再快也被「内存墙」盖住。所以 compute-side 的优化在 decode e2e 上 ≈ 1.0 = NULL。这是本 campaign 的中心结论「**kernel micro 胜 ≠ e2e 胜**」。 |
-| **⛔ BLOCKED** | 上游 ggml 卡住 | **实验我们想做,但缺一个上游 ggml 的组件,不是我们 compiler 的锅**。例:q4_1 repack 要在 llama 里跑 e2e,需要 ggml 提供 `block_q8_1x4` 激活量化器 + q4_1-repack 的路由;ggml 根本没有(它的 `block_q4_1x16` 是另一套 ABI)→ 我们没法把它接进 e2e。= 不是没做,是没法做。 |
-| **⬜ GAP** | 能测但还没测 | 这个实验**可以做、会出一个真数字**,只是这个 session 还没跑(是真·待办)。 |
-| **N/A** | 本质不适用 | 这个轴对这个 kernel 不成立。例:emit-only 的 block-dot **没有 LMUL 旋钮** → 没 Win-A 可 toggle;forward-pass kernel 是 ggml 同算法的 **bit-identical 重写** → 没有「不同算法」可比 = Win-B N/A。 |
-
-**轴定义**:Win-A=同算法旋钮 on/off(LMUL/strip);Win-B=改算法的新 kernel,**baseline 必须是 ggml 出厂的真 RVV kernel**(不是 scalar);Win-C=改结构的 pass on/off。
-**板子**:`rvv`=Sophgo SG2044(RVV1.0,**VLEN128**);`k1`=SpacemiT X60(RVV1.0,**VLEN256** + **IME**)。RVV0.7 已弃。
-**Win-C 全表统一**:唯一一个 Win-C(`reduction_structure` pass)被证明是 **结构-NULL**(pass on/off 有 3×,但纯结构 ≈1.00×,3× 全是 per-iter 内存往返 artifact)→ 所有 kernel 的 Win-C 列都是「无结构 novelty」,下表不再单列。
+板子:`rvv`=SG2044 RVV1.0 **VLEN128**;`k1`=X60 RVV1.0 **VLEN256**+IME。RVV0.7 已弃。
 
 ---
 
-## 1. q4_0 repack(唯一真 Win-B e2e 胜的 kernel —— 因为它改了内存布局)
+# Part 1:只有 Win-A 的 kernel(我们 emit 的是 ggml 的**同一个算法**,优化 = LMUL/strip 旋钮 on/off)
 
-| Kernel | 板子 | N | Win-A·micro | Win-A·e2e | Win-B·micro | Win-B·e2e |
+> 列:**正确性**(我们 emit 对不对)/ **Win-A 旋钮·micro**(LMUL on/off,只有 K-quant 做了)/ **Win-A·e2e** / **同算法 emit·micro**(我们 emit vs ggml 出厂同算法 kernel,= 代码生成质量,不是 Win-B)。
+
+## 1a. K-quant block-dot(有 Win-A LMUL 旋钮)
+
+| Kernel | 板子 | 正确性 | Win-A 旋钮·micro(m1 vs mf2) | Win-A·e2e | 同算法 emit·micro(vs ggml `_vl256`) |
+|---|---|---|---|---|---|
+| q4_K | rvv | ✅byte-exact | ✅ m1 最佳(VLEN128) | ⚪未测·推定(wf25 实测中) | (rvv 上未单测 vs ggml) |
+| q4_K | k1 | ✅byte-exact | ✅ **m1 把 loss 1.80→1.38×** | ⚪未测·推定(wf25 实测中) | ❌LOSS 1.72×(mf2 臂) |
+| q6_K | k1 | ✅byte-exact | ✅ **m1 2.19→1.91×** | ⚪未测·推定 | ❌LOSS 2.26× |
+| q3_K | k1 | ✅byte-exact | ✅ **m1 2.10→1.83×** | ⚪未测·推定 | ❌LOSS 2.13× |
+| q5_K | k1 | ✅byte-exact | ✅ q4_K 共享 helper 自动覆盖 | ⚪未测·推定 | ✅TIE 0.998× |
+| q2_K | k1 | ✅byte-exact | N/A(gather 型,无 LMUL loss 可缩) | — | ✅**WIN 1.016×** |
+
+## 1b. 标准 quant block-dot(Win-A = N1 的 VLEN→LMUL family 选择,跨板子翻转)
+
+| Kernel | 板子 | 正确性 | Win-A 旋钮·micro(N1 翻转) | Win-A·e2e | 同算法 emit·micro |
+|---|---|---|---|---|---|
+| q8_0(load-bearing N1) | rvv | ✅ | ✅ 选 m2,比 m1 快 +7.0% | ⬜GAP-6 | (micro-only) |
+| q8_0 | k1 | ✅ | ✅ 选 m1,快 +6.9%(**赢家从 m2 翻 m1**=N1) | ⬜GAP-6 | (micro-only) |
+| q4_1 | rvv | ✅ | ✅ elision +2.9% | ⬜GAP-6 | ✅2.47×(其算法家在 repack) |
+| q4_1 | k1 | ✅ | ✅ elision **+11.2%** | ⬜GAP-6 | — |
+| q4_0 | rvv | ✅ | ✅ within-m1 ~0.8% | ⬜GAP-6(经 repack 行到达 e2e) | (算法家在 repack §2) |
+| q4_0 | k1 | ✅ | ✅(同上) | ⬜GAP-6 | — |
+| q5_0 | rvv/k1 | ✅ | ⚪NULL 翻转(m1-only,tie ≤1.3%) | ⬜GAP | (micro-only) |
+| q5_1 | rvv/k1 | ✅ | ⚪NULL 翻转(tie ≤0.05%) | ⬜GAP | (micro-only) |
+
+## 1c. IQ block-dot(无 Win-A 旋钮;优化 = 标量 gather → 硬件 vluxei16,= 同算法的 emit 成熟度)
+
+> 这不是 Win-A 旋钮(不能 toggle),是一次性把 gather 指令换成和 ggml 一样的硬件 `vluxei16`。列在 Part 1 因为**算法和 ggml 相同**。
+
+| Kernel | 板子 | 正确性 | Win-A 旋钮 | Win-A·e2e | 同算法 emit·micro(vs ggml 真 vluxei16) |
+|---|---|---|---|---|---|
+| iq1_s | rvv | ✅ | N/A(emit-only) | ⚪推定NULL | ✅ gap **7.4→2.3×**(收 gap,非 beat-ggml) |
+| iq1_m | rvv | ✅ | N/A | ⚪推定NULL | ✅ 9.3→5.8× |
+| iq3_xxs | rvv | ✅ | N/A | ⚪推定NULL | ✅ 22.35→8.14× |
+| iq3_s | rvv | ✅ | N/A | ⚪推定NULL | ✅ 5.88→5.04× |
+| iq2_xxs | rvv | ✅ | N/A | ⚪推定NULL | ✅ 6.81→**1.91×**(最接近 parity) |
+| iq2_xs | rvv | ✅ | N/A | ⚪推定NULL | ✅ 8.79→3.39× |
+| iq2_s | rvv | ✅ | N/A | ⚪推定NULL | ✅ 5.60→1.88× |
+| **iq1_s/m, iq2_*, iq3_* 在 k1** | k1 | — | — | — | **未做**(vluxei16 micro 只在 rvv 测了,k1 没测) |
+
+## 1d. FP4-codebook block-dot(无旋钮;优化 = tiny codebook 寄存器 vrgather,同算法 emit 更优)
+
+| Kernel | 板子 | 正确性 | Win-A 旋钮 | Win-A·e2e | 同算法 emit·micro(vs ggml 真 `_vl128`) |
+|---|---|---|---|---|---|
+| iq4_nl | rvv | ✅ | N/A | ⚪推定NULL | ✅ **1.32× WIN** |
+| mxfp4 | rvv | ✅ | N/A | ⚪推定NULL | ✅ **1.21× WIN** |
+| iq4_xs | rvv | ✅ | N/A | ⚪推定NULL | ✅ **1.28× WIN** |
+| nvfp4 | rvv | ✅ | N/A | — | N/A(ggml 在 riscv 无 nvfp4 RVV kernel,只有 scalar → 无合法 baseline) |
+| q1_0 | rvv | ✅(能 emit) | N/A | — | **未做**(q1_0 非主线 quant,没测 micro) |
+| iq4_nl/xs, mxfp4 在 k1 | k1 | — | — | — | **未做**(只在 rvv 测) |
+
+## 1e. Ternary block-dot
+
+| Kernel | 板子 | 正确性 | Win-A | 同算法 emit·micro(vs ggml) |
+|---|---|---|---|---|
+| tq2_0 | rvv | ✅ | N/A | ❌LOSS 0.60×(compute-bound) |
+| tq1_0 | rvv | ✅ | N/A | ❌LOSS 0.44× |
+| tq2_0/tq1_0 在 k1 | k1 | — | — | **未做** |
+
+## 1f. Win-A 旗舰 kernel(纯 Win-A,不是 block-dot)
+
+| Kernel | 板子 | Win-A·micro(旋钮 on/off) | Win-A·e2e |
+|---|---|---|---|
+| **i16 dot-reduce contraction**(Win-A 旗舰) | rvv | ✅ **2.27–3.79×**(vs 同算法窄-LMUL,byte-exact) | N/A(非独立 llama 热路径;e2e 类比 = q4_0 repack-LMUL 那行) |
+| i16 dot-reduce | k1 | ✅ **1.8–3.6×** | N/A |
+
+## 1g. 前向算子(forward-pass operators)—— 一系列 ggml 算子,我们都能 emit,但**优化/性能基本没做**
+
+> ⚠ 自查纠正:这一类我第一次漏了(grep 太窄)。代码里确实有一整套前向算子(`Ggml*F32Op` + `emitGgml*`),**都能生成、bit-identical 重写 ggml,但都没做 Win-A/B/C、也没测性能**。这是真实的「覆盖广但没优化」的现状——如实列出。
+
+| Kernel | 算子 op / emit 方法 | 板子 | 正确性 | Win-A | Win-B | micro/e2e 性能 |
 |---|---|---|---|---|---|---|
-| q4_0 repack GEVM(decode) | **rvv** | N3 | ✅ 1.48× 那条在 k1;rvv 上 LMUL 那条是 RVV0.7 旧式(已弃口径) | ⚪ NULL(LMUL 只改算力,decode 内存墙盖住) | ✅ **1.22×** vs ggml 真 vec_dot | ✅ **~2.6×**(它把权重布局改成连续 16-block,**改了内存搬运** → 才传导到 e2e) |
-| q4_0 repack GEVM(decode) | **k1** | N1+N3 | ✅ VLEN-strip 1×16 vs 2×8 **1.48×**(VLEN256 才放得下 16 lane) | ✅ **1.31×**(SEAL,选中者真跑赢,扛过内存墙) | — | ❌ **0.74× LOSS**(X60 的 autovec 比 repack 路强,已诚实披露) |
-| q4_0 repack GEMM(prefill) | **rvv** | N3 | ✅ WIDE/NARROW 1.27–1.38× | ✅ 1.10×(t16,clean) | ✅ **6.36×** | ✅ **5.68×**(prefill 是算力瓶颈 M≫1,micro≈e2e) |
+| **softmax** | `GgmlVecSoftMaxF32Op` / `emitGgmlVecSoftMaxF32`(+ `emitGgmlVExpfM2`) | rvv/k1 | ✅ 能 emit,bit-identical 重写 ggml | N/A(hard-pinned f32m2,无旋钮) | N/A(同算法重写,无不同实现可比) | **未做**(没测 micro,没接 e2e) |
+| **silu** | `GgmlVecSiluF32Op` / `emitGgmlVecSiluF32` | rvv/k1 | ✅ | N/A | N/A | **未做** |
+| **rms_norm** | `GgmlRmsNormF32Op` / `emitGgmlRmsNormF32` | rvv/k1 | ✅ | N/A | N/A | **未做** |
+| **rope_norm**(RoPE) | `GgmlRopeNormF32Op` / `emitGgmlRopeNormF32` | rvv/k1 | ✅ | N/A | N/A | **未做** |
+| **scale** | `GgmlVecScaleF32Op` / `emitGgmlVecScaleF32` | rvv/k1 | ✅ | N/A | N/A | **未做** |
+| **quantize_row_q8_0**(激活量化器) | `GgmlQuantizeRowQ80Op` / `emitGgmlQuantizeRowQ80` | rvv/k1 | ✅ | N/A | N/A | **未做** |
+
+**前向算子总结**:**6 个前向算子全能 emit + 正确(bit-identical 重写 ggml),但 0 优化、0 性能测试**。原因:它们是 ggml 同算法的忠实重写(没有「我们的不同算法」可比 = Win-B N/A),也是 hard-pinned f32m2(没有 LMUL 旋钮 = Win-A N/A)。**诚实定性:这是「kernel 覆盖」不是「优化证据」**——它们证明 compiler 能产出这些算子,但不是 N1/N2/N3 的性能主张。要把它们变成优化证据,需要先给一个可 toggle 的轴(比如 strip/LMUL),目前没有。
+
+## 1h. 底层原语层(primitive ops,kernel 的搭建积木,不是独立算子)
+
+代码里还有一大套 RVV 指令级原语(不是用户意义上的「算子」,是上面那些 kernel 的搭建块,**单独不测性能**):`Load/Store/Binary/Compare/Select/Reduce/MAcc/Move/Splat` + 加宽类 `WideningDotReduce/WideningMAcc/WideningProduct/WideningConvert` + `Strided*/Masked*/Segment2*/IndexedLoad-Store/MaskedIndexed*` + i32 标量类 `I32Add/Mul/Sub/CmpEq/Select/Load/Store` + 一大批 `Typed*PreRealizedBody`(类型化的预实现体)。其中 **`WideningDotReduce` 就是 §1f 那个 Win-A 旗舰(2.3–3.8×)的核心原语**;其余是积木,N/A 单独性能。
 
 ---
 
-## 2. 其它 repack(都正确,但 Win-B 是 compute-bound 的诚实 LOSS)
+# Part 2:又有 Win-A 又有 Win-B 的 kernel(我们**自创算法** = block-as-lane repack / IME 矩阵)
 
-| Kernel | 板子 | N | Win-A·micro | Win-B·micro(vs ggml 真 RVV) | Win-B·e2e |
-|---|---|---|---|---|---|
-| q4_1 repack GEVM | **rvv** | N3 | ✅ 1.80×(RVV0.7 旧式口径) | ✅ 仅正确性 oracle PASS | ⛔ **BLOCKED**:ggml 无 q8_1x4 量化器/路由(上游缺件,接不进 e2e) |
-| q4_1 repack GEMM | **rvv** | N3 | ⬜ **GAP**:GEVM 测了,GEMM 复用同 harness,**最易补的一格** | ✅ 仅正确性 | ⛔ BLOCKED(同上游) |
-| q8_0 repack GEVM | **rvv** | N3 | (VLEN128 只能 hl=8) | ✅ **LOSS ~1.3–1.7×**(q8_0 block-dot 很 lean,repack 没东西可省) | ⚪ NULL(脚印字节相同+memory-bound) |
-| q8_0 repack GEVM | **k1** | N3 | ✅ strip-tune **1.95×**(VLEN256 选 hl=16,**这是真 RVV1.0 auto-tune**) | (k1 vs ggml 自己的 repack,tie-likely) | ⬜ **GAP**:strip 选中者 e2e 没测 = **audit 头号 gap** |
-| q4_K repack GEVM(主力 quant) | **rvv** | N3 | ⬜ GAP(strip-tune 没接线) | ✅ **LOSS ~1.5–2.1×** vs ggml 手调 `_vl128`(正确:norm 7e-7) | ⚪ NULL(脚印 2304B 字节相同+decode 内存墙;对比 q4_0 是因为 q4_0 改了内存、q4_K 没改) |
-| q4_K repack GEMM(prefill) | **rvv** | N3 | — | ✅ **LOSS 0.59–0.89×**(摊销缩小但不过 1.0) | ⚪ reasoned-LOSS(prefill 算力瓶颈+micro 输→e2e 也输) |
-| q5_0 repack GEVM(本次新增) | **rvv** | N3 | (mf2/m1) | ✅ **LOSS 0.769×**(正确:byte-exact+对抗 i16 边界 PASS;q5_0 compute-bound) | ⬜ 未测 |
+> 列:**Win-A 旋钮·micro+e2e**(strip/LMUL on/off)/ **Win-B·micro+e2e**(我们的新算法 vs ggml 出厂同功能 kernel)。
 
-**这堆一句话**:q8_0/q4_K/q5_0 都是「**正确扩展但 compute-bound → 对 ggml 输**」,符合规律「gather/heavy 赢、compute-bound 输」;输的格子正好是 N3 path-selection 该 **DECLINE(选回 ggml block-dot)** 的依据,不是 bug。
+## 2a. Repack(block-as-lane,16 列铺 lane,lane-wise vwmacc,省掉 per-block vredsum)
 
----
+| Kernel | 板子 | 正确性 | Win-A·micro | Win-A·e2e | Win-B·micro(vs ggml 真 RVV) | Win-B·e2e |
+|---|---|---|---|---|---|---|
+| **q4_0 repack GEVM**(decode) | rvv | ✅ | LMUL 旧式(已弃口径) | ⚪推定NULL | ✅ **1.22×** | ✅ **~2.6×**(改了内存布局才传导) |
+| q4_0 repack GEVM | k1 | ✅ | ✅ VLEN-strip **1.48×** | ✅ **1.31×**(SEAL,扛过内存墙) | (vs ggml repack,tie) | ❌**0.74× LOSS**(X60 autovec 更强,已披露) |
+| **q4_0 repack GEMM**(prefill) | rvv | ✅ | ✅ 1.27–1.38× | ✅ 1.10×(t16,clean) | ✅ **6.36×** | ✅ **5.68×**(prefill 算力瓶颈,传导) |
+| q4_0 repack GEMM | k1 | ✅ | **未做** | **未做** | **未做** | **未做** |
+| q4_1 repack GEVM | rvv | ✅ | ✅ 1.80×(旧式口径) | ⛔BLOCKED | ✅ 仅 oracle 正确性 | ⛔BLOCKED(ggml 无 q8_1x4 量化器) |
+| q4_1 repack GEVM | k1 | ✅ | **未做** | ⛔BLOCKED | **未做** | ⛔BLOCKED |
+| q4_1 repack GEMM | rvv | ✅ | ⬜**GAP-4b(最易补)** | ⛔BLOCKED | ✅ 仅正确性 | ⛔BLOCKED |
+| q8_0 repack GEVM | rvv | ✅ | (VLEN128 hl=8 only) | ⚪推定NULL | ❌**LOSS 1.3–1.7×**(q8_0 lean) | ⚪推定NULL |
+| q8_0 repack GEVM | k1 | ✅ | ✅ strip **1.95×**(真 RVV1.0 auto-tune) | ⬜**GAP(头号)** | (vs ggml repack,tie) | ⬜**GAP**(strip 选中者 e2e 没测) |
+| **q4_K repack GEVM**(主力) | rvv | ✅(norm 7e-7) | ⬜GAP(strip 没接线) | ⚪推定NULL | ❌**LOSS 1.5–2.1×**(vs 手调 `_vl128`) | ⚪推定NULL(脚印字节相同) |
+| q4_K repack GEVM | k1 | ⬜未测(oracle pending) | **未做** | **未做** | ⬜GAP(vs ggml 自己 repack,tie-likely) | **未做** |
+| q4_K repack GEMM | rvv | ✅(norm 7e-7) | **未做** | — | ❌LOSS 0.59–0.89× | ⚪推定LOSS |
+| **q5_0 repack GEVM**(本次新增) | rvv | ✅(byte-exact+对抗 i16 边界) | (mf2/m1) | **未做** | ❌**LOSS 0.769×**(compute-bound) | **未做** |
+| q5_0 repack GEVM | k1 | **未做** | **未做** | **未做** | **未做** | **未做** |
 
-## 3. Block-dot:N1 family 翻转(Win-A 列其实是 N1 的 VLEN→LMUL 选择)
+**Repack 总结**:**只有 q4_0 真 Win-B e2e 胜(2.6×/5.68×)**——因为它改了内存搬运。q8_0/q4_K/q5_0 是「正确扩展但 compute-bound → micro LOSS」,e2e 该 DECLINE(选回 ggml)。q4_1 整条 e2e 被上游 ggml 卡死(BLOCKED)。
 
-> 这几条是「同 kernel,rvv 和 k1 选不同 LMUL family」——**赢家跨板子翻转**就是 N1 主张本身。
+## 2b. IME = RVM(我们 emit 的是 IME **leaf MAC 指令**,不是完整 GEMM——讲清楚)
 
-| Kernel | 板子 | N | Win-A·micro(N1 翻转) | Win-A·e2e |
+> **我们生成了什么**:compiler 把高层 op 降到 IME 的 leaf 指令(`smt.vmadot` 等),emit 成 EmitC。**6 个 leaf op**:vmadot/vmadotu/vmadotsu/vmadotus(4 种符号组合)+ mma_slide(滑窗)+ tiled-matmul。
+> **跑了什么**:在 K1 X60 上这些 leaf 被 SpacemiT 工具链编成真 `smt.*` 指令,跑出 **bit-exact 16/16**(vs scalar oracle)。
+> **perf 测的是谁**:micro 测的是 **ggml-spacemit 的 `gemm_kernel_i8i4`**(它内部用 vmadot)vs ggml 真 RVV——**不是我们 emit 的完整 IME GEMM**(我们只 emit leaf,没 emit 完整 GEMM kernel)。这点必须说清,别含糊成「我们的 IME GEMM 胜」。
+
+| 项 | 板子 | 正确性 | Win-B·micro | Win-B·e2e |
 |---|---|---|---|---|
-| q8_0 block-dot(load-bearing N1) | **rvv** | N1 | ✅ 选 m2,比 m1 快 **+7.0%** | ⬜ **GAP-6**(没 e2e 印证选中者真跑赢) |
-| q8_0 block-dot | **k1** | N1 | ✅ 选 m1,比 m2 快 **+6.9%**(**赢家从 m2 翻到 m1** = N1) | ⬜ GAP-6 |
-| q4_1 block-dot | **rvv** | N1 | ✅ elision 轴 +2.9% | ⬜ GAP-6 |
-| q4_1 block-dot | **k1** | N1 | ✅ elision 轴 **+11.2%** | ⬜ GAP-6 |
-| q4_0 / q5_0 / q5_1 block-dot | rvv↔k1 | N1 | q4_0 ~0.8% 翻转;q5_0/q5_1 ⚪NULL(m1-only,tie) | GAP |
+| IME MAC(6 个 leaf op) | k1 | ✅ **bit-exact 16/16** + 4-way 符号判别 | — | — |
+| IME GEMM perf(ggml-spacemit kernel,用我们能 emit 的 vmadot) | k1 | — | ✅ **5.66×(M=1)/ 12.9×(prefill)** vs ggml 真 RVV(编译器恒定) | ⚪**IME-unit e2e = NULL**:pp 1.65× 但 decode 对照 1.47× 没塌→证明是换了整个 227-symbol kernel 家族,不是矩阵单元 |
 
----
+**IME 总结**:**N2 结构(零-core-branch 加 family)= 强、已证**(加整个 family **0 行 core**);**IME 的 6 个 leaf op K1 bit-exact**;**perf 是 kernel-micro 胜、e2e unit-NULL**。注意 micro 的对象是 ggml-spacemit 的 GEMM,不是我们的完整 GEMM。
 
-## 4. Block-dot:K-quant —— Win-A LMUL tune 本次全做了(rvv + k1 都验)
-
-> Win-A 是「同一 q4_K block-dot,LMUL 旋钮 m1 vs 默认 mf2」。两块板子都做了 byte-exact 验证(check 还专门建了 VLEN256 判别对照,证明 gate 抓得住 fold-bug)。
-
-| Kernel | 板子 | N | Win-A·micro(m1 vs mf2) | Win-A·e2e | Win-B·micro(vs ggml `_vl256`) |
-|---|---|---|---|---|---|
-| q4_K block-dot | **rvv** | N3 | ✅ m1 更快(VLEN128 也是 m1 最佳) | ⚪ NULL(改算力不改内存) | — |
-| q4_K block-dot | **k1** | N3 | ✅ **m1 把对 ggml 的 loss 1.80→1.38×**(缩小但不过 1.0) | ⚪ NULL | ✅ **LOSS 1.72×**(mf2 臂) |
-| q6_K block-dot | **k1** | N3 | ✅ **m1 2.19→1.91×**(ceiling=m1) | ⚪ NULL | ✅ LOSS 2.26× |
-| q3_K block-dot | **k1** | N3 | ✅ **m1 2.10→1.83×** | ⚪ NULL | ✅ LOSS 2.13× |
-| q5_K block-dot | **k1** | N3 | ✅ q4_K 共享 helper 自动覆盖 | ⚪ NULL | ✅ TIE 0.998× |
-| q2_K block-dot | **k1** | N3 | N/A(本身 gather,无 LMUL loss 可缩) | — | ✅ **WIN 1.016×** |
-
-**K-quant 一句话**:compute-bound 的 q4_K/q6_K/q3_K 的 **Win-A 旋钮全做了**,m1 都把对 ggml 手调 `_vl256` 的 loss **缩小 ~13%(narrows-not-closes)**;残差是 ggml 的 nibble-split **算法形状**(不是 LMUL)= N3-Gearbox 的动机。**e2e 全是 ⚪NULL**(原因见术语:LMUL 改算力、decode 内存墙)。
-
----
-
-## 5. Block-dot:IQ —— vluxei16 maturity(rvv,全 7 个完成)
-
-> 这不是「Win」轴,是 **maturity / 正确性 + 收 gap**:把标量 gather 换成和 ggml 一样的硬件 `vluxei16`。
-
-| Kernel | 板子 | N | micro(vs ggml 真 RVV vluxei16) | 说明 |
-|---|---|---|---|---|
-| iq1_s | **rvv** | maturity | ✅ gap **7.4→2.3×** | 标量→硬件 gather,byte-exact |
-| iq1_m | **rvv** | maturity | ✅ 9.3→5.8× | per-half gather |
-| iq3_xxs / iq3_s | **rvv** | maturity | ✅ 22.35→8.14× / 5.88→5.04× | per-sign-group |
-| iq2_xxs / iq2_xs / iq2_s | **rvv** | maturity | ✅ 6.81→**1.91×** / 8.79→3.39× / 5.60→1.88× | 解了 signs64 blocker(emit-const,无 ODS) |
-| iq4_xs | **rvv** | N3 | ✅ **1.28× WIN** | 它本就是 vrgather(归 FP4 codebook,见 §6) |
-
-**IQ 一句话**:7 个 IQ block-dot 现在都发硬件 `vluxei16`(和 ggml 同指令)。诚实定性:**这是 maturity(收 gap),不是 beat-ggml**——残差是窄 gather-LMUL + 标量 index 组装,不是 gather 本身。e2e 是 ⚪NULL(compute-side)。
-
----
-
-## 6. Block-dot:FP4-codebook —— N3 真 micro-WIN(rvv,覆盖完成)
-
-| Kernel | 板子 | N | Win-B·micro(vs ggml 真 `_vl128`) |
-|---|---|---|---|
-| iq4_nl | **rvv** | N3 | ✅ **1.32× WIN** |
-| mxfp4 | **rvv** | N3 | ✅ **1.21× WIN** |
-| iq4_xs | **rvv** | N3 | ✅ **1.28× WIN** |
-| nvfp4 | **rvv** | N/A | bit-exact,但 **ggml 在 riscv 上根本没有 nvfp4 的 RVV kernel**(只有 scalar)→ 没有合法 Win-B baseline = N/A(不是 loss) |
-
-**FP4 一句话**:tiny ≤16-entry codebook 用**寄存器 vrgather**,在 VLEN128 把 ggml 的 32/64-lane gather 比下去 → **4 个真 micro-WIN**(iq4_nl/mxfp4/iq4_xs + q2_K)。e2e ⚪NULL(compute-side)。
-
----
-
-## 7. IME = RVM(k1 X60,N2 第二 family)
-
-| 项 | 板子 | N | 结论 |
-|---|---|---|---|
-| N2 零-core-branch 加 family | **k1** | **N2** | ✅ 已证 + 可复现:加整个 IME family **0 行 core(lib/Transforms)**、~1356 行 plugin、3 行 wiring;后续每个 op 都 0-core;core 内 0 family 字符串、0 反模式;靠 `spacemit.ime` **fact** 派生选择 |
-| 6 个 IME op | **k1** | N2 | ✅ 每个 0-core + K1 bit-exact。含 **mma_slide**(滑窗 MAC,全新 kernel 类型)+ **mma_us**(补全符号族) |
-| IME kernel-micro | **k1** | N3 | ✅ **5.66×(M=1)/ ~12.9×(prefill GEMM)** vs **ggml 真 RVV**(编译器恒定)。**旧 5.51× 已撤**(对 forbidden 手卷 baseline + 混了编译器) |
-| IME **e2e** | **k1** | N3 | ⚪ **IME-unit e2e = NULL**:干净 SPACEMIT-toggle 出 pp 1.65×,但 **decode 对照 1.47× 没塌到 1.0** → 证明那是换了整个 **227-symbol kernel 家族**,不是矩阵单元。**为什么 NULL**:同 decode 内存墙 + IME 增益无法和 family-swap 干净分离。能 defend 的只是「SPACEMIT 后端家族 ~1.65×」,**不是 IME unit** |
-
-**IME 一句话**:**N2(结构,零-core-branch)= 强、已证**;**IME perf(N3)= kernel-micro 真胜,但 e2e unit-NULL(诚实)**。注意:micro 测的是 **ggml-spacemit 的 `gemm_kernel_i8i4`**——tcrv 只 emit IME **leaf** op,不是我们 emit 完整 IME GEMM(这点别含糊)。
-
----
-
-## 8. option-2 = N3 旗舰「编译器自己选算法」(跨 kernel,目标 q4_0)
+## 2c. option-2「编译器自己选算法」(跨 kernel,目标 q4_0,N3 旗舰)
 
 | 阶段 | 板子 | 结论 |
 |---|---|---|
-| A/B/C1/C1b(抽象 op + 选择 + 声明 contract + 隔离 packer) | host | ✅ 「编译器选算法」已真:同一 binary 因 VLEN fact 翻转选 repack/block-dot,无字符串匹配;packer plain→x16 memcmp==0(520 万 block) |
-| **M1** emit-identity | **rvv** | ✅ 自选路径 emit 出和直接 repack **字节相同**的 mf2 kernel |
-| **M2** e2e SEAL | **rvv** | ✅ 自选 kernel 真跑赢:**t1 7.0×(精确复现历史 7.05×)**/ t16 ~2.6–3.3×。机制=stored-x16。**诚实:这是 SEAL(字节预定)不是独立新数**;**C3 真 pipeline 自动化仍 OPEN**(多 session) |
+| A/B/C1/C1b | host | ✅ 编译器靠 VLEN fact 选 repack/block-dot(无字符串匹配);packer plain→x16 memcmp==0(520 万 block) |
+| M1 emit-identity | rvv | ✅ 自选路径 emit 出和直接 repack **字节相同**的 kernel |
+| M2 e2e SEAL | rvv | ✅ 自选 kernel 真跑赢 **t1 7.0×**(复现历史 7.05×)/ t16 ~2.6–3.3×。诚实:SEAL 非独立新数;C3 真自动化仍 OPEN |
 
 ---
 
-## 9. 我的分析:做了 / 没做 / 哪里可能有问题
+# Part 3:Win-C(改算法结构的 pass on/off)—— 讲清楚:**没有结构 novelty**
 
-**真站得住的胜**:q4_0 repack **2.6× e2e**(唯一改内存的)、**4 个 FP4 micro-WIN**、option-2 **M2 e2e SEAL(t1 7.0×)**、IME **kernel-micro 5.66×/12.9×**、K-quant **Win-A 缩小 loss**、K1 VLEN-strip **1.31×**。
+- **唯一的 Win-C 候选**:`reduction_structure` pass(在 i16 dot-reduce 上 toggle)。
+- **现象**:pass on/off 有 **3.0–3.3×** 差。
+- **但拆开看**:用 register-kept 分解做对照(把 per-iter 的 `out[0]` 留在寄存器),纯结构差 ≈ **1.00×**。
+- **结论**:那 3× **全是 per-iter `out[0]` 内存往返**(emitter 的实现 artifact),**不是结构带来的**。所以 **结构-Win-C = NULL,未证明**。pass 保留(正确、正交)只作为 Win-A LMUL sweep 的结构 enabler,**不 claim 成 Win-C novelty**。
+- **其它 kernel**:没有别的 pass 改算法结构 → 全表 Win-C = N/A / NULL。
 
-**真 gap(能测没测,可补)**:
-- `q8_0 VLEN-flip selection e2e`(k1):strip 选中者扛不扛内存墙——**最高价值**,但大 campaign。
-- `q4_1 repack GEMM Win-A micro`(rvv):复用同 harness,**最易补**。
-- option-2 **C3 producer**:真 pipeline 自动化(深活,多 session)。
+---
 
-**可能有问题 / 要守住别回退的口径(7 条)**:
-1. **IME e2e 不能说成 IME-unit 胜**——1.65× 是 kernel-family swap,不是矩阵单元(decode-falsifier 已锁死)。
-2. **IME micro 测的是 ggml-spacemit 的 GEMM**,不是 tcrv 自己 emit 的完整 IME GEMM(tcrv 只 emit leaf op),别含糊。
-3. **M2 是 SEAL 不是独立新数**;锚点用 t1 7.0× 复现 + 字节相同,别 headline t16 的 3.3×(有一半是本次 OFF baseline 偏慢)。
-4. **repack 的 m1「WIDE」数字(2.1×/1.80×)是已弃的 RVV0.7-form**,不是 RVV1.0 auto-tune。
-5. **K-quant/IQ/FP4 的 Win-A·e2e 是 reasoned-NULL 不是 gap**——别为「填满 e2e」去硬测(memory wall,正当判定)。
-6. **Win-C 没有结构 novelty**(3× 是内存往返 artifact)。
-7. **q5_0 repack 没 producer op**——`.td` 是唯一 qh-layout 契约,将来 producer 必须 NON-inverted 打包。
+# 自查结论:哪里漏了 / 哪里没做 / 哪里要小心
 
-**一句话总判**:N1/N2 结构 + N3 的「编译器选算法(option-2)」+ 若干真 micro/e2e 胜都立住,证据广且诚实;剩下是补几个可测 gap + option-2 C3 自动化(深活),以及守住上面这些口径。
+**真站得住的胜**:q4_0 repack 2.6×/5.68× e2e、4 个 FP4 micro-WIN、option-2 M2 SEAL t1 7.0×、IME kernel-micro 5.66×/12.9×、K-quant Win-A micro 缩 loss、K1 VLEN-strip 1.31×、i16 dot-reduce 2.3–3.8×。
+
+**明确「未做」的(自查漏洞)**:
+- **K-quant / IQ / FP4 / repack 的 Win-A·e2e 全是「未测·推定 NULL」**——本次 `wf25` 正在实测 q4_K 的(decode+prefill,k1+rvv)来验证推定对不对。
+- **IQ/FP4/ternary block-dot 在 k1 全没测 micro**(只 rvv)。
+- **q4_0 repack GEMM 在 k1 没做;q5_0 repack 在 k1 没做;q4_K repack 在 k1 oracle pending**。
+- **6 个前向算子(softmax / silu / rms_norm / rope_norm / scale / quantize_row_q8_0)全能 emit + 正确,但 0 优化、0 性能测试**(§1g)——覆盖广但不是优化证据。q1_0 block-dot 没测 micro。
+- **gap(可补,会出真数字)**:q8_0 VLEN-flip selection e2e(头号)、q4_1 repack GEMM Win-A micro(最易)、option-2 C3 producer(深活)。
+- **BLOCKED(上游卡,非我们)**:q4_1 repack 全条 e2e(ggml 无 q8_1x4 量化器/路由)。
+
+**要小心别回退的口径**:
+1. IME e2e 不是 IME-unit 胜(1.65× 是 kernel-family swap)。
+2. IME micro 测的是 ggml-spacemit 的 GEMM,我们只 emit leaf,不是完整 GEMM。
+3. M2 是 SEAL(字节预定),锚 t1 7.0×,别 headline t16 3.3×。
+4. repack m1「WIDE」是已弃 RVV0.7-form,不算 RVV1.0 auto-tune。
+5. **「reasoned-NULL」是假设不是结论**——正在用 wf25 实测纠偏。
+6. Win-C 无结构 novelty。
+7. IQ vluxei16 是 maturity(收 gap),不是 beat-ggml。
