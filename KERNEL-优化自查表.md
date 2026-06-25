@@ -36,13 +36,13 @@
 | iq2_xxs | N/A | N/A |  | 0.52× | 0.66×(注10) |  | N/A |
 | iq2_xs | N/A | N/A |  | 0.29× | 0.52×(注10) |  | N/A |
 | iq2_s | N/A | N/A |  | 0.53× | 0.66×(注10) |  | N/A |
-| iq4_nl | N/A | N/A |  | **1.32×** | 0.84×(注11) |  | N/A |
+| iq4_nl | N/A | 1.27×(注14) |  | **1.32×** | 0.84→**1.08×**(注14) |  | N/A |
 | iq4_xs | N/A | N/A |  | **1.28×** | 1.04×TIE(注11) |  | N/A |
-| mxfp4 | N/A | N/A |  | **1.21×** | 0.80×(注11) |  | N/A |
+| mxfp4 | N/A | 1.28×(注14) |  | **1.21×** | 0.80→**1.01×**(注14) |  | N/A |
 | nvfp4 | N/A | N/A |  | N/A(注2) |  |  | N/A |
 | tq2_0 | N/A | N/A |  | 0.60× | 0.36×(注11) |  | N/A |
 | tq1_0 | N/A | N/A |  | 0.44× | 0.36×(注11) |  | N/A |
-| q1_0 | N/A | N/A |  |  |  |  | N/A |
+| q1_0 | N/A | N/A |  | 0.033×(注13) |  |  | N/A |
 
 ---
 
@@ -55,7 +55,7 @@
 | q4_0 repack(decode) |  | 1.48× | 1.22× |  | **2.60×** | 0.74× |
 | q4_0 repack(prefill) | 1.30× |  | 6.36× |  | **5.68×** |  |
 | q4_1 repack(decode) |  |  | 正确性✓ |  | 上游卡(注3) | 上游卡 |
-| q4_1 repack(prefill) | 空(注4) |  | 正确性✓ |  | 上游卡 | 上游卡 |
+| q4_1 repack(prefill) | 1.24×(注4) |  | 正确性✓ |  | 上游卡 | 上游卡 |
 | q8_0 repack(decode) |  | 1.95× | 0.65× |  | 推定平 | 未测(注5) |
 | q4_K repack(decode) |  |  | 0.55× |  | 推定平 |  |
 | q4_K repack(prefill) |  |  | 0.74× |  | 推定输 |  |
@@ -134,13 +134,16 @@
 - 注1:q8_0/q4_1/q4_0 这几格是「N1 跨板子选不同档」,不是 LMUL tune,数字小。
 - 注2:ggml 在 riscv 上根本没写 nvfp4 的向量 kernel(只有标量),没有合法对手 = N/A。
 - 注3:q4_1 repack 想跑 llama,需要 ggml 提供一个配套的激活打包器,ggml 没有 → 接不进去(不是我们没做)。
-- 注4:q4_1 repack 的 prefill 旋钮没测(最容易补的一格)。
+- 注4:**q4_1 repack 的 prefill(GEMM)旋钮 = 1.24×(WIDE/NARROW),byte-exact(2026-06-25,rvv VLEN128)**——WIDE(m1)比 NARROW(mf2)快,同一个 `repack_gemm_q4_1_q8_1` op、改 strip-width 旋钮(默认 mf2 / xtheadvector-stamp m1)、读同样的字节、WIDE↔NARROW norm 0.000e+00。LMUL 两档 source-grep 证明 disjoint(SG2044 objdump 解不了 RVV vtype)。报 min(min 是 best-of-reps 正确估计:噪声只会加时间),square 最低 1.24× / mlp 1.31×;更高的 1.5× 是 NARROW 在板子负载累积下 min 抬高的上界噪声,非更大真赢。**这是手动 stamp 的 m1 vs 默认 mf2 旋钮 ON/OFF,不是 RVV1.0 auto-tune 赢**。机理未隔离(GEMM 的 WIDE 反而 vle8 更多,与 GEVM 相反,所以不是 strip-count 减半——只报实测比值)。e2e 仍上游卡(无 q8_1x4 量化器)。GEMM 正确性 vs scalar oracle 早已验过(archive GAP 2,norm ≤7.6e-6)。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-q41-q10-FINDING.md`。
 - 注5:q8_0 在 k1 上选宽档比窄档快 1.95×,但这个选择有没有传导到 llama e2e 还没测(最该补的)。
 - 注6/7/8:见表 4、表 5 上文。
 - 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
 - 注10:**IQ k1 micro(2026-06-25,12 格 vs-ggml·k1 全填)**——对手 = ggml 出厂在 k1 实际派发的 `_vl256` kernel(不是 rvv 列用的 `_vl128`;k1 `vlenb=32→VLEN256` 已 1 行二进制 probe)。**全 7 个 IQ 都 byte-exact(0.000e+00)、全 LOSS,比值 0.20–0.66**(ggml 1.5–5.1× 快)。注意:k1 比 rvv 列「好很多」(iq3_xxs 0.12→0.20)**是 emitter 从「标量查表」成熟到「真 vluxei16 整块查」**带来的,**不是 VLEN256 效应**——rvv 列那些数是旧 0-vluxei emit,两列不可直接比。残留 1.5–5× = gather LMUL/打包旋钮,非 primitive 缺失。详见 `k1-micro-fill-FINDING.md`。
 - 注11:**FP4/ternary k1 micro(同上,vs `_vl256`)**——rvv 上的 FP4「赢」**不传导到 k1**:iq4_nl 1.32→0.84、mxfp4 1.21→0.80、iq4_xs 1.28→**1.04 TIE**(稳定 ×3,唯一非 LOSS,已按纪律复核);tq2_0 0.60→0.36、tq1_0 0.44→0.36。原因:VLEN256 上 ggml `_vl256` 用的正是我们在 VLEN128 上靠它赢的 mf2 split-16 gather 形状 + 2-blocks/iter 打包,而我们的 emit 仍是 VLEN128 形(`vsetvl_e8m1(16)`=VLEN256 下半个 m1 寄存器,sub-VLMAX)。rvv FP4 赢是 VLEN128 形状产物、非可移植优势。全部 byte-exact(iq4_xs/tq1_0 整数 bit-exact + 小 fp-reassoc)。命名 gearbox 目标 = VLEN-aware FP4/ternary lowering(VLEN256 出 mf2/e8m1-at-32 而非硬钉 vsetvl(16))。
 - 注12:**q8_0 = Win-A 砖#1「能力驱动 lowering」成熟化(2026-06-25,commit a874a56b,两板封印)**——以前 q8_0 的档是 capability-blind cost model 写死选 m2。现在 **gearbox 按真 VLEN fact 选**:VLEN128→m2-elided / VLEN256→m1-elided,**256 阈值从 strip-VLMAX 算术涌现**(非硬编码 `if VLEN>=256`)。**两板 byte-exact 各 2400/2400**(k1 m1-elided 是全新 emit,load-bearing,无 fold-back 回归)。micro:k1 m1 比 m2 **+17.2%**、rvv m2 比 m1 +7.9%(对齐历史)。**关键:这不只是「挑快的」——在 VLEN128 强行 m1-elided 会 11/12 算错(半个 block 没加),所以这个选择是 gearbox `VLMAX≥blockLen` 剪枝守住的【正确性边界】**。这是"同一算子按能力 lower 成不同、且各自正确的码"的首个非-NULL 实证。详见 `q8-vlen-flip-BOARD-FINDING.md`。
+- 注13:**q1_0 block-dot vs-ggml·rvv = 0.033×(LOSS,慢约 30×,byte-exact,2026-06-25)**——**不是 N/A**:q1_0 是真 ggml type(`GGML_TYPE_Q1_0`=41,二元 {−1,+1} 符号解码),ggml 在 riscv 上有真向量 kernel `ggml_vec_dot_q1_0_q8_0_vl128`(VLEN128 派发),所以有合法对手。我们 emit `q1_0_q8_0_block_dot` vs 它,8 seed × 6 size **全 byte-exact(max_rel 0.000e+00)**。LOSS 已 root-cause:**ggml `_vl128` 一次 vwredsum 整 32 lane(每 sub-block 1 次 reduce),我们 emit 按 8-lane 分组(每 super-block 32 次 vwredsum + 32 次 vmerge,8× 更多、更窄、全展开)**——和 IQ block-dot 同一个"窄 strip、没调 LMUL/shape"成熟度坑,q1_0 的 8-lane 组是最坏情形。**命名 emitter 成熟目标 = wide-LMUL block-as-32-lane emit**(不是正确性/算法选择问题)。byte-exact 旁注:ggml `_vl128` 在 i8 域取负(vneg(−128)=−128 溢出),我们先 widen 到 i16 再取负(全 int8 范围正确)——只在 q8 quant byte==−128 时分歧,而真 q8_0 量化域是 [−127,127](−128 永不出现),harness 按真域填 → byte-exact;−128 边界我们反而**更**正确(成熟旁注,非门失败)。详见 `06-25-backend-maturity-winA/artifacts/rvv-fill-q41-q10-FINDING.md`。
+
+- 注14:**iq4_nl/mxfp4 = Win-A 砖#2「FP4 VLEN-aware 补宽」k1 板封印(2026-06-25,commit e65edf76)**——正是注11 那个成熟度坑的修复。以前默认 emit 是 VLEN128 形(VLEN256 只用半寄存器)→ k1 上 0.84/0.80 **LOSS**。现在 **gearbox 默认按真 VLEN fact 自动选**:VLEN256→**mf2 宽形**(满 VLMAX=16)、VLEN128→m1 不变。k1 板:objdump 确认 e8mf2、**byte-exact 0.000e+00**(mf2 gather 在 VLMAX=16 正确 index 全 16 codebook 项,注11 标的风险点已验)、**mf2 比旧 m1 快 ~1.27×**(Win-A·k1 列)、**vs-ggml 从 0.84/0.80 LOSS 拉回 1.08/1.01 parity**。诚实:天花板是 parity(采用 ggml 自己的 mf2 形状),非 beat-ggml;iq4_xs 因 fold-back live 留作独立一砖。详见 `fp4-mf2-k1-BOARD-FINDING.md`。
 
 ---
 
@@ -150,8 +153,8 @@
 2. ~~**IQ / FP4 / ternary 在 k1 上的 micro 全没测**(只在 rvv 测了)。~~ **DONE 2026-06-25**:12 格 vs-ggml·k1 全填(注10/注11,`k1-micro-fill-FINDING.md`)——全 byte-exact;0 win / 1 TIE(iq4_xs 1.04)/ 11 LOSS。对手是 ggml 出厂派发的 `_vl256`(不是 rvv 列的 `_vl128`)。rvv 的 FP4「赢」是 VLEN128 形状产物、不传导到 k1。
 3. **q4_0 repack 在 k1、q5_0 repack 在 k1、q4_K repack 在 k1 都没做;q4_K repack k1 的正确性 oracle 还没跑**。
 4. **6 个前向算子(softmax 等)0 性能测试**。
-5. **q1_0 block-dot 没测;q5_0/q5_1 block-dot 的旋钮是 m1-only(没东西可调)**。
-6. **能补的真 gap**:q8_0 在 k1 的选择 e2e(头号)、q4_1 repack prefill 旋钮(最易)、option-2 的真 pipeline 自动化 C3(深活)。
+5. ~~q1_0 block-dot 没测~~ **DONE 2026-06-25**:q1_0 vs-ggml·rvv = **0.033×(byte-exact,LOSS ~30×,注13)**——非 N/A(ggml 有 `_vl128`);q5_0/q5_1 block-dot 的旋钮仍是 m1-only(没东西可调)。
+6. **能补的真 gap**:q8_0 在 k1 的选择 e2e(头号)、~~q4_1 repack prefill 旋钮(最易)~~ **DONE 2026-06-25 = 1.24×(注4)**、option-2 的真 pipeline 自动化 C3(深活)。
 
 ---
 
