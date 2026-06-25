@@ -53,6 +53,11 @@ constexpr llvm::StringLiteral kExpectedUnsignedIMEOp("vmadotu");
 // fourth IME1 signedness form over the SAME elem_in/accum/MAC-fragment envelope,
 // distinguished only by the mnemonic.
 constexpr llvm::StringLiteral kExpectedMixedSignIMEOp("vmadotsu");
+// tcrv.ime.mma_us is the REVERSED-ORDER MIXED-SIGN `vmadotus` (unsigned A *
+// signed B int8 MAC) — the fourth signedness form, completing the family over
+// the SAME elem_in/accum/MAC-fragment envelope, distinguished only by the
+// mnemonic.
+constexpr llvm::StringLiteral kExpectedMixedSignUSIMEOp("vmadotus");
 // tcrv.ime.mma_slide is the SLIDING-WINDOW family `vmadot{1,2,3}` (Xsmti8i32mm_slide,
 // funct7 111001 / e6..., DISTINCT from the non-slide 111000 / e2...). The expected
 // mnemonic is selected by the `slide` FACT (1=>vmadot1, 2=>vmadot2, 3=>vmadot3) over
@@ -334,6 +339,20 @@ llvm::StringRef MMASUOp::getTCRVEmitCLowerableSourceRole() {
 
 mlir::LogicalResult MMASUOp::verify() {
   return verifyIMEMACBoundary(getOperation(), kExpectedMixedSignIMEOp,
+                              isAllowedMMAAttr,
+                              [this]() { return emitOpError(); });
+}
+
+llvm::StringRef MMAUSOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MMAUSOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult MMAUSOp::verify() {
+  return verifyIMEMACBoundary(getOperation(), kExpectedMixedSignUSIMEOp,
                               isAllowedMMAAttr,
                               [this]() { return emitOpError(); });
 }

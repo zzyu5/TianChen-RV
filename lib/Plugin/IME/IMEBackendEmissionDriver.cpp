@@ -35,18 +35,27 @@ constexpr llvm::StringLiteral kOpInterface = "TCRVEmitCLowerableOpInterface";
 constexpr llvm::StringLiteral kVmadotHelperName("tcrv_ime_vmadot_mma_4x4x8");
 // The SECOND (unsigned) asm-leaf helper — same structure, but the single
 // justified instruction leaf is `vmadotu` (unsigned*unsigned int8 MAC), a
-// GENUINELY different instruction (encoding 0xe210022b vs vmadot's 0xe210312b)
+// GENUINELY different instruction (encoding 0xe210012b vs vmadot's 0xe210312b)
 // with unsigned numeric semantics. There is no IME intrinsic header, so this is
 // likewise ONE justified verbatim leaf reached by a structured call_opaque.
 constexpr llvm::StringLiteral kVmadotuHelperName("tcrv_ime_vmadotu_mma_4x4x8");
 // The FOURTH (mixed-sign) asm-leaf helper — same structure, but the single
 // justified instruction leaf is `vmadotsu` (signed*unsigned int8 MAC), a
 // GENUINELY different instruction (encoding 0xe210212b vs vmadot's 0xe210312b
-// and vmadotu's 0xe210022b) with mixed-sign numeric semantics (signed A,
+// and vmadotu's 0xe210012b) with mixed-sign numeric semantics (signed A,
 // unsigned B). There is no IME intrinsic header, so this is likewise ONE
 // justified verbatim leaf reached by a structured call_opaque.
 constexpr llvm::StringLiteral kVmadotsuHelperName(
     "tcrv_ime_vmadotsu_mma_4x4x8");
+// The SIXTH IME op: the reversed-order mixed-sign asm-leaf helper — same
+// structure, but the single justified instruction leaf is `vmadotus` (unsigned A
+// * signed B int8 MAC), a GENUINELY different instruction (encoding 0xe210112b
+// vs vmadotsu's 0xe210212b, vmadot's 0xe210312b and vmadotu's 0xe210012b) with
+// the OTHER mixed-sign numeric semantics. There is no IME intrinsic header, so
+// this is likewise ONE justified verbatim leaf reached by a structured
+// call_opaque. This completes the signedness family.
+constexpr llvm::StringLiteral kVmadotusHelperName(
+    "tcrv_ime_vmadotus_mma_4x4x8");
 // The FIFTH IME op: the sliding-window MAC. The justified instruction leaf is
 // `vmadot1`/`vmadot2`/`vmadot3` (funct7 111001, e6..., DISTINCT from the
 // non-slide 111000/e2...). A genuinely different kernel SHAPE: A is an EVEN
@@ -130,6 +139,10 @@ std::string vmadotuHelperBody() {
 
 std::string vmadotsuHelperBody() {
   return macHelperBody(kVmadotsuHelperName, "vmadotsu");
+}
+
+std::string vmadotusHelperBody() {
+  return macHelperBody(kVmadotusHelperName, "vmadotus");
 }
 
 /// The sliding-window MAC helper. UNLIKE macHelperBody (single 32B A fragment),
@@ -418,6 +431,16 @@ template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMASUOp>::helperBody() {
   return vmadotsuHelperBody();
 }
 
+// Reversed-order mixed-sign surface: tcrv.ime.mma_us -> the vmadotus asm leaf
+// (the signedness-family-completing op: unsigned A * signed B).
+template <>
+llvm::StringRef IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>::helperName() {
+  return kVmadotusHelperName;
+}
+template <> std::string IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>::helperBody() {
+  return vmadotusHelperBody();
+}
+
 /// Lowers the sliding-window IME boundary (`tcrv.ime.mma_slide`) into a
 /// standalone EmitC module. UNLIKE IMEMACToEmitCFunc, the emitted leaf depends
 /// on the `slide` window FACT carried on the op (1=>vmadot1, 2=>vmadot2,
@@ -645,8 +668,8 @@ public:
   void
   configureConversionTarget(mlir::ConversionTarget &target) const override {
     target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
-                        tcrv::ime::MMASUOp, tcrv::ime::MMASlideOp,
-                        tcrv::ime::MatMulOp>();
+                        tcrv::ime::MMASUOp, tcrv::ime::MMAUSOp,
+                        tcrv::ime::MMASlideOp, tcrv::ime::MatMulOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -655,7 +678,8 @@ public:
                            mlir::RewritePatternSet &patterns) const override {
     patterns.add<IMEMACToEmitCFunc<tcrv::ime::MMAOp>,
                  IMEMACToEmitCFunc<tcrv::ime::MMAUOp>,
-                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>, IMEMACSlideToEmitCFunc,
+                 IMEMACToEmitCFunc<tcrv::ime::MMASUOp>,
+                 IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>, IMEMACSlideToEmitCFunc,
                  IMEMatMulToEmitCFunc>(typeConverter, patterns.getContext());
   }
 

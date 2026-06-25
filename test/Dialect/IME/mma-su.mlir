@@ -4,7 +4,7 @@
 // `vmadotsu` MAC (signed A * unsigned B, the canonical quantized case: signed
 // activations * unsigned weights). Same VLEN-derived 4x4x8 envelope as
 // tcrv.ime.mma, but a genuinely different emitted instruction (vmadotsu=0xe210232b
-// vs vmadot's 0xe210312b and vmadotu's 0xe210022b) with mixed-sign numeric
+// vs vmadot's 0xe210312b and vmadotu's 0xe210012b) with mixed-sign numeric
 // semantics. The fail-closed verifier (I7) admits ONLY the validated IME1
 // mixed-sign int8->int32 `vmadotsu` envelope. This op rides the SAME
 // mnemonic-generic verifier (verifyIMEMACBoundary) and the SAME spacemit.ime

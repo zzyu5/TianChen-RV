@@ -2,7 +2,7 @@
 
 // N2 plugin BREADTH: the SECOND IME execution op — the UNSIGNED int8->int32
 // `vmadotu` MAC. Same VLEN-derived 4x4x8 envelope as tcrv.ime.mma, but a
-// genuinely different emitted instruction (vmadotu=0xe210022b vs vmadot's
+// genuinely different emitted instruction (vmadotu=0xe210012b vs vmadot's
 // 0xe210312b) with unsigned numeric semantics. The fail-closed verifier (I7)
 // admits ONLY the validated IME1 uint8->int32 `vmadotu` envelope.
 module {
