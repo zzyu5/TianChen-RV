@@ -29,19 +29,19 @@
 | q4_0 | 1.01×(注1) |  |  |  |  |  | N/A |
 | q5_0 | N/A | N/A |  |  |  |  | N/A |
 | q5_1 | N/A | N/A |  |  |  |  | N/A |
-| iq1_s | N/A | N/A |  | 0.43× |  |  | N/A |
-| iq1_m | N/A | N/A |  | 0.17× |  |  | N/A |
-| iq3_xxs | N/A | N/A |  | 0.12× |  |  | N/A |
-| iq3_s | N/A | N/A |  | 0.20× |  |  | N/A |
-| iq2_xxs | N/A | N/A |  | 0.52× |  |  | N/A |
-| iq2_xs | N/A | N/A |  | 0.29× |  |  | N/A |
-| iq2_s | N/A | N/A |  | 0.53× |  |  | N/A |
-| iq4_nl | N/A | N/A |  | **1.32×** |  |  | N/A |
-| iq4_xs | N/A | N/A |  | **1.28×** |  |  | N/A |
-| mxfp4 | N/A | N/A |  | **1.21×** |  |  | N/A |
+| iq1_s | N/A | N/A |  | 0.43× | 0.36×(注10) |  | N/A |
+| iq1_m | N/A | N/A |  | 0.17× | 0.24×(注10) |  | N/A |
+| iq3_xxs | N/A | N/A |  | 0.12× | 0.20×(注10) |  | N/A |
+| iq3_s | N/A | N/A |  | 0.20× | 0.21×(注10) |  | N/A |
+| iq2_xxs | N/A | N/A |  | 0.52× | 0.66×(注10) |  | N/A |
+| iq2_xs | N/A | N/A |  | 0.29× | 0.52×(注10) |  | N/A |
+| iq2_s | N/A | N/A |  | 0.53× | 0.66×(注10) |  | N/A |
+| iq4_nl | N/A | N/A |  | **1.32×** | 0.84×(注11) |  | N/A |
+| iq4_xs | N/A | N/A |  | **1.28×** | 1.04×TIE(注11) |  | N/A |
+| mxfp4 | N/A | N/A |  | **1.21×** | 0.80×(注11) |  | N/A |
 | nvfp4 | N/A | N/A |  | N/A(注2) |  |  | N/A |
-| tq2_0 | N/A | N/A |  | 0.60× |  |  | N/A |
-| tq1_0 | N/A | N/A |  | 0.44× |  |  | N/A |
+| tq2_0 | N/A | N/A |  | 0.60× | 0.36×(注11) |  | N/A |
+| tq1_0 | N/A | N/A |  | 0.44× | 0.36×(注11) |  | N/A |
 | q1_0 | N/A | N/A |  |  |  |  | N/A |
 
 ---
@@ -138,13 +138,15 @@
 - 注5:q8_0 在 k1 上选宽档比窄档快 1.95×,但这个选择有没有传导到 llama e2e 还没测(最该补的)。
 - 注6/7/8:见表 4、表 5 上文。
 - 注9:**k1 配对实测(8 对,极稳)**——q4_K 的 m1 vs mf2 旋钮:prefill **1.258×**、decode **1.221×**(range 0.003)。仅在「关掉 q4_K repack、走 per-row vec_dot」regime 下成立;出厂默认会 repack 绕过这个 kernel → 对出厂 e2e 影响=0。**既没证实也没推翻内存墙**(关 repack 后 decode 本就算力受限);真·内存受限判官(8B@VLEN128 rvv)还没跑成(rvv 掉线)。详见 `qk-winA-e2e-FINDING.md` 的 FINAL 段。
+- 注10:**IQ k1 micro(2026-06-25,12 格 vs-ggml·k1 全填)**——对手 = ggml 出厂在 k1 实际派发的 `_vl256` kernel(不是 rvv 列用的 `_vl128`;k1 `vlenb=32→VLEN256` 已 1 行二进制 probe)。**全 7 个 IQ 都 byte-exact(0.000e+00)、全 LOSS,比值 0.20–0.66**(ggml 1.5–5.1× 快)。注意:k1 比 rvv 列「好很多」(iq3_xxs 0.12→0.20)**是 emitter 从「标量查表」成熟到「真 vluxei16 整块查」**带来的,**不是 VLEN256 效应**——rvv 列那些数是旧 0-vluxei emit,两列不可直接比。残留 1.5–5× = gather LMUL/打包旋钮,非 primitive 缺失。详见 `k1-micro-fill-FINDING.md`。
+- 注11:**FP4/ternary k1 micro(同上,vs `_vl256`)**——rvv 上的 FP4「赢」**不传导到 k1**:iq4_nl 1.32→0.84、mxfp4 1.21→0.80、iq4_xs 1.28→**1.04 TIE**(稳定 ×3,唯一非 LOSS,已按纪律复核);tq2_0 0.60→0.36、tq1_0 0.44→0.36。原因:VLEN256 上 ggml `_vl256` 用的正是我们在 VLEN128 上靠它赢的 mf2 split-16 gather 形状 + 2-blocks/iter 打包,而我们的 emit 仍是 VLEN128 形(`vsetvl_e8m1(16)`=VLEN256 下半个 m1 寄存器,sub-VLMAX)。rvv FP4 赢是 VLEN128 形状产物、非可移植优势。全部 byte-exact(iq4_xs/tq1_0 整数 bit-exact + 小 fp-reassoc)。命名 gearbox 目标 = VLEN-aware FP4/ternary lowering(VLEN256 出 mf2/e8m1-at-32 而非硬钉 vsetvl(16))。
 
 ---
 
 # 没做清单(自查漏洞,如实列)
 
 1. **block-dot e2e:只测了 q4_K(注9,~1.22×传导)**,其余 block-dot 的 e2e 还没测。
-2. **IQ / FP4 / ternary 在 k1 上的 micro 全没测**(只在 rvv 测了)。
+2. ~~**IQ / FP4 / ternary 在 k1 上的 micro 全没测**(只在 rvv 测了)。~~ **DONE 2026-06-25**:12 格 vs-ggml·k1 全填(注10/注11,`k1-micro-fill-FINDING.md`)——全 byte-exact;0 win / 1 TIE(iq4_xs 1.04)/ 11 LOSS。对手是 ggml 出厂派发的 `_vl256`(不是 rvv 列的 `_vl128`)。rvv 的 FP4「赢」是 VLEN128 形状产物、不传导到 k1。
 3. **q4_0 repack 在 k1、q5_0 repack 在 k1、q4_K repack 在 k1 都没做;q4_K repack k1 的正确性 oracle 还没跑**。
 4. **6 个前向算子(softmax 等)0 性能测试**。
 5. **q1_0 block-dot 没测;q5_0/q5_1 block-dot 的旋钮是 m1-only(没东西可调)**。
