@@ -12,6 +12,7 @@
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVIQ4NLBlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVQ40BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVQ4KBlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
@@ -452,8 +453,11 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
   if (llvm::Error error = rvv::registerRVVQ40BlockDotSourceFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
-  return rvv::registerRVVIQ4NLBlockDotSourceFrontDoorPasses(kRVVPluginName,
-                                                            registry, out);
+  if (llvm::Error error = rvv::registerRVVIQ4NLBlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  return rvv::registerRVVQ4KBlockDotSourceFrontDoorPasses(kRVVPluginName,
+                                                          registry, out);
 }
 
 bool RVVExtensionPlugin::supportsOperation(
