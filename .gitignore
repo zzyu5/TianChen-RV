@@ -16,3 +16,4 @@ artifacts/tmp/
 .claude/settings.local.json
 /artifacts/p-a-fair-three-way/*/gen/
 /artifacts/p-a-fair-three-way/*/harness.c
+.claude/worktrees/
