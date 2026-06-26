@@ -11,6 +11,10 @@
 - **Win-A·e2e 的数字 = 旋钮开 vs 关传导到 llama 整体多少**(不是 vs ggml)。
 - 板子:**rvv** = SG2044 VLEN128;**k1** = X60 VLEN256;**ime** = X60 的矩阵单元。
 
+> **★证据状态轴 + bank-null 审计(2026-06-26)**——每格隐含一个状态 `{measured | presumed | board-pending | N/A}`。**"推定平/推定输"= presumed = 开放测量,不是结果**:表2 里 q8_0 repack decode e2e·rvv「推定平」、q4_K repack decode e2e·rvv「推定平」、q4_K repack prefill e2e·rvv「推定输」三格**都是猜、必须实测**(子任务 table-retest-fill 的 tf-presumed-e2e),不准当成功 bank。"平=vs-ggml-stock 1.00×(注5)"是 measured(k1 实测),与"推定平"不同档,别混。
+>
+> **★基线权威(routing-audit,见 `.trellis/tasks/06-26-table-retest-fill/research/routing-audit.md`)**——重测前必读,否则比错对手:(1) **rvv(VLEN128)ggml 对任何 quant 都不出 repack**(每个 RISC-V `case 128:` 是 `break`→nullptr,`repack.cpp:4592/4619/4636/4680/4713`)→ rvv 上 **block-dot 是唯一 ggml 基线**;(2) **k1 对 q4_K / q2_K / iq4_nl 在 e2e 默认路都 repack→GEMM、绕过 block-dot**(不止 q4_K!)→ 表1 里 q2_K@k1 1.02×、iq4_nl@k1 这些是 **block-dot-vs-block-dot 的 micro,不是 e2e 基线**;(3) **q4_1 两板都无 ggml repack**(根本不在 `get_optimal_repack_type`)→ 注3"上游卡"是这个缺席的后果。
+
 > **★内存墙——诚实版(2026-06-25 配对实测,纠我自己一次过度声明)**:我先前说「decode 算力 win 被内存墙washes成 1.0」过于绝对,但随后说「你完全对、内存墙不是绝对的」**又过头了**。配对实测(k1,8 对)真相更细:q4_K 的 m1 vs mf2 旋钮在 **decode 传导 1.221×、prefill 1.258×**(极稳,range 0.003)——**但这是「把 q4_K repack 关掉、强制走 per-row vec_dot」的 regime**;关掉 repack 后 decode 也变成算力受限(所以传导是预期的,不构成对内存墙的反驳)。**而出厂默认 VLEN256 会把 q4_K repack 成 GEMM、完全绕过这个 kernel → 这个旋钮对出厂 decode 的 e2e 影响 = 0**。诚实判定:**既没证实也没推翻内存墙**;真正的内存受限判官(8B 模型 @VLEN128 on rvv)还**没跑**(open, runnable——板在线;"掉线"是 campaign 时点瞬时状态,非耐久事实)。你的直觉对**部分** kernel 成立(q4_0 repack 改了内存搬运 → e2e 真 2.6×),但 q4_K 这种 block-dot 旋钮在出厂路径上被 repack 绕过了。
 
 ---
@@ -126,7 +130,7 @@
 **表 4 IME**:
 - 我们生成的是 IME 的**单条乘加指令**(vmadot 等 6 种),在 K1 硅片上跑出来**逐位正确(16/16)**。**我们没有生成完整的 IME GEMM kernel**——完整 GEMM 是 ggml-spacemit 写的。
 - (注6)那个 **5.66~12.9× 是 ggml-spacemit 的 GEMM(它内部用了我们能生成的 vmadot 那种指令)vs ggml 普通 RVV**,不是「我们的 GEMM 赢」。
-- (注7)IME 的 **e2e ≈ 1.0(没赢)**:开 IME 的 llama 整体快 1.65×,但我们做了对照——在「矩阵单元根本帮不上忙」的纯解码(M=1)上也快 1.47×,说明那 1.65× 是**换了一整套 kernel**带来的,不是矩阵单元本身。所以矩阵单元的 e2e 净贡献 ≈ 0。
+- (注7)IME 的 **e2e ≈ 1.0(没赢)**:开 IME 的 llama 整体快 1.65×,但我们做了对照——在「矩阵单元根本帮不上忙」的纯解码(M=1)上也快 1.47×,说明那 1.65× 是**换了一整套 kernel**带来的,不是矩阵单元本身。所以矩阵单元的 e2e 净贡献 ≈ 0。**(勘误 2026-06-26,ime-prefill-corrigendum)**:这个"净贡献≈0"只在 **decode-heavy regime** 实测成立——M=1 控制对照恰恰证明 decode 下矩阵单元无处发力。**prefill-heavy regime(M 大,矩阵单元本该发力)从未实测 = 开放**,不能据 decode 结论外推到 prefill。"IME 净贡献=0"应限定为 **decode**;prefill 的 IME e2e 是待测开放项(子任务 n2-ime-gemm 的 a3 + M=1 can't-help 对照)。
 
 **表 5 option-2**:(注8)t1 7.0× 是「编译器自己选出来的 kernel」真跑 llama 解码,精确复现了历史数字。诚实讲这是「字节级证明它选对了 kernel」,不是一个新性能数;**把这套自动接进真 pipeline(C3)还没做**。
 
