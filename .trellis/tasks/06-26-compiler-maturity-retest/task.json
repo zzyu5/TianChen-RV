@@ -26,7 +26,8 @@
     "06-26-n2-ime-gemm",
     "06-26-substrate-probe-hart",
     "06-26-gemm-op-builds-tooling",
-    "06-26-table-retest-fill"
+    "06-26-table-retest-fill",
+    "06-26-track-b-generic-lowering"
   ],
   "parent": null,
   "relatedFiles": [],

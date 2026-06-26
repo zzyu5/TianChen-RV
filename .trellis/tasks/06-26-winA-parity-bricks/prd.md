@@ -23,3 +23,5 @@
 不 hard-block on L1/L2（m1 in-tree）。wa3 dep op-attr 扩展。**must-NOT**：bank 推定 parity；声明 2–5×（真值 1.0–1.43×）。
 
 > **执行注**：本 child 含 7 原子项（5 砖 + memoization + c3），start 后**很可能逐砖 sub-spawn**多个 implement+check 周期——别在一个 task cycle 里硬塞 7 项。
+>
+> **发射归属（见父 PRD"Body 发射归属规则"）**：wa 的手写 wide-LMUL body 是 fallback / 过渡 stop-gap；某 quant 一旦被 [[06-26-track-b-generic-lowering]] 的 `G` 覆盖封印，其权威发射路转 generic，wa 手写体退役或留作对照。别与 Track B 双拥有同一 quant 的 body。

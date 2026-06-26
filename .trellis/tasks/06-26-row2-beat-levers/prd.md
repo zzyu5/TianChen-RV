@@ -15,5 +15,8 @@
 - perf micro **且** e2e（被触及格），**两板**；**landing = TARGET 非 banked**：结果可能是 beat / parity / NULL / board-pending——如实标，beat headline 不预支。
 - 触及格交 [[06-26-table-retest-fill]] 重测（cm4→VLEN256 wide-cover 格；cm5→选定 K-quant 格）。
 
+## 与 Track B 的关系（关键——beat 经机制不经手写）
+cm 是**形状综合（layout-assignment-analog）**；要让 beat 是"机制综合出 ggml 没手写的形状"而非"又一个 per-kernel 手写 kernel"，cm 的 wider 形状应**经 [[06-26-track-b-generic-lowering]] 的 generic 自动构造路 emit**（见该 task 的 G5）。quant 已 Track-B-覆盖时优先走 generic 路；未覆盖时先推该 quant 的 Track B 泛化。
+
 ## Deps / Risk
-soft dep：cm4 先于 cm5/cm6。cm6 须 pre-board 可行性证明。**HIGH timeout/NULL 风险**（infra 之前 timed-out 2×）。**must-NOT**：把 placeholder/未实测当 beat；decode micro win 不声明 e2e（须实测传导）。
+soft dep：cm4 先于 cm5/cm6。**强耦合 [[06-26-track-b-generic-lowering]]（G5=cm-shape-through-TrackB）**。cm6 须 pre-board 可行性证明。**HIGH timeout/NULL 风险**（infra 之前 timed-out 2×）。**must-NOT**：把 placeholder/未实测当 beat；decode micro win 不声明 e2e（须实测传导）。
