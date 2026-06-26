@@ -69,6 +69,56 @@ enumerateRVVQ10ShapeCandidates(std::int64_t minimumVLEN) {
   return candidates;
 }
 
+// tq2_0's candidate space mirrors q1_0 EXACTLY: a SINGLE knob (integer_core_lmul)
+// over the two whole-LMUL anchors {m2, m1}, no multi_block_factor / strip_elision
+// (the fused ternary dot is ALWAYS one 32-lane plane body). Each anchor is legal
+// iff its i8 strip VLMAX spans the 32-element 2-bit plane at the derived minimum
+// VLEN -- the SAME getRVVStripVLMAXElements truth source the verifier recomputes
+// legality from. At VLEN128 only m2 spans it (e8m1 VLMAX 16 < 32); at VLEN256 m1
+// also reaches 32 and the lighter footprint breaks the cost tie.
+static llvm::SmallVector<GenericScheduleCandidate>
+enumerateRVVTQ20ShapeCandidates(std::int64_t minimumVLEN) {
+  constexpr std::int64_t kTQ20PlaneLen = 32; // the 32-element 2-bit plane.
+  llvm::SmallVector<GenericScheduleCandidate> candidates;
+  for (auto anchor : {llvm::StringRef("m2"), llvm::StringRef("m1")}) {
+    std::int64_t stripVLMAX = getRVVStripVLMAXElements(
+        getRVVBlockDotStripLMUL(anchor), getRVVBlockDotStripSEW(anchor),
+        minimumVLEN);
+    GenericScheduleCandidate candidate;
+    candidate.cost = 0;
+    candidate.isLegal = stripVLMAX >= kTQ20PlaneLen;
+    candidate.tieBreakVregCost = (anchor == "m1") ? 1 : 2;
+    candidate.knobs.push_back(
+        {"lmul", "integer_core_lmul", anchor.str(), false});
+    candidates.push_back(candidate);
+  }
+  return candidates;
+}
+
+// tq1_0's candidate space mirrors tq2_0/q1_0: a SINGLE knob (integer_core_lmul)
+// over {m2, m1}. The knob tunes ONLY the integer dot (section B; the base-3 unpack
+// is unchanged), which widens to 32-lane strips over the flat aux8[256]. Each
+// anchor is legal iff its i8 strip VLMAX spans the 32-lane strip at the derived
+// minimum VLEN -- the SAME getRVVStripVLMAXElements truth source the verifier uses.
+static llvm::SmallVector<GenericScheduleCandidate>
+enumerateRVVTQ10ShapeCandidates(std::int64_t minimumVLEN) {
+  constexpr std::int64_t kTQ10StripLen = 32; // the 32-lane dot strip.
+  llvm::SmallVector<GenericScheduleCandidate> candidates;
+  for (auto anchor : {llvm::StringRef("m2"), llvm::StringRef("m1")}) {
+    std::int64_t stripVLMAX = getRVVStripVLMAXElements(
+        getRVVBlockDotStripLMUL(anchor), getRVVBlockDotStripSEW(anchor),
+        minimumVLEN);
+    GenericScheduleCandidate candidate;
+    candidate.cost = 0;
+    candidate.isLegal = stripVLMAX >= kTQ10StripLen;
+    candidate.tieBreakVregCost = (anchor == "m1") ? 1 : 2;
+    candidate.knobs.push_back(
+        {"lmul", "integer_core_lmul", anchor.str(), false});
+    candidates.push_back(candidate);
+  }
+  return candidates;
+}
+
 std::optional<RVVScheduleMaterializationDescriptor>
 lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   // The five block-dot kernels share makeBlockDotScheduleDescriptor; each line
@@ -181,6 +231,71 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     descriptor.enumerate = [](std::int64_t minimumVLEN,
                               std::int64_t /*budget*/) {
       return enumerateRVVQ10ShapeCandidates(minimumVLEN);
+    };
+    return descriptor;
+  }
+
+  // tq2_0 (the 2-bit TERNARY class): a CUSTOM single-knob descriptor mirroring
+  // q1_0 (not the shared block-dot factory, whose factor/elision stamps the
+  // tq2_0 verifier rejects). Its span-correct anchor MOVES with VLEN (the
+  // 32-element 2-bit plane straddles m1's i8 VLMAX boundary between 128/256)
+  // exactly like q1_0, so it stamps the SEMANTIC minimum_vlen attr the verifier
+  // recomputes the anchor legality from.
+  if (kernelKey == "tq2_0") {
+    RVVScheduleMaterializationDescriptor descriptor;
+    descriptor.kernelKey = "tq2_0";
+    descriptor.attrPrefix = "tcrv_rvv.tq2_0_schedule";
+    descriptor.producerName = "rvv-tq2-0-autotuner";
+    descriptor.measuredReason =
+        "measured-fastest legal TQ2_0 shape (on-board best-of-N; "
+        "tuning-record-backed)";
+    descriptor.staticReason =
+        "min-cost legal TQ2_0 anchor (capability-blind structural cost; the "
+        "fused ternary dot's single 32-lane plane body is admitted only at the "
+        "whole-LMUL anchor whose i8 VLMAX spans the 32-element 2-bit plane at "
+        "the derived minimum VLEN -- m2 at VLEN128, the lighter m1 at VLEN256)";
+    descriptor.budgetAttrName = "vector_register_budget";
+    descriptor.budgetValue = kRVVQ80ShapeVectorRegisterBudget;
+    descriptor.stampPeakLiveVregs = false; // single-knob: no peak-live footprint.
+    descriptor.stampHasZvl128b = true;
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    descriptor.requiredKnobKeys = {"lmul"};
+    descriptor.enumerate = [](std::int64_t minimumVLEN,
+                              std::int64_t /*budget*/) {
+      return enumerateRVVTQ20ShapeCandidates(minimumVLEN);
+    };
+    return descriptor;
+  }
+
+  // tq1_0 (the BASE-3 TERNARY class): a CUSTOM single-knob descriptor mirroring
+  // tq2_0/q1_0. The knob tunes ONLY the integer dot (section B); the base-3 unpack
+  // (section A) + the aux8 scratch are unchanged. The dot widens to 32-lane strips
+  // whose span-correct anchor MOVES with VLEN (the 32-lane strip straddles m1's i8
+  // VLMAX boundary between 128/256), so it stamps the SEMANTIC minimum_vlen attr
+  // the verifier recomputes the anchor legality from.
+  if (kernelKey == "tq1_0") {
+    RVVScheduleMaterializationDescriptor descriptor;
+    descriptor.kernelKey = "tq1_0";
+    descriptor.attrPrefix = "tcrv_rvv.tq1_0_schedule";
+    descriptor.producerName = "rvv-tq1-0-autotuner";
+    descriptor.measuredReason =
+        "measured-fastest legal TQ1_0 shape (on-board best-of-N; "
+        "tuning-record-backed)";
+    descriptor.staticReason =
+        "min-cost legal TQ1_0 dot anchor (capability-blind structural cost; the "
+        "widened integer dot's 32-lane strip is admitted only at the whole-LMUL "
+        "anchor whose i8 VLMAX spans 32 at the derived minimum VLEN -- m2 at "
+        "VLEN128, the lighter m1 at VLEN256; tunes the dot only, the base-3 "
+        "unpack is fixed)";
+    descriptor.budgetAttrName = "vector_register_budget";
+    descriptor.budgetValue = kRVVQ80ShapeVectorRegisterBudget;
+    descriptor.stampPeakLiveVregs = false; // single-knob: no peak-live footprint.
+    descriptor.stampHasZvl128b = true;
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    descriptor.requiredKnobKeys = {"lmul"};
+    descriptor.enumerate = [](std::int64_t minimumVLEN,
+                              std::int64_t /*budget*/) {
+      return enumerateRVVTQ10ShapeCandidates(minimumVLEN);
     };
     return descriptor;
   }

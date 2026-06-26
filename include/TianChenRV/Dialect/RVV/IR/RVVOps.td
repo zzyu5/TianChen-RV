@@ -6867,7 +6867,8 @@ def GgmlBlockDotQ3KQ8KOp
 
 def GgmlBlockDotTQ20Q8KOp
     : TCRVRVV_Op<"tq2_0_q8_k_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV ggml TQ2_0 x Q8_K super-block FULL block dot-product op";
   let description = [{
@@ -6937,8 +6938,21 @@ def GgmlBlockDotTQ20Q8KOp
 
     tq2_0 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
     => Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip
-    loop (the zve32x/zve64x re-strip is a capability item, not built here). No
-    resource shape knobs yet; this op carries only the structural facts.
+    loop (the zve32x/zve64x re-strip is a capability item, not built here).
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the q1_0 / q8_0 siblings carry (the *how*, never the *what*; the
+    dot-product is byte-exact for any legal value because the per-element ternary
+    decode is identical and the i32 integer accumulation is order-independent).
+    The dot runs ONE FUSED 32-lane plane body per 2-bit shift (ggml's shipped
+    `_vl128`/`_vl256` lane structure): the 32-byte qs chunk loads once, the 4
+    planes each vwmacc 32 ternary*q8 lanes into a wide i16 accumulator, ONE
+    vwredsum per chunk. The 32-element plane straddles m1's i8 VLMAX boundary
+    between VLEN128/256, so its span-correct anchor MOVES with VLEN across {m1,
+    m2} exactly like q1_0: the schedule autotuner stamps "m2" at VLEN128 (e8m1
+    VLMAX 16 < 32) and the lighter "m1" at VLEN256 from the SAME
+    getRVVStripVLMAXElements truth source (it adopts TunableScheduleOpInterface;
+    kernel key "tq2_0"). The verifier rejects any other anchor fail-closed (I7).
   }];
 
   let arguments = (ins
@@ -6955,7 +6969,9 @@ def GgmlBlockDotTQ20Q8KOp
     I64Attr:$weight_qs_byte_offset,
     I64Attr:$weight_d_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 
@@ -6968,7 +6984,8 @@ def GgmlBlockDotTQ20Q8KOp
 
 def GgmlBlockDotTQ10Q8KOp
     : TCRVRVV_Op<"tq1_0_q8_k_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV ggml TQ1_0 x Q8_K super-block FULL block dot-product op";
   let description = [{
@@ -7042,8 +7059,23 @@ def GgmlBlockDotTQ10Q8KOp
 
     tq1_0 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
     => Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip
-    loop (the zve32x/zve64x re-strip is a capability item, not built here). No
-    resource shape knobs yet; this op carries only the structural facts.
+    loop (the zve32x/zve64x re-strip is a capability item, not built here).
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the q1_0 / tq2_0 siblings carry, and here it tunes ONLY the integer DOT
+    (section B): the base-3 trit unpack (section A) lands an element-ordered
+    aux8[256] and aux8[k] pairs with q8[k] across the WHOLE super-block (single
+    fp16 scale, NO per-sub-block scale), so the dot is a flat 256-element i8*i8
+    contraction. The narrow 16x e8m1(16) reductions widen to 32-lane strips at the
+    whole-LMUL anchor whose i8 VLMAX spans 32 -- m2 at VLEN128 (e8m1 VLMAX 16 <
+    32), the lighter m1 at VLEN256 -- selected by the schedule autotuner from the
+    SAME getRVVStripVLMAXElements truth source (kernel key "tq1_0"). The
+    dot-product is byte-exact for any legal value (integer addition is
+    order-independent). NOTE: only the DOT widens; section A's base-3 unpack + the
+    aux8 scratch round-trip are KEPT (full ggml-style fusion is a separate larger
+    emit -- ggml's tq1_0 `_vl128`/`_vl256` are DIFFERENT shapes, not a clean LMUL
+    flip), so this targets tq1_0's narrow-strip LOSS without a parity claim. The
+    verifier rejects any other anchor fail-closed (I7).
   }];
 
   let arguments = (ins
@@ -7061,7 +7093,9 @@ def GgmlBlockDotTQ10Q8KOp
     I64Attr:$weight_qh_byte_offset,
     I64Attr:$weight_d_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 

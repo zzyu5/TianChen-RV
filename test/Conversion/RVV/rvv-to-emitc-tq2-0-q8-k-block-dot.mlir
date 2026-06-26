@@ -32,38 +32,46 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_ggml_vec_dot_tq2_0_q8_K(
-// The super-block count nb = n / 256, the int8_t aux8[256] scratch.
+// The super-block count nb = n / 256. The FUSED dot has NO aux8[256] scratch (the
+// 2-bit unpack is consumed in-register by the per-plane vwmacc, never spilled).
 // CHECK: div %arg0, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// CHECK: %[[AUX8:.*]] = "emitc.variable"() {{.*}} -> !emitc.array<256x!emitc.opaque<"int8_t">>
+// CHECK-NOT: !emitc.array<256x!emitc.opaque<"int8_t">>
 // The scalar sumf, zeroed ONCE outside the super-block loop.
 // CHECK: %[[SUMF:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"float">>
 // The outer super-block loop.
 // CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step
-// The 2-bit TERNARY unpack: u8m2 load of the qs chunk, vsrl/vand over the shifts
-// {0,2,4,6}, u8->i8 reinterpret, then the per-element `-1` ternary bias (vadd.vx
-// of -1 in the i8 domain) BEFORE the vse8 -- this is the load-bearing ternary
-// decode `((qs>>shift)&3) - 1`.
+// The SINGLE per-super-block integer accumulator sumi (default anchor m2 at the
+// VLEN-universal floor; the gearbox refines m2->m1 at VLEN256).
+// CHECK: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int">>
+// The FUSED 2-bit TERNARY dot (ggml's _vl128 lane structure): a wide i16m4 plane
+// accumulator zeroed per 32-byte chunk, the 32-byte qs chunk loaded ONCE at e8m2,
+// then 4 planes each unpacking 32 ternary lanes (vsrl/vand over {0,2,4,6}, u8->i8
+// reinterpret, the per-element `-1` bias via vsub in the i8 domain) and vwmacc'd
+// DIRECTLY against the matching 32 q8 lanes -- the load-bearing decode
+// `((qs>>shift)&3) - 1` fused into one widening MAC, NO vse8 spill.
+// CHECK: call_opaque "__riscv_vsetvl_e16m4"
+// CHECK: call_opaque "__riscv_vmv_v_x_i16m4"
 // CHECK: call_opaque "__riscv_vsetvl_e8m2"
 // CHECK: call_opaque "__riscv_vle8_v_u8m2"
 // CHECK: call_opaque "__riscv_vand_vx_u8m2"
 // CHECK: call_opaque "__riscv_vreinterpret_v_u8m2_i8m2"
-// CHECK: call_opaque "__riscv_vadd_vx_i8m2"
-// CHECK: call_opaque "__riscv_vse8_v_i8m2"
+// CHECK: call_opaque "__riscv_vsub_vx_i8m2"
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vwmacc_vv_i16m4"
 // tq2_0 has NO scales / min / bsums machinery -- it must NOT misroute to a q2_K
 // or q4_K-style scale/min decode. NO 4-bit nibble scale extraction (bitwise_and /
 // bitwise_right_shift on a scales byte), NO 6-bit utmp/kmask bit-dance, NO bsums.
+// NO aux8 spill: the OLD narrow path (vse8 + per-16-lane vwmul + vsetvl_e8m1) is
+// gone.
 // CHECK-NOT: bitwise_and
 // CHECK-NOT: bitwise_right_shift
 // CHECK-NOT: bitwise_or
 // CHECK-NOT: const int16_t
-// The SINGLE per-super-block integer accumulator sumi, fed by the per-16-lane
-// widening dot (i8m1 loads -> vwmul -> vwredsum -> vmv_x_s), summed (NO per-sub-
-// block scale multiply).
-// CHECK: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int">>
-// CHECK: call_opaque "__riscv_vsetvl_e8m1"
-// CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
+// CHECK-NOT: call_opaque "__riscv_vse8_v_i8m2"
+// CHECK-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
+// ONE wide widening reduce per chunk (i16m4 -> i32m1 -> scalar), summed into sumi
+// (NO per-sub-block scale multiply -- tq2_0 has no scales).
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // The SINGLE-SCALE SCALAR fp32 fold: dy (fp32 q8_K scale) loaded once, dx via the
 // fp16 read seam (ONE read, at xb+64), d = dy*dx, then `sumf += (float)sumi * d`
