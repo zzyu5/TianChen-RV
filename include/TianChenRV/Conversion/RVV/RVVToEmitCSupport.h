@@ -3,14 +3,17 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 
+#include "mlir/IR/Location.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <string>
 
 namespace mlir {
 class MLIRContext;
+class PatternRewriter;
 } // namespace mlir
 
 // Free-function support helpers extracted from RVVToEmitC.cpp. These are the
@@ -147,6 +150,22 @@ std::string localVariableComment(llvm::StringRef varName, llvm::StringRef opName
 
 std::string assignComment(llvm::StringRef target, llvm::StringRef opName,
                           llvm::StringRef role);
+
+//===----------------------------------------------------------------------===//
+// Op emission helper: the shared `verbatim step-comment + call_opaque` idiom.
+//===----------------------------------------------------------------------===//
+
+// Emits, byte-for-byte, the hand-spliced pair the per-kernel emitters open-code
+// today:
+//   verbatim "<stepComment(opName, role, callee)>"
+//   %r = call_opaque "<callee>"(operands) : (...) -> resultType
+// where callee = ("__riscv_" + mnemonic + "_" + suffix).str(). The returned
+// value is the call's single result. This is the L0 consolidation seed: it
+// changes ZERO emitted bytes (the conversion fixtures + lit suite prove it).
+mlir::Value emitVCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                      mlir::Type resultType, llvm::StringRef mnemonic,
+                      llvm::StringRef suffix, mlir::ValueRange operands,
+                      llvm::StringRef opName, llvm::StringRef role);
 
 } // namespace detail
 } // namespace rvv

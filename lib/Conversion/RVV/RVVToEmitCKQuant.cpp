@@ -46,6 +46,13 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ6_KSuperBlockAux32C
       return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
     };
     // u8 immediate vector op: __riscv_<mnemonic>_<dtype><lmul>(src, imm, vl).
+    // NOTE: left inline (not on emitVCall) on purpose: this idiom interleaves a
+    // LiteralOp BETWEEN the step-comment VerbatimOp and the call (order in the
+    // emitc-dialect dump is [verbatim, literal, call]). The emitVCall helper
+    // takes pre-built `operands`, so routing this through it would create the
+    // literal before the verbatim and reorder the printed IR (byte-exact gate
+    // fails). Subsuming it belongs to L0b/c, with a richer helper that builds
+    // the immediate internally / splits comment from call.
     auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                        llvm::StringRef imm, mlir::Value vl) -> mlir::Value {
       std::string callee = ("__riscv_" + mnemonic + "_u8m2").str();
@@ -59,20 +66,12 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ6_KSuperBlockAux32C
     };
     auto u8VVOp = [&](llvm::StringRef mnemonic, mlir::Value a, mlir::Value b,
                       mlir::Value vl) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u8m2").str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{cx.u8m2Type}, callee,
-                                       mlir::ValueRange{a, b, vl})
-          .getResult(0);
+      return emitVCall(rewriter, loc, cx.u8m2Type, mnemonic, "u8m2",
+                       mlir::ValueRange{a, b, vl}, opName, role);
     };
     auto u8Load = [&](mlir::Value ptr, mlir::Value vl) -> mlir::Value {
-      std::string callee = "__riscv_vle8_v_u8m2";
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{cx.u8m2Type}, callee,
-                                       mlir::ValueRange{ptr, vl})
-          .getResult(0);
+      return emitVCall(rewriter, loc, cx.u8m2Type, "vle8_v", "u8m2",
+                       mlir::ValueRange{ptr, vl}, opName, role);
     };
 
     // ---- (A) 6-bit ql+qh unpack into aux8 (element-ordered, biased -32) ----

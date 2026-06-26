@@ -4,6 +4,7 @@
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/StringRef.h"
@@ -615,6 +616,25 @@ std::string assignComment(llvm::StringRef target, llvm::StringRef opName,
      << " role=" << role << " op_interface=" << kOpInterface;
   os.flush();
   return text;
+}
+
+//===----------------------------------------------------------------------===//
+// Op emission helper: the shared `verbatim step-comment + call_opaque` idiom
+// the per-kernel emitters open-code. Reproduces the hand-spliced pair exactly
+// (same callee mangle, same step comment, same single-result call), so the
+// emitted C is byte-identical to the inline form.
+//===----------------------------------------------------------------------===//
+
+mlir::Value emitVCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                      mlir::Type resultType, llvm::StringRef mnemonic,
+                      llvm::StringRef suffix, mlir::ValueRange operands,
+                      llvm::StringRef opName, llvm::StringRef role) {
+  std::string callee = ("__riscv_" + mnemonic + "_" + suffix).str();
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+  return rewriter
+      .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, callee,
+                                   operands)
+      .getResult(0);
 }
 
 } // namespace detail
