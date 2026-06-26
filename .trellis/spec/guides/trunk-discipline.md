@@ -10,7 +10,7 @@
 
 ## 主干 vs 枝节
 
-- **主干** = 让 Novelty 可证的工作：更深的 capability 模型 + 多 profile 行为分化（N1）；第二个**非-RVV** family 走通同一 common 路径（N2）；Gearbox 候选枚举/剪枝 + **实测胜出** scalar 与 naive RVV（N3）。
+- **主干** = 让 Novelty 可证的工作：更深的 capability 模型 + 多 profile 行为分化（N1）；第二个**非-RVV** family 走通同一 common 路径（N2）；Gearbox 候选枚举/剪枝 + 对**框架出厂同-ISA kernel**实测胜出或打平（N3，baseline 纪律见 [validation/experiment-reference](../validation/experiment-reference.md)；scalar/naive 绝不作贡献基线）。
 - **枝节** = adjacent route seam、又一个 ABI/artifact evidence closeout、rename/ownership 重排、metadata-only round、把一个算子拆成 N 个 boundary/owner/contract task。
 
 主干难、枝节易；loop 的天然引力往枝节滑。**默认抵抗这个引力。**
@@ -20,7 +20,7 @@
 - **微缝拆分**：把一个 memory layout 拆成 7 个 boundary/provider/owner/contract/closure task。一个算子族一个 task 足够。
 - **无限证据 closeout**：route family 已 production-validated 后，还在它上面反复刷 artifact/ABI/ssh 证据。验证过一次就停。
 - **gate 反复重开**：给同一处反复加 attr/fact 再"关闭"。这说明当初的拆分是假的。
-- **挑小而安全**：回避难的主干问题（第二 family、真打赢 scalar），去做容易出"完成"感的小修。
+- **挑小而安全**：回避难的主干问题（第二 family、真打赢框架出厂 kernel），去做容易出"完成"感的小修。
 
 ## 选 task 的判断（取舍，不是 checklist）
 

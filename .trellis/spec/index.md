@@ -23,7 +23,7 @@ TianChen-RV 是 high-level MLIR 之后的**能力驱动统一 RISC-V 执行层**
 |---|---|---|
 | N1 | RISC-V 扩展异构性作为 first-class capability IR | 同一 kernel 在多个**真实** profile 上，被 capability 查询导向不同的合法性 / 选择 / dispatch 结果 |
 | N2 | 零-core-branch 的 plugin 泛化 | RVV + 至少一个**非-RVV** family（IME）走同一 common pipeline，core/common pass 里不出现 family-name 分支 |
-| N3 | capability/resource-aware 的跨 family 调优 | Gearbox 的候选空间由 capability + resource facts 推导，且在若干 kernel 上**实测赢** scalar 与 naive RVV |
+| N3 | capability/resource-aware 的跨 family 调优 | Gearbox 的候选空间由 capability + resource facts 推导，且在若干 kernel 上对**框架自己出厂的同-ISA kernel**（如 ggml 真 RVV `vec_dot`）实测胜出或打平（baseline 纪律见 [validation/experiment-reference](./validation/experiment-reference.md)；scalar/naive 只作内部 sanity，**绝不**作贡献倍数）|
 
 > "execution-variant 容器""plugin 化"本身**不是** novelty —— MLIR 的 dialect + interface 已提供。不要把架构选择当贡献卖点。novelty 只在 N1–N3，且都以证据为准。
 

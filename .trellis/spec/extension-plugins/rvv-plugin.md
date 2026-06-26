@@ -98,4 +98,4 @@ RVV 已 route-supported 的算子族，按 [variant-pipeline](../variant-pipelin
 
 - 在写"第 N 个 route 契约"之前：它真满足上面的通用契约吗？若是，进覆盖表即可，别抄模板。
 - 在做"又一个 artifact/ABI evidence closeout"之前：读 [trunk-discipline](../guides/trunk-discipline.md)——大概率该转主干了。
-- 性能主张落地前：Gearbox 真的枚举/剪枝候选了吗？真的赢 scalar 了吗？没有就如实说，别用 metadata 包装成"成熟"。
+- 性能主张落地前：Gearbox 真的枚举/剪枝候选了吗？真的对**框架出厂同-ISA kernel**胜出/打平了吗（**不是**赢 scalar）？没有就如实说，别用 metadata 包装成"成熟"。

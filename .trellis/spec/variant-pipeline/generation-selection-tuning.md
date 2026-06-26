@@ -52,7 +52,7 @@ selected pre-realized typed body
 
 Gearbox 的候选空间必须由**编译器可见的 capability + body facts** 推导，而非硬编码常量。可推理的事实包括：target VLEN / ELEN / 向量寄存器预算、保留的 mask/v0、SEW/LMUL/EMUL、widening/narrowing 压力、peak live vector groups、load/store 与 mask 活跃区间、accumulator 数量与 reduction layout、vsetvl region 数、memory form/stride、tail/mask policy。resource model 可以**先 static、bounded**，但必须真的 over 这些 facts 推理。
 
-> **怎么判断 tune 是否真的 resource-aware（老实判断，别自欺）**：只有当 Gearbox **枚举并按 resource facts 剪枝候选**时，它才是 resource-aware 的。固定单候选、固定 unroll、固定 LMUL 只是 MVP 占位——能跑，但不是 N3。N3 还要求在若干 kernel 上**实测赢** scalar 且赢 naive RVV：没有胜出的 tuning 没有论文故事。这是给 agent 的判断标准，不是流程闸门；当前实现离它多远，写在 task/journal，不写进 spec。
+> **怎么判断 tune 是否真的 resource-aware（老实判断，别自欺）**：只有当 Gearbox **枚举并按 resource facts 剪枝候选**时，它才是 resource-aware 的。固定单候选、固定 unroll、固定 LMUL 只是 MVP 占位——能跑，但不是 N3。N3 还要求在若干 kernel 上对**框架自己出厂的同-ISA kernel**（如 ggml 真 RVV `vec_dot`）实测胜出或打平（baseline 纪律见 [experiment-reference](../validation/experiment-reference.md)：scalar/naive 只作内部 sanity、**绝不**作贡献倍数）：没有胜出的 tuning 没有论文故事。这是给 agent 的判断标准，不是流程闸门；当前实现离它多远，写在 task/journal，不写进 spec。
 
 **Autotuning 模式**（分层，按需启用）
 
