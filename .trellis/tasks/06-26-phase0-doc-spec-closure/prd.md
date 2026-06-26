@@ -1,5 +1,6 @@
 # Phase0：doc/spec 诚实闭环（no board）
 
+> **✅ DONE 2026-06-26**（commits 25fa295a + 69ccac16）：routing-audit 产出 `research/routing-audit.md`、ime-prefill-corrigendum、bank-null 审计(证据状态轴+基线更正)、spec-status-update(补 cross-type tune-reuse 复用契约)四项全完。
 > 父任务 [[06-26-compiler-maturity-retest]]；纪律护栏见父 PRD。无板、不动任何 perf 格、可立即起。
 
 ## Goal

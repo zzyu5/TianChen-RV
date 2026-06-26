@@ -3,7 +3,7 @@
   "name": "compiler-maturity-retest",
   "title": "compiler 成熟化: 解决 doc/自查 gap + 重测填完 kernel 表",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
