@@ -637,6 +637,64 @@ mlir::Value emitVCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
       .getResult(0);
 }
 
+//===----------------------------------------------------------------------===//
+// Single-source i8 -> i16 -> i32 widening-chain LMUL derivation. The one place
+// the q4_K/q6_K integer cores + the FP4 codebook emitters resolve their widened
+// MAC LMULs, replacing the divergent inline derivations (one of which dropped
+// the "m2" base into the "m1" branch -- the latent widening-chain bug seam).
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+// One x2 step up the LMUL ladder: mf4 -> mf2 -> m1 -> m2 -> m4 -> m8. The
+// integer-core anchor is verifier-bounded well below m8, so the saturating
+// default is never reached for an in-tree base.
+llvm::StringRef widenOneStep(llvm::StringRef lmul) {
+  if (lmul == "mf4")
+    return "mf2";
+  if (lmul == "mf2")
+    return "m1";
+  if (lmul == "m1")
+    return "m2";
+  if (lmul == "m2")
+    return "m4";
+  if (lmul == "m4")
+    return "m8";
+  return "m8";
+}
+
+// The i8 lane count the base LMUL spans at the canonical VLEN=128 integer-core
+// anchor (the byte-exact strip width the q4_K/q6_K cores assume): mf2=8, m1=16,
+// m2=32. Unknown bases fall back to the mf2-shaped 8 (the legacy else-branch).
+int64_t i8StripWidthAtVlen128(llvm::StringRef lmul) {
+  if (lmul == "mf4")
+    return 4;
+  if (lmul == "mf2")
+    return 8;
+  if (lmul == "m1")
+    return 16;
+  if (lmul == "m2")
+    return 32;
+  if (lmul == "m4")
+    return 64;
+  if (lmul == "m8")
+    return 128;
+  return 8;
+}
+
+} // namespace
+
+WideningChain deriveWideningChain(llvm::StringRef base) {
+  WideningChain chain;
+  llvm::StringRef l16 = widenOneStep(base);
+  chain.l8 = base.str();
+  chain.l16 = l16.str();
+  chain.l32 = widenOneStep(l16).str();
+  chain.stripWidth = i8StripWidthAtVlen128(base);
+  chain.foldGroups = chain.stripWidth / 8;
+  return chain;
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

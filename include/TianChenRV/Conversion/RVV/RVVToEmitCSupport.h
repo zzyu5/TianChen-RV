@@ -9,6 +9,7 @@
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <cstdint>
 #include <string>
 
 namespace mlir {
@@ -166,6 +167,34 @@ mlir::Value emitVCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
                       mlir::Type resultType, llvm::StringRef mnemonic,
                       llvm::StringRef suffix, mlir::ValueRange operands,
                       llvm::StringRef opName, llvm::StringRef role);
+
+//===----------------------------------------------------------------------===//
+// Single-source i8 -> i16 -> i32 widening-chain LMUL derivation.
+//===----------------------------------------------------------------------===//
+
+// The integer-core widening ladder rungs for a base i8 LMUL anchor:
+//   l8  = the base i8 load anchor,
+//   l16 = the i16 product, ONE EMUL step wider,
+//   l32 = the i32 accumulator, TWO steps wider,
+// up the x2 ladder mf4 -> mf2 -> m1 -> m2 -> m4 -> m8. stripWidth is the i8 lane
+// count the base LMUL spans at the canonical VLEN=128 integer-core anchor
+// (mf2=8, m1=16, m2=32) and foldGroups = stripWidth/8 (the lane groups the
+// integer fold-back collapses back to the canonical 8 before the fp fold).
+//
+// This is the ONE source of truth the q4_K / q6_K block-dot integer cores and
+// the FP4 codebook emitters share. It replaces the per-site inline derivations,
+// one of which silently mishandled the "m2" base (l16/l32 collapsing to the
+// "m1" branch), removing the latent m1/m2 widening-chain divergence seam. The
+// emitted C is byte-identical for the {mf2,m1} bases that occur in-tree.
+struct WideningChain {
+  std::string l8;
+  std::string l16;
+  std::string l32;
+  int64_t stripWidth = 0;
+  int64_t foldGroups = 0;
+};
+
+WideningChain deriveWideningChain(llvm::StringRef base);
 
 } // namespace detail
 } // namespace rvv

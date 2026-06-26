@@ -681,12 +681,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KBlockDot(
     // under one scalar scale -- verifier-rejected). The 6-bit unpack (Region A)
     // and the deferred fp32 fold (Region C) are LMUL-free.
     llvm::StringRef coreLmul = blockDot.getIntegerCoreLmul().value_or("mf2");
-    // l8 = the strip i8 load anchor; l16/l32 follow it up the widening chain.
-    llvm::StringRef l8 = coreLmul;
-    llvm::StringRef l16 = (coreLmul == "m1") ? "m2" : "m1";
-    llvm::StringRef l32 = (coreLmul == "m1") ? "m4" : "m2";
-    int64_t stripWidth = (coreLmul == "m1") ? 16 : 8;
-    int64_t foldGroups = stripWidth / 8; // 1 @mf2 (no fold), 2 @m1
+    // l8 = the strip i8 load anchor; l16/l32 + stripWidth/foldGroups follow it up
+    // the SINGLE-SOURCE widening chain (shared with the q4_K core + the codebook
+    // emitters). "m1" stays the q6_K hard ceiling (the verifier rejects "m2"
+    // here), so on this path the chain only ever sees {mf2,m1}.
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef l8 = wideningChain.l8;
+    llvm::StringRef l16 = wideningChain.l16;
+    llvm::StringRef l32 = wideningChain.l32;
+    int64_t stripWidth = wideningChain.stripWidth;
+    int64_t foldGroups = wideningChain.foldGroups; // 1 @mf2 (no fold), 2 @m1
     // The Region-B widened MAC types built from l8/l16/l32.
     mlir::Type i8WideType =
         emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
@@ -1593,9 +1597,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     // (mf2 -> m1 -> m2) reproduces the legacy callee/type strings exactly. The
     // Region-A 6-bit unpack (u8m2/i8m2) is NOT on this knob -- it stays fixed.
     llvm::StringRef coreLmul = blockDot.getIntegerCoreLmul().value_or("mf2");
-    llvm::StringRef l8 = coreLmul;                                        // base
-    llvm::StringRef l16 = coreLmul == "m2" ? "m4" : (coreLmul == "m1" ? "m2" : "m1");
-    llvm::StringRef l32 = coreLmul == "m2" ? "m8" : (coreLmul == "m1" ? "m4" : "m2");
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef l8 = wideningChain.l8;                                // base
+    llvm::StringRef l16 = wideningChain.l16;
+    llvm::StringRef l32 = wideningChain.l32;
     // S3-S4: the Region-C MAC strip width follows l8 (the i8 base LMUL): mf2 is
     // the 8-wide quarter strip (today, 4 strips/sub-block); m1 a 16-wide strip
     // (2/sub-block); m2 a 32-wide strip (1/sub-block == the whole sub-block in
@@ -1603,9 +1608,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     // fold-back (Region C tail) collapses those foldGroups = stripWidth/8 lane
     // groups back to the canonical 8 BEFORE the byte-exact fp fold (Region F),
     // which stays 8-lane vint32m2_t forever.
-    int64_t stripWidth = coreLmul == "m2" ? 32 : (coreLmul == "m1" ? 16 : 8);
+    int64_t stripWidth = wideningChain.stripWidth;
     int64_t numStrips = subBlock / stripWidth; // 32/8=4, 32/16=2, 32/32=1
-    int64_t foldGroups = stripWidth / 8;        // 1 (mf2), 2 (m1), 4 (m2)
+    int64_t foldGroups = wideningChain.foldGroups; // 1 (mf2), 2 (m1), 4 (m2)
 
     // The integer-core vector types (shared with K4a via the context) + the fp32
     // fold types. The Region-A unpack types (u8m2/i8m2) are fixed at m2; the

@@ -85,7 +85,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
     // The widened i16 product LMUL is ONE step wider than the i8 source LMUL: m1 -> m2
     // (the VLEN128 form), mf2 -> m1 (the VLEN256 `_vl256` form). The vwredsum reduction
     // destination + seed stay m1 in BOTH (a 16-element reduction is an m1 reduce).
-    llvm::StringRef wideLmul = coreLmul == "mf2" ? "m1" : "m2";
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -564,7 +565,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16 to index all 16
     // table entries); the verifier pins it. i8 source LMUL m1 -> i16 product m2.
     llvm::StringRef coreLmul = "m1";
-    llvm::StringRef wideLmul = "m2";
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -1070,7 +1072,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     bool stripElided = stripElision == "elided";
     // The widened i16 product LMUL is one step wider than the i8 source: m1 -> m2
     // (VLEN128), mf2 -> m1 (VLEN256). The vwredsum destination + seed stay m1 in both.
-    llvm::StringRef wideLmul = coreLmul == "mf2" ? "m1" : "m2";
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -1643,7 +1646,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
     llvm::StringRef coreLmul = "m1";
     if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
       coreLmul = *attrLmul;
-    llvm::StringRef wideLmul = "m2";
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
