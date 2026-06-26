@@ -7228,7 +7228,8 @@ def GgmlBlockDotIQ4XSQ8KOp
 
 def GgmlBlockDotIQ2XXSQ8KOp
     : TCRVRVV_Op<"iq2_xxs_q8_k_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
       "generic typed RVV ggml IQ2_XXS x Q8_K GRID-codebook super-block dot-product op";
   let description = [{
@@ -7295,8 +7296,28 @@ def GgmlBlockDotIQ2XXSQ8KOp
     !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
 
     iq2_xxs emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
-    Zvl128b => VLEN>=128, the validated target). No resource shape knobs this cut; the
-    op carries only the structural facts.
+    Zvl128b => VLEN>=128, the validated target).
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the q1_0 / tq2_0 siblings carry (the *how*, never the *what*; the
+    dot-product is byte-exact for any legal value because the per-element grid+sign
+    decode is identical and the i32 integer accumulation is order-independent). The
+    grid+sign vluxei16 gather + dot runs ONE 32-lane sub-block body: the 4 u64 grid
+    entries gather as vint64<anchor> (4 entries = 32 i8 = one 32-lane sub-block),
+    reinterpret to i8<anchor>, fold the per-lane +-1 sign (vmul_vv_i8<anchor>), one
+    vwmul_vv_i16<2*anchor>, ONE vwredsum per sub-block. A single i64 entry is 8
+    bytes, so the 4-entry gather needs an i64 anchor whose VLMAX reaches 4 (=> the
+    i8 view spans 32): the span-correct anchor MOVES with VLEN across {m1, m2}
+    exactly like tq2_0 -- the schedule autotuner stamps "m2" at VLEN128 (e8m1 VLMAX
+    16 < 32) and the lighter "m1" at VLEN256 (e8m1 VLMAX reaches 32, i64m1 VLMAX
+    reaches 4) from the SAME getRVVStripVLMAXElements truth source (it adopts
+    TunableScheduleOpInterface; kernel key "iq2_xxs"). The verifier rejects any
+    other anchor fail-closed (I7). The anchor defaults to "m2" (the VLEN-universal-
+    safe floor, e8m2 VLMAX 32 at any VLEN), so an attr-less op verifies + lowers
+    correctly and the gearbox is free to REFINE m2->m1 at VLEN>=256 (matching ggml's
+    shipped `_vl256` m1-32-lane shape). (The siblings iq2_xs / iq2_s reduce in
+    16-lane HALVES forced by their distinct per-half scales ls1/ls2 -- 2 i64 entries
+    = always sub-m1 since i64 cannot strip below m1 -- so they carry NO shape knob.)
   }];
 
   let arguments = (ins
@@ -7316,7 +7337,9 @@ def GgmlBlockDotIQ2XXSQ8KOp
     I64Attr:$activation_d_byte_offset,
     I64Attr:$activation_quant_byte_offset,
     DenseI64ArrayAttr:$grid,
-    DenseI32ArrayAttr:$ksigns
+    DenseI32ArrayAttr:$ksigns,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 

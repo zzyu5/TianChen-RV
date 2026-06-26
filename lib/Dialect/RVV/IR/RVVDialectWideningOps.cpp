@@ -976,6 +976,20 @@ bool GgmlGemmQ40Q80Op::isSchedulePinned() {
   return getActivationCols().has_value();
 }
 
+// iq2_xxs (the GRID-codebook class) carries ONLY the integer_core_lmul knob (no
+// multi_block_factor / strip_elision -- the grid+sign vluxei16 gather + dot is
+// ALWAYS one 32-lane sub-block body). The 4 u64 grid entries gather as i64<anchor>
+// (4 entries = 32 i8 = the 32-lane sub-block); a single i64 is 8 bytes so the
+// 4-entry gather needs an i64 anchor whose VLMAX reaches 4 (i8 view spans 32),
+// which straddles m1's i8 VLMAX boundary between VLEN128/256 (like tq2_0 / q1_0),
+// so the gearbox stamps "m2" at VLEN128 / "m1" at VLEN256 (ggml's _vl256 shape).
+llvm::StringRef GgmlBlockDotIQ2XXSQ8KOp::getScheduleKernelKey() {
+  return "iq2_xxs";
+}
+bool GgmlBlockDotIQ2XXSQ8KOp::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul());
+}
+
 mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
   mlir::Operation *op = getOperation();
 
@@ -6581,7 +6595,9 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KOp::verify() {
            name == "weight_d_byte_offset" || name == "weight_qs_byte_offset" ||
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" || name == "grid" ||
-           name == "ksigns";
+           name == "ksigns" || name == "integer_core_lmul" ||
+           name == "minimum_vlen" ||
+           name.starts_with("tcrv_rvv.iq2_xxs_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -6599,7 +6615,8 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KOp::verify() {
                 "'weight_block_stride', 'activation_block_stride', "
                 "'weight_d_byte_offset', 'weight_qs_byte_offset', "
                 "'activation_d_byte_offset', 'activation_quant_byte_offset', "
-                "'grid', and 'ksigns'; unexpected attribute '"
+                "'grid', 'ksigns', 'integer_core_lmul', and 'minimum_vlen'; "
+                "unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -6729,6 +6746,48 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for the ggml IQ2_XXS x Q8_K GRID-codebook super-block "
               "full block dot-product";
+
+  // The grid+sign vluxei16 gather + dot runs ONE 32-lane sub-block body (gather 4
+  // u64 grid + 4 u64 sign entries as i64<anchor>, reinterpret to i8<anchor>, fold
+  // the per-lane sign, ONE vwmul_vv_i16<2*anchor> + ONE vwredsum per sub-block).
+  // The single vsetvl_e8<anchor>(32) / vluxei16_v_i64<anchor> cover is correct ONLY
+  // when the anchor's i8 strip VLMAX at the GUARANTEED minimum VLEN spans the whole
+  // 32-element sub-block (a single i64 is 8 bytes, so the 4-entry gather needs the
+  // i64 anchor whose VLMAX reaches 4, i.e. the i8 view reaches 32). WHICH anchor
+  // that is MOVES with VLEN exactly like the tq2_0 / q1_0 / q8_0 siblings: at
+  // VLEN=128 only m2 spans it (e8m1 VLMAX 16 < 32), at VLEN=256 m1's VLMAX also
+  // reaches 32 (and i64m1 VLMAX reaches 4). Any other spelling is rejected
+  // fail-closed (I7); the VLMAX legality is recomputed here from the SAME formula
+  // the gearbox selects with (getRVVStripVLMAXElements -- this verifier is the
+  // single source of truth). The anchor defaults to "m2" (the emitter's
+  // VLEN-universal-safe default), so an attr-less op verifies + lowers correctly
+  // and the gearbox is free to REFINE m2->m1 at VLEN>=256 (ggml's _vl256 shape).
+  // The explicit aggressive anchor m1 is REJECTED at minimum_vlen 128 (e8m1 VLMAX
+  // 16 < 32) -- the silent-wrong guard.
+  {
+    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
+    if (anchor != "m1" && anchor != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
+                "IQ2_XXS x Q8_K GRID-codebook super-block full block dot-product "
+                "(the grid+sign gather + dot runs ONE 32-lane sub-block body at "
+                "the whole-LMUL anchor whose i8 strip VLMAX spans the 32-element "
+                "sub-block: m2 at VLEN128, m1 at VLEN256); got \""
+             << anchor << "\"";
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kIQ2XXSSubBlockLen = 32; // the 32-element sub-block.
+    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    if (stripVLMAX < kIQ2XXSSubBlockLen)
+      return emitOpError()
+             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
+                "32-element grid-codebook sub-block at the guaranteed minimum_vlen ("
+             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
+             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) / "
+                "vluxei16_v_i64<anchor> would not cover the sub-block (silent-wrong "
+                "I7 guard)";
+  }
 
   return mlir::success();
 }
