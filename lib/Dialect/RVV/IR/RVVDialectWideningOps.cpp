@@ -927,6 +927,26 @@ bool GgmlBlockDotQ10Q80Op::isSchedulePinned() {
   return static_cast<bool>(getIntegerCoreLmul());
 }
 
+// tq2_0 (the 2-bit TERNARY class) carries ONLY the integer_core_lmul knob (no
+// multi_block_factor / strip_elision -- the fused ternary dot is ALWAYS one
+// 32-lane plane body). Its 32-element 2-bit plane straddles m1's i8 VLMAX
+// boundary between VLEN128/256 (like q1_0 / q8_0), so the gearbox stamps "m2" at
+// VLEN128 / "m1" at VLEN256.
+llvm::StringRef GgmlBlockDotTQ20Q8KOp::getScheduleKernelKey() { return "tq2_0"; }
+bool GgmlBlockDotTQ20Q8KOp::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul());
+}
+
+// tq1_0 (the BASE-3 TERNARY class) carries ONLY the integer_core_lmul knob; here
+// it tunes the integer DOT (section B) over the element-ordered aux8[256] (the
+// base-3 unpack section A is unchanged). The flat 256-element dot widens to
+// 32-lane strips whose anchor straddles m1's i8 VLMAX boundary between VLEN128/256
+// (like q1_0 / tq2_0), so the gearbox stamps "m2" at VLEN128 / "m1" at VLEN256.
+llvm::StringRef GgmlBlockDotTQ10Q8KOp::getScheduleKernelKey() { return "tq1_0"; }
+bool GgmlBlockDotTQ10Q8KOp::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul());
+}
+
 // The CODEBOOK-class block-dots (FP4 family). They carry the SAME bounded shape
 // knobs the Family-A siblings do (integer_core_lmul / multi_block_factor /
 // strip_elision), so the SAME pin predicate applies; their gearbox descriptor
@@ -6008,7 +6028,9 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
            name == "activation_block_stride" ||
            name == "weight_qs_byte_offset" || name == "weight_d_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul" || name == "minimum_vlen" ||
+           name.starts_with("tcrv_rvv.tq2_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -6024,8 +6046,9 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
              << "only accepts the bounded super-block dot-product attributes "
                 "'kind', 'scale_model', 'qk', 'weight_block_stride', "
                 "'activation_block_stride', 'weight_qs_byte_offset', "
-                "'weight_d_byte_offset', 'activation_d_byte_offset', and "
-                "'activation_quant_byte_offset'; unexpected attribute '"
+                "'weight_d_byte_offset', 'activation_d_byte_offset', "
+                "'activation_quant_byte_offset', 'integer_core_lmul', and "
+                "'minimum_vlen'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -6131,6 +6154,44 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
               "metadata for the ggml TQ2_0 x Q8_K super-block full block "
               "dot-product";
 
+  // The ternary dot runs ONE FUSED 32-lane plane body per 2-bit shift (load the
+  // 32-byte qs chunk once, 4 planes each vwmacc 32 ternary*q8 lanes into a wide
+  // i16 accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32)
+  // cover is correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED
+  // minimum VLEN spans the whole 32-element plane. WHICH anchor that is MOVES
+  // with VLEN exactly like the q1_0 / q8_0 siblings: at VLEN=128 only m2 spans it
+  // (e8m1 VLMAX 16 < 32), at VLEN=256 m1's VLMAX also reaches 32. Any other
+  // spelling is rejected fail-closed (I7); the VLMAX legality is recomputed here
+  // from the SAME formula the gearbox selects with (getRVVStripVLMAXElements --
+  // this verifier is the single source of truth). The anchor defaults to "m2"
+  // (the emitter's VLEN-universal-safe default), so an attr-less op verifies +
+  // lowers correctly and the gearbox is free to REFINE m2->m1 at VLEN>=256. The
+  // explicit aggressive anchor m1 is REJECTED at minimum_vlen 128 (e8m1 VLMAX 16
+  // < 32) -- the silent-wrong guard.
+  {
+    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
+    if (anchor != "m1" && anchor != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
+                "TQ2_0 x Q8_K super-block full block dot-product (the fused "
+                "ternary dot runs ONE 32-lane plane body at the whole-LMUL "
+                "anchor whose i8 strip VLMAX spans the 32-element plane: m2 at "
+                "VLEN128, m1 at VLEN256); got \""
+             << anchor << "\"";
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kTQ20PlaneLen = 32; // the 32-element 2-bit plane.
+    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    if (stripVLMAX < kTQ20PlaneLen)
+      return emitOpError()
+             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
+                "32-element 2-bit plane at the guaranteed minimum_vlen ("
+             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
+             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) would not "
+                "cover the plane (silent-wrong I7 guard)";
+  }
+
   return mlir::success();
 }
 
@@ -6153,7 +6214,9 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KOp::verify() {
            name == "weight_qs_byte_offset" ||
            name == "weight_qh_byte_offset" || name == "weight_d_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset";
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul" || name == "minimum_vlen" ||
+           name.starts_with("tcrv_rvv.tq1_0_schedule.");
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -6170,8 +6233,8 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KOp::verify() {
                 "'kind', 'scale_model', 'qk', 'weight_block_stride', "
                 "'activation_block_stride', 'weight_qs_byte_offset', "
                 "'weight_qh_byte_offset', 'weight_d_byte_offset', "
-                "'activation_d_byte_offset', and 'activation_quant_byte_offset'; "
-                "unexpected attribute '"
+                "'activation_d_byte_offset', 'activation_quant_byte_offset', "
+                "'integer_core_lmul', and 'minimum_vlen'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -6283,6 +6346,40 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for the ggml TQ1_0 x Q8_K super-block full block "
               "dot-product";
+
+  // The integer DOT (section B; the base-3 unpack section A is UNCHANGED) widens
+  // to 32-lane strips over the flat element-ordered aux8[256] x q8[256]. The single
+  // vsetvl_e8<anchor>(32) cover is correct ONLY when the anchor's i8 strip VLMAX at
+  // the GUARANTEED minimum VLEN spans the 32-lane strip. WHICH anchor that is MOVES
+  // with VLEN exactly like the q1_0 / tq2_0 siblings: m2 at VLEN128 (e8m1 VLMAX 16
+  // < 32), the lighter m1 at VLEN256. Any other spelling is rejected fail-closed
+  // (I7); the VLMAX legality is recomputed from the SAME getRVVStripVLMAXElements
+  // formula the gearbox selects with. The anchor defaults to "m2" (the emitter's
+  // VLEN-universal-safe default), so an attr-less op verifies + lowers correctly
+  // and the gearbox refines m2->m1 at VLEN>=256. The dot is byte-exact for any
+  // legal anchor (integer addition is order-independent).
+  {
+    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
+    if (anchor != "m1" && anchor != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
+                "TQ1_0 x Q8_K super-block full block dot-product (the widened "
+                "integer dot runs 32-lane strips at the whole-LMUL anchor whose "
+                "i8 strip VLMAX spans 32: m2 at VLEN128, m1 at VLEN256); got \""
+             << anchor << "\"";
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kTQ10StripLen = 32; // the 32-lane dot strip.
+    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    if (stripVLMAX < kTQ10StripLen)
+      return emitOpError()
+             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
+                "32-lane dot strip at the guaranteed minimum_vlen ("
+             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
+             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) would not "
+                "cover the strip (silent-wrong I7 guard)";
+  }
 
   return mlir::success();
 }

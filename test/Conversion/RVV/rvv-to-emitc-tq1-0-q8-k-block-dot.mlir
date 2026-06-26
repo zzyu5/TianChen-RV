@@ -63,15 +63,20 @@ module {
 // CHECK-NOT: call_opaque "__riscv_vand_vx_u8m2"
 // CHECK-NOT: bitwise_right_shift
 // CHECK-NOT: const int16_t
-// The SINGLE per-super-block integer accumulator sumi, fed by the per-16-lane
-// widening dot (i8m1 loads -> vwmul -> vwredsum -> vmv_x_s), summed (NO per-sub-
-// block scale multiply).
+// The SINGLE per-super-block integer accumulator sumi, fed by the WIDE-strip
+// flat-256 dot over aux8 x q8 (default anchor m2 at the VLEN-universal floor; the
+// gearbox refines m2->m1 at VLEN256). The 16x narrow e8m1(16) reductions are
+// replaced by 32-lane strips: vle8 i8m2 loads -> vwmul_vv_i16m4 -> vwredsum_i16m4
+// -> vmv_x_s, summed (NO per-sub-block scale multiply -- tq1_0 has no scales).
 // CHECK: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int">>
-// CHECK: call_opaque "__riscv_vsetvl_e8m1"
-// CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
+// CHECK: call_opaque "__riscv_vsetvl_e8m2"
+// CHECK: call_opaque "__riscv_vle8_v_i8m2"
+// CHECK: call_opaque "__riscv_vwmul_vv_i16m4"
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
+// The OLD narrow dot path (per-16-lane vwmul_i16m2 reduce) is gone.
+// CHECK-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
+// CHECK-NOT: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // The SINGLE-SCALE SCALAR fp32 fold: dx via the fp16 read seam (ONE read, at xb+52,
 // the END of block_tq1_0), dy (fp32 q8_K scale) loaded once, d = dx*dy, then `sumf
 // += (float)sumi * d` as ONE emitc.expression (a cast + a mul + an add). There is
