@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
@@ -440,8 +441,11 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
   if (llvm::Error error = registerRVVVectorSourceFrontDoorFamilyPasses(
           kRVVPluginName, registry, out))
     return error;
-  return rvv::registerRVVReductionSourceFrontDoorPasses(kRVVPluginName, registry,
-                                                        out);
+  if (llvm::Error error = rvv::registerRVVReductionSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  return rvv::registerRVVDequantDotSourceFrontDoorPasses(kRVVPluginName,
+                                                         registry, out);
 }
 
 bool RVVExtensionPlugin::supportsOperation(
