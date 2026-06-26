@@ -236,13 +236,21 @@ number names a real contribution, not an artifact of a weak comparand:
 - **Keep the three Wins separate; each has ONE mandated baseline:**
   - **Win-A** = the compiler-automatic *tune* (e.g. max-legal-LMUL width, VLEN→strip selection). Baseline =
     the SAME kernel with the tuned knob OFF (both arms compiler-emitted; only the knob differs).
-  - **Win-B** = a generated kernel that changes the *algorithm* (e.g. the repack). Baseline = the framework's
-    OWN shipped optimized kernel for the target ISA (e.g. ggml's real RVV `vec_dot`), NOT scalar, NOT a
-    hand-written "naive", NOT the `_generic` fallback.
-    *(Changing the algorithm/layout is a frontend/library contribution, NOT a backend N3 novelty — the
-    backend N3 face is capability-driven lowering of a FIXED op+layout; see the frontend-vs-backend
-    discriminator in [system-positioning](../architecture/system-positioning.md) N3 boundary. Win-B is kept here
-    as honest-measurement discipline, not as an N3 backend claim.)*
+  - **Win-B** = a generated kernel for an algorithm/layout the framework also ships. The framework may ship TWO
+    kernels for one quant (a block-dot AND its own repack), so Win-B MUST be reported as two ORTHOGONAL
+    comparands, never collapsed into one column:
+    - **Win-B1 = vs the framework's block-dot** — "does the layout/algorithm change help". Where the framework
+      ships NO such kernel on that VLEN (e.g. ggml's `case 128: break // TODO` → no q4_0 repack at VLEN128), a
+      Win-B1 win is a legitimate GAP-FILL e2e acceleration against the real shipping baseline, NOT a weak-baseline
+      artifact — but it is a frontend (added-algorithm) win, not a backend-codegen win.
+    - **Win-B2 = vs the framework's OWN repack** (only exists where the framework ships one) — "is our codegen
+      competitive". The honest success criterion here is PARITY (matching the expert's hand-written kernel).
+    NEVER scalar / naive / `_generic`. Conflating the two comparands in one column (big-vs-block-dot numbers next
+    to parity-vs-own-repack numbers) is baseline-mixing and over-states the backend win.
+    *(Changing the algorithm/layout is a frontend/library contribution, NOT a backend N3 novelty; weight-storage
+    repack is the offline-prepack class — Marlin/AWQ/CUTLASS analog — that even Triton leaves outside the compiler.
+    See the frontend-vs-backend discriminator in [system-positioning](../architecture/system-positioning.md) N3
+    boundary. Win-B is kept here as honest-measurement discipline, not as an N3 backend claim.)*
   - **Win-C** = an automatic *pass* that changes algorithm structure. Baseline = pass OFF vs ON. A
     hand-authored kernel is Win-B, never relabeled as an automatic-pass contribution.
     **A pass-ON/OFF number is NOT automatically a *structural* win.** If the ON arm changes BOTH the
@@ -256,8 +264,15 @@ number names a real contribution, not an artifact of a weak comparand:
     `out[0]` memory round-trip, not reduction-structure latency. Win-C-as-structural-novelty: NOT demonstrated.)*
 - **Both harnesses are required and not interchangeable:** an isolated single-core microbench (clean
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
-  appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound) must be
-  stated, not hidden behind the larger number.
+  appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound vs
+  **per-block reduction-latency-bound** — the block-quant decode regime is the latter, not bandwidth, and a
+  repack that dissolves the per-block reduction wall is what transplants) must be stated, not hidden behind
+  the larger number.
+- **Every reported cell carries an evidence-status tag** `{measured | presumed | board-pending | N/A-by-construction}`.
+  An unmeasured cell defaults to NO claim — never to the success state. "presumed parity / presumed null" is not a
+  result, it is an open measurement; banking it as success is the recurring over-optimism failure mode. After any
+  refactor, prior numbers are STALE until re-measured on the named profile — a parity/win is a target re-measured
+  per build, not a banked metric.
 - **A repack / block-as-lane kernel's perf claim must name the VLEN regime AND compare vs the framework's
   ACTUAL same-VLEN baseline** (its hand-tuned VLEN-native kernel if one ships, else its generic fallback) —
   never a different-VLEN kernel. Whether the repack wins is set by **competitor strength × compute-density**,

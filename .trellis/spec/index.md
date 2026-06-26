@@ -26,6 +26,8 @@ TianChen-RV 是 high-level MLIR 之后的**能力驱动统一 RISC-V 执行层**
 | N3 | capability/resource-aware 的跨 family 调优 | Gearbox 的候选空间由 capability + resource facts 推导，且在若干 kernel 上对**框架自己出厂的同-ISA kernel**（如 ggml 真 RVV `vec_dot`）实测胜出或打平（baseline 纪律见 [validation/experiment-reference](./validation/experiment-reference.md)；scalar/naive 只作内部 sanity，**绝不**作贡献倍数）|
 
 > "execution-variant 容器""plugin 化"本身**不是** novelty —— MLIR 的 dialect + interface 已提供。不要把架构选择当贡献卖点。novelty 只在 N1–N3，且都以证据为准。
+>
+> **N1 是 substrate，不是独立卖点**：把能力建成可查询对象本身 ≈ LLVM `-mattr`/TTI 已做的工程；N1 的 novelty **只在**它是跨 family 复用的同一事实源——由 N2 的第二 family 证明、由 N3 的 tune 兑现。抽掉跨 family 复用 N1 就塌回纯工程。别把 N1 当 blockbuster 单卖。capability 驱动的 LMUL/形状选择是 enumerate→prune→select→stamp（一个 stamping pass 写 attr），**不是 IR-rewriting transform pass**，别这么描述。
 
 ## Spec Layers
 

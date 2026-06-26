@@ -39,6 +39,7 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 **N1 — capability-driven execution model.** `-march`、RVV、VLEN、microarchitecture、runtime/offload、toolchain 必须成为 MLIR 中可查询、可验证、可参与 pass 决策的对象。
 对：variant 生成与 legality 依赖 target capability 对象。
 错：capability = lowering 之后挂的字符串 metadata。
+**判断依据**：N1 是 **substrate**，不是独立 novelty——"能力=可查询对象"本身 ≈ LLVM `-mattr`/TTI 工程；N1 的 novelty 只在它是**跨 family 复用的同一事实源**（被 N2 证明、被 N3 兑现）。capability→LMUL/形状选择是 enumerate→prune→select→stamp（stamping pass 写 attr），**非 IR-rewriting transform pass**。
 
 **N2 — execution-variant IR + plugin-local 泛化.** 高层 op 进入 TianChen-RV 后先做 semantic-preserving construction，落成 `tcrv.exec` envelope + typed extension-family body；core 只承载 variant 容器与组织，本身不承载 compute 语义。新增扩展通过插件局部贡献 capability/ops/interfaces/variant builder/legality/tuning space/cost/EmitC 映射/runtime glue——core/common **零 family-name 分支**。
 对：`linalg.matmul -> tcrv.exec envelope + typed body -> 插件 route/legalize/select @rvv/@ime/@offload/@fallback`。
@@ -49,8 +50,8 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 **对标 Triton 后端，不是 TVM.** 我们是"拿**给定的算子 + 给定的布局**自动生成该硬件最优码"的能力驱动后端，不是自动搜调度 / 选算法的 TVM。N3 的后端面就是这条：capability 驱动的 lowering 选择/生成。
 
 **前端 vs 后端的判别（契约级，其他文件引用此处，不重抄）**：一个选择属于后端 N3 ⟺ 它只改"一个**固定的** op+layout 怎么被 lower / tune"（codegen 内部）；它属于**前端**（库 / autotuner / 框架的事）⟺ 它改了交给后端的那个 **op 或 layout 本身**。
-- 后端 N3（对）：capability 决定 VLEN→LMUL/SEW/VL-policy/宽度选择、自动生成 body——对**给定 op+layout** 调 codegen。
-- 前端（错，当作 N3 后端 novelty 是误判）：编译器"选 repack-vs-block-dot 算法"、weight-packing/repack、伸进框架（ggml）的加载布局——这些改的是 op/algorithm/layout 本身，是库/autotuner 贡献（有价值，但不是后端 novelty）。这条判别**修订**了"N3 = 编译器选 repack-vs-block-dot 算法"的旧表述：那条 demote 到前端栏。
+- 后端 N3（对）：capability 决定 VLEN→LMUL/SEW/VL-policy/宽度选择、自动生成 body——对**给定 op+layout** 调 codegen。这正是 **Triton layout assignment 的 within-kernel 类比**（决定 kernel 已声明数据怎么分布到寄存器/lane，对应我们的 LMUL/SEW/strip 选择）。**追平框架自己的 kernel = 主张为真（非失败）；系统性 beat ⟺ 综合一个框架没手写的 within-kernel 形状**（更宽 LMUL / VLEN-tuned strip / multi-accumulator），不是匹配其形状。
+- 前端（错，当作 N3 后端 novelty 是误判）：编译器"选 repack-vs-block-dot 算法"、weight-packing/repack、伸进框架（ggml）的加载布局——这些改的是 op/algorithm/layout 本身，是库/autotuner 贡献（有价值，但不是后端 novelty）。这条判别**修订**了"N3 = 编译器选 repack-vs-block-dot 算法"的旧表述：那条 demote 到前端栏。**weight-storage repack 属此前端栏 = 离线-prepack 类**（Marlin/AWQ/GPTQ/CUTLASS 的对应物——连 Triton 都把它留在编译器外、kernel 只消费预排权重；它是 data-adapts-to-kernel，与 within-kernel layout assignment 范畴相反）。**不得发明"第三类(compiler-DRIVEN/harness-EXECUTED)"把 repack 重新升格成后端 novelty**——那是 retired relapse（编译器 emit 的 packer 与框架自带 prepack byte-identical 冗余、抽象 op 无真 producer 只活 lit、零新 perf）。该轴唯一耐久的后端价值 = capability-driven **DECLINE**（按能力事实拒掉自家劣形 kernel = regression-removal），非 novelty 非 beat。
 
 > "variant 容器""plugin 化"本身不是 novelty——MLIR 已提供。novelty 在 N1–N3 的**整合 + 证据**：异构 capability 建模、零-core-branch 泛化（用第二 family 证明）、capability 驱动且实测胜出的 tuning（对给定 op+layout 的能力驱动 lowering，不是选/改算法）。
 
