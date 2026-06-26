@@ -119,6 +119,34 @@ enumerateRVVTQ10ShapeCandidates(std::int64_t minimumVLEN) {
   return candidates;
 }
 
+// iq2_xxs's candidate space mirrors tq2_0/q1_0 EXACTLY: a SINGLE knob
+// (integer_core_lmul) over the two whole-LMUL anchors {m2, m1}, no
+// multi_block_factor / strip_elision (the grid+sign vluxei16 gather + dot is ALWAYS
+// one 32-lane sub-block body). Each anchor is legal iff its i8 strip VLMAX spans
+// the 32-element grid-codebook sub-block at the derived minimum VLEN -- the SAME
+// getRVVStripVLMAXElements truth source the verifier recomputes legality from. At
+// VLEN128 only m2 spans it (e8m1 VLMAX 16 < 32); at VLEN256 m1 also reaches 32
+// (and i64m1 VLMAX reaches the 4 grid entries) and the lighter footprint breaks the
+// cost tie -- the m1-32-lane shape ggml's shipped _vl256 kernel uses.
+static llvm::SmallVector<GenericScheduleCandidate>
+enumerateRVVIQ2XXSShapeCandidates(std::int64_t minimumVLEN) {
+  constexpr std::int64_t kIQ2XXSSubBlockLen = 32; // the 32-element sub-block.
+  llvm::SmallVector<GenericScheduleCandidate> candidates;
+  for (auto anchor : {llvm::StringRef("m2"), llvm::StringRef("m1")}) {
+    std::int64_t stripVLMAX = getRVVStripVLMAXElements(
+        getRVVBlockDotStripLMUL(anchor), getRVVBlockDotStripSEW(anchor),
+        minimumVLEN);
+    GenericScheduleCandidate candidate;
+    candidate.cost = 0;
+    candidate.isLegal = stripVLMAX >= kIQ2XXSSubBlockLen;
+    candidate.tieBreakVregCost = (anchor == "m1") ? 1 : 2;
+    candidate.knobs.push_back(
+        {"lmul", "integer_core_lmul", anchor.str(), false});
+    candidates.push_back(candidate);
+  }
+  return candidates;
+}
+
 std::optional<RVVScheduleMaterializationDescriptor>
 lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
   // The five block-dot kernels share makeBlockDotScheduleDescriptor; each line
@@ -296,6 +324,41 @@ lookupRVVScheduleDescriptor(llvm::StringRef kernelKey) {
     descriptor.enumerate = [](std::int64_t minimumVLEN,
                               std::int64_t /*budget*/) {
       return enumerateRVVTQ10ShapeCandidates(minimumVLEN);
+    };
+    return descriptor;
+  }
+
+  // iq2_xxs (the GRID-codebook class): a CUSTOM single-knob descriptor mirroring
+  // tq2_0 / q1_0 (not the shared block-dot factory, whose factor/elision stamps the
+  // iq2_xxs verifier rejects). Its span-correct anchor MOVES with VLEN (the 32-lane
+  // grid-codebook sub-block = 4 i64 grid entries straddles m1's i8 VLMAX boundary
+  // between 128/256: at VLEN256 i64m1 reaches the 4 entries and e8m1 reaches 32),
+  // exactly like tq2_0, so it stamps the SEMANTIC minimum_vlen attr the verifier
+  // recomputes the anchor legality from. The m1 refinement at VLEN256 matches ggml's
+  // shipped _vl256 m1-32-lane shape (right-sizing the gather ggml leaves at m2).
+  if (kernelKey == "iq2_xxs") {
+    RVVScheduleMaterializationDescriptor descriptor;
+    descriptor.kernelKey = "iq2_xxs";
+    descriptor.attrPrefix = "tcrv_rvv.iq2_xxs_schedule";
+    descriptor.producerName = "rvv-iq2-xxs-autotuner";
+    descriptor.measuredReason =
+        "measured-fastest legal IQ2_XXS shape (on-board best-of-N; "
+        "tuning-record-backed)";
+    descriptor.staticReason =
+        "min-cost legal IQ2_XXS grid-codebook anchor (capability-blind structural "
+        "cost; the grid+sign vluxei16 gather + dot's single 32-lane sub-block body "
+        "is admitted only at the whole-LMUL anchor whose i8 VLMAX spans the "
+        "32-element sub-block at the derived minimum VLEN -- m2 at VLEN128, the "
+        "lighter m1 at VLEN256)";
+    descriptor.budgetAttrName = "vector_register_budget";
+    descriptor.budgetValue = kRVVQ80ShapeVectorRegisterBudget;
+    descriptor.stampPeakLiveVregs = false; // single-knob: no peak-live footprint.
+    descriptor.stampHasZvl128b = true;
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    descriptor.requiredKnobKeys = {"lmul"};
+    descriptor.enumerate = [](std::int64_t minimumVLEN,
+                              std::int64_t /*budget*/) {
+      return enumerateRVVIQ2XXSShapeCandidates(minimumVLEN);
     };
     return descriptor;
   }
