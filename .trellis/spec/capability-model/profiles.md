@@ -20,17 +20,16 @@ capability 示例：`rv64`、`rvv`、`zvl128b`（或实测最小 VLEN / raw VLEN
 
 证据规则：RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据并命名本 profile（或派生 probed profile）；本地 compile-only / smoke / 文档改动都不是 runtime 证据（I8）。Python probe 可暴露 sanitized `capability_facts`，但**不得**把它翻译成 `tcrv.exec` capability/target/route mirror/typed body/route 输入/fallback 建模（I6）；从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ RVV capability profile 校验 + `TargetCapabilitySet` 填充。probe 也不得伪造 SEW/LMUL/tail/mask 这类 plugin-selected 编译期 config 事实。
 
-## k3-ime（后续 IME 接入 —— N2 的关键证据点）
+## k1-ime（IME 接入 —— N2 的关键证据点）
 
 ```text
-hardware: SpacemiT/K3-class RISC-V system
+hardware: SpacemiT K1 RISC-V board (VLEN256, RVV1.0, spacemit.ime via march xsmtvdotii)
 role:     IME extension plugin validation（第二个非-RVV family）
-status:   later environment
 ```
 
 capability 示例：`rvv`、`spacemit.ime`、vector-register-backed matrix capability、vendor intrinsic / inline asm path。
 
-这是验证"新增 matrix-like 扩展能否经 IME 插件局部接入"的环境——**它是 N2 能否被证明的载体**。在拿到并 probe 真实硬件前，按 later plugin validation 对待，不写成当前主硬件；IME runtime/performance 主张要真 K3/IME 硬件与 toolchain 证据。
+这是验证"新增 matrix-like 扩展能否经 IME 插件局部接入"的环境——**它是第二个非-RVV family 经 IME 插件局部接入的 capability fixture（N2 的关键证据点）**。IME runtime/performance 主张要真 K1/IME 硬件与 toolchain 证据（I8）。
 
 ## riscv-sophgo-offload（runtime-offload case）
 

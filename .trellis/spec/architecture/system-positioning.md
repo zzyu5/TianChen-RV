@@ -41,7 +41,7 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 错：capability = lowering 之后挂的字符串 metadata。
 **判断依据**：N1 是 **substrate**，不是独立 novelty——"能力=可查询对象"本身 ≈ LLVM `-mattr`/TTI 工程；N1 的 novelty 只在它是**跨 family 复用的同一事实源**（被 N2 证明、被 N3 兑现）。capability→LMUL/形状选择是 enumerate→prune→select→stamp（stamping pass 写 attr），**非 IR-rewriting transform pass**。
 
-**N2 — execution-variant IR + plugin-local 泛化.** 高层 op 进入 TianChen-RV 后先做 semantic-preserving construction，落成 `tcrv.exec` envelope + typed extension-family body；core 只承载 variant 容器与组织，本身不承载 compute 语义。新增扩展通过插件局部贡献 capability/ops/interfaces/variant builder/legality/tuning space/cost/EmitC 映射/runtime glue——core/common **零 family-name 分支**。
+**N2 — 零-core-branch plugin 泛化（由第二个非-RVV family / IME 证明）.** 高层 op 进入 TianChen-RV 后先做 semantic-preserving construction，落成 `tcrv.exec` envelope + typed extension-family body；core 只承载 variant 容器与组织，本身不承载 compute 语义。新增扩展通过插件局部贡献 capability/ops/interfaces/variant builder/legality/tuning space/cost/EmitC 映射/runtime glue——core/common **零 family-name 分支**。
 对：`linalg.matmul -> tcrv.exec envelope + typed body -> 插件 route/legalize/select @rvv/@ime/@offload/@fallback`。
 错：`linalg.matmul -> tcrv.matmul -> target-specific lowering`。
 
@@ -67,7 +67,7 @@ Descriptor-driven computation 不是本架构（I7）。finite descriptor、micr
 | `tcrv.exec` | execution envelope：kernel/target/capability/variant/requires/region/hart_parallel/mem_window/dispatch/fallback/diagnostics |
 | Plugin protocol | registry、interfaces、extension family template、local 边界（N2）|
 | RVV extension family | 当前真实硬件路径与第一个完整 family |
-| IME extension family | 后续 K3/IME 矩阵扩展 family —— N2 的关键证据点 |
+| IME extension family | IME 矩阵扩展 family —— N2 的关键证据点（第二个非-RVV family） |
 | Offload extension family | runtime-offload capability（vendor accelerator）|
 | Variant pipeline | plugin proposal、legality、selection、dispatch、Gearbox tuning（N3）|
 | Lowering/runtime | 公共 EmitC route + family-owned 映射 + runtime glue |

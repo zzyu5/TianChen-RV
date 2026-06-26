@@ -7,7 +7,7 @@ Use before introducing any new op, dialect, or lowering pass.
 - [ ] Does the new construct organize execution or express algorithm semantics?
 - [ ] If it is algorithm semantics, why is it not represented by high-level MLIR before TianChen-RV?
 - [ ] If it is hardware execution behavior, which TCRV extension family owns it?
-- [ ] Does `tcrv.exec` only contain kernel, target, capability, variant, requires, region, hart_parallel, mem_window, dispatch, fallback, or diagnostics structure?
+- [ ] Does `tcrv.exec` only contain kernel, target, capability, variant, requires, region, hart_parallel, mem_window, runtime_param, dispatch, fallback, or diagnostics structure (见 core-invariants I2)?
 - [ ] Are matmul/softmax/reduce semantics absent from core dialect?
 - [ ] Does the construct preserve plugin-driven variant proposal?
 - [ ] In current RVV work, does the path start from hand-authored/selected TianChen-RV MLIR plus typed `tcrv_rvv` body, not a new high-level frontend?
@@ -24,6 +24,7 @@ tcrv.exec.requires
 tcrv.exec.hart_parallel
 tcrv.exec.region
 tcrv.exec.mem_window
+tcrv.exec.runtime_param
 tcrv.exec.dispatch
 tcrv.exec.fallback
 tcrv.exec.diagnostic / diagnostic metadata

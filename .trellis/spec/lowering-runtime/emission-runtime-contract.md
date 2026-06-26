@@ -3,9 +3,9 @@
 ## Scope
 
 This contract defines how selected TianChen-RV variants become emitted code,
-runtime ABI surfaces, target artifacts, and evidence. It applies to RVV now and
-to IME, Offload, TensorExtLite, Template/Toy, scalar fallback, and future
-families once those families are built.
+runtime ABI surfaces, target artifacts, and evidence. It applies identically to
+every extension family — RVV, IME, Offload, TensorExtLite, Template/Toy, scalar
+fallback, and future families.
 
 Emission is not a metadata state machine. The executable authority chain is:
 
@@ -89,8 +89,11 @@ migration notes.
 
 ## Emission Diagnostics
 
-`tcrv.exec.diagnostic {reason = "emission_plan"}` may be emitted as an optional
-mirror after plugin route/provider decisions. It is not a required route input.
+`tcrv.exec.diagnostic {reason = "emission_plan"}` is emitted as a
+non-authoritative mirror after plugin route/provider decisions. It is never a
+route INPUT; but when target-artifact export runs, exactly one emission-plan
+diagnostic per selected path is a REQUIRED deterministic mirror (见 Candidate
+Gate below).
 
 Allowed purpose:
 
@@ -158,8 +161,10 @@ emission_kind
 artifact_kind
 ```
 
-It produces zero or more `TargetArtifactCandidate` values only from
-`status = supported` diagnostics.
+It produces `TargetArtifactCandidate` values only for selected paths whose
+provider-built route + materialized EmitC exist; `status = supported` is a
+faithful mirror of that route, validated against the real route before packaging
+(见 Validation & Error Matrix below), not the gating authority (I4).
 
 ### 3. Contracts
 
@@ -250,31 +255,25 @@ c_name/c_type/abi_role/artifact name -> infer dtype/operation/route
 
 ## Source Front Doors
 
-Source-front-door and source-artifact bundle flows are future or explicit
-opt-in flows. They are disabled by default and fail closed (见 core-invariants
-I7).
+Source-front-door and source-artifact bundle flows are disabled by default and
+fail closed (见 core-invariants I7); they are not a buildable future deliverable.
 
 Source-only RVV inputs must fail closed unless they already materialize a
 corrected typed `tcrv_rvv` body through an explicit opt-in path over an existing
 mature route. Positive RVV generated artifact tests must not start from
 source-front-door metadata.
 
-Template, Toy, TensorExtLite, IME, Offload, and future plugin source-front-door
-examples are future examples. They must not become the current source or route
-authority.
+Source-front-door examples for any family must not become the current source or
+route authority.
 
-## Family Maturity Status
+## Family Export Gate
 
-- RVV: the current real/mature path; typed body and plugin route provider
-  required.
-- Scalar fallback: no active executable scalar body; unsupported diagnostics
-  only until a later rebuild.
-- IME: not built yet (N2 second-family target); needs real hardware/toolchain
-  evidence.
-- Offload: not built yet; current no-active-route validation must not export
-  artifacts.
-- TensorExtLite / Template / Toy: future examples only.
-- Future plugins: evidence scenarios only until admitted by explicit spec/task.
+A family exports only via a typed extension body + plugin-built
+`TCRVEmitCLowerableRoute` + materialized EmitC; absent these it fails closed
+(I7). This gate applies identically to every family. RVV is the first and
+broadest realized family; scalar fallback has no active executable body or route
+(unsupported diagnostics only); any family without a real producer route fails
+closed at candidate collection rather than exporting artifacts.
 
 ## Good / Bad Cases
 

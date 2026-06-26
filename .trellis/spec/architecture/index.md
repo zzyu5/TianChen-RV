@@ -25,4 +25,4 @@
 - 系统叙事必须能一句话复述为：unified TCRV RISC-V MLIR for capability-scoped extension execution。
 - 任何新增核心概念必须说明它属于 capability/variant/plugin/dispatch/fallback 之一，或解释为何需要扩展核心 interface。
 - 出现 high-level compute core op 时视为 architecture violation，除非它明确属于某 extension family 内部执行 op。
-- IME / Offload 是 **N2 的关键证据点**（第二个非-RVV family 走通 common 路径），不是"禁止"项；但也别让它们把还没打穿的 RVV 主线晾在半路——取舍读 [trunk-discipline](../guides/trunk-discipline.md)。
+- IME / Offload 是 **N2 的关键证据点**（第二个非-RVV family 走通 common 路径），不是"禁止"项；但也别让它们把 RVV 主线晾在半路——取舍读 [trunk-discipline](../guides/trunk-discipline.md)。

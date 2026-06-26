@@ -5,8 +5,8 @@
 This contract describes how a new extension family integrates with TianChen-RV
 without rewriting core passes or turning metadata into executable authority.
 
-RVV is the current real/mature family. IME, Offload, TensorExtLite,
-Template/Toy, source-front-door, and future-family positives are not built yet
+RVV is the first and broadest real reference family; per-family build/maturity
+status lives in tasks/journal, not here
 (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
 
 ## Standard Flow

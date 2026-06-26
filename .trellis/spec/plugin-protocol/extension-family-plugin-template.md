@@ -6,8 +6,8 @@ This template is a compact checklist for adding a future extension family. It
 is not an executable manifest system, semantic role graph engine, construction
 template artifact pipeline, readiness dashboard, or source-front-door default.
 
-RVV is the current real/mature family. Template, Toy, TensorExtLite, IME,
-Offload, and future plugin positive examples are not built yet
+RVV is the first and broadest real reference family; per-family build/maturity
+status lives in tasks/journal, not here
 (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
 
 ## Required Plugin Sections

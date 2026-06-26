@@ -4,11 +4,11 @@ Capability 是系统第一对象（见 [core-invariants](../architecture/core-in
 
 ## 它必须影响什么
 
-capability 对象必须能被 C++ MLIR pass 和插件查询，并影响：启用哪些插件、variant 提议 / 合法性、tuning 空间、cost 输入、selection、runtime dispatch、emission 路径选择、lowering 诊断、fallback 需求。它不是 prose、裸字符串、JSON-only 记录或 Python dict。
+capability 对象必须能被 C++ MLIR pass 和插件查询，并影响：启用哪些插件、variant 提议 / 合法性、tuning 空间、cost 输入、selection、runtime dispatch、emission 路径选择、lowering 诊断、fallback 需求。它不是 prose / 裸字符串 / JSON-only 记录 / Python dict（见 I1）。
 
 ## Capability 来源
 
-- **ISA**：`rv64`、`rvv`、`zvl*`、`zvfh`、`zvfbf*`、`V`、`ime`、vendor custom opcode、future matrix/custom ISA。
+- **ISA**：`rv64`、`rvv`、RVV version（RVV1.0 / RVV0.7 / xtheadvector，作为合法性轴：fractional-LMUL / ta-ma policy 的可用性随版本变）、`zvl*`、`zvfh`、`zvfbf*`、`V`、`ime`、vendor custom opcode、future matrix/custom ISA。
 - **Microarchitecture**：core count、VLEN、cache、内存带宽、preferred LMUL、dtype throughput、NUMA/拓扑、thread runtime 可用性、toolchain 交链。
 - **Runtime/offload**：accelerator 存在性、runtime 名、ABI、PCIe/SoC 模式、支持的 offload op 集、model 格式、host-device 传输代价、async 支持。
 - **Toolchain**：march/mabi 事实、LLVM RVV 可伸缩向量支持、intrinsic 支持、builtin 支持、inline asm 许可、vendor header、patched compiler、runtime lib 可链接性。

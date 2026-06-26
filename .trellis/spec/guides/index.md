@@ -21,7 +21,7 @@
 - 新增 RVV/IME/offload/future extension：读 plugin-locality guide。
 - 新增 op/dialect/pass 表达：读 compute-boundary guide。
 - 准备新增一个 contract/owner/route：先读 code-reuse guide（确认不是又一份重复模板）。
-- 删除 RVV 字符串机器 / route-validation / metadata-mirror 脚手架（Stage 3 去伪）：读 dead-mirror-removal guide。
+- 删除 RVV 字符串机器 / route-validation / metadata-mirror 脚手架：读 dead-mirror-removal guide。
 - 修改 RVV route、lowering、artifact、测试或 performance layer：读 RVV plugin spec、variant pipeline、EmitC route、testing contract，并确认 typed body authority、selected-body realization、no legacy i32 positive route、no source-front-door current route、no status/artifact authority。
 
 ## Rule

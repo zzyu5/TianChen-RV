@@ -34,7 +34,7 @@ selected typed extension body
 
 ## Provider Route 契约 —— 一个通用版本
 
-emitc-route 历史上为每个 route/memory form 抄了 ~40 份同结构契约（operand binding、header/type summary、fact surface、route validation，按 elementwise/memory/segment2/MAcc/widening/conversion 逐一复制）。它们是**同一条通用契约**。写一次：
+emitc-route 历史上为每个 route/memory form 抄了大量同结构契约（operand binding、header/type summary、fact surface、route validation，按 elementwise/memory/segment2/MAcc/widening/conversion 逐一复制）。它们是**同一条通用契约**。写一次：
 
 provider 给公共侧的，是一组从 **typed/realized body 事实**派生的 route value：operand binding（哪些 SSA/ABI 值绑到哪些 intrinsic 参数位）、header/type summary、intrinsic 拼写、memory form、mask/tail、runtime AVL/VL 绑定。公共侧按原样 materialize。
 
@@ -44,9 +44,9 @@ provider 给公共侧的，是一组从 **typed/realized body 事实**派生的 
 - provider route 缺失/畸形/只有 metadata → 公共侧 **fail closed** 报诊断，绝不补 compute（I7）。
 - 公共侧逐字 materialize，不发明、不推断、不按 family 分支。
 
-新增一个 route family = 让 provider 输出满足这条通用契约，**不是**再抄一份 operand-binding + fact-surface + route-validation 三件套。覆盖到哪些 family 见 [rvv-plugin 覆盖表](../extension-plugins/rvv-plugin.md#当前覆盖coverage按结构化计算类)。
+新增一个 route family = 让 provider 输出满足这条通用契约，**不是**再抄一份 operand-binding + fact-surface + route-validation 三件套。覆盖到哪些 family 见 [rvv-plugin 覆盖表](../extension-plugins/rvv-plugin.md#计算类契约面coverage-surface按结构化计算类)。
 
 ## 给 agent 的判断点（不是 gate）
 
 - 在写"第 N 个 fact surface / route validation 契约"之前：它真不同于上面的通用契约吗？不同点是什么？说不出就别抄。
-- IME/offload 接入时：复用同一公共 EmitC 与同一通用 provider 契约，就是 N2 的证据；若发现公共侧要为它加 family 分支，说明设计破了，先报告。
+- IME / offload / future family 接入时：复用同一公共 EmitC 与同一通用 provider 契约，就是 N2 的证据；若发现公共侧要为它加 family 分支，说明设计破了，先报告。

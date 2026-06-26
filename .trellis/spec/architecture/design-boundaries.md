@@ -29,7 +29,7 @@ TianChen-RV MLIR 不能变成：
 
 ## 硬件事实位置
 
-具体目标环境（rvv-main / k3-ime / riscv-sophgo-offload，含 64 核 / `ssh rvv` / sudo 等）是 profile 事实，住在 [profiles](../capability-model/profiles.md)，**不**在本文件、index 或其他 durable 架构文件里复述。任何"真实硬件路径"主张默认指 rvv-main，除非另一环境已被显式 probe 并记录；RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据（I8）。
+具体目标环境（rvv-main / k1-ime / riscv-sophgo-offload，含 64 核 / `ssh rvv` / sudo 等）是 profile 事实，住在 [profiles](../capability-model/profiles.md)，**不**在本文件、index 或其他 durable 架构文件里复述。任何"真实硬件路径"主张默认指 rvv-main，除非另一环境已被显式 probe 并记录；RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据（I8）。
 
 未来扩展（AME、future custom ISA、其他 vendor）是**插件槽位**，只作未来可扩展目标出现，不是当前必须完成的里程碑或当前硬件证据。无真实硬件/toolchain 证据时，这类工作只能定义通用 future-plugin 准入条件或非主张性设计槽。
 
@@ -60,5 +60,7 @@ Emission-plan status 或 artifact metadata 是 route authority。
 Sophgo 是 RISC-V custom ISA 扩展。
 独立离散加速卡（GPU/TPU/910B/寒武纪 PCIe 设备）是 N2 第二 family 或卖点。
 任何未来扩展零 core 工作即可接入。
-单靠 tune / 泛泛参数搜索就是主要理论贡献（tune 只在它是 capability/resource-aware 且实测胜出时才算 N3）。
+单靠 tune / 泛泛参数搜索就是主要理论贡献（tune 只在它是 capability/resource-aware 且实测胜出或与框架自家同-ISA kernel 打平（parity = 主张为真）时才算 N3）。
+repack / weight-packing / 算法选择当后端 N3 novelty（实为前端离线-prepack 类，见 system-positioning 的前端/后端判别）。
+发明 compiler-DRIVEN/harness-EXECUTED "第三类" 把 repack 升回后端 novelty。
 ```

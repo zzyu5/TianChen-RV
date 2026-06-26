@@ -27,7 +27,6 @@ This layer defines how high-level MLIR enters TianChen-RV and becomes execution 
 - Illegal variants should fail before emission.
 - Diagnostics must explain unsupported plugin, unsatisfied capability, legality failure, missing emission path, dispatch retention, and fallback choice.
 - RVV route authority is the corrected typed `tcrv_rvv` body; legacy i32m1 and
-  source-front-door routes fail closed (见 core-invariants I7). Current RVV work
-  expands typed-body coverage, selected-body realization, resource-aware tuning,
-  and measured RVV evidence where runtime/performance is claimed. Second-family
-  and source-front-door positives are future work, not yet built.
+  source-front-door routes fail closed (见 core-invariants I7). RVV route maturity
+  is established by typed-body coverage, selected-body realization, resource-aware
+  tuning, and measured RVV evidence for any runtime/performance claim (I8).

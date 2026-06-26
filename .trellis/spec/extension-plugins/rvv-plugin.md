@@ -72,23 +72,23 @@ RVV route provider 从 typed body 事实派生 route，事实包括：operation 
 
 它的 durable 契约（候选枚举/剪枝、resource model、autotuning 模式、跨 family 复用、"怎么判断是否真 resource-aware"）统一在 [variant-pipeline / generation-selection-tuning](../variant-pipeline/generation-selection-tuning.md)，RVV 不重述。RVV 这里只承诺：影响生成代码的选择在 route 构造前 realize 进 `tcrv_rvv` 结构，不外溢到公共 EmitC 或 artifact metadata。
 
-## 当前覆盖（coverage，按结构化计算类）
+## 计算类契约面（coverage surface，按结构化计算类）
 
-RVV 已 route-supported 的算子族，按 [variant-pipeline](../variant-pipeline/index.md) 的结构化计算类组织。这是**广度清单**，不是契约阶梯——每族都走上面那条通用 provider 契约：
+RVV provider 按 route 契约要支持的算子族，按 [variant-pipeline](../variant-pipeline/index.md) 的结构化计算类组织。这是**广度清单**，不是契约阶梯——每族都走上面那条通用 provider 契约（当前覆盖到哪些族是状态，进 task/journal）：
 
-| 计算类 | 已覆盖族 |
+| 计算类 | 算子族 |
 |---|---|
 | elementwise / arithmetic | binary 算术、compare、select、math |
 | broadcast | scalar-broadcast 算术、splat-store |
 | reduction / accumulation | standalone reduction、MAcc（plain + scalar-broadcast）|
 | contraction-like | widening dot/product-reduce、widening MAcc |
-| 低精度 contraction（活跃性能线）| i8/u8 widening product → widening reduction → dequant(i32→f32)[+clamp/select]、packed-i4 |
+| 低精度 contraction | i8/u8 widening product → widening reduction → dequant(i32→f32)[+clamp/select]、packed-i4 |
 | movement / layout | unit-stride load/store、strided、indexed gather/scatter、segment2 deinterleave/interleave（plain + computed-mask）|
 | dtype conversion | widening / narrowing conversion |
 | mask / tail | computed-mask 各 memory/compute 形态、tail policy |
 | runtime shape / control | `setvl` / `with_vl`、runtime AVL/VL、runtime-scalar 形态 |
 
-低精度 contraction（i8/u8/packed-i4 widening-product-reduce-dequant）是当前主推的**性能**线（N3 的 RVV 证据点）。它必须按 typed body / provider 事实推进，不被 q8/q4/llama 之类工作负载名当 route authority（I9）。
+低精度 contraction（i8/u8/packed-i4 widening-product-reduce-dequant）是 N3 的 RVV **性能轴**证据点。它必须按 typed body / provider 事实推进，不被 q8/q4/llama 之类工作负载名当 route authority（I9）。
 
 ## Legacy / fail-closed
 

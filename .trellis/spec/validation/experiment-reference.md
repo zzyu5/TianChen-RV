@@ -8,7 +8,7 @@ TianChen-RV MLIR is first a capability-driven RISC-V execution layer. Experiment
 
 ## Hardware Conditions
 
-具体硬件环境（RVV main、K3/IME later、RISC-V Sophgo/offload）是当前事实，会变；权威定义在 [../capability-model/profiles.md](../capability-model/profiles.md)，不在本验证参考里重复。下面只保留与证据解释相关的、durable 的部分。
+具体硬件环境（RVV main、IME、RISC-V Sophgo/offload）是当前事实，会变；权威定义在 [../capability-model/profiles.md](../capability-model/profiles.md)，不在本验证参考里重复。下面只保留与证据解释相关的、durable 的部分。
 
 Repeatable bounded hardware/toolchain evidence should be captured with
 `scripts/rvv_remote_probe.py`. Its artifacts are written below
@@ -78,8 +78,8 @@ Profiles:
 
 ```text
 RVV only
-RVV + offload runtime (offload not built yet)
-RVV + IME (IME not built yet)
+RVV + offload runtime
+RVV + IME
 fallback-only profile
 ```
 
@@ -87,8 +87,8 @@ Expected behavior:
 
 ```text
 RVV only -> RVV variant + fallback
-RVV + offload -> RVV variant + offload variant + dispatch + fallback (once offload is built)
-RVV + IME -> RVV variant + IME variant + dispatch + fallback (once IME is built)
+RVV + offload -> RVV variant + offload variant + dispatch + fallback
+RVV + IME -> RVV variant + IME variant + dispatch + fallback
 fallback-only -> fallback
 ```
 
@@ -104,12 +104,12 @@ diagnostics are clear
 
 ### Q3: Is extension plugin integration local?
 
-Reference process (once the second family is built):
+Reference process:
 
 ```text
 system has mature RVV plugin
 add offload plugin
-later add IME plugin
+add IME plugin
 measure core pass changes and plugin boundary
 ```
 
@@ -128,9 +128,9 @@ reuse of tcrv.exec.variant / dispatch / verifier orchestration
 
 ### Q4: Can runtime-offload capability join the same execution layer?
 
-Q4 covers offload, which is not built yet. It must not introduce
-source-front-door or offload artifact authority (these routes fail closed,
-见 core-invariants I7)。
+Q4 validates runtime-offload capability join; offload routes fail closed until a
+real producer exists (见 core-invariants I7). It must not introduce
+source-front-door or offload artifact authority (these routes fail closed)。
 
 Objects:
 
@@ -166,10 +166,10 @@ Hard rule:
 This validates runtime-offload capability, not custom RISC-V ISA.
 ```
 
-### Q5: After IME arrives, can plugin-local matrix-extension integration be shown?
+### Q5: Can plugin-local matrix-extension integration be shown (IME second family)?
 
-Q5 covers IME, the N2 second-family target, which is not built yet and needs
-real IME hardware/toolchain evidence.
+Q5 covers IME plugin-local matrix-extension integration; IME runtime/performance
+claims need real IME hardware/toolchain evidence (I8).
 
 Objects:
 
@@ -259,9 +259,9 @@ number names a real contribution, not an artifact of a weak comparand:
     decompose against a *competently-emitted baseline of the SAME structure* (e.g. a register-kept-accumulator
     per-iteration reduction). If that same-structure competent baseline TIES the ON arm, the structural
     contribution is **NULL** — report only the pass-ON/OFF number with its real but non-structural mechanism,
-    never a "structural" win. *(Verified 2026-06-24: a deferred-vs-per-iteration reduction pass gave 3× ON/OFF,
-    but the register-kept per-iter control tied the deferred arm at ≈1.00× — the 3× was entirely a per-iter
-    `out[0]` memory round-trip, not reduction-structure latency. Win-C-as-structural-novelty: NOT demonstrated.)*
+    never a "structural" win. *(A real instance: a deferred-vs-per-iteration reduction pass showed a large
+    ON/OFF gap, but a register-kept per-iter control tied the deferred arm — the gap was a per-iter `out[0]`
+    memory round-trip, not reduction-structure latency; the structural novelty was NOT demonstrated.)*
 - **Both harnesses are required and not interchangeable:** an isolated single-core microbench (clean
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
   appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound vs
@@ -283,9 +283,9 @@ number names a real contribution, not an artifact of a weak comparand:
   the framework = loss-avoidance, NOT a backend N3 contribution. Choosing repack-vs-fallback is an
   algorithm/layout choice (frontend/library), NOT capability-driven lowering of a fixed op+layout (the
   backend N3 face); see [system-positioning](../architecture/system-positioning.md) N3 boundary. It is NOT a
-  kernel bug and NOT a Win-B speedup. *(Verified 2026-06-24: q4_0 repack WINS
-  @VLEN128 vs ggml's HEAVY vec_dot; q8_0 LOSES vs ggml's LEAN vec_dot; q4_K LOSES vs ggml's hand-tuned
-  _vl128 — all at the SAME correct 2×8 mf2 shape. See SHAPE-AWARE-REPACK-TUNE-DESIGN.md.)*
+  kernel bug and NOT a Win-B speedup. *(A real instance: the same repack at one fixed correct lane-shape WON
+  vs a HEAVY same-VLEN fallback but LOST vs a LEAN one and vs a hand-tuned VLEN-native kernel — competitor
+  strength, not lane-shape, set the outcome.)*
 - Performance claims still require real `ssh`-hardware evidence on a named profile (I8); engagement of the
   emitted kernel must be proven (e.g. an ENGAGED marker / objdump of the FINAL staged binary), not assumed.
 - **A new-hardware-unit / build-swap claim needs a can't-possibly-help control.** When a number compares two
@@ -294,9 +294,9 @@ number names a real contribution, not an artifact of a weak comparand:
   *physically cannot* contribute (e.g. M=1 memory-bandwidth-bound decode for a matrix/MAC array); if the "win"
   appears THERE too, it is a global codegen artifact, not the unit. A clean unit-isolation requires the SAME
   toolchain with only the unit toggled (e.g. `SPACEMIT=ON` vs `OFF` on one compiler), NOT two independently
-  built libs. *(Verified 2026-06-24: a reconstructed clang IME lib showed 1.4–1.95× "prefill", but also 1.25×
-  in M=1 decode where the matrix unit can't help → the gain was clang codegen, not IME; the IME-unit e2e win
-  stayed NULL.)*
+  built libs. *(A real instance: a reconstructed IME-enabled lib showed a "prefill" speedup but a similar
+  speedup in M=1 decode where the matrix unit cannot help → the gain was global codegen, not the unit; the
+  unit-isolated e2e win stayed NULL.)*
 
 ## Forbidden Interpretations
 

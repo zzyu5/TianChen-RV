@@ -23,7 +23,7 @@ backend dialects.
 |---|---|
 | [RVV Plugin](./rvv-plugin.md) | Current primary real hardware plugin |
 | [Scalar Fallback Plugin](./scalar-fallback-plugin.md) | Portable fallback plugin for coverage-oriented execution |
-| [IME Plugin](./ime-plugin.md) | Later K3/IME matrix-extension plugin |
+| [IME Plugin](./ime-plugin.md) | IME matrix-extension plugin |
 | [Offload Runtime Plugin](./offload-runtime-plugin.md) | Sophgo/vendor runtime-offload capability |
 | [Future Plugins](./future-plugins.md) | AME/custom ISA/vendor extension slots |
 
@@ -37,8 +37,9 @@ backend dialects.
   kernels only with resource-aware selected-body realization or measured
   same-target evidence.
 - Scalar fallback has no active executable scalar body unless rebuilt later.
-- IME and Offload executable integration are not built yet; IME is the N2
-  second-family target (to be built), not a forbidden path. RVV 是当前唯一成熟
-  family；别为没建的 family 晾下还没打穿的 RVV 主线（见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)）。
+- IME is the second non-RVV family integrated through the same common pipeline
+  with zero core family-name branches (I3); offload routes fail closed until a
+  real producer exists (I7). RVV is the first and broadest realized family;
+  don't strand the RVV trunk for other families（见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)）。
 - Future plugins are future slots: add one only when actual target facts and an
   explicit task make it real.

@@ -18,7 +18,7 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 | Spec | Description |
 |---|---|
 | [Capability Contract](./capability-contract.md) | Object shape、sources、relations、verifier expectations |
-| [Target Profiles](./profiles.md) | RVV main、K3/IME later、RISC-V Sophgo/offload profiles |
+| [Target Profiles](./profiles.md) | RVV main、IME、RISC-V Sophgo/offload profiles |
 
 ## Quality Check
 

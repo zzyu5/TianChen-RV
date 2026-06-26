@@ -2,12 +2,12 @@
 
 ## Role
 
-IME plugin is the K3/IME extension family path inside the unified TCRV
-system. It is the N2 second-family target — the family to be built that proves
-zero-core-branch plugin generalization — not an independent backend. It is not
-built yet.
+IME plugin is the IME (spacemit.ime) extension family path inside the unified
+TCRV system. It is the second non-RVV extension family, consumed through the
+same capability model / registry / common pipeline with zero core family-name
+branches (I3) — not an independent backend.
 
-Expected behavior once IME is available:
+Zero-core-branch generalization behavior:
 
 ```text
 existing system supports RVV
@@ -27,9 +27,9 @@ vector-register-backed matrix execution
 RVV-resource-related matrix/dot execution
 ```
 
-Executable IME integration is future work and needs real hardware/toolchain
-evidence. The op classes below are future evidence scenarios, not current
-source-front-door or high-level frontend work.
+IME runtime/correctness/performance claims need real hardware/toolchain
+evidence (I8). The broader op classes below are the family's design-contract
+evidence scenarios, not current source-front-door or high-level frontend work.
 
 IME plugin must understand:
 
@@ -106,7 +106,7 @@ These are IME execution ops, not high-level matmul ops.
 
 ## Variant Generation Scope
 
-IME plugin may later validate:
+IME plugin's variant-generation scope may cover:
 
 ```text
 matmul
@@ -117,7 +117,7 @@ int8/fp16/bf16 dot-like kernels
 ```
 
 It does not need to cover every operator. It should cover operators that show
-matrix-extension value once IME is built.
+matrix-extension value.
 
 ## Legality Rules
 
@@ -167,13 +167,16 @@ are future optional compatibility paths.
 
 ## Plugin Evaluation
 
-When IME becomes available, record:
+A family's zero-core-branch generalization claim is TRUE when:
 
-- core pass modified LOC;
-- new capabilities;
-- new ops/types;
-- generated high-level op coverage;
-- whether same high-level op gains IME variant;
-- whether IME and RVV variants coexist;
-- whether selection/dispatch reuse core logic;
-- whether emission stays plugin-local.
+- the same validated high-level scenario gains an IME execution variant without
+  core/common pass changes;
+- IME and RVV variants coexist under one selection/dispatch logic with no
+  family-name branch (I3);
+- selection / dispatch / emission reuse the common pipeline, IME-specific logic
+  staying plugin-local;
+- any new capability / ops / types are contributed locally by the plugin, not by
+  editing core.
+
+(IME runtime/performance is a separate N3 claim and needs real K1/IME hardware
+evidence, I8.)
