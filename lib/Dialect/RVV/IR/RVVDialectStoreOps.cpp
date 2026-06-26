@@ -219,6 +219,30 @@ mlir::LogicalResult StoreOp::verify() {
     if (auto reduce = dequant.getSource().getDefiningOp<StandaloneReduceOp>())
       if (reduce.getInput().getDefiningOp<WideningAccumulateOp>())
         return mlir::success();
+    // NARROW byte-anchor dequant store (Track B auto-lowering: the dequant rung
+    // ON the byte-anchor widening dot-reduce front door): the dequant sources the
+    // narrow trailing standalone_reduce whose input is a tcrv_rvv.widening_product
+    // (NOT the deferred-wide widening_accumulate). The stored f32m1 result type is
+    // the SAME as the SEW32/m1 grouped path; only the enclosing with_vl is the
+    // SEW8 byte-anchor strip config (LMUL m1/m2), so the SEW32 pin does not apply.
+    // PARALLEL branch keyed BOTH on the widening_product marker AND the SEW8
+    // byte-anchor scope, mirroring DequantizeOp::verify: the grouped SEW32 path
+    // (whose reduce is also widening_product-sourced) is left on the SEW32 pin.
+    if (auto reduce = dequant.getSource().getDefiningOp<StandaloneReduceOp>())
+      if (reduce.getInput().getDefiningOp<WideningProductOp>()) {
+        auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+        if (withVL) {
+          auto scopeSEW =
+              withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+          auto scopeLMUL =
+              withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+          if (scopeSEW && scopeLMUL &&
+              scopeSEW.getInt() == getRVVSEW8Bits() &&
+              (scopeLMUL.getValue() == getRVVLMULM1() ||
+               scopeLMUL.getValue() == getRVVLMULM2()))
+            return mlir::success();
+        }
+      }
     return verifyDequantizeResultVectorForWithVL(
         op, getValue(), "stored dequantization result");
   }

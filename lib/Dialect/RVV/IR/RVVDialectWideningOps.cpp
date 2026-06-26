@@ -8645,6 +8645,56 @@ mlir::LogicalResult DequantizeOp::verify() {
     }
   }
 
+  // NARROW byte-anchor dequant (Track B auto-lowering: the dequant rung ON the
+  // byte-anchor widening dot-reduce front door): the dequant sources a narrow
+  // tcrv_rvv.standalone_reduce (i32m1) whose input is a tcrv_rvv.widening_product
+  // (NOT the deferred-wide tcrv_rvv.widening_accumulate). The source/result dtype
+  // (i32m1 -> f32m1) is the SAME as the SEW32/m1 grouped path -- already checked
+  // above; the ONLY difference is the enclosing with_vl is the SEW8 byte-anchor
+  // strip config (LMUL m1 or m2), so the SEW32-pinned source/result-vector checks
+  // do NOT apply. This is a PARALLEL branch keyed BOTH on the widening_product
+  // marker AND the SEW8 byte-anchor scope: the SEW32/m1 grouped dequant body ALSO
+  // carries a widening_product-sourced reduce, so gating on the product op alone
+  // would wrongly intercept it and drop its SEW32 pin. The byte-anchor scope gate
+  // (parallel to StandaloneReduceOp::verify) lets the SAME generic dequant body
+  // flip e8m2/i16m4 vs e8m1/i16m2 by capability, while the grouped SEW32 path
+  // falls through to the existing SEW32 pin unchanged.
+  if (auto narrowReduce = getSource().getDefiningOp<StandaloneReduceOp>()) {
+    if (auto product =
+            narrowReduce.getInput().getDefiningOp<WideningProductOp>()) {
+      auto scopeSEW = (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+      auto scopeLMUL = (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+      const bool isByteAnchorScope =
+          scopeSEW && scopeLMUL &&
+          scopeSEW.getInt() == getRVVSEW8Bits() &&
+          (scopeLMUL.getValue() == getRVVLMULM1() ||
+           scopeLMUL.getValue() == getRVVLMULM2());
+      if (isByteAnchorScope) {
+        if (narrowReduce.getKind() != "signed_widening_reduce_add" ||
+            product.getKind() != "signed_widening_product")
+          return emitOpError()
+                 << "requires the byte-anchor source product-reduction chain to "
+                    "use signed_widening_product followed by "
+                    "signed_widening_reduce_add";
+        if (narrowReduce.getVl() != getVl() || product.getVl() != getVl())
+          return emitOpError()
+                 << "requires the byte-anchor source product and "
+                    "tcrv_rvv.standalone_reduce to consume the same "
+                    "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+        if (narrowReduce->getParentOp() != op->getParentOp() ||
+            product->getParentOp() != op->getParentOp())
+          return emitOpError()
+                 << "requires the byte-anchor source product-reduction chain to "
+                    "be in the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+        // Source i32m1 / result f32m1 already checked above; the byte-anchor
+        // narrow path keeps those, and skips the SEW32/m1 with_vl pin (the strip
+        // is SEW8/m{1,2}).
+        return mlir::success();
+      }
+      // Not a byte-anchor scope -> fall through to the SEW32/m1 grouped pin.
+    }
+  }
+
   auto sourceLoad = getSource().getDefiningOp<LoadOp>();
   auto sourceReduction = getSource().getDefiningOp<StandaloneReduceOp>();
   auto sourceHandoff = getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
