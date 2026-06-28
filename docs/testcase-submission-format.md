@@ -1,145 +1,45 @@
-# `q8_0_q8_0` 测试用例收集格式
+# 测试用例与验收格式
 
-本文规定学生完成本轮 `q8_0_q8_0` RVV VDot slice 后，如何提交可复现、可 review 的测试证据。
+本文规定:学生完成一条 RVV slice(见 [`../assignments/rvv-slices-12.md`](../assignments/rvv-slices-12.md))后,如何提交**可复现、可 review** 的证据,以及验收口径。所有 slice **统一**这套格式。
 
-教师需要明确看到：
-
+## 一、必交的 compiler 测试(lit)
+最低组合(`<cap>` = 你的 slice 名,如 `rope-neox`、`f16-convert`):
 ```text
-MLIR 输入是什么
-compiler 生成的 RVV C/C++ kernel 是什么
-harness 给 kernel 喂了什么 q8 runtime 输入
-scalar oracle 如何计算 expected
-QEMU 或 ssh-rvv 实际输出是什么
+test/Dialect/RVV/<cap>-dataflow.mlir            # typed body 能 parse/verify(正向)
+test/Conversion/RVV/rvv-to-emitc-<cap>.mlir     # 发射的 RVV C(FileCheck 关键 intrinsic)
+test/Dialect/RVV/<cap>-negative.mlir            # ≥1 fail-closed 负例
 ```
+- **正向**:typed `tcrv_rvv` body parse/verify 通过。
+- **负例(必须有)**:某个非法形状必须 fail-closed —— dtype/SEW/LMUL relation 错、ABI role 缺失、不支持的 memory form、用 metadata 伪装 dtype。`--verify-diagnostics` 断言报错。
+- **target FileCheck**:能看到本 slice 对应的关键 RVV intrinsic family(如 rope_neox 的 `vfmacc/vle/vse` 对调度、f16-convert 的 `vfncvt_f_f_w` 等)。
 
-## 一、必须提交的 Compiler 测试
+## 二、三层 proof(验收阶梯)
+slice 必须给出可复现的运行证据。三层(细节见 [`build-and-test.md`](build-and-test.md)):
+1. **tier 1 lit**:`ninja check-tianchenrv` 你的三个 fixture 全绿。
+2. **tier 2 本地 object**:`make -C examples/qemu -f Makefile.rvv object RVV_GENERATED=…/gen.cpp` → 生成的 C 编成合法 rv64gcv 目标。
+3. **tier 3 真机数值**:`examples/qemu/run-on-k1.sh gen.cpp examples/qemu/harness_<cap>.cpp <cap>` → 对 scalar oracle **byte-exact**,打印 `… proof ok`。(无 k1 时用 `make … qemu` + qemu-riscv64/sysroot 代替。)
 
-最低测试组合：
+> 默认**不提交** generated C(它应从 MLIR fixture 生成)。PR 文本可贴关键片段:生成签名、关键 intrinsic、output store/return 边界。
 
-```text
-test/Dialect/RVV/q8-<part>-dataflow.mlir
-test/Conversion/EmitC/rvv-q8-<part>-materialization.mlir
-test/Target/RVV/q8-<part>-artifact.mlir
-```
+## 三、harness 要求(照 `examples/qemu/harness_add.cpp`)
+- `extern "C"` 声明生成核入口:名字 = `tcrv_emitc_<kernelSym>_<variantSym>`,参数序 = `runtime_abi_value` 声明序。
+- 构造输入,**覆盖非 VLEN 整除的 tail**(如 `n=1031`)。
+- 写 **scalar oracle**:纯标量复现同一语义(整数 byte-exact;f32 对 **ggml 累加序** byte-exact)。
+- 调用 → 逐 lane 比 → mismatch 非零退出 → 成功打印 `… proof ok`。
+- 改了 ABI(参数形状/顺序)就同步:MLIR fixture 的 runtime_abi_value 绑定、生成签名、harness 的 `extern "C"` 与调用、PR 说明。
 
-`<part>` 可以是：
-
-```text
-i8-load
-i8-widening-mul
-i16-widening-reduce
-selected-body
-scale-dequant
-full-vdot
-```
-
-最低内容：
-
-- positive：typed `tcrv_rvv` body 能 parse/verify。
-- negative：至少一个错误必须 fail closed，例如 dtype relation 错误、LMUL 不匹配、ABI role 缺失、unsupported memory form。
-- target FileCheck：能看到本 slice 对应的关键 RVV intrinsic family。
-
-完整 `q8_0_q8_0` 目标应能看到：
-
-```text
-__riscv_vle8_v_i8
-__riscv_vwmul_vv_i16
-__riscv_vwredsum_vs_i16
-```
-
-## 二、Runtime Proof Bundle
-
-如果 PR 声明 runtime correctness，必须提供一组运行证据。建议目录：
-
-```text
-examples/qemu/cases/q8-<student-id-or-part>/
-  README.md
-  harness.cpp
-```
-
-默认不要提交 generated C++，因为它应从 MLIR fixture 生成。PR 文本中可以贴关键片段：
-
-- generated function signature；
-- `vle8`；
-- `vwmul_vv_i16`；
-- `vwredsum_vs_i16...i32`；
-- output store 或 scalar return boundary。
-
-## 三、Case README 模板
-
-每个 runtime case README 建议包含：
-
-```text
-Source MLIR
-Generate RVV C++
-Generated Kernel Evidence
-Runtime ABI
-Runtime Inputs
-Scalar Oracle
-Run Command
-Actual Output
-Known Limitations
-```
-
-生成命令示例：
-
-```bash
-build/bin/tcrv-opt test/Target/RVV/q8-full-vdot-artifact.mlir \
-  --tcrv-materialize-selected-lowering-boundaries \
-  --tcrv-materialize-emission-plans \
-| build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp \
-> /tmp/tcrv-q8/generated.cpp
-```
-
-运行命令示例：
-
-```bash
-cp examples/qemu/llama_q8_0_q8_0.h /tmp/tcrv-q8/
-cp examples/qemu/harness_llama_q8_0_q8_0.cpp /tmp/tcrv-q8/harness.cpp
-
-make -C /tmp/tcrv-q8 \
-  -f "$PWD/examples/qemu/Makefile.rvv" \
-  run-rvv \
-  RVV_GENERATED=generated.cpp \
-  RVV_HARNESS=harness.cpp \
-  RVV_OUTPUT=student_q8_case \
-  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
-  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
-```
-
-## 四、Harness 要求
-
-`harness.cpp` 必须保持小而明确：
-
-- 声明 generated kernel 的 `extern "C"` signature。
-- 构造 q8 block 输入，或等价拆分数组输入。
-- 说明 `n`，且 `n` 必须是 32 的整数倍。
-- 初始化 output。
-- 调用 generated kernel。
-- 用 scalar oracle 计算 expected。
-- 打印 got/expected/diff。
-- mismatch 时返回非零。
-- 成功时打印 `proof ok`。
-
-如果学生改变 ABI，例如从 block struct 改成拆分数组，必须同步更新：
-
-```text
-MLIR fixture 的 ABI/runtime value binding
-generated C++ function signature
-harness.cpp 的 extern "C" 声明
-harness.cpp 的调用参数
-README 中的 runtime input/output 描述
-```
+## 四、PR 说明必须解释
+- 你新增的能力是什么、**为什么当前系统没有**(缺席证据)。
+- typed facts 在哪里、provider 如何**从 facts 派生** route(不是从 route id/名字猜)。
+- 生成 C 里的关键 intrinsic。
+- 用了哪个 oracle、真机输出。
+- 没犯禁忌:无 dtype-prefixed helper、无 source-front-door 正向路径、无 common-EmitC 硬编码 dtype、无 route-id 驱动语义。
 
 ## 五、教师收集口径
+1. `ninja -C build check-tianchenrv`(tier 1 全绿)。
+2. 从学生 MLIR 生成 `gen.cpp`,grep 签名 + 关键 intrinsic。
+3. `make … object`(tier 2)。
+4. `run-on-k1.sh`(tier 3,真机 `proof ok`)。
+5. 存 PR 链接、MLIR 路径、生成核证据、harness 路径、真机输出。
 
-教师 review 时按这个顺序：
-
-1. 跑 `cmake --build build --target check-tianchenrv`。
-2. 从学生 MLIR 生成 `/tmp/tcrv-q8/generated.cpp`。
-3. grep generated C++ 的 signature 和 q8 dot intrinsic。
-4. 用学生 harness 或 baseline harness 编译运行 QEMU。
-5. 保存 PR 链接、MLIR 路径、generated kernel evidence、harness 路径和运行输出。
-
-如果一个 PR 只有手写 RVV C baseline，没有 MLIR/compiler 测试，不合格。如果一个 PR 只有 FileCheck，但声明 runtime correctness，却没有 harness proof，也不合格。
+**不合格**:只手写 RVV C、无 compiler 测试;只有 FileCheck 却声称 runtime correctness 而无 proof;或新增能力其实已存在(非真扩展)。

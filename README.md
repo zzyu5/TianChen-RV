@@ -1,156 +1,65 @@
-# TianChen-RV Classroom：LLM `q8_0_q8_0` RVV VDot
+# TianChen-RV Classroom：12 个 RVV 编译器 Slice
 
-这是 TianChen-RV 的课堂贡献分支。课程目标是让学生围绕一个真实 LLM 算子完成可 review、可运行、可比较的 RVV compiler slice：
-
-```text
-llama.cpp q8_0_q8_0 quantized vector dot
-```
-
-目标不是手写一个 RVV C 函数，而是为 TianChen-RV 补齐一条可 review 的 compiler slice：
+这是 TianChen-RV 的课堂分支 —— 一个**干净、可直接上手**的 RISC-V Vector(RVV)/MLIR 编译器仓库。课程目标:每个学生认领一条 **slice**,让编译器**新增一项它现在做不到的 RVV 能力**,做出来即真实拓宽系统边界、构成一次真实贡献。
 
 ```text
 MLIR fixture
   -> selected typed tcrv_rvv body
   -> RVV plugin route
   -> generated RVV C/C++
-  -> harness correctness proof
+  -> harness 正确性证明(真机 k1 byte-exact)
 ```
 
-教师分支提供：
+这**不是**"手写一个 RVV C 函数",而是补齐一条可 review 的 **compiler slice**。也**不是**重做已有功能 —— 12 条任务都是当前编译器发不出来的新能力。
 
-- 一个参考的 llama.cpp 风格 RVV C baseline；
-- 一个可运行 harness，说明输入、输出和 scalar oracle；
-- 构建、QEMU/ssh-rvv 运行流程；
-- 学生 PR 的测试和验收格式。
+## 阅读顺序(别从源码里随便找入口)
+1. [Worked Example:一条完整 slice `add`](docs/add-rvv-slice-walkthrough.md) —— 已实现、端到端在真机验证过的样板,所有 slice 的模板。
+2. [构建、测试与 Proof 流程](docs/build-and-test.md) —— 编译器怎么构建、lit 怎么跑、三层 proof 怎么做。
+3. [RVV Slice 模块化落点](docs/rvv-slice-module-map.md) —— 一条 slice 改哪些层、落哪些文件。
+4. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md) —— 推荐实现顺序 + PR checklist。
+5. [**12 个 slice 作业**](assignments/rvv-slices-12.md) —— 你的任务清单,每条一页(目标/缺席证据/改哪些文件/oracle/验收)。
+6. [测试用例与验收格式](docs/testcase-submission-format.md) —— 提交格式与三层验收口径。
+7. [Proof Harness 目录](examples/qemu/README.md) —— `add` harness + Makefile + 真机 run 脚本。
 
-教师分支**不提前实现** TianChenRV 的 `q8_0_q8_0` MLIR 到 RVV C 路径；这正是学生要完成的贡献。
-
-## 阅读顺序
-
-按下面顺序读，不要从源码里随机找入口。
-
-1. [课程主线：llama.cpp `q8_0_q8_0` RVV VDot Slice](assignments/llama-q8-0-vdot.md)
-   明确本轮作业目标、数学语义、学生需要补的 compiler 能力和禁止路线。
-2. [构建与 RVV Proof 流程](docs/build-and-rvv-proof.md)
-   编译 TianChenRV，运行参考 RVV C baseline，并了解 QEMU/ssh-rvv proof 如何收集。
-3. [本地 RVV QEMU/ssh-rvv 示例](examples/qemu/README.md)
-   直接运行 `llama_q8_0_q8_0_rvv.cpp + harness_llama_q8_0_q8_0.cpp`，看真实 kernel 输入输出。
-4. [从零新增一个 RVV Slice：`binary {kind = "xor"}`](docs/add-rvv-xor-slice-workflow.md)
-   先看一个已经完成的小 slice，理解应该改哪些源码、补哪些测试、怎样写 harness。
-5. [RVV Slice 贡献指南](docs/rvv-slice-contribution-guide.md)
-   说明学生怎样把 baseline 变成 TianChenRV 的 MLIR/compiler slice。
-6. [RVV Slice 模块化落点](docs/rvv-slice-module-map.md)
-   判断应该改 typed IR、verifier、selected-body realization、provider route、EmitC 还是测试。
-7. [测试用例收集格式](docs/testcase-submission-format.md)
-   提 PR 前按统一格式提交 MLIR、generated kernel evidence、harness 输入输出和运行输出。
-
-## 当前参考 Baseline
-
-参考 RVV C baseline 在：
-
-```text
-examples/qemu/llama_q8_0_q8_0.h
-examples/qemu/llama_q8_0_q8_0_rvv.cpp
-examples/qemu/harness_llama_q8_0_q8_0.cpp
-examples/qemu/harness_add.cpp
-examples/qemu/harness_xor.cpp
-examples/qemu/Makefile.rvv
-```
-
-核心计算形状：
-
-```c
-vint8m2_t x = __riscv_vle8_v_i8m2(...);
-vint8m2_t y = __riscv_vle8_v_i8m2(...);
-vint16m4_t prod = __riscv_vwmul_vv_i16m4(x, y, vl);
-vint32m1_t sum = __riscv_vwredsum_vs_i16m4_i32m1(prod, zero, vl);
-```
-
-课堂版 block：
-
-```text
-block_q8_0:
-  d:  float scale
-  qs: int8[32]
-```
-
-真实 llama.cpp 使用 fp16 scale；课堂 baseline 使用 `float d`，先把重点放在 i8 load、i8 widening multiply、i16 widening reduction、scalar output 和 provider route 上。
-
-`harness_add.cpp` 和 `harness_xor.cpp` 不是本轮主任务，它们是参考例子：学生可以从 add/xor 看一个普通 slice 如何组织 MLIR fixture、generated kernel ABI、harness 输入和 scalar oracle。
-
-完成 `q8_0_q8_0` 后，可以把 `q4_0_q8_0` 作为进阶拓展。它仍然围绕 LLM quantized dot，但会额外引入 packed q4 load、nibble unpack、zero-point subtract、两段 q8 dot 和 widening accumulate。这个拓展不替代基础任务，只有在基础 q8 path 可生成、可运行、可解释之后再做。
-
-## 快速运行 Baseline
-
-在本地 QEMU 路径：
-
+## 快速上手
 ```bash
-make -C examples/qemu \
-  -f Makefile.rvv \
-  run-rvv \
-  RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
-  RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
-  RVV_OUTPUT=llama_q8_0_q8_0_case \
-  RVV_CXX=/usr/lib/llvm-20/bin/clang++ \
-  RVV_EXTRA_CXXFLAGS="--gcc-toolchain=/usr -I/usr/riscv64-linux-gnu/include/c++/14 -I/usr/riscv64-linux-gnu/include/c++/14/riscv64-linux-gnu -static" \
-  RVV_EXTRA_LDFLAGS="-L/usr/lib/gcc-cross/riscv64-linux-gnu/14"
+# 1) 构建编译器(LLVM/MLIR 20)
+cmake -G Ninja -S . -B build \
+  -DLLVM_DIR=/usr/lib/llvm-20/lib/cmake/llvm -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir
+ninja -C build tcrv-opt tcrv-translate
+
+# 2) 跑 lit 测试(tier 1,人人可做)
+ninja -C build check-tianchenrv
+
+# 3) 看 add 范例端到端:生成 C -> 本地 rv64gcv object 编译(tier 2)
+build/bin/tcrv-opt test/Conversion/RVV/rvv-to-emitc-add-cpp-golden.mlir \
+  --tcrv-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp \
+  > examples/qemu/add_generated.reference.cpp
+make -C examples/qemu -f Makefile.rvv object RVV_GENERATED=add_generated.reference.cpp
 ```
+**日常循环** = 改代码 → `ninja … check-tianchenrv`(tier 1)→ 生成 C + `make object`(tier 2)。**tier 3(真机 k1)是正确性的最终封印**:`examples/qemu/run-on-k1.sh`,详见 [build-and-test.md](docs/build-and-test.md)。
 
-在维护者真实 RVV 主机上可以复制同一组文件后编译运行：
-
-```bash
-scp examples/qemu/llama_q8_0_q8_0.* \
-    examples/qemu/harness_llama_q8_0_q8_0.cpp \
-    rvv:/tmp/tcrv-classroom-q8/
-
-ssh rvv 'cd /tmp/tcrv-classroom-q8 && \
-  clang++ -std=c++17 -O2 -march=rv64gcv -mabi=lp64d \
-    llama_q8_0_q8_0_rvv.cpp harness_llama_q8_0_q8_0.cpp \
-    -o llama_q8_0_q8_0_case && \
-  ./llama_q8_0_q8_0_case'
-```
-
-成功输出应包含：
-
-```text
-rvv classroom llama q8_0_q8_0 proof ok
-```
-
-## 学生交付边界
-
-学生最终 PR 应该让 TianChenRV 生成与 baseline 同语义的 RVV C/C++。最低交付包括：
-
-- `test/Target/RVV/` 下的 MLIR fixture；
-- `test/Dialect/RVV/` 或 `test/Conversion/EmitC/` 下的 verifier/route 测试；
-- generated RVV C/C++ evidence，能看到 `vle8`、`vwmul_vv_i16`、`vwredsum_vs_i16...i32` 相关路线；
-- runtime harness，使用同样的 q8 block 输入和 scalar oracle；
-- QEMU 或真实 RVV 运行输出。
-
-不要提交只手写 baseline C 的 PR。baseline C 只是目标形状和正确性对照。
+## 真机
+真机 proof 用 SpacemiT X60 板,ssh 别名 `k1`(RVV 1.0 + Zvfh + IME;`clang++ 18`)。注:旧的 `ssh rvv` 主机当前不可用,真机一律走 `k1`;没有真机时本地 `lit + object-compile` 已能覆盖大部分验收,或用 `qemu-riscv64` 代替 tier 3。
 
 ## 仓库结构
-
 ```text
-include/TianChenRV/        Public headers 和 TableGen dialect/op 定义
-lib/                       编译器实现
-tools/tcrv-opt/            pass driver
-tools/tcrv-translate/      translation/export driver
-test/                      学生要补的 MLIR/FileCheck 测试位置
-docs/                      贡献说明和测试收集格式
-assignments/               本轮 q8_0_q8_0 主线说明
-examples/qemu/             baseline RVV C、harness、QEMU Makefile
+include/TianChenRV/   Public headers + TableGen dialect/op 定义
+lib/                  编译器实现(Dialect/RVV, Plugin/RVV, Conversion/RVV+EmitC, Target, Transforms, Support)
+tools/tcrv-opt/       pass driver
+tools/tcrv-translate/ translation/export driver
+test/                 lit/FileCheck 测试(你的 slice 在这里加 dataflow/materialization/negative)
+docs/                 walkthrough / 构建测试 / 模块落点 / 贡献指南 / 验收格式
+assignments/          12 个 slice 作业
+examples/qemu/        add worked-example harness + Makefile + k1 run 脚本
 ```
+本分支不含 `.trellis`、`.codex`、内部 supervisor / 远程自动化文件。
 
-本分支不包含 `.trellis`、`.codex`、内部 supervisor loop 或远程自动化 steering 文件。
+## 禁止路线(所有 slice 通用,I3/I4/I5)
+- `tcrv_rvv.i8_*` 这种 dtype-prefixed helper;
+- route-id / artifact 名 / C 参数名 / test 名驱动语义;
+- source-front-door / source-artifact 正向路径;
+- common EmitC 里硬编码 RVV dtype/SEW/LMUL/intrinsic;
+- 只为过 harness 而绕过 typed `tcrv_rvv` body / provider。
 
-## 禁止路线
-
-不要新增这些东西：
-
-- `tcrv_rvv.i8_*`、`tcrv_rvv.i32_*` 这种 dtype-prefixed helper；
-- `RVVI32M1*` / `rvv-i32m1` route-id 驱动语义；
-- source-front-door / source-artifact 正向路径；
-- common EmitC 中硬编码 RVV dtype、SEW/LMUL、intrinsic 或 schedule；
-- 只为通过 harness 而绕过 typed `tcrv_rvv` body/provider 的实现。
-
-每个 PR 应该能解释：typed facts 在哪里、ABI/runtime value 如何绑定、RVV provider 如何从这些 facts 推导 route。
+每个 PR 都要能解释:typed facts 在哪、ABI/runtime value 如何绑定、RVV provider 如何从这些 facts 推导 route。

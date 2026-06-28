@@ -1,187 +1,40 @@
-# `q8_0_q8_0` RVV Slice 贡献指南
+# RVV Slice 贡献指南
 
-本轮课堂贡献只有一个主线：让 TianChenRV 能从 MLIR 生成 llama.cpp 风格 `q8_0_q8_0` RVV dot-product kernel。
-
-教师分支提供的 `examples/qemu/llama_q8_0_q8_0_rvv.cpp` 是手写 baseline。学生 PR 不应提交“我也手写了一个 RVV C”。学生要补的是 compiler 路径。
+本课程每个学生认领一条 [RVV slice](../assignments/rvv-slices-12.md) —— 一个 **TianChen-RV 当前做不到的新能力**,让编译器从 MLIR 生成对应的 RVV kernel。你交的是 **compiler 路径**,不是手写 RVV C。
 
 ## 目标链路
-
-学生贡献应沿着下面这条链：
-
 ```text
-test/Target/RVV/<q8-vdot>.mlir
+test/Conversion/RVV/<cap>.mlir
   -> tcrv.exec selected RVV variant
   -> typed low-level tcrv_rvv body
   -> RVV verifier / legality
-  -> optional selected-body realization
+  -> selected-body realization
   -> RVV provider route planning
-  -> TCRVEmitCLowerableRoute
-  -> common EmitC materialization
-  -> generated RVV C/C++
-  -> q8 harness correctness proof
+  -> RVVToEmitC 发射
+  -> tcrv-translate -> 生成的 RVV C/C++
+  -> harness 真机正确性 proof
 ```
+route 必须从 typed facts 派生:element type / SEW / LMUL / policy / unit-stride 等 memory form / op-kind / runtime-ABI / target capability。**不许**从 route id、artifact 名、参数名、`c_type` 串、test 名、精确 intrinsic 拼写反推语义。
 
-route 必须从 typed facts 推导：
+## 推荐实现顺序(以 `add` 范例为模板,见 [walkthrough](add-rvv-slice-walkthrough.md))
+1. **先读范例 + 你 slice 的 [作业页](../assignments/rvv-slices-12.md)**:确认你加的能力当前确实没有(作业页给了缺席证据),并找到最近的**兄弟范例**(已实现、形状最像的能力)copy-then-adapt。
+2. **typed surface + verifier**(模块 1):让 typed `tcrv_rvv` body 能表达你的能力;加 verifier 规则。`*-dataflow.mlir` 正向 + `*-negative.mlir` 负向。
+3. **realization owner**(模块 2):把 selected variant 实体化成 typed body 并注册。
+4. **provider route + emitter**(模块 3/4):构建 route,写 emitter 发射精确的 RVV intrinsic 序列;`rvv-to-emitc-<cap>.mlir` FileCheck。
+5. **proof**(模块 6):写 `harness_<cap>.cpp` + scalar oracle,过三层(lit → 本地 object → k1 真机 `proof ok`)。
 
-```text
-element type = i8 source, i16 product, i32 reduction
-SEW / LMUL
-policy
-unit-stride memory form
-operation kind = signed q8 dot / widening dot reduction
-runtime ABI binding
-target capability facts
-```
-
-不要从 route id、artifact name、parameter name、`c_type` 字符串、test name 或精确 intrinsic spelling 反推出计算语义。
-
-## 推荐实现顺序
-
-### 1. i8 typed vector 和 load
-
-先让 typed `tcrv_rvv` surface 能表达 signed i8 source vector 和 unit-stride load。
-
-应有测试：
-
-```text
-test/Dialect/RVV/<q8-i8-load>-dataflow.mlir
-test/Target/RVV/<q8-i8-load>-artifact.mlir
-```
-
-target evidence 应能看到：
-
-```text
-__riscv_vle8_v_i8m*
-```
-
-### 2. i8 widening multiply
-
-表达并 materialize：
-
-```text
-i8 vector x i8 vector -> i16 vector
-```
-
-target evidence 应能看到：
-
-```text
-__riscv_vwmul_vv_i16m*
-```
-
-### 3. i16 widening reduction to i32
-
-表达并 materialize：
-
-```text
-i16 vector -> i32 scalar/lane0 result
-```
-
-target evidence 应能看到：
-
-```text
-__riscv_vwredsum_vs_i16m*_i32m1
-```
-
-### 4. q8 block ABI 和 selected body
-
-把 `lhs/rhs/out/n` 或等价 ABI 显式绑定进 selected `tcrv_rvv` body。
-
-允许两种 ABI 形状：
-
-```text
-struct block_q8_0 *x, struct block_q8_0 *y, float *out, size_t n
-```
-
-或拆分数组：
-
-```text
-int8_t *x_qs, int8_t *y_qs, float *x_d, float *y_d, float *out, size_t n
-```
-
-无论选择哪种，MLIR fixture、generated signature、harness call site 必须一致。
-
-### 5. scale/dequant
-
-最低版可以先输出 raw `int32_t` dot result。完整课堂目标要输出：
-
-```text
-sum_i32 * x.d * y.d
-```
-
-如果暂时不实现 float scale/dequant，PR 必须明确这是未完成项，不能声明完整 `q8_0_q8_0` correctness。
-
-## 通常需要改哪里
-
-### RVV IR Surface
-
-```text
-include/TianChenRV/Dialect/RVV/IR/RVVOps.td
-lib/Dialect/RVV/IR/RVVDialect.cpp
-lib/Dialect/RVV/IR/RVVConfigContract.cpp
-```
-
-优先扩展 generic typed surface。不要新增 `tcrv_rvv.i8_dot_q8_0` 这种绑定单个算法名字的 helper。
-
-### Selected-Body Realization
-
-```text
-include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h
-lib/Plugin/RVV/RVVSelectedBodyRealization.cpp
-```
-
-如果使用 compact pre-realized selected-body op，必须由 RVV plugin realize 成显式 `setvl`、load、widening multiply/reduction、store/output boundary。
-
-### Provider Route
-
-```text
-include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h
-lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp
-lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp
-```
-
-provider 负责 C vector type、intrinsic、header 和 route payload。common EmitC 只消费 provider-built route。
-
-### Tests
-
-最低组合：
-
-```text
-test/Dialect/RVV/<q8-feature>-dataflow.mlir
-test/Conversion/EmitC/rvv-<q8-feature>-materialization.mlir
-test/Target/RVV/<q8-feature>-artifact.mlir
-```
-
-还应有至少一个 fail-closed negative case，例如：
-
-- `i8`/`i16`/`i32` relation 不匹配；
-- LMUL 不匹配；
-- accumulator/output ABI role 缺失；
-- unsupported memory form；
-- 用 metadata 或 route id 伪装 dtype。
+落点文件见 [module-map](rvv-slice-module-map.md);验收见 [submission-format](testcase-submission-format.md)。
 
 ## PR Checklist
+- 我加的能力是什么、为什么当前系统没有(缺席证据)。
+- 扩展了哪些 typed facts / op / kind。
+- provider 如何从 typed facts 派生 route。
+- 生成 RVV C 的关键 intrinsic。
+- 用了哪个 harness/oracle,真机(k1)输出。
+- 三层 proof 状态(lit / object / k1)。
+- 未犯禁忌(dtype-prefixed helper / source-front-door 正向 / common-EmitC RVV 语义分支 / route-id 推语义)。
 
-提交前说明：
-
-- 你的 slice 是 i8 load、widening multiply、widening reduction、selected body、scale/dequant 中哪一段。
-- 你新增/扩展了哪些 typed facts。
-- provider 如何从 typed facts 推导 route。
-- generated RVV C 中的关键 intrinsic。
-- 使用了哪个 harness，输入输出是什么。
-- QEMU 或 ssh-rvv 的实际输出。
-- 没有新增 dtype-prefixed helper、source-front-door positive path 或 common EmitC RVV semantic branch。
-
-## 进阶：q4 dot q8
-
-基础 `q8_0_q8_0` 完成后，学生可以选择 `q4_0_q8_0` 作为拓展。它不是新的主线，而是 q8 dot 的自然延伸：先把 packed q4 weights 解包成 signed i8，再复用 i8 widening dot/reduction 能力。
-
-新增点通常包括：
-
-- packed q4 byte load；
-- low/high nibble unpack；
-- u8 到 i8 的 reinterpret 或等价转换；
-- q4 zero-point subtract 8；
-- `vwmul` + `vwmacc` 组合；
-- q4/q8 block harness 和 scalar oracle。
-
-拓展实现仍然要走 typed `tcrv_rvv` body 和 RVV provider route，不能退化成手写 `q4_0_q8_0` intrinsic wrapper。
+## 协作纪律
+- 每条 slice 独立、互不依赖;一个能力一个学生。
+- 改 ABI 要五处同步(MLIR runtime_abi_value / 生成签名 / harness extern "C" / 调用 / PR 说明)。
+- 真硬件主张要有真机证据(`ssh k1`,SpacemiT X60;旧 `ssh rvv` 当前不可用)。

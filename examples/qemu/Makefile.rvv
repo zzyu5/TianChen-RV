@@ -1,50 +1,46 @@
-# 可选本地 RVV QEMU proof 片段。
+# RVV slice proof harness — local checks + optional QEMU.
 #
-# 在包含 generated.cpp 和 harness.cpp 的目录中使用：
-#   make -f /path/to/examples/qemu/Makefile.rvv run-rvv
+# Three proof tiers for a slice (see ../../docs/build-and-test.md):
+#   tier 1  lit/FileCheck on the generated C structure        (everyone; `ninja check-tianchenrv`)
+#   tier 2  `make -f Makefile.rvv object`  -> compile the GENERATED kernel to an
+#           rv64gcv object with host clang. Proves it is valid RVV C. No run, no sysroot needed.
+#   tier 3  REAL HARDWARE: `./run-on-k1.sh <gen> <harness> <case>`  (ssh k1, SpacemiT X60)
+#           or QEMU below if you have qemu-riscv64 + a riscv64 sysroot.
 #
-# 直接运行本目录的 llama q8_0_q8_0 baseline：
-#   make -C examples/qemu -f Makefile.rvv run-llama-q8-baseline
+# The worked example (already verified on real hardware):
+#   make -f Makefile.rvv object RVV_GENERATED=add_generated.reference.cpp
+#   ./run-on-k1.sh add_generated.reference.cpp harness_add.cpp add
 
-RVV_CXX ?= clang++
+RVV_CLANG    ?= /usr/lib/llvm-20/bin/clang
+RVV_CXX      ?= clang++
 QEMU_RISCV64 ?= qemu-riscv64
-SYSROOT ?= /usr/riscv64-linux-gnu
-RVV_MARCH ?= rv64gcv
-RVV_MABI ?= lp64d
-RVV_EXTRA_CXXFLAGS ?=
-RVV_EXTRA_LDFLAGS ?=
-RVV_CXXFLAGS ?= --target=riscv64-linux-gnu \
-                -std=c++17 \
-                -O2 \
-                -march=$(RVV_MARCH) \
-                -mabi=$(RVV_MABI) \
-                --sysroot=$(SYSROOT) \
-                $(RVV_EXTRA_CXXFLAGS)
-RVV_OUTPUT ?= rvv_case
-RVV_GENERATED ?= generated.cpp
-RVV_HARNESS ?= harness.cpp
-RVV_RUN_ARGS ?=
+RVV_MARCH    ?= rv64gcv
+RVV_MABI     ?= lp64d
+SYSROOT      ?=
 
-.PHONY: print-rvv-config build-rvv run-rvv run-llama-q8-baseline clean-rvv
+RVV_GENERATED ?= add_generated.reference.cpp
+RVV_HARNESS   ?= harness_add.cpp
+RVV_OUTPUT    ?= rvv_case
+RVV_RUN_ARGS  ?=
 
-print-rvv-config:
-	@printf 'RVV_CXX=%s\n' '$(RVV_CXX)'
-	@printf 'QEMU_RISCV64=%s\n' '$(QEMU_RISCV64)'
-	@printf 'SYSROOT=%s\n' '$(SYSROOT)'
-	@printf 'RVV_CXXFLAGS=%s\n' '$(RVV_CXXFLAGS)'
-	@printf 'RVV_EXTRA_LDFLAGS=%s\n' '$(RVV_EXTRA_LDFLAGS)'
+.PHONY: object qemu clean print-config
 
-build-rvv:
-	$(RVV_CXX) $(RVV_CXXFLAGS) $(RVV_GENERATED) $(RVV_HARNESS) $(RVV_EXTRA_LDFLAGS) -o $(RVV_OUTPUT)
+# tier 2: host clang compiles the generated kernel to an rv64gcv object (no link/run).
+# This works on any machine with the bundled clang; it does NOT need a sysroot or qemu.
+object:
+	$(RVV_CLANG) -target riscv64 -O2 -march=$(RVV_MARCH) -mabi=$(RVV_MABI) -c $(RVV_GENERATED) -o $(RVV_OUTPUT).o
+	@echo "OK: $(RVV_GENERATED) compiles to a valid $(RVV_MARCH) object ($(RVV_OUTPUT).o)"
 
-run-rvv: build-rvv
-	$(QEMU_RISCV64) -L $(SYSROOT) ./$(RVV_OUTPUT) $(RVV_RUN_ARGS)
+# tier 3 (optional, only if you have qemu-riscv64 + a riscv64 sysroot):
+qemu:
+	$(RVV_CXX) --target=riscv64-linux-gnu -std=c++17 -O2 -march=$(RVV_MARCH) -mabi=$(RVV_MABI) \
+	  $(if $(SYSROOT),--sysroot=$(SYSROOT),) -static \
+	  $(RVV_GENERATED) $(RVV_HARNESS) -o $(RVV_OUTPUT)
+	$(QEMU_RISCV64) $(if $(SYSROOT),-L $(SYSROOT),) ./$(RVV_OUTPUT) $(RVV_RUN_ARGS)
 
-run-llama-q8-baseline:
-	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) run-rvv \
-		RVV_GENERATED=llama_q8_0_q8_0_rvv.cpp \
-		RVV_HARNESS=harness_llama_q8_0_q8_0.cpp \
-		RVV_OUTPUT=llama_q8_0_q8_0_case
+print-config:
+	@printf 'RVV_CLANG=%s\nRVV_MARCH=%s\nRVV_GENERATED=%s\nRVV_HARNESS=%s\n' \
+	  '$(RVV_CLANG)' '$(RVV_MARCH)' '$(RVV_GENERATED)' '$(RVV_HARNESS)'
 
-clean-rvv:
-	rm -f $(RVV_OUTPUT)
+clean:
+	rm -f $(RVV_OUTPUT) $(RVV_OUTPUT).o
