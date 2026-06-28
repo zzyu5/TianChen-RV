@@ -1,6 +1,21 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vector-compare-rhs-load/s//script-derived-mask-producer/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-PRODUCER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.compare_predicate_kind", value = "slt/s//tcrv_rvv.compare_predicate_kind", value = "sle/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-PREDICATE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,true_value,false_value,out,n/s//tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,false_value,true_value,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-RUNTIME-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:computed_mask_select.v1/s//rvv-route-operand-binding:script-derived-computed-mask-select.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-BINDING-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/true_value=true-value-input-buffer:true_value/s//true_value=rhs-input-buffer:true_value/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-BINDING-OPERANDS
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-computed-mask-select-plan-validated/s//provider_supported_mirror:script-derived-computed-mask-select/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-v1-typed-computed-mask-select-leaf-profile.v1/s//rvv-v1-script-derived-computed-mask-select-leaf-profile.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-TARGET-LEAF
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare/s//tcrv_rvv.mask_role", value = "predicate-mask-input-buffer/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-ROLE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope/s//tcrv_rvv.mask_source", value = "route-id-derived-mask/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-SOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_memory_form", value = "compare-produced-mask/s//tcrv_rvv.mask_memory_form", value = "unit-stride-mask-load/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-FORM
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.select_layout", value = "select-true-value-when-mask-else-false-value/s//tcrv_rvv.select_layout", value = "select-false-value-when-mask-else-true-value/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-SELECT-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.tail_policy", value = "agnostic/s//tcrv_rvv.tail_policy", value = "undisturbed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-TAIL-POLICY
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_policy", value = "agnostic/s//tcrv_rvv.mask_policy", value = "undisturbed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-POLICY
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-mask-tail-policy-route-family-plan.v1/s//rvv-script-derived-mask-tail-policy-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-TAIL-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/computed-mask select mask.tail policy/s//script-derived mask-tail owner/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMS-MASK-TAIL-OWNER
 
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // vector-select slice. Compare operands, true/false vector operands, output,
@@ -55,13 +70,17 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_mask_select"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.select"}
+// PLAN-SAME: {key = "tcrv_rvv.tail_policy", value = "agnostic"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_policy", value = "agnostic"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-vector-select"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,true_value,false_value,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_select.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_mask_select.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;true_value=true-value-input-buffer:true_value:abi|true-load|sel-true|hdr;false_value=false-value-input-buffer:false_value:abi|false-load|sel-false|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-computed-mask-select-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_tail_policy_route_family_plan", value = "rvv-mask-tail-policy-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_tail_policy_owner", value = "computed-mask select mask/tail policy"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-computed-mask-select-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-select-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
@@ -80,10 +99,86 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-computed-mask-select-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,true_value,false_value,out,n
-// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-computed-mask-select-leaf-profile.v1
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-typed-computed-mask-select-leaf-profile.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-select-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_select.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_mask_select.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;true_value=true-value-input-buffer:true_value:abi|true-load|sel-true|hdr;false_value=false-value-input-buffer:false_value:abi|false-load|sel-false|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
 // HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: vector-compare-rhs-load
+// HEADER: tianchenrv.rvv.mask_tail_policy_route_family_plan: rvv-mask-tail-policy-route-family-plan.v1
+// HEADER: tianchenrv.rvv.mask_tail_policy_owner: computed-mask select mask/tail policy
 // HEADER: void tcrv_emitc_pre_realized_body_computed_mask_select_kernel_pre_realized_body_rvv_computed_mask_select(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);
+
+// STALE-CMS-MASK-PRODUCER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-PRODUCER: tcrv_rvv.computed_mask_select_mask_producer_source
+// STALE-CMS-MASK-PRODUCER-SAME: must mirror
+// STALE-CMS-MASK-PRODUCER-SAME: script-derived-mask-producer
+
+// STALE-CMS-PREDICATE: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-PREDICATE: tcrv_rvv.compare_predicate_kind
+// STALE-CMS-PREDICATE-SAME: must mirror
+// STALE-CMS-PREDICATE-SAME: sle
+
+// STALE-CMS-RUNTIME-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-RUNTIME-ABI: tcrv_rvv.runtime_abi_order
+// STALE-CMS-RUNTIME-ABI-SAME: cmp_lhs,cmp_rhs,false_value,true_value,out,n
+
+// STALE-CMS-BINDING-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-BINDING-PLAN: tcrv_rvv.route_operand_binding_plan
+// STALE-CMS-BINDING-PLAN-SAME: must mirror
+// STALE-CMS-BINDING-PLAN-SAME: script-derived-computed-mask-select
+
+// STALE-CMS-BINDING-OPERANDS: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-BINDING-OPERANDS: tcrv_rvv.route_operand_binding_operands
+// STALE-CMS-BINDING-OPERANDS-SAME: must mirror
+// STALE-CMS-BINDING-OPERANDS-SAME: true_value=rhs-input-buffer:true_value
+
+// STALE-CMS-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-PROVIDER: tcrv_rvv.provider_supported_mirror
+// STALE-CMS-PROVIDER-SAME: must mirror
+// STALE-CMS-PROVIDER-SAME: script-derived-computed-mask-select
+
+// STALE-CMS-TARGET-LEAF: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-TARGET-LEAF: tcrv_rvv.target_leaf_profile
+// STALE-CMS-TARGET-LEAF-SAME: must mirror
+// STALE-CMS-TARGET-LEAF-SAME: script-derived-computed-mask-select
+
+// STALE-CMS-MASK-ROLE: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-ROLE: tcrv_rvv.mask_role
+// STALE-CMS-MASK-ROLE-SAME: must mirror
+// STALE-CMS-MASK-ROLE-SAME: predicate-mask-input-buffer
+
+// STALE-CMS-MASK-SOURCE: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-SOURCE: tcrv_rvv.mask_source
+// STALE-CMS-MASK-SOURCE-SAME: must mirror
+// STALE-CMS-MASK-SOURCE-SAME: route-id-derived-mask
+
+// STALE-CMS-MASK-FORM: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-FORM: tcrv_rvv.mask_memory_form
+// STALE-CMS-MASK-FORM-SAME: must mirror
+// STALE-CMS-MASK-FORM-SAME: unit-stride-mask-load
+
+// STALE-CMS-SELECT-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-SELECT-LAYOUT: tcrv_rvv.select_layout
+// STALE-CMS-SELECT-LAYOUT-SAME: must mirror
+// STALE-CMS-SELECT-LAYOUT-SAME: select-false-value-when-mask-else-true-value
+
+// STALE-CMS-TAIL-POLICY: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-TAIL-POLICY: tcrv_rvv.tail_policy
+// STALE-CMS-TAIL-POLICY-SAME: must mirror
+// STALE-CMS-TAIL-POLICY-SAME: undisturbed
+
+// STALE-CMS-MASK-POLICY: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-POLICY: tcrv_rvv.mask_policy
+// STALE-CMS-MASK-POLICY-SAME: must mirror
+// STALE-CMS-MASK-POLICY-SAME: undisturbed
+
+// STALE-CMS-MASK-TAIL-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-TAIL-PLAN: tcrv_rvv.mask_tail_policy_route_family_plan
+// STALE-CMS-MASK-TAIL-PLAN-SAME: must mirror
+// STALE-CMS-MASK-TAIL-PLAN-SAME: rvv-script-derived-mask-tail-policy-plan.v1
+
+// STALE-CMS-MASK-TAIL-OWNER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMS-MASK-TAIL-OWNER: tcrv_rvv.mask_tail_policy_owner
+// STALE-CMS-MASK-TAIL-OWNER-SAME: must mirror
+// STALE-CMS-MASK-TAIL-OWNER-SAME: script-derived mask-tail owner

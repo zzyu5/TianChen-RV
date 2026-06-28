@@ -133,36 +133,46 @@ tcrv.exec.kernel @empty_capability_kind attributes {} {
 
 // -----
 
-tcrv.exec.kernel @malformed_capability_relation attributes {} {
-  // expected-error @+1 {{capability relation attribute 'provides' must be an array of non-empty capability id strings}}
-  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", provides = "rvv"}
+// Behavior tightening (Stage-2 Phase-B.2): capability status is a closed,
+// ODS-defined value set; an unknown status keyword is now a verifier error
+// (previously it was silently treated as Available).
+tcrv.exec.kernel @capability_unknown_status attributes {} {
+  // expected-error @+1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got "bogus"}}
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "bogus"}
 }
+
+// -----
+
+// An empty status is likewise rejected (previously silently Available).
+tcrv.exec.kernel @capability_empty_status attributes {} {
+  // expected-error @+1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got ""}}
+  tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = ""}
+}
+
+// -----
+
+// The same closed status set is enforced on capability-provider targets.
+tcrv.exec.target @target_unknown_status {id = "rvv.profile", kind = "profile", status = "bogus", relations = #tcrv.capability_relations<provides = ["rvv"]>}
+// expected-error @-1 {{requires attribute 'status' to be one of the typed capability status values "available", "unavailable", "disabled", or "missing"; got "bogus"}}
 
 // -----
 
 tcrv.exec.kernel @target_profile_missing_kind attributes {} {
   // expected-error @+1 {{requires capability-provider target profiles to specify both non-empty string attributes 'id' and 'kind'}}
-  tcrv.exec.target @rvv_profile {id = "rvv.profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
-}
-
-// -----
-
-tcrv.exec.kernel @target_profile_malformed_relation attributes {} {
-  // expected-error @+1 {{capability relation attribute 'provides' must be an array of non-empty capability id strings}}
-  tcrv.exec.target @rvv_profile {id = "rvv.profile", kind = "profile", provides = "rvv"}
+  tcrv.exec.target @rvv_profile {id = "rvv.profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 }
 
 // -----
 
 tcrv.exec.kernel @target_profile_requires_ok attributes {} {
-  tcrv.exec.target @rvv_profile {id = "rvv.profile", kind = "profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+  tcrv.exec.target @rvv_profile {id = "rvv.profile", kind = "profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
   tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv_profile]} {
   }
 }
 
 // -----
 
-tcrv.exec.target @module_rvv_profile {id = "rvv.profile.module", kind = "profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+tcrv.exec.target @module_rvv_profile {id = "rvv.profile.module", kind = "profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 tcrv.exec.kernel @module_target_profile_requires_ok attributes {target = @module_rvv_profile} {
   tcrv.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@module_rvv_profile]} {
@@ -172,7 +182,7 @@ tcrv.exec.kernel @module_target_profile_requires_ok attributes {target = @module
 // -----
 
 // expected-error @+1 {{TianChen-RV target capability provider composition failed: for target @target_composition_missing_provider provider @missing_provider must resolve to a module-level symbol}}
-tcrv.exec.target @target_composition_missing_provider {id = "rvv.profile.composed", kind = "profile", capability_providers = [@missing_provider], provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+tcrv.exec.target @target_composition_missing_provider {id = "rvv.profile.composed", kind = "profile", capability_providers = [@missing_provider], relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 // -----
 
@@ -199,7 +209,7 @@ tcrv.exec.kernel @module_target_profile_parse_only attributes {target = @parse_o
 
 // -----
 
-tcrv.exec.target @shadowed_module_target {id = "rvv.profile.shadowed", kind = "profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+tcrv.exec.target @shadowed_module_target {id = "rvv.profile.shadowed", kind = "profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 // expected-error @+1 {{target @shadowed_module_target is shadowed by a direct symbol in the same tcrv.exec.kernel}}
 tcrv.exec.kernel @module_target_profile_shadowed attributes {target = @shadowed_module_target} {
@@ -208,7 +218,7 @@ tcrv.exec.kernel @module_target_profile_shadowed attributes {target = @shadowed_
 
 // -----
 
-tcrv.exec.target @module_duplicate_id_profile {id = "rvv", kind = "profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+tcrv.exec.target @module_duplicate_id_profile {id = "rvv", kind = "profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 tcrv.exec.kernel @module_target_profile_duplicate_id attributes {target = @module_duplicate_id_profile} {
   // expected-error @+1 {{duplicates capability id 'rvv' in enclosing tcrv.exec.kernel}}
@@ -220,21 +230,21 @@ tcrv.exec.kernel @module_target_profile_duplicate_id attributes {target = @modul
 tcrv.exec.kernel @target_profile_duplicate_id attributes {} {
   tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
   // expected-error @+1 {{duplicates capability-provider id 'rvv' in enclosing tcrv.exec.kernel}}
-  tcrv.exec.target @rvv_profile {id = "rvv", kind = "profile", provides = ["rvv", "rvv.explicit_vector_config.i32m1"]}
+  tcrv.exec.target @rvv_profile {id = "rvv", kind = "profile", relations = #tcrv.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 }
 
 // -----
 
 tcrv.exec.kernel @empty_capability_relation_id attributes {} {
-  // expected-error @+1 {{capability relation attribute 'implies' entry 0 must be a non-empty capability id string}}
-  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", implies = [""]}
+  // expected-error @+1 {{capability relation list 'implies' entry 0 must be a non-empty capability id string}}
+  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", relations = #tcrv.capability_relations<implies = [""]>}
 }
 
 // -----
 
 tcrv.exec.kernel @duplicate_capability_relation_id attributes {} {
-  // expected-error @+1 {{capability relation attribute 'conflicts' duplicates capability id 'rvv'}}
-  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", conflicts = ["rvv", "rvv"]}
+  // expected-error @+1 {{capability relation list 'conflicts' duplicates capability id 'rvv'}}
+  tcrv.exec.capability @rvv_profile {id = "rvv.profile", kind = "profile", relations = #tcrv.capability_relations<conflicts = ["rvv", "rvv"]>}
 }
 
 // -----

@@ -89,9 +89,10 @@ getTensorExtLiteRoleSourceProvenance(
 
 } // namespace
 
-llvm::Error buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+llvm::Error validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCLowerableRoute &out) {
+    llvm::SmallVectorImpl<emitc::TCRVEmitCSourceOpProvenance> &outSources) {
+  outSources.clear();
   if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
     return error;
 
@@ -112,31 +113,14 @@ llvm::Error buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
               constructionRoute.runtimeGlueRole))
     return error;
 
-  emitc::TCRVEmitCLowerableRoute route(
-      constructionRoute.routeID,
-      "extension-family-role-sequence-to-emitc-call-opaque");
-  route.addHeader("stdint.h");
-  for (const construction::SelectedExecutableRoleStep &step : *steps)
-    route.addFunctionDeclaration(step.constructionStep->callee);
-
-  llvm::SmallVector<emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   for (const construction::SelectedExecutableRoleStep &step : *steps) {
     llvm::Expected<emitc::TCRVEmitCSourceOpProvenance> source =
         getTensorExtLiteRoleSourceProvenance(step);
     if (!source)
       return source.takeError();
-    route.addSourceOpProvenance(*source);
-    sources.push_back(std::move(*source));
+    outSources.push_back(std::move(*source));
   }
 
-  for (auto [step, source] : llvm::zip(*steps, sources)) {
-    emitc::TCRVEmitCCallOpaqueStep call;
-    call.sourceOp = source;
-    call.callee = step.constructionStep->callee.str();
-    route.addCallOpaqueStep(std::move(call));
-  }
-
-  out = std::move(route);
   return llvm::Error::success();
 }
 

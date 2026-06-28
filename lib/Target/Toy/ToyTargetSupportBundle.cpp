@@ -81,7 +81,6 @@ getToySelectedEmitCArtifactConfig(bool validateCandidate) {
       "Toy template materialized EmitC object artifact bridge";
   if (validateCandidate)
     config.candidateValidationFn = validateToySelectedObjectCandidate;
-  config.routeBuilderFn = plugin::toy::buildToyTemplateEmitCLowerableRoute;
   return config;
 }
 

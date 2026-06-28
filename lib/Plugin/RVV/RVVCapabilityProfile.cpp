@@ -1,7 +1,11 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -11,6 +15,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <utility>
@@ -104,7 +109,8 @@ bool hasRVVVectorHint(llvm::StringRef hints) {
   std::string lower = hints.lower();
   llvm::StringRef normalized(lower);
   if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv"))
+      normalized.contains("zvfh") || normalized.contains("gcv") ||
+      normalized.contains("xtheadvector"))
     return true;
 
   std::size_t position = lower.find("rv64");
@@ -134,20 +140,203 @@ bool isHexDigest(llvm::StringRef digest) {
   });
 }
 
-llvm::Error addAvailableCapability(support::TargetCapabilitySet &capabilities,
+llvm::Error addAvailableCapability(mlir::MLIRContext &context,
+                                   support::TargetCapabilitySet &capabilities,
                                    llvm::StringRef symbolName,
                                    llvm::StringRef id, llvm::StringRef kind,
                                    CapabilityProperties properties = {},
                                    llvm::ArrayRef<std::string> providedIDs =
                                        {}) {
+  tcrv::exec::CapabilityRelationsAttr relations;
+  if (!providedIDs.empty()) {
+    llvm::SmallVector<mlir::StringAttr, 4> provides;
+    provides.reserve(providedIDs.size());
+    for (const std::string &providedID : providedIDs)
+      provides.push_back(mlir::StringAttr::get(&context, providedID));
+    relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
+                                                         /*implies=*/{},
+                                                         /*conflicts=*/{});
+  }
   return capabilities.tryAddCapability(support::CapabilityDescriptor(
       symbolName, id, kind, kAvailableStatus,
       support::CapabilityAvailability::Available, std::move(properties),
-      providedIDs),
+      relations),
       "RVV probe capability construction");
 }
 
 } // namespace
+
+// Derives the RVV element-width (SEW) SUPPORT allow-list from the validated ISA
+// evidence (selected -march plus the probed isa/vector hint string). This is a
+// TARGET-CAPABILITY fact ("what element widths this configured target supports"),
+// NOT a plugin-selected compile-time config (the typed body owns its single
+// chosen SEW; see core-invariants I5 and capability-model/profiles.md: the probe
+// must not fabricate the SELECTED sew/lmul/tail/mask). The allow-list is the set
+// the legality gate (verifyRVVSelectedTargetCapabilityForTypedConfig /
+// checkCapabilityConfigGate) queries against the typed body's SEW. Mapping per
+// the RISC-V "V" vector spec EEW rules:
+//   * a base "v" / rv64gcv / zve64* configuration provides element widths up to
+//     64 (8/16/32/64);
+//   * an embedded zve32* configuration (no 64-bit element support) provides
+//     8/16/32 only;
+// fp16 (zvfh) is a float-width concern handled by the dtype path, not this SEW
+// integer-width allow-list. Returns "" when the evidence does not name a concrete
+// RVV element-width tier, so the capability simply declares no SEW restriction
+// (the gate then stays silent, the historical behaviour).
+std::string deriveSupportedSEWAllowList(llvm::StringRef selectedMarch,
+                                        llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  // 64-bit-element evidence: full "V" (rv64gcv / a bare "v" extension token),
+  // an explicit zve64* embedded vector tier, or the XuanTie xtheadvector full
+  // vector unit (RVV0.7 on the C920 -- a complete 8..64 element-width vector
+  // unit; it shares this SEW axis with RVV1.0 and diverges on the ISA GENERATION
+  // and on the LMUL axis -- RVV0.7 has no fractional LMUL, see
+  // deriveSupportedLMULAllowList).
+  bool hasElement64 = text.contains("zve64") || text.contains("gcv") ||
+                      text.contains("rv64gcv") || text.contains("xtheadvector");
+  // 32-bit-element-only embedded tier: zve32* without a zve64* token.
+  bool hasElement32Only = text.contains("zve32") && !text.contains("zve64");
+
+  if (hasElement32Only)
+    return "8,16,32";
+  if (hasElement64)
+    return "8,16,32,64";
+  return "";
+}
+
+// Derives the LMUL grouping SUPPORT allow-list. The ratified RVV1.0 generation
+// (full "V" / rv64gcv / embedded zve* tiers) provides the FRACTIONAL LMUL
+// groupings (mf8/mf4/mf2) alongside the whole multipliers (m1..m8). The
+// pre-ratification RVV0.7.1 generation (XuanTie xtheadvector on the C920) does
+// NOT: it has NO fractional LMUL at all -- empirically proven on hardware (the
+// XuanTie 0.7.1 vector header declares ZERO mf2/mf4/mf8 types, and a tcrv-opt-
+// emitted repack kernel fails to compile against `vint8mf2_t` /
+// `__riscv_vle8_v_i8mf2` there). So the RVV0.7 allow-list is exactly
+// {m1,m2,m4,m8} (whole multipliers only), while RVV1.0 keeps the full grid.
+// This is a SECOND N1 capability divergence axis (the SAME kernel selects a
+// different LMUL on RVV0.7 vs RVV1.0) and is derived off the RVV-GENERATION fact
+// (deriveRVVVersion), not a raw march substring beyond the version detection
+// (core-invariants I1/I3: gate on the version FACT, not the march string). As
+// with SEW, this is the support set the legality gate queries, never the body's
+// single selected LMUL. Unknown generation -> "" (no LMUL restriction).
+std::string deriveSupportedLMULAllowList(llvm::StringRef selectedMarch,
+                                         llvm::StringRef isaVectorHints) {
+  switch (deriveRVVVersion(selectedMarch, isaVectorHints)) {
+  case RVVVersion::RVV0p7:
+    // RVV0.7.1 (xtheadvector / C920): NO fractional LMUL exists on this
+    // generation -- whole multipliers only.
+    return "m1,m2,m4,m8";
+  case RVVVersion::RVV1p0:
+    // Ratified RVV1.0 (rv64gcv / a bare "v" / the embedded zve* tiers): the full
+    // grouping grid including the fractional mf8/mf4/mf2 rungs.
+    return "mf8,mf4,mf2,m1,m2,m4,m8";
+  case RVVVersion::Unknown:
+    // No concrete RVV generation named -> no LMUL restriction (gate stays
+    // silent on this axis, the historical behaviour).
+    return "";
+  }
+  return "";
+}
+
+// Derives whether the configured RVV target GUARANTEES Zvl128b (VLEN >= 128) as
+// a hard ISA fact. The ratified RISC-V "V" extension mandates Zvl128b, so a
+// full-V configuration (rv64gcv or a bare "v" token) guarantees VLEN >= 128. The
+// embedded zve32x / zve64x tiers mandate only Zvl32b / Zvl64b, so they do NOT
+// guarantee VLEN >= 128 unless an explicit zvl{N}b token with N >= 128 is named
+// (the conservative fallback: an embedded target that explicitly advertises
+// Zvl128b/Zvl256b/... genuinely guarantees >= 128). Mirrors deriveSupported*'s
+// march+hint tokenization. Note "zve32x"/"zve64x" contain a literal 'v', so the
+// full-V probe matches the "gcv" token or a bare "v" extension token, NOT any
+// stray 'v'.
+std::int64_t deriveMinimumVLEN(llvm::StringRef selectedMarch,
+                               llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  std::int64_t floorBits = 0;
+
+  // (1) Every explicit Zvl{N}b token raises the guaranteed minimum to N. Scan
+  // every "zvl" occurrence and parse its bit width; the legal Zvl widths are
+  // powers of two from 32 up (zvl32b .. zvl65536b). Take the LARGEST such floor
+  // (e.g. rv64gcv_zvl256b -> 256, rv64gcv_zvl512b -> 512).
+  std::size_t zvlPos = text.find("zvl");
+  while (zvlPos != llvm::StringRef::npos) {
+    std::size_t digitBegin = zvlPos + 3;
+    std::size_t digitEnd = digitBegin;
+    while (digitEnd < text.size() &&
+           std::isdigit(static_cast<unsigned char>(text[digitEnd])))
+      ++digitEnd;
+    if (digitEnd > digitBegin && digitEnd < text.size() &&
+        text[digitEnd] == 'b') {
+      std::uint64_t widthBits = 0;
+      if (!text.slice(digitBegin, digitEnd).getAsInteger(10, widthBits) &&
+          static_cast<std::int64_t>(widthBits) > floorBits)
+        floorBits = static_cast<std::int64_t>(widthBits);
+    }
+    zvlPos = text.find("zvl", zvlPos + 3);
+  }
+
+  // (2) Full "V" mandates Zvl128b by the ratified spec: rv64gcv / a "gcv" token,
+  // or a bare "v" vector extension token in the march (not a stray 'v' inside
+  // "zve32x"). Detect the full-V token by the "gcv" spelling or a "_v"/leading
+  // "v" extension token. The XuanTie xtheadvector full vector unit (RVV0.7 on
+  // the C920) likewise guarantees VLEN >= 128. This floors the minimum at 128 (a
+  // larger explicit Zvl token in (1) keeps precedence).
+  bool fullV = text.contains("gcv") || text.contains("_v") ||
+               text.contains("rv64v") || text.contains("rv32v") ||
+               text.contains("xtheadvector");
+  if (fullV && floorBits < 128)
+    floorBits = 128;
+
+  // (3) Embedded zve32x / zve64x without an explicit Zvl128b+ token: only
+  // Zvl32b / Zvl64b mandated -> NO guaranteed VLEN >= 128 minimum -> 0.
+  return floorBits;
+}
+
+bool deriveHasZvl128b(llvm::StringRef selectedMarch,
+                      llvm::StringRef isaVectorHints) {
+  // Zvl128b is exactly the >= 128-bit minimum-VLEN floor (the SAME march+hint
+  // tokenization; rv64gcv_zvl256b still true, embedded zve32x still false).
+  return deriveMinimumVLEN(selectedMarch, isaVectorHints) >= 128;
+}
+
+llvm::StringRef stringifyRVVVersion(RVVVersion version) {
+  switch (version) {
+  case RVVVersion::RVV1p0:
+    return "1.0";
+  case RVVVersion::RVV0p7:
+    return "0.7";
+  case RVVVersion::Unknown:
+    return "";
+  }
+  return "";
+}
+
+RVVVersion deriveRVVVersion(llvm::StringRef selectedMarch,
+                            llvm::StringRef isaVectorHints) {
+  std::string combined = (selectedMarch.lower() + " " + isaVectorHints.lower());
+  llvm::StringRef text(combined);
+
+  // (1) RVV0.7 markers are tested FIRST so a "gcv0p7" / "rv64gcv0p7" spelling
+  // does NOT fold to 1.0 via its embedded "gcv" substring. The portable spelling
+  // `rv64gc_xtheadvector` names the XuanTie 0.7.1 vector unit; an explicit "0p7"
+  // version suffix on the V token names the same pre-ratification generation.
+  if (text.contains("xtheadvector") || text.contains("0p7"))
+    return RVVVersion::RVV0p7;
+
+  // (2) Plain full-V (rv64gcv / a "gcv" token / a bare "v" / "rv64v" token) or an
+  // embedded zve* vector tier, with no 0.7 marker, is the ratified RVV1.0
+  // generation -- the one with the tail/mask-agnostic (ta/ma) policy.
+  if (text.contains("gcv") || text.contains("zve") || text.contains("rv64v") ||
+      text.contains("rv32v") || text.contains("_v"))
+    return RVVVersion::RVV1p0;
+
+  // (3) No concrete RVV generation named -> Unknown (the version fact stays
+  // silent; the downstream version gate is then a no-op on the version axis).
+  return RVVVersion::Unknown;
+}
 
 llvm::StringRef getRVVHartCountCapabilityID() {
   return kRVVHartCountCapabilityID;
@@ -260,37 +449,64 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
 
 llvm::Expected<support::TargetCapabilitySet>
 buildRVVTargetCapabilitiesFromProbeFacts(
-    const RVVProbeCapabilityFacts &facts) {
+    mlir::MLIRContext &context, const RVVProbeCapabilityFacts &facts) {
   if (llvm::Error error = validateRVVProbeCapabilityFacts(facts))
     return std::move(error);
 
   support::TargetCapabilitySet capabilities;
+  CapabilityProperties rvvProperties = {
+      {"architecture", normalizeFactString(facts.architecture)},
+      {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}};
+  // Derive the SEW / LMUL SUPPORT allow-lists from the validated ISA evidence so
+  // a real probed RVV capability carries the divergence axes the legality gate
+  // queries (supported_sew / supported_lmul). These are target-capability facts
+  // (what the configured target supports), derived in this plugin-local C++
+  // authority -- not probe-fabricated selected config (I5; profiles.md). An
+  // embedded zve32* tier narrows supported_sew to 8,16,32 (no 64) so a SEW=64
+  // body is gated out, while a full-V tier admits it: that is the capability-
+  // driven divergence on real ISA semantics.
+  std::string supportedSEW = deriveSupportedSEWAllowList(
+      facts.selectedMarch, facts.isaVectorHints);
+  if (!supportedSEW.empty())
+    rvvProperties["supported_sew"] = supportedSEW;
+  std::string supportedLMUL = deriveSupportedLMULAllowList(
+      facts.selectedMarch, facts.isaVectorHints);
+  if (!supportedLMUL.empty())
+    rvvProperties["supported_lmul"] = supportedLMUL;
+  // Derive the RVV ISA-generation fact (the deepest N1 divergence axis). RVV0.7
+  // (xtheadvector / C920) and RVV1.0 share the SEW/VLEN axes but diverge on the
+  // ratified ta/ma policy (an agnostic-policy body is RVV1.0-only) AND on the
+  // LMUL grid (RVV0.7 has no fractional LMUL -- see supportedLMUL above). The
+  // version is stamped as a queryable provider-op property the legality gate
+  // reads (mirroring supported_sew). Unknown -> no fact (the gate stays silent).
+  llvm::StringRef rvvVersion = stringifyRVVVersion(
+      deriveRVVVersion(facts.selectedMarch, facts.isaVectorHints));
+  if (!rvvVersion.empty())
+    rvvProperties["rvv_version"] = rvvVersion.str();
   if (llvm::Error error = addAvailableCapability(
-      capabilities, getRVVPreferredCapabilitySymbol(), getRVVCapabilityID(),
-      getRVVCapabilityKind(),
-      {{"architecture", normalizeFactString(facts.architecture)},
-       {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}}))
+      context, capabilities, getRVVPreferredCapabilitySymbol(),
+      getRVVCapabilityID(), getRVVCapabilityKind(), std::move(rvvProperties)))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVHartCountCapabilitySymbol(),
+          context, capabilities, getRVVHartCountCapabilitySymbol(),
           getRVVHartCountCapabilityID(), "uarch",
           {{"count", std::to_string(facts.hartCount)}},
           {support::getTargetHartCountCapabilityID().str()}))
     return std::move(error);
   if (facts.vlenbBytes) {
     if (llvm::Error error = addAvailableCapability(
-            capabilities, getRVVVLenBBytesCapabilitySymbol(),
+            context, capabilities, getRVVVLenBBytesCapabilitySymbol(),
             getRVVVLenBBytesCapabilityID(), "uarch",
             {{"bytes", std::to_string(facts.vlenbBytes)}}))
       return std::move(error);
   }
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVClangToolchainCapabilitySymbol(),
+          context, capabilities, getRVVClangToolchainCapabilitySymbol(),
           getRVVClangToolchainCapabilityID(), "toolchain",
           {{"version", normalizeFactString(facts.clangVersion)}}))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVCMakeToolchainCapabilitySymbol(),
+          context, capabilities, getRVVCMakeToolchainCapabilitySymbol(),
           getRVVCMakeToolchainCapabilityID(), "toolchain",
           {{"version", normalizeFactString(facts.cmakeVersion)}}))
     return std::move(error);
@@ -304,19 +520,19 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   if (!facts.binarySHA256.empty())
     compileRunProperties["binary_sha256"] = normalizeFactString(facts.binarySHA256);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVProbeCompileRunCapabilitySymbol(),
+          context, capabilities, getRVVProbeCompileRunCapabilitySymbol(),
           getRVVProbeCompileRunCapabilityID(), "toolchain",
           std::move(compileRunProperties)))
     return std::move(error);
 
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVSelectedMarchCapabilitySymbol(),
+          context, capabilities, getRVVSelectedMarchCapabilitySymbol(),
           getRVVSelectedMarchCapabilityID(), "toolchain",
           {{"value", normalizeFactString(facts.selectedMarch)}}))
     return std::move(error);
   if (!facts.selectedMABI.empty()) {
     if (llvm::Error error = addAvailableCapability(
-            capabilities, getRVVSelectedMABICapabilitySymbol(),
+            context, capabilities, getRVVSelectedMABICapabilitySymbol(),
             getRVVSelectedMABICapabilityID(), "toolchain",
             {{"value", normalizeFactString(facts.selectedMABI)}}))
       return std::move(error);

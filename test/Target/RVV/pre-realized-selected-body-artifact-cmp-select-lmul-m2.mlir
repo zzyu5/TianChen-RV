@@ -1,0 +1,66 @@
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+
+module {
+  tcrv.exec.kernel @pre_realized_body_cmp_select_lmul_m2_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_body_rvv_cmp_select_lmul_m2 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-cmp-select:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-cmp-select:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-cmp-select:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-cmp-select:n", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m2", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_body_rvv_cmp_select_lmul_m2 {origin = "rvv-plugin", policy = "pre-realized-selected-body-cmp-select-lmul-m2-case"}
+      tcrv.exec.fallback @pre_realized_body_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "pre-realized-selected-body-cmp-select-lmul-m2-fallback-envelope"}
+    }
+  }
+}
+
+// REALIZED-NOT: tcrv_rvv.typed_compare_select_pre_realized_body
+// REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
+// REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
+// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_cmp_select_lmul_m2
+// REALIZED: %[[LHS:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
+// REALIZED: %[[RHS:.*]] = tcrv_rvv.load
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
+// REALIZED: %[[MASK:.*]] = tcrv_rvv.compare %[[LHS]], %[[RHS]], %[[VL]]
+// REALIZED-SAME: kind = "sle"
+// REALIZED-SAME: -> !tcrv_rvv.mask<i32, "m2">
+// REALIZED: %[[SELECTED:.*]] = tcrv_rvv.select %[[MASK]], %[[LHS]], %[[RHS]], %[[VL]]
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m2">
+// REALIZED: tcrv_rvv.store
+// REALIZED-NOT: tcrv_rvv.typed_compare_select_pre_realized_body
+
+// PLAN: tcrv.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: {key = "rvv_selected_body_operation", value = "cmp_select"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.select"}
+// PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.element_type", value = "i32"}
+// PLAN-SAME: {key = "tcrv_rvv.sew", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m2"}
+// PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "sle"}
+// PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:cmp_select.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.plain_compare_select_route_family_plan", value = "rvv-plain-compare-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m2"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-compare-select-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.select_layout", value = "select-lhs-when-mask-else-rhs"}
+// PLAN-SAME: runtime_abi_name = "rvv-generic-cmp-select-callable-c-abi.v1"
+// PLAN-SAME: status = "supported"
+// PLAN-SAME: target = @pre_realized_body_rvv_cmp_select_lmul_m2
+
+// HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_cmp_select_lmul_m2
+// HEADER: tianchenrv.rvv.element_type: i32
+// HEADER: tianchenrv.rvv.compare_predicate_kind: sle
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-plain-compare-select-plan-validated
+// HEADER: tianchenrv.rvv.plain_compare_select_route_family_plan: rvv-plain-compare-select-route-family-plan.v1
+// HEADER: void tcrv_emitc_pre_realized_body_cmp_select_lmul_m2_kernel_pre_realized_body_rvv_cmp_select_lmul_m2(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

@@ -2,13 +2,44 @@ add_subdirectory(Construction)
 add_subdirectory(EmitC)
 
 add_mlir_library(TianChenRVRVVPlugin
+  RVVContractionSelectedBodyRealizationOwner.cpp
+  RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.cpp
+  RVVComputedMaskMAccSelectedBodyRealizationOwner.cpp
+  RVVComputedMaskMemorySelectedBodyRealizationOwner.cpp
+  RVVBaseMemoryMovementSelectedBodyRealizationOwner.cpp
+  RVVElementwiseSelectedBodyRealizationOwner.cpp
+  RVVMAccSelectedBodyRealizationOwner.cpp
+  RVVReductionSelectedBodyRealizationOwner.cpp
+  RVVRuntimeScalarMemorySelectedBodyRealizationOwner.cpp
+  RVVSegment2MemorySelectedBodyRealizationOwner.cpp
   RVVCapabilityProfile.cpp
+  RVVContractionPathSelection.cpp
+  RVVLowerQuantContraction.cpp
   RVVExtensionPlugin.cpp
+  RVVGearboxSchedules.cpp
+  RVVProbedCapabilityAxesMaterialization.cpp
+  RVVRepackStripWidthMaterialization.cpp
+  RVVQ40ScheduleMaterialization.cpp
+  RVVQ80ScheduleMaterialization.cpp
+  RVVQ41ScheduleMaterialization.cpp
+  RVVQ50ScheduleMaterialization.cpp
+  RVVQ51ScheduleMaterialization.cpp
+  RVVGemmScheduleMaterialization.cpp
+  RVVScheduleDescriptorRegistry.cpp
+  RVVUnifiedScheduleMaterialization.cpp
   RVVSelectedBodyRealization.cpp
+  RVVStandaloneReductionSelectedBodyRealizationOwner.cpp
+  RVVWideningConversionSelectedBodyRealizationOwner.cpp
   RVVVectorSourceFrontDoor.cpp
+  RVVReductionSourceFrontDoor.cpp
+  RVVDequantDotSourceFrontDoor.cpp
+  RVVQ40BlockDotSourceFrontDoor.cpp
+  RVVIQ4NLBlockDotSourceFrontDoor.cpp
+  RVVQ4KBlockDotSourceFrontDoor.cpp
 
   DEPENDS
   TianChenRVPassesIncGen
+  MLIRTunableScheduleOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
   TianChenRVRVVConstructionProtocol
@@ -17,9 +48,11 @@ add_mlir_library(TianChenRVRVVPlugin
   TianChenRVPlugin
   TianChenRVRVVTarget
   TianChenRVSupport
+  TianChenRVTransforms
   MLIRArithDialect
   MLIRFuncDialect
   MLIRIR
+  MLIRMemRefDialect
   MLIRPass
   MLIRSCFDialect
   MLIRSupport

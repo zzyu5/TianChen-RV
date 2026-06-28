@@ -72,9 +72,47 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::
         createMaterializeSelectedLoweringBoundariesPass(plugins);
   });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::
+        createMaterializeRVVProbedCapabilityAxesPass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::
+        createMaterializeRVVRepackStripWidthPass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVSchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ40SchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ80SchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ41SchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ50SchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVQ51SchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVGemmSchedulePass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVGearboxSchedulesPass();
+  });
   mlir::registerPass([&plugins] {
     return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createRVVLowerToEmitCPass();
+  });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createRVVLowerQuantContractionPass();
   });
   llvm::SmallVector<tianchenrv::plugin::SourceFrontDoorPassRegistration, 4>
       sourceFrontDoorPasses;

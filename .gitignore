@@ -5,10 +5,15 @@ __pycache__/
 .ruff_cache/
 
 build/
-build-classroom/
 cmake-build-*/
 dist/
 *.egg-info/
 
 artifacts/tmp/
 *.log
+
+
+.claude/settings.local.json
+/artifacts/p-a-fair-three-way/*/gen/
+/artifacts/p-a-fair-three-way/*/harness.c
+.claude/worktrees/

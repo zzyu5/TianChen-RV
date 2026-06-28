@@ -1,6 +1,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated/s//provider_supported_mirror:rvv-script-derived-plain-elementwise/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:add.v1/s//rvv-route-operand-binding:script-derived-add.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs,out,n/s//lhs,out,rhs,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-elementwise-arithmetic-route-family-plan.v1/s//rvv-script-derived-elementwise-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.memory_form", value = "vector-rhs-load"/s//tcrv_rvv.memory_form", value = "script-derived-memory-form"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-MEMORY
 
 // Pre-realized selected-body input. The RVV plugin must realize this bounded
 // typed body before the provider route/common EmitC/target path can
@@ -74,3 +81,38 @@ module {
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:add.v1
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+
+// STALE-ELEM-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-PROVIDER: tcrv_rvv.provider_supported_mirror
+// STALE-ELEM-PROVIDER-SAME: must mirror
+// STALE-ELEM-PROVIDER-SAME: rvv-script-derived-plain-elementwise
+
+// STALE-ELEM-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-BINDING: tcrv_rvv.route_operand_binding_plan
+// STALE-ELEM-BINDING-SAME: must mirror
+// STALE-ELEM-BINDING-SAME: rvv-route-operand-binding:script-derived-add.v1
+
+// STALE-ELEM-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-ABI: tcrv_rvv.runtime_abi_order
+// STALE-ELEM-ABI-SAME: must mirror
+// STALE-ELEM-ABI-SAME: lhs,out,rhs,n
+
+// STALE-ELEM-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-HEADER: tcrv_rvv.required_header_declarations
+// STALE-ELEM-HEADER-SAME: must mirror
+// STALE-ELEM-HEADER-SAME: stddef.h,stdint.h
+
+// STALE-ELEM-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-TYPE: tcrv_rvv.c_type_mapping
+// STALE-ELEM-TYPE-SAME: must mirror
+// STALE-ELEM-TYPE-SAME: vl:uint64_t
+
+// STALE-ELEM-PLAN: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-PLAN: tcrv_rvv.elementwise_arithmetic_route_family_plan
+// STALE-ELEM-PLAN-SAME: must mirror
+// STALE-ELEM-PLAN-SAME: rvv-script-derived-elementwise-plan.v1
+
+// STALE-ELEM-MEMORY: RVV materialized EmitC target artifact bridge failed
+// STALE-ELEM-MEMORY: tcrv_rvv.memory_form
+// STALE-ELEM-MEMORY-SAME: must mirror
+// STALE-ELEM-MEMORY-SAME: script-derived-memory-form

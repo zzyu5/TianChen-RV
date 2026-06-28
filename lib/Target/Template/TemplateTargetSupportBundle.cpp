@@ -82,8 +82,6 @@ getTemplateSelectedEmitCArtifactConfig(bool validateCandidate) {
       "Template construction-template materialized EmitC artifact adapter";
   if (validateCandidate)
     config.candidateValidationFn = validateTemplateSelectedObjectCandidate;
-  config.routeBuilderFn =
-      plugin::template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute;
   return config;
 }
 

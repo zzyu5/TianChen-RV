@@ -36,6 +36,7 @@ public:
   collectVariantProposals(const VariantProposalRequest &request,
                           VariantProposalCollectionResult &out) const override;
   llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out)
       const override;
   llvm::Error
@@ -53,9 +54,6 @@ public:
       VariantLoweringBoundaryResult &out) const override;
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const override;
-  llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
   llvm::Error
   configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;

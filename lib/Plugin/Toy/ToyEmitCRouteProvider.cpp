@@ -107,9 +107,9 @@ getToyComputeSourceProvenance(tcrv::toy::ComputeSkeletonOp compute) {
 
 } // namespace
 
-llvm::Error buildToyTemplateEmitCLowerableRoute(
+llvm::Error validateToyTemplateEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCLowerableRoute &out) {
+    emitc::TCRVEmitCSourceOpProvenance &outSource) {
   if (llvm::Error error = verifyToyConstructionProtocolReady())
     return error;
 
@@ -134,29 +134,7 @@ llvm::Error buildToyTemplateEmitCLowerableRoute(
           constructionRoute.runtimeGlueRole))
     return error;
 
-  emitc::TCRVEmitCLowerableRoute route(
-      constructionRoute.routeID,
-      "extension-family-ops-to-emitc-call-opaque");
-  route.addHeader("stddef.h");
-  route.addHeader("stdint.h");
-  route.addABIValueMapping(getToyTemplateRuntimeABIParameters().front(),
-                           "toy_value_count");
-  llvm::StringRef parameterTypes[] = {"size_t"};
-  route.addFunctionDeclaration(constructionRoute.callee,
-                               constructionRoute.resultCType,
-                               parameterTypes);
-  route.addSourceOpProvenance(*source);
-
-  emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = std::move(*source);
-  step.callee = constructionRoute.callee.str();
-  step.operands.push_back({"toy_value_count", "size_t"});
-  step.result = emitc::TCRVEmitCCallOpaqueResult{
-      constructionRoute.resultName.str(),
-      constructionRoute.resultCType.str()};
-  route.addCallOpaqueStep(std::move(step));
-
-  out = std::move(route);
+  outSource = std::move(*source);
   return llvm::Error::success();
 }
 

@@ -112,10 +112,6 @@ llvm::Error makeToyPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-llvm::Error verifyToyConstructionProtocolReady() {
-  return toy::verifyToyConstructionProtocolReady();
-}
-
 bool hasAvailableToyTemplateCapability(
     const VariantProposalRequest &request) {
   if (!request.getKernel())
@@ -306,139 +302,6 @@ buildToyTemplateProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-llvm::Expected<bool>
-variantRequiresToyTemplate(tcrv::exec::VariantOp variant,
-                           const support::TargetCapabilitySet &capabilities) {
-  auto requiresAttr =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiresAttr)
-    return makeToyPluginError(
-        "materialized Toy variant requires structured 'requires' metadata");
-
-  for (mlir::Attribute requiredCapability : requiresAttr) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return makeToyPluginError(
-          "materialized Toy variant requires only capability symbol "
-          "references");
-
-    const support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      continue;
-
-    if (capability->satisfiesID(kToyTemplateCapabilityID))
-      return true;
-  }
-
-  return false;
-}
-
-llvm::Error verifyToyVariantMetadata(
-    tcrv::exec::VariantOp variant,
-    const ToyTemplateCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyToyConstructionProtocolReady())
-    return error;
-
-  const toy::ToyConstructionManifest &manifest =
-      toy::getToyConstructionManifest();
-  auto templateABI =
-      variant->getAttrOfType<mlir::StringAttr>(kToyTemplateABIAttrName);
-  if (!templateABI || templateABI.getValue().trim().empty())
-    return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_toy.template_abi' metadata");
-  if (templateABI.getValue() != capabilityView.templateABI)
-    return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
-                              variant.getSymName() +
-                              " template ABI metadata is not satisfied by "
-                              "preserved capability property 'template_abi'");
-
-  auto handoffKind =
-      variant->getAttrOfType<mlir::StringAttr>(kToyHandoffKindAttrName);
-  if (!handoffKind || handoffKind.getValue().trim().empty())
-    return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
-                              variant.getSymName() +
-                              " requires non-empty string "
-                              "'tcrv_toy.handoff_kind' metadata");
-  if (handoffKind.getValue() != capabilityView.handoffKind)
-    return makeToyPluginError(llvm::Twine("materialized Toy variant @") +
-                              variant.getSymName() +
-                              " handoff kind metadata is not satisfied by "
-                              "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kToyConstructionProtocolAttrName + "'");
-
-  auto archetype =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kToyConstructionArchetypeAttrName + "'");
-
-  auto roleGraph =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToySemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kToySemanticRoleGraphAttrName + "'");
-
-  auto interfaces =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != toy::getToyConstructionInterfaceRealization())
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kToyCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != toy::getToyTypedRoleRealizationSummary())
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kToyTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kToyEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile =
-      variant->getAttrOfType<mlir::StringAttr>(
-          kToyEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kToyEvidenceProfileAttrName + "'");
-
-  return llvm::Error::success();
-}
-
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
 }
@@ -606,7 +469,9 @@ llvm::Error ToyExtensionPlugin::collectVariantProposals(
 }
 
 llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(), "tcrv-toy-materialize-template-source-front-door",
       "Materialize one bounded Toy construction-template source marker into "
@@ -619,35 +484,13 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
 
 llvm::Error ToyExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  tcrv::exec::VariantOp variant = request.getVariant();
-  if (!variant)
-    return makeToyPluginError(
-        "legality verification requires a materialized tcrv.exec.variant");
-
-  auto originAttr =
-      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!originAttr || originAttr.getValue() != kToyPluginName)
-    return makeToyPluginError(
-        "materialized Toy variant must be owned by origin 'toy-plugin'");
-
-  llvm::Expected<ToyTemplateCapabilityView> capabilityView =
-      buildToyTemplateCapabilityView(request.getCapabilities());
-  if (!capabilityView)
-    return capabilityView.takeError();
-
-  llvm::Expected<bool> requiresToy =
-      variantRequiresToyTemplate(variant, request.getCapabilities());
-  if (!requiresToy)
-    return requiresToy.takeError();
-
-  if (!*requiresToy)
-    return makeToyPluginError(
-        "materialized Toy variant must require capability id 'toy.template'");
-
-  if (llvm::Error error = verifyToyVariantMetadata(variant, *capabilityView))
-    return error;
-
-  return llvm::Error::success();
+  // The legality predicate (capability conformance + variant
+  // metadata-vs-manifest) is owned by the construction-protocol lib so the
+  // typed-emission backend driver can share the EXACT authority (its
+  // convert-set must equal this success-set). This emits the fail-closed
+  // diagnostic; the driver declines on the same error.
+  return toy::verifyToySelectedVariantLegality(
+      request.getVariant(), request.getKernel(), request.getCapabilities());
 }
 
 llvm::Error ToyExtensionPlugin::estimateVariantCost(
@@ -689,12 +532,12 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route)) {
+          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kToyPluginName, request.getVariant().getSymName(), diagnostic);
@@ -702,7 +545,8 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
   }
 
   out = VariantEmissionStatus::getSupported(
-      kToyPluginName, request.getVariant().getSymName(), route.getRouteID());
+      kToyPluginName, request.getVariant().getSymName(),
+      toy::getToyTemplateEmitCConstructionRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -726,24 +570,18 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route))
+          toy::validateToyTemplateEmitCRouteReadiness(routeRequest, source))
     return error;
-  if (route.getSourceOpProvenance().empty())
-    return makeToyPluginError(
-        "Toy target artifact emission plan requires route source-op "
-        "provenance before artifact export");
 
   const toy::ToyConstructionManifest &manifest =
       toy::getToyConstructionManifest();
   const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
       toy::getToyTemplateEmitCConstructionRoute();
-  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
-      route.getSourceOpProvenance().front();
 
   out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
@@ -759,7 +597,8 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
   out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(toy::getToyTemplateRuntimeABIParameters());
-  out.addArtifactMetadata(kToyRouteArtifactMetadataKey, route.getRouteID());
+  out.addArtifactMetadata(kToyRouteArtifactMetadataKey,
+                          constructionRoute.routeID);
   out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source.opName);
   out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source.role);
   out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
@@ -887,24 +726,6 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
 
   return llvm::Error::success();
-}
-
-llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeToyPluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeToyPluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  return toy::buildToyTemplateEmitCLowerableRoute(request, out);
 }
 
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(

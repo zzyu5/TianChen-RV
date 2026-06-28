@@ -9,6 +9,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <optional>
+
 namespace tianchenrv::plugin::rvv {
 
 struct RVVSelectedBodyRealizationOwner {
@@ -18,8 +20,12 @@ struct RVVSelectedBodyRealizationOwner {
 
   llvm::StringLiteral familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ConsumerPredicate isRouteEntryConsumer = nullptr;
   RealizationHook realize = nullptr;
+};
+
+struct RVVPreRealizedSelectedBodyMatch {
+  mlir::Operation *bodyOp = nullptr;
+  llvm::StringRef familyName;
 };
 
 llvm::ArrayRef<RVVSelectedBodyRealizationOwner>
@@ -29,30 +35,12 @@ llvm::Expected<const RVVSelectedBodyRealizationOwner *>
 getRVVSelectedBodyRealizationOwnerForBody(mlir::Operation *bodyOp,
                                           llvm::StringRef context);
 
+std::optional<RVVPreRealizedSelectedBodyMatch>
+findFirstPreRealizedRVVSelectedBodyMatch(tcrv::exec::VariantOp variant);
+
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 
-bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
-    tcrv::exec::VariantOp variant);
-
-bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
-    tcrv::exec::VariantOp variant);
-
-struct RVVElementwiseCompareSelectRealizationResult {
-  tcrv::rvv::WithVLOp boundary;
-
-  bool applies() const { return static_cast<bool>(boundary); }
-};
-
-llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
-realizePreRealizedRVVElementwiseCompareSelectCluster(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
-    const VariantLoweringBoundaryRequest &request);
-
-llvm::Expected<tcrv::rvv::WithVLOp>
-realizePreRealizedRVVRouteEntrySelectedBody(
+llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
 
 llvm::Expected<tcrv::rvv::WithVLOp>

@@ -60,20 +60,14 @@ struct RVVSelectedBodyConstructionMetadataFacts {
 };
 
 llvm::StringRef getRVVConstructionProtocolVersion();
-llvm::StringRef getRVVConstructionArchetype();
-llvm::StringRef getRVVConstructionSemanticRoleGraph();
-llvm::StringRef getRVVConstructionInterfaceRealization();
-llvm::StringRef getRVVTypedRoleRealizationSummary();
 llvm::StringRef getRVVConstructionArtifactInterfaceRealization();
 llvm::StringRef getRVVArtifactTypedRoleRealizationSummary();
-llvm::StringRef getRVVConstructionEvidenceProfile();
 llvm::StringRef getRVVSelectedBodySourceOps();
 llvm::StringRef getRVVSelectedBodySourceRoles();
 llvm::StringRef getRVVEmitCLowerableOpInterfaceName();
 
 llvm::StringRef getRVVEmitCLowerableRouteMetadataName();
 llvm::StringRef getRVVSelectedBodyOperationMetadataName();
-llvm::StringRef getRVVSelectedBodyTypedComputeOpMetadataName();
 llvm::StringRef getRVVSourceOpsMetadataName();
 llvm::StringRef getRVVSourceRolesMetadataName();
 llvm::StringRef getRVVSourceOpInterfaceMetadataName();
@@ -86,8 +80,6 @@ llvm::StringRef getRVVEmitCRouteMappingMetadataName();
 llvm::StringRef getRVVTargetArtifactRouteMetadataName();
 llvm::StringRef getRVVTargetArtifactKindMetadataName();
 llvm::StringRef getRVVEvidenceProfileMetadataName();
-llvm::StringRef getRVVRuntimeABINameMetadataName();
-llvm::StringRef getRVVRuntimeABIContractMetadataName();
 llvm::StringRef getRVVBundleComponentGroupMetadataName();
 llvm::StringRef getRVVObjectHandoffMetadataName();
 llvm::StringRef getRVVSourceKernelAttrName();
@@ -96,11 +88,6 @@ llvm::StringRef getRVVOriginAttrName();
 llvm::StringRef getRVVSelectedPathRoleAttrName();
 llvm::StringRef getRVVStatusAttrName();
 llvm::StringRef getRVVRequiredCapabilitiesAttrName();
-llvm::StringRef getRVVTypedRoleAttrName();
-llvm::StringRef getRVVRoleOrderAttrName();
-llvm::StringRef getRVVSourceRoleAttrName();
-llvm::StringRef getRVVRoleSpecificInterfaceAttrName();
-llvm::StringRef getRVVRoleOpBoundaryStatus();
 llvm::StringRef getRVVLoweringBoundaryStatus();
 
 const RVVConstructionManifest &getRVVConstructionManifest();
@@ -158,20 +145,12 @@ llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
     llvm::StringRef operationMnemonic);
 llvm::Expected<const RVVSelectedBodyConstructionRoute *>
-lookupRVVSelectedBodyConstructionRouteByTypedComputeOpName(
-    llvm::StringRef typedComputeOpName);
-llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRVVSelectedBodyConstructionRouteByEmitCRouteID(
     llvm::StringRef emitCRouteID);
 
 llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
                                             llvm::StringRef role);
 llvm::Error verifyRVVRuntimeABIValueRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVSetVLRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVWithVLRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVLoadRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVComputeRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVStoreRoleOpInterface(mlir::Operation *roleOp);
 
 llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,

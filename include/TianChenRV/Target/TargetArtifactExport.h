@@ -29,10 +29,6 @@ class PluginTargetArtifactExporterRegistry;
 
 } // namespace tianchenrv::target
 
-namespace tianchenrv::conversion::emitc {
-class TCRVEmitCLowerableRoute;
-} // namespace tianchenrv::conversion::emitc
-
 namespace tianchenrv::plugin {
 class ExtensionBundleRegistry;
 class ExtensionPluginRegistry;
@@ -59,9 +55,6 @@ using TargetArtifactCompositeRuntimeABIParametersFn =
     std::function<llvm::Expected<
         llvm::SmallVector<support::RuntimeABIParameter, 5>>(
         llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
-using SelectedEmitCArtifactRouteBuilderFn = llvm::Error (*)(
-    const plugin::VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out);
 using SelectedEmitCArtifactFunctionNameFn =
     std::string (*)(tcrv::exec::KernelOp kernel,
                     tcrv::exec::VariantOp variant);
@@ -135,7 +128,6 @@ struct SelectedEmitCArtifactRouteConfig {
   llvm::StringRef originPlugin;
   llvm::StringRef routeDescription;
   TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
-  SelectedEmitCArtifactRouteBuilderFn routeBuilderFn = nullptr;
   SelectedEmitCArtifactFunctionNameFn functionNameFn = nullptr;
 };
 
@@ -367,6 +359,13 @@ private:
   llvm::StringMap<llvm::SmallVector<PluginTargetArtifactExporterBundle, 2>>
       bundlesByPlugin;
 };
+
+// I7 fail-closed guard: family-agnostic pure string predicate. Returns true if
+// `lower` contains a forbidden direct-C/source-export marker ("direct_c" or
+// "direct-c", excluding the allowed "direct-contraction" token). Shared by the
+// common Target export path and family target-support bundles so the guard has a
+// single source of truth.
+bool containsForbiddenDirectCMarker(llvm::StringRef lower);
 
 llvm::Error registerTargetArtifactExportersForEnabledExtensionBundles(
     const plugin::ExtensionBundleRegistry &bundles,

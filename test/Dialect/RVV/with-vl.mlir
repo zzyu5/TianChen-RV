@@ -122,9 +122,13 @@ module {
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } : index -> !tcrv_rvv.vl
+    // SEW16 LMUL m8 on the with_vl is rejected by the config check (which fires
+    // before the setvl/with_vl-match check): not a first-slice dataflow config
+    // and not a deferred-wide dot-reduce strip rung (the i16 source rungs cap at
+    // m4). The setvl above stays a valid SEW32/m1 first-slice config.
     // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2", or SEW64 with LMUL "m1"}}
     tcrv_rvv.with_vl %vl attributes {
-      lmul = "m1",
+      lmul = "m8",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 16 : i64
     } {

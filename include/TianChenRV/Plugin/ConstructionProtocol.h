@@ -190,7 +190,6 @@ struct ConstructionConformanceGateSpec {
 };
 
 bool hasEvidence(llvm::StringRef profile, llvm::StringRef evidence);
-bool isValidCIdentifier(llvm::StringRef value);
 
 llvm::Error verifyConstructionManifest(const Manifest &manifest,
                                        const ValidationSpec &spec);
@@ -234,9 +233,6 @@ llvm::Error verifyConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> expected,
     const ValidationSpec &spec, llvm::StringRef context);
-
-void emitTypedRoleGraphRealization(
-    llvm::raw_ostream &os, const TypedRoleGraphRealization &realization);
 
 } // namespace tianchenrv::plugin::construction
 

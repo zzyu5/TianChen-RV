@@ -48,10 +48,16 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "indexed_gather_unit_store"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.move"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "indexed-load-unit-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "data,index,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:indexed_gather_unit_store.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:abi|materialized-indexed-data-base|indexed-load-base|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"}
+// PLAN-SAME: {key = "tcrv_rvv.base_memory_movement_route_family_plan", value = "rvv-base-memory-movement-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.indexed_memory_layout", value = "element-indexed-data-index-unit-stride-output-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.index_source", value = "runtime_abi:index"}
 // PLAN-SAME: {key = "tcrv_rvv.index_eew", value = "32"}
@@ -71,6 +77,11 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-indexed-gather-unit-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: data,index,out,n
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:indexed_gather_unit_store.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:abi|materialized-indexed-data-base|indexed-load-base|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr
+// HEADER: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1
 // HEADER: void tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store(const int32_t *data, const uint32_t *index, int32_t *out, size_t n);

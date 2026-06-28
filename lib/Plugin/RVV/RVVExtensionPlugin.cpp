@@ -7,7 +7,13 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVIQ4NLBlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVQ40BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVQ4KBlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
@@ -19,10 +25,14 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <optional>
 #include <string>
 
 namespace tianchenrv::plugin {
@@ -86,6 +96,137 @@ llvm::Error requireRVVSelectedVariant(tcrv::exec::VariantOp variant) {
   return requireExplicitTypedRVVBody(variant);
 }
 
+bool isRVVGearboxProductReduceDequantConsumerScope(
+    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp candidate) {
+  if (!producerWithVL || !candidate || producerWithVL == candidate ||
+      candidate.getVl() != producerWithVL.getVl() ||
+      !producerWithVL->isProperAncestor(candidate.getOperation()))
+    return false;
+
+  auto isHandoffConsumingDequantize = [&](tcrv::rvv::DequantizeOp dequantize) {
+    auto handoff = dequantize.getSource()
+                       .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+    return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
+           dequantize->getParentOp() == candidate.getOperation() &&
+           dequantize.getVl() == producerWithVL.getVl();
+  };
+
+  auto valueUsesHandoffDequantize = [&](mlir::Value value) {
+    llvm::SmallVector<mlir::Value, 4> worklist{value};
+    llvm::SmallPtrSet<mlir::Value, 4> seen;
+    while (!worklist.empty()) {
+      mlir::Value current = worklist.pop_back_val();
+      if (!seen.insert(current).second)
+        continue;
+      if (auto dequantize = current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+        if (isHandoffConsumingDequantize(dequantize))
+          return true;
+        continue;
+      }
+      auto select = current.getDefiningOp<tcrv::rvv::SelectOp>();
+      if (!select || select->getParentOp() != candidate.getOperation() ||
+          select.getVl() != producerWithVL.getVl())
+        continue;
+      worklist.push_back(select.getTrueValue());
+      worklist.push_back(select.getFalseValue());
+    }
+    return false;
+  };
+
+  bool hasRegionMarker = false;
+  bool hasHandoffDequantize = false;
+  bool hasStore = false;
+  for (mlir::Operation &op : candidate.getBody().front()) {
+    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+      const bool usesGroupedLowPrecisionDecision =
+          marker.getResourceDecision() ==
+          rvv::kRVVLowPrecisionResourceGroupedRealizationDecision;
+      const bool usesPackedI4LowPrecisionDecision =
+          marker.getResourceDecision() ==
+          rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision;
+      hasRegionMarker =
+          marker.getPhase() == "dequant-store" &&
+          static_cast<std::int64_t>(marker.getRegionIndex()) ==
+              (usesGroupedLowPrecisionDecision ? 3 : 2) &&
+          static_cast<std::int64_t>(marker.getRegionCount()) ==
+              (usesGroupedLowPrecisionDecision
+                   ? rvv::kRVVLowPrecisionResourceGroupedVSetVLRegions
+                   : rvv::kRVVLowPrecisionResourceVSetVLRegions) &&
+          (marker.getResourceDecision() ==
+               rvv::kRVVLowPrecisionResourceRealizationDecision ||
+           usesGroupedLowPrecisionDecision ||
+           usesPackedI4LowPrecisionDecision) &&
+          marker.getVl() == producerWithVL.getVl();
+      continue;
+    }
+    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+      if (isHandoffConsumingDequantize(dequantize))
+        hasHandoffDequantize = true;
+      continue;
+    }
+    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+      if (store.getVl() == producerWithVL.getVl() &&
+          valueUsesHandoffDequantize(store.getValue()))
+        hasStore = true;
+      continue;
+    }
+  }
+  return hasRegionMarker && hasHandoffDequantize && hasStore;
+}
+
+bool hasDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
+  bool found = false;
+  for (mlir::Operation &op : withVL.getBody().front()) {
+    if (llvm::isa<tcrv::rvv::GearboxCrossRegionHandoffOp>(op)) {
+      if (found)
+        return false;
+      found = true;
+    }
+  }
+  return found;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
+    llvm::ArrayRef<tcrv::rvv::WithVLOp> withVLs) {
+  if (withVLs.size() != 2)
+    return makeRVVPluginError(
+        "selected RVV typed lowering boundary requires exactly one "
+        "tcrv_rvv.with_vl op, or a bounded Gearbox producer/consumer "
+        "two-with_vl body");
+
+  tcrv::rvv::WithVLOp producerWithVL;
+  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+    if (!hasDirectRVVGearboxCrossRegionHandoff(withVL))
+      continue;
+    if (producerWithVL)
+      return makeRVVPluginError(
+          "selected RVV Gearbox typed lowering boundary requires a unique "
+          "producer tcrv_rvv.with_vl with a direct "
+          "tcrv_rvv.gearbox_cross_region_handoff");
+    producerWithVL = withVL;
+  }
+  if (!producerWithVL)
+    return makeRVVPluginError(
+        "selected RVV Gearbox typed lowering boundary requires a producer "
+        "tcrv_rvv.with_vl with a direct "
+        "tcrv_rvv.gearbox_cross_region_handoff");
+
+  tcrv::rvv::WithVLOp consumerWithVL;
+  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+    if (withVL == producerWithVL)
+      continue;
+    if (isRVVGearboxProductReduceDequantConsumerScope(producerWithVL, withVL))
+      consumerWithVL = withVL;
+  }
+  if (!consumerWithVL)
+    return makeRVVPluginError(
+        "selected RVV Gearbox typed lowering boundary requires a nested "
+        "consumer tcrv_rvv.with_vl with matching VL, dequant-store marker, "
+        "handoff-consuming dequantize, and store facts");
+
+  return producerWithVL;
+}
+
 llvm::Expected<tcrv::rvv::WithVLOp>
 findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
   if (!variant)
@@ -106,39 +247,57 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
     return makeRVVPluginError(
         "selected RVV typed lowering boundary requires exactly one "
         "tcrv_rvv.setvl op");
-  if (withVLs.size() != 1)
-    return makeRVVPluginError(
-        "selected RVV typed lowering boundary requires exactly one "
-        "tcrv_rvv.with_vl op");
+  tcrv::rvv::WithVLOp selectedWithVL;
+  if (withVLs.size() == 1) {
+    selectedWithVL = withVLs.front();
+  } else {
+    llvm::Expected<tcrv::rvv::WithVLOp> gearboxProducer =
+        findSelectedRVVGearboxProducerBoundary(withVLs);
+    if (!gearboxProducer)
+      return gearboxProducer.takeError();
+    selectedWithVL = *gearboxProducer;
+  }
 
   tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
       tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(setvls.front(),
-                                                          withVLs.front());
+                                                          selectedWithVL);
   if (!configDiagnostic.ok)
     return makeRVVPluginError(configDiagnostic.message);
 
-  return withVLs.front();
+  return selectedWithVL;
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-getOrRealizeRVVSelectedBodyRouteBoundary(
+requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
     const VariantLoweringBoundaryRequest &request) {
   llvm::Expected<tcrv::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  std::optional<rvv::RVVPreRealizedSelectedBodyMatch> preRealizedBody =
+      rvv::findFirstPreRealizedRVVSelectedBodyMatch(request.getVariant());
   if (boundary) {
-    if (rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+    if (preRealizedBody)
       return makeRVVPluginError(
-          "pre-realized RVV selected body must not be mixed with an already "
-          "realized setvl/with_vl body before route construction");
+          llvm::Twine("pre-realized RVV selected body '") +
+          preRealizedBody->bodyOp->getName().getStringRef() +
+          "' owned by selected-body realization owner '" +
+          preRealizedBody->familyName +
+          "' must not be mixed with an already realized setvl/with_vl body "
+          "before route construction");
     return *boundary;
   }
 
   llvm::Error boundaryError = boundary.takeError();
-  if (!rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+  if (!preRealizedBody)
     return std::move(boundaryError);
   llvm::consumeError(std::move(boundaryError));
 
-  return rvv::realizePreRealizedRVVRouteEntrySelectedBody(request);
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV selected body '") +
+      preRealizedBody->bodyOp->getName().getStringRef() +
+      "' owned by selected-body realization owner '" +
+      preRealizedBody->familyName +
+      "' must use public selected lowering-boundary materialization before "
+      "provider route construction");
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
@@ -212,11 +371,21 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
           request.getKernel(), variant, request.getRole(), boundary))
     return error;
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  // Stage 3 换心 decouple (PATH B, boundary can-build gate). This validator
+  // builds a throwaway string route purely as a "can this selected body lower"
+  // gate. For a converted family that capability is guaranteed — and proven
+  // more directly — by the real RVV->emitc DialectConversion fully legalizing
+  // the body, so the redundant string-route can-build check (and the legacy
+  // statement-plan owner it dispatches into) is skipped. A not-yet-converted
+  // family keeps firing the string can-build gate so its owner still validates
+  // lowerability. Zero family-name branch — purely "did the conversion
+  // legalize this body."
   VariantEmitCLowerableRequest routeRequest(variant, request.getKernel(),
                                             request.getCapabilities(),
                                             request.getRole());
-  return rvv::buildRVVSelectedBodyEmitCLowerableRoute(routeRequest, route);
+  if (rvv::rvvSelectedBodyFullyConvertsToEmitC(routeRequest))
+    return llvm::Error::success();
+  return rvv::refuseRetiredRVVSelectedBodyStringRoute(routeRequest);
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -270,15 +439,25 @@ RVVExtensionPlugin::verifyExecutableConstructionConformance() const {
 }
 
 llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
+    const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
-  out.push_back(SourceFrontDoorPassRegistration(
-      kRVVPluginName, "tcrv-rvv-fail-closed-legacy-vector-source-front-door",
-      "Fail closed for the legacy RVV source-front-door materializer "
-      "during Stage 1; use explicit generic typed tcrv_rvv bodies instead",
-      [] { return createFailClosedRVVLegacyVectorSourceFrontDoorPass(); },
-      SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
-          ExplicitOnly));
-  return llvm::Error::success();
+  if (llvm::Error error = registerRVVVectorSourceFrontDoorFamilyPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVReductionSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVDequantDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVQ40BlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVIQ4NLBlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  return rvv::registerRVVQ4KBlockDotSourceFrontDoorPasses(kRVVPluginName,
+                                                          registry, out);
 }
 
 bool RVVExtensionPlugin::supportsOperation(
@@ -309,8 +488,8 @@ llvm::Error RVVExtensionPlugin::collectVariantProposals(
 
 llvm::Expected<support::TargetCapabilitySet>
 RVVExtensionPlugin::buildTargetCapabilitiesFromProbeFacts(
-    const RVVProbeCapabilityFacts &facts) const {
-  return buildRVVTargetCapabilitiesFromProbeFacts(facts);
+    mlir::MLIRContext &context, const RVVProbeCapabilityFacts &facts) const {
+  return buildRVVTargetCapabilitiesFromProbeFacts(context, facts);
 }
 
 llvm::Error RVVExtensionPlugin::verifyVariantLegality(
@@ -426,7 +605,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
 
   mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVSelectedBodyRouteBoundary(
+      requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
               request.getCapabilities(), request.getRole(), builder));
@@ -439,12 +618,17 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest))
     return error;
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  // Stage 1 (description-engine retirement). The emission plan is built ENTIRELY
+  // from the route DESCRIPTION (runtimeABIName + the construction / config
+  // artifact metadata below); no string route is ever materialized. A
+  // not-yet-converted (retired legacy) body has already been refused
+  // fail-closed by validateSelectedRVVSelectedBodyBoundary above (its convert
+  // gate), so a body that reaches here is describable from the typed body alone.
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
-      describeRVVSelectedBodyEmitCRoute(routeRequest, &route);
+      describeRVVSelectedBodyEmitCRoute(routeRequest);
   if (!routeDescription)
     return routeDescription.takeError();
 
@@ -530,33 +714,6 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   return validateSelectedRVVSelectedBodyBoundary(request);
-}
-
-llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  if (!request.getVariant())
-    return makeRVVPluginError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeRVVPluginError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  mlir::OpBuilder builder(request.getVariant().getContext());
-  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVSelectedBodyRouteBoundary(
-          VariantLoweringBoundaryRequest(
-              request.getVariant(), request.getKernel(),
-              request.getCapabilities(), request.getRole(), builder));
-  if (!selectedBoundary)
-    return selectedBoundary.takeError();
-
-  return buildRVVSelectedBodyEmitCLowerableRoute(request, out);
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(

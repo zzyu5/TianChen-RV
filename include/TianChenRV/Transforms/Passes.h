@@ -68,9 +68,21 @@ std::unique_ptr<::mlir::Pass> createMaterializeSelectedLoweringBoundariesPass();
 std::unique_ptr<::mlir::Pass>
 createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createMaterializeRVVProbedCapabilityAxesPass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVRepackStripWidthPass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVSchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ40SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ80SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ41SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ50SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVQ51SchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVGemmSchedulePass();
+std::unique_ptr<::mlir::Pass> createMaterializeRVVGearboxSchedulesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
     const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createRVVLowerToEmitCPass();
+std::unique_ptr<::mlir::Pass> createRVVLowerQuantContractionPass();
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass();
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass(
     const plugin::ExtensionPluginRegistry &plugins,

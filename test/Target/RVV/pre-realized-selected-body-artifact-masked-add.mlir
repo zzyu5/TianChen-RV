@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"/s//tcrv_rvv.mask_role", value = "script-derived-mask-role"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASK-ROLE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.masked_passthrough_layout", value = "passthrough-vector-preserves-inactive-lanes"/s//tcrv_rvv.masked_passthrough_layout", value = "script-derived-passthrough-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASK-PASSTHROUGH
 
 // Pre-realized masked selected-body input. The RVV plugin must consume the
 // explicit mask-source and passthrough facts into typed tcrv_rvv compare and
@@ -82,3 +84,13 @@ module {
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_add.v1
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|masked-add-lhs-call|masked-merge-passthrough-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|masked-add-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+
+// STALE-MASK-ROLE: RVV materialized EmitC target artifact bridge failed
+// STALE-MASK-ROLE: tcrv_rvv.mask_role
+// STALE-MASK-ROLE-SAME: must mirror
+// STALE-MASK-ROLE-SAME: script-derived-mask-role
+
+// STALE-MASK-PASSTHROUGH: RVV materialized EmitC target artifact bridge failed
+// STALE-MASK-PASSTHROUGH: tcrv_rvv.masked_passthrough_layout
+// STALE-MASK-PASSTHROUGH-SAME: must mirror
+// STALE-MASK-PASSTHROUGH-SAME: script-derived-passthrough-layout

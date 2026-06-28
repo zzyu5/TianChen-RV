@@ -273,6 +273,525 @@ def MaterializeSelectedLoweringBoundaries
   ];
 }
 
+def MaterializeRVVProbedCapabilityAxes
+    : Pass<"tcrv-rvv-materialize-probed-capability-axes", "::mlir::ModuleOp"> {
+  let summary = "Materialize probe/profile-derived RVV divergence axes onto in-IR capability providers";
+  let description = [{
+    Mirrors the RVV plugin-local capability authority's derived target-support
+    axes onto the in-kernel tcrv.exec.capability / tcrv.exec.target provider ops
+    that the legality gate already queries. Given a selected RVV -march (and an
+    optional probed isa/vector-hint string), the pass calls the same plugin-local
+    authority the probe->capability conversion uses
+    (deriveSupportedSEWAllowList / deriveSupportedLMULAllowList) and stamps the
+    derived supported_sew / supported_lmul allow-lists onto each RVV-kind
+    capability provider that does not already carry them.
+
+    This closes the live probe->gate seam: a real profile selection (e.g.
+    --march=rv64gcv vs --march=rv64gc_zve32x) drives the in-IR capability gate
+    divergence automatically, with no hand-authored supported_sew / supported_lmul
+    fixture attributes. The materialized values are a TARGET-CAPABILITY support
+    allow-list, not a plugin-selected compile-time SEW/LMUL (I5): the typed body
+    still owns its single chosen config, and the gate queries the typed
+    capability object the pass writes (I1/I4), never inferring from ABI strings
+    or family names (I5). The pass derives nothing from clang/cmake/compile-run
+    toolchain facts and probes no hardware; it does not lower, emit code, claim
+    runtime or performance evidence, or fabricate selected config. Capability
+    providers that already declare an axis are left untouched, so it never
+    clobbers hand-authored fixtures.
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the support allow-lists "
+           "are derived from (e.g. rv64gcv, rv64gc_zve32x).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for axis derivation.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVProbedCapabilityAxesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
+def MaterializeRVVRepackStripWidth
+    : Pass<"tcrv-rvv-materialize-repack-strip-width", "::mlir::ModuleOp"> {
+  let summary = "Materialize the resource-aware repack strip width (half_lanes) onto the in-IR Q4_0 repack GEMM/GEMV from the selected -march";
+  let description = [{
+    Stamps the resource-aware e16m1 strip width (half_lanes) onto the in-kernel
+    ggml Q4_0 x Q8_0 16x1-repacked GEMM/GEMV ops from the selected RVV -march.
+    This is the N3-reframed PRIZE seam: a compiler-automatic SELECTION enters
+    llama's q4_0 hot path. Given a selected -march (a profile selection), the
+    pass calls the SAME plugin-local capability authority the probe->capability
+    conversion uses (deriveMinimumVLEN) and sets half_lanes = min(vlen/16,
+    weight_interleave): VLEN >= 256 derives 16 (one 16-lane strip per
+    16-block-as-lane group), VLEN == 128 derives 8 (two disjoint 8-lane halves).
+    The repack lowering then emits weight_interleave/half_lanes strips, so the
+    SAME typed kernel diverges by capability with no hand-authored half_lanes
+    fixture (e.g. --march=rv64gcv => VLEN 128 => half_lanes 8 => two 8-lane
+    halves; --march=rv64gcv_zvl256b => VLEN 256 => half_lanes 16 => one 16-lane
+    strip).
+
+    The strip width is a TARGET-CAPABILITY-derived realization choice (the e16m1
+    lane count the configured target's guaranteed VLEN affords), not a
+    plugin-selected dtype/route (I5): the typed body still owns its single chosen
+    config, and the emitter reads the half_lanes the pass writes (I1/I4), never
+    inferring from ABI strings or family names. The divergence rests on the
+    16-way-interleaved repack (block_q4_0x16: byte i = block(i%16) offset(i/16)),
+    so a 16-lane strip at VLEN=256 reads byte-identical repacked data to two
+    8-lane halves at VLEN=128; the dialect verifier pins half_lanes in {8, 16}
+    fail-closed (I7). A march that guarantees no >= 128 minimum (empty march, or a
+    constrained tier) derives no width and leaves any authored half_lanes intact.
+    The pass derives nothing from clang/cmake/compile-run toolchain facts and
+    probes no hardware; it does not lower, emit code, claim runtime or performance
+    evidence, or fabricate selected config.
+
+    SECOND axis (ISA generation): when the selected -march names the
+    pre-ratification RVV0.7.1 generation (deriveRVVVersion == RVV0p7, e.g.
+    rv64gc_xtheadvector on the C920), the pass ALSO stamps integer_core_lmul =
+    "m1" and overrides half_lanes to 16. RVV0.7.1 has NO fractional LMUL, so the
+    repack's default fractional core (i8mf2) is not emittable there; the
+    whole-LMUL core (i8m1 -> i16m2 -> i32m4 -> f32m4) is ONE 16-lane strip per
+    16-block group. This is numerically identical (the 16-way-interleaved repack
+    reads the same bytes; the i8m1 strip is 16 i8 lanes at VLEN=128) -- the win is
+    using the whole LMUL the ISA supports. The RVV-generation fact is derived
+    through the SAME plugin-local authority (deriveRVVVersion), not a march-string
+    branch in a core pass (I3); RVV1.0 leaves integer_core_lmul unset so the
+    emitter keeps the fractional chain, byte-identical to its prior emission.
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march whose RVV ISA tier the guaranteed minimum "
+           "VLEN (and thus the repack strip width) is derived from (e.g. "
+           "rv64gcv => VLEN 128 => half_lanes 8; rv64gcv_zvl256b => VLEN 256 "
+           "=> half_lanes 16).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string augmenting the -march "
+           "evidence for the minimum-VLEN derivation.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVRepackStripWidthPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+// The 4 pass options shared by ALL FIVE block-dot schedule autotuners
+// (q4_0/q8_0/q4_1/q5_0/q5_1): march -> Zvl128b derivation, the optional probed
+// isa/vector hints, the optional measurement tuning-record path, and the
+// dump-candidates single-source-of-truth seam. Declared ONCE here (formerly the
+// 4-option block was duplicated verbatim in all five pass defs).
+defvar kRVVBlockDotScheduleOptions = [
+  Option<"march", "march", "std::string", /*default=*/"\"\"",
+         "Selected RISC-V -march whose RVV ISA tier the Zvl128b capability "
+         "fact (and thus the strip-elision legality) is derived from (e.g. "
+         "rv64gcv => Zvl128b => VLEN >= 128; rv64gc_zve32x => not Zvl128b).">,
+  Option<"isaVectorHints", "isa-vector-hints", "std::string",
+         /*default=*/"\"\"",
+         "Optional probed isa/vector-hint string augmenting the -march "
+         "evidence for the Zvl128b derivation.">,
+  Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+         "Optional path to a MEASUREMENT tuning record. When set and it "
+         "carries a still-legal entry for (kernel, capability-march) the pass "
+         "stamps the MEASURED-fastest shape (the genuine N3 '实测胜出') instead "
+         "of the static cost-model argmin. Absent / stale / unreadable => the "
+         "pass falls back to the static cost model (the record is an advisory "
+         "cache, never a correctness authority).">,
+  Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+         "Dump the LEGAL candidate set (the single source of truth for the "
+         "capability+budget prune) for the offline tune driver to consume, "
+         "then exit without stamping. Includes every budget+capability-legal "
+         "shape (incl. the mf4 anchors the cost model deems dominated) -- the "
+         "driver MEASURES the full legal set; the board ranks, not the cost "
+         "model.">
+];
+
+def MaterializeRVVSchedule
+    : Pass<"tcrv-rvv-materialize-schedule", "::mlir::ModuleOp"> {
+  let summary = "Unified capability/resource-aware autotuner: select + stamp the schedule of EVERY tunable RVV op in one walk";
+  let description = [{
+    The ONE walk-all RVV schedule-materialization pass. Instead of a per-kernel
+    pass per tunable op, this pass walks the module ONCE and auto-discovers every
+    op that implements the TunableScheduleOpInterface (the family-neutral
+    interface that returns the op's schedule kernel key and its no-clobber pin
+    predicate). For each discovered op it runs the SAME shared skeleton the
+    per-kernel passes run -- derive the Zvl128b capability fact, enumerate + prune
+    the bounded generic candidate space for the op's kernel (looked up in the
+    plugin-local descriptor registry), load the optional measurement record, select
+    the measured-fastest still-legal shape (else the static cost-model argmin), and
+    STAMP the chosen knobs plus the per-kernel resource-provenance audit trail onto
+    each op that does not already carry a hand-authored shape knob (additive /
+    no-clobber). The stamped IR is byte-identical to the corresponding per-kernel
+    pass; this pass is the per-op path, just auto-discovered.
+
+    A NEW tunable op needs ZERO new pass: it adopts the interface (returning its
+    kernel key + pin predicate) and registers a descriptor; this pass picks it up.
+    The tuning logic stays plugin-local (the dialect depends only on the
+    family-neutral interface, never on the plugin tuning machinery).
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts, never inferred from ABI strings / family names /
+    route ids, and no hardware is probed (I5); a candidate that fails the prune is
+    dropped fail-closed and if every candidate is pruned the op is left untouched
+    (I7). The pass selects the *how*, never the *what*.
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVSchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVQ40Schedule
+    : Pass<"tcrv-rvv-materialize-q4-0-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q4_0 x Q8_0 block-dot shape";
+  let description = [{
+    The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block
+    dot-product. Given a selected RVV -march (a profile selection), it derives
+    the Zvl128b capability fact through the plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q4_0 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided}), PRUNES each candidate by legality (strip_elision "elided"
+    is correct only at the m1 anchor on a Zvl128b target) and by the
+    vector-register-file budget, RANKS the legal candidates by a principled,
+    CAPABILITY-BLIND structural cost (per-block reduction count, inner strip-loop
+    serialization, outer-loop latency-overlap amortized by the multi-block
+    factor), SELECTS the min-cost legal shape, and STAMPS the chosen shape knobs
+    (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q4_0_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q4_0_q8_0_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function. The SAME
+    argmin therefore DIVERGES by capability -- a full-V (rv64gcv, Zvl128b)
+    profile selects the strip-elided shape (the ~13% ggml beat), while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> N3 win, on a real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts, never inferred from ABI strings / family names /
+    route ids, and no hardware is probed (I5); a candidate that fails the
+    capability/anchor/budget prune is dropped fail-closed and if every candidate
+    is pruned the op is left untouched (I7). The pass does not lower, emit code,
+    benchmark, or claim runtime evidence; it selects the *how*, never the *what*
+    (the dot-product is byte-exact for every legal shape).
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ40SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVQ80Schedule
+    : Pass<"tcrv-rvv-materialize-q8-0-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q8_0 x Q8_0 block-dot shape";
+  let description = [{
+    The Family-A SIBLING of the Q4_0 autotuner (--tcrv-rvv-materialize-q4-0-
+    schedule), for the ggml Q8_0 x Q8_0 block dot-product. Given a selected RVV
+    -march (a profile selection), it derives the Zvl128b capability fact through
+    the SAME plugin-local capability authority (deriveHasZvl128b), enumerates the
+    bounded Q8_0 shape candidate space (integer_core_lmul {mf4,m1,m2} x
+    multi_block_factor {1,2,4} x strip_elision {robust,elided}), PRUNES each
+    candidate by legality (strip_elision "elided" is correct only at the m2 anchor
+    on a Zvl128b target -- q8_0's anchor is one LMUL step up from q4_0's because
+    its block is 32 contiguous int8, not a 16-lane nibble half-block) and by the
+    vector-register-file budget, RANKS the legal candidates by the SAME
+    principled, CAPABILITY-BLIND structural cost FORMULA the Q4_0 autotuner uses
+    (fed q8_0's per-anchor reduction count -- the structural difference, not a new
+    cost branch), SELECTS the min-cost legal shape, and STAMPS the chosen shape
+    knobs (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q8_0_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q8_0_q8_0_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function shared with
+    the Q4_0 sibling. The SAME argmin therefore DIVERGES by capability -- a
+    full-V (rv64gcv, Zvl128b) profile selects the strip-elided m2 shape (the shape
+    ggml hand-wrote, plus the multi-block unroll ggml does not use), while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> the q8_0 breadth proof that the template + autotuner generalize
+    to a SECOND real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts (I5); a candidate that fails the prune is dropped
+    fail-closed and if every candidate is pruned the op is left untouched (I7).
+    The pass selects the *how*, never the *what* (the dot-product is byte-exact
+    for every legal shape).
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ80SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVQ41Schedule
+    : Pass<"tcrv-rvv-materialize-q4-1-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q4_1 x Q8_1 block-dot shape";
+  let description = [{
+    The Family-B SIBLING of the Q4_0 autotuner (--tcrv-rvv-materialize-q4-0-
+    schedule), for the ggml Q4_1 x Q8_1 block dot-product (scale+MIN, asymmetric).
+    Given a selected RVV -march (a profile selection), it derives the Zvl128b
+    capability fact through the SAME plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q4_1 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided} -- q4_1's nibble half-block matches q4_0's shape, so its
+    anchor set is q4_0's, NOT q8_0's), PRUNES each candidate by legality
+    (strip_elision "elided" is correct only at the m1 anchor on a Zvl128b target)
+    and by the vector-register-file budget, RANKS the legal candidates by the SAME
+    principled, CAPABILITY-BLIND structural cost FORMULA the Q4_0 autotuner uses
+    (fed q4_1's per-anchor reduction count AND its DERIVED latency depth -- q4_1's
+    UNSIGNED-nibble decode is a SHORTER dependent chain than q4_0's offset-binary
+    one, a structural fact of the format, not a new cost branch), SELECTS the
+    min-cost legal shape, and STAMPS the chosen shape knobs (integer_core_lmul /
+    multi_block_factor / strip_elision) plus a "tcrv_rvv.q4_1_schedule.*"
+    resource-provenance audit trail onto each tcrv_rvv.q4_1_q8_1_block_dot op that
+    does not already carry a hand-authored shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function shared with
+    the Q4_0 sibling. The SAME argmin therefore DIVERGES by capability -- a
+    full-V (rv64gcv, Zvl128b) profile selects the strip-elided m1 shape, while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> the Family-B breadth proof that the template + autotuner
+    generalize to a structurally NEW (scale+MIN) real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts (I5); a candidate that fails the prune is dropped
+    fail-closed and if every candidate is pruned the op is left untouched (I7).
+    The pass selects the *how*, never the *what* (the dot-product is byte-exact
+    for every legal shape).
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ41SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVQ50Schedule
+    : Pass<"tcrv-rvv-materialize-q5-0-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q5_0 x Q8_0 block-dot shape";
+  let description = [{
+    The Family-A SIBLING of the Q4_0 autotuner (--tcrv-rvv-materialize-q4-0-
+    schedule), for the ggml Q5_0 x Q8_0 block dot-product (single-scale, 5-bit
+    weight). Given a selected RVV -march (a profile selection), it derives the
+    Zvl128b capability fact through the SAME plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q5_0 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided} -- q5_0's nibble half-block matches q4_0's shape, so its
+    anchor set is q4_0's, NOT q8_0's), PRUNES each candidate by legality
+    (strip_elision "elided" is correct only at the m1 anchor on a Zvl128b target)
+    and by the vector-register-file budget, RANKS the legal candidates by the SAME
+    principled, CAPABILITY-BLIND structural cost FORMULA the Q4_0 autotuner uses
+    (fed q5_0's per-anchor reduction count AND its DERIVED latency depth -- q5_0's
+    unsigned-nibble decode plus 5th-bit injection plus offset-binary `-16` bias is
+    the LONGEST dependent decode chain, a structural fact of the format, not a new
+    cost branch), SELECTS the min-cost legal shape, and STAMPS the chosen shape
+    knobs (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q5_0_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q5_0_q8_0_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function shared with
+    the Q4_0 sibling. The SAME argmin therefore DIVERGES by capability -- a
+    full-V (rv64gcv, Zvl128b) profile selects the strip-elided m1 shape, while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> the Family-A 5-bit breadth proof that the template + autotuner
+    generalize to a structurally NEW (5-bit weight) real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts (I5); a candidate that fails the prune is dropped
+    fail-closed and if every candidate is pruned the op is left untouched (I7).
+    The pass selects the *how*, never the *what* (the dot-product is byte-exact
+    for every legal shape).
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ50SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVQ51Schedule
+    : Pass<"tcrv-rvv-materialize-q5-1-schedule", "::mlir::ModuleOp"> {
+  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q5_1 x Q8_1 block-dot shape";
+  let description = [{
+    The Family-B 5-bit SIBLING of the Q4_0 autotuner (--tcrv-rvv-materialize-q4-0-
+    schedule), for the ggml Q5_1 x Q8_1 block dot-product (scale+MIN, asymmetric,
+    5-bit UNSIGNED weight) -- it COMBINES q5_0's 5-bit reconstruction and q4_1's
+    scale+MIN fold. Given a selected RVV -march (a profile selection), it derives
+    the Zvl128b capability fact through the SAME plugin-local capability authority
+    (deriveHasZvl128b), enumerates the bounded Q5_1 shape candidate space
+    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
+    {robust,elided} -- q5_1's nibble half-block matches q4_0's shape, so its
+    anchor set is q4_0's, NOT q8_0's), PRUNES each candidate by legality
+    (strip_elision "elided" is correct only at the m1 anchor on a Zvl128b target)
+    and by the vector-register-file budget, RANKS the legal candidates by the SAME
+    principled, CAPABILITY-BLIND structural cost FORMULA the Q4_0 autotuner uses
+    (fed q5_1's per-anchor reduction count AND its DERIVED latency depth -- q5_1's
+    unsigned 5-bit decode without the `-16` bias is ONE op shorter than q5_0's
+    offset-binary 5-bit chain, a structural fact of the format, not a new cost
+    branch), SELECTS the min-cost legal shape, and STAMPS the chosen shape knobs
+    (integer_core_lmul / multi_block_factor / strip_elision) plus a
+    "tcrv_rvv.q5_1_schedule.*" resource-provenance audit trail onto each
+    tcrv_rvv.q5_1_q8_1_block_dot op that does not already carry a hand-authored
+    shape knob (additive / no-clobber).
+
+    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
+    resource facts -- NOT a lookup table: the only place the capability enters is
+    the legality prune; the cost model is a pure structural function shared with
+    the Q4_0 sibling. The SAME argmin therefore DIVERGES by capability -- a
+    full-V (rv64gcv, Zvl128b) profile selects the strip-elided m1 shape, while a
+    constrained zve32x profile has the elided shapes pruned and the same argmin
+    selects the robust strip-loop shape. One capability fact -> N1 legality
+    divergence -> the Family-B 5-bit breadth proof that the template + autotuner
+    generalize to a structurally NEW (scale+MIN 5-bit) real llama.cpp kernel.
+
+    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
+    authority (I4); the schedule is derived from the validated ISA tier and the
+    structural resource facts (I5); a candidate that fails the prune is dropped
+    fail-closed and if every candidate is pruned the op is left untouched (I7).
+    The pass selects the *how*, never the *what* (the dot-product is byte-exact
+    for every legal shape).
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVQ51SchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVGemmSchedule
+    : Pass<"tcrv-rvv-materialize-gemm-schedule", "::mlir::ModuleOp"> {
+  let summary = "Measurement autotuner: select + stamp the ggml Q4_0 x Q8_0 GEMM M-block (activation-column block)";
+  let description = [{
+    The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
+    (tcrv_rvv.q4_0_q8_0_gemm) M-block -- the inner activation-column block M, the
+    one knob that sets how many activation columns share each hoisted weight
+    decode. It REUSES the EXACT tune-once -> cache -> read architecture the
+    block-dot measurement tuner (--tcrv-rvv-materialize-q4-0-schedule, INC-10)
+    established: it ENUMERATES the bounded M band {1,2,4,6,8}, PRUNES by the
+    vreg-ceiling resource bound (M <= 8; never a capability gate -- every M is
+    byte-exact on any RVV target), then either stamps the MEASURED-fastest M read
+    from a cached tuning record (the genuine N3 '实测胜出') or falls back to the
+    static default M (the safe cache-friendly tile M=4). It STAMPS activation_cols
+    plus a "tcrv_rvv.q4_0_gemm_schedule.*" resource-provenance audit trail onto
+    each tcrv_rvv.q4_0_q8_0_gemm op that does not already carry a hand-authored
+    activation_cols knob (additive / no-clobber).
+
+    Unlike the block-dot autotuner, M is NOT capability-gated -- it is a cache/L1
+    + vreg/unroll resource knob whose optimum is NOISY and analytically
+    UNPREDICTABLE (gemv-perf-scoping.md section 2b: M_opt proportional 1/K; INC-25
+    G2: M=4 wins ~1.04x while M=6 REGRESSES ~0.857x on register pressure at
+    K=4096). A static cost model cannot reliably predict that M6 vreg-pressure
+    cliff, so the win is the MEASURED pick (M=4 over M=6), NOT a capability
+    divergence. The dump-candidates mode emits the FULL legal band (incl. the
+    over-blocking M6/M8 the static proxy deems suboptimal) so the offline tune
+    driver MEASURES the whole band -- the BOARD ranks, not the cost proxy.
+
+    Per core-invariants: the stamped M MIRRORS the plugin-local C++ schedule
+    authority (I4); the M is derived from the validated resource facts + the
+    cached measurement, never inferred from ABI strings / family names / route
+    ids, and no hardware is probed at compile time (I5); a stale record naming a
+    now-illegal M is fail-closed (revalidated against the current band) and if
+    every candidate is pruned the op is left untouched (I7). The pass selects the
+    *how* (the column-block), never the *what* (every output is byte-exact for
+    every legal M).
+  }];
+  let options = [
+    Option<"march", "march", "std::string", /*default=*/"\"\"",
+           "Selected RISC-V -march the tuning record is keyed on (the GEMM M-block "
+           "is not capability-gated; the -march keys the record entry for reuse + "
+           "the stale/revalidate fail-closed demo).">,
+    Option<"isaVectorHints", "isa-vector-hints", "std::string",
+           /*default=*/"\"\"",
+           "Optional probed isa/vector-hint string (reserved for parity with the "
+           "block-dot passes; the M-block legality does not consume it).">,
+    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
+           "Optional path to a MEASUREMENT tuning record. When set and it carries "
+           "a still-legal entry for (kernel, capability-march), the pass stamps the "
+           "MEASURED-fastest M (the genuine N3 '实测胜出') instead of the static "
+           "default. Absent / stale / unreadable => the pass falls back to the "
+           "static default M (the record is an advisory cache, never a correctness "
+           "authority).">,
+    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
+           "Dump the LEGAL M band (the single source of truth for the vreg-ceiling "
+           "prune) for the offline tune driver to consume, then exit without "
+           "stamping. Includes the over-blocking M6/M8 -- the driver MEASURES the "
+           "full band; the board ranks, not the cost proxy.">
+  ];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVGemmSchedulePass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
+def MaterializeRVVGearboxSchedules
+    : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
+  let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";
+  let description = [{
+    Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected typed
+    tcrv_rvv bodies. The pass recognizes the existing bounded
+    dequantize_i32_to_f32 body shape and the bounded low-precision
+    widening_product_reduce_dequantize_f32 representative, derives a bounded
+    legal candidate inventory and deterministic selected schedule/resource
+    candidate from typed body/config/runtime facts, and materializes explicit
+    tcrv_rvv.gearbox.* or tcrv_rvv.low_precision_resource.* facts on the
+    selected body boundary.
+
+    The pass does not benchmark, profile, query assembly, persist tuning
+    caches, infer from artifact names or route strings, change computation
+    semantics, change dtype semantics, mutate runtime ABI roles, alter dispatch
+    or fallback behavior, or choose target metadata. RVV provider route
+    planning remains responsible for consuming these facts before constructing
+    a lowerable route.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVGearboxSchedulesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+  let options = [
+    Option<"reductionStructure", "reduction-structure", "std::string",
+           /*default=*/"\"\"",
+           "N3 Win-C: stamp the i16 dot-reduce reduction-STRUCTURE body fact "
+           "(orthogonal to the LMUL/budget axis). 'deferred_accumulate' -> the "
+           "loop-carried wide accumulator + ONE trailing reduce; "
+           "'per_iteration' -> a per-strip vredsum onto the running seed. Empty "
+           "(default) stamps nothing -> the realizer keeps its existing "
+           "budget-driven behavior (I7 fail-closed). Only the mf2/m1 signed "
+           "dot-reduce strip the wide selector serves is stamped.">
+  ];
+}
+
 def MaterializeEmitCLowerableRoutes
     : Pass<"tcrv-materialize-emitc-lowerable-routes", "::mlir::ModuleOp"> {
   let summary = "Materialize plugin-owned EmitC lowerable routes through the common route interface";
@@ -322,6 +841,80 @@ def CheckExecutionPlanCoherence
       "::tianchenrv::transforms::createCheckExecutionPlanCoherencePass()";
   let dependentDialects = [
     "::tianchenrv::tcrv::exec::TCRVExecDialect"
+  ];
+}
+
+def RVVLowerToEmitC
+    : Pass<"tcrv-rvv-lower-to-emitc", "::mlir::ModuleOp"> {
+  let summary = "Lower selected generic tcrv_rvv dataflow bodies to MLIR EmitC via DialectConversion";
+  let description = [{
+    Stands up the real MLIR DialectConversion infrastructure (TypeConverter +
+    ConversionTarget + RewritePatternSet + applyPartialConversion) over the
+    existing generic typed tcrv_rvv dataflow ops, the typed-IR replacement for
+    the legacy RVV emitted-C string machine.
+
+    In this initial state the pass is an additive structural no-op: it builds
+    the beachhead !tcrv_rvv.* -> emitc C-type conversions, marks the emitc
+    dialect legal, marks every op (including tcrv_rvv ops) legal, and registers
+    zero conversion patterns. Running it on any module leaves the IR unchanged.
+    Real per-op conversion patterns for the unit-stride elementwise add
+    beachhead family land in a subsequent step.
+
+    The pass is plugin-neutral conversion scaffolding. It does not print C/C++,
+    export target artifacts, compile objects, run hardware, prove correctness,
+    or claim performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createRVVLowerToEmitCPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect",
+    "::mlir::emitc::EmitCDialect"
+  ];
+}
+
+def RVVLowerQuantContraction
+    : Pass<"tcrv-rvv-lower-quant-contraction", "::mlir::ModuleOp"> {
+  let summary = "Select + lower the abstract tcrv_rvv.quant_contraction op to a concrete contraction op (stage-B capability-fact-driven path selection)";
+  let description = [{
+    The option-2 front-of-pipeline pass that lowers the abstract,
+    algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op to a CONCRETE
+    contraction op, running BEFORE the EmitC lowering.
+
+    STAGE B makes "the COMPILER itself selects repack-vs-block-dot from
+    capability facts" actually true. Per quant_contraction request the pass
+    derives the target VLEN from the selected -march (deriveMinimumVLEN -- the
+    SAME capability authority every other capability-gated pass uses; the op's
+    advisory min_vlen attr is NOT the source), lifts the committed WHAT attrs
+    (quant, m_regime), and calls the pure, branch-free, capability-fact-driven
+    selectContractionAlgorithm. The decision is stamped on the lowered op as
+    three INERT audit attrs (tcrv_rvv.contraction_algorithm /
+    path_selection_reason / path_materialization) so it is provable in-IR.
+
+    THE CRUX (Option (i)): the concrete repack target needs pre-interleaved
+    block_q4_0x16 weights the abstract op's PLAIN stride-18 weights cannot
+    supply -- that plain->x16 weight materialization is stage C. So this pass
+    emits the BYTE-IDENTICAL tcrv_rvv.q4_0_q8_0_block_dot body for BOTH the
+    Repack-SELECTED and the BlockDot-SELECTED branches, differentiating ONLY via
+    the inert audit attrs (Repack-selected => path_materialization =
+    "deferred-stage-c"). So the emitted C is byte-identical on EVERY path: the
+    compiler MAKES + RECORDS the selection in-compiler (the N3 novelty) with NO
+    e2e algorithm switch and NO perf claim; the e2e materialization is stage C.
+
+    The block-dot branch DROPS the abstract op's column_count (nc) operand: the
+    block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and delegates the
+    M/N loops to ggml's mul_mat caller, so it is a bare 4-operand vec_dot. The
+    abstract op carries nc ALWAYS so a later repack branch can reach it; here it
+    is dropped to keep the emitted C byte-identical. NO schedule attrs are
+    stamped (integer_core_lmul / multi_block_factor / strip_elision) -- those
+    remain the downstream MaterializeRVVQ40Schedule pass's job. On any module
+    with no quant_contraction op the pass is a structural no-op.
+  }];
+  let options = kRVVBlockDotScheduleOptions;
+  let constructor =
+      "::tianchenrv::transforms::createRVVLowerQuantContractionPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
   ];
 }
 

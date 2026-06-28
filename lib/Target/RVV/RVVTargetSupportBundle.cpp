@@ -78,15 +78,43 @@ llvm::StringRef lookupCandidateMetadataValue(
   return {};
 }
 
+llvm::Error requireCandidateMetadataMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef expected, llvm::StringRef label) {
+  llvm::StringRef actual = lookupCandidateMetadataValue(candidate, key);
+  if (!expected.empty()) {
+    if (actual.empty())
+      return makeRVVTargetRouteError(llvm::Twine("candidate metadata must "
+                                                 "carry ") +
+                                     key + " provenance");
+    if (actual != expected)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate ") + key + " provenance must mirror " +
+          label + " '" + expected + "' but was '" + actual + "'");
+  } else if (!actual.empty()) {
+    return makeRVVTargetRouteError(
+        llvm::Twine("candidate metadata must not carry ") + key +
+        " mirrors for a selected typed RVV body route without " + label);
+  }
+
+  return llvm::Error::success();
+}
+
 struct RVVSelectedVariantRouteValidation {
-  conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::rvv::RVVSelectedBodyEmitCRouteDescription description;
 };
 
 llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     const TargetArtifactCandidate &candidate,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef selectedBodyRouteID,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  // Stage 3 换心 decouple (C2): `selectedBodyRouteID` is the selected body's
+  // EmitC route id. For the legacy string path it is the rebuilt route's
+  // `getRouteID()`; for the converted path it is `description.emitCRouteID` —
+  // the SAME value the route is constructed from
+  // (RVVEmitCRouteProvider.cpp builds the route id from
+  // `analysis.description.emitCRouteID`), so this mirror check is identical
+  // either way and no longer needs the owner-built string route.
   llvm::StringRef routeID = lookupCandidateMetadataValue(
       candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
   llvm::StringRef selectedBodyOperation = lookupCandidateMetadataValue(
@@ -96,12 +124,12 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         llvm::Twine("candidate metadata must carry ") +
         plugin::rvv::getRVVEmitCLowerableRouteMetadataName() +
         " provenance");
-  if (route.getRouteID() != routeID)
+  if (selectedBodyRouteID != routeID)
     return makeRVVTargetRouteError(
         llvm::Twine("candidate ") +
         plugin::rvv::getRVVEmitCLowerableRouteMetadataName() +
         " provenance must mirror selected typed RVV body route '" +
-        route.getRouteID() + "' but was '" + routeID + "'");
+        selectedBodyRouteID + "' but was '" + routeID + "'");
 
   if (selectedBodyOperation.empty())
     return makeRVVTargetRouteError(
@@ -168,6 +196,19 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         "candidate metadata must not carry route operand binding mirrors for a "
         "selected typed RVV body route without a binding plan");
   }
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.exec_abi_bindings",
+          description.execABIBindingSummary,
+          "selected tcrv.exec ABI binding summary"))
+    return error;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          description.providerSupportedMirror,
+          "selected typed RVV body provider support"))
+    return error;
+
   llvm::StringRef targetCapabilityProviderMirror =
       lookupCandidateMetadataValue(
           candidate, "tcrv_rvv.target_capability_provider_mirror");
@@ -301,49 +342,6 @@ resolveCandidateSelectedVariant(const TargetArtifactCandidate &candidate) {
       "artifact route cross-check");
 }
 
-llvm::Error validateRVVRouteSourceProvenance(
-    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
-  if (route.getSourceOpProvenance().size() != 1)
-    return makeRVVTargetRouteError(
-        "materialized EmitC route must carry exactly one RVV route "
-        "source-op provenance entry");
-
-  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
-      route.getSourceOpProvenance().front();
-  if (source.opName != plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName() ||
-      source.role != "scope" ||
-      source.opInterface != plugin::rvv::getRVVEmitCLowerableOpInterfaceName())
-    return makeRVVTargetRouteError(
-        "materialized EmitC route source-op provenance must identify "
-        "tcrv_rvv.with_vl as the selected scope boundary through "
-        "TCRVEmitCLowerableOpInterface");
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateRVVRouteABIMappings(
-    const TargetArtifactCandidate &candidate,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> routeParameters;
-  for (const conversion::emitc::TCRVEmitCABIValueMapping &mapping :
-       route.getABIMappings()) {
-    if (mapping.valueName != mapping.parameter.cName)
-      return makeRVVTargetRouteError(
-          llvm::Twine("materialized EmitC route ABI mapping for '") +
-          mapping.parameter.cName +
-          "' must use the same selected callable value name");
-    routeParameters.push_back(mapping.parameter);
-  }
-
-  if (!support::runtimeABIParametersEqual(routeParameters,
-                                          candidate.runtimeABIParameters))
-    return makeRVVTargetRouteError(
-        "materialized EmitC route ABI mappings must match the selected "
-        "candidate runtime ABI parameters");
-
-  return llvm::Error::success();
-}
-
 llvm::Expected<RVVSelectedVariantRouteValidation>
 validateRVVSelectedVariantRouteAgreesWithCandidate(
     const TargetArtifactCandidate &candidate) {
@@ -368,41 +366,66 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   if (!role)
     return role.takeError();
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::VariantEmitCLowerableRequest request(
       *selectedVariant, candidate.kernel, *capabilities, *role);
-  llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
-      description =
-          plugin::rvv::describeRVVSelectedBodyEmitCRoute(request, &route);
-  if (!description) {
-    llvm::Error error = description.takeError();
-    std::string message = llvm::toString(std::move(error));
-    return makeRVVTargetRouteError(
-        llvm::Twine("selected typed RVV body could not build the "
-                    "materialized EmitC route before candidate metadata "
-                    "validation: ") +
-        message);
+
+  // Stage 3 换心 decouple (C2, candidate validation — header AND object
+  // export). For a converted family the real RVV->emitc DialectConversion is
+  // the authority; rebuilding the legacy string route here (and dispatching
+  // into its per-family statement-plan owner) is redundant. So gate on the
+  // try-convert: a converted family validates from the route DESCRIPTION alone
+  // (owner-free), a not-yet-converted family keeps rebuilding + verifying its
+  // string route exactly as before.
+  if (plugin::rvv::rvvSelectedBodyFullyConvertsToEmitC(request)) {
+    llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+        description = plugin::rvv::describeRVVSelectedBodyEmitCRoute(request);
+    if (!description) {
+      llvm::Error error = description.takeError();
+      std::string message = llvm::toString(std::move(error));
+      return makeRVVTargetRouteError(
+          llvm::Twine("selected typed RVV body could not describe the "
+                      "materialized EmitC route before candidate metadata "
+                      "validation: ") +
+          message);
+    }
+
+    // The route id mirror reads `description.emitCRouteID` — the exact value
+    // the string route's getRouteID() carries (it is constructed from it), so
+    // the mirror is byte-identical without building the route.
+    if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
+            candidate, description->emitCRouteID, *description))
+      return std::move(error);
+
+    // The two former route-only checks are subsumed for the converted path:
+    //  - source provenance ("exactly one tcrv_rvv.with_vl scope") is
+    //    guaranteed by convertRVVModuleToEmitC fully legalizing the body — the
+    //    conversion target only illegalizes a variant that carries a with_vl
+    //    boundary and the elementwise pattern lowers exactly that one scope, so
+    //    a fully-converted family necessarily had the unique with_vl boundary.
+    //  - ABI mappings == candidate.runtimeABIParameters is re-validated
+    //    directly against the same source data by the caller, which already
+    //    compares candidate.runtimeABIParameters against
+    //    description.runtimeABIParameters (the route's ABI mappings are built
+    //    1:1 from description.runtimeABIParameters), so dropping the route ABI
+    //    mapping check loses no coverage.
+    RVVSelectedVariantRouteValidation validation;
+    validation.description = std::move(*description);
+    return validation;
   }
-  if (llvm::Error error = route.verify()) {
-    std::string message = llvm::toString(std::move(error));
-    return makeRVVTargetRouteError(
-        llvm::Twine("rebuilt materialized EmitC route failed verification: ") +
-        message);
-  }
 
-  if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
-          candidate, route, *description))
-    return std::move(error);
-
-  if (llvm::Error error = validateRVVRouteSourceProvenance(route))
-    return std::move(error);
-  if (llvm::Error error = validateRVVRouteABIMappings(candidate, route))
-    return std::move(error);
-
-  RVVSelectedVariantRouteValidation validation;
-  validation.route = std::move(route);
-  validation.description = std::move(*description);
-  return validation;
+  // Stage 1 (description-engine retirement): a selected RVV body that does NOT
+  // fully convert through the RVV->emitc DialectConversion has no legal
+  // materialized route. The legacy string statement-plan route is retired, so
+  // refuse it fail-closed here (the same fail-closed decision the former route
+  // build-and-verify enforced), preserving the original diagnostic framing.
+  llvm::Error refusal =
+      plugin::rvv::refuseRetiredRVVSelectedBodyStringRoute(request);
+  std::string message = llvm::toString(std::move(refusal));
+  return makeRVVTargetRouteError(
+      llvm::Twine("selected typed RVV body could not build the "
+                  "materialized EmitC route before candidate metadata "
+                  "validation: ") +
+      message);
 }
 
 llvm::Error rejectForbiddenRVVArtifactMetadata(
@@ -417,14 +440,13 @@ llvm::Error rejectForbiddenRVVArtifactMetadata(
     if (lowerKey.contains("element_count") ||
         lowerKey.contains("element-count") ||
         lowerKey.contains("descriptor") ||
-        lowerKey.contains("direct_c") || lowerKey.contains("direct-c") ||
+        containsForbiddenDirectCMarker(lowerKey) ||
         lowerKey.contains("source_export") ||
         lowerKey.contains("source-export") ||
         lowerKey.contains("compute_body") ||
         lowerKey.contains("compute-body") ||
         lowerValue.contains("descriptor") ||
-        lowerValue.contains("direct_c") ||
-        lowerValue.contains("direct-c") ||
+        containsForbiddenDirectCMarker(lowerValue) ||
         lowerValue.contains("source_export") ||
         lowerValue.contains("source-export") ||
         lowerValue.contains("compute_body") ||
@@ -590,6 +612,69 @@ void appendRVVConfigVLMetadataEvidence(
   }
 }
 
+void appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+    llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence> &out,
+    plugin::rvv::RVVLowPrecisionMirrorTransportContract contract) {
+  out.push_back({contract.headerEvidenceName, contract.metadataKey,
+                 contract.sourceValue, /*allowDynamicValue=*/false,
+                 /*optional=*/true});
+}
+
+void appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(
+    llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence>
+        &out) {
+  appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+      out,
+      plugin::rvv::getRVVLowPrecisionPrimitivePayloadMirrorTransportContract());
+  constexpr llvm::StringLiteral kPayloadMirrorMetadata[][2] = {
+      {"low_precision_primitive.payload_mirror.contract",
+       "tcrv_rvv.low_precision_primitive.contract"},
+      {"low_precision_primitive.payload_mirror.kind",
+       "tcrv_rvv.low_precision_primitive.kind"},
+      {"low_precision_primitive.payload_mirror.source_dtype",
+       "tcrv_rvv.low_precision_primitive.source_dtype"},
+      {"low_precision_primitive.payload_mirror.source_signedness",
+       "tcrv_rvv.low_precision_primitive.source_signedness"},
+      {"low_precision_primitive.payload_mirror.source_load",
+       "tcrv_rvv.low_precision_primitive.source_load"},
+      {"low_precision_primitive.payload_mirror.source_extension",
+       "tcrv_rvv.low_precision_primitive.source_extension"},
+      {"low_precision_primitive.payload_mirror.product_dtype",
+       "tcrv_rvv.low_precision_primitive.product_dtype"},
+      {"low_precision_primitive.payload_mirror.accumulator_dtype",
+       "tcrv_rvv.low_precision_primitive.accumulator_dtype"},
+      {"low_precision_primitive.payload_mirror.result_dtype",
+       "tcrv_rvv.low_precision_primitive.result_dtype"},
+      {"low_precision_primitive.payload_mirror.source_sew",
+       "tcrv_rvv.low_precision_primitive.source_sew"},
+      {"low_precision_primitive.payload_mirror.source_lmul",
+       "tcrv_rvv.low_precision_primitive.source_lmul"},
+      {"low_precision_primitive.payload_mirror.product_sew",
+       "tcrv_rvv.low_precision_primitive.product_sew"},
+      {"low_precision_primitive.payload_mirror.product_lmul",
+       "tcrv_rvv.low_precision_primitive.product_lmul"},
+      {"low_precision_primitive.payload_mirror.accumulator_sew",
+       "tcrv_rvv.low_precision_primitive.accumulator_sew"},
+      {"low_precision_primitive.payload_mirror.accumulator_lmul",
+       "tcrv_rvv.low_precision_primitive.accumulator_lmul"},
+      {"low_precision_primitive.payload_mirror.result_sew",
+       "tcrv_rvv.low_precision_primitive.result_sew"},
+      {"low_precision_primitive.payload_mirror.result_lmul",
+       "tcrv_rvv.low_precision_primitive.result_lmul"},
+      {"low_precision_primitive.payload_mirror.tail_policy",
+       "tcrv_rvv.low_precision_primitive.tail_policy"},
+      {"low_precision_primitive.payload_mirror.mask_policy",
+       "tcrv_rvv.low_precision_primitive.mask_policy"},
+      {"low_precision_primitive.payload_mirror.runtime_control_plan",
+       "tcrv_rvv.low_precision_primitive.runtime_control_plan"},
+      {"low_precision_primitive.payload_mirror.runtime_avl_source",
+       "tcrv_rvv.low_precision_primitive.runtime_avl_source"},
+  };
+  for (const auto &entry : kPayloadMirrorMetadata)
+    out.push_back({entry[0], entry[1], /*expectedValue=*/"",
+                   /*allowDynamicValue=*/true, /*optional=*/true});
+}
+
 llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
 buildRVVSelectedBodyHeaderMetadataEvidence() {
   llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
@@ -647,6 +732,10 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"rhs_stride_source", "tcrv_rvv.rhs_stride_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"source_stride_source", "tcrv_rvv.source_stride_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"destination_stride_source", "tcrv_rvv.destination_stride_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"source_memory_form", "tcrv_rvv.source_memory_form", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"destination_memory_form", "tcrv_rvv.destination_memory_form", "",
@@ -656,6 +745,11 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"mask_source", "tcrv_rvv.mask_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"mask_memory_form", "tcrv_rvv.mask_memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"secondary_compare_predicate_kind",
        "tcrv_rvv.secondary_compare_predicate_kind", "",
@@ -671,6 +765,9 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"select_layout", "tcrv_rvv.select_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"indexed_memory_layout", "tcrv_rvv.indexed_memory_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"indexed_write_side_contract",
+       "tcrv_rvv.indexed_write_side_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"index_source", "tcrv_rvv.index_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -689,11 +786,629 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"source_lmul", "tcrv_rvv.source_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"product_sew", "tcrv_rvv.product_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"product_lmul", "tcrv_rvv.product_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"product_vector_type", "tcrv_rvv.product_vector_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"product_vector_c_type", "tcrv_rvv.product_vector_c_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"dest_sew", "tcrv_rvv.dest_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"dest_lmul", "tcrv_rvv.dest_lmul", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"conversion_relation", "tcrv_rvv.conversion_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequantization_relation", "tcrv_rvv.dequantization_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequantize_convert_intrinsic",
+       "tcrv_rvv.dequantize_convert_intrinsic", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequantize_scale_intrinsic",
+       "tcrv_rvv.dequantize_scale_intrinsic", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequant_scale_role", "tcrv_rvv.dequant_scale_role", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequant_scale_c_type", "tcrv_rvv.dequant_scale_c_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequant_scale_name", "tcrv_rvv.dequant_scale_name", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+  });
+  appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(evidence);
+  appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+      evidence,
+      plugin::rvv::getRVVLowPrecisionResourceOwnerMirrorTransportContract());
+  evidence.append({
+      {"low_precision_resource.candidate_set",
+       "tcrv_rvv.low_precision_resource.candidate_set", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_candidate",
+       "tcrv_rvv.low_precision_resource.selected_candidate", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.candidate_count",
+       "tcrv_rvv.low_precision_resource.candidate_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.legal_candidate_count",
+       "tcrv_rvv.low_precision_resource.legal_candidate_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_candidate_index",
+       "tcrv_rvv.low_precision_resource.selected_candidate_index", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selection_reason",
+       "tcrv_rvv.low_precision_resource.selection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.planning_contract",
+       "tcrv_rvv.low_precision_resource.planning_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.legality_scope",
+       "tcrv_rvv.low_precision_resource.legality_scope", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_dtype",
+       "tcrv_rvv.low_precision_resource.source_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_sew",
+       "tcrv_rvv.low_precision_resource.source_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_lmul",
+       "tcrv_rvv.low_precision_resource.source_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.operand_form",
+       "tcrv_rvv.low_precision_resource.operand_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_signedness",
+       "tcrv_rvv.low_precision_resource.source_signedness", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.storage_element_width",
+       "tcrv_rvv.low_precision_resource.storage_element_width", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.effective_element_width",
+       "tcrv_rvv.low_precision_resource.effective_element_width", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.packing_layout",
+       "tcrv_rvv.low_precision_resource.packing_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.unpack_intent",
+       "tcrv_rvv.low_precision_resource.unpack_intent", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.packed_load_unpack_contract",
+       "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.packed_storage_load",
+       "tcrv_rvv.low_precision_resource.packed_storage_load", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.packed_unpack_plan",
+       "tcrv_rvv.low_precision_resource.packed_unpack_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.packed_unpacked_source",
+       "tcrv_rvv.low_precision_resource.packed_unpacked_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_dtype",
+       "tcrv_rvv.low_precision_resource.product_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_sew",
+       "tcrv_rvv.low_precision_resource.product_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_lmul",
+       "tcrv_rvv.low_precision_resource.product_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_emul",
+       "tcrv_rvv.low_precision_resource.product_emul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_dtype",
+       "tcrv_rvv.low_precision_resource.accumulator_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_sew",
+       "tcrv_rvv.low_precision_resource.accumulator_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_lmul",
+       "tcrv_rvv.low_precision_resource.accumulator_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_emul",
+       "tcrv_rvv.low_precision_resource.accumulator_emul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_dtype",
+       "tcrv_rvv.low_precision_resource.result_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_sew",
+       "tcrv_rvv.low_precision_resource.result_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_lmul",
+       "tcrv_rvv.low_precision_resource.result_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.memory_form",
+       "tcrv_rvv.low_precision_resource.memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.tail_policy",
+       "tcrv_rvv.low_precision_resource.tail_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.mask_policy",
+       "tcrv_rvv.low_precision_resource.mask_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.unroll_factor",
+       "tcrv_rvv.low_precision_resource.unroll_factor", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_count",
+       "tcrv_rvv.low_precision_resource.accumulator_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.reduction_layout",
+       "tcrv_rvv.low_precision_resource.reduction_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.vsetvl_region_count",
+       "tcrv_rvv.low_precision_resource.vsetvl_region_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.peak_live_vector_groups",
+       "tcrv_rvv.low_precision_resource.peak_live_vector_groups", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.vector_register_budget",
+       "tcrv_rvv.low_precision_resource.vector_register_budget", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.runtime_avl_source",
+       "tcrv_rvv.low_precision_resource.runtime_avl_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.runtime_abi_order",
+       "tcrv_rvv.low_precision_resource.runtime_abi_order", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.route_family_plan",
+       "tcrv_rvv.low_precision_resource.route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.provider_supported_mirror",
+       "tcrv_rvv.low_precision_resource.provider_supported_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_contract",
+       "tcrv_rvv.low_precision_resource.primitive_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_kind",
+       "tcrv_rvv.low_precision_resource.primitive_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_chain_contract",
+       "tcrv_rvv.low_precision_resource.primitive_chain_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_chain_kind",
+       "tcrv_rvv.low_precision_resource.primitive_chain_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_multiplicand_roles",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_multiplicand_roles",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_extension_policy",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_extension_policy",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_candidate_fact",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_candidate_fact",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.reduction_candidate_fact",
+       "tcrv_rvv.low_precision_resource.reduction_candidate_fact", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_source_load",
+       "tcrv_rvv.low_precision_resource.primitive_source_load", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_source_extension",
+       "tcrv_rvv.low_precision_resource.primitive_source_extension", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_widening_product_relation",
+       "tcrv_rvv.low_precision_resource."
+       "primitive_widening_product_relation",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_product_reduction_chain_relation",
+       "tcrv_rvv.low_precision_resource."
+       "primitive_product_reduction_chain_relation",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_widening_product_intrinsic",
+       "tcrv_rvv.low_precision_resource."
+       "primitive_widening_product_intrinsic",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_reduction_intrinsic",
+       "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+       "tcrv_rvv.low_precision_resource."
+       "primitive_scalar_seed_splat_intrinsic",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_accumulator_layout",
+       "tcrv_rvv.low_precision_resource.primitive_accumulator_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_result_layout",
+       "tcrv_rvv.low_precision_resource.primitive_result_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_reduction_store_vl",
+       "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_producer",
+       "tcrv_rvv.low_precision_resource.realization_producer", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_decision",
+       "tcrv_rvv.low_precision_resource.realization_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_contract",
+       "tcrv_rvv.low_precision_resource.realization_admission_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_decision",
+       "tcrv_rvv.low_precision_resource.realization_admission_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_evidence",
+       "tcrv_rvv.low_precision_resource.realization_admission_evidence", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_dispatch_policy",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_dispatch_policy",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_schedule_decision_contract",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision_contract",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_schedule_decision",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_schedule_decision_reason",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision_reason",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realized_unroll_factor",
+       "tcrv_rvv.low_precision_resource.realized_unroll_factor", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realized_vsetvl_region_count",
+       "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realized_peak_live_vector_groups",
+       "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_region_index",
+       "tcrv_rvv.low_precision_resource.product_region_index", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.dequant_region_index",
+       "tcrv_rvv.low_precision_resource.dequant_region_index", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_phase",
+       "tcrv_rvv.low_precision_resource.product_phase", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.dequant_phase",
+       "tcrv_rvv.low_precision_resource.dequant_phase", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.clamp_region_index",
+       "tcrv_rvv.low_precision_resource.clamp_region_index", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.clamp_phase",
+       "tcrv_rvv.low_precision_resource.clamp_phase", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.clamp_compare_select_phase",
+       "tcrv_rvv.low_precision_resource.clamp_compare_select_phase", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.clamp_select_layout",
+       "tcrv_rvv.low_precision_resource.clamp_select_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_feedback",
+       "tcrv_rvv.low_precision_resource.performance_feedback", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_baseline",
+       "tcrv_rvv.low_precision_resource.performance_baseline", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_best_speedup_range",
+       "tcrv_rvv.low_precision_resource.performance_best_speedup_range", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_action",
+       "tcrv_rvv.low_precision_resource.performance_action", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_handoff_contract",
+       "tcrv_rvv.low_precision_resource.remediation_handoff_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_diagnosis",
+       "tcrv_rvv.low_precision_resource.remediation_diagnosis", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_measurement_evidence",
+       "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_decision",
+       "tcrv_rvv.low_precision_resource.remediation_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_action",
+       "tcrv_rvv.low_precision_resource.remediation_action", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_dispatch_preference",
+       "tcrv_rvv.low_precision_resource.remediation_dispatch_preference", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_blocker",
+       "tcrv_rvv.low_precision_resource.remediation_blocker", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_plan_contract",
+       "tcrv_rvv.low_precision_resource.remediation_plan_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_plan",
+       "tcrv_rvv.low_precision_resource.remediation_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_statement_strategy",
+       "tcrv_rvv.low_precision_resource.remediation_statement_strategy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_vector_budget",
+       "tcrv_rvv.low_precision_resource.remediation_vector_budget", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_schedule_contract",
+       "tcrv_rvv.low_precision_resource.remediation_schedule_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_unpack_plan",
+       "tcrv_rvv.low_precision_resource.remediation_unpack_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_product_plan",
+       "tcrv_rvv.low_precision_resource.remediation_product_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_reduction_plan",
+       "tcrv_rvv.low_precision_resource.remediation_reduction_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_vl_plan",
+       "tcrv_rvv.low_precision_resource.remediation_vl_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.schedule_decision_contract",
+       "tcrv_rvv.low_precision_resource.schedule_decision_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.schedule_decision",
+       "tcrv_rvv.low_precision_resource.schedule_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.schedule_decision_reason",
+       "tcrv_rvv.low_precision_resource.schedule_decision_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.resource_cost_contract",
+       "tcrv_rvv.low_precision_resource.resource_cost_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.resource_cost_model",
+       "tcrv_rvv.low_precision_resource.resource_cost_model", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.resource_cost_loop_body_steps",
+       "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.resource_cost_blocker",
+       "tcrv_rvv.low_precision_resource.resource_cost_blocker", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_decision",
+       "tcrv_rvv.low_precision_resource.performance_admission_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_closure",
+       "tcrv_rvv.low_precision_resource.performance_admission_closure", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_reopen_requirement",
+       "tcrv_rvv.low_precision_resource."
+       "performance_admission_reopen_requirement",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_contract",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_contract",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_decision",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_decision",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_blocker",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_blocker",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_reopen_requirement",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_reopen_requirement",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity",
+       "tcrv_rvv.low_precision_resource.performance_maturity", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity_evidence",
+       "tcrv_rvv.low_precision_resource.performance_maturity_evidence", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity_outcome",
+       "tcrv_rvv.low_precision_resource.performance_maturity_outcome", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_selection_eligible",
+       "tcrv_rvv.low_precision_resource.performance_selection_eligible", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "selected_dispatch_policy_contract",
+       "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "dispatch_policy_path",
+       "tcrv_rvv.low_precision_resource.dispatch_policy_path", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "selected_dispatch_preference",
+       "tcrv_rvv.low_precision_resource.selected_dispatch_preference", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_preference_denial_reason",
+       "tcrv_rvv.low_precision_resource."
+       "performance_preference_denial_reason",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "fallback_reason",
+       "tcrv_rvv.low_precision_resource.fallback_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "route_support_allowed",
+       "tcrv_rvv.low_precision_resource.route_support_allowed", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "correctness_execution_allowed",
+       "tcrv_rvv.low_precision_resource.correctness_execution_allowed", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_selection_allowed",
+       "tcrv_rvv.low_precision_resource.performance_selection_allowed", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_win_claim_allowed",
+       "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "correctness_fallback_path_selected",
+       "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_preferred_path_selected",
+       "tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "dispatch_preference",
+       "tcrv_rvv.low_precision_resource.dispatch_preference", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.target_capability_provider_mirror",
+       "tcrv_rvv.low_precision_resource.target_capability_provider_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.target_capability_legality_mirror",
+       "tcrv_rvv.low_precision_resource.target_capability_legality_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.legality",
+       "tcrv_rvv.low_precision_resource.legality", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.rejection_reason",
+       "tcrv_rvv.low_precision_resource.rejection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_route_family_plan",
+       "tcrv_rvv.composite_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_typed_compute_chain",
+       "tcrv_rvv.composite_typed_compute_chain", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.candidate_set",
+       "tcrv_rvv.composite_resource.candidate_set", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.selected_candidate",
+       "tcrv_rvv.composite_resource.selected_candidate", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.selection_reason",
+       "tcrv_rvv.composite_resource.selection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.legality_scope",
+       "tcrv_rvv.composite_resource.legality_scope", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.operation",
+       "tcrv_rvv.composite_resource.operation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.memory_form",
+       "tcrv_rvv.composite_resource.memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.sew", "tcrv_rvv.composite_resource.sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.lmul", "tcrv_rvv.composite_resource.lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.tail_policy",
+       "tcrv_rvv.composite_resource.tail_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.mask_policy",
+       "tcrv_rvv.composite_resource.mask_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.vl_policy",
+       "tcrv_rvv.composite_resource.vl_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.accumulator_layout",
+       "tcrv_rvv.composite_resource.accumulator_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.unroll_factor",
+       "tcrv_rvv.composite_resource.unroll_factor", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.pipeline_intent",
+       "tcrv_rvv.composite_resource.pipeline_intent", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.prefetch_intent",
+       "tcrv_rvv.composite_resource.prefetch_intent", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.vsetvl_region_count",
+       "tcrv_rvv.composite_resource.vsetvl_region_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.peak_live_vector_groups",
+       "tcrv_rvv.composite_resource.peak_live_vector_groups", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.vector_register_budget",
+       "tcrv_rvv.composite_resource.vector_register_budget", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.runtime_avl_source",
+       "tcrv_rvv.composite_resource.runtime_avl_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.runtime_abi_order",
+       "tcrv_rvv.composite_resource.runtime_abi_order", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.target_capability_provider_mirror",
+       "tcrv_rvv.composite_resource.target_capability_provider_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.target_capability_legality_mirror",
+       "tcrv_rvv.composite_resource.target_capability_legality_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.legality",
+       "tcrv_rvv.composite_resource.legality", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"composite_resource.rejection_reason",
+       "tcrv_rvv.composite_resource.rejection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_candidate_set", "tcrv_rvv.gearbox.candidate_set", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_selected_candidate",
+       "tcrv_rvv.gearbox.selected_candidate", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_selection_reason", "tcrv_rvv.gearbox.selection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_legality_scope", "tcrv_rvv.gearbox.legality_scope", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_schedule_id", "tcrv_rvv.gearbox.schedule_id", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_selector", "tcrv_rvv.gearbox.selector", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_source", "tcrv_rvv.gearbox.source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_operation", "tcrv_rvv.gearbox.operation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_unroll", "tcrv_rvv.gearbox.unroll", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_vl_policy", "tcrv_rvv.gearbox.vl_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_source_sew", "tcrv_rvv.gearbox.source_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_source_lmul", "tcrv_rvv.gearbox.source_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_dest_sew", "tcrv_rvv.gearbox.dest_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_dest_lmul", "tcrv_rvv.gearbox.dest_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_runtime_avl_source",
+       "tcrv_rvv.gearbox.runtime_avl_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_producer_scope", "tcrv_rvv.gearbox.producer_scope", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"gearbox_consumer_scope", "tcrv_rvv.gearbox.consumer_scope", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"accumulator_sew", "tcrv_rvv.accumulator_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -707,6 +1422,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"macc_result_layout", "tcrv_rvv.macc_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"macc_arithmetic_kind", "tcrv_rvv.macc_arithmetic_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_accumulator_layout",
        "tcrv_rvv.widening_macc_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -714,6 +1431,26 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        "tcrv_rvv.widening_macc_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_relation", "tcrv_rvv.widening_macc_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_product_relation", "tcrv_rvv.widening_product_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_product_multiplicand_roles",
+       "tcrv_rvv.widening_product_multiplicand_roles", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_product_extension_policy",
+       "tcrv_rvv.widening_product_extension_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_product_intrinsic",
+       "tcrv_rvv.widening_product_intrinsic", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"product_reduction_chain_relation",
+       "tcrv_rvv.product_reduction_chain_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_reduction_intrinsic",
+       "tcrv_rvv.widening_reduction_intrinsic", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"scalar_seed_splat_intrinsic",
+       "tcrv_rvv.scalar_seed_splat_intrinsic", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_accumulator_layout",
        "tcrv_rvv.widening_dot_accumulator_layout", "",
@@ -723,6 +1460,9 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_relation", "tcrv_rvv.widening_dot_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_dot_source_accumulator_result_contract",
+       "tcrv_rvv.widening_dot_source_accumulator_result_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_dot_reduction_store_vl",
        "tcrv_rvv.widening_dot_reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -730,6 +1470,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        "tcrv_rvv.reduction_accumulator_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"reduction_result_layout", "tcrv_rvv.reduction_result_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"reduction_kind", "tcrv_rvv.reduction_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"reduction_store_vl", "tcrv_rvv.reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
@@ -774,11 +1516,40 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"computed_mask_memory_mask_producer_source",
        "tcrv_rvv.computed_mask_memory_mask_producer_source", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_route_family_plan",
+       "tcrv_rvv.mask_tail_policy_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_tail_policy_owner", "tcrv_rvv.mask_tail_policy_owner", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"secondary_compare_predicate_kind",
+       "tcrv_rvv.secondary_compare_predicate_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"lower_bound_role", "tcrv_rvv.lower_bound_role", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"upper_bound_role", "tcrv_rvv.upper_bound_role", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"lower_bound_c_type", "tcrv_rvv.lower_bound_c_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"upper_bound_c_type", "tcrv_rvv.upper_bound_c_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"bound_order", "tcrv_rvv.bound_order", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"clamp_relation", "tcrv_rvv.clamp_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"source_memory_form", "tcrv_rvv.source_memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"destination_memory_form", "tcrv_rvv.destination_memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"select_layout", "tcrv_rvv.select_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"base_memory_movement_route_family_plan",
        "tcrv_rvv.base_memory_movement_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"elementwise_arithmetic_route_family_plan",
        "tcrv_rvv.elementwise_arithmetic_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"scalar_broadcast_elementwise_route_family_plan",
+       "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"scalar_broadcast_macc_route_family_plan",
        "tcrv_rvv.scalar_broadcast_macc_route_family_plan", "",
@@ -795,8 +1566,23 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"widening_conversion_route_family_plan",
        "tcrv_rvv.widening_conversion_route_family_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dequantization_route_family_plan",
+       "tcrv_rvv.dequantization_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_route_family_plan",
        "tcrv_rvv.standalone_reduction_route_family_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"standalone_reduction_source_vector_type",
+       "tcrv_rvv.standalone_reduction_source_vector_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"standalone_reduction_source_vector_c_type",
+       "tcrv_rvv.standalone_reduction_source_vector_c_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"standalone_reduction_scalar_result_vector_type",
+       "tcrv_rvv.standalone_reduction_scalar_result_vector_type", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"standalone_reduction_scalar_result_vector_c_type",
+       "tcrv_rvv.standalone_reduction_scalar_result_vector_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"standalone_reduction_scalar_result_runtime_boundary",
        "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary", "",
@@ -946,8 +1732,6 @@ SelectedEmitCArtifactRouteConfig getRVVSelectedBodyArtifactConfig() {
                             "selected-body slice";
   config.candidateValidationFn =
       validateRVVSelectedBodyTargetArtifactCandidate;
-  config.routeBuilderFn =
-      plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute;
   return config;
 }
 
@@ -1016,6 +1800,7 @@ getRVVSelectedBodyArtifactAdapterConfig() {
   config.selectedLoweringBoundary.extraStringAttributes =
       kBoundaryAttributeExpectations;
   config.selectedLoweringBoundary.searchSelectedVariantBody = true;
+  config.selectedLoweringBoundary.countOnlyDirectVariantBodyBoundaries = true;
   config.objectPackagerFn = compileRVVGeneratedSourceToObject;
   return config;
 }
@@ -1044,14 +1829,6 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
 }
 
 } // namespace
-
-llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID() {
-  return plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID();
-}
-
-llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID() {
-  return getRVVTargetMapping().headerRouteID;
-}
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {

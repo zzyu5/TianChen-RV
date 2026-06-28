@@ -38,7 +38,9 @@ bool isFiniteBinaryCallableRole(RuntimeABIParameterRole role) {
   case RuntimeABIParameterRole::SegmentField0InputBuffer:
 	  case RuntimeABIParameterRole::SegmentField1InputBuffer:
 	  case RuntimeABIParameterRole::RHSScalarValue:
-	  case RuntimeABIParameterRole::RHSSecondaryScalarValue:
+  case RuntimeABIParameterRole::RHSSecondaryScalarValue:
+  case RuntimeABIParameterRole::LowerBoundScalarValue:
+  case RuntimeABIParameterRole::UpperBoundScalarValue:
 	  case RuntimeABIParameterRole::SegmentField0OutputBuffer:
   case RuntimeABIParameterRole::SegmentField1OutputBuffer:
   case RuntimeABIParameterRole::SegmentInterleavedOutputBuffer:
@@ -47,6 +49,7 @@ bool isFiniteBinaryCallableRole(RuntimeABIParameterRole role) {
   case RuntimeABIParameterRole::SourceByteStride:
   case RuntimeABIParameterRole::DestinationByteStride:
   case RuntimeABIParameterRole::OutputStride:
+  case RuntimeABIParameterRole::DequantScaleValue:
   case RuntimeABIParameterRole::DispatchAvailabilityGuard:
     return false;
   }

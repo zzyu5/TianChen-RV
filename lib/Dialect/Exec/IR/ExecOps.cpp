@@ -10,8 +10,10 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 #include <cctype>
 
@@ -19,6 +21,11 @@ using namespace tianchenrv::tcrv::exec;
 namespace exec = tianchenrv::tcrv::exec;
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
+
+#include "TianChenRV/Dialect/Exec/IR/ExecEnums.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
@@ -53,9 +60,6 @@ constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
 constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
 constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
-constexpr llvm::StringLiteral kProvidesAttrName("provides");
-constexpr llvm::StringLiteral kImpliesAttrName("implies");
-constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 
@@ -83,6 +87,26 @@ using diagnostic::kTargetAttrName;
 bool isMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
   return !attr || attr.getValue().trim().empty();
+}
+
+// Enforce the closed, ODS-defined capability `status` value set on
+// capability/target ops. When present, the status must be one of the typed
+// CapabilityStatus keywords (available/unavailable/disabled/missing). This
+// tightens the prior behavior where any unknown or empty status was silently
+// treated as Available: such a status is now a verifier error.
+mlir::LogicalResult requireTypedCapabilityStatusWhenPresent(
+    mlir::Operation *op) {
+  auto attr = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (!attr)
+    return mlir::success();
+  if (exec::symbolizeCapabilityStatus(attr.getValue()))
+    return mlir::success();
+  return op->emitOpError()
+         << "requires attribute '" << kStatusAttrName
+         << "' to be one of the typed capability status values "
+            "\"available\", \"unavailable\", \"disabled\", or \"missing\"; got "
+            "\""
+         << attr.getValue() << "\"";
 }
 
 bool isPresentButEmptyStringAttr(mlir::Operation *op,
@@ -174,41 +198,35 @@ mlir::LogicalResult requireValidCNameWhenPresent(mlir::Operation *op,
   return mlir::success();
 }
 
-mlir::LogicalResult verifyCapabilityIDRelationAttr(mlir::Operation *op,
-                                                   llvm::StringRef attrName) {
-  mlir::Attribute rawAttr = op->getAttr(attrName);
-  if (!rawAttr)
-    return mlir::success();
-
-  auto arrayAttr = llvm::dyn_cast<mlir::ArrayAttr>(rawAttr);
-  if (!arrayAttr)
-    return op->emitOpError()
-           << "capability relation attribute '" << attrName
-           << "' must be an array of non-empty capability id strings";
-
+// Hygiene-only validation of one typed capability-id relation list, ported from
+// verifyCapabilityIDRelationAttr. Entries are already typed StringAttr, so only
+// the value-level checks (non-empty, no required trimming, single-line, no
+// duplicates per list) remain. No cross-op / symbol-table resolution here:
+// relation resolution by id is a pass-time concern.
+mlir::LogicalResult verifyCapabilityRelationIDList(
+    llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
+    llvm::StringRef listName, llvm::ArrayRef<mlir::StringAttr> ids) {
   llvm::StringSet<> seenIDs;
-  for (auto [index, relationID] : llvm::enumerate(arrayAttr)) {
-    auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(relationID);
-    if (!stringAttr || stringAttr.getValue().trim().empty())
-      return op->emitOpError()
-             << "capability relation attribute '" << attrName << "' entry "
-             << index << " must be a non-empty capability id string";
+  for (auto [index, idAttr] : llvm::enumerate(ids)) {
+    if (!idAttr || idAttr.getValue().trim().empty())
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must be a non-empty capability id string";
 
-    llvm::StringRef value = stringAttr.getValue().trim();
-    if (value != stringAttr.getValue())
-      return op->emitOpError()
-             << "capability relation attribute '" << attrName << "' entry "
-             << index << " must not require whitespace trimming";
+    llvm::StringRef value = idAttr.getValue().trim();
+    if (value != idAttr.getValue())
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must not require whitespace trimming";
 
     if (value.contains('\n') || value.contains('\r') || value.contains('\0'))
-      return op->emitOpError()
-             << "capability relation attribute '" << attrName << "' entry "
-             << index << " must be single-line capability id text";
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must be single-line capability id text";
 
     if (!seenIDs.insert(value).second)
-      return op->emitOpError()
-             << "capability relation attribute '" << attrName
-             << "' duplicates capability id '" << value << "'";
+      return emitError() << "capability relation list '" << listName
+                         << "' duplicates capability id '" << value << "'";
   }
 
   return mlir::success();
@@ -550,6 +568,23 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
 
 } // namespace
 
+mlir::LogicalResult CapabilityRelationsAttr::verify(
+    llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
+    llvm::ArrayRef<mlir::StringAttr> provides,
+    llvm::ArrayRef<mlir::StringAttr> implies,
+    llvm::ArrayRef<mlir::StringAttr> conflicts) {
+  if (mlir::failed(verifyCapabilityRelationIDList(emitError, "provides",
+                                                  provides)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityRelationIDList(emitError, "implies", implies)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityRelationIDList(emitError, "conflicts", conflicts)))
+    return mlir::failure();
+  return mlir::success();
+}
+
 mlir::LogicalResult TargetOp::verify() {
   auto idAttr = getOperation()->getAttrOfType<mlir::StringAttr>(kIdAttrName);
   auto kindAttr =
@@ -567,14 +602,7 @@ mlir::LogicalResult TargetOp::verify() {
                                                       kKindAttrName)))
     return mlir::failure();
 
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kProvidesAttrName)))
-    return mlir::failure();
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kImpliesAttrName)))
-    return mlir::failure();
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kConflictsAttrName)))
+  if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
     return mlir::failure();
 
   if (getOperation()->hasAttr(kCapabilityProvidersAttrName)) {
@@ -603,14 +631,7 @@ mlir::LogicalResult CapabilityOp::verify() {
     return emitOpError()
            << "requires non-empty string attribute '" << kKindAttrName << "'";
 
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kProvidesAttrName)))
-    return mlir::failure();
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kImpliesAttrName)))
-    return mlir::failure();
-  if (mlir::failed(
-          verifyCapabilityIDRelationAttr(getOperation(), kConflictsAttrName)))
+  if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
     return mlir::failure();
 
   return mlir::success();
@@ -1189,5 +1210,9 @@ void TCRVExecDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
+      >();
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
       >();
 }

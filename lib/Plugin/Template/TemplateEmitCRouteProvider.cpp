@@ -108,9 +108,9 @@ getTemplateComputeSourceProvenance(
 
 } // namespace
 
-llvm::Error buildTemplateComputeSkeletonEmitCLowerableRoute(
+llvm::Error validateTemplateComputeSkeletonEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
-    emitc::TCRVEmitCLowerableRoute &out) {
+    emitc::TCRVEmitCSourceOpProvenance &outSource) {
   if (llvm::Error error = verifyTemplateConstructionProtocolReady())
     return error;
 
@@ -134,23 +134,7 @@ llvm::Error buildTemplateComputeSkeletonEmitCLowerableRoute(
           constructionRoute.runtimeGlueRole))
     return error;
 
-  emitc::TCRVEmitCLowerableRoute route(
-      constructionRoute.routeID,
-      "extension-family-construction-template-to-emitc-call-opaque");
-  route.addHeader("stdint.h");
-  route.addFunctionDeclaration(constructionRoute.callee,
-                               constructionRoute.resultCType);
-  route.addSourceOpProvenance(*source);
-
-  emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = std::move(*source);
-  step.callee = constructionRoute.callee.str();
-  step.result = emitc::TCRVEmitCCallOpaqueResult{
-      constructionRoute.resultName.str(),
-      constructionRoute.resultCType.str()};
-  route.addCallOpaqueStep(std::move(step));
-
-  out = std::move(route);
+  outSource = std::move(*source);
   return llvm::Error::success();
 }
 

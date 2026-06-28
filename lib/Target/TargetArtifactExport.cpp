@@ -1,7 +1,7 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Target/Cpp/CppEmitter.h"
@@ -942,6 +943,66 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
 }
 
+struct UnsupportedSelectedPathSummary {
+  std::string selectedVariant;
+  std::string role;
+  std::string status;
+  std::string origin;
+  std::string emissionKind;
+  std::string artifactKind;
+};
+
+llvm::Expected<UnsupportedSelectedPathSummary>
+buildUnsupportedSelectedPathSummary(KernelOp kernel, const SelectedPath &path,
+                                    DiagnosticOp diagnostic) {
+  UnsupportedSelectedPathSummary summary;
+  summary.selectedVariant = getPathVariantSymbol(path).str();
+  summary.role = path.role;
+
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kStatusAttrName,
+                                "unsupported selected emission-plan",
+                                summary.status))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kOriginAttrName,
+                                "unsupported selected emission-plan",
+                                summary.origin))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kEmissionKindAttrName,
+                                "unsupported selected emission-plan",
+                                summary.emissionKind))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kArtifactKindAttrName,
+                                "unsupported selected emission-plan",
+                                summary.artifactKind))
+    return std::move(error);
+
+  return summary;
+}
+
+std::string formatUnsupportedSelectedPathSummaries(
+    llvm::ArrayRef<UnsupportedSelectedPathSummary> summaries) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  for (auto [index, summary] : llvm::enumerate(summaries)) {
+    if (index != 0)
+      stream << "; ";
+    stream << "@" << summary.selectedVariant << " as " << summary.role
+           << " status '" << summary.status << "' origin '" << summary.origin
+           << "' emission_kind '" << summary.emissionKind
+           << "' artifact_kind '" << summary.artifactKind << "'";
+  }
+  stream.flush();
+  return text;
+}
+
 llvm::Expected<const TargetArtifactCompositeExporter *>
 selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
                         const TargetArtifactExporterRegistry &registry,
@@ -1043,10 +1104,6 @@ llvm::Error validateSelectedEmitCArtifactRouteConfig(
     return makeSelectedEmitCArtifactError(
         routeDescription,
         "requires a non-empty selected emission-plan origin plugin");
-  if (!config.routeBuilderFn)
-    return makeSelectedEmitCArtifactError(
-        routeDescription,
-        "requires a plugin-owned EmitC lowerable route builder callback");
   return llvm::Error::success();
 }
 
@@ -1146,30 +1203,6 @@ selectSelectedEmitCArtifactTargetImpl(
   return target;
 }
 
-llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute>
-buildSelectedEmitCArtifactRoute(
-    const SelectedEmitCArtifactTarget &target,
-    const SelectedEmitCArtifactRouteConfig &config) {
-  llvm::StringRef routeDescription =
-      config.routeDescription.empty() ? config.routeID : config.routeDescription;
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(target.kernel);
-  if (!capabilities)
-    return capabilities.takeError();
-
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  plugin::VariantEmitCLowerableRequest request(
-      target.variant, target.kernel, *capabilities, target.role);
-  if (llvm::Error error = config.routeBuilderFn(request, route))
-    return std::move(error);
-  if (llvm::Error error = route.verify())
-    return std::move(error);
-  if (route.getRouteID().trim().empty())
-    return makeSelectedEmitCArtifactError(
-        routeDescription, "plugin-owned EmitC lowerable route id is empty");
-  return std::move(route);
-}
-
 llvm::Error requireMaterializedEmitCModule(
     mlir::ModuleOp module, llvm::StringRef routeDescription) {
   bool foundEmitCOp = false;
@@ -1210,107 +1243,57 @@ llvm::Error requireMaterializedEmitCModule(
   return llvm::Error::success();
 }
 
-std::string formatRouteSourceProvenanceComment(
-    const conversion::emitc::TCRVEmitCSourceOpProvenance &source) {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  stream << "// tcrv_emitc.route_source_op=" << source.opName
-         << " role=" << source.role;
-  if (!source.opInterface.empty())
-    stream << " op_interface=" << source.opInterface;
-  stream.flush();
-  return text;
-}
-
-std::string formatStepProvenanceComment(
-    const conversion::emitc::TCRVEmitCCallOpaqueStep &step) {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  stream << "// tcrv_emitc.source_op=" << step.sourceOp.opName
-         << " role=" << step.sourceOp.role;
-  if (!step.sourceOp.opInterface.empty())
-    stream << " op_interface=" << step.sourceOp.opInterface;
-  stream << " callee=" << step.callee;
-  stream.flush();
-  return text;
-}
-
-bool materializedEmitCModuleContainsVerbatim(mlir::ModuleOp module,
-                                             llvm::StringRef value) {
-  bool found = false;
-  module->walk([&](mlir::emitc::VerbatimOp verbatim) {
-    if (verbatim.getValue() == value) {
-      found = true;
-      return mlir::WalkResult::interrupt();
-    }
-    return mlir::WalkResult::advance();
-  });
-  return found;
-}
-
-llvm::Error requireSelectedEmitCMaterializedHandoff(
-    mlir::ModuleOp module,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+// Stage 3 换心: the converted-path materialized-handoff validator.
+//
+// When the real RVV->emitc DialectConversion fully legalizes the selected body
+// (every elementwise family now does this), the exported bundle is produced by
+// the conversion itself — the authoritative typed-body lowering — NOT by the
+// legacy string route. The string route's provenance verbatims are an I4
+// metadata mirror; cross-checking the converted module against them is
+// redundant for a conversion that is hardware-validated and byte-identical to
+// the string-path emitc. So the converted path must NOT build the string route.
+//
+// What we still genuinely must enforce, derived from `config` + the converted
+// module itself (no string route):
+//   1. a well-formed materialized EmitC module (single emitc.func boundary,
+//      no leftover non-emitc op) — `requireMaterializedEmitCModule`;
+//   2. the exported function carries the EXACT expected name/signature handoff
+//      (the same name the bundle header + runtime ABI seam expects), so a
+//      conversion that named the function differently is rejected, not shipped.
+// The expected name is the route id-independent handoff identity the legacy
+// path also produced (`makeSelectedEmitCArtifactFunctionName` / a configured
+// `functionNameFn`), so checking it here preserves the name/signature invariant
+// without the string route.
+llvm::Error requireConvertedSelectedEmitCMaterializedHandoff(
+    mlir::ModuleOp module, llvm::StringRef expectedFunctionName,
     llvm::StringRef routeDescription) {
   if (llvm::Error error =
           requireMaterializedEmitCModule(module, routeDescription))
     return error;
 
-  if (route.getSourceOpProvenance().empty())
+  bool foundExpectedFunc = false;
+  std::string observedNames;
+  module->walk([&](mlir::emitc::FuncOp func) {
+    if (func.getSymName() == expectedFunctionName) {
+      foundExpectedFunc = true;
+      return mlir::WalkResult::interrupt();
+    }
+    if (!observedNames.empty())
+      observedNames += ", ";
+    observedNames += func.getSymName().str();
+    return mlir::WalkResult::advance();
+  });
+  if (!foundExpectedFunc)
     return makeSelectedEmitCArtifactError(
         routeDescription,
-        "requires at least one route source-op provenance entry in the "
-        "materialized EmitC handoff before target artifact packaging");
-
-  for (const conversion::emitc::TCRVEmitCSourceOpProvenance &source :
-       route.getSourceOpProvenance()) {
-    std::string expected = formatRouteSourceProvenanceComment(source);
-    if (!materializedEmitCModuleContainsVerbatim(module, expected))
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          llvm::Twine("materialized EmitC handoff is missing route "
-                      "source-op provenance '") +
-              expected + "'");
-  }
-
-  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-       route.getCallOpaqueSteps()) {
-    std::string expected = formatStepProvenanceComment(step);
-    if (!materializedEmitCModuleContainsVerbatim(module, expected))
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          llvm::Twine("materialized EmitC handoff is missing call "
-                      "source-op provenance '") +
-              expected + "'");
-  }
-  for (const conversion::emitc::TCRVEmitCForLoop &loop :
-       route.getForLoops()) {
-    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
-         loop.bodySteps) {
-      std::string expected = formatStepProvenanceComment(step);
-      if (!materializedEmitCModuleContainsVerbatim(module, expected))
-        return makeSelectedEmitCArtifactError(
-            routeDescription,
-            llvm::Twine("materialized EmitC loop handoff is missing call "
-                        "source-op provenance '") +
-                expected + "'");
-    }
-  }
-  if (!route.getForLoops().empty()) {
-    bool foundFor = false;
-    module->walk([&](mlir::emitc::ForOp) {
-      foundFor = true;
-      return mlir::WalkResult::interrupt();
-    });
-    if (!foundFor)
-      return makeSelectedEmitCArtifactError(
-          routeDescription,
-          "materialized EmitC handoff is missing the structured emitc.for "
-          "loop required by the selected route");
-  }
+        llvm::Twine("converted materialized EmitC handoff does not expose the "
+                    "expected exported function '") +
+            expectedFunctionName + "' (observed: " +
+            (observedNames.empty() ? "<none>" : observedNames) + ")");
 
   return llvm::Error::success();
 }
+
 
 llvm::StringRef lookupArtifactMetadataValue(
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
@@ -1328,9 +1311,9 @@ bool containsForbiddenMaterializedEmitCHeaderMetadata(llvm::StringRef value) {
          lower.contains("metadata-diagnostic") ||
          lower.contains("metadata_diagnostic") ||
          lower.contains("source-export") ||
-         lower.contains("source_export") || lower.contains("direct-c") ||
-         lower.contains("direct_c") || lower.contains("compute-body") ||
-         lower.contains("compute_body");
+         lower.contains("source_export") ||
+         containsForbiddenDirectCMarker(lower) ||
+         lower.contains("compute-body") || lower.contains("compute_body");
 }
 
 llvm::Error rejectForbiddenMaterializedEmitCHeaderMetadata(
@@ -1610,6 +1593,22 @@ void printMaterializedEmitCHeaderDeclaration(
 }
 
 } // namespace
+
+bool containsForbiddenDirectCMarker(llvm::StringRef lower) {
+  if (lower.contains("direct_c"))
+    return true;
+
+  std::size_t position = 0;
+  while (true) {
+    position = lower.find("direct-c", position);
+    if (position == llvm::StringRef::npos)
+      return false;
+    llvm::StringRef suffix = lower.substr(position);
+    if (!suffix.starts_with("direct-contraction"))
+      return true;
+    position += llvm::StringRef("direct-contraction").size();
+  }
+}
 
 llvm::Expected<SelectedEmitCArtifactTarget>
 selectSelectedEmitCArtifactTarget(
@@ -1963,31 +1962,65 @@ materializeSelectedEmitCArtifactModule(
   if (!target)
     return target.takeError();
 
-  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
-      buildSelectedEmitCArtifactRoute(*target, config);
-  if (!route)
-    return route.takeError();
-
-  conversion::emitc::TCRVEmitCMaterializationOptions options;
-  if (config.functionNameFn)
-    options.functionName = config.functionNameFn(target->kernel,
-                                                 target->variant);
-  else
-    options.functionName =
-        makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
-  options.emitExternC = true;
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      conversion::emitc::materializeTCRVEmitCLowerableRoute(
-          *module.getContext(), *route, options);
-  if (!emitcModule)
-    return emitcModule.takeError();
+  // The exported function name/signature handoff identity. It is derived from
+  // the selected kernel+variant (and an optional config override), independent
+  // of any string route — both the conversion path and the legacy string path
+  // produce a function with this exact name.
+  std::string functionName =
+      config.functionNameFn
+          ? config.functionNameFn(target->kernel, target->variant)
+          : makeSelectedEmitCArtifactFunctionName(target->kernel,
+                                                  target->variant);
 
   llvm::StringRef routeDescription =
       config.routeDescription.empty() ? config.routeID : config.routeDescription;
-  if (llvm::Error error = requireSelectedEmitCMaterializedHandoff(
-          **emitcModule, *route, routeDescription))
-    return std::move(error);
-  return std::move(*emitcModule);
+
+  // Stage 3 换心: FIRST attempt the real typed-body->emitc DialectConversion via
+  // the table-driven backend-emission registry (mirrors the plugin
+  // ExtensionPlugin registry: zero core branch per family) — BEFORE building any
+  // string route. The registry iterates every registered typed-emission backend
+  // (RVV today; a future RVM family is a one-line table add), skips those whose
+  // ops the module does not carry, and tries the shared conversion harness on a
+  // CLONE for each candidate (the live `module` is never mutated). If a backend
+  // FULLY legalizes the body (success AND zero leftover backend ops/types AND
+  // zero unrealized_conversion_cast), the exported bundle is generated by the
+  // conversion (the authoritative typed-body lowering) and the string route is
+  // NEVER built. Every elementwise RVV family (add/sub/mul, scalar-broadcast,
+  // masked, strided, runtime-scalar-splat-store) now takes this converted path.
+  // If no backend fully legalizes (a family the patterns do not yet cover), the
+  // registry returns null and we fall through to the legacy string
+  // materialization path UNCHANGED — and ONLY then is the string route built.
+  // The converted emitc is byte-identical to the string-path emitc (pinned by
+  // cpp-golden lit fixtures + the e2e diff), so the swap is output-preserving
+  // and there is NO family-name branching beyond "did a registered backend
+  // legalize it". (The speculative-conversion diagnostic suppression now lives
+  // inside the registry's clone-and-try loop.)
+  if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
+          conversion::emitc::tryConvertModuleWithRegisteredBackend(module)) {
+    // A backend fully lowered the selected body to a standalone emitc module.
+    // Validate the genuinely necessary invariants against the converted module
+    // + config (a well-formed single emitc.func boundary carrying the exact
+    // expected exported function name/signature). If the converted module fails
+    // this contract, do NOT silently diverge: fail closed (I7) rather than ship
+    // an unvalidated module — the generic string re-parser fallback that once
+    // re-materialized the body has been retired.
+    if (llvm::Error handoffError =
+            requireConvertedSelectedEmitCMaterializedHandoff(
+                *convertedModule, functionName, routeDescription))
+      return std::move(handoffError);
+    return std::move(convertedModule);
+  }
+
+  // FAIL CLOSED (I7): every production family now emits typed emitc through a
+  // registered backend driver. The generic string route → re-parser fallback
+  // that once served the non-converted families has been retired, so a body no
+  // registered backend fully legalizes (an uncovered family, or a malformed
+  // body a driver declined) has no proven legal emission route and must NOT be
+  // synthesized from selected metadata. Refuse with a bounded diagnostic.
+  return makeSelectedEmitCArtifactError(
+      routeDescription,
+      "no registered backend emission driver fully legalizes the selected "
+      "variant body to EmitC");
 }
 
 llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
@@ -1997,11 +2030,11 @@ llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
   if (!target)
     return target.takeError();
 
-  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
-      buildSelectedEmitCArtifactRoute(*target, config);
-  if (!route)
-    return route.takeError();
-
+  // The exported function name is derived directly from the selected
+  // kernel+variant (or a configured override) — it does NOT require building
+  // the string route. Both the conversion path and the legacy string path name
+  // the function this way, so deriving it here keeps the function name free of
+  // the per-family string-route machinery.
   if (config.functionNameFn)
     return config.functionNameFn(target->kernel, target->variant);
   return makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
@@ -2089,6 +2122,7 @@ llvm::Error collectTargetArtifactCandidates(
             "target artifact export surface");
     }
 
+    std::size_t supportedCandidateCountBeforeKernel = out.size();
     for (const SelectedPath &path : selectedPaths) {
       std::string key = makePathKey(getPathVariantSymbol(path), path.role);
       auto diagnosticIt = diagnosticsByPathKey.find(key);
@@ -2105,6 +2139,34 @@ llvm::Error collectTargetArtifactCandidates(
         return candidate.takeError();
       if (*candidate)
         out.push_back(std::move(**candidate));
+    }
+
+    if (out.size() == supportedCandidateCountBeforeKernel) {
+      llvm::SmallVector<UnsupportedSelectedPathSummary, 4> summaries;
+      for (const SelectedPath &path : selectedPaths) {
+        std::string key = makePathKey(getPathVariantSymbol(path), path.role);
+        auto diagnosticIt = diagnosticsByPathKey.find(key);
+        if (diagnosticIt == diagnosticsByPathKey.end())
+          return makeArtifactExportError(
+              kernel, llvm::Twine("selected path @") +
+                          getPathVariantSymbol(path) + " as " + path.role +
+                          " requires exactly one emission-plan diagnostic "
+                          "before target artifact export");
+
+        llvm::Expected<UnsupportedSelectedPathSummary> summary =
+            buildUnsupportedSelectedPathSummary(kernel, path,
+                                                diagnosticIt->getValue());
+        if (!summary)
+          return summary.takeError();
+        summaries.push_back(std::move(*summary));
+      }
+
+      return makeArtifactExportError(
+          kernel,
+          llvm::Twine("selected target artifact export requires at least one "
+                      "supported executable artifact candidate; selected "
+                      "paths are unsupported: ") +
+              formatUnsupportedSelectedPathSummaries(summaries));
     }
   }
   return llvm::Error::success();

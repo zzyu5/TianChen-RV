@@ -1,15 +1,20 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-plain-compare-select-plan-validated/s//provider_supported_mirror:rvv-script-derived-plain-compare-select/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:cmp_select.v1/s//rvv-route-operand-binding:script-derived-cmp-select.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs,out,n/s//lhs,out,rhs,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-TYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.compare_predicate_kind", value = "eq"/s//tcrv_rvv.compare_predicate_kind", value = "ne"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-PREDICATE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/select-lhs-when-mask-else-rhs/s//script-derived-select-layout/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CMP-LAYOUT
 
 // Pre-realized compare/select selected-body input. The RVV plugin must consume
 // explicit predicate and select-layout facts into generic tcrv_rvv compare and
 // select structure before the provider/common EmitC/target path can consume it.
-// The direct emission-plan runs above prove the production route-entry bridge
-// performs that realization before target artifact/header export without a
-// separate selected-lowering-boundary materialization pass.
+// Generated artifact and header export must run the selected lowering-boundary
+// producer before emission planning; direct pre-realized route-entry authority
+// for plain compare/select is fail-closed in the generated-bundle tests.
 
 module {
   tcrv.exec.kernel @pre_realized_body_cmp_select_kernel {
@@ -90,3 +95,36 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:cmp_select.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|select-true-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|select-false-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
 // HEADER: tianchenrv.rvv.plain_compare_select_route_family_plan: rvv-plain-compare-select-route-family-plan.v1
 // HEADER: void tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+
+// STALE-CMP-PROVIDER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
+// STALE-CMP-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-plain-compare-select
+
+// STALE-CMP-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
+// STALE-CMP-BINDING-SAME: rvv-route-operand-binding:script-derived-cmp-select.v1
+
+// STALE-CMP-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-ABI: tcrv_rvv.runtime_abi_order
+// STALE-CMP-ABI-SAME: must mirror
+// STALE-CMP-ABI-SAME: lhs,out,rhs,n
+
+// STALE-CMP-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-HEADER: tcrv_rvv.required_header_declarations
+// STALE-CMP-HEADER-SAME: must mirror
+// STALE-CMP-HEADER-SAME: stddef.h,stdint.h
+
+// STALE-CMP-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-TYPE: tcrv_rvv.c_type_mapping
+// STALE-CMP-TYPE-SAME: must mirror
+// STALE-CMP-TYPE-SAME: vl:uint64_t
+
+// STALE-CMP-PREDICATE: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-PREDICATE: tcrv_rvv.compare_predicate_kind
+// STALE-CMP-PREDICATE-SAME: must mirror
+// STALE-CMP-PREDICATE-SAME: ne
+
+// STALE-CMP-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-CMP-LAYOUT: tcrv_rvv.select_layout
+// STALE-CMP-LAYOUT-SAME: must mirror
+// STALE-CMP-LAYOUT-SAME: script-derived-select-layout

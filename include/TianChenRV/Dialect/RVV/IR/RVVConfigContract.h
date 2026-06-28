@@ -53,11 +53,18 @@ struct RVVConfigContractDiagnostic {
 };
 
 std::int64_t getRVVFirstSliceSEWBits();
+std::int64_t getRVVSEW8Bits();
 std::int64_t getRVVSEW16Bits();
+std::int64_t getRVVSEW32Bits();
 std::int64_t getRVVSEW64Bits();
+llvm::StringRef getRVVLMULMF4();
 llvm::StringRef getRVVLMULMF2();
 llvm::StringRef getRVVLMULM1();
 llvm::StringRef getRVVLMULM2();
+llvm::StringRef getRVVLMULM4();
+llvm::StringRef getRVVLMULM8();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI16MF2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM1ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
@@ -68,6 +75,10 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI64M2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM1UndisturbedConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyM2UndisturbedConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M1UndisturbedConfigVLContract();
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
 void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                                                mlir::OperationState &state);
@@ -78,6 +89,17 @@ void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
                                         PolicyAttr policy);
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVDeferredWideStripConfig(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
+                                           llvm::StringRef lmul);
+// The Track B byte-anchor widening dot-reduce strip config: i8 loads at the
+// capability-selected integer-core anchor (SEW8, LMUL m1 or m2) widening into an
+// i16 product (one EMUL rung wider) and reducing into an i32m1 scalar. PARALLEL
+// to the deferred-wide strip configs; admitted on the byte-anchor dot-reduce
+// setvl/with_vl scope so the SAME generic source emits e8m2 at VLEN128 and e8m1
+// at VLEN256 (the capability flip). It does NOT loosen
+// isRVVFirstSliceDataflowConfig.
+bool isRVVByteAnchorDotReduceStripConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);
@@ -120,18 +142,41 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWideningConversionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyDequantizationRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyWideningProductRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyMAccRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyWideningMAccRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
+    llvm::StringRef elementCType);
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
@@ -157,9 +202,20 @@ getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+buildRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters(
+    llvm::StringRef elementCType);
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
+buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
+    llvm::StringRef elementCType);
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
 getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
+    llvm::StringRef elementCType);
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
@@ -169,11 +225,19 @@ getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>

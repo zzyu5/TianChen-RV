@@ -61,6 +61,19 @@ module {
 // -----
 
 module {
+  tcrv.exec.kernel @rvv_generic_splat_i64_valid {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int64_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i64
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} {
+      %rhs = tcrv_rvv.splat %rhs_scalar, %vl : i64, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @rvv_generic_move_reject_kind {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -350,6 +363,34 @@ module {
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
       // expected-error@+1 {{requires RHS scalar operand to have i32 scalar type}}
       %rhs = tcrv_rvv.splat %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_generic_splat_reject_scalar_width_mismatch {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} {
+      // expected-error@+1 {{requires RHS scalar operand to have i64 scalar type}}
+      %rhs = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_generic_splat_reject_scalar_c_type_mismatch {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i64
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} {
+      // expected-error@+1 {{requires RHS scalar operand C type 'int64_t' to match result vector element type}}
+      %rhs = tcrv_rvv.splat %rhs_scalar, %vl : i64, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
     } : !tcrv_rvv.vl
   }
 }

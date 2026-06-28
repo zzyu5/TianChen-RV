@@ -11,7 +11,27 @@ namespace mlir {
 class Operation;
 } // namespace mlir
 
+namespace tianchenrv::tcrv::exec {
+class VariantOp;
+class KernelOp;
+} // namespace tianchenrv::tcrv::exec
+
+namespace tianchenrv::support {
+class TargetCapabilitySet;
+} // namespace tianchenrv::support
+
 namespace tianchenrv::plugin::toy {
+
+/// Verifies that a selected Toy variant is legal to emit: capability
+/// conformance (provider id/kind/properties) AND variant metadata-vs-manifest
+/// conformance (incl. the `emitc_route_mapping` eligibility declaration). Shared
+/// legality authority for the extension plugin (which emits the fail-closed
+/// diagnostic) and the typed-emission backend driver (which declines on error
+/// so the plugin still owns the diagnostic) — keeping the driver's convert-set
+/// equal to the plugin route-build's success-set.
+llvm::Error verifyToySelectedVariantLegality(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities);
 
 using ToyConstructionSemanticRole =
     tianchenrv::plugin::construction::SemanticRole;

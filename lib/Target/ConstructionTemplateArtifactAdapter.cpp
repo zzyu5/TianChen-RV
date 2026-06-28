@@ -118,12 +118,22 @@ llvm::Expected<mlir::Operation *> findSelectedLoweringBoundary(
   unsigned matchingBoundaries = 0;
 
   if (boundary.searchSelectedVariantBody) {
-    variant.getBody().walk([&](mlir::Operation *op) {
+    auto countBoundary = [&](mlir::Operation *op) {
       if (op->getName().getStringRef() != config.loweringBoundary)
         return;
       selectedBoundary = op;
       ++matchingBoundaries;
-    });
+    };
+    if (boundary.countOnlyDirectVariantBodyBoundaries) {
+      if (variant.getBody().empty())
+        return makeConstructionTemplateAdapterError(
+            "selected lowering-boundary validation requires a materialized "
+            "selected variant body");
+      for (mlir::Operation &op : variant.getBody().front())
+        countBoundary(&op);
+    } else {
+      variant.getBody().walk(countBoundary);
+    }
     if (matchingBoundaries == 0)
       return makeConstructionTemplateAdapterError(
           llvm::Twine("requires one selected materialized ") +
@@ -284,9 +294,6 @@ llvm::Error validateConstructionTemplateArtifactAdapterConfig(
   if (!config.selectedRoute.candidateValidationFn)
     return makeConstructionTemplateAdapterError(
         "selected object route requires a route-local candidate validator");
-  if (!config.selectedRoute.routeBuilderFn)
-    return makeConstructionTemplateAdapterError(
-        "selected object route requires a plugin-owned EmitC route builder");
   if (!config.objectPackagerFn)
     return makeConstructionTemplateAdapterError(
         "object export requires a route-local object packager callback");

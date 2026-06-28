@@ -1,0 +1,7 @@
+set(LLVM_TARGET_DEFINITIONS IMEOps.td)
+mlir_tablegen(IMEOpsDialect.h.inc -gen-dialect-decls -dialect=tcrv_ime)
+mlir_tablegen(IMEOpsDialect.cpp.inc -gen-dialect-defs -dialect=tcrv_ime)
+mlir_tablegen(IMEOps.h.inc -gen-op-decls)
+mlir_tablegen(IMEOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(MLIRIMEOpsIncGen)
+add_dependencies(MLIRIMEOpsIncGen MLIRTCRVEmitCLowerableOpInterfaceIncGen)

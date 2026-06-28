@@ -11,8 +11,8 @@ module {
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        // CHECK: currently supports only kind "add", "sub", "mul", or "xor"
-        %bad = tcrv_rvv.binary %a, %b, %vl {kind = "div"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        // CHECK: currently supports only kind "add", "sub", or "mul"
+        %bad = tcrv_rvv.binary %a, %b, %vl {kind = "xor"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }

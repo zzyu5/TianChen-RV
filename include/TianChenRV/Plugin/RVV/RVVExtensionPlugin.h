@@ -3,6 +3,10 @@
 
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 
+namespace mlir {
+class MLIRContext;
+} // namespace mlir
+
 namespace tianchenrv::plugin {
 
 namespace rvv {
@@ -26,6 +30,7 @@ public:
   void registerDialects(mlir::DialectRegistry &registry) const override;
   llvm::Error verifyExecutableConstructionConformance() const override;
   llvm::Error registerSourceFrontDoorPasses(
+      const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
   llvm::Error
@@ -36,6 +41,7 @@ public:
                           VariantProposalCollectionResult &out) const override;
   llvm::Expected<support::TargetCapabilitySet>
   buildTargetCapabilitiesFromProbeFacts(
+      mlir::MLIRContext &context,
       const RVVProbeCapabilityFacts &facts) const;
   llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const override;
@@ -52,9 +58,6 @@ public:
       VariantLoweringBoundaryResult &out) const override;
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const override;
-  llvm::Error buildVariantEmitCLowerableRoute(
-      const VariantEmitCLowerableRequest &request,
-      conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
   llvm::Error configureTargetSupportExtensionBundle(
       ExtensionBundle &bundle) const override;
   llvm::Error registerTargetSupportTranslateRoutes(

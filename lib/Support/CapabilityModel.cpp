@@ -9,20 +9,18 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <optional>
 #include <utility>
 
 namespace tianchenrv::support {
 namespace {
 
-constexpr llvm::StringLiteral kProvidesAttrName("provides");
-constexpr llvm::StringLiteral kImpliesAttrName("implies");
-constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
+constexpr llvm::StringLiteral kRelationsAttrName("relations");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
@@ -40,20 +38,17 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
 }
 
 llvm::StringRef getCapabilityStatus(mlir::Operation *op) {
-  if (llvm::StringRef status = getStringAttr(op, "status"); !status.empty())
-    return status;
-  return getStringAttr(op, "availability");
+  return getStringAttr(op, "status");
 }
 
 bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
   return attrName == "sym_name" || attrName == "id" || attrName == "kind" ||
-         attrName == "status" || attrName == "availability" ||
+         attrName == "status" ||
          attrName == kCapabilityProvidersAttrName;
 }
 
 bool isCapabilityRelationAttribute(llvm::StringRef attrName) {
-  return attrName == kProvidesAttrName || attrName == kImpliesAttrName ||
-         attrName == kConflictsAttrName;
+  return attrName == kRelationsAttrName;
 }
 
 std::string stringifyCapabilityProperty(mlir::Attribute attribute) {
@@ -99,25 +94,16 @@ collectCapabilityProperties(mlir::Operation *op) {
   return properties;
 }
 
-llvm::SmallVector<std::string, 4>
-collectCapabilityIDRelation(mlir::Operation *op,
-                            llvm::StringRef attrName) {
-  llvm::SmallVector<std::string, 4> ids;
-  auto arrayAttr = op->getAttrOfType<mlir::ArrayAttr>(attrName);
-  if (!arrayAttr)
-    return ids;
-
-  for (mlir::Attribute attr : arrayAttr) {
-    auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(attr);
-    if (!stringAttr)
-      continue;
-
-    llvm::StringRef value = stringAttr.getValue().trim();
-    if (!value.empty())
-      ids.push_back(value.str());
-  }
-
-  return ids;
+// Scan a typed relation list for `id`. Normalization (trim + ignore empty
+// entries) moves from intern-time to query-time: the CapabilityRelationsAttr
+// verifier is hygiene-only and does not require trimming, while the previous
+// restringify trimmed and dropped empties when interning the std::string copy.
+// Replicating that here keeps relation resolution byte-for-byte equivalent.
+bool relationListContains(llvm::ArrayRef<mlir::StringAttr> ids,
+                          llvm::StringRef id) {
+  return llvm::any_of(ids, [&](mlir::StringAttr entry) {
+    return entry && entry.getValue().trim() == id;
+  });
 }
 
 mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
@@ -189,15 +175,8 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       symbolName, id, kind, status,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
-      collectCapabilityIDRelation(op, kProvidesAttrName),
-      collectCapabilityIDRelation(op, kImpliesAttrName),
-      collectCapabilityIDRelation(op, kConflictsAttrName));
-}
-
-bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {
-  return llvm::any_of(ids, [&](const std::string &candidate) {
-    return candidate == id;
-  });
+      op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
+          kRelationsAttrName));
 }
 
 llvm::Error makeCapabilitySetError(llvm::Twine message) {
@@ -229,16 +208,10 @@ CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
     llvm::StringRef status, CapabilityAvailability availability,
     std::map<std::string, std::string> properties,
-    llvm::ArrayRef<std::string> providedIDs,
-    llvm::ArrayRef<std::string> impliedIDs,
-    llvm::ArrayRef<std::string> conflictingIDs)
+    tcrv::exec::CapabilityRelationsAttr relations)
     : symbolName(symbolName.str()), id(id.str()), kind(kind.str()),
       status(status.str()), availability(availability),
-      properties(std::move(properties)) {
-  this->providedIDs.append(providedIDs.begin(), providedIDs.end());
-  this->impliedIDs.append(impliedIDs.begin(), impliedIDs.end());
-  this->conflictingIDs.append(conflictingIDs.begin(), conflictingIDs.end());
-}
+      properties(std::move(properties)), relations(relations) {}
 
 llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
   auto it = properties.find(name.str());
@@ -248,15 +221,15 @@ llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
 }
 
 bool CapabilityDescriptor::providesID(llvm::StringRef capabilityID) const {
-  return containsID(providedIDs, capabilityID);
+  return relationListContains(getProvidedIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::impliesID(llvm::StringRef capabilityID) const {
-  return containsID(impliedIDs, capabilityID);
+  return relationListContains(getImpliedIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::conflictsWithID(llvm::StringRef capabilityID) const {
-  return containsID(conflictingIDs, capabilityID);
+  return relationListContains(getConflictingIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
@@ -430,7 +403,12 @@ void TargetCapabilitySet::collectAvailableConflictsForCapability(
     out.push_back(std::move(conflict));
   };
 
-  for (const std::string &conflictID : requiredCapability.getConflictingIDs()) {
+  for (mlir::StringAttr conflictEntry : requiredCapability.getConflictingIDs()) {
+    if (!conflictEntry)
+      continue;
+    llvm::StringRef conflictID = conflictEntry.getValue().trim();
+    if (conflictID.empty())
+      continue;
     llvm::SmallVector<const CapabilityDescriptor *, 4> providers;
     collectProvidersByID(conflictID, providers);
     for (const CapabilityDescriptor *provider : providers)
@@ -442,7 +420,12 @@ void TargetCapabilitySet::collectAvailableConflictsForCapability(
     if (&candidate == &requiredCapability || !candidate.isAvailable())
       continue;
 
-    for (const std::string &conflictID : candidate.getConflictingIDs()) {
+    for (mlir::StringAttr conflictEntry : candidate.getConflictingIDs()) {
+      if (!conflictEntry)
+        continue;
+      llvm::StringRef conflictID = conflictEntry.getValue().trim();
+      if (conflictID.empty())
+        continue;
       if (requiredCapability.satisfiesID(conflictID))
         appendConflict(candidate, candidate, conflictID);
     }
@@ -490,12 +473,18 @@ TargetCapabilitySet::availabilityFromStatus(llvm::StringRef status) {
 }
 
 bool TargetCapabilitySet::isUnavailableStatus(llvm::StringRef status) {
-  std::string normalized = status.trim().lower();
-  return llvm::StringSwitch<bool>(normalized)
-      .Case("unavailable", true)
-      .Case("disabled", true)
-      .Case("missing", true)
-      .Default(false);
+  // Availability is driven by the ODS-defined CapabilityStatus enum (the single
+  // source of truth for the closed status value set). Only the typed
+  // `available` keyword is available; the `unavailable`/`disabled`/`missing`
+  // keywords are the distinct unavailable spellings. The capability/target
+  // verifier rejects any unrecognized status, so on those ops this never sees
+  // an unknown value; for any other (legacy/synthetic) caller an unrecognized
+  // status remains non-unavailable, preserving the prior default.
+  std::optional<tcrv::exec::CapabilityStatus> typed =
+      tcrv::exec::symbolizeCapabilityStatus(status.trim());
+  if (!typed)
+    return false;
+  return *typed != tcrv::exec::CapabilityStatus::Available;
 }
 
 llvm::Error TargetCapabilitySet::tryAddCapability(

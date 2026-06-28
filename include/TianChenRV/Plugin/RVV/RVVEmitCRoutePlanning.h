@@ -36,6 +36,11 @@ struct RVVRouteOperandBindingPlan {
 struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::SetVLOp setvl;
   tcrv::rvv::WithVLOp withVL;
+  tcrv::rvv::WithVLOp gearboxProducerWithVL;
+  tcrv::rvv::WithVLOp gearboxConsumerWithVL;
+  llvm::SmallVector<tcrv::rvv::VSetVLRegionMarkerOp, 4>
+      vsetvlRegionMarkers;
+  tcrv::rvv::GearboxCrossRegionHandoffOp gearboxCrossRegionHandoffOp;
   tcrv::rvv::LoadOp lhsGenericLoad;
   tcrv::rvv::LoadOp rhsGenericLoad;
   tcrv::rvv::LoadOp secondaryCompareLhsGenericLoad;
@@ -61,10 +66,13 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::SplatOp rhsSecondaryScalarSplat;
+  tcrv::rvv::SplatOp lowerBoundScalarSplat;
+  tcrv::rvv::SplatOp upperBoundScalarSplat;
   tcrv::rvv::CompareOp compareOp;
   tcrv::rvv::CompareOp secondaryCompareOp;
   tcrv::rvv::MaskAndOp maskAndOp;
   tcrv::rvv::SelectOp selectOp;
+  tcrv::rvv::SelectOp secondarySelectOp;
   tcrv::rvv::ReduceOp reduceOp;
   tcrv::rvv::StandaloneReduceOp standaloneReduceOp;
   tcrv::rvv::MaskedStandaloneReduceOp maskedStandaloneReduceOp;
@@ -72,9 +80,14 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::MaskedMAccOp maskedMAccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
+  tcrv::rvv::WideningProductOp wideningProductOp;
+  tcrv::rvv::WideningAccumulateOp wideningAccumulateOp;
+  tcrv::rvv::DeferredAccumulateOp deferredAccumulateOp;
+  tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
+  tcrv::rvv::DequantizeOp dequantizeOp;
   tcrv::rvv::MoveOp moveOp;
   tcrv::rvv::MoveOp field0MoveOp;
   tcrv::rvv::MoveOp field1MoveOp;
@@ -98,9 +111,13 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value maskedActiveValue;
   mlir::Value maskedInactivePassthrough;
   mlir::Value conversionSource;
+  mlir::Value dequantScale;
+  mlir::Value lowerBoundValue;
+  mlir::Value upperBoundValue;
+  mlir::Value lowerClampedValue;
   mlir::Value dotLHSValue;
   mlir::Value dotRHSValue;
-  RVVSelectedBodyOperationKind arithmeticKind;
+  RVVSelectedBodyOperationKind arithmeticKind = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
   tcrv::rvv::StoreOp genericStore;
@@ -131,6 +148,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *field1MoveOperation = nullptr;
   mlir::Operation *field0StoreOperation = nullptr;
   mlir::Operation *field1StoreOperation = nullptr;
+  mlir::Operation *oldDestinationLoadOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
   mlir::Operation *dotLHSLoadOperation = nullptr;
   mlir::Operation *dotRHSLoadOperation = nullptr;
@@ -167,12 +185,16 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value field1LoadedValue;
   mlir::Value field0PassthroughValue;
   mlir::Value field1PassthroughValue;
+  mlir::Value oldDestinationValue;
   mlir::Value field0Value;
   mlir::Value field1Value;
   mlir::Value accumulatorValue;
   mlir::Value storeValue;
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
+  support::RuntimeABIParameter dequantScaleABI;
+  support::RuntimeABIParameter lowerBoundABI;
+  support::RuntimeABIParameter upperBoundABI;
   support::RuntimeABIParameter secondaryCompareLhsABI;
   support::RuntimeABIParameter secondaryCompareRhsScalarABI;
   support::RuntimeABIParameter trueValueABI;
@@ -193,6 +215,168 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter outStrideABI;
 };
 
+// The selected product head of a low-precision product-reduction chain is either
+// a typed tcrv_rvv.widening_product (unpacked-byte candidate) OR a typed
+// tcrv_rvv.packed_i4_nibble_unpack_product (packed-i4 candidate). Exactly one of
+// the two slice slots is populated; the analysis hatches and the contraction
+// route-family plan derivation read the head's lhs/rhs/result and product
+// relation through these accessors so neither candidate path dereferences the
+// other's null slot.
+inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.wideningProductOp) ||
+         static_cast<bool>(slice.nibbleProductOp);
+}
+
+inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getResult();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getResult();
+  return mlir::Value();
+}
+
+inline mlir::Value productSlotVL(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getVl();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getVl();
+  return mlir::Value();
+}
+
+inline mlir::Operation *
+productSlotOperation(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getOperation();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getOperation();
+  return nullptr;
+}
+
+inline mlir::Value productSlotLhs(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getLhs();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getLhs();
+  return mlir::Value();
+}
+
+inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getRhs();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getRhs();
+  return mlir::Value();
+}
+
+inline llvm::StringRef
+productSlotRelation(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getProductRelation();
+  if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getProductRelation();
+  return llvm::StringRef();
+}
+
+// The product head is signed when it is the signed widening-product candidate or
+// the (always-signed) packed-i4 nibble-unpack candidate.
+inline bool productSlotIsSigned(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getKind() == "signed_widening_product";
+  if (slice.nibbleProductOp)
+    return true;
+  return false;
+}
+
+inline bool productSlotIsUnsigned(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
+    return product.getKind() == "unsigned_widening_product";
+  return false;
+}
+
+// The deferred-wide chain (the N3 resource-aware max-legal-LMUL winner) inserts a
+// tcrv_rvv.widening_accumulate between the widening_product and the trailing
+// standalone_reduce: i8m2 product -> i16m4 -> i32m8 deferred vector accumulate ->
+// ONE trailing reduce. When the slice carries a widening_accumulate the i32 vector
+// that feeds the standalone_reduce is the accumulate result (NOT the product
+// result), so the reduce/dequant chain reads through this accessor. Structural,
+// I5: presence + the carried value are read directly from the typed op.
+inline bool hasDeferredWideAccumulate(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.wideningAccumulateOp);
+}
+
+// The i16 dot-reduce deferred-wide chain (the N3 resource-aware max-legal-LMUL
+// winner for the 2nd kernel family) inserts a tcrv_rvv.deferred_accumulate between
+// the i16m4 x i16m4 -> i32m8 widening_product and the trailing standalone_reduce:
+// the deferred accumulate is a SAME-WIDTH i32m8 vadd.vv (NOT the byte path's
+// widening vwadd.wv). When the slice carries a deferred_accumulate the i32 vector
+// that feeds the standalone_reduce is the deferred accumulate result. Structural,
+// I5: presence + the carried value are read directly from the typed op.
+inline bool
+hasDeferredWideDotAccumulate(const RVVSelectedBodyRouteSlice &slice) {
+  return static_cast<bool>(slice.deferredAccumulateOp);
+}
+
+// The i32 vector value that the trailing standalone_reduce consumes: the deferred
+// i32m8 accumulate result when the wide accumulate (byte vwadd.wv) OR the deferred
+// dot accumulate (i16 vadd.vv) is present, else the narrow product head result.
+inline mlir::Value
+reduceInputSlotResult(const RVVSelectedBodyRouteSlice &slice) {
+  if (tcrv::rvv::WideningAccumulateOp accumulate = slice.wideningAccumulateOp)
+    return accumulate.getResult();
+  if (tcrv::rvv::DeferredAccumulateOp accumulate = slice.deferredAccumulateOp)
+    return accumulate.getResult();
+  return productSlotResult(slice);
+}
+
+// The PLAN/HEADER `rvv_selected_body_typed_compute_op` chain for a low-precision
+// product-reduction dequant(/clamp) selected body, derived from the ACTUAL
+// realized structure of the slice: the typed product head (widening_product for
+// the unpacked-byte candidate, packed_i4_nibble_unpack_product for the packed-i4
+// candidate) + standalone_reduce + (gearbox_cross_region_handoff ONLY if the
+// legacy two-scope carrier is present) + dequantize (+ compare + select for the
+// clamp family). The head op type and handoff presence are read from the typed
+// ops (I5-legal structural reads), so the chain never asserts a phantom handoff
+// or a wrong head op.
+//
+// Returns a StringRef into a fixed set of static string constants (the chain is
+// one of a bounded set of {head}x{handoff?}x{clamp?} combinations), so the
+// returned view is stable across the by-value copies of the route description.
+inline llvm::StringRef
+getRVVSelectedBodyDequantTypedComputeOpChain(
+    const RVVSelectedBodyRouteSlice &slice, bool isClamp) {
+  const bool nibble = static_cast<bool>(slice.nibbleProductOp);
+  const bool handoff = static_cast<bool>(slice.gearboxCrossRegionHandoffOp);
+  static constexpr llvm::StringLiteral kWideningHandoffDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kWideningHandoffClamp(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
+      "tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kWideningDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kWideningClamp(
+      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kNibbleDequant(
+      "tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize");
+  static constexpr llvm::StringLiteral kNibbleClamp(
+      "tcrv_rvv.packed_i4_nibble_unpack_product+tcrv_rvv.standalone_reduce+"
+      "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select");
+  static constexpr llvm::StringLiteral kDeferredWideDequant(
+      "tcrv_rvv.widening_product+tcrv_rvv.widening_accumulate+"
+      "tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize");
+  if (handoff)
+    return isClamp ? kWideningHandoffClamp : kWideningHandoffDequant;
+  if (static_cast<bool>(slice.wideningAccumulateOp))
+    return kDeferredWideDequant;
+  if (nibble)
+    return isClamp ? kNibbleClamp : kNibbleDequant;
+  return isClamp ? kWideningClamp : kWideningDequant;
+}
+
 struct RVVSelectedBodyTypedConfigFacts {
   llvm::StringRef factsID;
   llvm::StringRef elementTypeName;
@@ -211,7 +395,16 @@ struct RVVSelectedBodyTypedConfigFacts {
   llvm::StringRef vlCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
+  llvm::StringRef indexedLoadIntrinsic;
+  llvm::StringRef indexedStoreIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef scalarSplatIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
+  llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
 
   bool hasFacts() const { return !factsID.empty(); }
 };
@@ -246,12 +439,24 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   bool usesWideningMAcc = false;
+  bool usesWideningProduct = false;
+  bool usesProductReductionChain = false;
+  bool usesProductReductionDequantization = false;
+  bool usesProductReductionDequantClamp = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
   bool usesScalarSeed = false;
   bool usesVectorAccumulator = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -265,19 +470,59 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
+  llvm::StringRef sourceElementTypeName;
+  std::int64_t sourceElementBitWidth = 0;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
   llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef productElementTypeName;
+  std::int64_t productElementBitWidth = 0;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef relation;
+  llvm::StringRef sourceAccumulatorResultContract;
+  llvm::StringRef productReductionChainRelation;
+  llvm::StringRef wideningProductRelation;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
+  llvm::StringRef lowPrecisionPrimitiveContractID;
+  llvm::StringRef lowPrecisionPrimitiveKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveSourceSignedness;
+  llvm::StringRef lowPrecisionPrimitiveSourceLoadKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceExtensionKind;
+  llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
+  llvm::StringRef wideningMAccArithmeticKind;
   llvm::StringRef contractionComputeIntrinsic;
+  llvm::StringRef dequantizeConvertIntrinsic;
+  llvm::StringRef dequantizeScaleIntrinsic;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef dequantScaleRole;
+  llvm::StringRef dequantScaleCType;
+  llvm::StringRef dequantScaleName;
+  llvm::StringRef lowerBoundRole;
+  llvm::StringRef upperBoundRole;
+  llvm::StringRef lowerBoundCType;
+  llvm::StringRef upperBoundCType;
+  llvm::StringRef boundOrder;
+  llvm::StringRef clampRelation;
+  llvm::StringRef selectLayout;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef secondaryComparePredicateKind;
+  llvm::StringRef secondaryCompareIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
@@ -291,6 +536,8 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef rhsStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
@@ -301,6 +548,15 @@ struct RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan {
   bool usesMaskedArithmetic = false;
   bool usesStridedInputs = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  llvm::StringRef elementCType;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -316,6 +572,7 @@ struct RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef arithmeticIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
@@ -341,6 +598,15 @@ struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  llvm::StringRef elementCType;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -364,6 +630,14 @@ struct RVVSelectedBodyPlainMAccRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -381,6 +655,7 @@ struct RVVSelectedBodyPlainMAccRouteFamilyPlan {
   llvm::StringRef resultName;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
@@ -388,6 +663,14 @@ struct RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -406,6 +689,7 @@ struct RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan {
   llvm::StringRef resultName;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
@@ -413,6 +697,10 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -421,6 +709,7 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
   llvm::StringRef vlCType;
+  llvm::StringRef scalarCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
   llvm::StringRef setVLIntrinsic;
@@ -479,21 +768,84 @@ struct RVVSelectedBodyWideningConversionRouteFamilyPlan {
   llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
   llvm::StringRef requiredHeaderDeclarations;
   llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef vlCType;
+  llvm::StringRef sourceElementTypeName;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
   llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef resultElementTypeName;
   std::int64_t resultSEW = 0;
   llvm::StringRef resultLMUL;
   llvm::StringRef resultVectorTypeName;
   llvm::StringRef resultVectorCType;
   llvm::StringRef setVLIntrinsic;
+  llvm::StringRef conversionKind;
   llvm::StringRef conversionIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef conversionRelation;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
+struct RVVSelectedBodyDequantizationRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceElementTypeName;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef resultElementTypeName;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef scaleElementTypeName;
+  llvm::StringRef scaleCType;
+  llvm::StringRef scaleRole;
+  llvm::StringRef scaleName;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef dequantizationKind;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef convertIntrinsic;
+  llvm::StringRef scaleIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef gearboxCandidateSet;
+  llvm::StringRef gearboxSelectedCandidate;
+  llvm::StringRef gearboxSelectionReason;
+  llvm::StringRef gearboxLegalityScope;
+  llvm::StringRef gearboxScheduleID;
+  llvm::StringRef gearboxSelector;
+  llvm::StringRef gearboxSource;
+  llvm::StringRef gearboxOperation;
+  std::int64_t gearboxUnroll = 0;
+  llvm::StringRef gearboxVLPolicy;
+  std::int64_t gearboxSourceSEW = 0;
+  llvm::StringRef gearboxSourceLMUL;
+  std::int64_t gearboxDestSEW = 0;
+  llvm::StringRef gearboxDestLMUL;
+  llvm::StringRef gearboxRuntimeAVLSource;
+  llvm::StringRef gearboxProducerScope;
+  llvm::StringRef gearboxConsumerScope;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
@@ -507,6 +859,14 @@ struct RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan {
   bool usesStaticMaskLoad = false;
   bool usesStaticMaskStore = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -559,7 +919,18 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   bool usesVectorCompareProducer = false;
   bool usesRuntimeScalarProducer = false;
   bool usesDualCompareMaskAnd = false;
+  bool usesF32ClampSelect = false;
+  bool usesDequantClampF32Epilogue = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  llvm::StringRef elementCType;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
   llvm::StringRef runtimeABIOrder;
@@ -571,11 +942,18 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef dequantizeConvertIntrinsic;
+  llvm::StringRef dequantizeScaleIntrinsic;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef secondaryComparePredicateKind;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef secondaryCompareIntrinsic;
   llvm::StringRef maskAndIntrinsic;
@@ -606,6 +984,9 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   bool usesSegment2Load = false;
   bool usesSegment2Store = false;
   bool usesSegment2Update = false;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef elementCType;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
@@ -643,6 +1024,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef maskedMemoryLayout;
   llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceStrideSource;
@@ -717,6 +1099,14 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   bool usesVectorCompareProducer = false;
   bool usesRuntimeScalarProducer = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef typedConfigFactsID;
+  llvm::StringRef elementTypeName;
+  std::int64_t elementBitWidth = 0;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
   llvm::StringRef familyPlanID;
   llvm::StringRef computeSuffix;
   llvm::StringRef maskProducerSource;
@@ -734,13 +1124,19 @@ struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef maccIntrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef maskRole;
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  llvm::StringRef maccArithmeticKind;
   llvm::StringRef accumulatorContract;
   llvm::StringRef resultContract;
   llvm::StringRef inactiveLaneContract;
@@ -765,8 +1161,14 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef scalarCType;
+  llvm::StringRef scalarResultVectorTypeName;
+  llvm::StringRef scalarResultVectorCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef sourceSplatIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef reductionIntrinsic;
@@ -775,6 +1177,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef storeIntrinsic;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef reductionKind;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef scalarResultRuntimeBoundary;
   llvm::StringRef inactiveLaneZeroingRequirement;
@@ -808,6 +1211,8 @@ struct RVVSelectedBodyRouteAnalysis {
       plainCompareSelectRouteFamilyPlan;
   std::optional<RVVSelectedBodyWideningConversionRouteFamilyPlan>
       wideningConversionRouteFamilyPlan;
+  std::optional<RVVSelectedBodyDequantizationRouteFamilyPlan>
+      dequantizationRouteFamilyPlan;
   std::optional<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
       baseMemoryMovementRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskSelectRouteFamilyPlan>
@@ -840,6 +1245,8 @@ struct RVVSelectedBodyRouteMaterializationFacts {
       *plainCompareSelectPlan = nullptr;
   const RVVSelectedBodyWideningConversionRouteFamilyPlan
       *wideningConversionPlan = nullptr;
+  const RVVSelectedBodyDequantizationRouteFamilyPlan *dequantizationPlan =
+      nullptr;
   const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
       *baseMemoryMovementPlan = nullptr;
   const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
@@ -854,6 +1261,10 @@ struct RVVSelectedBodyRouteMaterializationFacts {
       *standaloneReductionPlan = nullptr;
 
   bool emitsContractionDotReduction = false;
+  bool emitsContractionWideningProduct = false;
+  bool emitsContractionProductReductionChain = false;
+  bool emitsContractionProductReductionDequantization = false;
+  bool emitsContractionProductReductionDequantClamp = false;
   bool emitsContractionWideningMAcc = false;
   bool emitsComputedMaskContraction = false;
   bool emitsStridedInputContraction = false;
@@ -861,6 +1272,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   bool emitsComputedMaskStandaloneReduction = false;
   bool emitsRuntimeScalarComputedMaskStandaloneReduction = false;
   bool emitsWideningConversion = false;
+  bool emitsDequantization = false;
   bool emitsPlainStandaloneReduction = false;
   bool emitsComputedMaskAccumulation = false;
 
@@ -870,6 +1282,8 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef resultVectorCType;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLLeaf;
@@ -878,13 +1292,17 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef stridedSourceLoadLeaf;
   llvm::StringRef storeLeaf;
   llvm::StringRef stridedStoreLeaf;
+  llvm::StringRef sourceSplatLeaf;
   llvm::StringRef contractionComputeLeaf;
   llvm::StringRef elementwiseComputeLeaf;
   llvm::StringRef wideningProductLeaf;
   llvm::StringRef maskedWideningProductLeaf;
+  llvm::StringRef dequantizeConvertLeaf;
+  llvm::StringRef dequantizeScaleLeaf;
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef rhsScalarBroadcastLeaf;
   llvm::StringRef compareLeaf;
+  llvm::StringRef secondaryCompareLeaf;
   llvm::StringRef maskedMergeLeaf;
 };
 
@@ -906,6 +1324,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsPlainCompareSelect = false;
   bool controlsComputedMaskSelect = false;
   bool controlsWideningConversion = false;
+  bool controlsDequantization = false;
   bool controlsComputedMaskMemory = false;
   bool controlsSegment2Memory = false;
   bool controlsRuntimeScalarSplatStore = false;
@@ -922,25 +1341,37 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   llvm::StringRef selectedLegalityMirror;
 };
 
-struct RVVSelectedBodyRouteControlProviderOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using ProviderPlanBuilder = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      RVVSelectedBodyRouteControlProviderPlan &,
-      const RVVRuntimeAVLVLControlPlan *&, llvm::StringRef);
+struct RVVSelectedBodyMaskTailPolicyProviderPlan {
+  const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
+  const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
+      nullptr;
+  const RVVSelectedBodyRouteControlProviderPlan *routeControlPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
+      *computedMaskSelectPlan = nullptr;
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
 
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanBuilder buildProviderPlan = nullptr;
+  bool plansMaskTailPolicy = false;
+  bool controlsComputedMaskSelect = false;
+  bool controlsComputedMaskMemory = false;
+
+  llvm::StringRef familyPlanIDMirror;
+  llvm::StringRef ownerNameMirror;
+  llvm::StringRef maskProducerSourceMirror;
+  llvm::StringRef maskRoleMirror;
+  llvm::StringRef maskSourceMirror;
+  llvm::StringRef maskMemoryFormMirror;
+  llvm::StringRef tailPolicyMirror;
+  llvm::StringRef maskPolicyMirror;
+  llvm::StringRef inactiveLaneContractMirror;
+  llvm::StringRef maskedPassthroughLayoutMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef routeOperandBindingPlanIDMirror;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef selectedProviderMirror;
+  llvm::StringRef selectedLegalityMirror;
 };
-
-llvm::ArrayRef<RVVSelectedBodyRouteControlProviderOwner>
-getRVVSelectedBodyRouteControlProviderOwners();
-
-bool isRVVSelectedBodyRouteControlProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
 
 struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
@@ -952,9 +1383,14 @@ struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   bool bindsComputedMaskSelect = false;
   bool bindsRuntimeScalarComputedMaskSelect = false;
   bool bindsRuntimeScalarDualCompareMaskAndSelect = false;
+  bool bindsF32ClampSelect = false;
+  bool bindsDequantClampF32Epilogue = false;
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *secondaryCompareLhsABI = nullptr;
   const support::RuntimeABIParameter *secondaryCompareRhsScalarABI = nullptr;
   const support::RuntimeABIParameter *trueValueABI = nullptr;
@@ -977,6 +1413,8 @@ struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
   const support::RuntimeABIParameter *compareRhsABI = nullptr;
   const support::RuntimeABIParameter *rhsScalarABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *dotRHSABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *destinationABI = nullptr;
   const support::RuntimeABIParameter *passthroughABI = nullptr;
   const support::RuntimeABIParameter *indexABI = nullptr;
@@ -999,7 +1437,12 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   bool bindsComputedMaskStandaloneReduction = false;
   bool bindsRuntimeScalarComputedMaskStandaloneReduction = false;
   bool bindsWideningMAcc = false;
+  bool bindsWideningProduct = false;
+  bool bindsWideningProductReductionChain = false;
+  bool bindsWideningProductReductionDequantization = false;
+  bool bindsWideningProductReductionDequantClamp = false;
   bool bindsWideningConversion = false;
+  bool bindsDequantization = false;
   bool bindsWideningDotReduction = false;
   bool bindsStridedInputWideningDotReduction = false;
   bool bindsComputedMaskWideningDotReduction = false;
@@ -1007,6 +1450,9 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *dotLHSABI = nullptr;
@@ -1035,97 +1481,29 @@ struct RVVSelectedBodyResidualRouteOperandBindingFacts {
   const support::RuntimeABIParameter *outStrideABI = nullptr;
 };
 
-struct RVVSelectedBodyElementwiseArithmeticRouteStatementPlan {
-  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
-      *elementwiseArithmeticPlan = nullptr;
-  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
-      *scalarBroadcastPlan = nullptr;
+// RVVSelectedBodyWideningConversionRouteStatementPlan retired (Stage 3 换心):
+// the widening-conversion string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
+// RVVSelectedBodyDequantizationRouteStatementPlan retired (Stage 3 换心): the
+// dequantization string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
+// RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan retired (Stage 3
+// 换心): the runtime-scalar-splat-store string statement-plan owner is deleted —
+// the family converts through the real DialectConversion.
+// RVVSelectedBodyReductionRouteStatementPlan retired (Stage 3 换心): the
+// reduction string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
+// RVVSelectedBodyStandaloneReductionRouteStatementPlan retired (Stage 3 换心):
+// the standalone-reduction string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
+// RVVSelectedBodyPlainMAccRouteStatementPlan retired (Stage 3 换心): the
+// plain-MAcc string statement-plan owner is deleted — the family converts
+// through the real DialectConversion.
 
-  bool plansElementwiseArithmeticRoute = false;
-  bool plansOrdinaryElementwiseArithmetic = false;
-  bool plansScalarBroadcastElementwise = false;
-  bool plansMaskedElementwiseArithmetic = false;
-  bool plansStridedElementwiseAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyCompareSelectRouteStatementPlan {
-  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
-      *plainCompareSelectPlan = nullptr;
-  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
-      *computedMaskSelectPlan = nullptr;
-
-  bool plansCompareSelectRoute = false;
-  bool plansPlainCompareSelect = false;
-  bool plansComputedMaskSelect = false;
-  bool plansRuntimeScalarComputedMaskSelect = false;
-  bool plansRuntimeScalarDualCompareMaskAndSelect = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyWideningConversionRouteStatementPlan {
-  const RVVSelectedBodyWideningConversionRouteFamilyPlan
-      *wideningConversionPlan = nullptr;
-
-  bool plansWideningConversionRoute = false;
-  bool plansWidenI32ToI64 = false;
-  bool plansWidenI16ToI32 = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyStandaloneReductionRouteStatementPlan {
-  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
-      *standaloneReductionPlan = nullptr;
-
-  bool plansStandaloneReductionRoute = false;
-  bool plansStandaloneReduceAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 3>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyPlainMAccRouteStatementPlan {
-  const RVVSelectedBodyPlainMAccRouteFamilyPlan *plainMAccPlan = nullptr;
-  const RVVSelectedBodyScalarBroadcastMAccRouteFamilyPlan
-      *scalarBroadcastMAccPlan = nullptr;
-  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
-
-  bool plansPlainMAccRoute = false;
-  bool plansMAccAdd = false;
-  bool plansScalarBroadcastMAccAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyBaseMemoryMovementRouteStatementPlan {
-  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
-      *baseMemoryMovementPlan = nullptr;
-
-  bool plansBaseMemoryMovementRoute = false;
-  bool plansStridedLoadUnitStore = false;
-  bool plansUnitLoadStridedStore = false;
-  bool plansIndexedGatherUnitStore = false;
-  bool plansIndexedScatterUnitLoad = false;
-  bool plansStaticMaskUnitLoadStore = false;
-  bool plansStaticMaskUnitStore = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
+// RVVSelectedBodyBaseMemoryMovementRouteStatementPlan retired (Stage 3 换心):
+// the base-memory string statement-plan owner is deleted — the whole family
+// converts through the real DialectConversion. The provider/family-plan structs
+// below stay as the shared description source of truth.
 struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
       *baseMemoryMovementPlan = nullptr;
@@ -1141,58 +1519,154 @@ struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   llvm::StringRef routeOperandBindingSummaryMirror;
   llvm::StringRef requiredHeaderDeclarationsMirror;
   llvm::StringRef cTypeMappingSummaryMirror;
-
-  RVVSelectedBodyBaseMemoryMovementRouteStatementPlan statementPlan;
+  llvm::StringRef typedComputeOpNameMirror;
+  llvm::StringRef sourceMemoryFormMirror;
+  llvm::StringRef destinationMemoryFormMirror;
+  llvm::StringRef stridedMemoryLayoutMirror;
+  llvm::StringRef sourceStrideSourceMirror;
+  llvm::StringRef destinationStrideSourceMirror;
+  llvm::StringRef indexedMemoryLayoutMirror;
+  std::int64_t indexEEWMirror = 0;
+  llvm::StringRef offsetUnitMirror;
+  llvm::StringRef indexSourceMirror;
+  llvm::StringRef indexUniquenessMirror;
+  llvm::StringRef indexedDataMemoryFormMirror;
+  llvm::StringRef indexedDestinationMemoryFormMirror;
 };
 
-struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
+struct RVVCompositeGatherMAccScatterRouteFamilyPlan {
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+  const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
+  const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
+      nullptr;
+  const RVVCompositeGatherMAccScatterResourceSelection *resourceSelection =
+      nullptr;
 
-  bool plansComputedMaskMemoryRoute = false;
-  bool plansRuntimeScalarComputedMaskStore = false;
-  bool plansRuntimeScalarComputedMaskLoadStore = false;
-  bool plansComputedMaskUnitLoadStore = false;
-  bool plansComputedMaskStridedStore = false;
-  bool plansComputedMaskStridedLoadUnitStore = false;
-  bool plansComputedMaskIndexedGatherLoadUnitStore = false;
-  bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
+  bool plansCompositeGatherMAccScatter = false;
+  bool consumesRuntimeScalarCompare = false;
+  bool consumesComputedMask = false;
+  bool consumesIndexedGather = false;
+  bool consumesMaskedMAcc = false;
+  bool consumesIndexedScatter = false;
+  bool preservesAccumulatorAndResult = false;
 
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeChain;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeOperandBindingSummary;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+
+  const support::RuntimeABIParameter *cmpLhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *gatherSourceABI = nullptr;
+  const support::RuntimeABIParameter *payloadABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *indexABI = nullptr;
+  const support::RuntimeABIParameter *destinationABI = nullptr;
+  const support::RuntimeABIParameter *passthroughABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
 };
 
-struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
+// RVVSelectedBodyComputedMaskMemoryRouteStatementPlan retired (Stage 3 换心):
+// the computed-mask-memory string statement-plan owner is deleted — the family
+// converts through the real DialectConversion.
+
+// RVVSelectedBodySegment2MemoryRouteStatementPlan retired (Stage 3 换心): the
+// Segment2 memory string statement-plan struct is deleted together with its
+// owner builder + the whole RVVEmitCMemoryStatementPlanOwners.cpp helper file —
+// the family converts through the real DialectConversion (RVVToEmitC.cpp). The
+// route-family provider plan RVVSelectedBodySegment2RouteFamilyProviderPlan below
+// stays as the description/provider source of truth shared with the route
+// provider.
+
+struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
       nullptr;
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+
+  llvm::StringRef selectedBodyFamilyName;
 
   bool plansSegment2MemoryRoute = false;
   bool plansPlainSegment2DeinterleaveUnitStore = false;
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
+  bool plansRuntimeScalarComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
+  bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;
 
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::StringRef emitCRouteID;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef vlTypeName;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef maskTypeName;
+
+  const support::RuntimeABIParameter *compareLhsABI = nullptr;
+  const support::RuntimeABIParameter *compareRhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *destinationABI = nullptr;
+  const support::RuntimeABIParameter *field0ABI = nullptr;
+  const support::RuntimeABIParameter *field1ABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+
+  llvm::StringRef familyPlanIDMirror;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef runtimeABIOrderMirror;
+  llvm::StringRef routeOperandBindingPlanIDMirror;
+  llvm::StringRef routeOperandBindingSummaryMirror;
+  llvm::StringRef requiredHeaderDeclarationsMirror;
+  llvm::StringRef cTypeMappingSummaryMirror;
+
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef arithmeticKind;
+  llvm::StringRef arithmeticIntrinsic;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef vectorCType;
+  llvm::StringRef vlCType;
+  llvm::StringRef maskCType;
 };
 
-struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
-  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
-      *computedMaskAccumulationPlan = nullptr;
-
-  bool plansComputedMaskAccumulationRoute = false;
-  bool plansComputedMaskedMAccAdd = false;
-  bool plansRuntimeScalarComputedMaskedMAccAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
+// RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan retired (Stage 3
+// 换心): the computed-mask-accumulation string statement-plan owner is deleted —
+// the family converts through the real DialectConversion.
 
 struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
@@ -1200,6 +1674,10 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 
   bool plansDirectContractionRoute = false;
   bool plansWideningMAcc = false;
+  bool plansWideningProduct = false;
+  bool plansProductReductionChain = false;
+  bool plansProductReductionDequantization = false;
+  bool plansProductReductionDequantClamp = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
@@ -1209,6 +1687,9 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   const support::RuntimeABIParameter *dotLHSABI = nullptr;
   const support::RuntimeABIParameter *dotRHSABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *outABI = nullptr;
   const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
   const support::RuntimeABIParameter *lhsStrideABI = nullptr;
@@ -1216,7 +1697,9 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 
   llvm::StringRef vlCType;
   llvm::StringRef resultVectorCType;
+  llvm::StringRef dequantResultVectorCType;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef productVectorCType;
   llvm::StringRef maskCType;
 
   llvm::StringRef setVLLeaf;
@@ -1226,112 +1709,26 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   llvm::StringRef storeLeaf;
   llvm::StringRef contractionComputeLeaf;
   llvm::StringRef wideningProductLeaf;
+  llvm::StringRef dequantizeConvertLeaf;
+  llvm::StringRef dequantizeScaleLeaf;
+  llvm::StringRef secondaryCompareLeaf;
   llvm::StringRef maskedWideningProductLeaf;
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef compareLeaf;
   llvm::StringRef maskedMergeLeaf;
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
 };
 
-struct RVVSelectedBodyDirectContractionRouteStatementPlan {
-  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan = nullptr;
-
-  bool plansDirectContractionRoute = false;
-  bool plansWideningMAcc = false;
-  bool plansDotReduction = false;
-  bool plansComputedMask = false;
-  bool plansStridedInput = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyDirectContractionRouteProviderOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using StatementPlanBuilder = llvm::Error (*)(
-      RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyDirectContractionRouteProviderPlan &,
-      RVVSelectedBodyDirectContractionRouteStatementPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  StatementPlanBuilder buildStatementPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyDirectContractionRouteProviderOwner>
-getRVVSelectedBodyDirectContractionRouteProviderOwners();
-
-bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-
-enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
-  None,
-  ElementwiseArithmetic,
-  CompareSelect,
-  WideningConversion,
-  StandaloneReduction,
-  PlainMAcc,
-  BaseMemoryMovement,
-  ComputedMaskMemory,
-  Segment2Memory,
-  ComputedMaskAccumulation,
-};
-
-struct RVVSelectedBodyMigratedRouteStatementPlan {
-  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
-      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
-
-  bool plansMigratedRoute = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
-struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
-  using ConsumerPredicate =
-      bool (*)(const RVVSelectedBodyEmitCRouteDescription &);
-  using StatementPlanBuilder = llvm::Error (*)(
-      RVVSelectedBodyRouteAnalysis &,
-      const RVVSelectedBodyRouteMaterializationFacts &,
-      const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts &,
-      const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
-      const RVVSelectedBodyMathRouteOperandBindingFacts &,
-      const RVVSelectedBodyResidualRouteOperandBindingFacts &,
-      RVVSelectedBodyMigratedRouteStatementPlan &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  RVVSelectedBodyMigratedRouteStatementPlanFamily family =
-      RVVSelectedBodyMigratedRouteStatementPlanFamily::None;
-  ConsumerPredicate isConsumer = nullptr;
-  StatementPlanBuilder buildStatementPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
-getRVVSelectedBodyMigratedRouteStatementPlanOwners();
-
-bool isRVVSelectedBodyMigratedRouteStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
-
-struct RVVSelectedBodyMemoryRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
-getRVVSelectedBodyMemoryRouteFamilyOwners();
+// RVVSelectedBodyDirectContractionRouteStatementPlan retired (Stage 3 换心): the
+// direct-contraction string statement-plan owner is deleted — the family
+// converts through the real DialectConversion. The provider plan
+// RVVSelectedBodyDirectContractionRouteProviderPlan above stays as the shared
+// description/provider source of truth.
 
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-bool isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
@@ -1341,9 +1738,6 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
 
 llvm::Error
 verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
@@ -1381,29 +1775,35 @@ bool isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+bool isRVVSelectedBodyDequantizationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-struct RVVSelectedBodyElementwiseSelectRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<RVVSelectedBodyElementwiseSelectRouteFamilyOwner>
-getRVVSelectedBodyElementwiseSelectRouteFamilyOwners();
-
 bool isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyCompareSelectMaskRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyCompareSelectMaskRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error
+verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
@@ -1416,19 +1816,6 @@ bool isRVVSelectedBodyContractionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-bool isRVVSelectedBodyScalarBroadcastMAccRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-bool isRVVSelectedBodyPlainMAccRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-
-llvm::Error verifyRVVSelectedBodyPlainMAccRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Error
-verifyRVVSelectedBodyScalarBroadcastMAccRouteFamilyProviderPlans(
-    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
 bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
@@ -1439,28 +1826,12 @@ bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-bool isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
-    RVVSelectedBodyOperationKind operation);
-bool isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+bool isRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error
-verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+verifyRVVSelectedBodyStandaloneReductionAccumulationRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-struct RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner {
-  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
-
-  llvm::StringRef familyName;
-  ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
-};
-
-llvm::ArrayRef<
-    RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
-getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
 
 bool isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
@@ -1471,12 +1842,9 @@ verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
 
 struct RVVSelectedBodyRouteFamilyProviderOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
-  using ProviderPlanVerifier = llvm::Error (*)(
-      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
 
   llvm::StringRef familyName;
   ConsumerPredicate isConsumer = nullptr;
-  ProviderPlanVerifier verifyProviderPlan = nullptr;
 };
 
 llvm::ArrayRef<RVVSelectedBodyRouteFamilyProviderOwner>
@@ -1488,15 +1856,12 @@ bool isRVVSelectedBodyRouteFamilyProviderConsumer(
 llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan);
+
 llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
 getRVVSelectedBodyRouteMaterializationFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyRouteControlProviderPlan>
-getRVVSelectedBodyRouteControlProviderPlan(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
@@ -1514,109 +1879,11 @@ llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
 getRVVSelectedBodyResidualRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
-getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
-getRVVSelectedBodyCompareSelectRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
-getRVVSelectedBodyWideningConversionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts
-        &mathOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>
-getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyPlainMAccRouteStatementPlan>
-getRVVSelectedBodyPlainMAccRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
-getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
-getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
-getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
-getRVVSelectedBodySegment2MemoryRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
-getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
 getRVVSelectedBodyDirectContractionRouteProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-getRVVSelectedBodyDirectContractionRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
-    llvm::StringRef context);
-
-llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
-getRVVSelectedBodyMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

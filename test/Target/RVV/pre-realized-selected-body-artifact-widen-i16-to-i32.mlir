@@ -1,6 +1,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.conversion_kind\", value = \"sign_extend_widen_vf2/s//tcrv_rvv.conversion_kind\", value = \"widen_i32_to_i64/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONVERSION-KIND
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.source_sew\", value = \"16/s//tcrv_rvv.source_sew\", value = \"32/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SOURCE-SEW
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dest_lmul\", value = \"m1/s//tcrv_rvv.dest_lmul\", value = \"m2/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-LMUL
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order\", value = \"lhs,out,n/s//tcrv_rvv.runtime_abi_order\", value = \"lhs,n,out/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RUNTIME-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.route_operand_binding_operands\", value = \"rvv-route-operand-binding:widen_i16_to_i32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i16mf2|relation-signed-i16mf2-to-i32m1|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i32m1|relation-signed-i16mf2-to-i32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr/s//tcrv_rvv.route_operand_binding_operands\", value = \"metadata-derived-binding-summary/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.required_header_declarations\", value = \"stddef.h,stdint.h,riscv_vector.h/s//tcrv_rvv.required_header_declarations\", value = \"stddef.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADERS
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_conversion_route_family_plan\", value = \"rvv-widening-conversion-route-family-plan.v1\"}/s//&, {key = \"tcrv_rvv.dequantization_route_family_plan\", value = \"metadata-derived-dequantization-plan\"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT-RESIDUE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed widening
 // conversion slice. The RVV plugin must derive source i16/mf2, destination
@@ -64,6 +71,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.dest_sew", value = "32"}
 // PLAN-SAME: {key = "tcrv_rvv.dest_lmul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.conversion_kind", value = "sign_extend_widen_vf2"}
 // PLAN-SAME: {key = "tcrv_rvv.conversion_relation", value = "signed-i16mf2-to-i32m1"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
@@ -93,3 +101,40 @@ module {
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e16mf2,result:signed-e32m1
 // HEADER: void tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32(const int16_t *lhs, int32_t *out, size_t n);
+
+// STALE-CONVERSION-KIND: RVV materialized EmitC target artifact bridge failed
+// STALE-CONVERSION-KIND: tcrv_rvv.conversion_kind
+// STALE-CONVERSION-KIND-SAME: must mirror
+// STALE-CONVERSION-KIND-SAME: sign_extend_widen_vf2
+// STALE-CONVERSION-KIND-SAME: widen_i32_to_i64
+
+// STALE-SOURCE-SEW: RVV materialized EmitC target artifact bridge failed
+// STALE-SOURCE-SEW: tcrv_rvv.source_sew
+// STALE-SOURCE-SEW-SAME: must mirror
+// STALE-SOURCE-SEW-SAME: 16
+// STALE-SOURCE-SEW-SAME: 32
+
+// STALE-DEST-LMUL: RVV materialized EmitC target artifact bridge failed
+// STALE-DEST-LMUL: tcrv_rvv.dest_lmul
+// STALE-DEST-LMUL-SAME: must mirror
+// STALE-DEST-LMUL-SAME: m1
+// STALE-DEST-LMUL-SAME: m2
+
+// STALE-RUNTIME-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-RUNTIME-ABI: tcrv_rvv.runtime_abi_order
+// STALE-RUNTIME-ABI-SAME: must mirror
+// STALE-RUNTIME-ABI-SAME: lhs,out,n
+// STALE-RUNTIME-ABI-SAME: lhs,n,out
+
+// STALE-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-BINDING: tcrv_rvv.route_operand_binding_operands
+// STALE-BINDING-SAME: must mirror
+// STALE-BINDING-SAME: metadata-derived-binding-summary
+
+// STALE-HEADERS: RVV materialized EmitC target artifact bridge failed
+// STALE-HEADERS: tcrv_rvv.required_header_declarations
+// STALE-HEADERS-SAME: must mirror
+// STALE-HEADERS-SAME: stddef.h,stdint.h,riscv_vector.h
+
+// STALE-DEQUANT-RESIDUE: RVV materialized EmitC target artifact bridge failed
+// STALE-DEQUANT-RESIDUE: carry exactly 43{{.*}}metadata entries
