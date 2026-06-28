@@ -1,4 +1,4 @@
-# RVV Slice 模块化落点（换心后架构）
+# RVV Slice 模块化落点
 
 一条 slice 要改哪些层、落在哪些文件。对任意一个 [12 个作业 slice](../assignments/rvv-slices-12.md) 都适用;`add` 范例([walkthrough](add-rvv-slice-walkthrough.md))是这张图的最小实例。
 
@@ -26,7 +26,7 @@ lib/Plugin/RVV/EmitC/RVVEmitCRouteFamilyDerivation.cpp          # 按 RVVSelecte
 ```
 family:Base / ComputedMaskMemory / Contraction / Elementwise / MAcc / Segment2。route 只能从 typed facts 派生,不许读 route id/名字。
 
-## 模块 4 — EmitC 发射（承重层）
+## 模块 4 — EmitC 发射
 ```text
 lib/Conversion/RVV/RVVToEmitC.cpp                # VariantToEmitCFunc:matchAndRewrite + emitScopeForLoop per-op dispatch + kBlockDotKernels[] 表
 lib/Conversion/RVV/RVVToEmitC{BlockQuantLinear,KQuant,CodebookFp4,GridCodebook,TernaryBinary,DeferredDequant,ForwardElementwise}.cpp  # 各 family emitter
@@ -47,7 +47,7 @@ include/TianChenRV/Conversion/EmitC/TunableScheduleOpInterface.td + lib/Plugin/R
 ```text
 test/Dialect/RVV/<cap>-dataflow.mlir         # verifier
 test/Conversion/RVV/rvv-to-emitc-<cap>.mlir  # 发射 golden(FileCheck)
-examples/qemu/harness_<cap>.cpp              # 真机 harness + scalar oracle
+examples/qemu/harness_<cap>.cpp              # 验证 harness + scalar 参考实现
 ```
 三层 proof 见 [`build-and-test.md`](build-and-test.md) 与 [`testcase-submission-format.md`](testcase-submission-format.md)。
 

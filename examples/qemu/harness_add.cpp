@@ -2,7 +2,7 @@
 // Pairs with the compiler-generated kernel (add_generated.cpp). The entry name
 // is the compiler-derived `tcrv_emitc_<kernelSym>_<variantSym>`; the harness
 // declares exactly that symbol, supplies inputs, calls the kernel, and checks
-// every lane against a scalar oracle. Real-hardware proof target: SpacemiT X60 (ssh k1).
+// every element against a scalar reference. Run under qemu-riscv64 (tier 3).
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +29,6 @@ int main() {
       return 1;
     }
   }
-  std::printf("rvv classroom add slice proof ok: %zu lanes checked\n", n);
+  std::printf("add proof ok: %zu elements checked\n", n);
   return 0;
 }

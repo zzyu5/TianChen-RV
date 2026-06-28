@@ -1,15 +1,16 @@
-# RVV slice proof harness — local checks + optional QEMU.
+# RVV slice verification harness — local object compile + qemu numeric run.
 #
-# Three proof tiers for a slice (see ../../docs/build-and-test.md):
-#   tier 1  lit/FileCheck on the generated C structure        (everyone; `ninja check-tianchenrv`)
+# Three verification tiers for a slice (see ../../docs/build-and-test.md):
+#   tier 1  lit/FileCheck on the generated C structure        (`ninja check-tianchenrv`)
 #   tier 2  `make -f Makefile.rvv object`  -> compile the GENERATED kernel to an
 #           rv64gcv object with host clang. Proves it is valid RVV C. No run, no sysroot needed.
-#   tier 3  REAL HARDWARE: `./run-on-k1.sh <gen> <harness> <case>`  (ssh k1, SpacemiT X60)
-#           or QEMU below if you have qemu-riscv64 + a riscv64 sysroot.
+#   tier 3  `make -f Makefile.rvv qemu`    -> link the generated kernel + harness into a
+#           riscv64 executable and run it under qemu-riscv64, comparing every element
+#           against the scalar reference in the harness. Needs qemu-riscv64 + a riscv64 sysroot.
 #
-# The worked example (already verified on real hardware):
+# The worked example:
 #   make -f Makefile.rvv object RVV_GENERATED=add_generated.reference.cpp
-#   ./run-on-k1.sh add_generated.reference.cpp harness_add.cpp add
+#   make -f Makefile.rvv qemu   RVV_GENERATED=add_generated.reference.cpp RVV_HARNESS=harness_add.cpp SYSROOT=...
 
 RVV_CLANG    ?= /usr/lib/llvm-20/bin/clang
 RVV_CXX      ?= clang++

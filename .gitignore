@@ -12,6 +12,11 @@ dist/
 artifacts/tmp/
 *.log
 
+# RVV slice verification harness build outputs (examples/qemu)
+examples/qemu/rvv_case
+examples/qemu/rvv_case.o
+examples/qemu/*.o
+
 
 .claude/settings.local.json
 /artifacts/p-a-fair-three-way/*/gen/
