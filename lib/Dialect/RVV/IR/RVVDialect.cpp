@@ -3604,6 +3604,52 @@ bool isBoundedWideningProductReductionChainSourceLoadCandidate(
          isGenericRVVVectorUnsignedI8MF4(load.getLoaded().getType());
 }
 
+bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The standalone-reduction strip framing is the i32m1 accumulator (the codebook
+  // flip is in the i8 gather / i16 product anchors, NOT the reduction framing).
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  // The codebook source loads (packed-i4 weight UNSIGNED, the two plain-i8 q8
+  // activation halves SIGNED) land at the codebook i8 gather anchor -- m1 at
+  // VLEN128, mf2 at VLEN256 (the genuine flip; NOT the q4_0 nibble's mf4).
+  mlir::Type type = load.getLoaded().getType();
+  const bool i8AtM1 =
+      isGenericRVVSignedOrSignlessIntegerVectorType(type, getRVVSEW8Bits(),
+                                                    getRVVLMULM1()) ||
+      isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                            getRVVLMULM1());
+  const bool i8AtMF2 =
+      isGenericRVVSignedOrSignlessIntegerVectorType(type, getRVVSEW8Bits(),
+                                                    getRVVLMULMF2()) ||
+      isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                            getRVVLMULMF2());
+  if (!i8AtM1 && !i8AtMF2)
+    return false;
+
+  // The load must feed ONLY a codebook-gather product (as the packed-i4 weight or
+  // one of the two plain-i8 activation operands). The codebook TABLE operand comes
+  // from tcrv_rvv.codebook_table_broadcast (NOT a load), so it is not a load user.
+  bool hasGatherUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto gather = llvm::dyn_cast<CodebookGatherXI8ProductOp>(user);
+    if (!gather || gather->getParentOp() != withVL.getOperation() ||
+        gather.getVl() != load.getVl() ||
+        (gather.getWeight() != load.getLoaded() &&
+         gather.getActivationLow() != load.getLoaded() &&
+         gather.getActivationHigh() != load.getLoaded()))
+      return false;
+    hasGatherUse = true;
+  }
+  return hasGatherUse;
+}
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL) {
   if (!load || !withVL)

@@ -907,6 +907,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
           if (mlir::failed(emitPackedI4OffsetBinaryXI8Product(
                   rewriter, loc, offsetBinaryProduct, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto codebookTable =
+                       llvm::dyn_cast<tcrvrvv::CodebookTableBroadcastOp>(op)) {
+          if (mlir::failed(emitCodebookTableBroadcast(rewriter, loc,
+                                                      codebookTable, valueMap)))
+            return mlir::failure();
+        } else if (auto codebookGather =
+                       llvm::dyn_cast<tcrvrvv::CodebookGatherXI8ProductOp>(op)) {
+          if (mlir::failed(emitCodebookGatherXI8Product(
+                  rewriter, loc, codebookGather, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto wmacc =
                        llvm::dyn_cast<tcrvrvv::WideningMAccOp>(op)) {
           if (mlir::failed(
@@ -2212,11 +2222,12 @@ VariantToEmitCFunc::emitStandaloneReduce(mlir::ConversionPatternRewriter &rewrit
       mlir::Operation *inputDef = reduce.getInput().getDefiningOp();
       if (!inputDef ||
           !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp,
-                     tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(inputDef))
+                     tcrvrvv::PackedI4OffsetBinaryXI8ProductOp,
+                     tcrvrvv::CodebookGatherXI8ProductOp>(inputDef))
         return rewriter.notifyMatchFailure(
             reduce, "standalone reduce input must be an explicit vector load, "
-                    "widening_product, or packed-i4 offset-binary x i8 product "
-                    "result");
+                    "widening_product, packed-i4 offset-binary x i8 product, or "
+                    "codebook-gather x i8 product result");
     }
     std::optional<llvm::StringRef> mnemonic =
         standaloneReductionMnemonic(reduce.getKind());
@@ -2759,6 +2770,146 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackedI4OffsetBinaryXI8Product(
     if (mlir::failed(pairSum))
       return mlir::failure();
     valueMap[packed.getResult()] = *pairSum;
+    return mlir::success();
+  }
+
+mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitCodebookGatherDecodeProductValue(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value weightU8, mlir::Value table, mlir::Value actLow,
+    mlir::Value actHigh, mlir::Value bodyVL, mlir::Type srcI8EmitC,
+    mlir::Type srcU8EmitC, mlir::Type resultEmitC, llvm::StringRef srcLmul,
+    unsigned resSEW, llvm::StringRef resLmul, llvm::StringRef resDtype,
+    llvm::StringRef opName, llvm::StringRef role) const {
+    mlir::Type i32Type = emitc::OpaqueType::get(rewriter.getContext(), "int");
+
+    // u8 scalar-immediate op on the nibble lane (vand 0x0F low / vsrl 0x04 high).
+    // The callee mangle + the "int"-typed immediate literal are byte-identical to
+    // the monolithic codebook block-dot's per-strip decode (RVVToEmitCCodebookFp4).
+    auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                       llvm::StringRef amount) -> mlir::Value {
+      std::string callee = ("__riscv_" + mnemonic + "_u8" + srcLmul).str();
+      return emitOpaqueCallBuilt(
+          rewriter, loc, srcU8EmitC, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                rewriter.create<emitc::LiteralOp>(loc, i32Type, amount.str());
+            return {src, amt, bodyVL};
+          });
+    };
+    mlir::Value idxLow = u8ImmOp("vand_vx", weightU8, "0x0F");
+    mlir::Value idxHigh = u8ImmOp("vsrl_vx", weightU8, "0x04");
+
+    // The codebook gather: map each UNSIGNED index lane through the broadcast
+    // table into signed-i8 weight lanes v0/v1 (vrgather_vv_i8<L>(values, idx)).
+    std::string gatherCallee = ("__riscv_vrgather_vv_i8" + srcLmul).str();
+    auto gather = [&](mlir::Value idx) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, srcI8EmitC, gatherCallee,
+                            mlir::ValueRange{table, idx, bodyVL}, opName, role);
+    };
+    mlir::Value v0 = gather(idxLow);
+    mlir::Value v1 = gather(idxHigh);
+
+    // The SAME asymmetric signed widening product the offset-binary sibling uses
+    // (vwmul low <-> q8[0..15], vwmacc + high <-> q8[16..31]) -> i16 product.
+    return emitOffsetBinaryProductFromDecodedValue(rewriter, loc, v0, v1, actLow,
+                                                   actHigh, bodyVL, resultEmitC,
+                                                   resSEW, resLmul, resDtype,
+                                                   opName, role);
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitCodebookTableBroadcast(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::CodebookTableBroadcastOp table,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(table.getResult().getType());
+    if (!resultVecType)
+      return rewriter.notifyMatchFailure(table,
+                                         "codebook table result not a vector");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    if (!resultEmitC)
+      return rewriter.notifyMatchFailure(
+          table, "codebook table vector type not convertible");
+    llvm::StringRef opName = table.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = table.getTCRVEmitCLowerableSourceRole();
+    llvm::ArrayRef<int8_t> codebook = table.getCodebook();
+    llvm::StringRef tableSymbol = table.getTableSymbol();
+
+    // The 16-entry non-linear codebook as a structured `static const int8_t[16]`
+    // decl ONCE (the task-sanctioned structured const), byte-identical to the
+    // monolithic codebook emitter's table decl.
+    std::string decl = ("static const int8_t " + tableSymbol + "[" +
+                        std::to_string(codebook.size()) + "] = {")
+                           .str();
+    for (size_t i = 0; i < codebook.size(); ++i) {
+      if (i)
+        decl += ", ";
+      decl += std::to_string(static_cast<int>(codebook[i]));
+    }
+    decl += "};";
+    rewriter.create<emitc::VerbatimOp>(loc, decl);
+
+    // vint8<L> values = __riscv_vle8_v_i8<L>(<table_symbol>, 16);  (the codebook
+    // table broadcast into a vreg; reused by every gather). The table pointer is
+    // the structured-const decl above, cast to const int8_t *.
+    std::string tableLoadCallee =
+        riscvIntrinsicName("vle", 8, resultVecType.getLmul(), "i8");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Value values = emitOpaqueCallBuilt(
+        rewriter, loc, resultEmitC, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, tableSymbol.str());
+          mlir::Value count = rewriter.create<emitc::LiteralOp>(
+              loc, getSizeType(rewriter), std::to_string(codebook.size()));
+          return {tableName, count};
+        },
+        llvm::StringRef("codebook_table_load"));
+    valueMap[table.getResult()] = values;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitCodebookGatherXI8Product(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::CodebookGatherXI8ProductOp gather,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(gather.getResult().getType());
+    auto weightVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(gather.getWeight().getType());
+    auto tableVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(gather.getTable().getType());
+    if (!resultVecType || !weightVecType || !tableVecType)
+      return rewriter.notifyMatchFailure(
+          gather, "codebook gather x i8 product types not vectors");
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcU8EmitC = convertVectorTypeToEmitC(weightVecType);
+    mlir::Type srcI8EmitC = convertVectorTypeToEmitC(tableVecType);
+    if (!resultEmitC || !srcU8EmitC || !srcI8EmitC)
+      return rewriter.notifyMatchFailure(
+          gather, "codebook gather x i8 product type not convertible");
+    mlir::Value weight = valueMap.lookup(gather.getWeight());
+    mlir::Value table = valueMap.lookup(gather.getTable());
+    mlir::Value actLow = valueMap.lookup(gather.getActivationLow());
+    mlir::Value actHigh = valueMap.lookup(gather.getActivationHigh());
+    if (!weight || !table || !actLow || !actHigh)
+      return rewriter.notifyMatchFailure(
+          gather, "codebook gather x i8 product operand unmapped");
+    llvm::StringRef opName = gather.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = gather.getTCRVEmitCLowerableSourceRole();
+    mlir::FailureOr<mlir::Value> product = emitCodebookGatherDecodeProductValue(
+        rewriter, loc, weight, table, actLow, actHigh, bodyVL, srcI8EmitC,
+        srcU8EmitC, resultEmitC, weightVecType.getLmul(),
+        vectorElementWidth(resultVecType), resultVecType.getLmul(),
+        vectorDType(resultVecType), opName, role);
+    if (mlir::failed(product))
+      return mlir::failure();
+    valueMap[gather.getResult()] = *product;
     return mlir::success();
   }
 
@@ -4906,7 +5057,11 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
           unsigned uSew = intType.getWidth();
           bool inScope = false;
           if (uSew == 8)
-            inScope = lmul == "mf4";
+            // mf4 = the legacy unsigned widening-product first-slice load; m1 =
+            // the codebook i8 gather anchor at VLEN128 (the packed-i4 weight loads
+            // UNSIGNED for the vand/vsrl index split); mf2 = the codebook anchor at
+            // VLEN256 (the m1/mf2 capability flip).
+            inScope = lmul == "mf4" || lmul == "m1" || lmul == "mf2";
           else if (uSew == 16)
             inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2";
           else if (uSew == 32)
@@ -4950,8 +5105,11 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         if (sew == 8)
           // mf4 = the narrow first-slice i8 load; m2 = the deferred-wide /
           // byte-anchor VLEN128 strip; m1 = the Track B byte-anchor VLEN256
-          // strip (e8m1) -- the net-new rung for the capability flip.
-          inScope = lmul == "mf4" || lmul == "m1" || lmul == "m2";
+          // strip (e8m1) -- the net-new rung for the capability flip; mf2 = the
+          // codebook i8 gather anchor at VLEN256 (the plain-i8 activations + the
+          // gathered codebook lanes, the m1/mf2 codebook flip).
+          inScope = lmul == "mf4" || lmul == "m1" || lmul == "m2" ||
+                    lmul == "mf2";
         else if (sew == 16)
           inScope = lmul == "mf2" || lmul == "m1" || lmul == "m2" ||
                     lmul == "m4";

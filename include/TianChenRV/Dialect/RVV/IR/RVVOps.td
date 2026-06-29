@@ -3870,6 +3870,107 @@ def PackedI4OffsetBinaryXI8ProductOp
   let hasVerifier = 1;
 }
 
+def CodebookTableBroadcastOp
+    : TCRVRVV_Op<"codebook_table_broadcast",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV codebook lookup-table broadcast-into-vreg op";
+  let description = [{
+    Records one bounded generic plugin-local RVV codebook-table broadcast step:
+    the 16-entry non-linear int8 lookup table is materialized as a structured
+    `static const int8_t[16]` decl and broadcast-loaded ONCE into a typed i8
+    !tcrv_rvv.vector result the codebook gather indexes. This is the codebook
+    class's prerequisite STRUCTURE (the FP4 / iq4_nl `kvalues` table) made
+    first-class in the typed body, distinct from the q4_0 offset-binary nibble
+    decode which needs NO table. The op is nested directly under tcrv_rvv.with_vl,
+    consumes NO SSA operands (the table is a compile-time constant), and produces
+    ONE i8 LMUL !tcrv_rvv.vector result -- the broadcast `values` register the
+    gather reuses.
+
+    The 16-entry int8 codebook is carried as a DenseI8ArrayAttr:$codebook of
+    EXACTLY 16 entries (the kvalues lookup range [0,15]); the C symbol the decl
+    declares is the StrAttr:$table_symbol. The fixed lowering (the structured
+    `static const int8_t <table_symbol>[16] = {...};` decl + the
+    __riscv_vle8_v_i8<L> broadcast load of <table_symbol> at the 16-entry count)
+    is the op's lowering, NOT a candidate-mirror string read in the conversion.
+    The result LMUL is the codebook i8 anchor -- a VLEN-capability fact (m1 at
+    VLEN128 where its VLMAX spans the 16-entry table, mf2 at VLEN256). Route ids,
+    helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, and common EmitC/export code must not infer or choose codebook
+    table-broadcast semantics.
+  }];
+
+  let arguments = (ins
+    DenseI8ArrayAttr:$codebook,
+    StrAttr:$table_symbol
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = "attr-dict `:` type($result)";
+  let hasVerifier = 1;
+}
+
+def CodebookGatherXI8ProductOp
+    : TCRVRVV_Op<"codebook_gather_x_i8_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV codebook-gather packed-i4 x plain-i8 product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV ASYMMETRIC codebook-gather
+    packed-i4 x plain-i8 widening product dataflow step. This is the integer core
+    of the ggml IQ4_NL / FP4 codebook x Q8_0 dot-product: ONLY the packed-i4
+    weight operand is codebook-decoded; the two int8 activation operands stay
+    plain. Unlike the q4_0 offset-binary sibling
+    (tcrv_rvv.packed_i4_offset_binary_x_i8_product, an xor-0x88 + arithmetic
+    decode), the 4-bit nibble does NOT decode to a linear value -- each nibble
+    is an INDEX into a non-linear 16-entry int8 table. The op is nested directly
+    under tcrv_rvv.with_vl, consumes ONE typed UNSIGNED i8 LMUL !tcrv_rvv.vector
+    packed-i4 weight operand (each u8 packing two 4-bit table indices), TWO typed
+    SIGNED i8 LMUL !tcrv_rvv.vector PLAIN-int8 activation operands (the q8 low
+    half paired with the low nibbles, the q8 high half with the high nibbles),
+    ONE typed SIGNED i8 LMUL !tcrv_rvv.vector codebook-table operand (the
+    broadcast `values` from tcrv_rvv.codebook_table_broadcast), and the active
+    !tcrv_rvv.vl token. It produces ONE widened i16 LMUL !tcrv_rvv.vector result
+    holding the sum of the low-nibble and high-nibble asymmetric widening
+    products.
+
+    This op makes the codebook nibble split + gather decode + asymmetric
+    i8(gathered) x i8(plain) product first-class STRUCTURE in the typed body. The
+    decode splits each weight byte into the two UNSIGNED index lanes
+    (vand_vx_u8<L> 0x0F low, vsrl_vx_u8<L> 0x04 high), GATHERS each through the
+    broadcast table (vrgather_vv_i8<L>(values, idx)) into signed-i8 weight lanes,
+    then feeds the SAME asymmetric widening product the offset-binary sibling uses
+    (vwmul over i16<W> against the plain low activation; vwmacc over i16<W> against
+    the plain high activation). The fixed intrinsic chain is the op's lowering,
+    NOT a candidate-mirror string read in the conversion. For the bounded surface
+    kind is limited to signed_codebook_gather_x_i8_product and product_relation to
+    "codebook-gather-i8-x-i8x2-to-i16". The codebook i8 source LMUL drives the i16
+    product LMUL (the VLEN-capability flip: m1->i16m2 at VLEN128, mf2->i16m1 at
+    VLEN256). Source/result dtype/config, VL, and the codebook gather structure
+    are structural in the selected RVV body. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand-packing
+    mirror strings, q8/q4 names, and common EmitC/export code must not infer or
+    choose codebook-gather packed-i4 x i8 product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight,
+    AnyType:$activation_low,
+    AnyType:$activation_high,
+    AnyType:$table,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight `,` $activation_low `,` $activation_high `,` $table `,` $vl "
+    "attr-dict `:` type($weight) `,` type($activation_low) `,` "
+    "type($activation_high) `,` type($table) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ40Q80Op
     : TCRVRVV_Op<"q4_0_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface,

@@ -2741,6 +2741,47 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// The CODEBOOK-gather decode/product for ONE strip -- the FP4 / iq4_nl
+  /// variant of emitOffsetBinaryDecodeProductValue (the offset-binary one is
+  /// byte-untouched). The 4-bit nibble does NOT decode linearly; each nibble is
+  /// an INDEX into the non-linear 16-entry int8 `table` (the broadcast values):
+  ///   idx_low  = vand_vx_u8<L>(weightU8, 0x0F, vl);   // low index  [0,15]
+  ///   idx_high = vsrl_vx_u8<L>(weightU8, 0x04, vl);   // high index [0,15]
+  ///   v0 = vrgather_vv_i8<L>(table, idx_low,  vl);    // gather -> signed-i8
+  ///   v1 = vrgather_vv_i8<L>(table, idx_high, vl);
+  ///   product = vwmul_vv_i16<W>(v0, actLow, vl);            // low <-> q8[0..15]
+  ///   product = vwmacc_vv_i16<W>(product, v1, actHigh, vl); // + high half
+  /// The product tail REUSES emitOffsetBinaryProductFromDecodedValue (byte
+  /// identical to the offset-binary sibling's two product nodes); only the
+  /// codebook split + gather REPLACES the xor/sll/sra arithmetic decode. The
+  /// node order is byte-identical to the monolithic codebook block-dot's
+  /// per-strip core (RVVToEmitCCodebookFp4.cpp). Pure node construction; no
+  /// string plan read.
+  mlir::FailureOr<mlir::Value> emitCodebookGatherDecodeProductValue(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value weightU8, mlir::Value table, mlir::Value actLow,
+      mlir::Value actHigh, mlir::Value bodyVL, mlir::Type srcI8EmitC,
+      mlir::Type srcU8EmitC, mlir::Type resultEmitC, llvm::StringRef srcLmul,
+      unsigned resSEW, llvm::StringRef resLmul, llvm::StringRef resDtype,
+      llvm::StringRef opName, llvm::StringRef role) const;
+
+  /// codebook_table_broadcast{codebook,table_symbol} -> the structured const
+  /// `static const int8_t <table_symbol>[16] = {...};` decl + the
+  /// __riscv_vle8_v_i8<L> broadcast load of <table_symbol> at the 16-entry
+  /// count (comment "codebook_table_load"). Registers the broadcast values vreg
+  /// in valueMap for the gather to consume. Byte-identical to the monolithic
+  /// codebook emitter's once-above-loop table broadcast.
+  mlir::LogicalResult emitCodebookTableBroadcast(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::CodebookTableBroadcastOp table,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  mlir::LogicalResult emitCodebookGatherXI8Product(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::CodebookGatherXI8ProductOp gather,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// widening_macc(%lhs,%rhs,%acc,%vl){kind=signed_widening_macc_add} ->
   ///   v<rd><rl> r = __riscv_vwmacc_vv_<rd><rl>(acc, lhs, rhs, vl);
   /// The fused widening multiply-accumulate widens the narrower i16 source

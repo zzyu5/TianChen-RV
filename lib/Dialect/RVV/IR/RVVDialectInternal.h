@@ -1345,6 +1345,8 @@ bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
 bool isBoundedWideningProductReductionChainSourceLoadCandidate(
     LoadOp load, WithVLOp withVL);
 
+bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL);
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL);
 

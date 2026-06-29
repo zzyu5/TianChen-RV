@@ -80,7 +80,8 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedByteAnchorDotReduceSourceLoad(*this, withVL) ||
         isBoundedWideningProductReductionChainSourceLoad(*this, withVL) ||
         isBoundedWideningProductReductionChainSourceLoadCandidate(*this,
-                                                                  withVL))
+                                                                  withVL) ||
+        isBoundedCodebookGatherChainSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }

@@ -872,6 +872,152 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult CodebookTableBroadcastOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.codebook_table_broadcast keeps the result SEW/LMUL "
+                "on the typed vector value and setvl/with_vl, and rejects "
+                "deleted local element_count metadata";
+    if (attrName != "codebook" && attrName != "table_symbol")
+      return emitOpError()
+             << "only accepts the codebook table-broadcast attributes "
+                "'codebook' and 'table_symbol'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getCodebook().size() != 16)
+    return emitOpError()
+           << "requires a 16-entry DenseI8ArrayAttr codebook (the kvalues "
+              "lookup range [0,15]); got "
+           << getCodebook().size() << " entries";
+  if (getTableSymbol().trim().empty())
+    return emitOpError()
+           << "requires a non-empty table_symbol naming the structured const "
+              "codebook decl";
+
+  if (op->getNumOperands() != 0 || op->getNumResults() != 1)
+    return emitOpError()
+           << "consumes no SSA operands (the table is a compile-time constant) "
+              "and produces one i8 LMUL codebook-table vector result";
+  auto resultVec = llvm::dyn_cast<VectorType>(getResult().getType());
+  if (!resultVec ||
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW8Bits(), resultVec.getLmul()))
+    return emitOpError()
+           << "requires a signed/signless i8 LMUL !tcrv_rvv.vector result for "
+              "the broadcast codebook table register";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the codebook table broadcast";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.codebook_gather_x_i8_product keeps source/result "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "signed_codebook_gather_x_i8_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"signed_codebook_gather_x_i8_product\" for the bounded "
+              "codebook-gather packed-i4 x plain-i8 widening-product surface";
+  if (getProductRelation() != "codebook-gather-i8-x-i8x2-to-i16")
+    return emitOpError()
+           << "requires product_relation \"codebook-gather-i8-x-i8x2-to-i16\" "
+              "for the bounded codebook-gather packed-i4 x plain-i8 "
+              "widening-product route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one UNSIGNED i8 LMUL packed-i4 weight operand, two "
+              "SIGNED i8 LMUL plain-int8 activation operands, one SIGNED i8 LMUL "
+              "codebook-table operand, one !tcrv_rvv.vl operand, and one i16 "
+              "LMUL result";
+
+  // The codebook i8 source LMUL is the VLEN-capability anchor (m1 at VLEN128,
+  // mf2 at VLEN256): read it off the weight vector and DERIVE the widened i16
+  // product LMUL (the genuine flip), instead of pinning a single LMUL.
+  auto weightVec = llvm::dyn_cast<VectorType>(getWeight().getType());
+  if (!weightVec)
+    return emitOpError() << "requires a typed !tcrv_rvv.vector weight operand";
+  llvm::StringRef srcLMUL = weightVec.getLmul();
+  llvm::StringRef productLMUL =
+      tianchenrv::plugin::rvv::getRVVNextWiderLMUL(srcLMUL);
+  if (productLMUL.empty())
+    return emitOpError() << "no wider i16 product LMUL rung for the codebook i8 "
+                            "source anchor '"
+                         << srcLMUL << "'";
+
+  if (!isGenericRVVUnsignedIntegerVectorType(getWeight().getType(),
+                                             getRVVSEW8Bits(), srcLMUL))
+    return emitOpError()
+           << "requires the packed-i4 weight source vector to be an UNSIGNED i8 "
+              "LMUL !tcrv_rvv.vector (the gather index lanes run on the u8 lane)";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationLow().getType(), getRVVSEW8Bits(), srcLMUL) ||
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationHigh().getType(), getRVVSEW8Bits(), srcLMUL))
+    return emitOpError()
+           << "requires the low and high plain-int8 activation source vectors "
+              "to be signed/signless i8 LMUL !tcrv_rvv.vector matching the "
+              "weight anchor '"
+           << srcLMUL << "'";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getTable().getType(), getRVVSEW8Bits(), srcLMUL))
+    return emitOpError()
+           << "requires the codebook-table source vector to be a signed/"
+              "signless i8 LMUL !tcrv_rvv.vector matching the weight anchor '"
+           << srcLMUL << "'";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW16Bits(), productLMUL))
+    return emitOpError()
+           << "requires the result vector to be a signed/signless i16 LMUL "
+              "!tcrv_rvv.vector at the widened product anchor '"
+           << productLMUL << "'";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for codebook-gather packed-i4 x plain-i8 widening "
+              "product";
+
+  return mlir::success();
+}
+
 //===----------------------------------------------------------------------===//
 // TunableScheduleOpInterface implementations.
 //

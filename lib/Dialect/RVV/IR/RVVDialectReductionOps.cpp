@@ -343,6 +343,105 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     return mlir::success();
   }
 
+  // The CODEBOOK-gather widening reduce (Track B G2 bounded codebook core): the
+  // input is produced by a tcrv_rvv.codebook_gather_x_i8_product, whose i16
+  // product LMUL is the wider rung of the codebook i8 gather anchor (the genuine
+  // flip: m1 -> i16m2 at VLEN128, mf2 -> i16m1 at VLEN256). This is a PARALLEL
+  // branch keyed on the codebook-gather producer (a brand-new op), fully isolated
+  // from the narrow i16mf2 / byte-anchor / deferred-wide branches below; the
+  // enclosing with_vl is the SEW32 LMUL m1 standalone-reduction strip framing
+  // (the SAME framing the q4_0 nibble core uses), the i16-product LMUL FLIPS with
+  // the anchor, and the i32m1 scalar accumulator/result is unchanged.
+  if (auto codebookGather =
+          getInput().getDefiningOp<CodebookGatherXI8ProductOp>()) {
+    if (getKind() != "signed_widening_reduce_add")
+      return emitOpError()
+             << "requires kind \"signed_widening_reduce_add\" for the "
+                "codebook-gather widening standalone reduction";
+    if (getAccumulatorLayout() !=
+        "scalar-i32-seed-lane0-from-accumulator-input")
+      return emitOpError()
+             << "requires accumulator_layout "
+                "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+                "codebook-gather widening standalone reduction";
+    if (!isSupportedGenericStandaloneReduceResultLayout(getResultLayout()))
+      return emitOpError()
+             << "requires result_layout "
+                "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
+                "codebook-gather widening standalone reduction";
+    if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+      return emitOpError()
+             << "requires one i16 codebook-product input vector operand, one "
+                "scalar accumulator seed runtime ABI operand, one "
+                "!tcrv_rvv.vl operand, and one i32 LMUL m1 vector result";
+    if (getInput() != codebookGather.getResult())
+      return emitOpError()
+             << "requires the codebook-gather product result to be the "
+                "standalone reduction input";
+    auto productVec =
+        llvm::dyn_cast<VectorType>(codebookGather.getResult().getType());
+    if (!productVec ||
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            getInput().getType(), getRVVSEW16Bits(), productVec.getLmul()))
+      return emitOpError()
+             << "requires the codebook-gather widening reduction source vector "
+                "to be a signed/signless i16 LMUL matching the codebook-gather "
+                "product anchor";
+    if (!isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires the codebook-gather widening reduction result vector "
+                "to have type !tcrv_rvv.vector<i32, \"m1\">";
+    if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
+      return emitOpError()
+             << "requires accumulator seed operand to have "
+                "!tcrv_rvv.runtime_abi_value type";
+    if (mlir::failed(verifyRuntimeABIValueOperandRole(
+            op, getAccumulatorSeed(), "accumulator seed",
+            {tianchenrv::support::RuntimeABIParameterRole::
+                 AccumulatorInputBuffer})))
+      return mlir::failure();
+    RuntimeABIValueOp seedBinding =
+        getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
+    if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+      return emitOpError()
+             << "requires accumulator seed operand C type 'const int32_t *' "
+                "for the codebook-gather widening standalone reduction route";
+    if (!llvm::isa<VLType>(getVl().getType()))
+      return emitOpError() << "requires runtime VL operand to have "
+                              "!tcrv_rvv.vl type";
+    if (codebookGather.getVl() != getVl())
+      return emitOpError()
+             << "requires the tcrv_rvv.codebook_gather_x_i8_product to consume "
+                "the same !tcrv_rvv.vl token as the trailing "
+                "tcrv_rvv.standalone_reduce";
+    if (codebookGather->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires the tcrv_rvv.codebook_gather_x_i8_product to be in the "
+                "same tcrv_rvv.with_vl body as the trailing "
+                "tcrv_rvv.standalone_reduce";
+    auto withVL = verifyNestedDataflowOp(op);
+    if (mlir::failed(withVL))
+      return mlir::failure();
+    if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+      return mlir::failure();
+    auto expectedSEW =
+        (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+    auto expectedLMUL =
+        (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+    if (!expectedSEW || !expectedLMUL ||
+        !isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                   expectedLMUL.getValue()))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl accumulator/result config "
+                "to be SEW32 LMUL m1 (the standalone-reduction strip framing) "
+                "for the codebook-gather widening standalone reduction";
+    if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+                "metadata for the codebook-gather widening standalone reduction";
+    return mlir::success();
+  }
+
   if (!isSupportedGenericStandaloneReduceKind(getKind()))
     return emitOpError()
            << "currently supports only kind \"add\", \"min\", \"max\", or "
