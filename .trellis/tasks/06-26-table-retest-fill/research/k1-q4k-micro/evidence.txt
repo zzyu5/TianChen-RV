@@ -1,0 +1,23 @@
+=== EVIDENCE: objdump ggml_gemv_q4_K_16x1_q8_K head (real vector body) ===
+   aa4c0:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   aa52a:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   aa53c:	4ad61757          	vfwcvt.f.f.v	v14,v13
+   aa540:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+   aa54c:	0c1b7057          	vsetvli	zero,s6,e8,m2,ta,ma
+   aa550:	02050807          	vle8.v	v16,(a0)
+   aa558:	2701b957          	vand.vi	v18,v16,3
+   aa560:	27063957          	vand.vi	v18,v16,12
+   aa582:	0c1b7057          	vsetvli	zero,s6,e8,m2,ta,ma
+   aa586:	2709ce57          	vand.vx	v28,v16,s3
+=== nm -D micro_q4k3 (ggml symbol U = dynamic) ===
+                 U ggml_gemv_q4_K_16x1_q8_K
+=== ldd resolution ===
+	libggml-cpu.so.0 => /data/k1build/bin/libggml-cpu.so.0 (0x0000003fa52da000)
+	libggml-base.so.0 => /home/bianbu/tcrv-k1-llama/build/bin/libggml-base.so.0 (0x0000003fa4dba000)
+=== md5 of binaries+sources ===
+39b703993a8e29cdeb93ac7274a1edbe  k_gemv_q4K_h16.cpp
+45eb9c3873a67035574a2a893775978a  oracle_gemv_q4K.cpp
+d8ba284d419c23b652433217e6bbb923  winB_micro_q4K_gevm.cpp
+45100fe2c68d48287b7d9d5f0e071755  ggml_src_gemv.cpp
+e9340d71c30d7809d8afd65b65b5e154  micro_q4k3
+=== capture clean full run (run3) ===
