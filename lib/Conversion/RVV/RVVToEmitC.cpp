@@ -289,15 +289,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
 
     // Pre-loop full-chunk setvl: __riscv_vsetvl_e<sew><lmul>(n).
     std::string setvlCallee = riscvIntrinsicName("vsetvl", sew, lmul, "");
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                         preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                         setvlCallee));
-    mlir::Value vlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         setvlCallee, mlir::ValueRange{avlArg})
-            .getResult(0);
+    mlir::Value vlmax = emitOpaqueCall(
+        rewriter, loc, sizeType, setvlCallee, mlir::ValueRange{avlArg},
+        preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+        preLoopSetVL.getTCRVEmitCLowerableSourceRole());
 
     // The low-precision Gearbox product-reduce-dequantize body owns a dedicated
     // routine: a function-scoped i32 accumulator variable carried across the
@@ -622,18 +617,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
       rewriter.setInsertionPointToStart(forOp.getBody());
 
       // Remaining-AVL setvl: size_t v = n - i; __riscv_vsetvl_e...(v).
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                           setvlCallee));
-      mlir::Value remaining =
-          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-      mlir::Value bodyVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value bodyVL = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, setvlCallee,
+          preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+          preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value remaining =
+                b.create<emitc::SubOp>(l, sizeType, avlArg, inductionVar);
+            return {remaining};
+          });
 
       // Build the emit order. Bodies emit in IR order, EXCEPT the pure
       // masked-store family: the legacy route path emits the payload `load`
@@ -1853,18 +1846,18 @@ VariantToEmitCFunc::emitLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Lo
     std::string callee =
         riscvIntrinsicName("vle", vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(load.getTCRVEmitCLowerableSourceOpName(),
-                         load.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    if (extraOffset)
-      ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), ptr, extraOffset);
-    mlir::Value loaded =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{ptr, bodyVL})
-            .getResult(0);
+    mlir::Value loaded = emitOpaqueCallBuilt(
+        rewriter, loc, vecType, callee,
+        load.getTCRVEmitCLowerableSourceOpName(),
+        load.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              b.create<emitc::AddOp>(l, base.getType(), base, inductionVar);
+          if (extraOffset)
+            ptr = b.create<emitc::AddOp>(l, base.getType(), ptr, extraOffset);
+          return {ptr, bodyVL};
+        });
     valueMap[load.getLoaded()] = loaded;
     return mlir::success();
   }
@@ -1897,14 +1890,10 @@ VariantToEmitCFunc::emitBinary(mlir::ConversionPatternRewriter &rewriter, mlir::
     std::string callee =
         riscvIntrinsicName(*mnemonic, vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(binary.getTCRVEmitCLowerableSourceOpName(),
-                         binary.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee, mlir::ValueRange{lhs, rhs, bodyVL},
+        binary.getTCRVEmitCLowerableSourceOpName(),
+        binary.getTCRVEmitCLowerableSourceRole());
     valueMap[binary.getResult()] = result;
     return mlir::success();
   }
@@ -1959,15 +1948,11 @@ VariantToEmitCFunc::emitReduce(mlir::ConversionPatternRewriter &rewriter, mlir::
     std::string callee = riscvReductionIntrinsicName(
         *mnemonic, vectorElementWidth(vectorType), vectorType.getLmul(),
         vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{input, accumulator,
-                                                          bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee,
+        mlir::ValueRange{input, accumulator, bodyVL},
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
     valueMap[reduce.getResult()] = result;
     return mlir::success();
   }
@@ -2057,29 +2042,28 @@ mlir::Value VariantToEmitCFunc::emitScalarSeedSplat(mlir::ConversionPatternRewri
     std::string callee =
         riscvIntrinsicName("vmv_v_x", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(sourceOpName, sourceRole, callee));
     // base[0]: subscript -> lvalue -> load reads the first scalar element. The
     // pointee const-ness (const int32_t* acc vs int32_t* out) flows through the
     // lvalue value type, so the seed temp prints `const int32_t` / `int32_t` to
     // match the legacy oracle automatically.
-    mlir::Value index =
-        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-    emitc::SubscriptOp subscriptOp =
-        rewriter.create<emitc::SubscriptOp>(loc, pointer, index);
-    auto lvalueType =
-        llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
-    mlir::Value scalar =
-        rewriter
-            .create<emitc::LoadOp>(loc, lvalueType.getValueType(),
-                                   subscriptOp.getResult())
-            .getResult();
-    mlir::Value one =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "1");
-    return rewriter
-        .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                     mlir::ValueRange{scalar, one})
-        .getResult(0);
+    return emitOpaqueCallBuilt(
+        rewriter, loc, vecType, callee, sourceOpName, sourceRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value index =
+              b.create<emitc::LiteralOp>(l, b.getIndexType(), "0");
+          emitc::SubscriptOp subscriptOp =
+              b.create<emitc::SubscriptOp>(l, pointer, index);
+          auto lvalueType =
+              llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
+          mlir::Value scalar =
+              b.create<emitc::LoadOp>(l, lvalueType.getValueType(),
+                                      subscriptOp.getResult())
+                  .getResult();
+          mlir::Value one =
+              b.create<emitc::LiteralOp>(l, getSizeType(rewriter), "1");
+          return {scalar, one};
+        });
   }
 
 mlir::Type VariantToEmitCFunc::getSizeType(mlir::ConversionPatternRewriter &rewriter) {
@@ -2170,14 +2154,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitStandaloneReductionScalarStore(
     std::string callee =
         riscvIntrinsicName("vse", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(store.getTCRVEmitCLowerableSourceOpName(),
-                         store.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value one =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "1");
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, callee,
-        mlir::ValueRange{outBuffer, value, one});
+    // Void interleave (the VL=1 literal is built between the comment and the
+    // call): no full-callee void-built helper exists, so split the mangler
+    // string back into mnemonic + suffix at the first underscore. Split-then-
+    // rejoin with one underscore is byte-exact identity (emitVCallVoidBuilt
+    // rebuilds "__riscv_" + mnemonic + "_" + suffix); do not grep-replace.
+    auto [vseMnemonic, vseSuffix] =
+        llvm::StringRef(callee)
+            .drop_front(llvm::StringLiteral("__riscv_").size())
+            .split('_');
+    emitVCallVoidBuilt(rewriter, loc, vseMnemonic, vseSuffix,
+                       store.getTCRVEmitCLowerableSourceOpName(),
+                       store.getTCRVEmitCLowerableSourceRole(),
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         mlir::Value one = b.create<emitc::LiteralOp>(
+                             l, getSizeType(rewriter), "1");
+                         return {outBuffer, value, one};
+                       });
     return mlir::success();
   }
 
@@ -2240,14 +2234,10 @@ VariantToEmitCFunc::emitStandaloneReduce(mlir::ConversionPatternRewriter &rewrit
     std::string callee = riscvWideningReductionIntrinsicName(
         *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
         vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{input, seed, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee, mlir::ValueRange{input, seed, bodyVL},
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
     valueMap[reduce.getResult()] = result;
     return mlir::success();
   }
@@ -2293,33 +2283,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedStandaloneReduce(
     std::string neutralCallee =
         riscvIntrinsicName("vmv_v_x", vectorElementWidth(srcVecType),
                            srcVecType.getLmul(), vectorDType(srcVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(),
-                         neutralCallee));
-    mlir::Value neutralLiteral =
-        rewriter.create<emitc::LiteralOp>(loc, resultIntScalarType(rewriter),
-                                          neutral->str());
-    mlir::Value neutralVec =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{srcEmitC}, neutralCallee,
-                mlir::ValueRange{neutralLiteral, bodyVL})
-            .getResult(0);
+    mlir::Value neutralVec = emitOpaqueCallBuilt(
+        rewriter, loc, srcEmitC, neutralCallee,
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value neutralLiteral = b.create<emitc::LiteralOp>(
+              l, resultIntScalarType(rewriter), neutral->str());
+          return {neutralLiteral, bodyVL};
+        });
 
     // Merge active source lanes over the neutral background.
     std::string mergeCallee =
         riscvIntrinsicName("vmerge", vectorElementWidth(srcVecType),
                            srcVecType.getLmul(), vectorDType(srcVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(), mergeCallee));
-    mlir::Value masked =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{srcEmitC}, mergeCallee,
-                mlir::ValueRange{neutralVec, source, mask, bodyVL})
-            .getResult(0);
+    mlir::Value masked = emitOpaqueCall(
+        rewriter, loc, srcEmitC, mergeCallee,
+        mlir::ValueRange{neutralVec, source, mask, bodyVL},
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
 
     // In-loop running-seed read: out[0] -> splat m1.
     mlir::Value seed = emitScalarSeedSplat(
@@ -2333,15 +2316,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedStandaloneReduce(
     std::string callee = riscvWideningReductionIntrinsicName(
         *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
         vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         callee,
-                                         mlir::ValueRange{masked, seed, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, resultEmitC, callee,
+        mlir::ValueRange{masked, seed, bodyVL},
+        reduce.getTCRVEmitCLowerableSourceOpName(),
+        reduce.getTCRVEmitCLowerableSourceRole());
     valueMap[reduce.getResult()] = result;
     return mlir::success();
   }
@@ -2384,15 +2363,11 @@ VariantToEmitCFunc::emitWideningProduct(mlir::ConversionPatternRewriter &rewrite
     std::string callee = riscvIntrinsicName(
         unsignedProduct ? "vwmulu" : "vwmul", vectorElementWidth(resultVecType),
         resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(product.getTCRVEmitCLowerableSourceOpName(),
-                         product.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         callee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, resultEmitC, callee,
+        mlir::ValueRange{lhs, rhs, bodyVL},
+        product.getTCRVEmitCLowerableSourceOpName(),
+        product.getTCRVEmitCLowerableSourceRole());
     valueMap[product.getResult()] = result;
     return mlir::success();
   }
@@ -2432,21 +2407,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackedI4NibbleUnpackProduct(
     // Shift-by-immediate intrinsics spell as __riscv_<mnemonic>_<dtype><lmul>
     // (the `vx` form is part of the mnemonic), distinct from the `_vv_` form
     // riscvIntrinsicName builds for the binary product intrinsics.
-    auto shiftCallee = [](llvm::StringRef mnemonic, llvm::StringRef dtype,
-                          llvm::StringRef lmul) -> std::string {
-      return ("__riscv_" + mnemonic + "_" + dtype + lmul).str();
-    };
     auto shift = [&](llvm::StringRef mnemonic, llvm::StringRef dtype,
                      llvm::StringRef lmul, mlir::Type vecType, mlir::Value src,
                      llvm::StringRef amount) -> mlir::Value {
-      std::string callee = shiftCallee(mnemonic, dtype, lmul);
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, u8Type, amount.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                       mlir::ValueRange{src, amt, bodyVL})
-          .getResult(0);
+      std::string callee =
+          riscvScalarImmediateIntrinsicName(mnemonic, dtype, lmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, vecType, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, u8Type, amount.str());
+            return {src, amt, bodyVL};
+          });
     };
     (void)srcSEW;
     (void)resSEW;
@@ -2458,13 +2431,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackedI4NibbleUnpackProduct(
         shift("vsll_vx", srcDtype, srcLmul, srcEmitC, rhs, "4");
     // vwmul widening product of the shifted low nibbles.
     std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
-    mlir::Value lowProduct =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         mulCallee,
-                                         mlir::ValueRange{lhsLow, rhsLow, bodyVL})
-            .getResult(0);
+    mlir::Value lowProduct = emitOpaqueCall(
+        rewriter, loc, resultEmitC, mulCallee,
+        mlir::ValueRange{lhsLow, rhsLow, bodyVL}, opName, role);
     // vsra(8) rescales the i16 product (sign-extends + undoes the 2x4 shift).
     mlir::Value product =
         shift("vsra_vx", resDtype, resLmul, resultEmitC, lowProduct, "8");
@@ -2476,14 +2445,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackedI4NibbleUnpackProduct(
     // vwmacc adds the high-nibble widening product into the accumulator.
     std::string maccCallee =
         riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, maccCallee));
-    mlir::Value pairSum =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, maccCallee,
-                mlir::ValueRange{product, lhsHigh, rhsHigh, bodyVL})
-            .getResult(0);
+    mlir::Value pairSum = emitOpaqueCall(
+        rewriter, loc, resultEmitC, maccCallee,
+        mlir::ValueRange{product, lhsHigh, rhsHigh, bodyVL}, opName, role);
     valueMap[packed.getResult()] = pairSum;
     return mlir::success();
   }
@@ -2520,21 +2484,19 @@ std::pair<mlir::Value, mlir::Value> VariantToEmitCFunc::emitOffsetBinaryDecodeVa
 
     // Scalar-immediate intrinsics spell __riscv_<mnemonic>_<dtype><lmul> (the
     // `vx` form is part of the mnemonic), as in the symmetric packed-i4 emitter.
-    auto immCallee = [](llvm::StringRef mnemonic, llvm::StringRef dtype,
-                        llvm::StringRef lmul) -> std::string {
-      return ("__riscv_" + mnemonic + "_" + dtype + lmul).str();
-    };
     auto immOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                      llvm::StringRef amount,
                      mlir::Type amtType) -> mlir::Value {
-      std::string callee = immCallee(mnemonic, srcDtype, srcLmul);
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, amtType, amount.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcEmitC}, callee,
-                                       mlir::ValueRange{src, amt, bodyVL})
-          .getResult(0);
+      std::string callee =
+          riscvScalarImmediateIntrinsicName(mnemonic, srcDtype, srcLmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, srcEmitC, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, amtType, amount.str());
+            return {src, amt, bodyVL};
+          });
     };
 
     // Offset-binary -> two's-complement: xor both nibbles of every packed byte
@@ -2557,23 +2519,15 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitOffsetBinaryProductFromDeco
     llvm::StringRef role) const {
     // Asymmetric widening product: decoded i8 weight x plain i8 activation.
     std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
-    mlir::Value lowProduct =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         mulCallee,
-                                         mlir::ValueRange{v0, actLow, bodyVL})
-            .getResult(0);
+    mlir::Value lowProduct = emitOpaqueCall(
+        rewriter, loc, resultEmitC, mulCallee,
+        mlir::ValueRange{v0, actLow, bodyVL}, opName, role);
     // vwmacc accumulates the high-nibble x high-activation widening product.
     std::string maccCallee =
         riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, maccCallee));
-    mlir::Value pairSum =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, maccCallee,
-                mlir::ValueRange{lowProduct, v1, actHigh, bodyVL})
-            .getResult(0);
+    mlir::Value pairSum = emitOpaqueCall(
+        rewriter, loc, resultEmitC, maccCallee,
+        mlir::ValueRange{lowProduct, v1, actHigh, bodyVL}, opName, role);
     return pairSum;
   }
 
@@ -2590,14 +2544,16 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitUnsignedNibbleDecodeProduct
     // form is part of the mnemonic). The decode runs on the UNSIGNED weight lane.
     auto immOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                      llvm::StringRef amount) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, amount.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcU8EmitC}, callee,
-                                       mlir::ValueRange{src, amt, bodyVL})
-          .getResult(0);
+      std::string callee =
+          riscvScalarImmediateIntrinsicName(mnemonic, "u8", srcLmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, srcU8EmitC, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, i32Type, amount.str());
+            return {src, amt, bodyVL};
+          });
     };
 
     // Low nibble: mask the low 4 bits ([0,15]). High nibble: logical-shift the
@@ -2610,35 +2566,24 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitUnsignedNibbleDecodeProduct
     // uses. The reinterpret intrinsic is __riscv_vreinterpret_v_u8<L>_i8<L>.
     auto reinterpret = [&](mlir::Value src) -> mlir::Value {
       std::string callee =
-          ("__riscv_vreinterpret_v_u8" + srcLmul + "_i8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcI8EmitC}, callee,
-                                       mlir::ValueRange{src})
-          .getResult(0);
+          riscvReinterpretIntrinsicName("u8", srcLmul, "i8", srcLmul);
+      return emitOpaqueCall(rewriter, loc, srcI8EmitC, callee,
+                            mlir::ValueRange{src}, opName, role);
     };
     mlir::Value v0 = reinterpret(xLow);
     mlir::Value v1 = reinterpret(xHigh);
 
     // Asymmetric widening product: decoded i8 weight x plain i8 activation.
     std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
-    mlir::Value lowProduct =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         mulCallee,
-                                         mlir::ValueRange{v0, actLow, bodyVL})
-            .getResult(0);
+    mlir::Value lowProduct = emitOpaqueCall(
+        rewriter, loc, resultEmitC, mulCallee,
+        mlir::ValueRange{v0, actLow, bodyVL}, opName, role);
     // vwmacc accumulates the high-nibble x high-activation widening product.
     std::string maccCallee =
         riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, maccCallee));
-    mlir::Value pairSum =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, maccCallee,
-                mlir::ValueRange{lowProduct, v1, actHigh, bodyVL})
-            .getResult(0);
+    mlir::Value pairSum = emitOpaqueCall(
+        rewriter, loc, resultEmitC, maccCallee,
+        mlir::ValueRange{lowProduct, v1, actHigh, bodyVL}, opName, role);
     return pairSum;
   }
 
@@ -2656,27 +2601,31 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFiveBitOffsetBinaryDecodePr
     // u8 scalar-immediate op on the nibble lane (vand 0x0F / vsrl 0x04).
     auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                        llvm::StringRef amount) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, amount.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcU8EmitC}, callee,
-                                       mlir::ValueRange{src, amt, bodyVL})
-          .getResult(0);
+      std::string callee =
+          riscvScalarImmediateIntrinsicName(mnemonic, "u8", srcLmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, srcU8EmitC, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, i32Type, amount.str());
+            return {src, amt, bodyVL};
+          });
     };
 
     // u16 (wide-LMUL) ops for the per-lane 5th-bit extraction.
     auto u16ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                         llvm::StringRef amount) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, amount.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{wideU16EmitC}, callee,
-                                       mlir::ValueRange{src, amt, bodyVL})
-          .getResult(0);
+      std::string callee =
+          riscvScalarImmediateIntrinsicName(mnemonic, "u16", wideLmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, wideU16EmitC, callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, i32Type, amount.str());
+            return {src, amt, bodyVL};
+          });
     };
 
     // The per-element 5th-bit lane from a broadcast 16-bit qh half: a vid+c shift
@@ -2684,56 +2633,32 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFiveBitOffsetBinaryDecodePr
     // narrow u16->u8. Identical for both halves off their respective qh scalar.
     auto fifthBitLane = [&](mlir::Value qhHalf16) -> mlir::Value {
       // idx = vid_v_u16<W>(vl);  sh = vadd_vx_u16<W>(idx, c, vl);
-      std::string vidCallee = ("__riscv_vid_v_u16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, vidCallee));
-      mlir::Value idx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{wideU16EmitC},
-                                           vidCallee,
-                                           mlir::ValueRange{bodyVL})
-              .getResult(0);
-      std::string addCallee = ("__riscv_vadd_vx_u16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, addCallee));
-      mlir::Value sh =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{wideU16EmitC}, addCallee,
-                  mlir::ValueRange{idx, chunkOffset, bodyVL})
-              .getResult(0);
+      std::string vidCallee = riscvIotaIntrinsicName("u16", wideLmul);
+      mlir::Value idx = emitOpaqueCall(rewriter, loc, wideU16EmitC, vidCallee,
+                                       mlir::ValueRange{bodyVL}, opName, role);
+      std::string addCallee =
+          riscvScalarImmediateIntrinsicName("vadd_vx", "u16", wideLmul);
+      mlir::Value sh = emitOpaqueCall(
+          rewriter, loc, wideU16EmitC, addCallee,
+          mlir::ValueRange{idx, chunkOffset, bodyVL}, opName, role);
       // bits = vmv_v_x_u16<W>(qhHalf16, vl);  (broadcast the 16-bit qh half)
-      std::string bcastCallee = ("__riscv_vmv_v_x_u16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, bcastCallee));
-      mlir::Value bits =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{wideU16EmitC}, bcastCallee,
-                  mlir::ValueRange{qhHalf16, bodyVL})
-              .getResult(0);
+      std::string bcastCallee =
+          riscvIntrinsicName("vmv_v_x", 16, wideLmul, "u16");
+      mlir::Value bits = emitOpaqueCall(
+          rewriter, loc, wideU16EmitC, bcastCallee,
+          mlir::ValueRange{qhHalf16, bodyVL}, opName, role);
       // bits = vsrl_vv_u16<W>(bits, sh, vl);  (per-lane bit -> b0)
-      std::string srlCallee = ("__riscv_vsrl_vv_u16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, srlCallee));
-      mlir::Value srl =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{wideU16EmitC}, srlCallee,
-                  mlir::ValueRange{bits, sh, bodyVL})
-              .getResult(0);
+      std::string srlCallee = riscvIntrinsicName("vsrl", 16, wideLmul, "u16");
+      mlir::Value srl = emitOpaqueCall(rewriter, loc, wideU16EmitC, srlCallee,
+                                       mlir::ValueRange{bits, sh, bodyVL},
+                                       opName, role);
       // bits = vand 1 -> {0,1}; bits = vsll 4 -> {0,16}.
       mlir::Value masked = u16ImmOp("vand_vx", srl, "0x1");
       mlir::Value shifted = u16ImmOp("vsll_vx", masked, "0x4");
       // narrow u16<W> -> u8<core>.
-      std::string ncvtCallee = ("__riscv_vncvt_x_x_w_u8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, ncvtCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcU8EmitC},
-                                       ncvtCallee,
-                                       mlir::ValueRange{shifted, bodyVL})
-          .getResult(0);
+      std::string ncvtCallee = riscvNarrowingConvertIntrinsicName("u8", srcLmul);
+      return emitOpaqueCall(rewriter, loc, srcU8EmitC, ncvtCallee,
+                            mlir::ValueRange{shifted, bodyVL}, opName, role);
     };
 
     // Low/high 4-bit nibbles (unsigned), then OR in each half's 5th bit.
@@ -2744,15 +2669,13 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFiveBitOffsetBinaryDecodePr
 
     auto u8VVOp = [&](llvm::StringRef mnemonic, mlir::Value a,
                       mlir::Value b) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcU8EmitC}, callee,
-                                       mlir::ValueRange{a, b, bodyVL})
-          .getResult(0);
+      // VV form: riscvIntrinsicName's default arm spells __riscv_<op>_vv_u8<L>.
+      std::string callee = riscvIntrinsicName(mnemonic, 8, srcLmul, "u8");
+      return emitOpaqueCall(rewriter, loc, srcU8EmitC, callee,
+                            mlir::ValueRange{a, b, bodyVL}, opName, role);
     };
-    mlir::Value fiveLow = u8VVOp("vor_vv", xLow, lowHB);   // [0,31]
-    mlir::Value fiveHigh = u8VVOp("vor_vv", xHigh, hiHB);  // [0,31]
+    mlir::Value fiveLow = u8VVOp("vor", xLow, lowHB);   // [0,31]
+    mlir::Value fiveHigh = u8VVOp("vor", xHigh, hiHB);  // [0,31]
 
     // Reinterpret to signed (value-identity for 0..31), then -- for the
     // offset-binary q5_0 path only -- apply the `-16` bias -> i8 [-16,15],
@@ -2764,48 +2687,34 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFiveBitOffsetBinaryDecodePr
     // feed them (already handled upstream).
     auto reinterpretBias = [&](mlir::Value u) -> mlir::Value {
       std::string reCallee =
-          ("__riscv_vreinterpret_v_u8" + srcLmul + "_i8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reCallee));
-      mlir::Value s =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcI8EmitC},
-                                           reCallee, mlir::ValueRange{u})
-              .getResult(0);
+          riscvReinterpretIntrinsicName("u8", srcLmul, "i8", srcLmul);
+      mlir::Value s = emitOpaqueCall(rewriter, loc, srcI8EmitC, reCallee,
+                                     mlir::ValueRange{u}, opName, role);
       if (!applyOffsetBias)
         return s;
-      std::string subCallee = ("__riscv_vsub_vx_i8" + srcLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, subCallee));
-      mlir::Value bias =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, "16");
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{srcI8EmitC},
-                                       subCallee,
-                                       mlir::ValueRange{s, bias, bodyVL})
-          .getResult(0);
+      std::string subCallee =
+          riscvScalarImmediateIntrinsicName("vsub_vx", "i8", srcLmul);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, srcI8EmitC, subCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value bias = b.create<emitc::LiteralOp>(l, i32Type, "16");
+            return {s, bias, bodyVL};
+          });
     };
     mlir::Value v0 = reinterpretBias(fiveLow);
     mlir::Value v1 = reinterpretBias(fiveHigh);
 
     // Asymmetric widening product: decoded i8 weight x plain i8 activation.
     std::string mulCallee = riscvIntrinsicName("vwmul", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, mulCallee));
-    mlir::Value lowProduct =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         mulCallee,
-                                         mlir::ValueRange{v0, actLow, bodyVL})
-            .getResult(0);
+    mlir::Value lowProduct = emitOpaqueCall(
+        rewriter, loc, resultEmitC, mulCallee,
+        mlir::ValueRange{v0, actLow, bodyVL}, opName, role);
     std::string maccCallee =
         riscvIntrinsicName("vwmacc", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, maccCallee));
-    mlir::Value pairSum =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, maccCallee,
-                mlir::ValueRange{lowProduct, v1, actHigh, bodyVL})
-            .getResult(0);
+    mlir::Value pairSum = emitOpaqueCall(
+        rewriter, loc, resultEmitC, maccCallee,
+        mlir::ValueRange{lowProduct, v1, actHigh, bodyVL}, opName, role);
     return pairSum;
   }
 
@@ -2872,16 +2781,12 @@ VariantToEmitCFunc::emitWideningMAcc(mlir::ConversionPatternRewriter &rewriter,
     std::string callee =
         riscvIntrinsicName("vwmacc", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(macc.getTCRVEmitCLowerableSourceOpName(),
-                         macc.getTCRVEmitCLowerableSourceRole(), callee));
     // vwmacc destination read-modify-writes the accumulator: (acc, lhs, rhs, vl).
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, callee,
-                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, resultEmitC, callee,
+        mlir::ValueRange{accumulator, lhs, rhs, bodyVL},
+        macc.getTCRVEmitCLowerableSourceOpName(),
+        macc.getTCRVEmitCLowerableSourceRole());
     valueMap[macc.getResult()] = result;
     return mlir::success();
   }
@@ -2914,15 +2819,11 @@ VariantToEmitCFunc::emitWideningDotReduce(mlir::ConversionPatternRewriter &rewri
     std::string productCallee =
         riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), productCallee));
-    mlir::Value product =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         productCallee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value product = emitOpaqueCall(
+        rewriter, loc, resultEmitC, productCallee,
+        mlir::ValueRange{lhs, rhs, bodyVL},
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
 
     // In-loop running-seed read: out[0] -> splat m1.
     mlir::Value seed = emitScalarSeedSplat(
@@ -2938,15 +2839,11 @@ VariantToEmitCFunc::emitWideningDotReduce(mlir::ConversionPatternRewriter &rewri
     std::string reduceCallee = riscvReductionIntrinsicName(
         "vredsum", vectorElementWidth(resultVecType), resultVecType.getLmul(),
         vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), reduceCallee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, reduceCallee,
-                mlir::ValueRange{product, seed, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, resultEmitC, reduceCallee,
+        mlir::ValueRange{product, seed, bodyVL},
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
     valueMap[dot.getResult()] = result;
     return mlir::success();
   }
@@ -2985,46 +2882,37 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedWideningDotReduce(
     std::string zeroCallee =
         riscvIntrinsicName("vmv_v_x", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), zeroCallee));
-    mlir::Value zeroLiteral = rewriter.create<emitc::LiteralOp>(
-        loc, resultIntScalarType(rewriter), "0");
-    mlir::Value zeroVec =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         zeroCallee,
-                                         mlir::ValueRange{zeroLiteral, bodyVL})
-            .getResult(0);
+    mlir::Value zeroVec = emitOpaqueCallBuilt(
+        rewriter, loc, resultEmitC, zeroCallee,
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLiteral =
+              b.create<emitc::LiteralOp>(l, resultIntScalarType(rewriter), "0");
+          return {zeroLiteral, bodyVL};
+        });
 
     // Masked widened product: vwmul_vv_<rd>m1_m(mask, lhs, rhs, vl).
     std::string productCallee =
         riscvIntrinsicName("vwmul", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType)) +
         "_m";
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), productCallee));
-    mlir::Value maskedProduct =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, productCallee,
-                mlir::ValueRange{mask, lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value maskedProduct = emitOpaqueCall(
+        rewriter, loc, resultEmitC, productCallee,
+        mlir::ValueRange{mask, lhs, rhs, bodyVL},
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
 
     // Merge the masked product over the zero background (inactive lanes -> 0).
     std::string mergeCallee =
         riscvIntrinsicName("vmerge", vectorElementWidth(resultVecType),
                            resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), mergeCallee));
-    mlir::Value merged =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, mergeCallee,
-                mlir::ValueRange{zeroVec, maskedProduct, mask, bodyVL})
-            .getResult(0);
+    mlir::Value merged = emitOpaqueCall(
+        rewriter, loc, resultEmitC, mergeCallee,
+        mlir::ValueRange{zeroVec, maskedProduct, mask, bodyVL},
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
 
     // In-loop running-seed read: out[0] -> splat m1.
     mlir::Value seed = emitScalarSeedSplat(
@@ -3038,15 +2926,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedWideningDotReduce(
     std::string reduceCallee = riscvReductionIntrinsicName(
         "vredsum", vectorElementWidth(resultVecType), resultVecType.getLmul(),
         vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dot.getTCRVEmitCLowerableSourceOpName(),
-                         dot.getTCRVEmitCLowerableSourceRole(), reduceCallee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{resultEmitC}, reduceCallee,
-                mlir::ValueRange{merged, seed, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, resultEmitC, reduceCallee,
+        mlir::ValueRange{merged, seed, bodyVL},
+        dot.getTCRVEmitCLowerableSourceOpName(),
+        dot.getTCRVEmitCLowerableSourceRole());
     valueMap[dot.getResult()] = result;
     return mlir::success();
   }
@@ -3078,15 +2962,25 @@ VariantToEmitCFunc::emitStore(mlir::ConversionPatternRewriter &rewriter, mlir::L
     std::string callee =
         riscvIntrinsicName("vse", vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(store.getTCRVEmitCLowerableSourceOpName(),
-                         store.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    if (extraOffset)
-      ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), ptr, extraOffset);
-    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee,
-                                         mlir::ValueRange{ptr, value, storeVL});
+    // Void interleave (pointer adds built between comment and call): split the
+    // mangler string at the first underscore -- split-then-rejoin identity
+    // (emitVCallVoidBuilt rebuilds "__riscv_" + mnemonic + "_" + suffix).
+    auto [vseMnemonic, vseSuffix] =
+        llvm::StringRef(callee)
+            .drop_front(llvm::StringLiteral("__riscv_").size())
+            .split('_');
+    emitVCallVoidBuilt(rewriter, loc, vseMnemonic, vseSuffix,
+                       store.getTCRVEmitCLowerableSourceOpName(),
+                       store.getTCRVEmitCLowerableSourceRole(),
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         mlir::Value ptr = b.create<emitc::AddOp>(
+                             l, base.getType(), base, inductionVar);
+                         if (extraOffset)
+                           ptr = b.create<emitc::AddOp>(l, base.getType(), ptr,
+                                                        extraOffset);
+                         return {ptr, value, storeVL};
+                       });
     return mlir::success();
   }
 
@@ -3120,26 +3014,25 @@ VariantToEmitCFunc::emitBroadcastLoad(mlir::ConversionPatternRewriter &rewriter,
     std::string callee =
         riscvIntrinsicName("vmv_v_x", vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(broadcast.getTCRVEmitCLowerableSourceOpName(),
-                         broadcast.getTCRVEmitCLowerableSourceRole(), callee));
     // base[0]: subscript -> lvalue -> load reads the first scalar element.
-    mlir::Value index = rewriter.create<emitc::LiteralOp>(
-        loc, rewriter.getIndexType(), "0");
-    emitc::SubscriptOp subscriptOp =
-        rewriter.create<emitc::SubscriptOp>(loc, pointer, index);
-    auto lvalueType =
-        llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
-    mlir::Value scalar =
-        rewriter
-            .create<emitc::LoadOp>(loc, lvalueType.getValueType(),
-                                   subscriptOp.getResult())
-            .getResult();
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{scalar, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCallBuilt(
+        rewriter, loc, vecType, callee,
+        broadcast.getTCRVEmitCLowerableSourceOpName(),
+        broadcast.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value index =
+              b.create<emitc::LiteralOp>(l, b.getIndexType(), "0");
+          emitc::SubscriptOp subscriptOp =
+              b.create<emitc::SubscriptOp>(l, pointer, index);
+          auto lvalueType =
+              llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
+          mlir::Value scalar =
+              b.create<emitc::LoadOp>(l, lvalueType.getValueType(),
+                                      subscriptOp.getResult())
+                  .getResult();
+          return {scalar, bodyVL};
+        });
     valueMap[broadcast.getBroadcast()] = result;
     return mlir::success();
   }
@@ -3165,14 +3058,10 @@ VariantToEmitCFunc::emitSplat(mlir::ConversionPatternRewriter &rewriter, mlir::L
     std::string callee =
         riscvIntrinsicName(splatMnemonic, vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(splat.getTCRVEmitCLowerableSourceOpName(),
-                         splat.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{scalar, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee, mlir::ValueRange{scalar, bodyVL},
+        splat.getTCRVEmitCLowerableSourceOpName(),
+        splat.getTCRVEmitCLowerableSourceRole());
     valueMap[splat.getBroadcast()] = result;
     return mlir::success();
   }
@@ -3211,15 +3100,11 @@ VariantToEmitCFunc::emitCompare(mlir::ConversionPatternRewriter &rewriter, mlir:
     std::string callee = riscvCompareIntrinsicName(
         *mnemonic, sew, operandVecType.getLmul(),
         vectorDType(operandVecType), maskBits);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(compare.getTCRVEmitCLowerableSourceOpName(),
-                         compare.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{maskEmitCType},
-                                         callee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, maskEmitCType, callee,
+        mlir::ValueRange{lhs, rhs, bodyVL},
+        compare.getTCRVEmitCLowerableSourceOpName(),
+        compare.getTCRVEmitCLowerableSourceRole());
     valueMap[compare.getMask()] = result;
     return mlir::success();
   }
@@ -3245,15 +3130,11 @@ VariantToEmitCFunc::emitSelect(mlir::ConversionPatternRewriter &rewriter, mlir::
     std::string callee =
         riscvIntrinsicName("vmerge", vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(select.getTCRVEmitCLowerableSourceOpName(),
-                         select.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, callee,
-                mlir::ValueRange{falseValue, trueValue, mask, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee,
+        mlir::ValueRange{falseValue, trueValue, mask, bodyVL},
+        select.getTCRVEmitCLowerableSourceOpName(),
+        select.getTCRVEmitCLowerableSourceRole());
     valueMap[select.getSelected()] = result;
     return mlir::success();
   }
@@ -3288,15 +3169,11 @@ VariantToEmitCFunc::emitMaskAnd(mlir::ConversionPatternRewriter &rewriter, mlir:
     if (maskBits == 0)
       return rewriter.notifyMatchFailure(maskAnd, "unsupported mask config");
     std::string callee = riscvMaskComposeIntrinsicName(*mnemonic, maskBits);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskAnd.getTCRVEmitCLowerableSourceOpName(),
-                         maskAnd.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{maskEmitCType},
-                                         callee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, maskEmitCType, callee,
+        mlir::ValueRange{lhs, rhs, bodyVL},
+        maskAnd.getTCRVEmitCLowerableSourceOpName(),
+        maskAnd.getTCRVEmitCLowerableSourceRole());
     valueMap[maskAnd.getMask()] = result;
     return mlir::success();
   }
@@ -3355,29 +3232,19 @@ VariantToEmitCFunc::emitDequantizeChain(mlir::ConversionPatternRewriter &rewrite
     // converted = vfcvt_f_x_v(source_i32, vl) -- int->float reinterpret-convert.
     std::string convertCallee = riscvIntrinsicName("vfcvt_f_x_v", sew, lmul,
                                                    dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dequantize.getTCRVEmitCLowerableSourceOpName(),
-                         dequantize.getTCRVEmitCLowerableSourceRole(),
-                         convertCallee));
-    mlir::Value converted =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType},
-                                         convertCallee,
-                                         mlir::ValueRange{source, bodyVL})
-            .getResult(0);
+    mlir::Value converted = emitOpaqueCall(
+        rewriter, loc, vecType, convertCallee,
+        mlir::ValueRange{source, bodyVL},
+        dequantize.getTCRVEmitCLowerableSourceOpName(),
+        dequantize.getTCRVEmitCLowerableSourceRole());
 
     // result = vfmul_vf(converted, scale, vl) -- runtime f32 scale multiply.
     std::string scaleCallee = riscvIntrinsicName("vfmul_vf", sew, lmul, dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(dequantize.getTCRVEmitCLowerableSourceOpName(),
-                         dequantize.getTCRVEmitCLowerableSourceRole(),
-                         scaleCallee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, scaleCallee,
-                mlir::ValueRange{converted, scale, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, scaleCallee,
+        mlir::ValueRange{converted, scale, bodyVL},
+        dequantize.getTCRVEmitCLowerableSourceOpName(),
+        dequantize.getTCRVEmitCLowerableSourceRole());
     valueMap[dequantize.getResult()] = result;
     return mlir::success();
   }
@@ -3433,14 +3300,10 @@ VariantToEmitCFunc::emitWideningConvert(mlir::ConversionPatternRewriter &rewrite
     std::string callee = riscvIntrinsicName(
         "vwcvt_x_x_v", vectorElementWidth(resultVecType),
         resultVecType.getLmul(), vectorDType(resultVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(convert.getTCRVEmitCLowerableSourceOpName(),
-                         convert.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{source, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee, mlir::ValueRange{source, bodyVL},
+        convert.getTCRVEmitCLowerableSourceOpName(),
+        convert.getTCRVEmitCLowerableSourceRole());
     valueMap[convert.getResult()] = result;
     return mlir::success();
   }
@@ -3474,28 +3337,20 @@ VariantToEmitCFunc::emitMaskedBinary(mlir::ConversionPatternRewriter &rewriter, 
 
     // active = vadd/vsub/vmul over the two operand vectors (unmasked).
     std::string arithCallee = riscvIntrinsicName(*mnemonic, sew, lmul, dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
-                         masked.getTCRVEmitCLowerableSourceRole(), arithCallee));
-    mlir::Value active =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType},
-                                         arithCallee,
-                                         mlir::ValueRange{lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value active = emitOpaqueCall(
+        rewriter, loc, vecType, arithCallee,
+        mlir::ValueRange{lhs, rhs, bodyVL},
+        masked.getTCRVEmitCLowerableSourceOpName(),
+        masked.getTCRVEmitCLowerableSourceRole());
 
     // result = vmerge(passthrough, active, mask, vl) -- inactive lanes keep the
     // passthrough vector.
     std::string mergeCallee = riscvIntrinsicName("vmerge", sew, lmul, dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
-                         masked.getTCRVEmitCLowerableSourceRole(), mergeCallee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, mergeCallee,
-                mlir::ValueRange{passthrough, active, mask, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, mergeCallee,
+        mlir::ValueRange{passthrough, active, mask, bodyVL},
+        masked.getTCRVEmitCLowerableSourceOpName(),
+        masked.getTCRVEmitCLowerableSourceRole());
     valueMap[masked.getResult()] = result;
     return mlir::success();
   }
@@ -3589,15 +3444,11 @@ VariantToEmitCFunc::emitMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Lo
     std::string callee =
         riscvMAccIntrinsicName(vectorElementWidth(vectorType),
                                vectorType.getLmul(), vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(macc.getTCRVEmitCLowerableSourceOpName(),
-                         macc.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, callee,
-                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, callee,
+        mlir::ValueRange{accumulator, lhs, rhs, bodyVL},
+        macc.getTCRVEmitCLowerableSourceOpName(),
+        macc.getTCRVEmitCLowerableSourceRole());
     valueMap[macc.getResult()] = result;
     return mlir::success();
   }
@@ -3647,28 +3498,20 @@ VariantToEmitCFunc::emitMaskedMAcc(mlir::ConversionPatternRewriter &rewriter, ml
     // active = vmacc_vv(accumulator, lhs, rhs, vl) -- fused multiply-accumulate
     // on every lane.
     std::string maccCallee = riscvMAccIntrinsicName(sew, lmul, dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
-                         masked.getTCRVEmitCLowerableSourceRole(), maccCallee));
-    mlir::Value active =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, maccCallee,
-                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
-            .getResult(0);
+    mlir::Value active = emitOpaqueCall(
+        rewriter, loc, vecType, maccCallee,
+        mlir::ValueRange{accumulator, lhs, rhs, bodyVL},
+        masked.getTCRVEmitCLowerableSourceOpName(),
+        masked.getTCRVEmitCLowerableSourceRole());
 
     // result = vmerge(accumulator, active, mask, vl) -- inactive lanes keep the
     // accumulator passthrough vector.
     std::string mergeCallee = riscvIntrinsicName("vmerge", sew, lmul, dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
-                         masked.getTCRVEmitCLowerableSourceRole(), mergeCallee));
-    mlir::Value result =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, mergeCallee,
-                mlir::ValueRange{accumulator, active, mask, bodyVL})
-            .getResult(0);
+    mlir::Value result = emitOpaqueCall(
+        rewriter, loc, vecType, mergeCallee,
+        mlir::ValueRange{accumulator, active, mask, bodyVL},
+        masked.getTCRVEmitCLowerableSourceOpName(),
+        masked.getTCRVEmitCLowerableSourceRole());
     valueMap[masked.getResult()] = result;
     return mlir::success();
   }
@@ -3853,16 +3696,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitSegment2Load(
 
     std::string callee =
         riscvSegment2LoadIntrinsicName(facts.sew, facts.lmul, facts.dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
-                         segLoad.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr =
-        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
-    mlir::Value tuple =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
-                                         callee, mlir::ValueRange{ptr, bodyVL})
-            .getResult(0);
+    mlir::Value tuple = emitOpaqueCallBuilt(
+        rewriter, loc, facts.tupleType, callee,
+        segLoad.getTCRVEmitCLowerableSourceOpName(),
+        segLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &,
+            mlir::Location) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+          return {ptr, bodyVL};
+        });
     // The two move ops sourced from these field results emit the vget extracts.
     segmentFieldMap[segLoad.getField0()] = {tuple, 0};
     segmentFieldMap[segLoad.getField1()] = {tuple, 1};
@@ -3917,28 +3760,30 @@ VariantToEmitCFunc::emitSegment2Store(mlir::ConversionPatternRewriter &rewriter,
     // Step 1: pack the two fields into one tuple.
     std::string createCallee =
         riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
-                         segStore.getTCRVEmitCLowerableSourceRole(),
-                         createCallee));
-    mlir::Value tuple =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
-                                         createCallee,
-                                         mlir::ValueRange{field0, field1})
-            .getResult(0);
+    mlir::Value tuple = emitOpaqueCall(
+        rewriter, loc, facts.tupleType, createCallee,
+        mlir::ValueRange{field0, field1},
+        segStore.getTCRVEmitCLowerableSourceOpName(),
+        segStore.getTCRVEmitCLowerableSourceRole());
 
     // Step 2: store the tuple to the interleaved destination.
     std::string storeCallee =
         riscvSegment2StoreIntrinsicName(facts.sew, facts.lmul, facts.dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
-                         segStore.getTCRVEmitCLowerableSourceRole(),
-                         storeCallee));
-    mlir::Value ptr =
-        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
-    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, storeCallee,
-                                         mlir::ValueRange{ptr, tuple, bodyVL});
+    // Void interleave (interleaved pointer built between comment and call):
+    // split the mangler string at the first underscore -- split/rejoin identity.
+    auto [storeMnemonic, storeSuffix] =
+        llvm::StringRef(storeCallee)
+            .drop_front(llvm::StringLiteral("__riscv_").size())
+            .split('_');
+    emitVCallVoidBuilt(rewriter, loc, storeMnemonic, storeSuffix,
+                       segStore.getTCRVEmitCLowerableSourceOpName(),
+                       segStore.getTCRVEmitCLowerableSourceRole(),
+                       [&](mlir::OpBuilder &,
+                           mlir::Location) -> llvm::SmallVector<mlir::Value> {
+                         mlir::Value ptr = emitSegment2InterleavedPointer(
+                             rewriter, loc, base, inductionVar);
+                         return {ptr, tuple, bodyVL};
+                       });
     return mlir::success();
   }
 
@@ -3986,31 +3831,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedSegment2Load(
     // Step 1: pack the two passthroughs into the passthrough tuple.
     std::string createCallee =
         riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
-                         segLoad.getTCRVEmitCLowerableSourceRole(),
-                         createCallee));
-    mlir::Value passTuple =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
-                                         createCallee,
-                                         mlir::ValueRange{pass0, pass1})
-            .getResult(0);
+    mlir::Value passTuple = emitOpaqueCall(
+        rewriter, loc, facts.tupleType, createCallee,
+        mlir::ValueRange{pass0, pass1},
+        segLoad.getTCRVEmitCLowerableSourceOpName(),
+        segLoad.getTCRVEmitCLowerableSourceRole());
 
     // Step 2: masked tuple load from the interleaved source.
     std::string loadCallee =
         riscvMaskedSegment2LoadIntrinsicName(facts.sew, facts.lmul, facts.dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segLoad.getTCRVEmitCLowerableSourceOpName(),
-                         segLoad.getTCRVEmitCLowerableSourceRole(), loadCallee));
-    mlir::Value ptr =
-        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
-    mlir::Value tuple =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{facts.tupleType}, loadCallee,
-                mlir::ValueRange{mask, passTuple, ptr, bodyVL})
-            .getResult(0);
+    mlir::Value tuple = emitOpaqueCallBuilt(
+        rewriter, loc, facts.tupleType, loadCallee,
+        segLoad.getTCRVEmitCLowerableSourceOpName(),
+        segLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &,
+            mlir::Location) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
+          return {mask, passTuple, ptr, bodyVL};
+        });
 
     // Steps 3 & 4: extract the two field vectors.
     std::string getCallee =
@@ -4072,30 +3911,31 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedSegment2Store(
     // Step 1: pack the two payload fields into one tuple.
     std::string createCallee =
         riscvSegment2TupleCreateIntrinsicName(facts.dtype, facts.lmul);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
-                         segStore.getTCRVEmitCLowerableSourceRole(),
-                         createCallee));
-    mlir::Value tuple =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{facts.tupleType},
-                                         createCallee,
-                                         mlir::ValueRange{field0, field1})
-            .getResult(0);
+    mlir::Value tuple = emitOpaqueCall(
+        rewriter, loc, facts.tupleType, createCallee,
+        mlir::ValueRange{field0, field1},
+        segStore.getTCRVEmitCLowerableSourceOpName(),
+        segStore.getTCRVEmitCLowerableSourceRole());
 
     // Step 2: masked tuple store to the interleaved destination.
     std::string storeCallee =
         riscvMaskedSegment2StoreIntrinsicName(facts.sew, facts.lmul,
                                               facts.dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(segStore.getTCRVEmitCLowerableSourceOpName(),
-                         segStore.getTCRVEmitCLowerableSourceRole(),
-                         storeCallee));
-    mlir::Value ptr =
-        emitSegment2InterleavedPointer(rewriter, loc, base, inductionVar);
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, storeCallee,
-        mlir::ValueRange{mask, ptr, tuple, bodyVL});
+    // Void interleave (interleaved pointer built between comment and call):
+    // split the mangler string at the first underscore -- split/rejoin identity.
+    auto [storeMnemonic, storeSuffix] =
+        llvm::StringRef(storeCallee)
+            .drop_front(llvm::StringLiteral("__riscv_").size())
+            .split('_');
+    emitVCallVoidBuilt(rewriter, loc, storeMnemonic, storeSuffix,
+                       segStore.getTCRVEmitCLowerableSourceOpName(),
+                       segStore.getTCRVEmitCLowerableSourceRole(),
+                       [&](mlir::OpBuilder &,
+                           mlir::Location) -> llvm::SmallVector<mlir::Value> {
+                         mlir::Value ptr = emitSegment2InterleavedPointer(
+                             rewriter, loc, base, inductionVar);
+                         return {mask, ptr, tuple, bodyVL};
+                       });
     return mlir::success();
   }
 
@@ -4103,13 +3943,14 @@ mlir::Value VariantToEmitCFunc::emitSegment2FieldExtract(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     llvm::StringRef opName, llvm::StringRef role, llvm::StringRef callee,
     mlir::Value tuple, mlir::Type fieldVecType, unsigned index) const {
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-    mlir::Value indexLiteral = rewriter.create<emitc::LiteralOp>(
-        loc, rewriter.getIndexType(), llvm::Twine(index).str());
-    return rewriter
-        .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{fieldVecType}, callee,
-                                     mlir::ValueRange{tuple, indexLiteral})
-        .getResult(0);
+    return emitOpaqueCallBuilt(
+        rewriter, loc, fieldVecType, callee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value indexLiteral = b.create<emitc::LiteralOp>(
+              l, b.getIndexType(), llvm::Twine(index).str());
+          return {tuple, indexLiteral};
+        });
   }
 
 mlir::LogicalResult
@@ -4180,16 +4021,16 @@ VariantToEmitCFunc::emitIndexLoad(mlir::ConversionPatternRewriter &rewriter, mli
                                          "only EEW=32 index loads are in scope");
     std::string callee = riscvIntrinsicName("vle", eew, indexVecType.getLmul(),
                                             "u32");
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(indexLoad.getTCRVEmitCLowerableSourceOpName(),
-                         indexLoad.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    mlir::Value loaded =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
-                                         mlir::ValueRange{ptr, bodyVL})
-            .getResult(0);
+    mlir::Value loaded = emitOpaqueCallBuilt(
+        rewriter, loc, vecType, callee,
+        indexLoad.getTCRVEmitCLowerableSourceOpName(),
+        indexLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              b.create<emitc::AddOp>(l, base.getType(), base, inductionVar);
+          return {ptr, bodyVL};
+        });
 
     // Computed-mask indexed path: the index_load feeds a masked indexed
     // gather/scatter. The string-plan byte-order (which the harness ordered-
@@ -4285,15 +4126,11 @@ VariantToEmitCFunc::emitIndexedLoad(mlir::ConversionPatternRewriter &rewriter, m
         indexVecType, vectorType, bodyVL);
     std::string callee = riscvIndexedMemoryIntrinsicName(
         "vloxei", eew, vectorDType(vectorType), vectorType.getLmul());
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(indexedLoad.getTCRVEmitCLowerableSourceOpName(),
-                         indexedLoad.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value loaded =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, callee,
-                mlir::ValueRange{dataBase, byteIndices, bodyVL})
-            .getResult(0);
+    mlir::Value loaded = emitOpaqueCall(
+        rewriter, loc, vecType, callee,
+        mlir::ValueRange{dataBase, byteIndices, bodyVL},
+        indexedLoad.getTCRVEmitCLowerableSourceOpName(),
+        indexedLoad.getTCRVEmitCLowerableSourceRole());
     valueMap[indexedLoad.getLoaded()] = loaded;
     return mlir::success();
   }
@@ -4344,13 +4181,10 @@ VariantToEmitCFunc::emitIndexedStore(mlir::ConversionPatternRewriter &rewriter, 
         indexVecType, vectorType, bodyVL);
     std::string callee = riscvIndexedMemoryIntrinsicName(
         "vsoxei", eew, vectorDType(vectorType), vectorType.getLmul());
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(indexedStore.getTCRVEmitCLowerableSourceOpName(),
-                         indexedStore.getTCRVEmitCLowerableSourceRole(),
-                         callee));
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, callee,
-        mlir::ValueRange{dstBase, byteIndices, value, bodyVL});
+    emitOpaqueCallVoid(rewriter, loc, callee,
+                       mlir::ValueRange{dstBase, byteIndices, value, bodyVL},
+                       indexedStore.getTCRVEmitCLowerableSourceOpName(),
+                       indexedStore.getTCRVEmitCLowerableSourceRole());
     return mlir::success();
   }
 
@@ -4364,17 +4198,16 @@ VariantToEmitCFunc::emitIndexByteScale(mlir::ConversionPatternRewriter &rewriter
                    mlir::Value bodyVL) const {
     std::string scaleCallee =
         riscvIndexScaleIntrinsicName("u32", indexVecType.getLmul());
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(sourceOpName, sourceRole, scaleCallee));
     unsigned elemBytes = vectorElementWidth(dataVectorType) / 8;
-    mlir::Value bytesLiteral = rewriter.create<emitc::LiteralOp>(
-        loc, emitc::OpaqueType::get(rewriter.getContext(), "size_t"),
-        llvm::Twine(elemBytes).str());
-    return rewriter
-        .create<emitc::CallOpaqueOp>(
-            loc, mlir::TypeRange{indexEmitCType}, scaleCallee,
-            mlir::ValueRange{indices, bytesLiteral, bodyVL})
-        .getResult(0);
+    return emitOpaqueCallBuilt(
+        rewriter, loc, indexEmitCType, scaleCallee, sourceOpName, sourceRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value bytesLiteral = b.create<emitc::LiteralOp>(
+              l, emitc::OpaqueType::get(b.getContext(), "size_t"),
+              llvm::Twine(elemBytes).str());
+          return {indices, bytesLiteral, bodyVL};
+        });
   }
 
 mlir::LogicalResult
@@ -4428,35 +4261,30 @@ VariantToEmitCFunc::emitMaskLoad(mlir::ConversionPatternRewriter &rewriter, mlir
     // Step 1: unit-stride load the mask buffer as a data vector.
     std::string loadCallee = riscvIntrinsicName("vle", sew, maskType.getLmul(),
                                                 dtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskLoad.getTCRVEmitCLowerableSourceOpName(),
-                         maskLoad.getTCRVEmitCLowerableSourceRole(),
-                         loadCallee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    mlir::Value maskVec =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{dataVecEmitCType},
-                                         loadCallee,
-                                         mlir::ValueRange{ptr, bodyVL})
-            .getResult(0);
+    mlir::Value maskVec = emitOpaqueCallBuilt(
+        rewriter, loc, dataVecEmitCType, loadCallee,
+        maskLoad.getTCRVEmitCLowerableSourceOpName(),
+        maskLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              b.create<emitc::AddOp>(l, base.getType(), base, inductionVar);
+          return {ptr, bodyVL};
+        });
 
     // Step 2: lane != 0 -> predicate mask.
     std::string maskCallee =
         riscvMaskNonzeroIntrinsicName(sew, maskType.getLmul(), dtype, maskBits);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskLoad.getTCRVEmitCLowerableSourceOpName(),
-                         maskLoad.getTCRVEmitCLowerableSourceRole(),
-                         maskCallee));
-    mlir::Value zeroLiteral = rewriter.create<emitc::LiteralOp>(
-        loc, emitc::OpaqueType::get(rewriter.getContext(), "int"), "0");
-    mlir::Value mask =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{maskEmitCType},
-                                         maskCallee,
-                                         mlir::ValueRange{maskVec, zeroLiteral,
-                                                          bodyVL})
-            .getResult(0);
+    mlir::Value mask = emitOpaqueCallBuilt(
+        rewriter, loc, maskEmitCType, maskCallee,
+        maskLoad.getTCRVEmitCLowerableSourceOpName(),
+        maskLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLiteral = b.create<emitc::LiteralOp>(
+              l, emitc::OpaqueType::get(b.getContext(), "int"), "0");
+          return {maskVec, zeroLiteral, bodyVL};
+        });
     valueMap[maskLoad.getLoaded()] = mask;
     return mlir::success();
   }
@@ -4504,17 +4332,16 @@ VariantToEmitCFunc::emitMaskedLoad(mlir::ConversionPatternRewriter &rewriter, ml
         riscvMaskedLoadIntrinsicName(vectorElementWidth(vectorType),
                                      vectorType.getLmul(),
                                      vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskedLoad.getTCRVEmitCLowerableSourceOpName(),
-                         maskedLoad.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    mlir::Value loaded =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, callee,
-                mlir::ValueRange{mask, passthrough, ptr, bodyVL})
-            .getResult(0);
+    mlir::Value loaded = emitOpaqueCallBuilt(
+        rewriter, loc, vecType, callee,
+        maskedLoad.getTCRVEmitCLowerableSourceOpName(),
+        maskedLoad.getTCRVEmitCLowerableSourceRole(),
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value ptr =
+              b.create<emitc::AddOp>(l, base.getType(), base, inductionVar);
+          return {mask, passthrough, ptr, bodyVL};
+        });
     valueMap[maskedLoad.getLoaded()] = loaded;
     return mlir::success();
   }
@@ -4558,14 +4385,21 @@ VariantToEmitCFunc::emitMaskedStore(mlir::ConversionPatternRewriter &rewriter, m
         riscvMaskedStoreIntrinsicName(vectorElementWidth(vectorType),
                                       vectorType.getLmul(),
                                       vectorDType(vectorType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskedStore.getTCRVEmitCLowerableSourceOpName(),
-                         maskedStore.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
-                                                    inductionVar);
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, callee,
-        mlir::ValueRange{mask, ptr, value, bodyVL});
+    // Void interleave (pointer add built between comment and call): split the
+    // mangler string at the first underscore -- split/rejoin identity.
+    auto [storeMnemonic, storeSuffix] =
+        llvm::StringRef(callee)
+            .drop_front(llvm::StringLiteral("__riscv_").size())
+            .split('_');
+    emitVCallVoidBuilt(rewriter, loc, storeMnemonic, storeSuffix,
+                       maskedStore.getTCRVEmitCLowerableSourceOpName(),
+                       maskedStore.getTCRVEmitCLowerableSourceRole(),
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         mlir::Value ptr = b.create<emitc::AddOp>(
+                             l, base.getType(), base, inductionVar);
+                         return {mask, ptr, value, bodyVL};
+                       });
     return mlir::success();
   }
 
@@ -4740,16 +4574,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedIndexedLoad(
     mlir::Value byteIndices = indices;
     std::string callee = riscvMaskedIndexedLoadIntrinsicName(
         eew, vectorDType(vectorType), vectorType.getLmul());
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskedLoad.getTCRVEmitCLowerableSourceOpName(),
-                         maskedLoad.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Value loaded =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{vecType}, callee,
-                mlir::ValueRange{mask, passthrough, dataBase, byteIndices,
-                                 bodyVL})
-            .getResult(0);
+    mlir::Value loaded = emitOpaqueCall(
+        rewriter, loc, vecType, callee,
+        mlir::ValueRange{mask, passthrough, dataBase, byteIndices, bodyVL},
+        maskedLoad.getTCRVEmitCLowerableSourceOpName(),
+        maskedLoad.getTCRVEmitCLowerableSourceRole());
     valueMap[maskedLoad.getLoaded()] = loaded;
     return mlir::success();
   }
@@ -4809,12 +4638,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedIndexedStore(
     mlir::Value byteIndices = indices;
     std::string callee = riscvMaskedIndexedStoreIntrinsicName(
         eew, vectorDType(vectorType), vectorType.getLmul());
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(maskedStore.getTCRVEmitCLowerableSourceOpName(),
-                         maskedStore.getTCRVEmitCLowerableSourceRole(), callee));
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, callee,
-        mlir::ValueRange{mask, dstBase, byteIndices, value, bodyVL});
+    emitOpaqueCallVoid(
+        rewriter, loc, callee,
+        mlir::ValueRange{mask, dstBase, byteIndices, value, bodyVL},
+        maskedStore.getTCRVEmitCLowerableSourceOpName(),
+        maskedStore.getTCRVEmitCLowerableSourceRole());
     return mlir::success();
   }
 
