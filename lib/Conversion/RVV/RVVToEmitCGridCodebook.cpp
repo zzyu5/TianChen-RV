@@ -300,14 +300,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -481,14 +476,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot(
               rewriter.create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", baseElem)
                   .getResult();
           std::string idxLoadCallee = riscvIntrinsicName("vle", 16, idxLmul, "u16");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, idxLoadCallee));
-          return rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u16IdxType},
-                                           idxLoadCallee,
-                                           mlir::ValueRange{basePtr,
-                                                            sizeLit(numGroups)})
-              .getResult(0);
+          return emitOpaqueCallBuilt(
+              rewriter, loc, u16IdxType, idxLoadCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {basePtr, sizeLit(numGroups)};
+              });
         };
         mlir::Value vGridOff = loadIdx(gridOffArray);
         mlir::Value vSignOff = loadIdx(signOffArray);
@@ -499,24 +492,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot(
         // grid bytes.
         std::string gridGatherCallee =
             riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", coreLmul);
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gridGatherCallee));
-        mlir::Value gridGathered =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i64WideType}, gridGatherCallee,
-                    mlir::ValueRange{gridName, vGridOff, sizeLit(numGroups)})
-                .getResult(0);
+        mlir::Value gridGathered = emitOpaqueCallBuilt(
+            rewriter, loc, i64WideType, gridGatherCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {gridName, vGridOff, sizeLit(numGroups)};
+            });
         std::string gridReinterpretCallee =
             ("__riscv_vreinterpret_v_i64" + coreLmul + "_i8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gridReinterpretCallee));
-        mlir::Value gridV =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                             gridReinterpretCallee,
-                                             mlir::ValueRange{gridGathered})
-                .getResult(0);
+        mlir::Value gridV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                           gridReinterpretCallee,
+                                           mlir::ValueRange{gridGathered}, opName,
+                                           role);
 
         // vint64<core> s64 = __riscv_vluxei16_v_i64<core>(signs64, vsignoff, 4);  --
         // the HARDWARE indexed gather of the 4 u64 sign entries (ggml's
@@ -525,36 +512,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot(
         // per-group bcast/kmask fold).
         std::string signGatherCallee =
             riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", coreLmul);
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, signGatherCallee));
-        mlir::Value signGathered =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i64WideType}, signGatherCallee,
-                    mlir::ValueRange{signs64, vSignOff, sizeLit(numGroups)})
-                .getResult(0);
+        mlir::Value signGathered = emitOpaqueCallBuilt(
+            rewriter, loc, i64WideType, signGatherCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {signs64, vSignOff, sizeLit(numGroups)};
+            });
         std::string signReinterpretCallee =
             ("__riscv_vreinterpret_v_i64" + coreLmul + "_i8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, signReinterpretCallee));
-        mlir::Value signsV =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                             signReinterpretCallee,
-                                             mlir::ValueRange{signGathered})
-                .getResult(0);
+        mlir::Value signsV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                            signReinterpretCallee,
+                                            mlir::ValueRange{signGathered},
+                                            opName, role);
 
         // vint8<core> q8v = __riscv_vle8_v_i8<core>(q8Group, 32);  (the 32
         // activations of this sub-block).
         std::string i8WideLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, i8WideLoadCallee));
-        mlir::Value q8V =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i8WideType}, i8WideLoadCallee,
-                    mlir::ValueRange{q8Group, sizeLit(subBlockLanes)})
-                .getResult(0);
+        mlir::Value q8V = emitOpaqueCallBuilt(
+            rewriter, loc, i8WideType, i8WideLoadCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {q8Group, sizeLit(subBlockLanes)};
+            });
 
         // vint8m2_t gs = __riscv_vmul_vv_i8m2(grid, signs, 32);  (apply the per-lane
         // +-1 sign to the GRID, NOT q8 -- this is byte-identical to the old
@@ -566,62 +545,47 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XXSQ8KBlockDot(
         // (= ggml's `q8 * signs`) would diverge from the old scalar emit at the
         // q8=-128 lane; folding onto the grid matches it bit-exactly.)
         std::string signMulCallee = ("__riscv_vmul_vv_i8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, signMulCallee));
-        mlir::Value gridSigned =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i8WideType}, signMulCallee,
-                    mlir::ValueRange{gridV, signsV, sizeLit(subBlockLanes)})
-                .getResult(0);
+        mlir::Value gridSigned = emitOpaqueCallBuilt(
+            rewriter, loc, i8WideType, signMulCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {gridV, signsV, sizeLit(subBlockLanes)};
+            });
 
         // p = __riscv_vwmul_vv_i16<wide>(gridSigned, q8v, 32);  (signed widening
         // product, each lane <= 43*127 = 5461 < 32767, fits i16).
         std::string wmulCallee = ("__riscv_vwmul_vv_i16" + wideLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, wmulCallee));
-        mlir::Value product =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i16WidestType}, wmulCallee,
-                    mlir::ValueRange{gridSigned, q8V, sizeLit(subBlockLanes)})
-                .getResult(0);
+        mlir::Value product = emitOpaqueCallBuilt(
+            rewriter, loc, i16WidestType, wmulCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {gridSigned, q8V, sizeLit(subBlockLanes)};
+            });
 
         // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(__riscv_vwredsum_vs_i16m4_i32m1(
         //   p, vmv_v_x_i32m1(0,1), 32));  -- ONE reduction per sub-block (vs the old
         // 4 chained groups; the i32 sum is order-free so byte-exact).
         std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, seedCallee));
-        mlir::Value zeroSeed =
-            rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-        mlir::Value sumiAcc =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                             seedCallee,
-                                             mlir::ValueRange{zeroSeed,
-                                                              sizeLit(1)})
-                .getResult(0);
+        mlir::Value sumiAcc = emitOpaqueCallBuilt(
+            rewriter, loc, i32m1Type, seedCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value zeroSeed =
+                  rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                      .getResult();
+              return {zeroSeed, sizeLit(1)};
+            });
         std::string reduceCallee =
             ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, reduceCallee));
-        sumiAcc =
-            rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{i32m1Type}, reduceCallee,
-                    mlir::ValueRange{product, sumiAcc,
-                                     sizeLit(subBlockLanes)})
-                .getResult(0);
+        sumiAcc = emitOpaqueCallBuilt(
+            rewriter, loc, i32m1Type, reduceCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {product, sumiAcc, sizeLit(subBlockLanes)};
+            });
         std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, extractCallee));
-        mlir::Value sumi =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                             extractCallee,
-                                             mlir::ValueRange{sumiAcc})
-                .getResult(0);
+        mlir::Value sumi = emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                                          mlir::ValueRange{sumiAcc}, opName, role);
 
         // bsum = bsum + sumi * ls;  (integer accumulation; order-free).
         rewriter.create<emitc::VerbatimOp>(
@@ -850,17 +814,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot(
     // two old 4-lane passes (kmaskLo {1,2,4,8} on lanes 0..3, kmaskHi {16,32,64,128}
     // on lanes 4..7) into ONE 8-lane group body, so the SAME signs byte is masked
     // with all 8 kmask bits at once -- byte-identical lane->bit mapping.
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "kmask_table_load"));
-    mlir::Value kmaskName =
-        rewriter.create<emitc::LiteralOp>(loc, u8PtrType, "tcrv_iq3xxs_kmask");
     std::string u8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
-    mlir::Value kmask =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{u8CoreType}, u8LoadCallee,
-                mlir::ValueRange{kmaskName, sizeLit(groupLanes)})
-            .getResult(0);
+    mlir::Value kmask = emitOpaqueCallBuilt(
+        rewriter, loc, u8CoreType, u8LoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value kmaskName = rewriter.create<emitc::LiteralOp>(
+              loc, u8PtrType, "tcrv_iq3xxs_kmask");
+          return {kmaskName, sizeLit(groupLanes)};
+        },
+        llvm::StringRef("kmask_table_load"));
 
     // const int32_t *grid32 = (const int32_t *)tcrv_iq3xxs_grid;  (signed-i32 view
     // of the uint32[256] grid for the vluxei16 indexed gather -- mirror iq1_s's
@@ -994,128 +957,99 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot(
               .create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", idxBaseElem0)
               .getResult();
       std::string idxLoadCallee = riscvIntrinsicName("vle", 16, "mf2", "u16");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, idxLoadCallee));
-      mlir::Value vidx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{u16mf2Type}, idxLoadCallee,
-                  mlir::ValueRange{idxBase, sizeLit(2)})
-              .getResult(0);
+      mlir::Value vidx = emitOpaqueCallBuilt(
+          rewriter, loc, u16mf2Type, idxLoadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {idxBase, sizeLit(2)};
+          });
 
       // vint32m1_t g32 = __riscv_vluxei16_v_i32m1(grid32, vidx, 2);  -- the HARDWARE
       // indexed gather of the 2 grid u32 entries (ggml's __riscv_vluxei16), then
       // reinterpret to i8m1 = the 8 signed grid bytes (lanes 0..7; 8..15 unread).
       std::string gatherCallee =
           riscvIndexedMemoryIntrinsicName("vluxei", 16, "i32", "m1");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, gatherCallee));
-      mlir::Value gathered =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           gatherCallee,
-                                           mlir::ValueRange{grid32, vidx,
-                                                            sizeLit(2)})
-              .getResult(0);
+      mlir::Value gathered = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, gatherCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {grid32, vidx, sizeLit(2)};
+          });
       std::string reinterpretCallee = "__riscv_vreinterpret_v_i32m1_i8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reinterpretCallee));
       mlir::Value gridV =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           reinterpretCallee,
-                                           mlir::ValueRange{gathered})
-              .getResult(0);
+          emitOpaqueCall(rewriter, loc, i8CoreType, reinterpretCallee,
+                         mlir::ValueRange{gathered}, opName, role);
 
       // vint8m1_t q8v = __riscv_vle8_v_i8m1(q8Ptr, 8);  (the 8 group activations.)
       std::string i8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, i8LoadCallee));
-      mlir::Value q8V =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           i8LoadCallee,
-                                           mlir::ValueRange{q8Ptr, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value q8V = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, i8LoadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {q8Ptr, sizeLit(groupLanes)};
+          });
 
       // sign-bit mask: m = vmsne(vand(vmv(signs), kmask), 0).  (UNCHANGED ops, vl=8,
       // full 8-bit kmask -- the same signs byte masked with all 8 selector bits.)
       std::string bcastCallee = "__riscv_vmv_v_x_u8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, bcastCallee));
-      mlir::Value signsBcast =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                           bcastCallee,
-                                           mlir::ValueRange{signs,
-                                                            sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signsBcast = emitOpaqueCallBuilt(
+          rewriter, loc, u8CoreType, bcastCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signs, sizeLit(groupLanes)};
+          });
       std::string andCallee = "__riscv_vand_vv_u8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, andCallee));
-      mlir::Value signBits =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{u8CoreType}, andCallee,
-                  mlir::ValueRange{signsBcast, kmask, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signBits = emitOpaqueCallBuilt(
+          rewriter, loc, u8CoreType, andCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signsBcast, kmask, sizeLit(groupLanes)};
+          });
       std::string msneCallee =
           riscvMaskNonzeroIntrinsicName(8, coreLmul, "u8", 8);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, msneCallee));
-      mlir::Value signMask =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{maskType}, msneCallee,
-                  mlir::ValueRange{signBits, intLit(0), sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signMask = emitOpaqueCallBuilt(
+          rewriter, loc, maskType, msneCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signBits, intLit(0), sizeLit(groupLanes)};
+          });
 
       // g = vmerge(grid, vneg(grid), m);  (apply the per-lane sign.)
       std::string negCallee = "__riscv_vneg_v_i8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, negCallee));
-      mlir::Value gridNeg =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           negCallee,
-                                           mlir::ValueRange{gridV,
-                                                            sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value gridNeg = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, negCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridV, sizeLit(groupLanes)};
+          });
       std::string mergeCallee = riscvIntrinsicName("vmerge", 8, coreLmul, "i8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, mergeCallee));
-      mlir::Value gridSigned =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{i8CoreType}, mergeCallee,
-                  mlir::ValueRange{gridV, gridNeg, signMask,
-                                   sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value gridSigned = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, mergeCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridV, gridNeg, signMask, sizeLit(groupLanes)};
+          });
 
       // p = vwmul_i16m2(gridSigned, q8_v);  (signed widening product, each lane
       // <= 62*127 = 7874 < 32767, fits i16.)
       std::string wmulCallee = ("__riscv_vwmul_vv_i16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, wmulCallee));
-      mlir::Value product =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{i16WideType}, wmulCallee,
-                  mlir::ValueRange{gridSigned, q8V, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value product = emitOpaqueCallBuilt(
+          rewriter, loc, i16WideType, wmulCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridSigned, q8V, sizeLit(groupLanes)};
+          });
 
       // sumiAcc = vwredsum(product, sumiAcc, 8);  (chain the i32 reduction;
       // integer add is order-free.)
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                       reduceCallee,
-                                       mlir::ValueRange{product, sumiAcc,
-                                                        sizeLit(groupLanes)})
-          .getResult(0);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, reduceCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {product, sumiAcc, sizeLit(groupLanes)};
+          });
     };
 
     // The outer super-block loop: for (size_t ibl = 0; ibl < nb; ibl += 1).
@@ -1140,14 +1074,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -1245,17 +1174,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot(
         // seeded into the first vwredsum, then carried as the scalar seed of the
         // next -- integer add is order-free).
         std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, seedCallee));
-        mlir::Value zeroSeed =
-            rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-        mlir::Value sumiAcc =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                             seedCallee,
-                                             mlir::ValueRange{zeroSeed,
-                                                              sizeLit(1)})
-                .getResult(0);
+        mlir::Value sumiAcc = emitOpaqueCallBuilt(
+            rewriter, loc, i32m1Type, seedCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value zeroSeed =
+                  rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                      .getResult();
+              return {zeroSeed, sizeLit(1)};
+            });
 
         // const uint8_t *qg = q3 + ib32*8;  (the 8 grid index bytes for this
         // sub-block; 2 indices per sign group).
@@ -1325,14 +1252,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot(
         // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(sumiAcc);  (extract after the 4
         // groups / 8 passes -- the sub-block integer dot).
         std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, extractCallee));
-        mlir::Value sumi =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                             extractCallee,
-                                             mlir::ValueRange{sumiAcc})
-                .getResult(0);
+        mlir::Value sumi = emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                                          mlir::ValueRange{sumiAcc}, opName, role);
 
         // bsum = bsum + sumi * ls;  (integer accumulation; order-free).
         rewriter.create<emitc::VerbatimOp>(
@@ -1541,17 +1462,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3SQ8KBlockDot(
     // {1,2,4,8,16,32,64,128}. The vluxei16 revectorization collapses the two old
     // 4-lane passes into ONE 8-lane group body (lanes 0..3 = old pass A kmask{1,2,4,8},
     // lanes 4..7 = old pass B kmask{16,32,64,128}) -- byte-identical lane->bit mapping.
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "kmask_table_load"));
-    mlir::Value kmaskName =
-        rewriter.create<emitc::LiteralOp>(loc, u8PtrType, "tcrv_iq3s_kmask");
     std::string u8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
-    mlir::Value kmask =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{u8CoreType}, u8LoadCallee,
-                mlir::ValueRange{kmaskName, sizeLit(groupLanes)})
-            .getResult(0);
+    mlir::Value kmask = emitOpaqueCallBuilt(
+        rewriter, loc, u8CoreType, u8LoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value kmaskName = rewriter.create<emitc::LiteralOp>(
+              loc, u8PtrType, "tcrv_iq3s_kmask");
+          return {kmaskName, sizeLit(groupLanes)};
+        },
+        llvm::StringRef("kmask_table_load"));
 
     // const int32_t *grid32 = (const int32_t *)tcrv_iq3s_grid;  (signed-i32 view of
     // the uint32[512] grid for the vluxei16 indexed gather -- mirror iq1_s's (const
@@ -1655,126 +1575,97 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3SQ8KBlockDot(
               .create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", idxBaseElem0)
               .getResult();
       std::string idxLoadCallee = riscvIntrinsicName("vle", 16, "mf2", "u16");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, idxLoadCallee));
-      mlir::Value vidx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{u16mf2Type}, idxLoadCallee,
-                  mlir::ValueRange{idxBase, sizeLit(2)})
-              .getResult(0);
+      mlir::Value vidx = emitOpaqueCallBuilt(
+          rewriter, loc, u16mf2Type, idxLoadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {idxBase, sizeLit(2)};
+          });
 
       // vint32m1_t g32 = __riscv_vluxei16_v_i32m1(grid32, vidx, 2);  -- the HARDWARE
       // indexed gather of the 2 grid u32 entries, reinterpret to i8m1 = 8 grid bytes.
       std::string gatherCallee =
           riscvIndexedMemoryIntrinsicName("vluxei", 16, "i32", "m1");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, gatherCallee));
-      mlir::Value gathered =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           gatherCallee,
-                                           mlir::ValueRange{grid32, vidx,
-                                                            sizeLit(2)})
-              .getResult(0);
+      mlir::Value gathered = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, gatherCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {grid32, vidx, sizeLit(2)};
+          });
       std::string reinterpretCallee = "__riscv_vreinterpret_v_i32m1_i8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reinterpretCallee));
       mlir::Value gridV =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           reinterpretCallee,
-                                           mlir::ValueRange{gathered})
-              .getResult(0);
+          emitOpaqueCall(rewriter, loc, i8CoreType, reinterpretCallee,
+                         mlir::ValueRange{gathered}, opName, role);
 
       // vint8m1_t q8v = __riscv_vle8_v_i8m1(q8Ptr, 8);  (the 8 group activations.)
       std::string i8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, i8LoadCallee));
-      mlir::Value q8V =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           i8LoadCallee,
-                                           mlir::ValueRange{q8Ptr, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value q8V = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, i8LoadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {q8Ptr, sizeLit(groupLanes)};
+          });
 
       // sign-bit mask: m = vmsne(vand(vmv(signs), kmask), 0).  (UNCHANGED ops, vl=8.)
       std::string bcastCallee = "__riscv_vmv_v_x_u8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, bcastCallee));
-      mlir::Value signsBcast =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                           bcastCallee,
-                                           mlir::ValueRange{signs,
-                                                            sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signsBcast = emitOpaqueCallBuilt(
+          rewriter, loc, u8CoreType, bcastCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signs, sizeLit(groupLanes)};
+          });
       std::string andCallee = "__riscv_vand_vv_u8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, andCallee));
-      mlir::Value signBits =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{u8CoreType}, andCallee,
-                  mlir::ValueRange{signsBcast, kmask, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signBits = emitOpaqueCallBuilt(
+          rewriter, loc, u8CoreType, andCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signsBcast, kmask, sizeLit(groupLanes)};
+          });
       std::string msneCallee =
           riscvMaskNonzeroIntrinsicName(8, coreLmul, "u8", 8);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, msneCallee));
-      mlir::Value signMask =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{maskType}, msneCallee,
-                  mlir::ValueRange{signBits, intLit(0), sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value signMask = emitOpaqueCallBuilt(
+          rewriter, loc, maskType, msneCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {signBits, intLit(0), sizeLit(groupLanes)};
+          });
 
       // g = vmerge(grid, vneg(grid), m);  (apply the per-lane sign.)
       std::string negCallee = "__riscv_vneg_v_i8m1";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, negCallee));
-      mlir::Value gridNeg =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                           negCallee,
-                                           mlir::ValueRange{gridV,
-                                                            sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value gridNeg = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, negCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridV, sizeLit(groupLanes)};
+          });
       std::string mergeCallee = riscvIntrinsicName("vmerge", 8, coreLmul, "i8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, mergeCallee));
-      mlir::Value gridSigned =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{i8CoreType}, mergeCallee,
-                  mlir::ValueRange{gridV, gridNeg, signMask,
-                                   sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value gridSigned = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, mergeCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridV, gridNeg, signMask, sizeLit(groupLanes)};
+          });
 
       // p = vwmul_i16m2(gridSigned, q8_v);  (signed widening product, each lane
       // <= 15*127 = 1905 < 32767, fits i16.)
       std::string wmulCallee = ("__riscv_vwmul_vv_i16" + wideLmul).str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, wmulCallee));
-      mlir::Value product =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{i16WideType}, wmulCallee,
-                  mlir::ValueRange{gridSigned, q8V, sizeLit(groupLanes)})
-              .getResult(0);
+      mlir::Value product = emitOpaqueCallBuilt(
+          rewriter, loc, i16WideType, wmulCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {gridSigned, q8V, sizeLit(groupLanes)};
+          });
 
       // sumiAcc = vwredsum(product, sumiAcc, 8);  (chain the i32 reduction;
       // integer add is order-free.)
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                       reduceCallee,
-                                       mlir::ValueRange{product, sumiAcc,
-                                                        sizeLit(groupLanes)})
-          .getResult(0);
+      return emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, reduceCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {product, sumiAcc, sizeLit(groupLanes)};
+          });
     };
 
     // The outer super-block loop: for (size_t ibl = 0; ibl < nb; ibl += 1).
@@ -1799,14 +1690,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3SQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -1916,17 +1802,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3SQ8KBlockDot(
         // int32_t sumi = 0;  (the chained i32m1 reduction seed for the 4 groups;
         // integer add is order-free).
         std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, seedCallee));
-        mlir::Value zeroSeed =
-            rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-        mlir::Value sumiAcc =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                             seedCallee,
-                                             mlir::ValueRange{zeroSeed,
-                                                              sizeLit(1)})
-                .getResult(0);
+        mlir::Value sumiAcc = emitOpaqueCallBuilt(
+            rewriter, loc, i32m1Type, seedCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value zeroSeed =
+                  rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                      .getResult();
+              return {zeroSeed, sizeLit(1)};
+            });
 
         mlir::Value q8Group =
             (ib32 == 0)
@@ -2004,14 +1888,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ3SQ8KBlockDot(
         // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(sumiAcc);  (extract after the 4
         // groups / 8 passes -- the sub-block integer dot).
         std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, extractCallee));
-        mlir::Value sumi =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                             extractCallee,
-                                             mlir::ValueRange{sumiAcc})
-                .getResult(0);
+        mlir::Value sumi = emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                                          mlir::ValueRange{sumiAcc}, opName, role);
 
         // bsum = bsum + sumi * ls;  (integer accumulation; order-free).
         rewriter.create<emitc::VerbatimOp>(
@@ -2330,14 +2208,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -2533,13 +2406,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
                 rewriter.create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", baseElem)
                     .getResult();
             std::string idxLoadCallee = riscvIntrinsicName("vle", 16, "mf4", "u16");
-            rewriter.create<emitc::VerbatimOp>(
-                loc, stepComment(opName, role, idxLoadCallee));
-            return rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{u16mf4Type}, idxLoadCallee,
-                    mlir::ValueRange{basePtr, sizeLit(numGroupsPerHalf)})
-                .getResult(0);
+            return emitOpaqueCallBuilt(
+                rewriter, loc, u16mf4Type, idxLoadCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {basePtr, sizeLit(numGroupsPerHalf)};
+                });
           };
           mlir::Value vGridOff = loadIdx(gridOffArray);
           mlir::Value vSignOff = loadIdx(signOffArray);
@@ -2549,24 +2421,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
           // the 16 signed grid bytes.
           std::string gridGatherCallee =
               riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", "m1");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, gridGatherCallee));
-          mlir::Value gridGathered =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i64WideType}, gridGatherCallee,
-                      mlir::ValueRange{gridName, vGridOff,
-                                       sizeLit(numGroupsPerHalf)})
-                  .getResult(0);
+          mlir::Value gridGathered = emitOpaqueCallBuilt(
+              rewriter, loc, i64WideType, gridGatherCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridName, vGridOff, sizeLit(numGroupsPerHalf)};
+              });
           std::string gridReinterpretCallee = "__riscv_vreinterpret_v_i64m1_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, gridReinterpretCallee));
-          mlir::Value gridV =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                               gridReinterpretCallee,
-                                               mlir::ValueRange{gridGathered})
-                  .getResult(0);
+          mlir::Value gridV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                             gridReinterpretCallee,
+                                             mlir::ValueRange{gridGathered},
+                                             opName, role);
 
           // vint64m1_t s64 = __riscv_vluxei16_v_i64m1(signs64, vsignoff, 2);  -- the
           // HARDWARE indexed gather of the 2 u64 sign entries (= keven_signs_q2xs),
@@ -2574,37 +2439,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
           // to the old per-group bcast/kmask fold).
           std::string signGatherCallee =
               riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", "m1");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signGatherCallee));
-          mlir::Value signGathered =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i64WideType}, signGatherCallee,
-                      mlir::ValueRange{signs64, vSignOff,
-                                       sizeLit(numGroupsPerHalf)})
-                  .getResult(0);
+          mlir::Value signGathered = emitOpaqueCallBuilt(
+              rewriter, loc, i64WideType, signGatherCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {signs64, vSignOff, sizeLit(numGroupsPerHalf)};
+              });
           std::string signReinterpretCallee = "__riscv_vreinterpret_v_i64m1_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signReinterpretCallee));
-          mlir::Value signsV =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                               signReinterpretCallee,
-                                               mlir::ValueRange{signGathered})
-                  .getResult(0);
+          mlir::Value signsV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                              signReinterpretCallee,
+                                              mlir::ValueRange{signGathered},
+                                              opName, role);
 
           // vint8m1_t q8v = __riscv_vle8_v_i8m1(q8Group, 16);  (the 16 activations of
           // this half's 2 groups; q8 is CONTINUOUS across the group boundary).
           std::string i8WideLoadCallee =
               riscvIntrinsicName("vle", 8, wideLmul, "i8");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, i8WideLoadCallee));
-          mlir::Value q8V =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i8WideType}, i8WideLoadCallee,
-                      mlir::ValueRange{q8Group, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value q8V = emitOpaqueCallBuilt(
+              rewriter, loc, i8WideType, i8WideLoadCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {q8Group, sizeLit(halfLanes)};
+              });
 
           // vint8m1_t gs = __riscv_vmul_vv_i8m1(grid, signs, 16);  (apply the per-lane
           // +-1 sign to the GRID, NOT q8 -- byte-identical to the old vmerge(grid,
@@ -2613,52 +2469,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
           // 128 wraps to -128 (wrong sign) -- whereas grid in [8,43] so grid*(+-1) in
           // [-43,43] never overflows. Matches the old scalar emit bit-exactly.)
           std::string signMulCallee = "__riscv_vmul_vv_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signMulCallee));
-          mlir::Value gridSigned =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i8WideType}, signMulCallee,
-                      mlir::ValueRange{gridV, signsV, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value gridSigned = emitOpaqueCallBuilt(
+              rewriter, loc, i8WideType, signMulCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridV, signsV, sizeLit(halfLanes)};
+              });
 
           // p = __riscv_vwmul_vv_i16m2(gridSigned, q8v, 16);  (signed widening product,
           // each lane <= 43*127 = 5461 < 32767, fits i16).
           std::string wmulCallee = "__riscv_vwmul_vv_i16m2";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, wmulCallee));
-          mlir::Value product =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i16WidestType}, wmulCallee,
-                      mlir::ValueRange{gridSigned, q8V, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value product = emitOpaqueCallBuilt(
+              rewriter, loc, i16WidestType, wmulCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridSigned, q8V, sizeLit(halfLanes)};
+              });
 
           // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(__riscv_vwredsum_vs_i16m2_i32m1(
           //   p, vmv_v_x_i32m1(0,1), 16));  -- ONE reduction per half (vs the old 2
           // chained groups; the i32 sum is order-free so byte-exact).
           std::string seedCallee =
               riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, seedCallee));
-          mlir::Value zeroSeed =
-              rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-          mlir::Value sumiAcc =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                               seedCallee,
-                                               mlir::ValueRange{zeroSeed,
-                                                                sizeLit(1)})
-                  .getResult(0);
+          mlir::Value sumiAcc = emitOpaqueCallBuilt(
+              rewriter, loc, i32m1Type, seedCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                mlir::Value zeroSeed =
+                    rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                        .getResult();
+                return {zeroSeed, sizeLit(1)};
+              });
           std::string reduceCallee = "__riscv_vwredsum_vs_i16m2_i32m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, reduceCallee));
-          sumiAcc =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i32m1Type}, reduceCallee,
-                      mlir::ValueRange{product, sumiAcc, sizeLit(halfLanes)})
-                  .getResult(0);
+          sumiAcc = emitOpaqueCallBuilt(
+              rewriter, loc, i32m1Type, reduceCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {product, sumiAcc, sizeLit(halfLanes)};
+              });
 
           // q8Group += 16 (advance past this half's 2 groups; continuous across the
           // half boundary into the next half / sub-block).
@@ -2671,14 +2519,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2XSQ8KBlockDot(
           // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(sumiAcc);  (extract after the 2
           // groups of this half -- the half's integer dot).
           std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, extractCallee));
-          mlir::Value sumi =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                               extractCallee,
-                                               mlir::ValueRange{sumiAcc})
-                  .getResult(0);
+          mlir::Value sumi = emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                                            mlir::ValueRange{sumiAcc}, opName,
+                                            role);
 
           // bsum = bsum + sumi * (h ? ls2 : ls1);  (integer accumulation;
           // order-free; DELTA(c): the explicit per-half scale).
@@ -2965,14 +2808,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -3192,13 +3030,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
                 rewriter.create<emitc::ApplyOp>(loc, u16PtrTypeMut, "&", baseElem)
                     .getResult();
             std::string idxLoadCallee = riscvIntrinsicName("vle", 16, "mf4", "u16");
-            rewriter.create<emitc::VerbatimOp>(
-                loc, stepComment(opName, role, idxLoadCallee));
-            return rewriter
-                .create<emitc::CallOpaqueOp>(
-                    loc, mlir::TypeRange{u16mf4Type}, idxLoadCallee,
-                    mlir::ValueRange{basePtr, sizeLit(numGroupsPerHalf)})
-                .getResult(0);
+            return emitOpaqueCallBuilt(
+                rewriter, loc, u16mf4Type, idxLoadCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {basePtr, sizeLit(numGroupsPerHalf)};
+                });
           };
           mlir::Value vGridOff = loadIdx(gridOffArray);
           mlir::Value vSignOff = loadIdx(signOffArray);
@@ -3208,24 +3045,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
           // the 16 signed grid bytes.
           std::string gridGatherCallee =
               riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", "m1");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, gridGatherCallee));
-          mlir::Value gridGathered =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i64WideType}, gridGatherCallee,
-                      mlir::ValueRange{gridName, vGridOff,
-                                       sizeLit(numGroupsPerHalf)})
-                  .getResult(0);
+          mlir::Value gridGathered = emitOpaqueCallBuilt(
+              rewriter, loc, i64WideType, gridGatherCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridName, vGridOff, sizeLit(numGroupsPerHalf)};
+              });
           std::string gridReinterpretCallee = "__riscv_vreinterpret_v_i64m1_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, gridReinterpretCallee));
-          mlir::Value gridV =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                               gridReinterpretCallee,
-                                               mlir::ValueRange{gridGathered})
-                  .getResult(0);
+          mlir::Value gridV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                             gridReinterpretCallee,
+                                             mlir::ValueRange{gridGathered},
+                                             opName, role);
 
           // vint64m1_t s64 = __riscv_vluxei16_v_i64m1(signs256, vsignoff, 2);  -- the
           // HARDWARE indexed gather of the 2 u64 sign entries, reinterpreted to i8m1 =
@@ -3233,37 +3063,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
           // bcast/kmask fold).
           std::string signGatherCallee =
               riscvIndexedMemoryIntrinsicName("vluxei", 16, "i64", "m1");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signGatherCallee));
-          mlir::Value signGathered =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i64WideType}, signGatherCallee,
-                      mlir::ValueRange{signs256, vSignOff,
-                                       sizeLit(numGroupsPerHalf)})
-                  .getResult(0);
+          mlir::Value signGathered = emitOpaqueCallBuilt(
+              rewriter, loc, i64WideType, signGatherCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {signs256, vSignOff, sizeLit(numGroupsPerHalf)};
+              });
           std::string signReinterpretCallee = "__riscv_vreinterpret_v_i64m1_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signReinterpretCallee));
-          mlir::Value signsV =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8WideType},
-                                               signReinterpretCallee,
-                                               mlir::ValueRange{signGathered})
-                  .getResult(0);
+          mlir::Value signsV = emitOpaqueCall(rewriter, loc, i8WideType,
+                                              signReinterpretCallee,
+                                              mlir::ValueRange{signGathered},
+                                              opName, role);
 
           // vint8m1_t q8v = __riscv_vle8_v_i8m1(q8Group, 16);  (the 16 activations of
           // this half's 2 groups; q8 is CONTINUOUS across the group boundary).
           std::string i8WideLoadCallee =
               riscvIntrinsicName("vle", 8, wideLmul, "i8");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, i8WideLoadCallee));
-          mlir::Value q8V =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i8WideType}, i8WideLoadCallee,
-                      mlir::ValueRange{q8Group, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value q8V = emitOpaqueCallBuilt(
+              rewriter, loc, i8WideType, i8WideLoadCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {q8Group, sizeLit(halfLanes)};
+              });
 
           // vint8m1_t gs = __riscv_vmul_vv_i8m1(grid, signs, 16);  (apply the per-lane
           // +-1 sign to the GRID, NOT q8 -- byte-identical to the old vmerge(grid,
@@ -3272,52 +3093,44 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
           // 128 wraps to -128 (wrong sign) -- whereas grid in [8,43] so grid*(+-1) in
           // [-43,43] never overflows. Matches the old scalar emit bit-exactly.)
           std::string signMulCallee = "__riscv_vmul_vv_i8m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, signMulCallee));
-          mlir::Value gridSigned =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i8WideType}, signMulCallee,
-                      mlir::ValueRange{gridV, signsV, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value gridSigned = emitOpaqueCallBuilt(
+              rewriter, loc, i8WideType, signMulCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridV, signsV, sizeLit(halfLanes)};
+              });
 
           // p = __riscv_vwmul_vv_i16m2(gridSigned, q8v, 16);  (signed widening product,
           // each lane <= 43*127 = 5461 < 32767, fits i16).
           std::string wmulCallee = "__riscv_vwmul_vv_i16m2";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, wmulCallee));
-          mlir::Value product =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i16WidestType}, wmulCallee,
-                      mlir::ValueRange{gridSigned, q8V, sizeLit(halfLanes)})
-                  .getResult(0);
+          mlir::Value product = emitOpaqueCallBuilt(
+              rewriter, loc, i16WidestType, wmulCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {gridSigned, q8V, sizeLit(halfLanes)};
+              });
 
           // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(__riscv_vwredsum_vs_i16m2_i32m1(
           //   p, vmv_v_x_i32m1(0,1), 16));  -- ONE reduction per half (vs the old 2
           // chained groups; the i32 sum is order-free so byte-exact).
           std::string seedCallee =
               riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, seedCallee));
-          mlir::Value zeroSeed =
-              rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-          mlir::Value sumiAcc =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                               seedCallee,
-                                               mlir::ValueRange{zeroSeed,
-                                                                sizeLit(1)})
-                  .getResult(0);
+          mlir::Value sumiAcc = emitOpaqueCallBuilt(
+              rewriter, loc, i32m1Type, seedCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                mlir::Value zeroSeed =
+                    rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                        .getResult();
+                return {zeroSeed, sizeLit(1)};
+              });
           std::string reduceCallee = "__riscv_vwredsum_vs_i16m2_i32m1";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, reduceCallee));
-          sumiAcc =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(
-                      loc, mlir::TypeRange{i32m1Type}, reduceCallee,
-                      mlir::ValueRange{product, sumiAcc, sizeLit(halfLanes)})
-                  .getResult(0);
+          sumiAcc = emitOpaqueCallBuilt(
+              rewriter, loc, i32m1Type, reduceCallee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                return {product, sumiAcc, sizeLit(halfLanes)};
+              });
 
           // q8Group += 16 (advance past this half's 2 groups; continuous across the
           // half boundary into the next half / sub-block).
@@ -3330,14 +3143,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ2SQ8KBlockDot(
           // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(sumiAcc);  (extract after the 2
           // groups of this half -- the half's integer dot).
           std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-          rewriter.create<emitc::VerbatimOp>(
-              loc, stepComment(opName, role, extractCallee));
-          mlir::Value sumi =
-              rewriter
-                  .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                               extractCallee,
-                                               mlir::ValueRange{sumiAcc})
-                  .getResult(0);
+          mlir::Value sumi = emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                                            mlir::ValueRange{sumiAcc}, opName,
+                                            role);
 
           // bsum = bsum + sumi * (h ? ls2 : ls1);  (integer accumulation;
           // order-free; the explicit per-half scale).

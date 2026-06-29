@@ -150,17 +150,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
     // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_iq4_nl_kvalues, 16);  (the
     // codebook table broadcast into a vreg ONCE; reused by every gather). The
     // table pointer is the structured-const decl above, cast to const int8_t *.
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "codebook_table_load"));
-    mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_iq4_nl_kvalues");
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-    mlir::Value values =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{i8CoreType}, tableLoadCallee,
-                mlir::ValueRange{tableName, sizeLit(codebook.size())})
-            .getResult(0);
+    mlir::Value values = emitOpaqueCallBuilt(
+        rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, "tcrv_iq4_nl_kvalues");
+          return {tableName, sizeLit(codebook.size())};
+        },
+        llvm::StringRef("codebook_table_load"));
 
     // Per-block address arithmetic: const uint8_t *xb = vx + (ib+blockOffset)*18;
     // const uint8_t *yb = vy + (ib+blockOffset)*34.
@@ -179,13 +178,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
 
     // The two scalar fp16->fp32 reads (the ONE sanctioned opaque piece).
     auto fp16Read = [&](mlir::Value blockBase) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                       fp16ReadCallee,
-                                       mlir::ValueRange{blockBase})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                            mlir::ValueRange{blockBase}, opName, role,
+                            llvm::StringRef("fcvt.s.h"));
     };
 
     // The CODEBOOK decode + asymmetric product + reduce for ONE strip, seeded
@@ -211,21 +206,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
       // two q8 halves load SIGNED (the plain-i8 activation).
       std::string wLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
       auto loadW = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, wLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                         wLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, u8CoreType, wLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       std::string yLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
       auto loadY = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, yLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         yLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, yLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       mlir::Value w = loadW(chunkPtr(xb, weightPtrType, quantOffset, u8PtrType));
       mlir::Value y0 =
@@ -238,27 +225,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
       auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                          llvm::StringRef amount) -> mlir::Value {
         std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, callee));
-        mlir::Value amt = rewriter.create<emitc::LiteralOp>(
-            loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType}, callee,
-                                         mlir::ValueRange{src, amt, vl})
-            .getResult(0);
+        return emitOpaqueCallBuilt(
+            rewriter, loc, u8CoreType, callee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+                  loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
+              return {src, amt, vl};
+            });
       };
       mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
       mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
       std::string gatherCallee =
           ("__riscv_vrgather_vv_i8" + coreLmul).str();
       auto gather = [&](mlir::Value idx) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gatherCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         gatherCallee,
-                                         mlir::ValueRange{values, idx, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, gatherCallee,
+                              mlir::ValueRange{values, idx, vl}, opName, role);
       };
       mlir::Value v0 = gather(idxLow);
       mlir::Value v1 = gather(idxHigh);
@@ -274,37 +256,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
 
       // Reduce into the per-block scalar: seed lane0 = sumi, vwredsum, extract.
       std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, seedCallee));
-      mlir::Value sumiSeed =
-          carrySumi ? rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar)
-                          .getResult()
-                    : rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
-                          .getResult();
-      mlir::Value one = sizeLit(1);
-      mlir::Value seed =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           seedCallee,
-                                           mlir::ValueRange{sumiSeed, one})
-              .getResult(0);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, seedCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sumiSeed =
+                carrySumi ? rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar)
+                                .getResult()
+                          : rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                                .getResult();
+            mlir::Value one = sizeLit(1);
+            return {sumiSeed, one};
+          });
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      mlir::Value red =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           reduceCallee,
-                                           mlir::ValueRange{*product, seed, vl})
-              .getResult(0);
+      mlir::Value red = emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
+                                       mlir::ValueRange{*product, seed, vl},
+                                       opName, role);
       std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, extractCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                       extractCallee, mlir::ValueRange{red})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                            mlir::ValueRange{red}, opName, role);
     };
 
     // The per-block integer core: declares int32_t sumi = 0, runs the strip
@@ -330,14 +301,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
         // Elided core (m1, VLEN >= 128): ONE vsetvl_e8m1(16) (caps the active vl
         // at 16 when VLMAX >= 16, covering the whole half-block) + ONE strip
         // reduce. NO inner strip loop, NO sumi carry (seed lane0 = 0).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, innerSetvlCallee));
-        mlir::Value vl =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             innerSetvlCallee,
-                                             mlir::ValueRange{sizeLit(halfBlock)})
-                .getResult(0);
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {sizeLit(halfBlock)};
+            });
         mlir::FailureOr<mlir::Value> sumi = emitStripReduce(
             xb, yb, sizeLit(0), vl, sumiVar, /*carrySumi=*/false);
         if (mlir::failed(sumi))
@@ -356,14 +325,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
       // below VLEN=128. The codebook class is inherently Zvl128b-gated (an N1
       // capability-legality fact, per the op description); the strip loop only keeps
       // the per-block reduction structurally uniform with the Family-A siblings.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, innerSetvlCallee));
-      mlir::Value innerVlmax =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           innerSetvlCallee,
-                                           mlir::ValueRange{sizeLit(halfBlock)})
-              .getResult(0);
+      mlir::Value innerVlmax = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(halfBlock)};
+          });
       auto innerLoop = rewriter.create<emitc::ForOp>(
           loc, sizeLit(0), sizeLit(halfBlock), innerVlmax,
           /*bodyBuilder=*/nullptr);
@@ -373,16 +340,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
         rewriter.setInsertionPointToStart(innerLoop.getBody());
         mlir::Value c = innerLoop.getInductionVar();
 
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, innerSetvlCallee));
-        mlir::Value remaining =
-            rewriter.create<emitc::SubOp>(loc, sizeType, sizeLit(halfBlock), c);
-        mlir::Value vl =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             innerSetvlCallee,
-                                             mlir::ValueRange{remaining})
-                .getResult(0);
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value remaining = rewriter.create<emitc::SubOp>(
+                  loc, sizeType, sizeLit(halfBlock), c);
+              return {remaining};
+            });
 
         mlir::FailureOr<mlir::Value> sumi =
             emitStripReduce(xb, yb, c, vl, sumiVar, /*carrySumi=*/true);
@@ -644,17 +609,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
 
     // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_iq4_xs_kvalues, 16);  (the
     // codebook table broadcast into a vreg ONCE; reused by every gather).
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "codebook_table_load"));
-    mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_iq4_xs_kvalues");
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-    mlir::Value values =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{i8CoreType}, tableLoadCallee,
-                mlir::ValueRange{tableName, sizeLit(codebook.size())})
-            .getResult(0);
+    mlir::Value values = emitOpaqueCallBuilt(
+        rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, "tcrv_iq4_xs_kvalues");
+          return {tableName, sizeLit(codebook.size())};
+        },
+        llvm::StringRef("codebook_table_load"));
 
     // Per-super-block base address arithmetic: xb = vx + ibl*136; yb = vy + ibl*292.
     auto blockBaseValue = [&](mlir::Value ibl, mlir::Value base,
@@ -678,33 +642,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
         [&](mlir::Value qsBase, mlir::Value q8Base) -> mlir::FailureOr<mlir::Value> {
       // The codebook anchor is m1: one vsetvl_e8m1(16) covers the half-block.
       std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, "m1", "");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, innerSetvlCallee));
-      mlir::Value vl =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           innerSetvlCallee,
-                                           mlir::ValueRange{sizeLit(halfBlock)})
-              .getResult(0);
+      mlir::Value vl = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(halfBlock)};
+          });
 
       // Load the 16 packed nibble bytes (UNSIGNED) + the two q8 halves (SIGNED).
       std::string wLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, wLoadCallee));
-      mlir::Value w =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                           wLoadCallee,
-                                           mlir::ValueRange{qsBase, vl})
-              .getResult(0);
+      mlir::Value w = emitOpaqueCall(rewriter, loc, u8CoreType, wLoadCallee,
+                                     mlir::ValueRange{qsBase, vl}, opName, role);
       std::string yLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
       auto loadY = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, yLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         yLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, yLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       mlir::Value y0 = loadY(q8Base);
       mlir::Value q8HighPtr =
@@ -716,26 +668,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
       auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                          llvm::StringRef amount) -> mlir::Value {
         std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, callee));
-        mlir::Value amt = rewriter.create<emitc::LiteralOp>(loc, intType,
-                                                            amount.str());
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType}, callee,
-                                         mlir::ValueRange{src, amt, vl})
-            .getResult(0);
+        return emitOpaqueCallBuilt(
+            rewriter, loc, u8CoreType, callee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value amt = rewriter.create<emitc::LiteralOp>(loc, intType,
+                                                                  amount.str());
+              return {src, amt, vl};
+            });
       };
       mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
       mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
       std::string gatherCallee = ("__riscv_vrgather_vv_i8" + coreLmul).str();
       auto gather = [&](mlir::Value idx) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gatherCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         gatherCallee,
-                                         mlir::ValueRange{values, idx, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, gatherCallee,
+                              mlir::ValueRange{values, idx, vl}, opName, role);
       };
       mlir::Value v0 = gather(idxLow);
       mlir::Value v1 = gather(idxHigh);
@@ -751,33 +698,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
 
       // Reduce into the per-sub-block scalar: seed lane0 = 0, vwredsum, extract.
       std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, seedCallee));
-      mlir::Value zeroSeed =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-      mlir::Value seed =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           seedCallee,
-                                           mlir::ValueRange{zeroSeed, sizeLit(1)})
-              .getResult(0);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, seedCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zeroSeed =
+                rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+            return {zeroSeed, sizeLit(1)};
+          });
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      mlir::Value red =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           reduceCallee,
-                                           mlir::ValueRange{*product, seed, vl})
-              .getResult(0);
+      mlir::Value red = emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
+                                       mlir::ValueRange{*product, seed, vl},
+                                       opName, role);
       std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, extractCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                       extractCallee, mlir::ValueRange{red})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                            mlir::ValueRange{red}, opName, role);
     };
 
     // The outer super-block loop: for (size_t ibl = 0; ibl < nb; ibl += 1).
@@ -804,14 +740,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
       if (weightDOffset != 0)
         dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
                                                sizeLit(weightDOffset));
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
+      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                      mlir::ValueRange{dxAddr}, opName, role,
+                                      llvm::StringRef("fcvt.s.h"));
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(opName, role, "fold_activation_d"));
       mlir::Value dyAddr = yb;
@@ -1142,17 +1073,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
 
     // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_mxfp4_kvalues, 16);  (the FP4
     // codebook table broadcast into a vreg ONCE; reused by every gather).
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "codebook_table_load"));
-    mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_mxfp4_kvalues");
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-    mlir::Value values =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{i8CoreType}, tableLoadCallee,
-                mlir::ValueRange{tableName, sizeLit(codebook.size())})
-            .getResult(0);
+    mlir::Value values = emitOpaqueCallBuilt(
+        rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, "tcrv_mxfp4_kvalues");
+          return {tableName, sizeLit(codebook.size())};
+        },
+        llvm::StringRef("codebook_table_load"));
 
     // Per-block address arithmetic: const uint8_t *xb = vx + ib*17; *yb = vy + ib*34.
     auto blockBaseValue = [&](mlir::Value ib, int64_t blockOffset,
@@ -1170,13 +1100,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
 
     // The q8_0 fp16->fp32 scale read (the ONE sanctioned opaque scalar piece).
     auto fp16Read = [&](mlir::Value blockBase) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                       fp16ReadCallee,
-                                       mlir::ValueRange{blockBase})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                            mlir::ValueRange{blockBase}, opName, role,
+                            llvm::StringRef("fcvt.s.h"));
     };
 
     // The STRUCTURED E8M0 -> fp32 HALF weight scale (the genuinely-new FP4-class
@@ -1306,21 +1232,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
       };
       std::string wLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
       auto loadW = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, wLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                         wLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, u8CoreType, wLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       std::string yLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
       auto loadY = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, yLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         yLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, yLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       mlir::Value w =
           loadW(chunkPtr(xb, weightPtrType, weightQuantOffset, u8PtrType));
@@ -1334,26 +1252,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
       auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                          llvm::StringRef amount) -> mlir::Value {
         std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, callee));
-        mlir::Value amt = rewriter.create<emitc::LiteralOp>(
-            loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType}, callee,
-                                         mlir::ValueRange{src, amt, vl})
-            .getResult(0);
+        return emitOpaqueCallBuilt(
+            rewriter, loc, u8CoreType, callee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+                  loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
+              return {src, amt, vl};
+            });
       };
       mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
       mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
       std::string gatherCallee = ("__riscv_vrgather_vv_i8" + coreLmul).str();
       auto gather = [&](mlir::Value idx) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gatherCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         gatherCallee,
-                                         mlir::ValueRange{values, idx, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, gatherCallee,
+                              mlir::ValueRange{values, idx, vl}, opName, role);
       };
       mlir::Value v0 = gather(idxLow);
       mlir::Value v1 = gather(idxHigh);
@@ -1368,37 +1281,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
 
       // Reduce into the per-block scalar: seed lane0 = sumi, vwredsum, extract.
       std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, seedCallee));
-      mlir::Value sumiSeed =
-          carrySumi ? rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar)
-                          .getResult()
-                    : rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
-                          .getResult();
-      mlir::Value one = sizeLit(1);
-      mlir::Value seed =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           seedCallee,
-                                           mlir::ValueRange{sumiSeed, one})
-              .getResult(0);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, seedCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sumiSeed =
+                carrySumi ? rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar)
+                                .getResult()
+                          : rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                                .getResult();
+            mlir::Value one = sizeLit(1);
+            return {sumiSeed, one};
+          });
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      mlir::Value red =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           reduceCallee,
-                                           mlir::ValueRange{*product, seed, vl})
-              .getResult(0);
+      mlir::Value red = emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
+                                       mlir::ValueRange{*product, seed, vl},
+                                       opName, role);
       std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, extractCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                       extractCallee, mlir::ValueRange{red})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                            mlir::ValueRange{red}, opName, role);
     };
 
     // The per-block integer core (REUSED from iq4_nl): int32_t sumi = 0, the strip
@@ -1418,14 +1320,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
       std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", 8, coreLmul, "");
 
       if (!forceRobust && stripElided) {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, innerSetvlCallee));
-        mlir::Value vl =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             innerSetvlCallee,
-                                             mlir::ValueRange{sizeLit(halfBlock)})
-                .getResult(0);
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {sizeLit(halfBlock)};
+            });
         mlir::FailureOr<mlir::Value> sumi = emitStripReduce(
             xb, yb, sizeLit(0), vl, sumiVar, /*carrySumi=*/false);
         if (mlir::failed(sumi))
@@ -1436,14 +1336,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
         return sumiVar.getResult();
       }
 
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, innerSetvlCallee));
-      mlir::Value innerVlmax =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           innerSetvlCallee,
-                                           mlir::ValueRange{sizeLit(halfBlock)})
-              .getResult(0);
+      mlir::Value innerVlmax = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(halfBlock)};
+          });
       auto innerLoop = rewriter.create<emitc::ForOp>(
           loc, sizeLit(0), sizeLit(halfBlock), innerVlmax,
           /*bodyBuilder=*/nullptr);
@@ -1453,16 +1351,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
         rewriter.setInsertionPointToStart(innerLoop.getBody());
         mlir::Value c = innerLoop.getInductionVar();
 
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, innerSetvlCallee));
-        mlir::Value remaining =
-            rewriter.create<emitc::SubOp>(loc, sizeType, sizeLit(halfBlock), c);
-        mlir::Value vl =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             innerSetvlCallee,
-                                             mlir::ValueRange{remaining})
-                .getResult(0);
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value remaining = rewriter.create<emitc::SubOp>(
+                  loc, sizeType, sizeLit(halfBlock), c);
+              return {remaining};
+            });
 
         mlir::FailureOr<mlir::Value> sumi =
             emitStripReduce(xb, yb, c, vl, sumiVar, /*carrySumi=*/true);
@@ -1716,27 +1612,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
 
     // vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_nvfp4_kvalues, 16);  (the FP4
     // codebook table broadcast into a vreg ONCE; reused by every gather).
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "codebook_table_load"));
-    mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
-        loc, i8PtrType, "tcrv_nvfp4_kvalues");
     std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
-    mlir::Value values =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{i8CoreType}, tableLoadCallee,
-                mlir::ValueRange{tableName, sizeLit(codebook.size())})
-            .getResult(0);
+    mlir::Value values = emitOpaqueCallBuilt(
+        rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, "tcrv_nvfp4_kvalues");
+          return {tableName, sizeLit(codebook.size())};
+        },
+        llvm::StringRef("codebook_table_load"));
 
     // The q8_0 fp16->fp32 scale read (the ONE sanctioned opaque scalar piece).
     auto fp16Read = [&](mlir::Value blockBase) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fcvt.s.h"));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                       fp16ReadCallee,
-                                       mlir::ValueRange{blockBase})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                            mlir::ValueRange{blockBase}, opName, role,
+                            llvm::StringRef("fcvt.s.h"));
     };
 
     // The STRUCTURED UE4M3 -> fp32 HALF weight scale (the genuinely-new NVFP4-class
@@ -1887,22 +1778,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
     auto emitSubBlockReduce = [&](mlir::Value xqs, mlir::Value yqs,
                                   mlir::Value vl) -> mlir::FailureOr<mlir::Value> {
       std::string wLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, wLoadCallee));
-      mlir::Value w =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType},
-                                           wLoadCallee,
-                                           mlir::ValueRange{xqs, vl})
-              .getResult(0);
+      mlir::Value w = emitOpaqueCall(rewriter, loc, u8CoreType, wLoadCallee,
+                                     mlir::ValueRange{xqs, vl}, opName, role);
       std::string yLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
       auto loadY = [&](mlir::Value ptr) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, yLoadCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         yLoadCallee, mlir::ValueRange{ptr, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, yLoadCallee,
+                              mlir::ValueRange{ptr, vl}, opName, role);
       };
       mlir::Value yHigh = rewriter.create<emitc::AddOp>(
           loc, i8PtrType, yqs, sizeLit(highOffset));
@@ -1914,26 +1795,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
       auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                          llvm::StringRef amount) -> mlir::Value {
         std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, callee));
-        mlir::Value amt = rewriter.create<emitc::LiteralOp>(
-            loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u8CoreType}, callee,
-                                         mlir::ValueRange{src, amt, vl})
-            .getResult(0);
+        return emitOpaqueCallBuilt(
+            rewriter, loc, u8CoreType, callee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+                  loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
+              return {src, amt, vl};
+            });
       };
       mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
       mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
       std::string gatherCallee = ("__riscv_vrgather_vv_i8" + coreLmul).str();
       auto gather = [&](mlir::Value idx) -> mlir::Value {
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, gatherCallee));
-        return rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i8CoreType},
-                                         gatherCallee,
-                                         mlir::ValueRange{values, idx, vl})
-            .getResult(0);
+        return emitOpaqueCall(rewriter, loc, i8CoreType, gatherCallee,
+                              mlir::ValueRange{values, idx, vl}, opName, role);
       };
       mlir::Value v0 = gather(idxLow);
       mlir::Value v1 = gather(idxHigh);
@@ -1948,34 +1824,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
 
       // Reduce into the per-sub-block scalar: seed lane0 = 0, vwredsum, extract.
       std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, seedCallee));
-      mlir::Value sumiSeed =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-      mlir::Value one = sizeLit(1);
-      mlir::Value seed =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           seedCallee,
-                                           mlir::ValueRange{sumiSeed, one})
-              .getResult(0);
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, seedCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sumiSeed =
+                rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+            mlir::Value one = sizeLit(1);
+            return {sumiSeed, one};
+          });
       std::string reduceCallee =
           ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, reduceCallee));
-      mlir::Value red =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                           reduceCallee,
-                                           mlir::ValueRange{*product, seed, vl})
-              .getResult(0);
+      mlir::Value red = emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
+                                       mlir::ValueRange{*product, seed, vl},
+                                       opName, role);
       std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, extractCallee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                       extractCallee, mlir::ValueRange{red})
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                            mlir::ValueRange{red}, opName, role);
     };
 
     // The per-sub-block fp32 accumulate `sumf = sumf + dy * d * (float)sumi`
@@ -2107,14 +1972,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
             rewriter.create<emitc::CastOp>(loc, i8PtrType, yqsFull).getResult();
 
         // The 8-lane strip setvl + the codebook integer core -> sumi.
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, setvlCallee));
-        mlir::Value vl =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             setvlCallee,
-                                             mlir::ValueRange{sizeLit(subHalf)})
-                .getResult(0);
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, setvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {sizeLit(subHalf)};
+            });
         mlir::FailureOr<mlir::Value> sumi =
             emitSubBlockReduce(xqs, yqs, vl);
         if (mlir::failed(sumi)) {
