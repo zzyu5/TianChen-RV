@@ -1,6 +1,11 @@
 # Emitter L0–L3 基建（byte-exact，no board）
 
 > 父任务 [[06-26-compiler-maturity-retest]]；纪律护栏见父 PRD。**byte-exact ⇒ 不改任何可测行为 = 基建欠债清理 ≠ 成熟**（红队硬话；价值是为 L4/cm 杠杆铺路 + 去玩具感）。
+>
+> **✅ DONE 2026-06-29（L0–L3 全完，consolidated trellis-check PASS）**：L0a emitVCall → L1 deriveWideningChain 单源 → L0b 词汇表（manglers + emitVCallBuilt/Void/emitOpaqueCall）→ L0c 6 文件扫除 → L2 deriveBlockDotFacts 读句柄 → L3 dequant 派发表 + q3_K callee-string。commits `6a8751b1`→`e273c11e`（13 个，net −1331 行）。**端到端 byte-exact**：BASE `25fa295a`→HEAD `e273c11e` diff 全空（`nm` 符号差证非 stale build），Conversion/RVV lit 123/123，I2/I3/I4 守，25 residual CallOpaqueOp 全结构性有据。
+> **诚实纠偏（L1，over-optimism 类）**：L1 的 m2 "bug" 在 q6_K 是 verifier-rejected 的 **unreachable dead code**；m2 fixture 实测的是 q4_K（BASE 已 m2-aware）→ **L1 = 真·consolidation（单源、去未来 footgun）+ forward 回归 guard，非 exploitable-bug-fix**。fixture 注释 "FAILS on old logic" 夸大；reword 留 byte-irrelevant follow-up。
+> **trellis-update-spec 结论**：无新 spec 契约——BEFORE==AFTER byte-exact gate 已在 [[build-incremental-unreliable]] memory；emitVCall 词汇表是 emitc-route "write once / 一个通用 provider 契约" 的 C++ 实现，非新契约。
+> 剩 emitter 成熟度押 L4/cm/cost-model（父 PRD），非本 child。
 
 ## Goal
 把"一个 conversation pattern 拆 9 文件 28267 行、每 kernel 从头手拼 `__riscv_*`"的发射层，整理成单一发射词汇表 + 单源 widening-chain + per-family 表——全程 byte-exact。
