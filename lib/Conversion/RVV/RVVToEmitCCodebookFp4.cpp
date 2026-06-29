@@ -76,12 +76,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
     // = a full mf2 register, the ggml `_vl256` shape). The chosen i8 source LMUL drives
     // the widened i16 product LMUL and the i8 load/vsetvl/vrgather spelling. The
     // scheduled anchor (always present past the guard above) drives it.
-    llvm::StringRef coreLmul = "m1";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // The widened i16 product LMUL is ONE step wider than the i8 source LMUL: m1 -> m2
     // (the VLEN128 form), mf2 -> m1 (the VLEN256 `_vl256` form). The vwredsum reduction
     // destination + seed stay m1 in BOTH (a 16-element reduction is an m1 reduce).
@@ -995,12 +993,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     // m1 at any VLEN, mf2 only at minimum_vlen >= 256 = the ggml `_vl256` shape). The
     // i8 source LMUL drives the i16 product LMUL and the load/vsetvl/vrgather spelling;
     // the scheduled anchor (always present past the guard above) drives it.
-    llvm::StringRef coreLmul = "m1";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // The widened i16 product LMUL is one step wider than the i8 source: m1 -> m2
     // (VLEN128), mf2 -> m1 (VLEN256). The vwredsum destination + seed stay m1 in both.
     WideningChain wideningChain = deriveWideningChain(coreLmul);

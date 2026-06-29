@@ -60,17 +60,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
     // byte-exact either way (vwredsum sums the same integer set; integer add is
     // order-independent). The chosen i8 source LMUL ("mf4"/"m1") drives the
     // widened i16 product LMUL ("mf2"/"m2") and the i8 load/vsetvl spelling.
-    llvm::StringRef coreLmul = "mf4";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
     // The two outer-loop SHAPE knobs (also bounded resource/scheduling facts, the
     // *how* not the *what*; both are byte-exact -- the fp32 folds stay in strict
     // ascending block order, only the independent integer cores overlap). The
     // verifier bounds the factor to 1|2|4 and the elision to robust|elided, and
     // forbids "elided" unless the integer core anchors at m1.
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (the verifier bounds the
     // source to mf4|m1, so the product is mf2|m2 respectively).
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
@@ -477,12 +475,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_0Q8_0BlockDot(
     // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
     // or m1 to match ggml's one-vwredsum-per-block reduction anchor). The chosen
     // i8 source LMUL drives the widened i16 product LMUL and the i8/u16 spelling.
-    llvm::StringRef coreLmul = "mf4";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (mf4->mf2, m1->m2). The
     // u16 bit-extraction runs at the SAME wide LMUL.
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
@@ -893,12 +889,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_1Q8_1BlockDot(
     // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
     // or m1 to match ggml's one-vwredsum-per-half-block anchor). The chosen i8
     // source LMUL drives the widened i16 product LMUL and the i8/u16 spelling.
-    llvm::StringRef coreLmul = "mf4";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (mf4->mf2, m1->m2). The
     // u16 bit-extraction runs at the SAME wide LMUL.
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
@@ -6351,12 +6345,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_1Q8_1BlockDot(
     // *how* (vector grouping / strip width), never the *what*: the dot product is
     // byte-exact either way. The chosen i8 source LMUL drives the widened i16
     // product LMUL and the load/vsetvl spelling.
-    llvm::StringRef coreLmul = "mf4";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (mf4->mf2, m1->m2).
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
@@ -6769,12 +6761,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ8_0Q8_0BlockDot(
     // the *what*: the dot product is byte-exact for any anchor (vwredsum sums the
     // same integer set; integer add is order-independent). The chosen i8 source
     // LMUL drives the widened i16 product LMUL and the i8 load/vsetvl spelling.
-    llvm::StringRef coreLmul = "m2";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
-    int64_t multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-    llvm::StringRef stripElision = blockDot.getStripElision().value_or("robust");
-    bool stripElided = stripElision == "elided";
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m2");
+    llvm::StringRef coreLmul = blockDotFacts.coreLmul;
+    int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
+    bool stripElided = blockDotFacts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (m2->m4, m1->m2,
     // mf4->mf2). The verifier bounds the source to mf4|m1|m2.
     llvm::StringRef wideLmul =

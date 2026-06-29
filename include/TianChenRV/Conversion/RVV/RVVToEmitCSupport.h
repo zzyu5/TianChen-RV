@@ -352,6 +352,48 @@ struct WideningChain {
 
 WideningChain deriveWideningChain(llvm::StringRef base);
 
+//===----------------------------------------------------------------------===//
+// Block-dot stamped-schedule fact read-handle (read-only; no decision logic).
+//===----------------------------------------------------------------------===//
+
+// The three stamped block-dot scheduling facts an integer-core emitter reads off
+// a scheduled GgmlBlockDot* op, plus the derived `stripElided` predicate:
+//   coreLmul         = the integer_core_lmul anchor, or the caller's per-kernel
+//                      `defaultCoreLmul` when the op carries no anchor attr,
+//   multiBlockFactor = the outer-loop unroll factor, default 1,
+//   stripElision     = "robust" | "elided", default "robust",
+//   stripElided      = (stripElision == "elided").
+//
+// This is a pure READ-HANDLE: it consolidates the scattered per-kernel
+// `.value_or(...)` reads of the stamped attrs into one place and reproduces the
+// per-site defaults EXACTLY, so the emitted C is byte-identical. The LEGALITY
+// authority for these facts stays UPSTREAM in the gearbox / materialize-schedule
+// passes (the verifier bounds the factor, the elision to robust|elided, and the
+// anchor set per family); this handle adds NO decision / selection / cost logic.
+// The per-kernel `defaultCoreLmul` (mf4 / m2 / m1 ...) is the caller's, not a
+// choice made here. Templated on the op type because each block-dot family is a
+// distinct ODS op (GgmlBlockDotIQ4NLQ80Op, GgmlBlockDotMXFP4Q80Op, ...) that
+// shares the same three stamped accessors.
+struct BlockDotFacts {
+  llvm::StringRef coreLmul;
+  int64_t multiBlockFactor;
+  llvm::StringRef stripElision;
+  bool stripElided;
+};
+
+template <typename BlockDotOpT>
+BlockDotFacts deriveBlockDotFacts(BlockDotOpT blockDot,
+                                  llvm::StringRef defaultCoreLmul) {
+  BlockDotFacts facts;
+  facts.coreLmul = defaultCoreLmul;
+  if (auto attrLmul = blockDot.getIntegerCoreLmul())
+    facts.coreLmul = *attrLmul;
+  facts.multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
+  facts.stripElision = blockDot.getStripElision().value_or("robust");
+  facts.stripElided = facts.stripElision == "elided";
+  return facts;
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion
