@@ -2039,17 +2039,6 @@ VariantToEmitCFunc::maskedStandaloneReductionNeutral(llvm::StringRef kind, unsig
     return std::nullopt;
   }
 
-std::string VariantToEmitCFunc::standaloneReductionIntrinsicName(
-    llvm::StringRef mnemonic, llvm::StringRef srcDtype,
-    llvm::StringRef srcLmul, llvm::StringRef resultDtype) {
-    std::string name;
-    llvm::raw_string_ostream os(name);
-    os << "__riscv_" << mnemonic << "_vs_" << srcDtype << srcLmul << "_"
-       << resultDtype << "m1";
-    os.flush();
-    return name;
-  }
-
 mlir::Value VariantToEmitCFunc::emitScalarSeedSplat(mlir::ConversionPatternRewriter &rewriter,
                                 mlir::Location loc, mlir::Value buffer,
                                 tcrvrvv::VectorType resultVecType,
@@ -2248,7 +2237,7 @@ VariantToEmitCFunc::emitStandaloneReduce(mlir::ConversionPatternRewriter &rewrit
     if (!seed)
       return rewriter.notifyMatchFailure(
           reduce, "standalone reduce running seed not convertible");
-    std::string callee = standaloneReductionIntrinsicName(
+    std::string callee = riscvWideningReductionIntrinsicName(
         *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
         vectorDType(resultVecType));
     rewriter.create<emitc::VerbatimOp>(
@@ -2341,7 +2330,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitMaskedStandaloneReduce(
       return rewriter.notifyMatchFailure(
           reduce, "masked standalone reduce running seed not convertible");
 
-    std::string callee = standaloneReductionIntrinsicName(
+    std::string callee = riscvWideningReductionIntrinsicName(
         *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
         vectorDType(resultVecType));
     rewriter.create<emitc::VerbatimOp>(

@@ -78,17 +78,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantProductReduceSlice(
                                          "dequant reduce type not convertible");
     mlir::Value seed =
         rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-    std::string callee = standaloneReductionIntrinsicName(
+    std::string callee = riscvWideningReductionIntrinsicName(
         *mnemonic, vectorDType(srcVecType), srcVecType.getLmul(),
         vectorDType(accVecType));
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
-                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
     mlir::Value reduced =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{accEmitC}, callee,
-                                         mlir::ValueRange{product, seed, loadVL})
-            .getResult(0);
+        emitOpaqueCall(rewriter, loc, accEmitC, callee,
+                       mlir::ValueRange{product, seed, loadVL},
+                       reduce.getTCRVEmitCLowerableSourceOpName(),
+                       reduce.getTCRVEmitCLowerableSourceRole());
     rewriter.create<emitc::VerbatimOp>(
         loc, assignComment("dot_acc_vec",
                            reduce.getTCRVEmitCLowerableSourceOpName(),
@@ -263,16 +260,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitLowPrecisionDequantBody(
             remaining =
                 rewriter.create<emitc::SubOp>(loc, sizeType, remaining, vlmax);
         }
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                             preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                             setvlCallee));
-        mlir::Value sliceVL =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             setvlCallee,
-                                             mlir::ValueRange{remaining})
-                .getResult(0);
+        mlir::Value sliceVL = emitOpaqueCall(
+            rewriter, loc, sizeType, setvlCallee, mlir::ValueRange{remaining},
+            preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+            preLoopSetVL.getTCRVEmitCLowerableSourceRole());
         if (mlir::failed(emitDequantProductReduceSlice(
                 rewriter, loc, slice.lhsLoad, slice.rhsLoad, slice.productOp,
                 slice.reduce, lhsBuffer, rhsBuffer, sliceOffset, accVar,
@@ -291,16 +282,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitLowPrecisionDequantBody(
       mlir::Value inductionVar = tailLoop.getInductionVar();
       mlir::Value remaining =
           rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                           setvlCallee));
-      mlir::Value sliceVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value sliceVL = emitOpaqueCall(
+          rewriter, loc, sizeType, setvlCallee, mlir::ValueRange{remaining},
+          preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+          preLoopSetVL.getTCRVEmitCLowerableSourceRole());
       const DequantSlice &slice = slices.front();
       if (mlir::failed(emitDequantProductReduceSlice(
               rewriter, loc, slice.lhsLoad, slice.rhsLoad, slice.productOp,
@@ -403,29 +388,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDequantBody(
 
     // The accumulator's own VLMAX: vlmax_acc = __riscv_vsetvlmax_e32m8();
     std::string accVsetvlmaxCallee =
-        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + accLmul).str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(accOpName, accRole, accVsetvlmaxCallee));
-    mlir::Value accVlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         accVsetvlmaxCallee,
-                                         mlir::ValueRange{})
-            .getResult(0);
+        riscvVsetvlmaxIntrinsicName(accSEW, accLmul);
+    mlir::Value accVlmax = emitOpaqueCall(rewriter, loc, sizeType,
+                                          accVsetvlmaxCallee, mlir::ValueRange{},
+                                          accOpName, accRole);
 
     // Zero-seed: dot_acc_vec = __riscv_vmv_v_x_i32m8(0, vlmax_acc);
     std::string accZeroSplatCallee =
         riscvIntrinsicName("vmv_v_x", accSEW, accLmul, accDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(accOpName, accRole, accZeroSplatCallee));
-    mlir::Value zeroLit =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
-    mlir::Value accSeed =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{accEmitC},
-                                         accZeroSplatCallee,
-                                         mlir::ValueRange{zeroLit, accVlmax})
-            .getResult(0);
+    mlir::Value accSeed = emitOpaqueCallBuilt(
+        rewriter, loc, accEmitC, accZeroSplatCallee, accOpName, accRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLit =
+              b.create<emitc::LiteralOp>(l, getSizeType(rewriter), "0");
+          return {zeroLit, accVlmax};
+        });
     rewriter.create<emitc::VerbatimOp>(
         loc, assignComment("dot_acc_vec", accOpName, accRole));
     rewriter.create<emitc::AssignOp>(loc, accVar, accSeed);
@@ -440,16 +418,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDequantBody(
       mlir::Value inductionVar = mainLoop.getInductionVar();
       mlir::Value remaining =
           rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                           setvlCallee));
-      mlir::Value sliceVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value sliceVL = emitOpaqueCall(
+          rewriter, loc, sizeType, setvlCallee, mlir::ValueRange{remaining},
+          preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+          preLoopSetVL.getTCRVEmitCLowerableSourceRole());
       // Wide i8m2 loads at base + i, the i16m4 widening product (both reuse the
       // narrow emitters -- they derive <dtype><lmul> from the wide typed
       // vectors, so they emit vle8_v_i8m2 / vwmul_vv_i16m4 unchanged).
@@ -471,14 +443,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDequantBody(
           riscvWideningAccumulateIntrinsicName(accSEW, accLmul, accDtype);
       mlir::Value runningAcc =
           rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(accOpName, accRole, accumulateCallee));
-      mlir::Value accumulated =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{accEmitC}, accumulateCallee,
-                  mlir::ValueRange{runningAcc, productValue, sliceVL})
-              .getResult(0);
+      mlir::Value accumulated = emitOpaqueCall(
+          rewriter, loc, accEmitC, accumulateCallee,
+          mlir::ValueRange{runningAcc, productValue, sliceVL}, accOpName,
+          accRole);
       rewriter.create<emitc::VerbatimOp>(
           loc, assignComment("dot_acc_vec", accOpName, accRole));
       rewriter.create<emitc::AssignOp>(loc, accVar, accumulated);
@@ -530,28 +498,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideEpilogue(
     // The reduction destination m1 VLMAX + zero seed:
     //   vint32m1_t vzero = __riscv_vmv_v_x_i32m1(0, vsetvlmax_e32m1());
     std::string redVsetvlmaxCallee =
-        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + reduceVecType.getLmul())
-            .str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, redVsetvlmaxCallee));
-    mlir::Value reduceVlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         redVsetvlmaxCallee,
-                                         mlir::ValueRange{})
-            .getResult(0);
+        riscvVsetvlmaxIntrinsicName(accSEW, reduceVecType.getLmul());
+    mlir::Value reduceVlmax = emitOpaqueCall(
+        rewriter, loc, sizeType, redVsetvlmaxCallee, mlir::ValueRange{},
+        reduceOpName, reduceRole);
     std::string zeroSeedCallee = riscvIntrinsicName(
         "vmv_v_x", accSEW, reduceVecType.getLmul(), reduceDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, zeroSeedCallee));
-    mlir::Value zeroLit =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
-    mlir::Value reduceZero =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
-                                         zeroSeedCallee,
-                                         mlir::ValueRange{zeroLit, reduceVlmax})
-            .getResult(0);
+    mlir::Value reduceZero = emitOpaqueCallBuilt(
+        rewriter, loc, reduceEmitC, zeroSeedCallee, reduceOpName, reduceRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLit =
+              b.create<emitc::LiteralOp>(l, getSizeType(rewriter), "0");
+          return {zeroLit, reduceVlmax};
+        });
 
     // ONE trailing vredsum over the i32m8 accumulator:
     //   vint32m1_t vred = __riscv_vredsum_vs_i32m8_i32m1(dot_acc_vec, vzero, vlmax_acc);
@@ -560,34 +520,23 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideEpilogue(
     if (!reduceMnemonic)
       return rewriter.notifyMatchFailure(
           reduce, "deferred-wide trailing reduce kind unsupported");
-    std::string reduceCallee = standaloneReductionIntrinsicName(
+    std::string reduceCallee = riscvWideningReductionIntrinsicName(
         *reduceMnemonic, accDtype, accLmul, reduceDtype);
     mlir::Value accValue =
         rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, reduceCallee));
-    mlir::Value reduced =
-        rewriter
-            .create<emitc::CallOpaqueOp>(
-                loc, mlir::TypeRange{reduceEmitC}, reduceCallee,
-                mlir::ValueRange{accValue, reduceZero, accVlmax})
-            .getResult(0);
+    mlir::Value reduced = emitOpaqueCall(
+        rewriter, loc, reduceEmitC, reduceCallee,
+        mlir::ValueRange{accValue, reduceZero, accVlmax}, reduceOpName,
+        reduceRole);
     valueMap[reduce.getResult()] = reduced;
 
     // Extract lane 0: int32_t reduced_scalar = __riscv_vmv_x_s_i32m1_i32(vred);
     std::string extractCallee =
-        ("__riscv_vmv_x_s_" + reduceDtype + reduceVecType.getLmul() + "_" +
-         reduceDtype)
-            .str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, extractCallee));
+        riscvScalarExtractIntrinsicName(reduceDtype, reduceVecType.getLmul());
     mlir::Type i32Type = emitc::OpaqueType::get(rewriter.getContext(), "int32_t");
     mlir::Value reducedScalar =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                         extractCallee,
-                                         mlir::ValueRange{reduced})
-            .getResult(0);
+        emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                       mlir::ValueRange{reduced}, reduceOpName, reduceRole);
 
     // acc[0] as a SCALAR: int32_t sum = acc[0] + reduced_scalar.
     auto accPointer =
@@ -623,24 +572,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideEpilogue(
         rewriter.create<emitc::MulOp>(loc, floatType, asFloat, scale);
     std::string splatCallee =
         riscvIntrinsicName("vfmv_v_f", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, splatCallee));
-    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
-    mlir::Value dequantSplat =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         splatCallee,
-                                         mlir::ValueRange{scaled, one})
-            .getResult(0);
+    mlir::Value one;
+    mlir::Value dequantSplat = emitOpaqueCallBuilt(
+        rewriter, loc, resultEmitC, splatCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          one = b.create<emitc::LiteralOp>(l, sizeType, "1");
+          return {scaled, one};
+        });
     valueMap[dequant.getResult()] = dequantSplat;
     std::string storeCallee =
         riscvIntrinsicName("vse", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(storeOp.getTCRVEmitCLowerableSourceOpName(),
-                         storeOp.getTCRVEmitCLowerableSourceRole(), storeCallee));
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, storeCallee,
-        mlir::ValueRange{outBuffer, dequantSplat, one});
+    emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                       mlir::ValueRange{outBuffer, dequantSplat, one},
+                       storeOp.getTCRVEmitCLowerableSourceOpName(),
+                       storeOp.getTCRVEmitCLowerableSourceRole());
     return mlir::success();
   }
 
@@ -734,28 +680,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceBody(
 
     // The accumulator's own VLMAX: vlmax_acc = __riscv_vsetvlmax_e32m8();
     std::string accVsetvlmaxCallee =
-        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + accLmul).str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(accOpName, accRole, accVsetvlmaxCallee));
-    mlir::Value accVlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         accVsetvlmaxCallee, mlir::ValueRange{})
-            .getResult(0);
+        riscvVsetvlmaxIntrinsicName(accSEW, accLmul);
+    mlir::Value accVlmax = emitOpaqueCall(rewriter, loc, sizeType,
+                                          accVsetvlmaxCallee, mlir::ValueRange{},
+                                          accOpName, accRole);
 
     // Zero-seed: dot_acc_vec = __riscv_vmv_v_x_i32m8(0, vlmax_acc);
     std::string accZeroSplatCallee =
         riscvIntrinsicName("vmv_v_x", accSEW, accLmul, accDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(accOpName, accRole, accZeroSplatCallee));
-    mlir::Value zeroLit =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
-    mlir::Value accSeed =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{accEmitC},
-                                         accZeroSplatCallee,
-                                         mlir::ValueRange{zeroLit, accVlmax})
-            .getResult(0);
+    mlir::Value accSeed = emitOpaqueCallBuilt(
+        rewriter, loc, accEmitC, accZeroSplatCallee, accOpName, accRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLit =
+              b.create<emitc::LiteralOp>(l, getSizeType(rewriter), "0");
+          return {zeroLit, accVlmax};
+        });
     rewriter.create<emitc::VerbatimOp>(
         loc, assignComment("dot_acc_vec", accOpName, accRole));
     rewriter.create<emitc::AssignOp>(loc, accVar, accSeed);
@@ -770,16 +710,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceBody(
       mlir::Value inductionVar = mainLoop.getInductionVar();
       mlir::Value remaining =
           rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                           preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                           setvlCallee));
-      mlir::Value sliceVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value sliceVL = emitOpaqueCall(
+          rewriter, loc, sizeType, setvlCallee, mlir::ValueRange{remaining},
+          preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+          preLoopSetVL.getTCRVEmitCLowerableSourceRole());
       // Wide i16m4 loads at base + i, the i32m8 SINGLE-step widening product
       // (both reuse the narrow emitters -- they derive <dtype><lmul> from the
       // wide typed vectors, so they emit vle16_v_i16m4 / vwmul_vv_i32m8).
@@ -804,14 +738,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceBody(
           riscvIntrinsicName("vadd", accSEW, accLmul, accDtype);
       mlir::Value runningAcc =
           rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(accOpName, accRole, accumulateCallee));
-      mlir::Value accumulated =
-          rewriter
-              .create<emitc::CallOpaqueOp>(
-                  loc, mlir::TypeRange{accEmitC}, accumulateCallee,
-                  mlir::ValueRange{runningAcc, productValue, sliceVL})
-              .getResult(0);
+      mlir::Value accumulated = emitOpaqueCall(
+          rewriter, loc, accEmitC, accumulateCallee,
+          mlir::ValueRange{runningAcc, productValue, sliceVL}, accOpName,
+          accRole);
       rewriter.create<emitc::VerbatimOp>(
           loc, assignComment("dot_acc_vec", accOpName, accRole));
       rewriter.create<emitc::AssignOp>(loc, accVar, accumulated);
@@ -847,27 +777,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceEpilogue(
 
     // The reduction destination m1 VLMAX + zero seed.
     std::string redVsetvlmaxCallee =
-        ("__riscv_vsetvlmax_e" + llvm::Twine(accSEW) + reduceVecType.getLmul())
-            .str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, redVsetvlmaxCallee));
-    mlir::Value reduceVlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         redVsetvlmaxCallee, mlir::ValueRange{})
-            .getResult(0);
+        riscvVsetvlmaxIntrinsicName(accSEW, reduceVecType.getLmul());
+    mlir::Value reduceVlmax = emitOpaqueCall(
+        rewriter, loc, sizeType, redVsetvlmaxCallee, mlir::ValueRange{},
+        reduceOpName, reduceRole);
     std::string zeroSeedCallee = riscvIntrinsicName(
         "vmv_v_x", accSEW, reduceVecType.getLmul(), reduceDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, zeroSeedCallee));
-    mlir::Value zeroLit =
-        rewriter.create<emitc::LiteralOp>(loc, getSizeType(rewriter), "0");
-    mlir::Value reduceZero =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
-                                         zeroSeedCallee,
-                                         mlir::ValueRange{zeroLit, reduceVlmax})
-            .getResult(0);
+    mlir::Value reduceZero = emitOpaqueCallBuilt(
+        rewriter, loc, reduceEmitC, zeroSeedCallee, reduceOpName, reduceRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroLit =
+              b.create<emitc::LiteralOp>(l, getSizeType(rewriter), "0");
+          return {zeroLit, reduceVlmax};
+        });
 
     // ONE trailing vredsum over the i32m8 accumulator.
     std::optional<llvm::StringRef> reduceMnemonic =
@@ -875,36 +798,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceEpilogue(
     if (!reduceMnemonic)
       return rewriter.notifyMatchFailure(
           reduce, "deferred-wide dot-reduce trailing reduce kind unsupported");
-    std::string reduceCallee = standaloneReductionIntrinsicName(
+    std::string reduceCallee = riscvWideningReductionIntrinsicName(
         *reduceMnemonic, accDtype, accLmul, reduceDtype);
     mlir::Value accValue =
         rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, reduceCallee));
-    mlir::Value reduced =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
-                                         reduceCallee,
-                                         mlir::ValueRange{accValue, reduceZero,
-                                                          accVlmax})
-            .getResult(0);
+    mlir::Value reduced = emitOpaqueCall(
+        rewriter, loc, reduceEmitC, reduceCallee,
+        mlir::ValueRange{accValue, reduceZero, accVlmax}, reduceOpName,
+        reduceRole);
     valueMap[reduce.getResult()] = reduced;
 
     // Extract lane 0: int32_t reduced_scalar = __riscv_vmv_x_s_i32m1_i32(vred);
     std::string extractCallee =
-        ("__riscv_vmv_x_s_" + reduceDtype + reduceVecType.getLmul() + "_" +
-         reduceDtype)
-            .str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(reduceOpName, reduceRole, extractCallee));
+        riscvScalarExtractIntrinsicName(reduceDtype, reduceVecType.getLmul());
     mlir::Type i32Type =
         emitc::OpaqueType::get(rewriter.getContext(), "int32_t");
     mlir::Value reducedScalar =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                         extractCallee,
-                                         mlir::ValueRange{reduced})
-            .getResult(0);
+        emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                       mlir::ValueRange{reduced}, reduceOpName, reduceRole);
 
     // acc[0] as a SCALAR: int32_t sum = acc[0] + reduced_scalar.
     auto accPointer =
@@ -936,22 +847,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitDeferredWideDotReduceEpilogue(
         riscvIntrinsicName("vmv_v_x", resSEW, resLmul, resDtype);
     llvm::StringRef storeOpName = storeOp.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef storeRole = storeOp.getTCRVEmitCLowerableSourceRole();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(storeOpName, storeRole, splatCallee));
-    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
-    mlir::Value storeSplat =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{reduceEmitC},
-                                         splatCallee,
-                                         mlir::ValueRange{sum, one})
-            .getResult(0);
+    mlir::Value one;
+    mlir::Value storeSplat = emitOpaqueCallBuilt(
+        rewriter, loc, reduceEmitC, splatCallee, storeOpName, storeRole,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          one = b.create<emitc::LiteralOp>(l, sizeType, "1");
+          return {sum, one};
+        });
     std::string storeCallee =
         riscvIntrinsicName("vse", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(storeOpName, storeRole, storeCallee));
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, storeCallee,
-        mlir::ValueRange{outBuffer, storeSplat, one});
+    emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                       mlir::ValueRange{outBuffer, storeSplat, one}, storeOpName,
+                       storeRole);
     return mlir::success();
   }
 
@@ -1019,22 +927,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitStandaloneDequantBody(
         // Remaining AVL for this slice: recompute (n - i) FRESH, then subtract
         // the prior slices' VLs one at a time (the legacy golden subtracts vl0
         // for the second slice via a dedicated `v16 = v15 - v9`).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
-                             preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
-                             setvlCallee));
-        mlir::Value remaining =
-            rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-        if (priorVLSum)
-          remaining =
-              rewriter.create<emitc::SubOp>(loc, sizeType, remaining,
-                                            priorVLSum);
-        mlir::Value sliceVL =
-            rewriter
-                .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                             setvlCallee,
-                                             mlir::ValueRange{remaining})
-                .getResult(0);
+        mlir::Value sliceVL = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, setvlCallee,
+            preLoopSetVL.getTCRVEmitCLowerableSourceOpName(),
+            preLoopSetVL.getTCRVEmitCLowerableSourceRole(),
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value remaining =
+                  b.create<emitc::SubOp>(l, sizeType, avlArg, inductionVar);
+              if (priorVLSum)
+                remaining =
+                    b.create<emitc::SubOp>(l, sizeType, remaining, priorVLSum);
+              return {remaining};
+            });
 
         // load(base + i [+ priorVLSum]) -> dequant chain -> store(out + i [+ ...])
         if (mlir::failed(emitLoad(rewriter, loc, load, valueMap, inductionVar,
@@ -1097,19 +1002,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantEpilogue(
     // int32_t dot_acc_scalar = __riscv_vmv_x_s_i32m1_i32(dot_acc_vec);
     mlir::Value accValue =
         rewriter.create<emitc::LoadOp>(loc, accEmitC, accVar).getResult();
-    std::string extractCallee =
-        ("__riscv_vmv_x_s_" + vectorDType(accVecType) + accVecType.getLmul() +
-         "_" + vectorDType(accVecType))
-            .str();
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, extractCallee));
+    std::string extractCallee = riscvScalarExtractIntrinsicName(
+        vectorDType(accVecType), accVecType.getLmul());
     mlir::Type i32Type = emitc::OpaqueType::get(rewriter.getContext(), "int32_t");
     mlir::Value scalar =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32Type},
-                                         extractCallee,
-                                         mlir::ValueRange{accValue})
-            .getResult(0);
+        emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                       mlir::ValueRange{accValue}, opName, role);
     // float f = (float) dot_acc_scalar; float scaled = f * scale;
     mlir::Type floatType =
         emitc::OpaqueType::get(rewriter.getContext(), "float");
@@ -1122,15 +1020,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantEpilogue(
     // dequant store and the clamp's compare inputs consume this lane-0 vector.
     std::string splatCallee =
         riscvIntrinsicName("vfmv_v_f", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, splatCallee));
-    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
-    mlir::Value dequantSplat =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultEmitC},
-                                         splatCallee,
-                                         mlir::ValueRange{scaled, one})
-            .getResult(0);
+    mlir::Value one;
+    mlir::Value dequantSplat = emitOpaqueCallBuilt(
+        rewriter, loc, resultEmitC, splatCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          one = b.create<emitc::LiteralOp>(l, sizeType, "1");
+          return {scaled, one};
+        });
     valueMap[dequant.getResult()] = dequantSplat;
 
     mlir::Value valueToStore = dequantSplat;
@@ -1160,12 +1057,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantEpilogue(
     // vse32 store the lane-0 result to out base (VL=1).
     std::string storeCallee =
         riscvIntrinsicName("vse", resSEW, resLmul, resDtype);
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(storeOp.getTCRVEmitCLowerableSourceOpName(),
-                         storeOp.getTCRVEmitCLowerableSourceRole(), storeCallee));
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, mlir::TypeRange{}, storeCallee,
-        mlir::ValueRange{outBuffer, valueToStore, one});
+    emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                       mlir::ValueRange{outBuffer, valueToStore, one},
+                       storeOp.getTCRVEmitCLowerableSourceOpName(),
+                       storeOp.getTCRVEmitCLowerableSourceRole());
     return mlir::success();
   }
 

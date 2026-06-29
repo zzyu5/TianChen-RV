@@ -136,6 +136,242 @@ std::string riscvReductionIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
   return name;
 }
 
+/// The widening-product intrinsic name:
+///   __riscv_<mnemonic>_<variant>_<dstDtype><dstLmul>
+/// where mnemonic is vwmul (signed) or vwmulu (unsigned), variant is vv|vx, and
+/// <dstDtype><dstLmul> is the WIDENED product type (i16m1 for i8->i16, u16m2 for
+/// u8->u16). Byte-identical to the inline widening-product callee
+/// (`__riscv_vwmul_vv_i16m1` / `__riscv_vwmulu_vx_u16m2`).
+std::string riscvWideningMulIntrinsicName(llvm::StringRef mnemonic,
+                                          llvm::StringRef variant,
+                                          llvm::StringRef dstDtype,
+                                          llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_" << variant << "_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The widening multiply-accumulate intrinsic name:
+///   __riscv_vwmacc_<variant>_<dstDtype><dstLmul>
+/// variant is vv|vx, <dstDtype><dstLmul> the WIDENED accumulator (i32m1 for the
+/// i16-product into i32, i16<l> for the i8-product into i16). Byte-identical to
+/// the inline widening-macc callee (`__riscv_vwmacc_vv_i32m1`).
+std::string riscvWideningMacIntrinsicName(llvm::StringRef variant,
+                                          llvm::StringRef dstDtype,
+                                          llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vwmacc_" << variant << "_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The widening/non-widening lane-0 reduction intrinsic name (promoted from the
+/// VariantToEmitCFunc::standaloneReductionIntrinsicName member):
+///   __riscv_<mnemonic>_vs_<srcDtype><srcLmul>_<resultDtype>m1
+/// For the non-widening forms srcDtype==resultDtype and srcLmul is the input
+/// lmul (vredsum_vs_i32m2_i32m1). For the widening forms the source is narrower
+/// (i16/mf2) and the result is i32/m1 (vwredsum_vs_i16mf2_i32m1). The result
+/// LMUL is ALWAYS m1, so the trailing "m1" is invariant -- byte-identical to the
+/// legacy getRVVSelectedBodyStandaloneReductionIntrinsic shape.
+std::string riscvWideningReductionIntrinsicName(llvm::StringRef mnemonic,
+                                                llvm::StringRef srcDtype,
+                                                llvm::StringRef srcLmul,
+                                                llvm::StringRef resultDtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_vs_" << srcDtype << srcLmul << "_"
+     << resultDtype << "m1";
+  os.flush();
+  return name;
+}
+
+/// The widening-add intrinsic name:
+///   __riscv_vwadd_<variant>_<dstDtype><dstLmul>
+/// variant is vv (two narrower sources) or wv (a wider accumulator + a narrower
+/// source). <dstDtype><dstLmul> is the WIDE result. The wv form reproduces
+/// riscvWideningAccumulateIntrinsicName byte-for-byte. Byte-identical to the
+/// inline widening-add callee (`__riscv_vwadd_vv_i32m2` / `__riscv_vwadd_wv_i32m8`).
+std::string riscvWideningAddIntrinsicName(llvm::StringRef variant,
+                                          llvm::StringRef dstDtype,
+                                          llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vwadd_" << variant << "_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The float widening scalar-vector multiply intrinsic name:
+///   __riscv_vfwmul_vf_<dstDtype><dstLmul>
+/// <dstDtype><dstLmul> is the WIDENED float product (f32m2 for f16->f32).
+/// Byte-identical to the inline callee (`__riscv_vfwmul_vf_f32m2`).
+std::string riscvFloatWideningMulIntrinsicName(llvm::StringRef dstDtype,
+                                               llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vfwmul_vf_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The float-to-wider-float widening convert intrinsic name:
+///   __riscv_vfwcvt_f_f_v_<dstDtype><dstLmul>
+/// <dstDtype><dstLmul> is the WIDENED float result (f32<lmul> for f16->f32).
+/// Byte-identical to the inline callee (`__riscv_vfwcvt_f_f_v_f32m2`).
+std::string riscvFloatWideningConvertIntrinsicName(llvm::StringRef dstDtype,
+                                                   llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vfwcvt_f_f_v_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The integer narrowing convert intrinsic name:
+///   __riscv_vncvt_x_x_w_<dstDtype><dstLmul>
+/// <dstDtype><dstLmul> is the NARROWED result (u8mf4/u8m1/u8m2/i8m2 narrowing a
+/// 2x-wider source). Byte-identical to the inline callee
+/// (`__riscv_vncvt_x_x_w_u8m1`).
+std::string riscvNarrowingConvertIntrinsicName(llvm::StringRef dstDtype,
+                                               llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vncvt_x_x_w_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The float-to-narrower-int narrowing convert intrinsic name:
+///   __riscv_vfncvt_x_f_w_<dstDtype><dstLmul>
+/// <dstDtype><dstLmul> is the NARROWED integer result (i16m4 narrowing an f32m8
+/// source on the quantize path). Byte-identical to the inline callee
+/// (`__riscv_vfncvt_x_f_w_i16m4`).
+std::string riscvFloatNarrowToIntConvertIntrinsicName(llvm::StringRef dstDtype,
+                                                      llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vfncvt_x_f_w_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The zero-extend (unsigned widening) intrinsic name:
+///   __riscv_vzext_vf<factor>_<dstDtype><dstLmul>
+/// factor is the EMUL widening multiple (2 for u8->u16). <dstDtype><dstLmul> is
+/// the WIDENED unsigned result. Byte-identical to the inline callee
+/// (`__riscv_vzext_vf2_u16m1`).
+std::string riscvZeroExtendIntrinsicName(unsigned factor,
+                                         llvm::StringRef dstDtype,
+                                         llvm::StringRef dstLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vzext_vf" << factor << "_" << dstDtype << dstLmul;
+  os.flush();
+  return name;
+}
+
+/// The scalar-immediate (vx) intrinsic name:
+///   __riscv_<mnemonic>_<dtype><lmul>
+/// where mnemonic ALREADY carries the `_vx` suffix (vsll_vx/vsra_vx/vxor_vx/
+/// vand_vx/vsrl_vx/vadd_vx/vsub_vx/vmul_vx). The immediate is a scalar operand;
+/// only the data <dtype><lmul> shapes the callee. Byte-identical to the inline
+/// shift/imm closures (`__riscv_vand_vx_u8m2`).
+std::string riscvScalarImmediateIntrinsicName(llvm::StringRef mnemonic,
+                                              llvm::StringRef dtype,
+                                              llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_" << dtype << lmul;
+  os.flush();
+  return name;
+}
+
+/// The integer lane-0 scalar-extract intrinsic name:
+///   __riscv_vmv_x_s_<dtype><lmul>_<dtype>
+/// Extracts lane 0 of an m1 vector as a scalar; the result-type token repeats the
+/// element dtype. Byte-identical to the inline extract callee
+/// (`__riscv_vmv_x_s_i32m1_i32`).
+std::string riscvScalarExtractIntrinsicName(llvm::StringRef dtype,
+                                            llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vmv_x_s_" << dtype << lmul << "_" << dtype;
+  os.flush();
+  return name;
+}
+
+/// The float lane-0 scalar-extract intrinsic name:
+///   __riscv_vfmv_f_s_<dtype><lmul>_<dtype>
+/// Byte-identical to the inline float-extract callee
+/// (`__riscv_vfmv_f_s_f32m1_f32`).
+std::string riscvFloatScalarExtractIntrinsicName(llvm::StringRef dtype,
+                                                 llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vfmv_f_s_" << dtype << lmul << "_" << dtype;
+  os.flush();
+  return name;
+}
+
+/// The bit-reinterpret intrinsic name:
+///   __riscv_vreinterpret_v_<fromDtype><fromLmul>_<toDtype><toLmul>
+/// A pure bit-cast between same-width vector element types (u8mf4<->i8mf4,
+/// f32m2<->u32m2). SPECIAL SHAPE: exactly ONE operand, NO vl. Byte-identical to
+/// the inline callee (`__riscv_vreinterpret_v_u8m2_i8m2`).
+std::string riscvReinterpretIntrinsicName(llvm::StringRef fromDtype,
+                                          llvm::StringRef fromLmul,
+                                          llvm::StringRef toDtype,
+                                          llvm::StringRef toLmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vreinterpret_v_" << fromDtype << fromLmul << "_" << toDtype
+     << toLmul;
+  os.flush();
+  return name;
+}
+
+/// The single-source unary-v intrinsic name:
+///   __riscv_<mnemonic>_v_<dtype><lmul>
+/// For the `_v` unary ops (vneg_v/vfneg_v/vfabs_v) whose suffix is `_v_` (NOT the
+/// `_vv_` binary arm of riscvIntrinsicName). Byte-identical to the inline callee
+/// (`__riscv_vneg_v_i8m1`).
+std::string riscvUnaryIntrinsicName(llvm::StringRef mnemonic,
+                                    llvm::StringRef dtype, llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_v_" << dtype << lmul;
+  os.flush();
+  return name;
+}
+
+/// The index-iota intrinsic name:
+///   __riscv_vid_v_<dtype><lmul>
+/// Materializes the lane-index vector [0,1,2,...]. Byte-identical to the inline
+/// callee (`__riscv_vid_v_u16m1`).
+std::string riscvIotaIntrinsicName(llvm::StringRef dtype, llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vid_v_" << dtype << lmul;
+  os.flush();
+  return name;
+}
+
+/// The vlmax-query intrinsic name:
+///   __riscv_vsetvlmax_e<sew><lmul>
+/// Returns the full-vector VL for the (sew, lmul) config. NOTE: there is NO
+/// underscore between sew and lmul (`__riscv_vsetvlmax_e32m8`). Byte-identical to
+/// the inline `("__riscv_vsetvlmax_e" + Twine(sew) + lmul)` form.
+std::string riscvVsetvlmaxIntrinsicName(unsigned sew, llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vsetvlmax_e" << sew << lmul;
+  os.flush();
+  return name;
+}
+
 /// The multiply-accumulate intrinsic name:
 ///   __riscv_vmacc_vv_<dtype><lmul>
 /// The fused 3-read vmacc writes into the accumulator vector: the C call order
@@ -633,6 +869,84 @@ mlir::Value emitVCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
   rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
   return rewriter
       .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, callee,
+                                   operands)
+      .getResult(0);
+}
+
+mlir::Value emitVCallBuilt(
+    mlir::PatternRewriter &rewriter, mlir::Location loc, mlir::Type resultType,
+    llvm::StringRef mnemonic, llvm::StringRef suffix, llvm::StringRef opName,
+    llvm::StringRef role,
+    llvm::function_ref<llvm::SmallVector<mlir::Value>(mlir::OpBuilder &,
+                                                      mlir::Location)>
+        buildOperands) {
+  std::string callee = ("__riscv_" + mnemonic + "_" + suffix).str();
+  // [1] step-comment FIRST, [2] interior operands in source order, [3] call LAST
+  // -- the positional contract the hand-spliced interleave sites obey.
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+  llvm::SmallVector<mlir::Value> operands = buildOperands(rewriter, loc);
+  return rewriter
+      .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, callee,
+                                   operands)
+      .getResult(0);
+}
+
+void emitVCallVoid(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                   llvm::StringRef mnemonic, llvm::StringRef suffix,
+                   mlir::ValueRange operands, llvm::StringRef opName,
+                   llvm::StringRef role) {
+  std::string callee = ("__riscv_" + mnemonic + "_" + suffix).str();
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+  rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee, operands);
+}
+
+void emitVCallVoidBuilt(
+    mlir::PatternRewriter &rewriter, mlir::Location loc, llvm::StringRef mnemonic,
+    llvm::StringRef suffix, llvm::StringRef opName, llvm::StringRef role,
+    llvm::function_ref<llvm::SmallVector<mlir::Value>(mlir::OpBuilder &,
+                                                      mlir::Location)>
+        buildOperands) {
+  std::string callee = ("__riscv_" + mnemonic + "_" + suffix).str();
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
+  llvm::SmallVector<mlir::Value> operands = buildOperands(rewriter, loc);
+  rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee, operands);
+}
+
+mlir::Value emitOpaqueCall(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                           mlir::Type resultType, llvm::StringRef fullCallee,
+                           mlir::ValueRange operands, llvm::StringRef opName,
+                           llvm::StringRef role,
+                           std::optional<llvm::StringRef> commentOverride) {
+  llvm::StringRef commentCallee = commentOverride ? *commentOverride : fullCallee;
+  rewriter.create<emitc::VerbatimOp>(loc,
+                                     stepComment(opName, role, commentCallee));
+  return rewriter
+      .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, fullCallee,
+                                   operands)
+      .getResult(0);
+}
+
+void emitOpaqueCallVoid(mlir::PatternRewriter &rewriter, mlir::Location loc,
+                        llvm::StringRef fullCallee, mlir::ValueRange operands,
+                        llvm::StringRef opName, llvm::StringRef role) {
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, fullCallee));
+  rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, fullCallee,
+                                       operands);
+}
+
+mlir::Value emitOpaqueCallBuilt(
+    mlir::PatternRewriter &rewriter, mlir::Location loc, mlir::Type resultType,
+    llvm::StringRef fullCallee, llvm::StringRef opName, llvm::StringRef role,
+    llvm::function_ref<llvm::SmallVector<mlir::Value>(mlir::OpBuilder &,
+                                                      mlir::Location)>
+        buildOperands,
+    std::optional<llvm::StringRef> commentOverride) {
+  llvm::StringRef commentCallee = commentOverride ? *commentOverride : fullCallee;
+  rewriter.create<emitc::VerbatimOp>(loc,
+                                     stepComment(opName, role, commentCallee));
+  llvm::SmallVector<mlir::Value> operands = buildOperands(rewriter, loc);
+  return rewriter
+      .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, fullCallee,
                                    operands)
       .getResult(0);
 }

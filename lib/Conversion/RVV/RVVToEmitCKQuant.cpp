@@ -46,23 +46,21 @@ mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ6_KSuperBlockAux32C
       return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
     };
     // u8 immediate vector op: __riscv_<mnemonic>_<dtype><lmul>(src, imm, vl).
-    // NOTE: left inline (not on emitVCall) on purpose: this idiom interleaves a
-    // LiteralOp BETWEEN the step-comment VerbatimOp and the call (order in the
-    // emitc-dialect dump is [verbatim, literal, call]). The emitVCall helper
-    // takes pre-built `operands`, so routing this through it would create the
-    // literal before the verbatim and reorder the printed IR (byte-exact gate
-    // fails). Subsuming it belongs to L0b/c, with a richer helper that builds
-    // the immediate internally / splits comment from call.
+    // This idiom interleaves the immediate LiteralOp BETWEEN the step-comment
+    // VerbatimOp and the call (emitc-dialect dump order [verbatim, literal,
+    // call]), so it routes through emitVCallBuilt (the L0b interleave variant):
+    // the immediate is built INSIDE the buildOperands callback, after the
+    // verbatim, preserving the order byte-for-byte.
     auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
                        llvm::StringRef imm, mlir::Value vl) -> mlir::Value {
-      std::string callee = ("__riscv_" + mnemonic + "_u8m2").str();
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      mlir::Value amt =
-          rewriter.create<emitc::LiteralOp>(loc, cx.i32ImmType, imm.str());
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{cx.u8m2Type}, callee,
-                                       mlir::ValueRange{src, amt, vl})
-          .getResult(0);
+      return emitVCallBuilt(
+          rewriter, loc, cx.u8m2Type, mnemonic, "u8m2", opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value amt =
+                b.create<emitc::LiteralOp>(l, cx.i32ImmType, imm.str());
+            return {src, amt, vl};
+          });
     };
     auto u8VVOp = [&](llvm::StringRef mnemonic, mlir::Value a, mlir::Value b,
                       mlir::Value vl) -> mlir::Value {

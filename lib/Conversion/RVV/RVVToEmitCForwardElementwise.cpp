@@ -65,12 +65,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecScaleF32(
 
     // Pre-loop full-chunk VLMAX: size_t vlmax = __riscv_vsetvl_e32m<L>(n).
     std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, setvlCallee));
-    mlir::Value vlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         setvlCallee, mlir::ValueRange{avlArg})
-            .getResult(0);
+    mlir::Value vlmax = emitOpaqueCall(rewriter, loc, sizeType, setvlCallee,
+                                       mlir::ValueRange{avlArg}, opName, role);
 
     // for (size_t i = 0; i < n; i += vlmax) { ... }
     mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
@@ -82,16 +78,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecScaleF32(
       rewriter.setInsertionPointToStart(forOp.getBody());
 
       // Remaining-AVL setvl: size_t vl = __riscv_vsetvl_e32m<L>(n - i).
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, setvlCallee));
-      mlir::Value remaining =
-          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, inductionVar);
-      mlir::Value bodyVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value bodyVL = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, setvlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value remaining =
+                b.create<emitc::SubOp>(l, sizeType, avlArg, inductionVar);
+            return {remaining};
+          });
 
       // In-place element pointer: float *p = y + i.
       mlir::Value elemPtr = rewriter.create<emitc::AddOp>(
@@ -101,33 +95,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecScaleF32(
 
       // vfloat32m<L>_t ay = __riscv_vle32_v_f32m<L>(p, vl);
       std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, loadCallee));
-      mlir::Value ay =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
-                                           loadCallee,
-                                           mlir::ValueRange{loadPtr, bodyVL})
-              .getResult(0);
+      mlir::Value ay = emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
+                                      mlir::ValueRange{loadPtr, bodyVL}, opName,
+                                      role);
 
       // vfloat32m<L>_t ny = __riscv_vfmul_vf_f32m<L>(ay, v, vl);  scalar bcast.
       std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, mulCallee));
-      mlir::Value ny =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
-                                           mulCallee,
-                                           mlir::ValueRange{ay, scalar, bodyVL})
-              .getResult(0);
+      mlir::Value ny = emitOpaqueCall(rewriter, loc, f32VecType, mulCallee,
+                                      mlir::ValueRange{ay, scalar, bodyVL},
+                                      opName, role);
 
       // __riscv_vse32_v_f32m<L>(p, ny, vl);  store back in place.
       std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, storeCallee));
-      rewriter.create<emitc::CallOpaqueOp>(
-          loc, mlir::TypeRange{}, storeCallee,
-          mlir::ValueRange{loadPtr, ny, bodyVL});
+      emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                         mlir::ValueRange{loadPtr, ny, bodyVL}, opName, role);
     }
 
     return mlir::success();
@@ -262,15 +243,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
     // scalar libm call (call_opaque, the one sanctioned opaque seam) -- a true
     // IEEE correctly-rounded sqrt, NOT a hardware fast-rsqrt7. The reciprocal is
     // a separate f32 divide.
-    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "scale"));
-    mlir::Value meanPlusEps =
-        rewriter.create<emitc::AddOp>(loc, floatType, mean, eps);
-    mlir::Value sqrtVal =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                         "sqrtf",
-                                         mlir::ValueRange{meanPlusEps})
-            .getResult(0);
+    mlir::Value sqrtVal = emitOpaqueCallBuilt(
+        rewriter, loc, floatType, "sqrtf", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value meanPlusEps =
+              b.create<emitc::AddOp>(l, floatType, mean, eps);
+          return {meanPlusEps};
+        },
+        llvm::StringRef("scale"));
     mlir::Value oneF =
         rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
     mlir::Value scale =
@@ -288,13 +269,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
     mlir::Type f32VecType = emitc::OpaqueType::get(ctx, f32VecTypeName);
 
     std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, setvlCallee));
-    mlir::Value vlmax =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                         setvlCallee, mlir::ValueRange{avlArg})
-            .getResult(0);
+    mlir::Value vlmax = emitOpaqueCall(rewriter, loc, sizeType, setvlCallee,
+                                       mlir::ValueRange{avlArg}, opName, role);
 
     mlir::Value normZero =
         rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
@@ -306,16 +282,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
       rewriter.setInsertionPointToStart(normFor.getBody());
 
       // size_t vl = __riscv_vsetvl_e32m<L>(ne00 - i);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, setvlCallee));
-      mlir::Value remaining =
-          rewriter.create<emitc::SubOp>(loc, sizeType, avlArg, normIdx);
-      mlir::Value bodyVL =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{sizeType},
-                                           setvlCallee,
-                                           mlir::ValueRange{remaining})
-              .getResult(0);
+      mlir::Value bodyVL = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, setvlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value remaining =
+                b.create<emitc::SubOp>(l, sizeType, avlArg, normIdx);
+            return {remaining};
+          });
 
       // const float *xp = x + i;  float *yp = y + i;
       mlir::Value xPtr =
@@ -330,33 +304,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
 
       // vfloat32m<L>_t vx = __riscv_vle32_v_f32m<L>(xp, vl);
       std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, loadCallee));
-      mlir::Value vx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
-                                           loadCallee,
-                                           mlir::ValueRange{xLoadPtr, bodyVL})
-              .getResult(0);
+      mlir::Value vx = emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
+                                      mlir::ValueRange{xLoadPtr, bodyVL}, opName,
+                                      role);
 
       // vfloat32m<L>_t vy = __riscv_vfmul_vf_f32m<L>(vx, scale, vl);
       std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, mulCallee));
-      mlir::Value vy =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{f32VecType},
-                                           mulCallee,
-                                           mlir::ValueRange{vx, scale, bodyVL})
-              .getResult(0);
+      mlir::Value vy = emitOpaqueCall(rewriter, loc, f32VecType, mulCallee,
+                                      mlir::ValueRange{vx, scale, bodyVL}, opName,
+                                      role);
 
       // __riscv_vse32_v_f32m<L>(yp, vy, vl);
       std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, storeCallee));
-      rewriter.create<emitc::CallOpaqueOp>(
-          loc, mlir::TypeRange{}, storeCallee,
-          mlir::ValueRange{yStorePtr, vy, bodyVL});
+      emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                         mlir::ValueRange{yStorePtr, vy, bodyVL}, opName, role);
     }
 
     return mlir::success();
@@ -375,10 +336,7 @@ mlir::Value VariantToEmitCFunc::emitGgmlVExpfM2(mlir::ConversionPatternRewriter 
 
     auto vcall = [&](mlir::Type resTy, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resTy}, callee, args)
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, resTy, callee, args, opName, role);
     };
     auto fimm = [&](llvm::StringRef tok) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, floatType, tok);
@@ -536,10 +494,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecSiluF32(
     // immediate (rendered as the exact C hex-float token).
     auto vcall = [&](mlir::Type resTy, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resTy}, callee, args)
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, resTy, callee, args, opName, role);
     };
     auto fimm = [&](llvm::StringRef tok) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, floatType, tok);
@@ -598,11 +553,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecSiluF32(
                              mlir::ValueRange{vx, onePlus, bodyVL});
 
       // __riscv_vse32_v_f32m2(yp, vy, vl);
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "__riscv_vse32_v_f32m2"));
-      rewriter.create<emitc::CallOpaqueOp>(
-          loc, mlir::TypeRange{}, "__riscv_vse32_v_f32m2",
-          mlir::ValueRange{yStorePtr, vy, bodyVL});
+      emitOpaqueCallVoid(rewriter, loc, "__riscv_vse32_v_f32m2",
+                         mlir::ValueRange{yStorePtr, vy, bodyVL}, opName, role);
     }
 
     return mlir::success();
@@ -647,10 +599,7 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitGgmlVecSoftMaxF32(
 
     auto vcall = [&](mlir::Type resTy, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resTy}, callee, args)
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, resTy, callee, args, opName, role);
     };
 
     // vfloat64m1_t vsum = __riscv_vfmv_v_f_f64m1(0, 1);  -- the SCALAR f64
@@ -714,11 +663,8 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitGgmlVecSoftMaxF32(
           emitGgmlVExpfM2(rewriter, loc, sub, bodyVL, sizeType, opName, role);
 
       // __riscv_vse32_v_f32m2(yp, val, vl);   -- write y[i] = e^{x[i]-max}.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "__riscv_vse32_v_f32m2"));
-      rewriter.create<emitc::CallOpaqueOp>(
-          loc, mlir::TypeRange{}, "__riscv_vse32_v_f32m2",
-          mlir::ValueRange{yStorePtr, val, bodyVL});
+      emitOpaqueCallVoid(rewriter, loc, "__riscv_vse32_v_f32m2",
+                         mlir::ValueRange{yStorePtr, val, bodyVL}, opName, role);
 
       // vsum = __riscv_vfwredusum_vs_f32m2_f64m1(val, vsum, vl);  -- the WIDENING
       // f32->f64 reduce into the loop-carried f64m1 accumulator (ggml's EXACT
@@ -800,11 +746,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     };
     auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
                      mlir::ValueRange args) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, callee));
-      return rewriter
-          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{resultType}, callee,
-                                       args)
-          .getResult(0);
+      return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
+                            role);
     };
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
@@ -946,11 +889,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
                                         sizeLit(quantOffset));
       mlir::Value qsPtr =
           rewriter.create<emitc::CastOp>(loc, i8PtrType, qsPtrRaw).getResult();
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "__riscv_vse8_v_i8m2"));
-      rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{},
-                                           "__riscv_vse8_v_i8m2",
-                                           mlir::ValueRange{qsPtr, vs, vl});
+      emitOpaqueCallVoid(rewriter, loc, "__riscv_vse8_v_i8m2",
+                         mlir::ValueRange{qsPtr, vs, vl}, opName, role);
     }
 
     return mlir::success();
@@ -1030,18 +970,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRopeNormF32(
       // ONE emitc.call_opaque (the sanctioned opaque seam) -- the byte-exactness
       // axis that depends on linking the SAME libm ggml links (NOT a raw string,
       // NOT a vectorized polynomial).
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "cosf"));
-      mlir::Value cosT =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           "cosf", mlir::ValueRange{thetaCur})
-              .getResult(0);
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "sinf"));
-      mlir::Value sinT =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           "sinf", mlir::ValueRange{thetaCur})
-              .getResult(0);
+      mlir::Value cosT = emitOpaqueCall(rewriter, loc, floatType, "cosf",
+                                        mlir::ValueRange{thetaCur}, opName, role);
+      mlir::Value sinT = emitOpaqueCall(rewriter, loc, floatType, "sinf",
+                                        mlir::ValueRange{thetaCur}, opName, role);
 
       // const float *xp = (const float *)(x + 2*p);  float *yp = (float *)(y+2*p)
       // -- the CONSECUTIVE pair (NORMAL: ic = i0, x0=x[2p], x1=x[2p+1]).

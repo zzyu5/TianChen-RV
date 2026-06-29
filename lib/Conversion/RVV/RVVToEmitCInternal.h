@@ -660,17 +660,6 @@ private:
   static std::optional<llvm::StringRef>
   maskedStandaloneReductionNeutral(llvm::StringRef kind, unsigned sew);
 
-  /// The standalone reduction intrinsic name:
-  ///   __riscv_v<red>_vs_<srcDtype><srcLmul>_<resultDtype>m1
-  /// For the non-widening forms srcDtype==resultDtype and srcLmul is the input
-  /// lmul (e.g. vredsum_vs_i32m2_i32m1). For the widening forms the source is a
-  /// narrower fractional-lmul vector (i16/mf2) and the result is i32/m1
-  /// (vwredsum_vs_i16mf2_i32m1). Byte-identical to the legacy
-  /// getRVVSelectedBodyStandaloneReductionIntrinsic shape.
-  static std::string standaloneReductionIntrinsicName(
-      llvm::StringRef mnemonic, llvm::StringRef srcDtype,
-      llvm::StringRef srcLmul, llvm::StringRef resultDtype);
-
   /// Read `buffer[0]` as a scalar then splat it into a lane-0 m1 seed vector via
   /// vmv_v_x with VL literal 1 -- the scalar-carry primitive shared by the
   /// pre-loop seed and the in-loop running-seed read. `resultVecType` is the
