@@ -525,34 +525,42 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    if (isDeferredWideDotReduceBody(scope)) {
-      if (mlir::failed(emitDeferredWideDotReduceBody(
-              rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
-              sizeType, setvlCallee, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    if (isDeferredWideDequantBody(scope)) {
-      if (mlir::failed(emitDeferredWideDequantBody(
-              rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
-              sizeType, setvlCallee, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    if (isLowPrecisionDequantBody(scope)) {
-      if (mlir::failed(emitLowPrecisionDequantBody(
-              rewriter, loc, variant, scope, preLoopSetVL, avlArg, vlmax,
-              sizeType, setvlCallee, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
+    // The DEFERRED-WIDE / low-precision dequant-contraction family shares ONE
+    // emitter signature (the variant + preLoopSetVL/vlmax/setvlCallee carried in,
+    // distinct from the block-dot table's shorter signature above), so the three
+    // former byte-identical if-branches collapse to a first-match table + loop --
+    // the SAME structural-marker dispatch shape as kBlockDotKernels. ORDER IS
+    // SEMANTIC: the markers are checked in the original source order (the
+    // recognizers are not all mutually exclusive), so the table preserves it. The
+    // per-body structural docs live at each emitter's declaration.
+    using DequantRecognizer = bool (*)(tcrvrvv::WithVLOp);
+    using DequantEmitter = mlir::LogicalResult (VariantToEmitCFunc::*)(
+        mlir::ConversionPatternRewriter &, mlir::Location,
+        tcrv::exec::VariantOp, tcrvrvv::WithVLOp, tcrvrvv::SetVLOp, mlir::Value,
+        mlir::Value, mlir::Type, llvm::StringRef,
+        llvm::DenseMap<mlir::Value, mlir::Value> &) const;
+    struct DequantKernel {
+      DequantRecognizer recognize;
+      DequantEmitter emit;
+    };
+    static constexpr DequantKernel kDequantKernels[] = {
+        {&isDeferredWideDotReduceBody,
+         &VariantToEmitCFunc::emitDeferredWideDotReduceBody},
+        {&isDeferredWideDequantBody,
+         &VariantToEmitCFunc::emitDeferredWideDequantBody},
+        {&isLowPrecisionDequantBody,
+         &VariantToEmitCFunc::emitLowPrecisionDequantBody},
+    };
+    for (const DequantKernel &kernel : kDequantKernels) {
+      if (kernel.recognize(scope)) {
+        if (mlir::failed((this->*kernel.emit)(rewriter, loc, variant, scope,
+                                              preLoopSetVL, avlArg, vlmax,
+                                              sizeType, setvlCallee, valueMap)))
+          return mlir::failure();
+        rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+        rewriter.eraseOp(variant);
+        return mlir::success();
+      }
     }
 
     // The STANDALONE i32->f32 runtime-scale dequant body (load -> dequantize ->

@@ -2903,30 +2903,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ3_KQ8_KBlockDot(
     // 2-bit/subtractive-hmask unpack (e8m2) and signed 6-bit scale dance are
     // UNTOUCHED at every LMUL. Verifier pins coreLmul in {mf2,m1} (m2 rejected:
     // 16-element sub-block boundary). q3_K's emitter is inline (no shared helper),
-    // so the knob is derived to locals here and branched inline below.
+    // so the knob feeds the SINGLE-SOURCE widening chain to locals here (the same
+    // deriveWideningChain the q4_K/q6_K integer cores consume), replacing the
+    // former inline per-callee {mf2,m1} ternaries -- byte-identical emit.
     llvm::StringRef coreLmul = blockDot.getIntegerCoreLmul().value_or("mf2");
-    int64_t stripWidth = (coreLmul == "m1") ? 16 : 8;
-    int64_t foldGroups = (coreLmul == "m1") ? 2 : 1;
-    // The wide aux32 / MAC register-group types follow stripWidth.
-    //   mf2: i8mf2 -> i16m1 -> i32m2 (8-lane strip, no fold)
-    //   m1 : i8m1  -> i16m2 -> i32m4 (16-lane strip, 2 fold groups)
-    mlir::Type i8StripType = emitc::OpaqueType::get(
-        ctx, (coreLmul == "m1") ? "vint8m1_t" : "vint8mf2_t");
-    mlir::Type i16WideType = emitc::OpaqueType::get(
-        ctx, (coreLmul == "m1") ? "vint16m2_t" : "vint16m1_t");
-    mlir::Type i32WideType = emitc::OpaqueType::get(
-        ctx, (coreLmul == "m1") ? "vint32m4_t" : "vint32m2_t");
-    std::string stripSetvlCallee =
-        (coreLmul == "m1") ? "__riscv_vsetvl_e8m1" : "__riscv_vsetvl_e8mf2";
-    std::string stripLoadCallee =
-        (coreLmul == "m1") ? "__riscv_vle8_v_i8m1" : "__riscv_vle8_v_i8mf2";
-    std::string mulWideCallee =
-        (coreLmul == "m1") ? "__riscv_vwmul_vv_i16m2" : "__riscv_vwmul_vv_i16m1";
-    std::string maccWideCallee = (coreLmul == "m1")
-                                     ? "__riscv_vwmacc_vx_i32m4"
-                                     : "__riscv_vwmacc_vx_i32m2";
-    std::string aux32SeedWideCallee =
-        (coreLmul == "m1") ? "__riscv_vmv_v_x_i32m4" : "__riscv_vmv_v_x_i32m2";
+    // l8/l16/l32 + stripWidth/foldGroups flow up the one widening chain. "m1" is
+    // the q3_K hard ceiling (verifier rejects "m2"), so on this path the chain
+    // only ever sees {mf2,m1}: mf2 -> i8mf2/i16m1/i32m2 (8-lane strip, no fold),
+    // m1 -> i8m1/i16m2/i32m4 (16-lane strip, 2 fold groups).
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef l8 = wideningChain.l8;
+    llvm::StringRef l16 = wideningChain.l16;
+    llvm::StringRef l32 = wideningChain.l32;
+    int64_t stripWidth = wideningChain.stripWidth;
+    int64_t foldGroups = wideningChain.foldGroups;
+    // The wide aux32 / MAC register-group types + callees follow l8/l16/l32.
+    mlir::Type i8StripType =
+        emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+    mlir::Type i16WideType =
+        emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
+    mlir::Type i32WideType =
+        emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
+    std::string stripSetvlCallee = ("__riscv_vsetvl_e8" + l8).str();
+    std::string stripLoadCallee = ("__riscv_vle8_v_i8" + l8).str();
+    std::string mulWideCallee = ("__riscv_vwmul_vv_i16" + l16).str();
+    std::string maccWideCallee = ("__riscv_vwmacc_vx_i32" + l32).str();
+    std::string aux32SeedWideCallee = ("__riscv_vmv_v_x_i32" + l32).str();
 
     mlir::Type i8PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
