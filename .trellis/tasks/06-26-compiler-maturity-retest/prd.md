@@ -1,8 +1,14 @@
 # compiler 成熟化 + 重测填完 kernel 表
 
-> 状态：brainstorm — 全量分解已成（8-agent understand+decompose+red-team），用户已 converge 为 **FULL scope（全做）**。子任务已 scaffold。
-> **本对话边界**：这次对话只建 PRD/task 结构，**不写实现代码**；实现由后续 session 走 trellis-implement/trellis-check 推进（impl 代码不在 main session 直接改）。
-> 源：`doc/项目现状与方向-诚实版.md`(v3) + `doc/KERNEL-优化自查表.md`(v4)。
+> 状态：**EXECUTING**（brainstorm 全量分解 → 用户 /goal 开建 → 实现进行中，多-session 工程）。源：`doc/项目现状与方向-诚实版.md`(v3) + `doc/KERNEL-优化自查表.md`(v4)。
+>
+> ## 进度 2026-06-29（17 commits, 全 byte-exact/trellis-check 验证）
+> - ✅ **Phase 0** done（[[06-26-phase0-doc-spec-closure]]）：routing-audit + ime-prefill-corrigendum + bank-null + spec-status-update。
+> - ✅ **Emitter L0–L3 child** done（[[06-26-emitter-l0-l3-infra]]，完整 trellis 流程关闭）：全发射层上 emitVCall 词汇表 + 单源 widening-chain + 读句柄 + 派发表；端到端 byte-exact（net −1331 行，nm 验非 stale）、lit 123/123、I2/I3/I4 守；诚实纠偏 L1 m2（unreachable dead-code 非 exploitable bug）。
+> - 🟢 **Track B（真 TTGIR-analog 重构）2 rung 已证**（[[06-26-track-b-generic-lowering]]）：G1 nibble-core（no-flip）+ G2 codebook-core（**真 N1 VLEN flip 实证**），均 byte-exact + trellis-check PASS。MECHANISM/parity 非 beat；full-rung + G5-beat deferred。
+> - ✅ **Board** q4_0 prefill GEMM **re-seal 5.70×**（closes 待重测 #5）；**q4_K 8B 内存墙判官在跑**（mf2 board-rebuild 慢，waiter 中，将交 verdict→填表）。
+> - 持久化：routing-audit / l0c-sweep / board-retest / g1-q40-design 计划。
+> - **剩（多-session）**：q4_K judge 折表 + B2/B3 q4_K e2e（sweep 已释放 local tcrv-opt）+ 其余 board 格；Track B full-rung/G3-G5（**beat 在 G5/cm**）；wa/cm 砖；cost-model；IME-GEMM。父任务 = 多周工程，按 9 child PRD + 4 计划续。
 
 ## Goal
 

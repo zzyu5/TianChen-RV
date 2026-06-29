@@ -1,6 +1,13 @@
 # Track B 泛化：通用 op-driven 自动 lowering = 真·TTGIR-analog 重构
 
 > 父任务 [[06-26-compiler-maturity-retest]]；纪律护栏见父 PRD。**这是用户点名缺的"类似 TTGIR 的真实重构"**：从一个 generic 高层 op **自动构造** kernel body（替代 per-kernel 手写 emitter），能力驱动选形状。[[backend-maturity-triton-reframe]]
+>
+> **进度 2026-06-29（G1/G2 bounded-core 已证，trellis-check PASS）**：
+> - **G1 done**（commit `265d04f3`）：`RVVPackedI4DotSourceFrontDoor`——q4_0 nibble integer-core 从 generic 6-role source **自动构造**（不再 delegate），与既有 core emit 逐字节同；q4_0 **no-flip**（core pin i8mf4-i16mf2-i32m1）；I7 fail-closed。
+> - **G2 done**（commit `690c25fc`，trellis-check PASS）：`RVVCodebookDotSourceFrontDoor`——codebook(vrgather) core 自动构造（因 gather 此前非 first-class op，**新增 2 ODS op** + 4 处 new-op-gated 共享 relax）；**真 N1 capability flip 实证**（VLEN128 i8m1↔VLEN256 i8mf2，来自 VLMAX prune 非硬编码）；BEFORE==AFTER 既有 emit 全空、lit 141/141、I3 op-identity。
+> - **诚实**：G1/G2 = **bounded integer-CORE**（auto-construct ≡ 既有 core 逐字节），**MECHANISM/parity 非 beat**；**full-rung deferred**（block-loop/fp16-scale-read/fp32-fold 需新 generic ODS 词汇；monolithic op + 手写 emitter 全保留）。**beat 仍在 G5**（cm-shape-through-TrackB）。
+> - **剩**：full G1/G2 + **G3 super-block(q4_K)** + G4 IQ(signs64 卡) + **G5 beat**——多日/board-bearing。
+> - **trellis-update-spec 结论**：generic-auto-construct 机制契约已在本 PRD + system-positioning 的 TTGIR-analog 框架 + [[n1-substrate-emission-not-maturity]] memory；G1/G2 是该机制的**实证进度**（status，进 task/journal 非 spec）。
 
 ## 为什么这才是 TTGIR-analog（而 L0-L3 / wa 砖不是）
 - **L0–L3**（[[06-26-emitter-l0-l3-infra]]）= byte-exact 整理**手写** emitter → 更干净但**仍 per-kernel 手写**，不是 generic 机制。
