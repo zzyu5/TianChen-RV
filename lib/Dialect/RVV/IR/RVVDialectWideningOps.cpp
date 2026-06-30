@@ -5397,6 +5397,100 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Track B q4_K BRICK 2: the op carries ONLY its bounded mirror attrs (I4) --
+  // the operation kind and the super-block-format facts the Region-B 6-bit
+  // scale/min bit-dance needs (qk, sub_block, the weight block stride, the scales
+  // byte offset). NO scale model (Region B HAS no scale -- it DECODES the 6-bit
+  // scales/mins; the per-sub-block dot that applies them is a deferred brick). A
+  // forbidden local element_count/SEW/LMUL/policy attr or an unexpected name is
+  // rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "sub_block" ||
+           name == "weight_block_stride" || name == "weight_scales_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_k_scale_min_bit_dance keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded scale-min-bit-dance attributes 'kind', "
+                "'qk', 'sub_block', 'weight_block_stride', and "
+                "'weight_scales_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "q4_k_scale_min_bit_dance")
+    return emitOpError()
+           << "currently supports only kind \"q4_k_scale_min_bit_dance\" for the "
+              "bounded q4_K/q5_K Region-B 6-bit scale/min bit-dance typed "
+              "surface";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 8 sub-blocks of 32 elements, block_q4_K stride 144 (d@0|dmin@2|scales@4|
+  // qs@16). Pin them so a malformed typed body cannot lower under the Region-B
+  // bit-dance emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
+                            "Region-B scale/min bit-dance route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block boundary) for the "
+              "q4_K/q5_K Region-B scale/min bit-dance route";
+  if (getWeightBlockStride() != 144)
+    return emitOpError()
+           << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
+              "q4_K/q5_K Region-B scale/min bit-dance route";
+  if (getWeightScalesByteOffset() != 4)
+    return emitOpError()
+           << "requires weight_scales_byte_offset == 4 (scales follow d+dmin) "
+              "for the q4_K/q5_K Region-B scale/min bit-dance route";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer runtime ABI operand, one "
+              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The weight base operand is a runtime ABI value addressing the AoS block_q4_K
+  // byte array as const uint8_t * (the same binding the monolithic
+  // tcrv_rvv.q4_k_q8_k_aux_partial weight base uses; the bit-dance casts it to
+  // const uint32_t * at the scales offset).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q4_K byte array)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
+              "Region-B scale/min bit-dance route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the q4_K/q5_K Region-B scale/min bit-dance";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
   mlir::Operation *op = getOperation();
 

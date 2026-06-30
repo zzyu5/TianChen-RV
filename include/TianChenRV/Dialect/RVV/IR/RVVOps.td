@@ -6458,6 +6458,82 @@ def Q4KNibbleUnpackOp
   let hasVerifier = 1;
 }
 
+def Q4KScaleMinBitDanceOp
+    : TCRVRVV_Op<"q4_k_scale_min_bit_dance",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K 6-bit scale/min bit-dance decode-to-scratch op";
+  let description = [{
+    Records ONE super-block's 6-bit scale/min bit-dance (the get_scale_min_k4 /
+    utmp/kmask cross-byte decode -- Region B of the ggml `ggml_vec_dot_q4_K_q8_K`
+    integer core) as ONE bounded generic plugin-local typed RVV dataflow step --
+    the Track B q4_K auto-construction's BRICK 2 (sibling to BRICK 1's
+    tcrv_rvv.q4_k_nibble_unpack). This is the q4_K-specific 6-bit scale/min
+    unpack: three packed uint32 scale words at the block's scales offset are
+    cross-shuffled through the kmask1/kmask2/kmask3 (0x3f3f3f3f / 0x0f0f0f0f /
+    0x03030303) bit-dance into a 4-word utmp[4] scratch laid out as exactly the
+    16 bytes [scales[0..7], mins[0..7]] (the same type-pun _generic does with
+    scales=&utmp[0]/mins=&utmp[2]), the contiguous 8 6-bit scales + 8 6-bit mins
+    the per-sub-block dot + the min term (bricks 3-8, DEFERRED) read.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes ONE runtime ABI
+    value operand -- the q4_K weight base pointer (the AoS block_q4_K byte array)
+    -- plus the active !tcrv_rvv.vl token, and produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering DECLARES the uint32_t utmp[4] scratch
+    and fills it via the STRUCTURED scalar emitc.bitwise_{and,or,left_shift,
+    right_shift} chain (NO raw string blob), mirroring _generic (quants.c:685-690)
+    line-for-line so byte-exactness is by construction. The bit-dance is pure
+    scalar: it does NOT consume the active vl (the vl token rides for verifier
+    nesting + the optional vse8 scale/min observable, whose 16-byte store uses its
+    OWN literal vsetvl_e8m1(16)). The op decodes ONE super-block (the nb = n/256
+    super-block loop, the per-block address arithmetic, the plain 4-bit nibble
+    unpack, the per-sub-block dot, the MIN term, and the fp32 fold are NOT this
+    op -- they are BRICK 1 / the deferred q4_K bricks and the monolithic
+    tcrv_rvv.q4_k_q8_k_aux_partial / q4_k_q8_k_block_dot ops, which STAY).
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32
+    elements, the AoS weight block stride (144 bytes for block_q4_K), and the
+    scales byte offset (4, after d@0|dmin@2) where the 12 packed 6-bit scale/min
+    bytes live -- are carried as typed integer attributes (I4 mirror only). The
+    fixed emission mirrors _generic (quants.c) line-for-line so byte-exactness is
+    by construction: three (const uint32_t *)(weight_base + scales_off) word loads
+    w0/w1/w2, the kmask1/2/3 cross-byte shuffle into utmp[0..3] (u0 = w0 & kmask1;
+    u1 = (w2 & kmask2) | (((w0 >> 6) & kmask3) << 4); u2 = w1 & kmask1; u3 =
+    ((w2 >> 4) & kmask2) | (((w1 >> 6) & kmask3) << 4)), and scales = (const
+    uint8_t *)&utmp[0]. This emission is the op's fixed structure, shared VERBATIM
+    with the monolithic q4_K/q5_K integer core's Region B (so both emit
+    byte-identical C), NOT a candidate-mirror string read in the conversion. The
+    bounded surface kind is limited to "q4_k_scale_min_bit_dance". Route ids,
+    helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/q4 names, and common EmitC/export code
+    must not infer or choose scale/min-bit-dance semantics.
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target): the scale/min decode is pure
+    scalar (no VLEN dependence) and the optional 16-byte vse8 observable runs one
+    vsetvl_e8m1(16) (NO VLEN-robust re-strip -- a VLEN<128 board would split the
+    16-byte store; the zve32x/zve64x re-strip is a capability item, not built
+    here). No resource shape knobs yet.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_scales_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $vl attr-dict `:` type($weight_base) `,` type($vl) "
+    "`->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {

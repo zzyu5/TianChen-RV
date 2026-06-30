@@ -272,6 +272,11 @@ private:
   /// 4-bit nibble unpack into aux8[256], NO bit-dance / dot / fold).
   static bool isQ4_KNibbleUnpackBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-2 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_scale_min_bit_dance (one super-block's Region-B
+  /// 6-bit scale/min bit-dance into utmp[4], NO nibble unpack / dot / fold).
+  static bool isQ4_KScaleMinBitDanceBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2075,6 +2080,23 @@ private:
       const Q4_KIntegerCoreContext &cx, mlir::Value xb,
       mlir::TypedValue<emitc::ArrayType> aux8Array) const;
 
+  /// Emit ONE super-block's q4_K/q5_K 6-bit scale/min bit-dance (Region B) into
+  /// the uint32_t utmp[4] scratch: three (const uint32_t *)(xb + scalesOffset)
+  /// word loads w0/w1/w2, the kmask1/2/3 (0x3f3f3f3f / 0x0f0f0f0f / 0x03030303)
+  /// cross-byte shuffle via STRUCTURED scalar emitc.bitwise_{and,or,left_shift,
+  /// right_shift} into utmp[0..3] (the 16 bytes [scales[0..7], mins[0..7]]),
+  /// mirroring _generic (quants.c:685-690). Returns scalesU8 = (const uint8_t
+  /// *)&utmp[0]. This is the Track B q4_K BRICK 2 vocabulary: the SAME node
+  /// sequence is shared VERBATIM by emitQ4_KSuperBlockAux32Core (the monolithic
+  /// q4_K/q5_K integer core, which calls this in-loop after the Region-A unpack)
+  /// AND the first-class tcrv_rvv.q4_k_scale_min_bit_dance op's lowering (which
+  /// declares its own utmp and decodes one super-block), so both emit
+  /// byte-identical Region-B C. Writes utmpArray as a side effect.
+  mlir::Value emitQ4_KScaleMinBitDanceCore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value xb,
+      mlir::TypedValue<emitc::ArrayType> utmpArray) const;
+
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
   /// scale/min bit-dance via utmp/kmask; the nested sub-block loop applying the
@@ -2152,6 +2174,22 @@ private:
   /// fold -- those are deferred bricks). Binds the op's i32 m1 token to a zero
   /// literal (the unpack writes aux8 as a side effect; the token has no live use).
   mlir::LogicalResult emitQ4_KNibbleUnpack(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 2 op (tcrv_rvv.q4_k_scale_min_bit_dance) as
+  /// fully STRUCTURED emitc nodes: DECLARE the function-scoped uint32_t utmp[4]
+  /// scratch and fill it with ONE super-block's Region-B 6-bit scale/min
+  /// bit-dance (the shared emitQ4_KScaleMinBitDanceCore helper, byte-identical to
+  /// the monolithic q4_K integer core's Region B), then emit the store_scale_min
+  /// observable (vse8 the 16 decoded [scales,mins] bytes through a local
+  /// uint8_t scale_min[16] sink) so the lit has output to CHECK. The weight base
+  /// operand IS the super-block pointer (single super-block; NO nb = n/256 loop,
+  /// NO nibble unpack, NO dot, NO fold -- those are BRICK 1 / deferred bricks).
+  /// Binds the op's i32 m1 token to a zero literal (the bit-dance writes utmp/
+  /// scale_min as a side effect; the token has no live use).
+  mlir::LogicalResult emitQ4_KScaleMinBitDance(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

@@ -963,20 +963,19 @@ void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
     }
 }
 
-VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+// Track B q4_K BRICK 2: the 6-bit scale/min bit-dance (utmp/kmask cross-byte
+// decode into the 16 [scales,mins] bytes -- Region B), factored out VERBATIM
+// from emitQ4_KSuperBlockAux32Core so the SAME node sequence is reachable both
+// inline (the monolithic q4_K/q5_K integer core) AND through the first-class
+// tcrv_rvv.q4_k_scale_min_bit_dance op. Emits at the current insertion point;
+// fills utmpArray as a side effect and returns scalesU8 = (const uint8_t
+// *)&utmp[0] (the 8 6-bit scales, contiguous with the 8 mins -- 16 bytes total).
+mlir::Value VariantToEmitCFunc::emitQ4_KScaleMinBitDanceCore(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
-    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
-    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
-    mlir::Value ib) const {
-    mlir::MLIRContext *ctx = rewriter.getContext();
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb,
+    mlir::TypedValue<emitc::ArrayType> utmpArray) const {
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
-    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
-    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
-    // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
-    // now consumed inside the Region-A unpack helper, not here.
-
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
                                                std::to_string(v));
@@ -991,11 +990,6 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
         full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
       return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
     };
-
-    // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
-    // Factored into the shared Track B brick-1 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
-    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
 
     // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
     // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
@@ -1083,6 +1077,47 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
     mlir::Value scalesU8 =
         rewriter.create<emitc::CastOp>(loc, cx.u8PtrType, utmpWordPtr)
             .getResult();
+    return scalesU8;
+}
+
+VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
+    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
+    mlir::Value ib) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
+    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
+    // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
+    // now consumed inside the Region-A unpack helper, not here.
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
+                                               std::to_string(v));
+    };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
+    // Factored into the shared Track B brick-1 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
+    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
+
+    // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
+    // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
+    // Factored into the shared Track B brick-2 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_scale_min_bit_dance
+    // op); returns scalesU8 = (const uint8_t *)&utmp[0].
+    mlir::Value scalesU8 =
+        emitQ4_KScaleMinBitDanceCore(rewriter, loc, cx, xb, utmpArray);
 
     // (K4a only) vse8 the 16 decoded [scales[0..7], mins[0..7]] bytes to
     // scaleMinOutput + ib*16 -- emitted IN-PLACE here (before the aux32 init) so
@@ -1556,6 +1591,152 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KNibbleUnpack(
     mlir::Value resultToken =
         rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
     valueMap[unpack.getResult()] = resultToken;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // Region B decodes ONE super-block; the bit-dance is pure
+                  // scalar and the vse8 observable uses a literal vl -- no n use.
+    tcrvrvv::Q4KScaleMinBitDanceOp bitDance;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto bd = llvm::dyn_cast<tcrvrvv::Q4KScaleMinBitDanceOp>(op))
+        bitDance = bd;
+    }
+    if (!bitDance)
+      return rewriter.notifyMatchFailure(
+          scope, "q4_K scale-min-bit-dance body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(bitDance.getWeightBase());
+    if (!weightBase)
+      return rewriter.notifyMatchFailure(
+          bitDance, "q4_K scale-min-bit-dance weight base unmapped");
+
+    llvm::StringRef opName = bitDance.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = bitDance.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type weightPtrType = weightBase.getType();
+
+    // The integer-core vector types Region B's context carries. The bit-dance
+    // itself is pure scalar (uint32 word loads + emitc.bitwise into utmp); the
+    // vector type fields are populated for a total context but unused by it.
+    mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, "vint8mf2_t");
+    mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
+    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    mlir::Type constU32Type = emitc::OpaqueType::get(ctx, "const uint32_t");
+    mlir::Type u32PtrType = emitc::PointerType::get(constU32Type);
+
+    // The Region-B structural facts come straight off the typed attrs (I4).
+    int64_t qk = bitDance.getQk();                          // 256
+    int64_t subBlock = bitDance.getSubBlock();              // 32
+    int64_t scalesOffset = bitDance.getWeightScalesByteOffset(); // 4
+    int64_t numSubBlocks = qk / subBlock;                   //  8
+
+    // The integer-core context: the SAME shape the monolithic q4_K core builds.
+    // Region B reads opName/role, sizeType, u32Type, weightPtrType, scalesOffset,
+    // u32PtrType, constU32Type, u8PtrType. The remaining fields complete the
+    // context and are unused by the bit-dance (no activation, no nibble, no dot).
+    Q4_KIntegerCoreContext cx{
+        opName,        role,          sizeType,      i32ImmType,
+        u32Type,       i8ElemType,    u8m2Type,      i8m2Type,
+        i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
+        u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
+        /*activationPtrType=*/weightPtrType, subBlock, scalesOffset,
+        /*qsOffset=*/0, /*q8Offset=*/0, numSubBlocks,  /*quarter=*/8};
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // uint32_t utmp[4];  (function-scoped scratch the Region-B bit-dance fills;
+    // the op DECLARES it so the brick is self-contained, vs the monolithic core
+    // which declares it once above the super-block loop and shares it with the
+    // dot. The 16 bytes utmp[0..3] are exactly [scales[0..7], mins[0..7]].)
+    mlir::Type utmpArrayType = emitc::ArrayType::get({4}, u32Type);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("utmp", opName, role));
+    auto utmpVar = rewriter.create<emitc::VariableOp>(
+        loc, utmpArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto utmpArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(utmpVar.getResult());
+
+    // The weight base operand IS this op's super-block pointer (single super-block
+    // -- no nb = n/256 loop, no ib*144 address arithmetic). Region B's emit is the
+    // SAME node sequence the monolithic core emits inside its loop; returns
+    // scalesU8 = (const uint8_t *)&utmp[0].
+    mlir::Value scalesU8 =
+        emitQ4_KScaleMinBitDanceCore(rewriter, loc, cx, weightBase, utmpArray);
+
+    // The store_scale_min observable: vse8 the 16 decoded [scales[0..7],
+    // mins[0..7]] bytes through a function-scoped uint8_t scale_min[16] sink so
+    // the lit has a clean output to CHECK. The SAME node sequence as the
+    // monolithic K4a store_scale_min (vsetvl_e8m1(16) / vle8_v_u8m1 / vse8_v_u8m1
+    // with the ptr = base + ib*16 arithmetic); here the sink is a local array and
+    // ib is the single super-block index 0 (the address operands differ by
+    // construction -- the bit-dance core above is byte-identical to the monolith).
+    mlir::Type u8ElemType = emitc::OpaqueType::get(ctx, "uint8_t");
+    mlir::Type scaleMinPtrType = emitc::PointerType::get(u8ElemType);
+    mlir::Type scaleMinArrayType = emitc::ArrayType::get({16}, u8ElemType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("scale_min", opName, role));
+    auto scaleMinVar = rewriter.create<emitc::VariableOp>(
+        loc, scaleMinArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto scaleMinArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(scaleMinVar.getResult());
+    mlir::Value scaleMinIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value scaleMinElem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, scaleMinArray,
+                                        mlir::ValueRange{scaleMinIndex0})
+            .getResult();
+    mlir::Value scaleMinOutput =
+        rewriter.create<emitc::ApplyOp>(loc, scaleMinPtrType, "&", scaleMinElem0)
+            .getResult();
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_scale_min"));
+    std::string smSetvl = "__riscv_vsetvl_e8m1";
+    mlir::Value vlsm = emitOpaqueCallBuilt(
+        rewriter, loc, sizeType, smSetvl, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {sizeLit(16)};
+        });
+    std::string smLoad = "__riscv_vle8_v_u8m1";
+    mlir::Type u8m1Type = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+    mlir::Value smVec =
+        emitOpaqueCall(rewriter, loc, u8m1Type, smLoad,
+                       mlir::ValueRange{scalesU8, vlsm}, opName, role);
+    mlir::Value ib = sizeLit(0);
+    mlir::Value smOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(16));
+    mlir::Value smOutPtr = rewriter.create<emitc::AddOp>(
+        loc, scaleMinPtrType, scaleMinOutput, smOff);
+    std::string smStore = "__riscv_vse8_v_u8m1";
+    emitOpaqueCallVoid(rewriter, loc, smStore,
+                       mlir::ValueRange{smOutPtr, smVec, vlsm}, opName, role);
+
+    // The op's i32 m1 result token: the bit-dance writes utmp/scale_min as a side
+    // effect, so the token has no live use; bind it to a zero literal to keep the
+    // value map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
+    valueMap[bitDance.getResult()] = resultToken;
     return mlir::success();
   }
 
