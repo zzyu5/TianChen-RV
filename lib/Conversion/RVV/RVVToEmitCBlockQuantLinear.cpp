@@ -481,14 +481,29 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_0Q8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
-    // or m1 to match ggml's one-vwredsum-per-block reduction anchor). The chosen
-    // i8 source LMUL drives the widened i16 product LMUL and the i8/u16 spelling.
-    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    // The integer core's LMUL is a bounded resource/scheduling fact. The DEFAULT
+    // is "m1" -- the WIDE-LMUL whole-half-block anchor that matches ggml's
+    // one-vwredsum-per-block reduction (16-lane half-block in ONE strip at
+    // VLEN>=128). m1 is the VLEN-UNIVERSAL FLOOR: the m1 robust strip loop is
+    // byte-correct at ANY VLEN (a narrow VLMAX just re-strips with the sumi-carry
+    // seed), so an attr-less op lowers to the wide form on every target, exactly
+    // like q4_0/q4_1's "m1" floor (wa1) and q8_0's "m2" floor. The 5th-bit qh
+    // injection (emitFiveBitOffsetBinaryDecodeProductValue) is width-parametrized
+    // on coreLmul/wideLmul, so the wider m1 decode is byte-identical to the mf4
+    // narrow one (the vid+c shift vector indexes the same per-element qh bit at
+    // any VLMAX). The gearbox REFINES it -- the q5_0 schedule pass stamps
+    // integer_core_lmul (plus the factor/elision knobs) from the capability fact,
+    // e.g. (m1, factor=4, elided) at a guaranteed Zvl128b target; the legacy "mf4"
+    // narrow anchor stays a stampable (now non-default) candidate (the verifier
+    // accepts {mf4, m1}). LMUL is the *how* (vector grouping / strip width), never
+    // the *what*: the dot product is byte-exact across anchors (vwredsum sums the
+    // same integer set; integer add is order-independent). The chosen i8 source
+    // LMUL drives the widened i16 product LMUL and the i8/u16 spelling.
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
     llvm::StringRef coreLmul = blockDotFacts.coreLmul;
     int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
     bool stripElided = blockDotFacts.stripElided;
-    // i8 source LMUL -> the next-wider i16 product LMUL (mf4->mf2, m1->m2). The
+    // i8 source LMUL -> the next-wider i16 product LMUL (m1->m2, mf4->mf2). The
     // u16 bit-extraction runs at the SAME wide LMUL.
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
@@ -895,14 +910,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ5_1Q8_1BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
-    // or m1 to match ggml's one-vwredsum-per-half-block anchor). The chosen i8
-    // source LMUL drives the widened i16 product LMUL and the i8/u16 spelling.
-    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    // The integer core's LMUL is a bounded resource/scheduling fact. The DEFAULT
+    // is "m1" -- the WIDE-LMUL whole-half-block anchor matching ggml's
+    // one-vwredsum-per-half-block reduction (16-lane half-block, ONE strip at
+    // VLEN>=128). q5_1's 5-bit half-block matches q5_0's (the SAME unsigned
+    // nibble + qh injection, only applyOffsetBias=false and the MIN-term fold
+    // differ), so the anchor set is q5_0's {mf4, m1} and the SAME wide-universal-
+    // floor reasoning applies: the m1 robust strip is byte-correct at any VLEN
+    // (the sumi-carry seed re-strips a narrow VLMAX), so an attr-less op lowers
+    // wide; the gearbox refines the elision/factor knobs and the legacy "mf4"
+    // narrow anchor stays a stampable (now non-default) candidate. LMUL is the
+    // *how* (vector grouping / strip width), never the *what*: the dot product is
+    // byte-exact either way. The chosen i8 source LMUL drives the widened i16
+    // product LMUL and the i8/u16 spelling.
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
     llvm::StringRef coreLmul = blockDotFacts.coreLmul;
     int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
     bool stripElided = blockDotFacts.stripElided;
-    // i8 source LMUL -> the next-wider i16 product LMUL (mf4->mf2, m1->m2). The
+    // i8 source LMUL -> the next-wider i16 product LMUL (m1->m2, mf4->mf2). The
     // u16 bit-extraction runs at the SAME wide LMUL.
     llvm::StringRef wideLmul = (coreLmul == "m1") ? "m2" : "mf2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
