@@ -1,9 +1,9 @@
 {
   "id": "gemm-op-builds-tooling",
   "name": "gemm-op-builds-tooling",
-  "title": "建缺失GEMM op + Track-B production-export (q80/q50 GEMM op + 3-面 cascade)",
+  "title": "\u5efa\u7f3a\u5931GEMM op + Track-B production-export (q80/q50 GEMM op + 3-\u9762 cascade)",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "06-26-compiler-maturity-retest",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "production-export tooling gap (non-deferred wide dequant body) CLOSED VLEN-general e2e: ed4a8424 (export layer) + 43932670 (front-door fact-stamp, VLEN128 e2e) + 59b08f9a (VLEN256 m1/m2 e2e). dequant Track-B body now production-reachable + VLEN-adaptive. Remaining: extend e2e to other Track-B op-kinds (q4_0-nibble/codebook), GEMM op builds, deployable bundles.",
   "meta": {}
 }
