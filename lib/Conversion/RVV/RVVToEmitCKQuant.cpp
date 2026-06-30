@@ -1458,6 +1458,84 @@ void VariantToEmitCFunc::emitQ4_KMinTermSubtract(
     rewriter.create<emitc::AssignOp>(loc, sumfVar, minExpr.getResult());
 }
 
+// Track B q4_K BRICK 6: the DEFERRED two-level fp32 POSITIVE fold (q6_K K2
+// mechanism), `sums += (fp16(x.d) * dy) * (float)aux32`, factored out VERBATIM
+// from emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline
+// (the monolithic q4_K/q5_K block dot, which emits it BETWEEN its two interleaved
+// MIN-term halves) AND through the first-class tcrv_rvv.q4_k_sums_fold_scale_d
+// op. Emits at the current insertion point: d = fp16(*(const _Float16 *)(xb +
+// weightDOffset)) * dy (the once-loaded fp32 activation scale), af = vfcvt of the
+// BRICK 3 canonical-8 aux32, pr = vfmul.vf(af, d) (a SEPARATE multiply, NEVER an
+// fma), sums = vfadd.vv(sums, pr) (a SEPARATE add), then the AssignOp into the
+// carried sums lvalue. The per-sub-block uint6 scale is NOT read here (BRICK 3
+// fused it into aux32), and BRICK 3's integer fold-back already collapsed aux32
+// to canonical-8 vint32m2_t -- so this fold is a fixed-order 8-lane sequence with
+// NO fp-reassociation seam. The weight pointer type is derived from xb.
+void VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KSumsFoldContext &sx, mlir::Value xb, mlir::Value dy,
+    mlir::TypedValue<emitc::LValueType> aux32Var,
+    mlir::TypedValue<emitc::LValueType> sumsVar) const {
+    llvm::StringRef opName = sx.opName;
+    llvm::StringRef role = sx.role;
+    mlir::Type weightPtrType = xb.getType();
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sx.sizeType,
+                                               std::to_string(v));
+    };
+
+    // float d = (float)*(const _Float16 *)(xb + 0) * dy;  -- the fp16 weight
+    // super-block scale (byte 0) times the fp32 activation scale (loaded once).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fold_scale_d"));
+    mlir::Value dxAddr = xb;
+    if (sx.weightDOffset != 0)
+      dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
+                                             sizeLit(sx.weightDOffset));
+    mlir::Value dx =
+        emitOpaqueCall(rewriter, loc, sx.floatType, sx.fp16ReadCallee,
+                       mlir::ValueRange{dxAddr}, opName, role,
+                       llvm::StringRef("fcvt.s.h"));
+    mlir::Value d =
+        rewriter.create<emitc::MulOp>(loc, sx.floatType, dx, dy).getResult();
+
+    // vfloat32m2_t af = __riscv_vfcvt_f_x_v_f32m2(aux32, 8);
+    // The aux32 lvalue is the CANONICAL 8-lane vint32m2 (the S4 fold-back collapses
+    // the wide aux32 at m1/m2; at mf2/q5_K it is the running aux32, same type) --
+    // load it as i32Canon8Type (always vint32m2_t), byte-identical at every anchor.
+    mlir::Value aux32Val =
+        rewriter.create<emitc::LoadOp>(loc, sx.i32Canon8Type, aux32Var)
+            .getResult();
+    std::string cvtCallee = "__riscv_vfcvt_f_x_v_f32m2";
+    mlir::Value af = emitOpaqueCallBuilt(
+        rewriter, loc, sx.f32m2Type, cvtCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {aux32Val, sizeLit(8)};
+        });
+    // vfloat32m2_t pr = __riscv_vfmul_vf_f32m2(af, d, 8);  -- SEPARATE multiply.
+    std::string mulCallee = "__riscv_vfmul_vf_f32m2";
+    mlir::Value pr = emitOpaqueCallBuilt(
+        rewriter, loc, sx.f32m2Type, mulCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {af, d, sizeLit(8)};
+        });
+    // sums = __riscv_vfadd_vv_f32m2(sums, pr, 8);  -- SEPARATE add (NEVER fma).
+    std::string addCallee = "__riscv_vfadd_vv_f32m2";
+    mlir::Value sumsNext = emitOpaqueCallBuilt(
+        rewriter, loc, sx.f32m2Type, addCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value sumsCur =
+              rewriter.create<emitc::LoadOp>(loc, sx.f32m2Type, sumsVar)
+                  .getResult();
+          return {sumsCur, pr, sizeLit(8)};
+        });
+    rewriter.create<emitc::VerbatimOp>(loc, assignComment("sums", opName, role));
+    rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsNext);
+}
+
 VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
@@ -2293,6 +2371,178 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
     return mlir::success();
   }
 
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // The positive fold dots ONE super-block (the canonical-8 fp
+                  // sequence uses literal vl == 8); NO nb = n/256 loop, no n use.
+    tcrvrvv::Q4KSumsFoldScaleDOp fold;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto fd = llvm::dyn_cast<tcrvrvv::Q4KSumsFoldScaleDOp>(op))
+        fold = fd;
+    }
+    if (!fold)
+      return rewriter.notifyMatchFailure(scope,
+                                         "q4_K sums-fold body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(fold.getWeightBase());
+    mlir::Value aux32Base = valueMap.lookup(fold.getAux32Base());
+    mlir::Value activationBase = valueMap.lookup(fold.getActivationBase());
+    if (!weightBase || !aux32Base || !activationBase)
+      return rewriter.notifyMatchFailure(fold,
+                                         "q4_K sums-fold ABI operand unmapped");
+
+    llvm::StringRef opName = fold.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = fold.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
+    // The CANONICAL 8-lane integer accumulator type the BRICK 3 aux32 lives in
+    // and the fp fold consumes -- ALWAYS vint32m2_t (8 lanes at SEW32, the
+    // byte-exact contract).
+    mlir::Type i32Canon8Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type i32TokenType = emitc::OpaqueType::get(ctx, "int32_t");
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // The positive-fold structural facts come straight off the typed attrs (I4).
+    // The activation d (dy) sits at byte offset 0 (q8_K) -- it is the op's own
+    // setup, NOT a typed fact (always 0 for this family).
+    int64_t weightDOffset = fold.getWeightDByteOffset(); // 0
+    int64_t activationDOffset = 0;                        // 0
+    int64_t numLanes = 8;                                // canonical aux32/sums lanes
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // vfloat32m2_t sums = __riscv_vfmv_v_f_f32m2(0.0f, 8);  -- the op's OWN 8-lane
+    // fp32 positive accumulator (vs the monolith's loop-carried sums); seeded once.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums", opName, role));
+    auto sumsVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(f32m2Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    std::string sumsSeedCallee = "__riscv_vfmv_v_f_f32m2";
+    mlir::Value sumsZero = emitOpaqueCallBuilt(
+        rewriter, loc, f32m2Type, sumsSeedCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroF =
+              rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+          return {zeroF, sizeLit(8)};
+        });
+    rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsZero);
+
+    // float sums_out[8];  -- the function-scoped sink the resulting 8-lane sums
+    // vector is stored into as the observable (vs the monolith's post-loop
+    // horizontal fold into *s; here a local array so the lit has output to CHECK).
+    mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+    mlir::Type sumsOutArrayType = emitc::ArrayType::get({numLanes}, floatType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums_out", opName, role));
+    auto sumsOutVar = rewriter.create<emitc::VariableOp>(
+        loc, sumsOutArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto sumsOutArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sumsOutVar.getResult());
+
+    // vint32m2_t aux32 = __riscv_vle32_v_i32m2(aux32_base, 8);  -- materialize the
+    // BRICK 3 canonical-8 integer dot result from the ABI int32 pointer into the
+    // aux32 lvalue (the op's own ABI-input load, vs the monolith's brick-3 helper
+    // return). The fold helper then loads this lvalue exactly as the monolith does.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32", opName, role));
+    auto aux32Var = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(i32Canon8Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value aux32Loaded = emitVCallBuilt(
+        rewriter, loc, i32Canon8Type, "vle32", "v_i32m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {aux32Base, sizeLit(numLanes)};
+        });
+    rewriter.create<emitc::AssignOp>(loc, aux32Var, aux32Loaded);
+
+    // The fp32 activation scale dy = *(const float *)(vy + 0), loaded ONCE (the
+    // monolith's fold_activation_d, here the op's own setup; activationDOffset is
+    // 0 so no add is emitted). dy feeds the d = fp16(x.d) * dy product.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fold_activation_d"));
+    mlir::Value dyAddr = activationBase;
+    if (activationDOffset != 0)
+      dyAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType,
+                                             activationBase,
+                                             sizeLit(activationDOffset));
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+    mlir::Value dyPtr =
+        rewriter.create<emitc::CastOp>(loc, constFloatPtrType, dyAddr)
+            .getResult();
+    mlir::Value dyIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value dyElem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(dyPtr),
+                dyIndex0)
+            .getResult();
+    mlir::Type constFloatType = emitc::OpaqueType::get(ctx, "const float");
+    mlir::Value dy = rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
+                         .getResult();
+
+    // The shared positive-fold helper (the SAME node sequence the monolithic
+    // q4_K/q5_K block dot emits between its two MIN-term halves): d = fp16(x.d) *
+    // dy, af = vfcvt(aux32), pr = vfmul.vf(af, d), sums = vfadd.vv(sums, pr).
+    // Byte-identical to the monolith's fold_scale_d region.
+    Q4_KSumsFoldContext sx;
+    sx.opName = opName;
+    sx.role = role;
+    sx.sizeType = sizeType;
+    sx.floatType = floatType;
+    sx.f32m2Type = f32m2Type;
+    sx.i32Canon8Type = i32Canon8Type;
+    sx.fp16ReadCallee = fp16ReadCallee;
+    sx.weightDOffset = weightDOffset;
+    emitQ4_KSumsFoldScaleD(
+        rewriter, loc, sx, weightBase, dy,
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32Var.getResult()),
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()));
+
+    // vse32_v_f32m2(&sums_out[0], sums, 8);  -- store the resulting 8-lane sums
+    // state (the observable; the monolith instead horizontally folds sums into
+    // *s). Void interleave (inline VL=8 literal): split the mangler at the first
+    // underscore after "__riscv_" and rejoin via emitVCallVoidBuilt.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_sums"));
+    mlir::Value sumsOutIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value sumsOutElem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, sumsOutArray,
+                                        mlir::ValueRange{sumsOutIndex0})
+            .getResult();
+    mlir::Value sumsOutBase =
+        rewriter.create<emitc::ApplyOp>(loc, floatPtrType, "&", sumsOutElem0)
+            .getResult();
+    mlir::Value sumsFinal =
+        rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumsVar).getResult();
+    emitVCallVoidBuilt(rewriter, loc, "vse32", "v_f32m2", opName, role,
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         return {sumsOutBase, sumsFinal, sizeLit(numLanes)};
+                       });
+
+    // The op's i32 m1 result token: the fold writes sums_out as a side effect, so
+    // the token has no live use; bind it to a zero literal to keep the map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32TokenType, "0");
+    valueMap[fold.getResult()] = resultToken;
+    return mlir::success();
+  }
+
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2512,6 +2762,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     mx.weightDminOffset = weightDminOffset;
     mx.numBsums = numBsums;
 
+    // The Track B BRICK 6 positive-fold context: the bounded facts + types the
+    // shared positive-fold helper (emitQ4_KSumsFoldScaleD) reads. The SAME helper
+    // is called by the first-class tcrv_rvv.q4_k_sums_fold_scale_d op, so the
+    // in-loop `sums += d * (float)aux32` accumulation is byte-identical by
+    // construction. The fold sits BETWEEN the two interleaved MIN-term halves but
+    // is data-independent of the MIN chain.
+    Q4_KSumsFoldContext sx;
+    sx.opName = opName;
+    sx.role = role;
+    sx.sizeType = sizeType;
+    sx.floatType = floatType;
+    sx.f32m2Type = f32m2Type;
+    sx.i32Canon8Type = i32Canon8Type;
+    sx.fp16ReadCallee = fp16ReadCallee;
+    sx.weightDOffset = weightDOffset;
+
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "super_block_loop"));
@@ -2576,58 +2842,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
       mlir::TypedValue<emitc::LValueType> sumiVar =
           emitQ4_KMinTermBsumsDot(rewriter, loc, mx, yb, scalesU8);
 
-      // ---- the DEFERRED two-level fp32 positive fold (q6_K K2 mechanism) ----
-      // float d = (float)*(const _Float16 *)(xb + 0) * dy;  -- the fp16 weight
-      // super-block scale (byte 0) times the fp32 activation scale (loaded once).
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fold_scale_d"));
-      mlir::Value dxAddr = xb;
-      if (weightDOffset != 0)
-        dxAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
-                                               sizeLit(weightDOffset));
-      mlir::Value dx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
-                                      mlir::ValueRange{dxAddr}, opName, role,
-                                      llvm::StringRef("fcvt.s.h"));
-      mlir::Value d =
-          rewriter.create<emitc::MulOp>(loc, floatType, dx, dy).getResult();
-
-      // vfloat32m2_t af = __riscv_vfcvt_f_x_v_f32m2(aux32, 8);
-      // The helper returns the CANONICAL 8-lane vint32m2 (the S4 fold-back
-      // collapses the wide aux32 at m1/m2; at mf2/q5_K it is the running aux32,
-      // same type) -- load it as i32Canon8Type (always vint32m2_t), NOT the wide
-      // i32m2Type (vint32<l32>), byte-identical at mf2 and type-correct at m1/m2.
-      mlir::Value aux32Val =
-          rewriter.create<emitc::LoadOp>(loc, i32Canon8Type, aux32Var)
-              .getResult();
-      std::string cvtCallee = "__riscv_vfcvt_f_x_v_f32m2";
-      mlir::Value af = emitOpaqueCallBuilt(
-          rewriter, loc, f32m2Type, cvtCallee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            return {aux32Val, sizeLit(8)};
-          });
-      // vfloat32m2_t pr = __riscv_vfmul_vf_f32m2(af, d, 8);  -- SEPARATE multiply.
-      std::string mulCallee = "__riscv_vfmul_vf_f32m2";
-      mlir::Value pr = emitOpaqueCallBuilt(
-          rewriter, loc, f32m2Type, mulCallee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            return {af, d, sizeLit(8)};
-          });
-      // sums = __riscv_vfadd_vv_f32m2(sums, pr, 8);  -- SEPARATE add (NEVER fma).
-      std::string addCallee = "__riscv_vfadd_vv_f32m2";
-      mlir::Value sumsNext = emitOpaqueCallBuilt(
-          rewriter, loc, f32m2Type, addCallee, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            mlir::Value sumsCur =
-                rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumsVar)
-                    .getResult();
-            return {sumsCur, pr, sizeLit(8)};
-          });
-      rewriter.create<emitc::VerbatimOp>(
-          loc, assignComment("sums", opName, role));
-      rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsNext);
+      // ---- the DEFERRED two-level fp32 positive fold (q6_K K2 mechanism),
+      // Track B BRICK 6: sums += (fp16(x.d) * dy) * (float)aux32. Factored into
+      // the shared emitQ4_KSumsFoldScaleD helper (the SAME node sequence, also
+      // reachable through the first-class tcrv_rvv.q4_k_sums_fold_scale_d op);
+      // reads the BRICK 3 canonical-8 aux32 lvalue + the once-loaded dy and writes
+      // the carried sums vector. Slotted BETWEEN the two interleaved MIN-term
+      // helpers exactly as today (min_term_bsums -> fold_scale_d ->
+      // fold_scale_dmin/min_subtract), and data-independent of the MIN chain. ----
+      emitQ4_KSumsFoldScaleD(
+          rewriter, loc, sx, xb, dy, aux32Var,
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()));
 
       // ---- the q4_K MIN term, SECOND half: sumf -= dmin * (float)sumi ----
       // float dmin = (float)*(const _Float16 *)(xb + 2) * dy; then the single

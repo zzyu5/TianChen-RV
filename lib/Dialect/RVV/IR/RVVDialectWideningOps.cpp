@@ -5731,6 +5731,116 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Track B q4_K BRICK 6: the op carries ONLY its bounded mirror attrs (I4) --
+  // the operation kind and the super-block-format facts the positive fold needs
+  // (qk, sub_block, num_sub_blocks, and the weight d fp16 byte offset). NO scale
+  // model and NO LMUL/resource knob (the canonical-8 fp fold is fixed at 8 lanes
+  // f32m2 -- the integer-core widening axis lives on the upstream BRICK 3 scaled
+  // dot). A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "sub_block" ||
+           name == "num_sub_blocks" || name == "weight_d_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_k_sums_fold_scale_d keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded sums-fold attributes 'kind', 'qk', "
+                "'sub_block', 'num_sub_blocks', and 'weight_d_byte_offset'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "q4_k_sums_fold_scale_d")
+    return emitOpError()
+           << "currently supports only kind \"q4_k_sums_fold_scale_d\" for the "
+              "bounded q4_K/q5_K positive-fold (sums += fp16(x.d) * y.d * "
+              "(float)aux32) typed surface";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256, 8
+  // sub-blocks of 32 elements, and the weight d (fp16) at byte offset 0. Pin them
+  // so a malformed typed body cannot lower under the positive-fold emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
+                            "positive-fold route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block scale boundary) "
+              "for the q4_K/q5_K positive-fold route";
+  if (getNumSubBlocks() != 8)
+    return emitOpError()
+           << "requires num_sub_blocks == 8 (QK_K / 32) for the q4_K/q5_K "
+              "positive-fold route";
+  if (getWeightDByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_d_byte_offset == 0 (the block_q4_K/q5_K d fp16 "
+              "offset) for the q4_K/q5_K positive-fold route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires three runtime ABI base pointer operands (weight / aux32 "
+              "/ activation), one !tcrv_rvv.vl operand, and one i32 LMUL m1 "
+              "result";
+
+  // The three base operands are runtime ABI values: the q4_K/q5_K weight block
+  // (const uint8_t *, read at +0 for the fp16 d), the BRICK 3 canonical-8 aux32
+  // integer dot result (const int32_t *, vle32-loaded into a vint32m2_t), and the
+  // q8_K activation data (const uint8_t *, read at +0 for the fp32 activation
+  // scale y.d).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the q4_K/q5_K weight block; the fp16 d "
+              "lives at byte offset 0)";
+  RuntimeABIValueOp aux32Binding =
+      getAux32Base().getDefiningOp<RuntimeABIValueOp>();
+  if (!aux32Binding || aux32Binding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires the aux32 base operand to bind a runtime ABI value of C "
+              "type 'const int32_t *' (the BRICK 3 canonical-8 integer dot "
+              "result, vle32-loaded into a vint32m2_t)";
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI value "
+              "of C type 'const uint8_t *' (the q8_K activation data; the fp32 "
+              "scale y.d lives at byte offset 0)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
+              "positive-fold route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the q4_K/q5_K positive fold";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
   mlir::Operation *op = getOperation();
 

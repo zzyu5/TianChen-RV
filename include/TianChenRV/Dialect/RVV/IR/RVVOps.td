@@ -6712,6 +6712,89 @@ def Q4KMinTermOp
   let hasVerifier = 1;
 }
 
+def Q4KSumsFoldScaleDOp
+    : TCRVRVV_Op<"q4_k_sums_fold_scale_d",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K super-block positive sums fold (sums += "
+      "fp16(x.d) * y.d * (float)aux32) op";
+  let description = [{
+    Records ONE super-block's q4_K/q5_K DEFERRED two-level fp32 POSITIVE fold --
+    the `sums += d * (float)aux32` accumulation where `d = fp16(x.d) * y.d` is the
+    fp16 weight super-block scale (byte 0) times the fp32 activation scale -- as
+    ONE bounded generic plugin-local typed RVV dataflow step, the Track B q4_K
+    auto-construction's BRICK 6 (sibling to BRICK 1's tcrv_rvv.q4_k_nibble_unpack,
+    BRICK 2's tcrv_rvv.q4_k_scale_min_bit_dance, BRICK 3's tcrv_rvv.q4_k_scaled_dot,
+    and BRICK 4's tcrv_rvv.q4_k_min_term). The positive fold operates on the `sums`
+    8-lane fp32 VECTOR accumulator, a DIFFERENT accumulator chain from the BRICK 4
+    SCALAR `sumf` min term: it converts the BRICK 3 canonical-8 integer aux32 to
+    fp32 (vfcvt), multiplies the whole vector by the SEPARATE per-super-block scale
+    `d` (vfmul.vf, NEVER an fma), and adds it into the carried `sums` (vfadd.vv).
+    The per-sub-block uint6 scale is NOT read here -- BRICK 3 already FUSED it into
+    aux32 via the vwmacc.vx, so the deferred fold reads ONLY the canonical-8 aux32
+    and the two fp16/fp32 super-block scales. BRICK 3's integer fold-back already
+    collapsed the wide aux32 to canonical-8 vint32m2 BEFORE this fold, so the fp
+    conversion + scale + accumulate is a fixed-order 8-lane sequence -- there is NO
+    fp-reassociation seam in this brick (the non-associative horizontal collapse is
+    the post-loop bricks 7-8, NOT this op).
+
+    The nibble unpack, the 6-bit scale/min bit-dance, the per-sub-block scaled i32
+    dot, the MIN term, the super-block loop scaffold, and the post-loop horizontal
+    fold (BRICKS 1, 2, 3, 4, and the deferred bricks 5, 7, 8) are NOT this op --
+    they are the sibling bricks and the monolithic tcrv_rvv.q4_k_q8_k_block_dot op,
+    which STAY. In the monolithic block dot this positive fold sits PHYSICALLY
+    INTERLEAVED between BRICK 4's two halves (the bsums reduction emits before it,
+    the dmin subtract after it), but it is DATA-INDEPENDENT of the MIN chain.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes THREE runtime ABI
+    value operands -- the q4_K/q5_K weight base pointer (const uint8_t *, read at
+    weight_d_byte_offset for the fp16 super-block scale d), the BRICK 3 canonical-8
+    aux32 base pointer (const int32_t *, the 8-lane integer dot result, vle32-loaded
+    into a vint32m2_t), and the q8_K activation base pointer (const uint8_t *, read
+    at offset 0 for the fp32 activation scale y.d) -- plus the active !tcrv_rvv.vl
+    token, and produces ONE i32 LMUL m1 !tcrv_rvv.vector completion token (the fold
+    mutates an 8-lane fp32 sums accumulator as a side effect; the standalone
+    lowering declares its own sums, vle32-loads the aux32, and stores the resulting
+    sums via vse32 to a local float sink as the observable).
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32 elements,
+    and the weight d (fp16) byte offset (0) -- are carried as typed integer
+    attributes (I4 mirror only). The fixed emission mirrors `_generic` (quants.c
+    line 711) so byte-exactness is by construction: the SAME node sequence is shared
+    VERBATIM by the monolithic q4_K/q5_K block dot (which emits it inside the
+    super-block loop between the MIN-term halves) AND this first-class op's lowering,
+    so both emit byte-identical positive-fold C. The bounded surface kind is limited
+    to "q4_k_sums_fold_scale_d". Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand mirror strings, q8/q4
+    names, and common EmitC/export code must not infer or choose fold semantics.
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target). No resource shape knobs (the
+    canonical-8 fp fold is fixed at 8 lanes f32m2; the integer-core LMUL widening
+    axis lives on the upstream BRICK 3 scaled dot).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$aux32_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$num_sub_blocks,
+    I64Attr:$weight_d_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $aux32_base `,` $activation_base `,` $vl attr-dict `:` "
+    "type($weight_base) `,` type($aux32_base) `,` type($activation_base) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {

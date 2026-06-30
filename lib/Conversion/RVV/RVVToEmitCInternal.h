@@ -289,6 +289,12 @@ private:
   /// dot / fp32 positive fold).
   static bool isQ4_KMinTermBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-6 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_sums_fold_scale_d (one super-block's DEFERRED fp32
+  /// POSITIVE fold `sums += fp16(x.d) * y.d * (float)aux32`, NO nibble unpack /
+  /// bit-dance / scaled dot / MIN term).
+  static bool isQ4_KSumsFoldScaleDBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2098,6 +2104,26 @@ private:
     int64_t numBsums;               //  16 (QK_K / 16)
   };
 
+  /// The Track B q4_K BRICK 6 (positive-fold) context: the bounded facts + emitc
+  /// types the shared positive-fold helper (emitQ4_KSumsFoldScaleD) needs. The
+  /// fold is a fixed-order 8-lane fp32 sequence (vfcvt the canonical-8 aux32,
+  /// vfmul.vf by the per-super-block scale d, vfadd.vv into the carried sums) --
+  /// no LMUL/widening axis (BRICK 3 already folded aux32 back to canonical-8), so
+  /// this is a small dedicated context. Carrying the (deterministically-interned)
+  /// emitc types by value keeps the monolithic q4_K block-dot's existing type
+  /// locals in use (zero removals) and guarantees the helper references the SAME
+  /// Type instances the monolith does -- byte-identity by construction.
+  struct Q4_KSumsFoldContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type floatType;     // emitc.opaque<"float"> (the d product scalar)
+    mlir::Type f32m2Type;     // vfloat32m2_t (the 8-lane sums accumulator)
+    mlir::Type i32Canon8Type; // vint32m2_t (the BRICK 3 canonical-8 aux32)
+    llvm::StringRef fp16ReadCallee; // "(float)*(const _Float16 *)"
+    int64_t weightDOffset;          // 0 (block_q4_K/q5_K d fp16 offset)
+  };
+
   /// Emit ONE super-block's q4_K/q5_K plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch (Region A), NO bias: FOUR 64-element
   /// chunks, each one vsetvl_e8m2(32) + vle8_v_u8m2 of the 32 weight bytes at
@@ -2197,6 +2223,29 @@ private:
       const Q4_KMinTermContext &mx, mlir::Value xb, mlir::Value dy,
       mlir::TypedValue<emitc::LValueType> sumiVar,
       mlir::TypedValue<emitc::LValueType> sumfVar) const;
+
+  /// Emit ONE super-block's q4_K/q5_K DEFERRED fp32 POSITIVE fold (Track B BRICK
+  /// 6): `float d = fp16(*(const _Float16 *)(xb + weightDOffset)) * dy` (the fp16
+  /// weight super-block scale times the once-loaded fp32 activation scale), then
+  /// the fixed-order 8-lane sequence `af = vfcvt_f_x_v_f32m2(aux32, 8)` /
+  /// `pr = vfmul_vf_f32m2(af, d, 8)` (a SEPARATE multiply, NEVER an fma) /
+  /// `sums = vfadd_vv_f32m2(sums, pr, 8)` (a SEPARATE add) and the AssignOp into
+  /// the carried sums lvalue. Reads the BRICK 3 canonical-8 aux32 lvalue (always
+  /// vint32m2_t) -- the per-sub-block uint6 scale is NOT read here (BRICK 3 fused
+  /// it into aux32), so there is NO fp-reassociation seam in this brick. Emits at
+  /// the current insertion point. The SAME node sequence is shared VERBATIM by
+  /// emitQ4_KQ8_KBlockDot (the monolithic q4_K/q5_K block dot, which emits it
+  /// in-loop BETWEEN the two interleaved-but-data-independent MIN-term halves) AND
+  /// the first-class tcrv_rvv.q4_k_sums_fold_scale_d op's lowering, so both emit
+  /// byte-identical positive-fold C. `dy` is the once-loaded fp32 activation scale
+  /// (the monolith loads it at fold_activation_d, shared with the MIN subtract;
+  /// the standalone op loads it in its wrapper). The weight pointer type is
+  /// derived from xb.
+  void emitQ4_KSumsFoldScaleD(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KSumsFoldContext &sx, mlir::Value xb, mlir::Value dy,
+      mlir::TypedValue<emitc::LValueType> aux32Var,
+      mlir::TypedValue<emitc::LValueType> sumsVar) const;
 
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
@@ -2332,6 +2381,27 @@ private:
   /// deferred bricks). Binds the op's i32 m1 token to a zero literal (the term
   /// writes sumf as a side effect; no live use).
   mlir::LogicalResult emitQ4_KMinTerm(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 6 op (tcrv_rvv.q4_k_sums_fold_scale_d) as fully
+  /// STRUCTURED emitc nodes: declare the op's OWN 8-lane fp32 `vfloat32m2_t sums =
+  /// vfmv_v_f_f32m2(0.0f, 8)` accumulator + a local float sums_out[8] sink,
+  /// vle32-load the BRICK 3 canonical-8 aux32 from the ABI int32 pointer into a
+  /// vint32m2_t lvalue, load the fp32 activation scale dy once (the monolith's
+  /// fold_activation_d, here the op's own setup), then call the SAME shared
+  /// positive-fold helper the monolithic q4_K/q5_K block dot calls --
+  /// emitQ4_KSumsFoldScaleD (the fp16 d read + the vfcvt/vfmul/vfadd 8-lane
+  /// sequence, reading the weight pointer + aux32 lvalue + dy) -- and store the
+  /// resulting sums via vse32 through the local sink as the observable so the lit
+  /// has output to CHECK. The weight / aux32 / activation operands are ABI INPUT
+  /// pointers (single super-block; NO nb = n/256 loop, NO nibble unpack, NO
+  /// bit-dance, NO scaled dot, NO MIN term, NO post-loop horizontal fold -- those
+  /// are BRICK 1 / BRICK 2 / BRICK 3 / BRICK 4 / deferred bricks). Binds the op's
+  /// i32 m1 token to a zero literal (the fold writes sums_out as a side effect; no
+  /// live use).
+  mlir::LogicalResult emitQ4_KSumsFoldScaleD(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

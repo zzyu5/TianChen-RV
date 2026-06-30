@@ -399,6 +399,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_KScaledDot},
         {&isQ4_KMinTermBody,
          &VariantToEmitCFunc::emitQ4_KMinTerm},
+        {&isQ4_KSumsFoldScaleDBody,
+         &VariantToEmitCFunc::emitQ4_KSumsFoldScaleD},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
         {&isQ4_KQ8_KBlockDotBody,
@@ -1527,6 +1529,20 @@ bool VariantToEmitCFunc::isQ4_KMinTermBody(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawMinTerm;
+  }
+
+bool VariantToEmitCFunc::isQ4_KSumsFoldScaleDBody(tcrvrvv::WithVLOp scope) {
+    bool sawFold = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::Q4KSumsFoldScaleDOp>(op)) {
+        if (sawFold)
+          return false;
+        sawFold = true;
+      } else {
+        return false;
+      }
+    }
+    return sawFold;
   }
 
 bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
