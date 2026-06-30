@@ -371,22 +371,26 @@ llvm::StringRef getContractionWideningProductRelation(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     bool isUnsigned) {
-  // The deferred-wide (N3) realization widens the product strip to i8m2 -> i16m4
-  // (vs the narrow i8mf4 -> i16mf2). Admit that PARALLEL signed wide relation
-  // additively -- the narrow combination below is byte-untouched, and the wide
-  // ladder is always signed (no unsigned deferred-wide path). The relation string
-  // mirrors the realized product op types (I5).
+  // The wide realizations widen the product strip beyond the narrow i8mf4 -> i16mf2:
+  // the deferred-wide (N3) and VLEN128 non-deferred wide strip is i8m2 -> i16m4, the
+  // VLEN256 non-deferred wide strip i8m1 -> i16m2. Admit any signed wide rung whose
+  // i8 source LMUL is in {m1, m2} and whose i16 product is exactly one EMUL step
+  // wider (product == next-wider(source)) -- derived structurally, NOT a per-VLEN
+  // branch (I5). The wide ladder is always signed (no unsigned wide path); the
+  // narrow combination below is byte-untouched. The relation string mirrors the
+  // realized product op types.
   const bool isNarrowProduct =
       sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
       sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
       resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
       resultLMUL == tcrv::rvv::getRVVLMULMF2();
-  const bool isDeferredWideProduct =
+  const bool isWideProduct =
       !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
+       sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
       resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      resultLMUL == tcrv::rvv::getRVVLMULM4();
-  if (!isNarrowProduct && !isDeferredWideProduct)
+      resultLMUL == getRVVNextWiderLMUL(sourceLMUL);
+  if (!isNarrowProduct && !isWideProduct)
     return {};
   if (isNarrowProduct &&
       !isSupportedContractionSourceResultConfig(sourceSEW, sourceLMUL, resultSEW,
@@ -410,10 +414,13 @@ llvm::StringRef getContractionProductReductionChainRelation(
     std::int64_t productSEW, llvm::StringRef productLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     bool isUnsigned) {
-  // The narrow chain is i8mf4 -> i16mf2 -> i32m1; the deferred-wide (N3) chain is
-  // i8m2 -> i16m4 -> (i32m8 deferred accumulate) -> i32m1. Admit the parallel
-  // signed wide source/product ladder additively (result is i32m1 in both). The
-  // relation string mirrors the realized product/reduce op types (I5).
+  // The narrow chain is i8mf4 -> i16mf2 -> i32m1; the wide chains widen the
+  // source/product strip: the deferred-wide (N3) and VLEN128 non-deferred wide chain
+  // is i8m2 -> i16m4 -> i32m1, the VLEN256 non-deferred wide chain i8m1 -> i16m2 ->
+  // i32m1 (result is i32m1 in all). Admit any signed wide source rung in {m1, m2}
+  // whose i16 product is exactly one EMUL step wider (product == next-wider(source))
+  // -- derived structurally, NOT a per-VLEN branch (I5). The relation string mirrors
+  // the realized product/reduce op types.
   const bool isNarrowChain =
       sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
       sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
@@ -421,14 +428,15 @@ llvm::StringRef getContractionProductReductionChainRelation(
       productLMUL == tcrv::rvv::getRVVLMULMF2() &&
       resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       resultLMUL == tcrv::rvv::getRVVLMULM1();
-  const bool isDeferredWideChain =
+  const bool isWideChain =
       !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
+       sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
       productSEW == tcrv::rvv::getRVVSEW16Bits() &&
-      productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      productLMUL == getRVVNextWiderLMUL(sourceLMUL) &&
       resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       resultLMUL == tcrv::rvv::getRVVLMULM1();
-  if (!isNarrowChain && !isDeferredWideChain)
+  if (!isNarrowChain && !isWideChain)
     return {};
   if (isUnsigned)
     return internContractionDerivedText(

@@ -2087,11 +2087,15 @@ llvm::Error verifyRVVRuntimeAVLVLControlPlan(
   // loop at the wide strip config (sew8/m2) -- the structural setvl config of
   // the i8m2 -> i16m4 -> i32m8 winner. The deferred-wide i16 dot-reduce route (2nd
   // kernel family) runs its loop at the sew16/m4 strip config (i16m4 -> i32m8
-  // winner). Admit both parallel strip configs alongside the first-slice dataflow
-  // configs (I5: each is the realized setvl config of its route).
+  // winner). The NON-deferred wide product-reduce-dequant route (the dequant front
+  // door) runs its loop at the i8 strip config (sew8 at the realized m1/m2 anchor,
+  // VLEN-flipped). Admit each parallel strip config alongside the first-slice
+  // dataflow configs (I5: each is the realized setvl config of its route).
   if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul) &&
       !tcrv::rvv::isRVVDeferredWideStripConfig(plan.sew, plan.lmul) &&
-      !tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sew, plan.lmul))
+      !tcrv::rvv::isRVVDeferredWideDotReduceStripConfig(plan.sew, plan.lmul) &&
+      !tcrv::rvv::isRVVNonDeferredWideProductReductionStripConfig(plan.sew,
+                                                                  plan.lmul))
     return makeRVVRuntimeAVLVLControlPlanError(
         llvm::Twine(context) +
         " requires a supported typed RVV SEW/LMUL config");
@@ -3667,17 +3671,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     config.lmul = tcrv::rvv::getRVVLMULM1();
   }
   // The NON-deferred wide product-reduce-dequant realization (the capability-driven
-  // dequant front door's auto-constructed body: load i8m2 -> widening_product i16m4
-  // -> per-iteration vwredsum_i16m4_i32m1 -> dequantize, no deferred accumulate)
-  // ALSO carries its SOURCE strip config (sew8/m2) on the setvl, while its LOGICAL
-  // profile is the i32m1/f32m1 RESULT config. Normalize it the same way as the
+  // dequant front door's auto-constructed body: load i8 -> widening_product i16 ->
+  // per-iteration vwredsum -> dequantize, no deferred accumulate) ALSO carries its
+  // SOURCE strip config (sew8 at the realized m1/m2 rung) on the setvl, while its
+  // LOGICAL profile is the i32m1/f32m1 RESULT config. The wide strip rung FLIPS with
+  // VLEN (m2 at VLEN128, m1 at VLEN256); normalize either the same way as the
   // deferred-wide case above. The NARROW non-deferred realization carries the
   // sew32/m1 result config on its setvl already, so it is structurally excluded by
-  // the sew8/m2 source-strip guard and left byte-identical (I5).
+  // the sew8 source-strip guard and left byte-identical (I5).
   if (slice->arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
       config.sew == tcrv::rvv::getRVVSEW8Bits() &&
-      config.lmul == tcrv::rvv::getRVVLMULM2()) {
+      (config.lmul == tcrv::rvv::getRVVLMULM1() ||
+       config.lmul == tcrv::rvv::getRVVLMULM2())) {
     config.sew = tcrv::rvv::getRVVSEW32Bits();
     config.lmul = tcrv::rvv::getRVVLMULM1();
   }

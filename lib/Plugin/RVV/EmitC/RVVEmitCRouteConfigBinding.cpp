@@ -1595,13 +1595,18 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
           "selected RVV typed config resolver requires a typed i8 "
           "product-reduction lhs source vector before route construction");
     llvm::StringRef sourceLMUL = lhsSourceType.getLmul();
+    // The wide front-door strip flips its i8 source rung with VLEN: m2 at VLEN128,
+    // m1 at VLEN256 (the product LMUL follows structurally as next-wider(source)
+    // below). Admit either wide rung -- gated to the dequantize kind so the plain
+    // reduce-add / dequant-clamp kinds stay narrow (fail-closed, I7).
     const bool isWideStrip = isWideningProductReduceDequantize &&
-                             sourceLMUL == tcrv::rvv::getRVVLMULM2();
+                             (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
+                              sourceLMUL == tcrv::rvv::getRVVLMULM2());
     if (sourceLMUL != tcrv::rvv::getRVVLMULMF4() && !isWideStrip)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("selected RVV typed config resolver requires "
                       "product-reduction source vector LMUL '") +
-          sourceLMUL + "' to be a supported i8 mf4/m2 strip rung");
+          sourceLMUL + "' to be a supported i8 mf4/m1/m2 strip rung");
     tcrv::rvv::RVVCompileTimeConfig sourceConfig;
     sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
     sourceConfig.lmul = sourceLMUL;
@@ -1612,9 +1617,9 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     productConfig.policy = config.policy;
     // For the NARROW strip the setvl carries the i32m1/f32m1 RESULT config, so the
     // result config IS `config` (byte-identical to the historical path). For the
-    // WIDE strip the setvl carries the SOURCE config (sew8/m2), so the result config
-    // (sew32/m1) is derived explicitly here -- mirroring the deferred-wide branch
-    // below (I5).
+    // WIDE strip the setvl carries the SOURCE config (sew8 at the realized m1/m2
+    // strip rung), so the result config (sew32/m1) is derived explicitly here --
+    // mirroring the deferred-wide branch below (I5).
     tcrv::rvv::RVVCompileTimeConfig resultConfig = config;
     if (isWideStrip) {
       resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();

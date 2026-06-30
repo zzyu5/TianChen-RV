@@ -1279,6 +1279,11 @@ inline std::int64_t getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
              : kRVVLowPrecisionResourcePeakLiveVectorGroups;
 }
 
+// Forward declaration: the EMUL-rung ladder helper (defined below) used to derive
+// the wide product-reduction strip's product LMUL structurally (product ==
+// next-wider(source)) instead of pinning it per VLEN.
+llvm::StringRef getRVVNextWiderLMUL(llvm::StringRef lmul);
+
 inline llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
 buildRVVLowPrecisionProductReductionResourceCandidates(
     RVVLowPrecisionContractionResourceOperation operation,
@@ -1372,17 +1377,22 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       productLMUL == "mf2" && accumulatorSEW == 32 &&
       accumulatorLMUL == "m1" && resultSEW == 32 && resultLMUL == "m1";
   // The capability-driven dequant front door realizes the SAME i8 -> i16 -> i32m1
-  // product-reduction chain on the WIDER i8m2 -> i16m4 strip (the per-iteration
-  // vwredsum_i16m4_i32m1 form, NOT the deferred i32m8 accumulate); both reduce to
-  // the i32m1/f32m1 result. It is admitted as a parallel legal candidate shape (the
-  // i32m1 trailing reduce keeps the chain within the m8 LMUL cap). Peak-live-group
-  // accounting reuses the same loose constant as the narrow shape -- the wide strip
-  // genuinely keeps more vector groups live, but stays trivially within the 32-vreg
-  // budget; precise wide accounting is a separate N3 model refinement.
+  // product-reduction chain on a WIDER i8 strip than the narrow mf4 ladder (the
+  // per-iteration vwredsum form, NOT the deferred i32m8 accumulate); both reduce to
+  // the i32m1/f32m1 result. The wide source rung FLIPS with VLEN -- m2 -> i16m4 at
+  // VLEN128, m1 -> i16m2 at VLEN256 -- so the strip is admitted structurally: any i8
+  // source rung in {m1, m2} whose i16 product is exactly one EMUL step wider
+  // (product == next-wider(source)), NOT a hardcoded per-VLEN branch (I5). It stays
+  // a parallel legal candidate shape (the i32m1 trailing reduce keeps the chain
+  // within the m8 LMUL cap). Peak-live-group accounting reuses the same loose
+  // constant as the narrow shape -- the wide strip genuinely keeps more vector
+  // groups live, but stays trivially within the 32-vreg budget; precise wide
+  // accounting is a separate N3 model refinement.
   const bool hasSupportedWideShape =
-      sourceSEW == 8 && sourceLMUL == "m2" && productSEW == 16 &&
-      productLMUL == "m4" && accumulatorSEW == 32 &&
-      accumulatorLMUL == "m1" && resultSEW == 32 && resultLMUL == "m1";
+      sourceSEW == 8 && (sourceLMUL == "m1" || sourceLMUL == "m2") &&
+      productSEW == 16 && productLMUL == getRVVNextWiderLMUL(sourceLMUL) &&
+      accumulatorSEW == 32 && accumulatorLMUL == "m1" && resultSEW == 32 &&
+      resultLMUL == "m1";
   const bool hasSupportedShape =
       hasSupportedNarrowShape || hasSupportedWideShape;
   const bool hasSupportedPolicy =

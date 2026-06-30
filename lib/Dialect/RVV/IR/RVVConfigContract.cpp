@@ -403,6 +403,18 @@ bool isRVVByteAnchorDotReduceStripConfig(std::int64_t sew,
          (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
 }
 
+bool isRVVNonDeferredWideProductReductionStripConfig(std::int64_t sew,
+                                                     llvm::StringRef lmul) {
+  // The non-deferred wide product-reduce(-dequant) front-door strip: i8 loads at
+  // the integer-core anchor (m1 at VLEN256, m2 at VLEN128), SEW=8, widening into an
+  // i16 product (one EMUL rung wider) and reducing per-iteration into an i32m1
+  // scalar (no deferred i32m8 accumulate). PARALLEL config admitted only on the
+  // non-deferred wide product-reduce setvl/with_vl scope; it does NOT loosen
+  // isRVVFirstSliceDataflowConfig.
+  return sew == kRVVSEW8Bits &&
+         (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
+}
+
 bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
                                            llvm::StringRef lmul) {
   // The 2nd-family (i16 dot-reduce) deferred-wide strip config: i16 loads at the

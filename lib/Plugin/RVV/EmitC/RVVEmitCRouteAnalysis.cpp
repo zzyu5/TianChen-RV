@@ -679,6 +679,16 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   const bool isSignedDeferredWideProduct =
       product.getKind() == "signed_widening_product" &&
       product.getProductRelation() == "signed-i8m2xi8m2-to-i16m4";
+  // The NON-deferred wide product-reduce-dequant front-door strip flips its source
+  // rung with VLEN: m2 -> i16m4 at VLEN128 (shared with the deferred-wide relation
+  // above) and m1 -> i16m2 at VLEN256. Accept the m1 VLEN256 flip ADDITIVELY -- it
+  // is the SAME single-widening i8 -> i16 rung pattern one EMUL step (product ==
+  // next-wider(source)), read structurally from the typed op (I5). A trailing
+  // standalone_reduce (per-iteration vwredsum, NOT a deferred accumulate) completes
+  // the chain; the narrow/deferred branches above are byte-untouched.
+  const bool isSignedNonDeferredWideProduct =
+      product.getKind() == "signed_widening_product" &&
+      product.getProductRelation() == "signed-i8m1xi8m1-to-i16m2";
   // The N3 deferred-wide i16 dot-reduce winner (2nd kernel family) widens the
   // strip config one step (i16<L> x i16<L> -> i32<W>) -- a SINGLE widening whose
   // product IS the i32 deferred accumulator width. The LMUL is PARSED, not pinned
@@ -692,7 +702,7 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
       product.getKind() == "signed_widening_product" &&
       !rvvDotReduceProductSourceLMUL(product.getProductRelation()).empty();
   if (!isSignedProduct && !isUnsignedProduct && !isSignedDeferredWideProduct &&
-      !isSignedDeferredWideDotProduct)
+      !isSignedNonDeferredWideProduct && !isSignedDeferredWideDotProduct)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.widening_product kind '") +
         product.getKind() +

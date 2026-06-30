@@ -100,6 +100,15 @@ bool isRVVDeferredWideDotReduceStripConfig(std::int64_t sew,
 // at VLEN256 (the capability flip). It does NOT loosen
 // isRVVFirstSliceDataflowConfig.
 bool isRVVByteAnchorDotReduceStripConfig(std::int64_t sew, llvm::StringRef lmul);
+// The NON-deferred wide product-reduce(-dequant) strip config: the capability-
+// driven dequant front door auto-constructs an i8 strip at the integer-core anchor
+// (SEW8, LMUL m1 or m2), widening into an i16 product (one EMUL rung wider) and
+// reducing per-iteration into an i32m1 scalar (no deferred i32m8 accumulate). The
+// anchor FLIPS with VLEN (m2 at VLEN128, m1 at VLEN256). PARALLEL to the deferred-
+// wide strip configs; admitted on the non-deferred wide product-reduce setvl/with_vl
+// scope. It does NOT loosen isRVVFirstSliceDataflowConfig.
+bool isRVVNonDeferredWideProductReductionStripConfig(std::int64_t sew,
+                                                     llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);
