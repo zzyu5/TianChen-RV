@@ -1536,6 +1536,84 @@ void VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsNext);
 }
 
+// Track B q4_K BRICK 7: the POST-LOOP horizontal fold, factored out VERBATIM from
+// emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
+// monolithic q4_K block dot, which emits it AFTER its super-block loop) AND through
+// the first-class tcrv_rvv.q4_k_horizontal_fold op. Emits at the current insertion
+// point: `vse32_v_f32m2(&sums8[0], sums, 8)` materializes the carried 8-lane fp32
+// sums accumulator into the sums8[8] scratch, then the FIXED sequential ascending
+// `sumf = sumf + sums8[l]` for l = 0..numLanes-1 (numLanes == 8) collapses the 8
+// lanes into the carried scalar sumf (which already holds the in-loop MIN
+// subtractions). The horizontal sum is anchor-INDEPENDENT (always 8 lanes, fixed
+// ascending order, NEVER a vfredusum) -- it mirrors _generic's `for (l=0..7) sumf
+// += sums[l]`, so there is NO fp-reassociation seam here. Does NOT emit the final
+// store (the monolith stores `*s = sumf` through the ABI float *, the standalone op
+// stores into a local sink) -- RETURNS the final sumf Value so each caller can store
+// it.
+mlir::Value VariantToEmitCFunc::emitQ4_KHorizontalFold(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KHorizontalFoldContext &hx,
+    mlir::TypedValue<emitc::ArrayType> sums8Array,
+    mlir::TypedValue<emitc::LValueType> sumsVar,
+    mlir::TypedValue<emitc::LValueType> sumfVar) const {
+    llvm::StringRef opName = hx.opName;
+    llvm::StringRef role = hx.role;
+    mlir::Type floatType = hx.floatType;
+    mlir::Type f32m2Type = hx.f32m2Type;
+    int64_t numLanes = hx.numLanes;
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, hx.sizeType,
+                                               std::to_string(v));
+    };
+
+    // vse32_v_f32m2(&sums8[0], sums, 8);  -- materialize lane l at sums8[l].
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_sums_lanes"));
+    mlir::Value sums8Index0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value sums8Elem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, sums8Array,
+                                        mlir::ValueRange{sums8Index0})
+            .getResult();
+    mlir::Value sums8Base =
+        rewriter
+            .create<emitc::ApplyOp>(loc, emitc::PointerType::get(floatType), "&",
+                                    sums8Elem0)
+            .getResult();
+    mlir::Value sumsFinal =
+        rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumsVar).getResult();
+    emitVCallVoidBuilt(rewriter, loc, "vse32", "v_f32m2", opName, role,
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         return {sums8Base, sumsFinal, sizeLit(8)};
+                       });
+
+    // sumf += sums8[0]; sumf += sums8[1]; ...; sumf += sums8[7];  -- the
+    // SEQUENTIAL ascending fp32 horizontal sum, STARTING from the carried sumf
+    // (which holds the MIN subtractions), NEVER a vfredusum. This mirrors
+    // _generic's `for (l=0..7) sumf += sums[l]` after the super-block loop, with
+    // sumf already carrying the in-loop min subtractions.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "horizontal_sum"));
+    auto loadLane = [&](int64_t l) -> mlir::Value {
+      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
+          loc, rewriter.getIndexType(), std::to_string(l));
+      mlir::Value elem =
+          rewriter
+              .create<emitc::SubscriptOp>(loc, sums8Array, mlir::ValueRange{idx})
+              .getResult();
+      return rewriter.create<emitc::LoadOp>(loc, floatType, elem).getResult();
+    };
+    mlir::Value sumf =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+    for (int64_t l = 0; l < numLanes; ++l)
+      sumf =
+          rewriter.create<emitc::AddOp>(loc, floatType, sumf, loadLane(l))
+              .getResult();
+    return sumf;
+}
+
 VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
@@ -2543,6 +2621,125 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KSumsFoldScaleD(
     return mlir::success();
   }
 
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KHorizontalFold(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // The post-loop fold is a fixed-order 8-lane collapse (literal
+                  // vl == 8); NO nb = n/256 loop, no n use.
+    tcrvrvv::Q4KHorizontalFoldOp fold;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto fd = llvm::dyn_cast<tcrvrvv::Q4KHorizontalFoldOp>(op))
+        fold = fd;
+    }
+    if (!fold)
+      return rewriter.notifyMatchFailure(
+          scope, "q4_K horizontal-fold body missing the op");
+
+    mlir::Value sumsBase = valueMap.lookup(fold.getSumsBase());
+    if (!sumsBase)
+      return rewriter.notifyMatchFailure(
+          fold, "q4_K horizontal-fold ABI operand unmapped");
+
+    llvm::StringRef opName = fold.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = fold.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
+    mlir::Type i32TokenType = emitc::OpaqueType::get(ctx, "int32_t");
+
+    // The canonical fp32 lane count comes straight off the typed attr (I4).
+    int64_t numLanes = fold.getNumLanes(); // 8
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // vfloat32m2_t sums = __riscv_vle32_v_f32m2(sums_base, 8);  -- the op's OWN
+    // 8-lane fp32 accumulator, materialized from the ABI const float * source (vs
+    // the monolith's loop-carried sums) so the post-loop fold has observable input.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums", opName, role));
+    auto sumsVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(f32m2Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumsLoaded = emitVCallBuilt(
+        rewriter, loc, f32m2Type, "vle32", "v_f32m2", opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {sumsBase, sizeLit(numLanes)};
+        });
+    rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsLoaded);
+
+    // float sumf = 0.0f;  -- the op's OWN scalar accumulator (vs the monolith's
+    // loop-carried sumf holding the MIN subtractions; here seeded to 0 so the
+    // standalone observes the pure positive horizontal sum).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumfZero =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfZero);
+
+    // float sums8[8];  -- the function-scoped scratch the 8-lane sums is stored
+    // into (vse32) before the SEQUENTIAL horizontal sum.
+    mlir::Type sums8ArrayType = emitc::ArrayType::get({numLanes}, floatType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums8", opName, role));
+    auto sums8Var = rewriter.create<emitc::VariableOp>(
+        loc, sums8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto sums8Array =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sums8Var.getResult());
+
+    // float sumf_out[1];  -- the function-scoped sink the resulting sumf is stored
+    // into as the observable (vs the monolith's `*s = sumf` ABI output; here a
+    // local array so the lit has output to CHECK).
+    mlir::Type sumfOutArrayType = emitc::ArrayType::get({1}, floatType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf_out", opName, role));
+    auto sumfOutVar = rewriter.create<emitc::VariableOp>(
+        loc, sumfOutArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto sumfOutArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sumfOutVar.getResult());
+
+    // The shared post-loop horizontal-fold helper (the SAME node sequence the
+    // monolithic q4_K block dot emits AFTER its super-block loop): vse32 the 8-lane
+    // sums into sums8, then the SEQUENTIAL ascending `sumf += sums8[l]` (l=0..7,
+    // NEVER a vfredusum). Returns the final sumf. Byte-identical to the monolith's
+    // store_sums_lanes + horizontal_sum region.
+    Q4_KHorizontalFoldContext hx;
+    hx.opName = opName;
+    hx.role = role;
+    hx.sizeType = sizeType;
+    hx.floatType = floatType;
+    hx.f32m2Type = f32m2Type;
+    hx.numLanes = numLanes;
+    mlir::Value sumf = emitQ4_KHorizontalFold(
+        rewriter, loc, hx, sums8Array,
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()),
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
+
+    // sumf_out[0] = sumf;  -- store the resulting scalar (the observable; the
+    // monolith instead stores it through the ABI `*s` output pointer).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_sumf"));
+    mlir::Value sumfOutIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp sumfOutSubscript = rewriter.create<emitc::SubscriptOp>(
+        loc, sumfOutArray, mlir::ValueRange{sumfOutIndex0});
+    rewriter.create<emitc::AssignOp>(loc, sumfOutSubscript.getResult(), sumf);
+
+    // The op's i32 m1 result token: the fold writes sumf_out as a side effect, so
+    // the token has no live use; bind it to a zero literal to keep the map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32TokenType, "0");
+    valueMap[fold.getResult()] = resultToken;
+    return mlir::success();
+  }
+
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2868,51 +3065,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
 
     // ---- the SEQUENTIAL horizontal sum, l = 0 .. 7 (AFTER the super-block loop;
     // sumf already holds the accumulated MIN subtractions) ----
-    // vse32_v_f32m2(&sums8[0], sums, 8);  -- materialize lane l at sums8[l].
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "store_sums_lanes"));
-    mlir::Value sums8Index0 =
-        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-    mlir::Value sums8Elem0 =
-        rewriter
-            .create<emitc::SubscriptOp>(loc, sums8Array,
-                                        mlir::ValueRange{sums8Index0})
-            .getResult();
-    mlir::Value sums8Base =
-        rewriter
-            .create<emitc::ApplyOp>(loc, emitc::PointerType::get(floatType), "&",
-                                    sums8Elem0)
-            .getResult();
-    mlir::Value sumsFinal =
-        rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumsVar).getResult();
-    emitVCallVoidBuilt(rewriter, loc, "vse32", "v_f32m2", opName, role,
-                       [&](mlir::OpBuilder &b, mlir::Location l)
-                           -> llvm::SmallVector<mlir::Value> {
-                         return {sums8Base, sumsFinal, sizeLit(8)};
-                       });
-
-    // sumf += sums8[0]; sumf += sums8[1]; ...; sumf += sums8[7];  -- the
-    // SEQUENTIAL ascending fp32 horizontal sum, STARTING from the carried sumf
-    // (which holds the MIN subtractions), NEVER a vfredusum. This mirrors
-    // _generic's `for (l=0..7) sumf += sums[l]` after the super-block loop, with
-    // sumf already carrying the in-loop min subtractions.
-    rewriter.create<emitc::VerbatimOp>(
-        loc, stepComment(opName, role, "horizontal_sum"));
-    auto loadLane = [&](int64_t l) -> mlir::Value {
-      mlir::Value idx = rewriter.create<emitc::LiteralOp>(
-          loc, rewriter.getIndexType(), std::to_string(l));
-      mlir::Value elem =
-          rewriter
-              .create<emitc::SubscriptOp>(loc, sums8Array, mlir::ValueRange{idx})
-              .getResult();
-      return rewriter.create<emitc::LoadOp>(loc, floatType, elem).getResult();
-    };
-    mlir::Value sumf =
-        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-    for (int64_t l = 0; l < numLanes; ++l)
-      sumf =
-          rewriter.create<emitc::AddOp>(loc, floatType, sumf, loadLane(l))
-              .getResult();
+    // The vse32 of the carried 8-lane sums into sums8 + the SEQUENTIAL ascending
+    // `sumf += sums8[l]` (l=0..7, STARTING from the carried sumf, NEVER a
+    // vfredusum), factored out VERBATIM into the shared emitQ4_KHorizontalFold
+    // helper (the SAME node sequence, also reachable through the first-class
+    // tcrv_rvv.q4_k_horizontal_fold op). Returns the final sumf (the carried MIN
+    // subtractions + the 8 positive lanes), which the ABI `*s` store + valueMap
+    // below consume. Byte-identical to the inline fold.
+    Q4_KHorizontalFoldContext hx;
+    hx.opName = opName;
+    hx.role = role;
+    hx.sizeType = sizeType;
+    hx.floatType = floatType;
+    hx.f32m2Type = f32m2Type;
+    hx.numLanes = numLanes;
+    mlir::Value sumf = emitQ4_KHorizontalFold(
+        rewriter, loc, hx, sums8Array,
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()),
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
 
     // *s = sumf;  (structured scalar store through the float * output pointer).
     auto outPointer =

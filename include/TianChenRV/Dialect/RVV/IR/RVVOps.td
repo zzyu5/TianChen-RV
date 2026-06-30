@@ -6795,6 +6795,82 @@ def Q4KSumsFoldScaleDOp
   let hasVerifier = 1;
 }
 
+def Q4KHorizontalFoldOp
+    : TCRVRVV_Op<"q4_k_horizontal_fold",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K POST-LOOP horizontal fold (sumf += "
+      "sums8[0..7], sequential) op";
+  let description = [{
+    Records the q4_K/q5_K block dot's POST-LOOP horizontal fold -- the final
+    collapse of the 8-lane fp32 `sums` VECTOR accumulator into the carried scalar
+    `sumf` (which already holds the in-loop MIN subtractions) -- as ONE bounded
+    generic plugin-local typed RVV dataflow step, the Track B q4_K
+    auto-construction's BRICK 7 (sibling to BRICK 1's tcrv_rvv.q4_k_nibble_unpack,
+    BRICK 2's tcrv_rvv.q4_k_scale_min_bit_dance, BRICK 3's tcrv_rvv.q4_k_scaled_dot,
+    BRICK 4's tcrv_rvv.q4_k_min_term, and BRICK 6's
+    tcrv_rvv.q4_k_sums_fold_scale_d). It is the LAST step of the fp domain, emitted
+    AFTER the super-block loop: a `vse32_v_f32m2(&sums8[0], sums, 8)` materializes
+    the 8-lane `sums` accumulator into a `float sums8[8]` scratch, then the FIXED
+    sequential ascending `for (l = 0; l < num_lanes; ++l) sumf += sums8[l]`
+    (num_lanes == 8) accumulates the 8 lanes into `sumf` STARTING from its carried
+    value. This horizontal sum is anchor-INDEPENDENT (always 8 lanes, fixed
+    ascending order, NEVER a vfredusum) -- it mirrors `_generic`'s
+    `for (l = 0; l < 8; ++l) sumf += sums[l]` after the super-block loop, so it is
+    byte-exact with NO fp-reassociation seam.
+
+    The nibble unpack, the 6-bit scale/min bit-dance, the per-sub-block scaled i32
+    dot, the MIN term, the deferred fp32 positive fold, and the super-block loop
+    scaffold (BRICKS 1, 2, 3, 4, 6, and the deferred BRICK 5 FOR-loop container) are
+    NOT this op -- they are the sibling bricks and the monolithic
+    tcrv_rvv.q4_k_q8_k_block_dot op, which STAY. In the monolithic block dot this
+    fold sits AFTER the loop, reading the loop-carried `sums`/`sumf` and writing the
+    fp32 ABI output `*s`; in the standalone lowering the op declares its OWN sums
+    (vle32-loaded from the ABI source) + sumf (seeded 0) + sums8 scratch and stores
+    the resulting sumf to a local sink as the observable.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes ONE runtime ABI value
+    operand -- the 8-lane fp32 `sums` source base pointer (const float *,
+    vle32-loaded into a vfloat32m2_t) -- plus the active !tcrv_rvv.vl token, and
+    produces ONE i32 LMUL m1 !tcrv_rvv.vector completion token (the fold mutates the
+    scalar sumf accumulator and a local sink as a side effect).
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32 elements, and
+    the canonical fp32 lane count (num_lanes == 8) -- are carried as typed integer
+    attributes (I4 mirror only). The fixed emission mirrors `_generic` (quants.c line
+    718) so byte-exactness is by construction: the SAME node sequence is shared
+    VERBATIM by the monolithic q4_K/q5_K block dot (which emits it after the
+    super-block loop) AND this first-class op's lowering, so both emit byte-identical
+    horizontal-fold C. The bounded surface kind is limited to "q4_k_horizontal_fold".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, operand mirror strings, q8/q4 names, and common EmitC/export
+    code must not infer or choose fold semantics.
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target). No resource shape knobs (the
+    horizontal collapse is fixed at 8 lanes f32m2 and a fixed sequential ascending
+    sum; the integer-core LMUL widening axis lives on the upstream BRICK 3 scaled
+    dot).
+  }];
+
+  let arguments = (ins
+    AnyType:$sums_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$num_sub_blocks,
+    I64Attr:$num_lanes
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$sums_base `,` $vl attr-dict `:` "
+    "type($sums_base) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {

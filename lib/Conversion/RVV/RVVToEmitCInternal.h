@@ -295,6 +295,12 @@ private:
   /// bit-dance / scaled dot / MIN term).
   static bool isQ4_KSumsFoldScaleDBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-7 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_horizontal_fold (the post-loop horizontal fold
+  /// `for (l=0..7) sumf += sums8[l]`, NO nibble unpack / bit-dance / scaled dot /
+  /// MIN term / positive fold).
+  static bool isQ4_KHorizontalFoldBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2124,6 +2130,25 @@ private:
     int64_t weightDOffset;          // 0 (block_q4_K/q5_K d fp16 offset)
   };
 
+  /// The Track B q4_K BRICK 7 (post-loop horizontal fold) context: the bounded
+  /// facts + emitc types the shared horizontal-fold helper (emitQ4_KHorizontalFold)
+  /// needs. The fold is a fixed-order 8-lane collapse (vse32 the carried 8-lane
+  /// fp32 sums into a sums8[8] scratch, then the SEQUENTIAL ascending `sumf +=
+  /// sums8[l]` for l = 0..7) -- no LMUL/widening axis (the horizontal collapse is
+  /// fixed at 8 lanes f32m2), so this is a small dedicated context. Carrying the
+  /// (deterministically-interned) emitc types by value keeps the monolithic q4_K
+  /// block-dot's existing type locals in use (zero removals) and guarantees the
+  /// helper references the SAME Type instances the monolith does -- byte-identity
+  /// by construction.
+  struct Q4_KHorizontalFoldContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type floatType; // emitc.opaque<"float"> (sumf + sums8 lanes)
+    mlir::Type f32m2Type; // vfloat32m2_t (the carried 8-lane sums accumulator)
+    int64_t numLanes;     // 8 (the canonical fp32 sums lane count)
+  };
+
   /// Emit ONE super-block's q4_K/q5_K plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch (Region A), NO bias: FOUR 64-element
   /// chunks, each one vsetvl_e8m2(32) + vle8_v_u8m2 of the 32 weight bytes at
@@ -2246,6 +2271,29 @@ private:
       const Q4_KSumsFoldContext &sx, mlir::Value xb, mlir::Value dy,
       mlir::TypedValue<emitc::LValueType> aux32Var,
       mlir::TypedValue<emitc::LValueType> sumsVar) const;
+
+  /// Emit ONE super-block-loop's POST-LOOP horizontal fold (Track B q4_K BRICK 7):
+  /// `vse32_v_f32m2(&sums8[0], sums, 8)` materializes the carried 8-lane fp32 sums
+  /// accumulator into the sums8[8] scratch, then the FIXED sequential ascending
+  /// `sumf = sumf + sums8[l]` for l = 0..num_lanes-1 (num_lanes == 8) collapses the
+  /// 8 lanes into the carried scalar `sumf` (which already holds the in-loop MIN
+  /// subtractions). The horizontal sum is anchor-INDEPENDENT (always 8 lanes, fixed
+  /// ascending order, NEVER a vfredusum) -- it mirrors `_generic`'s
+  /// `for (l = 0; l < 8; ++l) sumf += sums[l]`, so there is NO fp-reassociation seam
+  /// in this brick. Emits at the current insertion point (AFTER the super-block
+  /// loop). Reads the carried sums + sumf lvalues and the sums8 scratch; does NOT
+  /// emit the final store (the monolith stores `*s = sumf` through the ABI float *,
+  /// the standalone op stores into a local sink) -- it RETURNS the final sumf Value
+  /// so each caller can store it. The SAME node sequence is shared VERBATIM by
+  /// emitQ4_KQ8_KBlockDot (the monolithic q4_K block dot, which emits it after its
+  /// super-block loop) AND the first-class tcrv_rvv.q4_k_horizontal_fold op's
+  /// lowering, so both emit byte-identical horizontal-fold C.
+  mlir::Value emitQ4_KHorizontalFold(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KHorizontalFoldContext &hx,
+      mlir::TypedValue<emitc::ArrayType> sums8Array,
+      mlir::TypedValue<emitc::LValueType> sumsVar,
+      mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
@@ -2402,6 +2450,25 @@ private:
   /// i32 m1 token to a zero literal (the fold writes sums_out as a side effect; no
   /// live use).
   mlir::LogicalResult emitQ4_KSumsFoldScaleD(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 7 op (tcrv_rvv.q4_k_horizontal_fold) as fully
+  /// STRUCTURED emitc nodes: declare the op's OWN 8-lane fp32 `vfloat32m2_t sums`
+  /// accumulator (vle32-loaded from the ABI const float * source so the fold has
+  /// observable input) + a `float sumf` accumulator (seeded 0.0f) + a `float
+  /// sums8[8]` scratch + a local `float sumf_out[1]` sink, then call the SAME shared
+  /// horizontal-fold helper the monolithic q4_K block dot calls --
+  /// emitQ4_KHorizontalFold (the vse32 of sums into sums8 + the SEQUENTIAL 8-add
+  /// `sumf += sums8[l]`, returning the final sumf) -- and store the resulting sumf
+  /// into the local sink as the observable so the lit has output to CHECK. The sums
+  /// operand is an ABI INPUT pointer (single super-block; NO nb = n/256 loop, NO
+  /// nibble unpack, NO bit-dance, NO scaled dot, NO MIN term, NO positive fold --
+  /// those are BRICK 1 / BRICK 2 / BRICK 3 / BRICK 4 / BRICK 6 / the deferred BRICK
+  /// 5 loop). Binds the op's i32 m1 token to a zero literal (the fold writes
+  /// sumf_out as a side effect; no live use).
+  mlir::LogicalResult emitQ4_KHorizontalFold(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

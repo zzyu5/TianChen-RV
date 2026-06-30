@@ -5841,6 +5841,99 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Q4KHorizontalFoldOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Track B q4_K BRICK 7: the op carries ONLY its bounded mirror attrs (I4) -- the
+  // operation kind and the super-block-format facts the post-loop horizontal fold
+  // needs (qk, sub_block, num_sub_blocks, and the canonical fp32 lane count). NO
+  // scale model and NO LMUL/resource knob (the horizontal collapse is fixed at 8
+  // lanes f32m2 and a fixed sequential ascending sum -- the integer-core widening
+  // axis lives on the upstream BRICK 3 scaled dot). A forbidden local
+  // element_count/SEW/LMUL/policy attr or an unexpected name is rejected
+  // fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "sub_block" ||
+           name == "num_sub_blocks" || name == "num_lanes";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_k_horizontal_fold keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded horizontal-fold attributes 'kind', "
+                "'qk', 'sub_block', 'num_sub_blocks', and 'num_lanes'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "q4_k_horizontal_fold")
+    return emitOpError()
+           << "currently supports only kind \"q4_k_horizontal_fold\" for the "
+              "bounded q4_K/q5_K post-loop horizontal-fold (sumf += sums8[0..7], "
+              "sequential) typed surface";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256, 8
+  // sub-blocks of 32 elements, and the canonical 8-lane fp32 accumulator. Pin them
+  // so a malformed typed body cannot lower under the horizontal-fold emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
+                            "horizontal-fold route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block scale boundary) "
+              "for the q4_K/q5_K horizontal-fold route";
+  if (getNumSubBlocks() != 8)
+    return emitOpError()
+           << "requires num_sub_blocks == 8 (QK_K / 32) for the q4_K/q5_K "
+              "horizontal-fold route";
+  if (getNumLanes() != 8)
+    return emitOpError()
+           << "requires num_lanes == 8 (the canonical fp32 sums lane count) for "
+              "the q4_K/q5_K horizontal-fold route";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one runtime ABI base pointer operand (the 8-lane fp32 "
+              "sums source), one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The single base operand is a runtime ABI value: the 8-lane fp32 sums source
+  // (const float *, vle32-loaded into a vfloat32m2_t the horizontal fold collapses).
+  RuntimeABIValueOp sumsBinding =
+      getSumsBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!sumsBinding || sumsBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the sums base operand to bind a runtime ABI value of C "
+              "type 'const float *' (the 8-lane fp32 sums accumulator source, "
+              "vle32-loaded into a vfloat32m2_t)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
+              "horizontal-fold route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the q4_K/q5_K horizontal fold";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
   mlir::Operation *op = getOperation();
 
