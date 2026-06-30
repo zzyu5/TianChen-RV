@@ -2,7 +2,11 @@
 
 // INC-9 — the COMPLETE ggml ggml_vec_dot_q4_1_q8_1 block kernel as STRUCTURED
 // emitc IR (I5; ZERO raw() strings), the Family-B (scale+MIN, asymmetric) sibling
-// of the Q4_0 lowering. The single typed op tcrv_rvv.q4_1_q8_1_block_dot lowers
+// of the Q4_0 lowering, pinned at the EXPLICIT mf4 NARROW anchor
+// (integer_core_lmul = "mf4"). NOTE: mf4 is NO LONGER the emitter default -- the
+// default is now the wide-LMUL m1 floor (wa1); this fixture keeps the legacy
+// 4x8-lane mf4 narrow form (the now-non-default but still stampable anchor) under
+// test. The single typed op tcrv_rvv.q4_1_q8_1_block_dot lowers
 // to: an outer emitc.for block loop over nb = n / QK, per-block address
 // arithmetic (vx + ib*20, vy + ib*36) via emitc.add/emitc.mul nodes, the FOUR
 // scalar fp16->fp32 reads (d_x, d_y, m_x, s_y) via emitc.call_opaque
@@ -24,7 +28,7 @@ module {
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_q4_1_q8_1, sew = 32 : i64, source_kernel = "ggml_vec_dot_q4_1_q8_1_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.q4_1_q8_1_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q4_1_q8_1_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y-plus-min", qk = 32 : i64, weight_block_stride = 20 : i64, activation_block_stride = 36 : i64, quant_byte_offset = 4 : i64, activation_high_byte_offset = 16 : i64, weight_min_byte_offset = 2 : i64, activation_sum_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %dot = tcrv_rvv.q4_1_q8_1_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_q4_1_q8_1_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y-plus-min", qk = 32 : i64, weight_block_stride = 20 : i64, activation_block_stride = 36 : i64, quant_byte_offset = 4 : i64, activation_high_byte_offset = 16 : i64, weight_min_byte_offset = 2 : i64, activation_sum_byte_offset = 2 : i64, integer_core_lmul = "mf4"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }

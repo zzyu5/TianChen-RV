@@ -54,18 +54,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
-    // or m1 to match ggml's one-vwredsum-per-block reduction anchor). It is the
-    // *how* (vector grouping / strip width), never the *what*: the dot product is
-    // byte-exact either way (vwredsum sums the same integer set; integer add is
-    // order-independent). The chosen i8 source LMUL ("mf4"/"m1") drives the
-    // widened i16 product LMUL ("mf2"/"m2") and the i8 load/vsetvl spelling.
-    // The two outer-loop SHAPE knobs (also bounded resource/scheduling facts, the
-    // *how* not the *what*; both are byte-exact -- the fp32 folds stay in strict
+    // The integer core's LMUL is a bounded resource/scheduling fact. The DEFAULT
+    // is "m1" -- the WIDE-LMUL whole-half-block anchor that matches ggml's
+    // one-vwredsum-per-block reduction (16-lane half-block in ONE strip at
+    // VLEN>=128). m1 is the VLEN-UNIVERSAL FLOOR: the m1 robust strip loop is
+    // byte-correct at ANY VLEN (a narrow VLMAX just re-strips with the sumi-carry
+    // seed), so an attr-less op lowers to the wide form on every target, exactly
+    // like q8_0's "m2" floor and the codebook's "m1" floor. The gearbox REFINES
+    // it -- it stamps integer_core_lmul (and the elision/factor knobs) from
+    // getRVVStripVLMAXElements (the single truth source), e.g. (m1, factor=4,
+    // elided) at a guaranteed Zvl128b target; the legacy "mf4" narrow anchor is
+    // still a stampable candidate (the now-non-default 4x8-lane sub-VLMAX form),
+    // never the default. LMUL is the *how* (vector grouping / strip width), never
+    // the *what*: the dot product is byte-exact across anchors (vwredsum sums the
+    // same integer set; integer add is order-independent). The chosen i8 source
+    // LMUL ("m1"/"mf4") drives the widened i16 product LMUL ("m2"/"mf2") and the
+    // i8 load/vsetvl spelling. The two outer-loop SHAPE knobs (also bounded
+    // resource/scheduling facts, byte-exact -- the fp32 folds stay in strict
     // ascending block order, only the independent integer cores overlap). The
     // verifier bounds the factor to 1|2|4 and the elision to robust|elided, and
     // forbids "elided" unless the integer core anchors at m1.
-    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
     llvm::StringRef coreLmul = blockDotFacts.coreLmul;
     int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
     bool stripElided = blockDotFacts.stripElided;
@@ -6339,13 +6348,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_1Q8_1BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The integer core's LMUL is a bounded resource/scheduling fact (mf4 default,
-    // or m1 to match ggml's one-vwredsum-per-half-block anchor). q4_1's nibble
-    // half-block matches q4_0's, so the anchor set is q4_0's {mf4, m1}. It is the
-    // *how* (vector grouping / strip width), never the *what*: the dot product is
+    // The integer core's LMUL is a bounded resource/scheduling fact. The DEFAULT
+    // is "m1" -- the WIDE-LMUL whole-half-block anchor matching ggml's
+    // one-vwredsum-per-half-block reduction (16-lane half-block, ONE strip at
+    // VLEN>=128). q4_1's nibble half-block matches q4_0's, so the anchor set is
+    // q4_0's {mf4, m1} and the SAME wide-universal-floor reasoning applies: the m1
+    // robust strip is byte-correct at any VLEN, so an attr-less op lowers wide;
+    // the gearbox refines the elision/factor knobs and the legacy "mf4" narrow
+    // anchor stays a stampable (now non-default) candidate. LMUL is the *how*
+    // (vector grouping / strip width), never the *what*: the dot product is
     // byte-exact either way. The chosen i8 source LMUL drives the widened i16
     // product LMUL and the load/vsetvl spelling.
-    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "mf4");
+    BlockDotFacts blockDotFacts = deriveBlockDotFacts(blockDot, "m1");
     llvm::StringRef coreLmul = blockDotFacts.coreLmul;
     int64_t multiBlockFactor = blockDotFacts.multiBlockFactor;
     bool stripElided = blockDotFacts.stripElided;

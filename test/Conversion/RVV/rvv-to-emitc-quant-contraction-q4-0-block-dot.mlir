@@ -9,11 +9,14 @@
 // m_regime=decode, weight_layout=plain, the plain block byte facts, and the
 // runtime column count nc -- carried ALWAYS so a later repack branch can reach
 // it). The stage-A pass DROPS nc and reconstructs the bare 4-operand block-dot
-// op verbatim, so the emitted C is BYTE-IDENTICAL to the hand-authored
-// rvv-to-emitc-q4-0-q8-0-block-dot.mlir output. The CHECK lines below are the
-// SAME as that hand-authored test's: identity is proven structurally (same op,
-// same attrs, same runtime ABI signature) and the byte-exact gate is the
-// emitted-C fingerprint.
+// op verbatim. The reconstructed op is ATTR-LESS (no integer_core_lmul), so it
+// lowers to the WIDE-LMUL m1 DEFAULT (wa1: the nibble-decode block-dot default
+// flipped from the legacy mf4 narrow strip to the m1 whole-half-block floor that
+// matches ggml's one-vwredsum reduction). The CHECK lines below track that m1
+// default emit; the hand-authored rvv-to-emitc-q4-0-q8-0-block-dot.mlir now pins
+// the explicit mf4 narrow anchor (the now-non-default form), so the two diverge
+// by exactly the wa1 LMUL flip. Identity of the abstract->concrete lowering is
+// still proven structurally (same op, same attrs, same runtime ABI signature).
 //
 // The runtime ABI value set is IDENTICAL to the hand-authored block-dot test
 // (n, s, bs, vx, bx, vy, by, nrc) -- the abstract op's column_count (nc)
@@ -60,24 +63,25 @@ module {
 // CHECK: call_opaque "(float)*(const _Float16 *)"
 // Per-block i32 scalar accumulator, reset each block.
 // CHECK: %[[SUMI:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int32_t">>
-// The INNER mf4 strip loop over the 16 weight bytes.
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
+// The INNER m1 strip loop (wide-LMUL default): vsetvl_e8m1 (VLMAX 16 at VLEN=128
+// covers the whole 16-byte half-block in ONE strip, ggml's one-vwredsum anchor).
+// CHECK: call_opaque "__riscv_vsetvl_e8m1"
 // CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
-// The three i8/mf4 chunk loads: packed-i4 weight + plain q8 low + plain q8 high.
-// CHECK: call_opaque "__riscv_vle8_v_i8mf4"
-// CHECK: call_opaque "__riscv_vle8_v_i8mf4"
-// CHECK: call_opaque "__riscv_vle8_v_i8mf4"
-// INC-1's offset-binary asymmetric i4xi8 decode/product chain (reused).
-// CHECK: call_opaque "__riscv_vxor_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vsll_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vsra_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vsra_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vwmul_vv_i16mf2"
-// CHECK: call_opaque "__riscv_vwmacc_vv_i16mf2"
+// CHECK: call_opaque "__riscv_vsetvl_e8m1"
+// The three i8/m1 chunk loads: packed-i4 weight + plain q8 low + plain q8 high.
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// CHECK: call_opaque "__riscv_vle8_v_i8m1"
+// INC-1's offset-binary asymmetric i4xi8 decode/product chain (reused, m1).
+// CHECK: call_opaque "__riscv_vxor_vx_i8m1"
+// CHECK: call_opaque "__riscv_vsll_vx_i8m1"
+// CHECK: call_opaque "__riscv_vsra_vx_i8m1"
+// CHECK: call_opaque "__riscv_vsra_vx_i8m1"
+// CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
+// CHECK: call_opaque "__riscv_vwmacc_vv_i16m2"
 // Per-block reduce into the i32 scalar (vwredsum + lane-0 extract).
 // CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16mf2_i32m1"
+// CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // The left-assoc fp32 accumulate sumf = sumf + ((float)sumi * d_x) * d_y,
 // grouped into ONE emitc.expression so mlir-translate renders it as a SINGLE C
