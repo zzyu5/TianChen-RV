@@ -1,0 +1,29 @@
+# Production-export wide-body gap — precise finding + design fork (2026-06-30)
+
+**Status: gap REAL and now PRECISELY located; closing it forks into a design decision (a vs b) that is the parent author's to make. The prior "3 named faces (Common.cpp:310 / PlanOwners / Validation:478)" note was STALE (predates the deferred-wide path) — corrected below.**
+
+## What the gap actually is (live-tree, verified by direct runs)
+- The Track-B dequant front door (`lib/Plugin/RVV/RVVDequantDotSourceFrontDoor.cpp`) auto-constructs the **NON-deferred** wide body on its production input (`--tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv`): `load i8m2 → widening_product i16m4 → standalone_reduce i32m1 → dequantize → store` (no `widening_accumulate`; verified count=0).
+- Piping that exact output through `--tcrv-materialize-emission-plans` **fails (exit 1)**: `selected RVV typed config resolver requires product-reduction lhs source vector LMUL 'm2' to match selected config LMUL 'mf4'`.
+- The front-door lit (`test/Transforms/RVV/rvv-widening-dot-reduce-dequantize-source-front-door.mlir`) only runs `--tcrv-rvv-lower-to-emitc`, never `--tcrv-materialize-emission-plans` — so this body's **production export was never covered**. That is the real, untested gap.
+
+## Corrections to the stale recon
+- `integer_core_lmul` is **never read** anywhere in `lib/Plugin/RVV/EmitC/` — LMUL there is **STRUCTURAL** (read from op result vector types per **I5**), not an attr. So "thread the `integer_core_lmul` StringAttr" (the dispatched Face-2 fix) has **no landing point**.
+- The **deferred**-wide kind (`WideningProductDeferredAccumulateReduceDequantizeF32`) already exists and already exports end-to-end (`test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir` → PLAN `source_lmul="m2"`/`product_lmul="m4"`, EmitC emits `vle8_v_i8m2`/`vwmul_vv_i16m4`/`vwadd_wv_i32m8`/`vredsum_vs_i32m8_i32m1`). The bypass is healthy; **no regression risk there**.
+- The narrow-mf4 assumption for the **non-deferred** product-reduce-dequant is hardcoded in **3 parallel sites** (the deferred path works only because a parallel hardcoded WIDE branch was added at each — they are NOT LMUL-aware):
+  1. **Config-binding validator** — `lib/Plugin/RVV/EmitC/RVVEmitCRouteConfigBinding.cpp:1582-1592` (hardcodes `sourceConfig.lmul=MF4` :1584, `productConfig.lmul=MF2` :1588, validates body source against it :1592 = the exact failing check). Deferred analogue: `:1686-1704` (m2/m4/m8/m1).
+  2. **Route-facts builder** — `RVVEmitCContractionRouteFamilyPlanOwners.cpp`: `buildRVVWideningDotReduceRouteFacts` (:474-516), `getRVVLowPrecisionWideningReductionPrimitiveFacts` (:291, :322-328) widen LMUL **only** for `isDeferredWideProductReductionDequantization`; `getRVVWideningDotReduceRouteFacts(description)` (:1060-1066) **drops** the description's actual source/product LMUL, forwarding only the op-kind enum.
+  3. **Leaf-profile / c-type strings** — `RVVEmitCContractionRouteFamilyValidation.cpp:1204-1236` + `PlanOwners.cpp:586-624` emit hardcoded narrow `i8mf4-i16mf2` identity strings. (`Common.cpp:310-331` does reject wide but in the live tree is only ever called with narrow args → NOT the active blocker.)
+  - **Design intent embedded:** the deferred-wide path keeps the **route identity narrow** (leaf profile / c-type / ABI all stay `i8mf4`) and carries the wide reality only in separate `low_precision_primitive.*_lmul` facts (see [[low-precision-resource-is-n3-evidence]]). A non-deferred-wide fix must mirror that split, not naively widen the identity.
+
+## The design fork (parent author's decision — the agent correctly did NOT pick)
+- **(a) Parallel-branch the non-deferred wide path** across the 3 sites, mirroring the deferred-wide pattern: derive source/product LMUL structurally from the body op types (I5), add a non-deferred-wide config-binding branch (m2-source/m4-product/m1-result) while keeping the route identity narrow. Bounded but spans 3 files + changes production behavior → needs full no-regression + new-wide-fixture gate. **Most direct reading of "make the front door's existing body production-reachable."**
+- **(b) Reroute the dequant front door to emit the deferred-wide shape** (add `widening_accumulate`) instead of the per-iteration-vwredsum shape, since the deferred form already exports end-to-end. Avoids the export layer entirely but changes the front-door's emitted body + its VLEN128/VLEN256 EmitC FileCheck expectations.
+- **Why it's the user's call:** the choice = which kernel SHAPE is the intended **production-export** form (per-iteration-vwredsum vs deferred-accumulate). This has **perf implications** — it is exactly the [[winc-structural-null]] axis (the deferred form's apparent 3× was a per-iter `out[0]` memory round-trip artifact, pure-structure ≈ NULL). So "route to deferred" (b) is not obviously a win, and "export the non-deferred shape" (a) preserves the front door's current structure. Neither is a safe unilateral default.
+
+## Gate (either option, host-only — NOT byte-identity; production behavior changes)
+1. No-regression: existing narrow-path + route-family lit byte-identical / green (forced clean relink).
+2. New wide-path acceptance: a fixture where the front-door body exports through `--tcrv-materialize-emission-plans` (PLAN m2/m4 + wide intrinsics emitted), validated by the existing host scalar oracle (already covers i8m2→i16m4→i32m1). Host-only, no board/perf.
+
+## Key files for whoever picks up
+`RVVEmitCRouteConfigBinding.cpp`, `RVVEmitCContractionRouteFamilyPlanOwners.cpp`, `RVVEmitCContractionRouteFamilyValidation.cpp`, `RVVEmitCContractionRouteFamilyCommon.cpp`, `RVVDequantDotSourceFrontDoor.cpp`, `test/Transforms/RVV/rvv-widening-dot-reduce-dequantize-source-front-door.mlir`.
