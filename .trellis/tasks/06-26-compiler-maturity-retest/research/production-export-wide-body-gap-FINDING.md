@@ -1,6 +1,19 @@
 # Production-export wide-body gap — precise finding + design fork (2026-06-30)
 
-**Status: gap REAL and now PRECISELY located; closing it forks into a design decision (a vs b) that is the parent author's to make. The prior "3 named faces (Common.cpp:310 / PlanOwners / Validation:478)" note was STALE (predates the deferred-wide path) — corrected below.**
+**STATUS UPDATE (2026-06-30): approach (a) IMPLEMENTED + trellis-check PASS, commit `ed4a8424`. The EXPORT LAYER is now capability-driven and accepts the non-deferred wide body. ONE step remains for full end-to-end: the front door must stamp the N3 `low_precision_resource.*` facts (caveat 1 below). User chose (a) ("don't compromise — be a real compiler"); done the capability-driven (I5-structural) way, NOT a hardcoded branch.**
+
+## What landed (approach a — export layer)
+- `--tcrv-materialize-emission-plans` + emitc lowering now accept + emit the non-deferred wide body. LMUL derived STRUCTURALLY from body op types (I5): source from `slice.lhsValue`, product = `getRVVNextWiderLMUL(source)`. Route IDENTITY stays narrow (leaf-profile/c-type/ABI `i8mf4-i16mf2`); wide carried only in `low_precision_primitive.*_lmul` facts — mirrors the deferred-wide split.
+- 8 files (the "3 sites" was a lower bound; 5 more surfaced empirically), all narrow-identity-preserving + fail-closed (wide-m2 gated to the dequantize kind + wide strip).
+- Gate (trellis-check, forced clean relink both sides): no-regression byte-identical across 728 broad + 27 full-realization-pipeline capture pairs (narrow + deferred-wide bypass untouched); new fixture `test/Target/RVV/non-deferred-wide-product-reduce-dequantize-f32-export.mlir` non-vacuous (PLAN m2/m4 primitive facts + narrow identity; EmitC wide intrinsics `vle8_v_i8m2`/`vwmul_vv_i16m4`/`vwredsum_vs_i16m4_i32m1`, 0 narrow). lit 752/755 (3 pre-existing Scripts fails).
+
+## CAVEAT 1 = the remaining step for full end-to-end (the next dispatch)
+`lib/Plugin/RVV/RVVDequantDotSourceFrontDoor.cpp` builds EXACTLY the same body shape (variant `rvv_widening_dot_reduce_dequantize_i8`, `gearbox_selected_integer_core_lmul="m2"`, `load i8m2 → widening_product i16m4 → standalone_reduce i32m1 → dequantize → store`) but stamps **ZERO `low_precision_resource.*` facts** (grep = 0). The non-deferred dequant op-kind REQUIRES those N3 facts (`candidate_set`, the `low_precision_resource.*_lmul`, etc.) to export — so the front door's OWN output still fails the same check end-to-end. The hand-written fixture (which hand-stamps the facts) is a FAIR WITNESS of the body shape and genuinely validates the export-layer fix — but it is NOT full e2e closure. **Follow-up: make `RVVDequantDotSourceFrontDoor.cpp` stamp the N3 `low_precision_resource.*` facts at construction (or route its body through a realization pass that does). Then the front-door body exports end-to-end and the Track-B auto-constructed wide bodies are genuinely production-reachable — converting them from "witnesses" to production.**
+
+---
+
+## Original finding (the design fork — RESOLVED to (a))
+**Status: gap REAL and now PRECISELY located; closing it forks into a design decision (a vs b) — RESOLVED to (a) by the user. The prior "3 named faces (Common.cpp:310 / PlanOwners / Validation:478)" note was STALE (predates the deferred-wide path) — corrected below.**
 
 ## What the gap actually is (live-tree, verified by direct runs)
 - The Track-B dequant front door (`lib/Plugin/RVV/RVVDequantDotSourceFrontDoor.cpp`) auto-constructs the **NON-deferred** wide body on its production input (`--tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv`): `load i8m2 → widening_product i16m4 → standalone_reduce i32m1 → dequantize → store` (no `widening_accumulate`; verified count=0).
