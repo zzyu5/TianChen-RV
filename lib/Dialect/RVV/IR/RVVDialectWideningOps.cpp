@@ -5615,6 +5615,122 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Q4KMinTermOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Track B q4_K BRICK 4: the op carries ONLY its bounded mirror attrs (I4) --
+  // the operation kind and the super-block-format facts the MIN term needs (qk,
+  // sub_block, num_sub_blocks, the q8_K bsums byte offset, and the weight dmin
+  // byte offset). NO scale model and NO LMUL/resource knob (the MIN term is a
+  // SCALAR integer reduction + a single fp contraction -- there is no widening
+  // axis). A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "sub_block" ||
+           name == "num_sub_blocks" || name == "bsums_byte_offset" ||
+           name == "weight_dmin_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_k_min_term keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded min-term attributes 'kind', 'qk', "
+                "'sub_block', 'num_sub_blocks', 'bsums_byte_offset', and "
+                "'weight_dmin_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "q4_k_min_term")
+    return emitOpError()
+           << "currently supports only kind \"q4_k_min_term\" for the bounded "
+              "q4_K/q5_K MIN-term (sumf -= dmin * sum(mins * bsums)) typed "
+              "surface";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256, 8
+  // sub-blocks of 32 elements, 16 i16 bsums (one per 16 elements), the q8_K
+  // bsums at byte offset 260, and the weight dmin (fp16) at byte offset 2. Pin
+  // them so a malformed typed body cannot lower under the MIN-term emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
+                            "MIN-term route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block scale boundary) "
+              "for the q4_K/q5_K MIN-term route";
+  if (getNumSubBlocks() != 8)
+    return emitOpError()
+           << "requires num_sub_blocks == 8 (QK_K / 32) for the q4_K/q5_K "
+              "MIN-term route";
+  if (getBsumsByteOffset() != 260)
+    return emitOpError()
+           << "requires bsums_byte_offset == 260 (the q8_K block bsums offset) "
+              "for the q4_K/q5_K MIN-term route";
+  if (getWeightDminByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_dmin_byte_offset == 2 (the block_q4_K/q5_K dmin "
+              "fp16 offset) for the q4_K/q5_K MIN-term route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires three runtime ABI base pointer operands (weight / "
+              "scales / activation), one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "m1 result";
+
+  // The three base operands are runtime ABI values: the q4_K/q5_K weight block
+  // (const uint8_t *, read at +2 for the fp16 dmin), the BRICK 2 decoded scales
+  // (const uint8_t *, whose bytes [8..15] are the 8 decoded uint6 mins), and the
+  // q8_K activation data (const uint8_t *, read at +260 for the int16 bsums and
+  // at +0 for the fp32 activation scale).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the q4_K/q5_K weight block; the fp16 "
+              "dmin lives at byte offset 2)";
+  RuntimeABIValueOp scalesBinding =
+      getScalesBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!scalesBinding || scalesBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the scales base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the BRICK 2 decoded scales; the 8 mins "
+              "live at bytes [8..15])";
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI value "
+              "of C type 'const uint8_t *' (the q8_K activation data; the int16 "
+              "bsums live at byte offset 260)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
+              "MIN-term route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the q4_K/q5_K MIN term";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
   mlir::Operation *op = getOperation();
 

@@ -1302,6 +1302,162 @@ VariantToEmitCFunc::emitQ4_KScaledDotIntoAux32(
     return resultAux32Var;
 }
 
+// Track B q4_K BRICK 4 (first half): the int16 bsums load + the SCALAR integer
+// reduction sumi = sum_j(bsums[j] * mins[j/2]), factored out VERBATIM from
+// emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
+// monolithic q4_K/q5_K block dot, which emits it BEFORE its deferred positive
+// fold) AND through the first-class tcrv_rvv.q4_k_min_term op. Emits at the
+// current insertion point: the bsums base (yb + bsumsOffset, cast const int16_t
+// *), declares + zeroes the per-super-block scalar `int sumi`, then the
+// numBsums-iteration scalar reduction pairing each SIGN-extended int16 bsums with
+// the decoded uint6 min scalesU8[8 + j/2] (mins = scalesU8 + 8; each min spans
+// TWO consecutive bsums). The integer multiply/add is associative/order-free so
+// this is byte-exact at any reduction tree. Returns the scalar sumi lvalue. The
+// activation pointer type is derived from yb; the decoded scales/mins base is
+// scalesU8.
+mlir::TypedValue<emitc::LValueType> VariantToEmitCFunc::emitQ4_KMinTermBsumsDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KMinTermContext &mx, mlir::Value yb, mlir::Value scalesU8) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = mx.opName;
+    llvm::StringRef role = mx.role;
+    mlir::Type activationPtrType = yb.getType();
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, mx.sizeType,
+                                               std::to_string(v));
+    };
+
+    // const int16_t *bsums = (const int16_t *)(yb + 260);  -- the q8_K block
+    // bsums, int16 (SIGN-extended on load).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "min_term_bsums"));
+    mlir::Value bsumsAddr = yb;
+    if (mx.bsumsOffset != 0)
+      bsumsAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
+                                                sizeLit(mx.bsumsOffset));
+    mlir::Value bsumsPtr =
+        rewriter.create<emitc::CastOp>(loc, mx.constI16PtrType, bsumsAddr)
+            .getResult();
+    // int sumi = 0;  (the per-super-block scalar min accumulator).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumi", opName, role));
+    auto sumiVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(mx.i32Type), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumiZero =
+        rewriter.create<emitc::LiteralOp>(loc, mx.i32Type, "0");
+    rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiZero);
+    for (int64_t j = 0; j < mx.numBsums; ++j) {
+      // (int)bsums[j]  -- int16 sign-extended to int.
+      mlir::Value bIdx = rewriter.create<emitc::LiteralOp>(
+          loc, rewriter.getIndexType(), std::to_string(j));
+      mlir::Value bElem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc,
+                  llvm::cast<mlir::TypedValue<emitc::PointerType>>(bsumsPtr),
+                  bIdx)
+              .getResult();
+      mlir::Value bs16 =
+          rewriter.create<emitc::LoadOp>(loc, mx.constI16Type, bElem)
+              .getResult();
+      mlir::Value bs =
+          rewriter.create<emitc::CastOp>(loc, mx.i32Type, bs16).getResult();
+      // (int)mins[j/2]  -- the decoded uint6 min, scalesU8[8 + j/2].
+      mlir::Value mIdx = rewriter.create<emitc::LiteralOp>(
+          loc, rewriter.getIndexType(), std::to_string(8 + j / 2));
+      mlir::Value mElem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc,
+                  llvm::cast<mlir::TypedValue<emitc::PointerType>>(scalesU8),
+                  mIdx)
+              .getResult();
+      mlir::Value mU8 =
+          rewriter.create<emitc::LoadOp>(loc, mx.constU8Type, mElem).getResult();
+      mlir::Value m =
+          rewriter.create<emitc::CastOp>(loc, mx.i32Type, mU8).getResult();
+      // sumi += bsums[j] * mins[j/2];  (integer, order-free).
+      mlir::Value prod =
+          rewriter.create<emitc::MulOp>(loc, mx.i32Type, bs, m).getResult();
+      mlir::Value sumiCur =
+          rewriter.create<emitc::LoadOp>(loc, mx.i32Type, sumiVar).getResult();
+      mlir::Value sumiNext =
+          rewriter.create<emitc::AddOp>(loc, mx.i32Type, sumiCur, prod)
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
+    }
+    return llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumiVar.getResult());
+}
+
+// Track B q4_K BRICK 4 (second half): the fp16 dmin read + the single fp
+// contraction sumf -= dmin * (float)sumi, factored out VERBATIM from
+// emitQ4_KQ8_KBlockDot so the SAME node sequence is reachable both inline (the
+// monolithic q4_K/q5_K block dot, which emits it AFTER its positive fold) AND
+// through the first-class tcrv_rvv.q4_k_min_term op. Emits at the current
+// insertion point: dmin = fp16(*(const _Float16 *)(xb + weightDminOffset)) * dy
+// (the once-loaded fp32 activation scale), then `sumf = sumf - dmin *
+// (float)sumi` as ONE emitc.expression (ggml's `sumf -= dmin * sumi`,
+// quants.c:714, the emitc.load temps OUTSIDE the expression), then the AssignOp
+// into the carried sumf lvalue. The final scalar fp multiply is fixed-order --
+// no fp-reassociation seam. The weight pointer type is derived from xb.
+void VariantToEmitCFunc::emitQ4_KMinTermSubtract(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KMinTermContext &mx, mlir::Value xb, mlir::Value dy,
+    mlir::TypedValue<emitc::LValueType> sumiVar,
+    mlir::TypedValue<emitc::LValueType> sumfVar) const {
+    llvm::StringRef opName = mx.opName;
+    llvm::StringRef role = mx.role;
+    mlir::Type weightPtrType = xb.getType();
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, mx.sizeType,
+                                               std::to_string(v));
+    };
+
+    // float dmin = (float)*(const _Float16 *)(xb + 2) * dy;  -- the fp16 weight
+    // min scale (byte 2) times the SAME fp32 activation scale.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fold_scale_dmin"));
+    mlir::Value dmAddr = xb;
+    if (mx.weightDminOffset != 0)
+      dmAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
+                                             sizeLit(mx.weightDminOffset));
+    mlir::Value dmx =
+        emitOpaqueCall(rewriter, loc, mx.floatType, mx.fp16ReadCallee,
+                       mlir::ValueRange{dmAddr}, opName, role,
+                       llvm::StringRef("fcvt.s.h"));
+    mlir::Value dmin =
+        rewriter.create<emitc::MulOp>(loc, mx.floatType, dmx, dy).getResult();
+    // sumf = sumf - dmin * (float)sumi;  -- ONE emitc.expression so it renders
+    // as ggml's single C statement (quants.c:714 `sumf -= dmin * sumi`) and
+    // tracks its contraction. The emitc.load temps stay OUTSIDE the expression.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "min_subtract"));
+    mlir::Value sumiFinal =
+        rewriter.create<emitc::LoadOp>(loc, mx.i32Type, sumiVar).getResult();
+    mlir::Value sumfCur =
+        rewriter.create<emitc::LoadOp>(loc, mx.floatType, sumfVar).getResult();
+    auto minExpr = rewriter.create<emitc::ExpressionOp>(
+        loc, mx.floatType, /*do_not_inline=*/false);
+    {
+      mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
+      mlir::Block *exprBlock = rewriter.createBlock(&minExpr.getRegion());
+      rewriter.setInsertionPointToStart(exprBlock);
+      mlir::Value sumiFloat =
+          rewriter.create<emitc::CastOp>(loc, mx.floatType, sumiFinal)
+              .getResult();
+      // dmin * (float)sumi  -- the min product (ggml binds `dmin * sumi`
+      // before the `-=`).
+      mlir::Value minProduct =
+          rewriter.create<emitc::MulOp>(loc, mx.floatType, dmin, sumiFloat);
+      // sumf - (dmin * sumi)  -- the `-=` subtraction tree.
+      mlir::Value sumfNext =
+          rewriter.create<emitc::SubOp>(loc, mx.floatType, sumfCur, minProduct);
+      rewriter.create<emitc::YieldOp>(loc, sumfNext);
+    }
+    rewriter.create<emitc::VerbatimOp>(loc, assignComment("sumf", opName, role));
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, minExpr.getResult());
+}
+
 VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
@@ -1991,6 +2147,152 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
     return mlir::success();
   }
 
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KMinTerm(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // The MIN term is a SCALAR reduction over a SINGLE super-block
+                  // (literal bsums/min counts); NO nb = n/256 loop, no n use.
+    tcrvrvv::Q4KMinTermOp minTerm;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto mt = llvm::dyn_cast<tcrvrvv::Q4KMinTermOp>(op))
+        minTerm = mt;
+    }
+    if (!minTerm)
+      return rewriter.notifyMatchFailure(scope,
+                                         "q4_K min-term body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(minTerm.getWeightBase());
+    mlir::Value scalesBase = valueMap.lookup(minTerm.getScalesBase());
+    mlir::Value activationBase = valueMap.lookup(minTerm.getActivationBase());
+    if (!weightBase || !scalesBase || !activationBase)
+      return rewriter.notifyMatchFailure(minTerm,
+                                         "q4_K min-term ABI operand unmapped");
+
+    llvm::StringRef opName = minTerm.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = minTerm.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type constI16Type = emitc::OpaqueType::get(ctx, "const int16_t");
+    mlir::Type constI16PtrType = emitc::PointerType::get(constI16Type);
+    mlir::Type i32TokenType = emitc::OpaqueType::get(ctx, "int32_t");
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // The MIN-term structural facts come straight off the typed attrs (I4). The
+    // activation d (dy) sits at byte offset 0 (q8_K) -- it is the op's own setup,
+    // NOT a typed fact (always 0 for this family).
+    int64_t qk = minTerm.getQk();                 // 256
+    int64_t bsumsOffset = minTerm.getBsumsByteOffset();          // 260
+    int64_t weightDminOffset = minTerm.getWeightDminByteOffset();//   2
+    int64_t numBsums = qk / 16;                   //  16
+    int64_t activationDOffset = 0;                //   0
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    // The MIN-term context: the SAME facts/types the monolithic q4_K block dot
+    // builds, plumbed into the two shared MIN-term helpers (byte-identity by
+    // construction).
+    Q4_KMinTermContext mx;
+    mx.opName = opName;
+    mx.role = role;
+    mx.sizeType = sizeType;
+    mx.floatType = floatType;
+    mx.i32Type = intType;
+    mx.constU8Type = constU8Type;
+    mx.constI16Type = constI16Type;
+    mx.constI16PtrType = constI16PtrType;
+    mx.fp16ReadCallee = fp16ReadCallee;
+    mx.bsumsOffset = bsumsOffset;
+    mx.weightDminOffset = weightDminOffset;
+    mx.numBsums = numBsums;
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // float sumf = 0.0f;  -- the op's OWN scalar accumulator the MIN subtraction
+    // lands in (vs the monolith's loop-carried sumf; here a single super-block).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumfZero =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfZero);
+
+    // float sumf_out[1];  -- the function-scoped sink the resulting sumf is
+    // stored into as the observable (vs the monolith's `*s = sumf` ABI output;
+    // here a local array so the lit has output to CHECK).
+    mlir::Type sumfOutArrayType = emitc::ArrayType::get({1}, floatType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf_out", opName, role));
+    auto sumfOutVar = rewriter.create<emitc::VariableOp>(
+        loc, sumfOutArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto sumfOutArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sumfOutVar.getResult());
+
+    // The fp32 activation scale dy = *(const float *)(vy + 0), loaded ONCE (the
+    // monolith's fold_activation_d, here the op's own setup; activationDOffset is
+    // 0 so no add is emitted). dy feeds the dmin = fp16(x.dmin) * dy product.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fold_activation_d"));
+    mlir::Value dyAddr = activationBase;
+    if (activationDOffset != 0)
+      dyAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType,
+                                             activationBase,
+                                             sizeLit(activationDOffset));
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+    mlir::Value dyPtr =
+        rewriter.create<emitc::CastOp>(loc, constFloatPtrType, dyAddr)
+            .getResult();
+    mlir::Value dyIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value dyElem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(dyPtr),
+                dyIndex0)
+            .getResult();
+    mlir::Type constFloatType = emitc::OpaqueType::get(ctx, "const float");
+    mlir::Value dy = rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
+                         .getResult();
+
+    // The two shared MIN-term helpers (the SAME node sequence the monolithic
+    // q4_K/q5_K block dot emits, here CONTIGUOUS since there is no interleaved
+    // positive fold): the int16 bsums load + the scalar integer reduction sumi =
+    // sum(bsums * mins) reading the activation + decoded-scales pointers, then the
+    // fp16 dmin read + the `sumf -= dmin * sumi` emitc.expression reading the
+    // weight pointer + dy. Byte-identical to the monolith's MIN term.
+    mlir::TypedValue<emitc::LValueType> sumiVar =
+        emitQ4_KMinTermBsumsDot(rewriter, loc, mx, activationBase, scalesBase);
+    emitQ4_KMinTermSubtract(
+        rewriter, loc, mx, weightBase, dy, sumiVar,
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
+
+    // sumf_out[0] = sumf;  -- store the resulting sumf state (the observable).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_sumf"));
+    mlir::Value sumfFinal =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+    mlir::Value sumfOutIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp sumfOutSubscript = rewriter.create<emitc::SubscriptOp>(
+        loc, sumfOutArray, mlir::ValueRange{sumfOutIndex0});
+    rewriter.create<emitc::AssignOp>(loc, sumfOutSubscript.getResult(),
+                                     sumfFinal);
+
+    // The op's i32 m1 result token: the term writes sumf_out as a side effect, so
+    // the token has no live use; bind it to a zero literal to keep the map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32TokenType, "0");
+    valueMap[minTerm.getResult()] = resultToken;
+    return mlir::success();
+  }
+
 mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2192,6 +2494,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
         l8,            l16,           l32,           stripWidth,
         numStrips,     foldGroups,    i32Canon8Type};
 
+    // The Track B BRICK 4 MIN-term context: the bounded facts + types the two
+    // shared MIN-term helpers (emitQ4_KMinTermBsumsDot / emitQ4_KMinTermSubtract)
+    // read. The SAME helpers are called by the first-class tcrv_rvv.q4_k_min_term
+    // op, so the in-loop reduction + subtract are byte-identical by construction.
+    Q4_KMinTermContext mx;
+    mx.opName = opName;
+    mx.role = role;
+    mx.sizeType = sizeType;
+    mx.floatType = floatType;
+    mx.i32Type = i32Type;
+    mx.constU8Type = constU8Type;
+    mx.constI16Type = constI16Type;
+    mx.constI16PtrType = constI16PtrType;
+    mx.fp16ReadCallee = fp16ReadCallee;
+    mx.bsumsOffset = bsumsOffset;
+    mx.weightDminOffset = weightDminOffset;
+    mx.numBsums = numBsums;
+
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "super_block_loop"));
@@ -2246,69 +2566,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
           rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
               .getResult();
 
-      // ---- the q4_K MIN term (the new piece vs q6_K) ----
+      // ---- the q4_K MIN term, FIRST half (the new piece vs q6_K) ----
       // int sumi = 0; for (j=0..15) sumi += (int)bsums[j] * (int)mins[j/2];
-      // bsums are int16 (SIGN-extended on load); mins are the decoded uint6
-      // scalesU8[8..15] (mins = scalesU8 + 8); each min spans TWO consecutive
-      // bsums (mins[j/2]). Integer multiply/add -> order-free, a scalar loop.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "min_term_bsums"));
-      mlir::Value bsumsAddr = yb;
-      if (bsumsOffset != 0)
-        bsumsAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
-                                                  sizeLit(bsumsOffset));
-      mlir::Value bsumsPtr =
-          rewriter.create<emitc::CastOp>(loc, constI16PtrType, bsumsAddr)
-              .getResult();
-      // int sumi = 0;  (the per-super-block scalar min accumulator).
-      rewriter.create<emitc::VerbatimOp>(
-          loc, localVariableComment("sumi", opName, role));
-      auto sumiVar = rewriter.create<emitc::VariableOp>(
-          loc, emitc::LValueType::get(i32Type),
-          emitc::OpaqueAttr::get(ctx, ""));
-      mlir::Value sumiZero =
-          rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
-      rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiZero);
-      for (int64_t j = 0; j < numBsums; ++j) {
-        // (int)bsums[j]  -- int16 sign-extended to int.
-        mlir::Value bIdx = rewriter.create<emitc::LiteralOp>(
-            loc, rewriter.getIndexType(), std::to_string(j));
-        mlir::Value bElem =
-            rewriter
-                .create<emitc::SubscriptOp>(
-                    loc,
-                    llvm::cast<mlir::TypedValue<emitc::PointerType>>(bsumsPtr),
-                    bIdx)
-                .getResult();
-        mlir::Value bs16 =
-            rewriter.create<emitc::LoadOp>(loc, constI16Type, bElem)
-                .getResult();
-        mlir::Value bs =
-            rewriter.create<emitc::CastOp>(loc, i32Type, bs16).getResult();
-        // (int)mins[j/2]  -- the decoded uint6 min, scalesU8[8 + j/2].
-        mlir::Value mIdx = rewriter.create<emitc::LiteralOp>(
-            loc, rewriter.getIndexType(), std::to_string(8 + j / 2));
-        mlir::Value mElem =
-            rewriter
-                .create<emitc::SubscriptOp>(
-                    loc,
-                    llvm::cast<mlir::TypedValue<emitc::PointerType>>(scalesU8),
-                    mIdx)
-                .getResult();
-        mlir::Value mU8 =
-            rewriter.create<emitc::LoadOp>(loc, constU8Type, mElem).getResult();
-        mlir::Value m =
-            rewriter.create<emitc::CastOp>(loc, i32Type, mU8).getResult();
-        // sumi += bsums[j] * mins[j/2];  (integer, order-free).
-        mlir::Value prod =
-            rewriter.create<emitc::MulOp>(loc, i32Type, bs, m).getResult();
-        mlir::Value sumiCur =
-            rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
-        mlir::Value sumiNext =
-            rewriter.create<emitc::AddOp>(loc, i32Type, sumiCur, prod)
-                .getResult();
-        rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
-      }
+      // Factored into the shared Track B brick-4 helper (the SAME node sequence,
+      // also reachable through the first-class tcrv_rvv.q4_k_min_term op); returns
+      // the per-super-block scalar sumi lvalue. The SECOND half (the dmin read +
+      // the sumf -= dmin*sumi subtract) is emitted AFTER the positive fold below
+      // (the two halves are interleaved in the loop but data-independent).
+      mlir::TypedValue<emitc::LValueType> sumiVar =
+          emitQ4_KMinTermBsumsDot(rewriter, loc, mx, yb, scalesU8);
 
       // ---- the DEFERRED two-level fp32 positive fold (q6_K K2 mechanism) ----
       // float d = (float)*(const _Float16 *)(xb + 0) * dy;  -- the fp16 weight
@@ -2363,50 +2629,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
           loc, assignComment("sums", opName, role));
       rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsNext);
 
-      // ---- the MIN subtraction: sumf -= dmin * (float)sumi ----
-      // float dmin = (float)*(const _Float16 *)(xb + 2) * dy;  -- the fp16 weight
-      // min scale (byte 2) times the SAME fp32 activation scale.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fold_scale_dmin"));
-      mlir::Value dmAddr = xb;
-      if (weightDminOffset != 0)
-        dmAddr = rewriter.create<emitc::AddOp>(loc, weightPtrType, xb,
-                                               sizeLit(weightDminOffset));
-      mlir::Value dmx = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
-                                       mlir::ValueRange{dmAddr}, opName, role,
-                                       llvm::StringRef("fcvt.s.h"));
-      mlir::Value dmin =
-          rewriter.create<emitc::MulOp>(loc, floatType, dmx, dy).getResult();
-      // sumf = sumf - dmin * (float)sumi;  -- ONE emitc.expression so it renders
-      // as ggml's single C statement (quants.c:714 `sumf -= dmin * sumi`) and
-      // tracks its contraction. The emitc.load temps stay OUTSIDE the expression.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "min_subtract"));
-      mlir::Value sumiFinal =
-          rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
-      mlir::Value sumfCur =
-          rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-      auto minExpr = rewriter.create<emitc::ExpressionOp>(
-          loc, floatType, /*do_not_inline=*/false);
-      {
-        mlir::OpBuilder::InsertionGuard exprGuard(rewriter);
-        mlir::Block *exprBlock = rewriter.createBlock(&minExpr.getRegion());
-        rewriter.setInsertionPointToStart(exprBlock);
-        mlir::Value sumiFloat =
-            rewriter.create<emitc::CastOp>(loc, floatType, sumiFinal)
-                .getResult();
-        // dmin * (float)sumi  -- the min product (ggml binds `dmin * sumi`
-        // before the `-=`).
-        mlir::Value minProduct =
-            rewriter.create<emitc::MulOp>(loc, floatType, dmin, sumiFloat);
-        // sumf - (dmin * sumi)  -- the `-=` subtraction tree.
-        mlir::Value sumfNext =
-            rewriter.create<emitc::SubOp>(loc, floatType, sumfCur, minProduct);
-        rewriter.create<emitc::YieldOp>(loc, sumfNext);
-      }
-      rewriter.create<emitc::VerbatimOp>(
-          loc, assignComment("sumf", opName, role));
-      rewriter.create<emitc::AssignOp>(loc, sumfVar, minExpr.getResult());
+      // ---- the q4_K MIN term, SECOND half: sumf -= dmin * (float)sumi ----
+      // float dmin = (float)*(const _Float16 *)(xb + 2) * dy; then the single
+      // emitc.expression sumf -= dmin * sumi. Factored into the shared Track B
+      // brick-4 helper (the SAME node sequence, also reachable through the
+      // first-class tcrv_rvv.q4_k_min_term op); consumes the FIRST-half sumi
+      // lvalue and the carried sumf lvalue, reading the weight base xb for the
+      // fp16 dmin and the once-loaded fp32 activation scale dy.
+      emitQ4_KMinTermSubtract(
+          rewriter, loc, mx, xb, dy, sumiVar,
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
     }
 
     // ---- the SEQUENTIAL horizontal sum, l = 0 .. 7 (AFTER the super-block loop;

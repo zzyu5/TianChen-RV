@@ -6626,6 +6626,92 @@ def Q4KScaledDotOp
   let hasVerifier = 1;
 }
 
+def Q4KMinTermOp
+    : TCRVRVV_Op<"q4_k_min_term",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K super-block MIN term (sumf -= dmin * "
+      "sum(mins * bsums)) op";
+  let description = [{
+    Records ONE super-block's q4_K/q5_K MIN term -- the `sumf -= dmin *
+    sum_j(mins[j/2] * bsums[j])` correction (the offset-binary min subtraction
+    of the ggml `ggml_vec_dot_q4_K_q8_K` block dot, quants.c:714) as ONE bounded
+    generic plugin-local typed RVV dataflow step -- the Track B q4_K
+    auto-construction's BRICK 4 (sibling to BRICK 1's tcrv_rvv.q4_k_nibble_unpack,
+    BRICK 2's tcrv_rvv.q4_k_scale_min_bit_dance, and BRICK 3's
+    tcrv_rvv.q4_k_scaled_dot). The MIN term operates on the SCALAR `sumf`
+    accumulator, a DIFFERENT accumulator chain from the `sums` vector dot (BRICK
+    3 / the deferred fp32 fold): over the 16 i16 bsums of the q8_K activation
+    super-block, the integer reduction sumi = sum_j(bsums[j] * mins[j/2]) pairs
+    each int16 bsums entry (SIGN-extended) with the BRICK 2 decoded uint6 min
+    `mins[j/2]` (each min spans TWO consecutive bsums), then the single fp
+    contraction `sumf -= dmin * (float)sumi` subtracts the offset-binary min
+    correction, where dmin = fp16(x.dmin) * y.d is the weight min scale times the
+    activation scale. The integer reduction is associative/order-free (byte-exact
+    at any reduction tree), and the final `dmin * sumi` is a single fixed-order
+    scalar fp multiply, so the whole term is anchor-independent -- BRICK 3's
+    integer fold-back already collapsed the aux32 dot to canonical-8, there is NO
+    fp-reassociation seam here.
+
+    The nibble unpack, the 6-bit scale/min bit-dance, the per-sub-block scaled
+    i32 dot, the deferred fp32 positive fold, the super-block loop scaffold, and
+    the post-loop horizontal fold (BRICKS 1, 2, 3, and the deferred bricks 5-8)
+    are NOT this op -- they are the sibling bricks and the monolithic
+    tcrv_rvv.q4_k_q8_k_block_dot op, which STAY.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes THREE runtime ABI
+    value operands -- the q4_K/q5_K weight base pointer (const uint8_t *, read at
+    weight_dmin_byte_offset for the fp16 dmin), the BRICK 2 decoded scales base
+    pointer (const uint8_t *, whose bytes [8..15] are the 8 decoded uint6 mins),
+    and the q8_K activation base pointer (const uint8_t *, read at
+    bsums_byte_offset for the int16 bsums and at offset 0 for the fp32
+    activation scale) -- plus the active !tcrv_rvv.vl token, and produces ONE i32
+    LMUL m1 !tcrv_rvv.vector completion token (the term mutates a scalar sumf
+    accumulator as a side effect; the standalone lowering declares its own sumf
+    and stores it to a local sink as the observable). The MIN term is a SCALAR
+    sequence (no RVV vector intrinsics for the reduction); the only opaque call
+    is the fp16 dmin read.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32
+    elements, the 16 i16 bsums, the q8_K bsums byte offset (260) and the weight
+    dmin byte offset (2) -- are carried as typed integer attributes (I4 mirror
+    only). The fixed emission mirrors `_generic` (quants.c) line-for-line so
+    byte-exactness is by construction: the SAME node sequence is shared VERBATIM
+    by the monolithic q4_K/q5_K block dot (which emits the reduction before its
+    positive fold and the subtract after it -- the two halves are interleaved in
+    the super-block loop but data-independent) AND this first-class op's lowering,
+    so both emit byte-identical MIN-term C. The bounded surface kind is limited to
+    "q4_k_min_term". Route ids, helper names, ABI strings, artifact names, status
+    fields, exact intrinsic spellings, operand mirror strings, q8/q4 names, and
+    common EmitC/export code must not infer or choose min-term semantics.
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target). No resource shape knobs (the
+    MIN term is scalar; there is no LMUL widening axis).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$scales_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$num_sub_blocks,
+    I64Attr:$bsums_byte_offset,
+    I64Attr:$weight_dmin_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $scales_base `,` $activation_base `,` $vl attr-dict `:` "
+    "type($weight_base) `,` type($scales_base) `,` type($activation_base) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {

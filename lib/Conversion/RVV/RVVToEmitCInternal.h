@@ -283,6 +283,12 @@ private:
   /// nibble unpack / bit-dance / MIN term / fp32 fold).
   static bool isQ4_KScaledDotBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-4 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_min_term (one super-block's MIN term
+  /// `sumf -= dmin * sum(mins * bsums)`, NO nibble unpack / bit-dance / scaled
+  /// dot / fp32 positive fold).
+  static bool isQ4_KMinTermBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2067,6 +2073,31 @@ private:
     mlir::Value scalesU8;
   };
 
+  /// The Track B q4_K BRICK 4 (MIN-term) context: the bounded facts + emitc
+  /// types the two MIN-term sub-region helpers (emitQ4_KMinTermBsumsDot +
+  /// emitQ4_KMinTermSubtract) need. The MIN term is a SCALAR integer reduction
+  /// (sumi = sum_j(bsums[j] * mins[j/2])) plus a single fp contraction
+  /// (sumf -= dmin * (float)sumi) -- no LMUL/widening axis, so this is a small
+  /// dedicated context (NOT the integer-core context, whose fields are all about
+  /// the vector MAC chain). Carrying the (deterministically-interned) emitc types
+  /// by value keeps the monolithic q4_K block-dot's existing type locals in use
+  /// (zero removals) and guarantees the helper references the SAME Type instances
+  /// the monolith does -- byte-identity by construction.
+  struct Q4_KMinTermContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type floatType;
+    mlir::Type i32Type;       // emitc.opaque<"int"> (the sumi scalar type)
+    mlir::Type constU8Type;   // emitc.opaque<"const uint8_t"> (the mins load)
+    mlir::Type constI16Type;  // emitc.opaque<"const int16_t"> (the bsums load)
+    mlir::Type constI16PtrType;
+    llvm::StringRef fp16ReadCallee; // "(float)*(const _Float16 *)"
+    int64_t bsumsOffset;            // 260 (q8_K block bsums byte offset)
+    int64_t weightDminOffset;       //   2 (block_q4_K/q5_K dmin fp16 offset)
+    int64_t numBsums;               //  16 (QK_K / 16)
+  };
+
   /// Emit ONE super-block's q4_K/q5_K plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch (Region A), NO bias: FOUR 64-element
   /// chunks, each one vsetvl_e8m2(32) + vle8_v_u8m2 of the 32 weight bytes at
@@ -2129,6 +2160,43 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const Q4_KIntegerCoreContext &cx, mlir::Value yb, mlir::Value aux8Base,
       mlir::Value scalesU8) const;
+
+  /// Emit the FIRST half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
+  /// 4): the int16 bsums load (yb + bsumsOffset, cast const int16_t *) and the
+  /// SCALAR integer reduction `int sumi = 0; for (j) sumi += bsums[j] *
+  /// mins[j/2]` where the decoded uint6 mins are scalesU8[8 + j/2] (mins =
+  /// scalesU8 + 8; each min spans TWO consecutive bsums). Emits at the current
+  /// insertion point and RETURNS the per-super-block scalar sumi lvalue. The
+  /// integer reduction is associative/order-free (byte-exact at any tree). This
+  /// is the Track B q4_K BRICK 4 vocabulary half: the SAME node sequence is
+  /// shared VERBATIM by emitQ4_KQ8_KBlockDot (the monolithic q4_K/q5_K block dot,
+  /// which emits it BEFORE its deferred positive fold) AND the first-class
+  /// tcrv_rvv.q4_k_min_term op's lowering, so both emit byte-identical C. (The
+  /// MIN term's two halves are interleaved with the positive fold in the monolith
+  /// loop -- the reduction here, the subtract after -- but are data-independent,
+  /// so the carve is two byte-exact helpers, NOT one contiguous span.)
+  mlir::TypedValue<emitc::LValueType> emitQ4_KMinTermBsumsDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KMinTermContext &mx, mlir::Value yb, mlir::Value scalesU8) const;
+
+  /// Emit the SECOND half of ONE super-block's q4_K/q5_K MIN term (Track B BRICK
+  /// 4): the fp16 dmin read (`dmin = fp16(*(const _Float16 *)(xb +
+  /// weightDminOffset)) * dy`) and the single fp contraction `sumf = sumf - dmin
+  /// * (float)sumi` rendered as ONE emitc.expression (ggml's `sumf -= dmin *
+  /// sumi`, quants.c:714, the emitc.load temps staying OUTSIDE the expression),
+  /// then the AssignOp into the carried sumf lvalue. `dy` is the once-loaded fp32
+  /// activation scale (the monolith loads it at fold_activation_d, shared with
+  /// the positive fold; the standalone op loads it in its wrapper). The final
+  /// `dmin * sumi` is a single fixed-order scalar fp multiply -- no
+  /// fp-reassociation seam. The SAME node sequence is shared VERBATIM by
+  /// emitQ4_KQ8_KBlockDot (which emits it AFTER its positive fold) AND the
+  /// first-class tcrv_rvv.q4_k_min_term op's lowering, so both emit
+  /// byte-identical C.
+  void emitQ4_KMinTermSubtract(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KMinTermContext &mx, mlir::Value xb, mlir::Value dy,
+      mlir::TypedValue<emitc::LValueType> sumiVar,
+      mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
@@ -2244,6 +2312,26 @@ private:
   /// those are BRICK 1 / BRICK 2 / deferred bricks). Binds the op's i32 m1 token
   /// to a zero literal (the dot writes aux32_out as a side effect; no live use).
   mlir::LogicalResult emitQ4_KScaledDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 4 op (tcrv_rvv.q4_k_min_term) as fully
+  /// STRUCTURED emitc nodes: declare the op's OWN scalar `float sumf = 0.0f`
+  /// accumulator + a local sink, load the fp32 activation scale dy once (the
+  /// monolith's fold_activation_d, here the op's own setup), then call the SAME
+  /// two shared MIN-term helpers the monolithic q4_K/q5_K block dot calls --
+  /// emitQ4_KMinTermBsumsDot (the int16 bsums load + the scalar integer reduction
+  /// sumi = sum(bsums * mins), reading the activation + decoded-scales pointers)
+  /// and emitQ4_KMinTermSubtract (the fp16 dmin read + the `sumf -= dmin * sumi`
+  /// emitc.expression, reading the weight pointer + dy) -- and store the resulting
+  /// sumf through a local float sink as the observable so the lit has output to
+  /// CHECK. The weight / scales / activation operands are ABI INPUT pointers
+  /// (single super-block; NO nb = n/256 loop, NO nibble unpack, NO bit-dance, NO
+  /// scaled dot, NO positive fold -- those are BRICK 1 / BRICK 2 / BRICK 3 /
+  /// deferred bricks). Binds the op's i32 m1 token to a zero literal (the term
+  /// writes sumf as a side effect; no live use).
+  mlir::LogicalResult emitQ4_KMinTerm(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
