@@ -684,6 +684,177 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(fallbackState);
 }
 
+// Stamp the N3 low_precision_resource.* (+ gearbox scope) facts the production
+// export path (--tcrv-materialize-emission-plans) requires on the with_vl to
+// admit this NON-deferred wide product-reduce-dequantize body. WHY this is the
+// remaining e2e-closure piece: the front door already builds EXACTLY the right
+// body SHAPE (i8<source> load -> i16<product> widening_product -> i32m1
+// standalone_reduce -> i32m1->f32m1 dequantize -> store), and the export layer
+// already derives source/product LMUL STRUCTURALLY from that body (I5). But the
+// non-deferred dequant op-kind ALSO requires the realized low-precision RESOURCE
+// fact set (candidate_set, the *_lmul facts, the primitive chain/intrinsic facts)
+// to pass route acceptance; without them the front door's own output fails the
+// same export check the hand-written fixture passes.
+//
+// DESIGN SPLIT (narrow ROUTE IDENTITY, wide REALIZED PRIMITIVE) -- byte-identical
+// to the proven hand-written fixture (test/Target/RVV/non-deferred-wide-product-
+// reduce-dequantize-f32-export.mlir): the route IDENTITY facts (candidate_set,
+// selected_candidate, the i8mf4-i16mf2 primitive_kind / multiplicand roles /
+// extension policy) stay NARROW route constants, while the realized PRIMITIVE
+// facts that name the actually-emitted strip (source_lmul, product_lmul, the wide
+// vwmul/vwredsum intrinsics + relations) are derived STRUCTURALLY (I5) from the
+// SAME sourceLMUL/productLMUL the front door already builds the body from -- NOT
+// hardcoded. At VLEN128 (sourceLMUL=m2, productLMUL=m4) these equal the fixture's
+// facts exactly; at VLEN256 they flip to the realized m1/m2 strip with the body.
+//
+// These facts are METADATA consumed only by the export/realization route path;
+// they are inert to the direct --tcrv-rvv-lower-to-emitc body lowering (which
+// reads the body structurally), so the directly-emitted EmitC is unchanged.
+void stampLowPrecisionResourceFacts(mlir::OpBuilder &builder,
+                                    tcrvrvv::WithVLOp withVL,
+                                    llvm::StringRef sourceLMUL,
+                                    llvm::StringRef productLMUL) {
+  mlir::Operation *op = withVL.getOperation();
+  auto setStr = [&](llvm::StringRef name, llvm::Twine value) {
+    op->setAttr(name, builder.getStringAttr(value.str()));
+  };
+  auto setI64 = [&](llvm::StringRef name, std::int64_t value) {
+    op->setAttr(name, builder.getI64IntegerAttr(value));
+  };
+
+  // The realized WIDE strip facts, derived from the body's i8<source>/i16<product>
+  // LMULs (I5). NOTE: the accumulator/result stays i32m1/f32m1 (the standalone
+  // reduce collapses the strip to a scalar carry), so the reduction intrinsic
+  // suffix is always _i32m1.
+  const llvm::Twine wideningProductRelation = llvm::Twine("signed-i8") +
+                                              sourceLMUL + "xi8" + sourceLMUL +
+                                              "-to-i16" + productLMUL;
+  const std::string wideningProductRelationStr = wideningProductRelation.str();
+  const std::string productReductionChainRelation =
+      (llvm::Twine(wideningProductRelationStr) + "-reduce-plus-i32-scalar-to-i32")
+          .str();
+  const std::string wideningProductIntrinsic =
+      (llvm::Twine("__riscv_vwmul_vv_i16") + productLMUL).str();
+  const std::string reductionIntrinsic =
+      (llvm::Twine("__riscv_vwredsum_vs_i16") + productLMUL + "_i32m1").str();
+
+  // ---- Strip-dependent (WIDE) primitive facts (derived, I5) ----
+  setStr("tcrv_rvv.low_precision_resource.source_lmul", sourceLMUL);
+  setStr("tcrv_rvv.low_precision_resource.product_lmul", productLMUL);
+  setStr("tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
+         wideningProductRelationStr);
+  setStr("tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+         wideningProductIntrinsic);
+  setStr("tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+         reductionIntrinsic);
+  setStr(
+      "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
+      productReductionChainRelation);
+  setStr("tcrv_rvv.low_precision_resource.widening_product_candidate_fact",
+         llvm::Twine("resource-candidate-widening-product:") +
+             wideningProductRelationStr + ":" + wideningProductIntrinsic);
+  setStr("tcrv_rvv.low_precision_resource.reduction_candidate_fact",
+         llvm::Twine("resource-candidate-widening-reduction:") +
+             productReductionChainRelation + ":" + reductionIntrinsic +
+             ":store-vl=1");
+
+  // ---- Narrow ROUTE-IDENTITY + bounded-contraction-invariant facts (route
+  // constants -- the i8mf4-i16mf2-i32m1-f32m1 leaf profile, the u2-grouped K=32
+  // single-block budget/region structure; the SAME values the fixture pins) ----
+  setStr("tcrv_rvv.gearbox.producer_scope", "gearbox-scope:product-reduction");
+  setStr("tcrv_rvv.gearbox.consumer_scope", "gearbox-scope:dequant-store");
+  setI64("tcrv_rvv.low_precision_resource.accumulator_count", 2);
+  setStr("tcrv_rvv.low_precision_resource.accumulator_dtype", "i32");
+  setStr("tcrv_rvv.low_precision_resource.accumulator_emul", "m1");
+  setStr("tcrv_rvv.low_precision_resource.accumulator_lmul", "m1");
+  setI64("tcrv_rvv.low_precision_resource.accumulator_sew", 32);
+  setI64("tcrv_rvv.low_precision_resource.candidate_count", 3);
+  setStr("tcrv_rvv.low_precision_resource.candidate_set",
+         "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-"
+         "i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-"
+         "i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]");
+  setStr("tcrv_rvv.low_precision_resource.dequant_phase", "dequant-store");
+  setI64("tcrv_rvv.low_precision_resource.dequant_region_index", 3);
+  setI64("tcrv_rvv.low_precision_resource.effective_element_width", 8);
+  setI64("tcrv_rvv.low_precision_resource.legal_candidate_count", 3);
+  setStr("tcrv_rvv.low_precision_resource.legality", "legal");
+  setStr("tcrv_rvv.low_precision_resource.legality_scope",
+         "typed-low-precision-product-reduction-dequant-resource-legality.v1");
+  setStr("tcrv_rvv.low_precision_resource.mask_policy", "agnostic");
+  setStr("tcrv_rvv.low_precision_resource.memory_form",
+         "unit-stride-widening-product-reduce-dequantize-f32");
+  setStr("tcrv_rvv.low_precision_resource.operand_form",
+         "unpacked-byte-elements");
+  setStr("tcrv_rvv.low_precision_resource.packing_layout",
+         "one-element-per-byte");
+  setI64("tcrv_rvv.low_precision_resource.peak_live_vector_groups", 7);
+  setStr("tcrv_rvv.low_precision_resource.planning_contract",
+         "rvv-low-precision-production-resource-planning-contract.v1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+         "scalar-i32-seed-lane0-from-accumulator-input");
+  setStr("tcrv_rvv.low_precision_resource.primitive_chain_contract",
+         "rvv-low-precision-widening-reduction-primitive-facts.v1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_chain_kind",
+         "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_contract",
+         "rvv-low-precision-widening-primitive-facts.v1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_kind",
+         "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_reduction_store_vl", "1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_result_layout",
+         "store-standalone-reduction-lane0-to-output-scalar");
+  setStr("tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+         "__riscv_vmv_v_x_i32m1");
+  setStr("tcrv_rvv.low_precision_resource.primitive_source_extension",
+         "sign-extend-i8-to-i16-product");
+  setStr("tcrv_rvv.low_precision_resource.primitive_source_load",
+         "unit-stride-byte-load");
+  setStr("tcrv_rvv.low_precision_resource.product_dtype", "i16");
+  setStr("tcrv_rvv.low_precision_resource.product_emul", "mf2");
+  setStr("tcrv_rvv.low_precision_resource.product_phase", "tail-product-reduce");
+  setI64("tcrv_rvv.low_precision_resource.product_region_index", 2);
+  setI64("tcrv_rvv.low_precision_resource.product_sew", 16);
+  setStr("tcrv_rvv.low_precision_resource.realization_decision",
+         "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1");
+  setStr("tcrv_rvv.low_precision_resource.realization_producer",
+         "rvv-plugin-local-selected-body-realization-resource-consumer.v1");
+  setI64("tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups", 7);
+  setI64("tcrv_rvv.low_precision_resource.realized_unroll_factor", 2);
+  setI64("tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", 3);
+  setStr("tcrv_rvv.low_precision_resource.reduction_layout",
+         "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-"
+         "extract-f32-store.v1");
+  setStr("tcrv_rvv.low_precision_resource.rejection_reason", "none");
+  setStr("tcrv_rvv.low_precision_resource.result_dtype", "f32");
+  setStr("tcrv_rvv.low_precision_resource.result_lmul", "m1");
+  setI64("tcrv_rvv.low_precision_resource.result_sew", 32);
+  setStr("tcrv_rvv.low_precision_resource.runtime_abi_order",
+         "lhs,rhs,acc,scale,out,n");
+  setStr("tcrv_rvv.low_precision_resource.runtime_avl_source", "runtime_abi:n");
+  setStr("tcrv_rvv.low_precision_resource.selected_candidate",
+         "rvv-low-precision-direct-contraction-resource-candidate.v1[product-"
+         "reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]");
+  setI64("tcrv_rvv.low_precision_resource.selected_candidate_index", 2);
+  setStr("tcrv_rvv.low_precision_resource.selection_reason",
+         "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-"
+         "grouped-tail-safe-runtime-avl");
+  setStr("tcrv_rvv.low_precision_resource.source_dtype", "i8");
+  setI64("tcrv_rvv.low_precision_resource.source_sew", 8);
+  setStr("tcrv_rvv.low_precision_resource.source_signedness", "signed");
+  setI64("tcrv_rvv.low_precision_resource.storage_element_width", 8);
+  setStr("tcrv_rvv.low_precision_resource.tail_policy", "agnostic");
+  setStr("tcrv_rvv.low_precision_resource.unpack_intent",
+         "none-direct-widening-product");
+  setI64("tcrv_rvv.low_precision_resource.unroll_factor", 2);
+  setI64("tcrv_rvv.low_precision_resource.vector_register_budget", 32);
+  setI64("tcrv_rvv.low_precision_resource.vsetvl_region_count", 3);
+  setStr("tcrv_rvv.low_precision_resource.widening_product_extension_policy",
+         "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2");
+  setStr("tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles",
+         "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:"
+         "src-i8mf4");
+}
+
 mlir::LogicalResult materializeKernel(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
     llvm::StringRef selectedIntegerCoreLMUL,
@@ -763,6 +934,11 @@ mlir::LogicalResult materializeKernel(
   tcrvrvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), anchorSEW, loadLMUL, policy,
                    kernelName, selectedVariantSymbol, rvvRequires);
+  // Stamp the N3 low_precision_resource.* facts the production export path
+  // requires, derived structurally from the realized i8<loadLMUL>/i16<productLMUL>
+  // strip (I5). Inert to direct --tcrv-rvv-lower-to-emitc; load-bearing only for
+  // --tcrv-materialize-emission-plans route acceptance (the e2e-closure piece).
+  stampLowPrecisionResourceFacts(builder, withVL, loadLMUL, productLMUL);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
