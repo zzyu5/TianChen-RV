@@ -1,9 +1,9 @@
 {
   "id": "winA-parity-bricks",
   "name": "winA-parity-bricks",
-  "title": "Win-A parity 砖 (wa1-5 nibble/IQ/repack wide-LMUL + memoization-default + silu/softmax vcpop)",
+  "title": "Win-A parity \u7816 (wa1-5 nibble/IQ/repack wide-LMUL + memoization-default + silu/softmax vcpop)",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

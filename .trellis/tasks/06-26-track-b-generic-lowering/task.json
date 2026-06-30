@@ -1,9 +1,9 @@
 {
   "id": "track-b-generic-lowering",
   "name": "track-b-generic-lowering",
-  "title": "Track B 泛化: 通用 op-driven 自动 lowering (替代 per-kernel 手写 emitter) = 真·TTGIR-analog 重构",
+  "title": "Track B \u6cdb\u5316: \u901a\u7528 op-driven \u81ea\u52a8 lowering (\u66ff\u4ee3 per-kernel \u624b\u5199 emitter) = \u771f\u00b7TTGIR-analog \u91cd\u6784",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
