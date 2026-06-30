@@ -153,7 +153,20 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.operation ==
       RVVSelectedBodyOperationKind::
           WideningProductDeferredDotAccumulateReduceAdd;
-  if (isDeferredWideProductReductionDequantization) {
+  // The NON-deferred wide product-reduce-dequant route (the dequant front door's
+  // i8m2 -> i16m4 -> per-iteration vwredsum_i16m4_i32m1 strip) carries the SAME two
+  // structural configs as the deferred-wide route: the loop/strip config (sew8/m2,
+  // driving the runtime AVL/VL control plan) and the i32m1/f32m1 RESULT config
+  // (plan.sew/lmul). It is distinguished from the NARROW non-deferred route -- whose
+  // setvl/control plan runs at the i32m1 result config -- structurally, by the
+  // realized i8m2 strip on the control plan (I5).
+  const bool isNonDeferredWideProductReductionDequantize =
+      plan.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
+      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW8Bits() &&
+      plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2();
+  if (isDeferredWideProductReductionDequantization ||
+      isNonDeferredWideProductReductionDequantize) {
     // The deferred-wide route legitimately carries TWO structural configs: the
     // loop/strip config (sew8/m2, the setvl driving the runtime AVL/VL control
     // plan) and the i32m1/f32m1 RESULT config (plan.sew/lmul, driving result
@@ -233,9 +246,23 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.productLMUL == tcrv::rvv::getRVVLMULM4() &&
       plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       plan.lmul == tcrv::rvv::getRVVLMULM1();
+  // The NON-deferred wide (dequant front door) chain runs the SAME wide ladder
+  // (source i8m2 -> product i16m4 -> i32m1) but with a per-iteration vwredsum
+  // (no i32m8 deferred accumulate). Admitted as a parallel config for exactly the
+  // dequantize kind (the single producer of this shape, I7), derived structurally.
+  const bool supportsNonDeferredWideProductReductionChain =
+      plan.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
+      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      plan.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == tcrv::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
-      supportsDeferredWideProductReductionChain;
+      supportsDeferredWideProductReductionChain ||
+      supportsNonDeferredWideProductReductionChain;
   if (isProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("contraction route-family plan does not support "
@@ -1539,12 +1566,24 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   // dual-config structure: the control plan runs at the i16m4 STRIP config, but
   // the route description's LOGICAL config is the i32m1 RESULT config. Restore it
   // the same way the byte deferred-wide dequant route does.
+  // The NON-deferred wide product-reduce-dequant route (dequant front door) ALSO
+  // runs its control plan at the i8m2 STRIP config while its logical config is the
+  // i32m1/f32m1 RESULT config; restore it identically. It is distinguished from the
+  // NARROW non-deferred route -- whose control plan already runs at the i32m1 result
+  // config -- structurally by the realized i8m2 strip on the control plan, so the
+  // narrow route is untouched (its control plan == result config already, I5).
+  const bool isNonDeferredWideProductReductionDequantize =
+      plan.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
+      plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW8Bits() &&
+      plan.runtimeControlPlan.lmul == tcrv::rvv::getRVVLMULM2();
   if (plan.operation ==
           RVVSelectedBodyOperationKind::
               WideningProductDeferredAccumulateReduceDequantizeF32 ||
       plan.operation ==
           RVVSelectedBodyOperationKind::
-              WideningProductDeferredDotAccumulateReduceAdd) {
+              WideningProductDeferredDotAccumulateReduceAdd ||
+      isNonDeferredWideProductReductionDequantize) {
     description.sew = plan.sew;
     description.lmul = plan.lmul;
     const tcrv::rvv::RVVSelectedBodyConfigVLContract &resultContract =
@@ -1790,9 +1829,21 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
       description.productLMUL == tcrv::rvv::getRVVLMULM4() &&
       description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       description.lmul == tcrv::rvv::getRVVLMULM1();
+  // The NON-deferred wide (dequant front door) chain: same wide ladder, per-
+  // iteration vwredsum, exactly the dequantize kind. Mirror the plan-level support.
+  const bool supportsNonDeferredWideProductReductionChain =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
+      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULM2() &&
+      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == tcrv::rvv::getRVVLMULM4() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
-      supportsDeferredWideProductReductionChain;
+      supportsDeferredWideProductReductionChain ||
+      supportsNonDeferredWideProductReductionChain;
   if (usesProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +

@@ -1366,10 +1366,25 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
   candidate.primitiveReductionStoreVL =
       kRVVLowPrecisionResourcePrimitiveReductionStoreVL;
 
-  const bool hasSupportedShape =
+  // The narrow per-iteration product-reduction ladder (i8mf4 -> i16mf2 -> i32m1).
+  const bool hasSupportedNarrowShape =
       sourceSEW == 8 && sourceLMUL == "mf4" && productSEW == 16 &&
       productLMUL == "mf2" && accumulatorSEW == 32 &&
       accumulatorLMUL == "m1" && resultSEW == 32 && resultLMUL == "m1";
+  // The capability-driven dequant front door realizes the SAME i8 -> i16 -> i32m1
+  // product-reduction chain on the WIDER i8m2 -> i16m4 strip (the per-iteration
+  // vwredsum_i16m4_i32m1 form, NOT the deferred i32m8 accumulate); both reduce to
+  // the i32m1/f32m1 result. It is admitted as a parallel legal candidate shape (the
+  // i32m1 trailing reduce keeps the chain within the m8 LMUL cap). Peak-live-group
+  // accounting reuses the same loose constant as the narrow shape -- the wide strip
+  // genuinely keeps more vector groups live, but stays trivially within the 32-vreg
+  // budget; precise wide accounting is a separate N3 model refinement.
+  const bool hasSupportedWideShape =
+      sourceSEW == 8 && sourceLMUL == "m2" && productSEW == 16 &&
+      productLMUL == "m4" && accumulatorSEW == 32 &&
+      accumulatorLMUL == "m1" && resultSEW == 32 && resultLMUL == "m1";
+  const bool hasSupportedShape =
+      hasSupportedNarrowShape || hasSupportedWideShape;
   const bool hasSupportedPolicy =
       tailPolicy == "agnostic" && maskPolicy == "agnostic";
   const bool isWithinRegisterBudget =

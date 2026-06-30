@@ -3666,6 +3666,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     config.sew = tcrv::rvv::getRVVSEW32Bits();
     config.lmul = tcrv::rvv::getRVVLMULM1();
   }
+  // The NON-deferred wide product-reduce-dequant realization (the capability-driven
+  // dequant front door's auto-constructed body: load i8m2 -> widening_product i16m4
+  // -> per-iteration vwredsum_i16m4_i32m1 -> dequantize, no deferred accumulate)
+  // ALSO carries its SOURCE strip config (sew8/m2) on the setvl, while its LOGICAL
+  // profile is the i32m1/f32m1 RESULT config. Normalize it the same way as the
+  // deferred-wide case above. The NARROW non-deferred realization carries the
+  // sew32/m1 result config on its setvl already, so it is structurally excluded by
+  // the sew8/m2 source-strip guard and left byte-identical (I5).
+  if (slice->arithmeticKind ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 &&
+      config.sew == tcrv::rvv::getRVVSEW8Bits() &&
+      config.lmul == tcrv::rvv::getRVVLMULM2()) {
+    config.sew = tcrv::rvv::getRVVSEW32Bits();
+    config.lmul = tcrv::rvv::getRVVLMULM1();
+  }
   // The deferred-wide i16 dot-reduce realization (2nd kernel family) carries its
   // SOURCE strip config (sew16/m4) on the setvl, but the route's LOGICAL profile
   // is the i32m1 RESULT config -- identical to the narrow widening_dot_reduce

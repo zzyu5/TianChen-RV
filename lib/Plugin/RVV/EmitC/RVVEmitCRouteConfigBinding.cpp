@@ -1579,14 +1579,48 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     const bool hasProductReductionDequantization =
         isWideningProductReduceDequantize ||
         isWideningProductReduceDequantClamp;
+    // The non-deferred product-reduce(-dequant) realization runs EITHER the narrow
+    // per-iteration ladder (source i8mf4 -> product i16mf2 -> per-iter vwredsum)
+    // OR -- when the capability-driven dequant front door auto-constructs the wide
+    // strip -- the wide ladder (source i8m2 -> product i16m4 -> per-iter
+    // vwredsum_i16m4_i32m1). The source LMUL is READ structurally from the realized
+    // lhs load type (I5), NOT pinned to mf4; the product LMUL is the single-widening
+    // next-wider step. The wide strip is admitted ONLY for the dequantize kind (the
+    // single front-door producer); the plain reduce-add and dequant-clamp kinds have
+    // no wide producer and stay narrow (fail-closed for any other width, I7).
+    auto lhsSourceType = llvm::dyn_cast_or_null<tcrv::rvv::VectorType>(
+        slice.lhsValue ? slice.lhsValue.getType() : mlir::Type());
+    if (!lhsSourceType)
+      return makeRVVEmitCRouteProviderError(
+          "selected RVV typed config resolver requires a typed i8 "
+          "product-reduction lhs source vector before route construction");
+    llvm::StringRef sourceLMUL = lhsSourceType.getLmul();
+    const bool isWideStrip = isWideningProductReduceDequantize &&
+                             sourceLMUL == tcrv::rvv::getRVVLMULM2();
+    if (sourceLMUL != tcrv::rvv::getRVVLMULMF4() && !isWideStrip)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("selected RVV typed config resolver requires "
+                      "product-reduction source vector LMUL '") +
+          sourceLMUL + "' to be a supported i8 mf4/m2 strip rung");
     tcrv::rvv::RVVCompileTimeConfig sourceConfig;
     sourceConfig.sew = tcrv::rvv::getRVVSEW8Bits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF4();
+    sourceConfig.lmul = sourceLMUL;
     sourceConfig.policy = config.policy;
     tcrv::rvv::RVVCompileTimeConfig productConfig;
     productConfig.sew = tcrv::rvv::getRVVSEW16Bits();
-    productConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    productConfig.lmul = getRVVNextWiderLMUL(sourceLMUL);
     productConfig.policy = config.policy;
+    // For the NARROW strip the setvl carries the i32m1/f32m1 RESULT config, so the
+    // result config IS `config` (byte-identical to the historical path). For the
+    // WIDE strip the setvl carries the SOURCE config (sew8/m2), so the result config
+    // (sew32/m1) is derived explicitly here -- mirroring the deferred-wide branch
+    // below (I5).
+    tcrv::rvv::RVVCompileTimeConfig resultConfig = config;
+    if (isWideStrip) {
+      resultConfig.sew = tcrv::rvv::getRVVSEW32Bits();
+      resultConfig.lmul = tcrv::rvv::getRVVLMULM1();
+      resultConfig.policy = config.policy;
+    }
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
             "product-reduction lhs source vector", sourceConfig))
@@ -1604,12 +1638,13 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
                                             ->getResult(0)
                                       : slice.arithmeticResult;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            reductionResult, "product-reduction scalar result vector", config))
+            reductionResult, "product-reduction scalar result vector",
+            resultConfig))
       return error;
     if (hasProductReductionDequantization) {
       if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
               slice.dequantizeOp.getResult(),
-              "product-reduction dequantized f32 vector", config))
+              "product-reduction dequantized f32 vector", resultConfig))
         return error;
       if (isWideningProductReduceDequantClamp) {
         if (llvm::Error error =
@@ -1654,12 +1689,12 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
         if (llvm::Error error =
                 validateRVVSelectedBodyF32VectorTypeAgainstConfig(
                     slice.arithmeticResult,
-                    "product-reduction dequantized result vector", config))
+                    "product-reduction dequantized result vector", resultConfig))
           return error;
         if (llvm::Error error =
                 validateRVVSelectedBodyF32VectorTypeAgainstConfig(
                     slice.storeValue,
-                    "product-reduction dequantized stored vector", config))
+                    "product-reduction dequantized stored vector", resultConfig))
           return error;
       }
     } else if (llvm::Error error =

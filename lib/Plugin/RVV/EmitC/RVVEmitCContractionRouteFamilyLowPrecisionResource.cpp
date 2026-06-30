@@ -516,7 +516,8 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts =
             getRVVLowPrecisionWideningReductionPrimitiveFacts(
-                plan.operation, isUnsignedPrimitive);
+                plan.operation, isUnsignedPrimitive, plan.sourceLMUL,
+                plan.productLMUL);
     if (primitiveFacts) {
       if (selection.primitiveChainContractID.empty())
         selection.primitiveChainContractID = primitiveFacts->contractID;
@@ -2839,7 +2840,8 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               plan.operation,
               expectedSourceSignedness ==
-                  kRVVLowPrecisionResourceSourceSignednessUnsigned);
+                  kRVVLowPrecisionResourceSourceSignednessUnsigned,
+              plan.sourceLMUL, plan.productLMUL);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2964,7 +2966,8 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               description.operation,
               expectedSourceSignedness ==
-                  kRVVLowPrecisionResourceSourceSignednessUnsigned);
+                  kRVVLowPrecisionResourceSourceSignednessUnsigned,
+              description.sourceLMUL, description.productLMUL);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -4025,7 +4028,8 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
   if (plan.usesProductReductionChain) {
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts = getRVVLowPrecisionWideningReductionPrimitiveFacts(
-            plan.operation, isRVVUnsignedLowPrecisionWideningProductPlan(plan));
+            plan.operation, isRVVUnsignedLowPrecisionWideningProductPlan(plan),
+            plan.sourceLMUL, plan.productLMUL);
     if (!primitiveFacts)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +

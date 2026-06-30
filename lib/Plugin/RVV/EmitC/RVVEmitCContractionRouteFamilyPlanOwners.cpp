@@ -291,7 +291,8 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
 std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation,
-    bool isUnsignedProductReduction) {
+    bool isUnsignedProductReduction, llvm::StringRef overrideSourceLMUL,
+    llvm::StringRef overrideProductLMUL) {
   const bool isProductReductionDequantClamp =
       operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
@@ -319,13 +320,18 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
   // accumulator config (i32m1) is the trailing-reduce RESULT in both paths. The
   // ladder is read structurally from the realized ops (I5).
   const std::int64_t kSourceSEW = 8;
+  // The structural override (the front-door non-deferred wide i8m2->i16m4 strip,
+  // read from the realized body, I5) wins over the op-kind-derived default; empty
+  // overrides keep the narrow/deferred op-kind default unchanged.
   const llvm::StringRef kSourceLMUL =
-      isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
-                                                   : llvm::StringRef("mf4");
+      !overrideSourceLMUL.empty() ? overrideSourceLMUL
+      : isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
+                                                     : llvm::StringRef("mf4");
   const std::int64_t kProductSEW = 16;
   const llvm::StringRef kProductLMUL =
-      isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
-                                                   : llvm::StringRef("mf2");
+      !overrideProductLMUL.empty() ? overrideProductLMUL
+      : isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
+                                                     : llvm::StringRef("mf2");
   const std::int64_t kAccumulatorSEW = 32;
   const llvm::StringRef kAccumulatorLMUL("m1");
 
@@ -467,7 +473,9 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
 
 static std::optional<RVVWideningDotReduceRouteFacts>
 buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
-                                    bool isUnsignedProductReduction) {
+                                    bool isUnsignedProductReduction,
+                                    llvm::StringRef overrideProductSourceLMUL,
+                                    llvm::StringRef overrideProductLMUL) {
   if (!isContractionDotReductionOperation(operation))
     return std::nullopt;
 
@@ -507,13 +515,21 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   // The deferred-wide (N3) chain widens the source/product strip to i8m2 -> i16m4
   // (vs narrow i8mf4 -> i16mf2); the result is i32m1 in both.
   const std::int64_t kProductSourceSEW = 8;
+  // The structural override (the front-door non-deferred wide i8m2->i16m4 strip,
+  // read from the realized body, I5) wins over the op-kind default; empty overrides
+  // keep the narrow/deferred op-kind default unchanged. Only the product-reduction
+  // chain consumes these (the dot-reduce path uses its own i16 source rung).
   const llvm::StringRef kProductSourceLMUL =
-      isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
-                                                   : llvm::StringRef("mf4");
+      (isProductReductionChain && !overrideProductSourceLMUL.empty())
+          ? overrideProductSourceLMUL
+      : isDeferredWideProductReductionDequantization ? llvm::StringRef("m2")
+                                                     : llvm::StringRef("mf4");
   const std::int64_t kProductSEW = 16;
   const llvm::StringRef kProductLMUL =
-      isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
-                                                   : llvm::StringRef("mf2");
+      (isProductReductionChain && !overrideProductLMUL.empty())
+          ? overrideProductLMUL
+      : isDeferredWideProductReductionDequantization ? llvm::StringRef("m4")
+                                                     : llvm::StringRef("mf2");
   constexpr std::int64_t kDotSourceSEW = 16;
   constexpr llvm::StringLiteral kDotSourceLMUL("mf2");
   constexpr std::int64_t kResultSEW = 32;
@@ -544,7 +560,8 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts =
             getRVVLowPrecisionWideningReductionPrimitiveFacts(
-                operation, isUnsignedProductReduction);
+                operation, isUnsignedProductReduction, kProductSourceLMUL,
+                kProductLMUL);
     if (!primitiveFacts)
       return std::nullopt;
     facts.lowPrecisionWideningReductionPrimitiveFacts =
@@ -1054,15 +1071,22 @@ static bool isUnsignedProductReductionRouteDescription(
 std::optional<RVVWideningDotReduceRouteFacts>
 getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   return buildRVVWideningDotReduceRouteFacts(
-      operation, /*isUnsignedProductReduction=*/false);
+      operation, /*isUnsignedProductReduction=*/false,
+      /*overrideProductSourceLMUL=*/{}, /*overrideProductLMUL=*/{});
 }
 
 std::optional<RVVWideningDotReduceRouteFacts>
 getRVVWideningDotReduceRouteFacts(
     const RVVSelectedBodyEmitCRouteDescription &description) {
+  // Thread the realized source/product strip LMUL (the non-deferred wide front-door
+  // body carries the structural i8m2/i16m4 strip, which the op kind alone cannot
+  // distinguish from the narrow i8mf4/i16mf2 chain) so the route's primitive facts
+  // mirror the realized body (I5). The narrow/deferred descriptions carry their
+  // op-kind-default LMUL, keeping those routes byte-identical.
   return buildRVVWideningDotReduceRouteFacts(
       description.operation,
-      isUnsignedProductReductionRouteDescription(description));
+      isUnsignedProductReductionRouteDescription(description),
+      description.sourceLMUL, description.productLMUL);
 }
 
 

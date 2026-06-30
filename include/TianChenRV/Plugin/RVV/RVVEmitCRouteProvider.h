@@ -1922,10 +1922,20 @@ std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation);
 
+// The source/product LMUL of the realized strip is normally derived from the
+// operation kind (narrow i8mf4->i16mf2 vs the deferred-wide i8m2->i16m4). For the
+// NON-deferred wide product-reduce-dequant body (the dequant front door's
+// capability-selected i8m2->i16m4 strip, which shares the narrow op kind) the
+// structural LMUL is read from the realized body and threaded in via
+// `overrideSourceLMUL`/`overrideProductLMUL` (I5) so the primitive facts mirror the
+// realized wide strip. Empty overrides keep the op-kind-derived narrow/deferred
+// default (byte-identical for every existing caller/route).
 std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation,
-    bool isUnsignedProductReduction);
+    bool isUnsignedProductReduction,
+    llvm::StringRef overrideSourceLMUL = {},
+    llvm::StringRef overrideProductLMUL = {});
 
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,

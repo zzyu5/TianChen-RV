@@ -786,13 +786,27 @@ llvm::StringRef getContractionWideningReductionIntrinsic(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL,
     llvm::StringRef relation) {
+  // The chain relation that frames this widening vwredsum is i8<S> -> i16<P> ->
+  // i32m1, where the i16 product LMUL <P> (passed here as sourceLMUL) is the i8
+  // source LMUL <S> widened ONE EMUL step. The i8 source LMUL is derived
+  // structurally as the rung whose next-wider step is the product LMUL (mf2 ->
+  // mf4 for the narrow per-iteration chain, m4 -> m2 for the front-door wide
+  // strip) instead of being pinned to mf4 (I5). The narrow product mf2 still
+  // yields mf4, so every existing narrow caller stays byte-identical.
+  llvm::StringRef i8SourceLMUL = tcrv::rvv::getRVVLMULMF4();
+  for (llvm::StringRef candidate : {"mf4", "mf2", "m1", "m2"}) {
+    if (getRVVNextWiderLMUL(candidate) == sourceLMUL) {
+      i8SourceLMUL = candidate;
+      break;
+    }
+  }
   llvm::StringRef expectedRelation = getContractionProductReductionChainRelation(
-      tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(), sourceSEW,
-      sourceLMUL, resultSEW, resultLMUL);
+      tcrv::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
+      resultSEW, resultLMUL);
   llvm::StringRef expectedUnsignedRelation =
       getContractionProductReductionChainRelation(
-          tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(), sourceSEW,
-          sourceLMUL, resultSEW, resultLMUL, /*isUnsigned=*/true);
+          tcrv::rvv::getRVVSEW8Bits(), i8SourceLMUL, sourceSEW, sourceLMUL,
+          resultSEW, resultLMUL, /*isUnsigned=*/true);
   if ((expectedRelation.empty() || relation != expectedRelation) &&
       (expectedUnsignedRelation.empty() || relation != expectedUnsignedRelation))
     return {};
