@@ -391,6 +391,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ6_KQ8_KAux32Partial},
         {&isQ6_KQ8_KBlockDotBody,
          &VariantToEmitCFunc::emitQ6_KQ8_KBlockDot},
+        {&isQ4_KNibbleUnpackBody,
+         &VariantToEmitCFunc::emitQ4_KNibbleUnpack},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
         {&isQ4_KQ8_KBlockDotBody,
@@ -1463,6 +1465,20 @@ bool VariantToEmitCFunc::isQ6_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawBlockDot;
+  }
+
+bool VariantToEmitCFunc::isQ4_KNibbleUnpackBody(tcrvrvv::WithVLOp scope) {
+    bool sawUnpack = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::Q4KNibbleUnpackOp>(op)) {
+        if (sawUnpack)
+          return false;
+        sawUnpack = true;
+      } else {
+        return false;
+      }
+    }
+    return sawUnpack;
   }
 
 bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {

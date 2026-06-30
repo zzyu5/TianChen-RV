@@ -839,25 +839,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ6_KQ8_KBlockDot(
     return mlir::success();
   }
 
-VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+// Track B q4_K BRICK 1: the plain 4-bit nibble unpack into aux8[256] (Region A),
+// factored out VERBATIM from emitQ4_KSuperBlockAux32Core so the SAME node
+// sequence is reachable both inline (the monolithic q4_K/q5_K integer core) AND
+// through the first-class tcrv_rvv.q4_k_nibble_unpack op. Emits at the current
+// insertion point; writes aux8Array as a side effect.
+void VariantToEmitCFunc::emitQ4_KPlainNibbleUnpack(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
-    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
-    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
-    mlir::Value ib) const {
-    mlir::MLIRContext *ctx = rewriter.getContext();
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb,
+    mlir::TypedValue<emitc::ArrayType> aux8Array) const {
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
     int64_t qk = cx.subBlock * cx.numSubBlocks; // 256
-    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
-    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
-
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
                                                std::to_string(v));
-    };
-    auto u32Lit = [&](llvm::StringRef v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, cx.u32Type, v.str());
     };
     auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
                              mlir::Type castType) -> mlir::Value {
@@ -965,6 +961,41 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
       emitNibble(/*lowNibble=*/true, 0);   // a[0..31]  = q4[l] & 0xF
       emitNibble(/*lowNibble=*/false, 32); // a[32..63] = q4[l] >> 4
     }
+}
+
+VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
+    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
+    mlir::Value ib) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
+    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
+    // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
+    // now consumed inside the Region-A unpack helper, not here.
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
+                                               std::to_string(v));
+    };
+    auto u32Lit = [&](llvm::StringRef v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, cx.u32Type, v.str());
+    };
+    auto byteOffsetPtr = [&](mlir::Value base, mlir::Type ptrType, int64_t fixed,
+                             mlir::Type castType) -> mlir::Value {
+      mlir::Value full = base;
+      if (fixed != 0)
+        full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
+      return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
+    };
+
+    // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
+    // Factored into the shared Track B brick-1 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
+    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
 
     // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
     // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
@@ -1437,6 +1468,94 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial(
     mlir::Value resultToken =
         rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
     valueMap[blockDot.getResult()] = resultToken;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KNibbleUnpack(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // Region A decodes ONE super-block at a literal vl; no n use.
+    tcrvrvv::Q4KNibbleUnpackOp unpack;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto u = llvm::dyn_cast<tcrvrvv::Q4KNibbleUnpackOp>(op))
+        unpack = u;
+    }
+    if (!unpack)
+      return rewriter.notifyMatchFailure(scope,
+                                         "q4_K nibble-unpack body missing the op");
+
+    mlir::Value weightBase = valueMap.lookup(unpack.getWeightBase());
+    if (!weightBase)
+      return rewriter.notifyMatchFailure(unpack,
+                                         "q4_K nibble-unpack weight base unmapped");
+
+    llvm::StringRef opName = unpack.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = unpack.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type weightPtrType = weightBase.getType();
+
+    // The integer-core vector types Region A uses (the 4-bit unpack runs 32-wide
+    // chunks at e8m2; VLMAX = 32 at VLEN >= 128). The non-Region-A cx type/offset
+    // fields are populated for a total context but are unused by the unpack.
+    mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, "vint8mf2_t");
+    mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
+    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    mlir::Type constU32Type = emitc::OpaqueType::get(ctx, "const uint32_t");
+    mlir::Type u32PtrType = emitc::PointerType::get(constU32Type);
+
+    // The Region-A structural facts come straight off the typed attrs (I4).
+    int64_t qk = unpack.getQk();                  // 256
+    int64_t subBlock = unpack.getSubBlock();      // 32
+    int64_t qsOffset = unpack.getWeightQsByteOffset(); // 16
+    int64_t numSubBlocks = qk / subBlock;         //  8
+
+    // The integer-core context: the SAME shape the monolithic q4_K core builds.
+    // Region A reads opName/role, subBlock/numSubBlocks (for qk), qsOffset,
+    // sizeType, weightPtrType, u8PtrType, u8m2Type, i32ImmType, i8m2Type,
+    // i8ElemType, hasQh(default false). The remaining fields complete the
+    // context and are unused by the unpack (no activation, no scales, no dot).
+    Q4_KIntegerCoreContext cx{
+        opName,        role,          sizeType,      i32ImmType,
+        u32Type,       i8ElemType,    u8m2Type,      i8m2Type,
+        i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
+        u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
+        /*activationPtrType=*/weightPtrType, subBlock, /*scalesOffset=*/0,
+        qsOffset,      /*q8Offset=*/0, numSubBlocks,  /*quarter=*/8};
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // int8_t aux8[256];  (function-scoped scratch the Region-A unpack fills; the
+    // op DECLARES it so the brick is self-contained, vs the monolithic core which
+    // declares it once above the super-block loop and shares it with the dot).
+    mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux8", opName, role));
+    auto aux8Var = rewriter.create<emitc::VariableOp>(
+        loc, aux8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto aux8Array =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux8Var.getResult());
+
+    // The weight base operand IS this op's super-block pointer (single super-block
+    // -- no nb = n/256 loop, no ib*144 address arithmetic). Region A's emit is the
+    // SAME node sequence the monolithic core emits inside its loop.
+    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, weightBase, aux8Array);
+
+    // The op's i32 m1 result token: the unpack writes aux8 as a side effect, so
+    // the token has no live use; bind it to a zero literal to keep the map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
+    valueMap[unpack.getResult()] = resultToken;
     return mlir::success();
   }
 

@@ -267,6 +267,11 @@ private:
   /// block dot-product producing the fp32 *s).
   static bool isQ6_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-1 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_nibble_unpack (one super-block's Region-A plain
+  /// 4-bit nibble unpack into aux8[256], NO bit-dance / dot / fold).
+  static bool isQ4_KNibbleUnpackBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2051,6 +2056,25 @@ private:
     mlir::Value scalesU8;
   };
 
+  /// Emit ONE super-block's q4_K/q5_K plain 4-bit nibble unpack into the
+  /// element-ordered aux8[256] scratch (Region A), NO bias: FOUR 64-element
+  /// chunks, each one vsetvl_e8m2(32) + vle8_v_u8m2 of the 32 weight bytes at
+  /// `xb + qsOffset + chunk*32`, a 32-wide vand 0x0F (low nibble -> a[chunk*64 +
+  /// 0..31]) and a 32-wide vsrl 4 (high nibble -> a[chunk*64 + 32..63]), each
+  /// reinterpreted u8m2 -> i8m2 and vse8-stored into aux8Array via emitc
+  /// SubscriptOp. q5_K (cx.hasQh) additionally injects the qh 5th bit in the u8
+  /// domain before the reinterpret. This is the Track B q4_K BRICK 1 vocabulary:
+  /// the SAME node sequence is shared VERBATIM by emitQ4_KSuperBlockAux32Core
+  /// (the monolithic q4_K/q5_K integer core, which calls this in-loop after the
+  /// per-super-block address arithmetic) AND the first-class
+  /// tcrv_rvv.q4_k_nibble_unpack op's lowering (which declares its own aux8 and
+  /// decodes one super-block), so both emit byte-identical Region-A C. Writes
+  /// aux8Array as a side effect; returns nothing.
+  void emitQ4_KPlainNibbleUnpack(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value xb,
+      mlir::TypedValue<emitc::ArrayType> aux8Array) const;
+
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
   /// scale/min bit-dance via utmp/kmask; the nested sub-block loop applying the
@@ -2115,6 +2139,19 @@ private:
   /// emitQ6_KSuperBlockAux32Core (different unpack, no qh, no bias, uint scale) so
   /// q6_K's emitted bytes stay byte-identical (additive).
   mlir::LogicalResult emitQ4_KQ8_KAux32Partial(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 1 op (tcrv_rvv.q4_k_nibble_unpack) as fully
+  /// STRUCTURED emitc nodes: DECLARE the function-scoped int8_t aux8[256] scratch
+  /// and fill it with ONE super-block's Region-A plain 4-bit nibble unpack (the
+  /// shared emitQ4_KPlainNibbleUnpack helper, byte-identical to the monolithic
+  /// q4_K integer core's Region A). The weight base operand IS the super-block
+  /// pointer (single super-block; NO nb = n/256 loop, NO bit-dance, NO dot, NO
+  /// fold -- those are deferred bricks). Binds the op's i32 m1 token to a zero
+  /// literal (the unpack writes aux8 as a side effect; the token has no live use).
+  mlir::LogicalResult emitQ4_KNibbleUnpack(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

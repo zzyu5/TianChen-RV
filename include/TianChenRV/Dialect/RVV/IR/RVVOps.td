@@ -6388,6 +6388,76 @@ def GgmlBlockDotQ6KQ8KOp
   let hasVerifier = 1;
 }
 
+def Q4KNibbleUnpackOp
+    : TCRVRVV_Op<"q4_k_nibble_unpack",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K plain 4-bit nibble unpack-to-scratch op";
+  let description = [{
+    Records ONE super-block's plain 4-bit nibble unpack into the element-ordered
+    aux8[256] scratch (Region A of the ggml `ggml_vec_dot_q4_K_q8_K` integer
+    core) as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    Track B q4_K auto-construction's BRICK 1. This is the q4_K-specific nibble
+    unpack: each weight byte holds two UNSIGNED 4-bit nibbles in [0,15] (NO
+    offset-binary bias -- the bias is carried by the q4_K min term, NOT here, so
+    this is distinct from tcrv_rvv.packed_i4_offset_binary_x_i8_product's
+    xor-0x88 decode), and the 256 nibbles are spread element-ordered into a
+    function-scoped int8_t aux8[256] scratch the later super-block bit-dance +
+    per-sub-block dot (bricks 2-8, DEFERRED) read contiguously.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes ONE runtime ABI
+    value operand -- the q4_K weight base pointer (the AoS block_q4_K byte array)
+    -- plus the active !tcrv_rvv.vl token, and produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering DECLARES the int8_t aux8[256] scratch
+    and fills it. The op decodes ONE super-block (the nb = n / 256 super-block
+    loop, the per-block address arithmetic, the 6-bit scale/min bit-dance, the
+    per-sub-block dot, and the fp32 fold are NOT this op -- they are the deferred
+    q4_K bricks and the monolithic tcrv_rvv.q4_k_q8_k_aux_partial /
+    q4_k_q8_k_block_dot ops, which STAY).
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32
+    elements, the AoS weight block stride (144 bytes for block_q4_K), and the qs
+    byte offset (16, after d@0|dmin@2|the 12 packed scale bytes@4) -- are carried
+    as typed integer attributes (I4 mirror only). The fixed emission mirrors
+    `_generic` (quants.c) line-for-line so byte-exactness is by construction:
+    FOUR 64-element chunks, each chunk a literal-VL vsetvl_e8m2(32) + a 32-wide
+    vle8 of the weight bytes at `weight_base + qs_off + chunk*32`, a 32-wide
+    vand 0x0F (low nibble -> a[chunk*64 + 0..31]) and a 32-wide vsrl 4 (high
+    nibble -> a[chunk*64 + 32..63]), each reinterpreted u8m2 -> i8m2 and vse8
+    stored into aux8 via emitc subscript (the q4_K nibbles are UNsigned [0,15],
+    NO -32 bias). This emission is the op's fixed structure, shared VERBATIM with
+    the monolithic q4_K/q5_K integer core's Region A (so both emit byte-identical
+    C), NOT a candidate-mirror string read in the conversion. The bounded surface
+    kind is limited to "q4_k_nibble_unpack". Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/q4 names, and common EmitC/export code must not infer or choose
+    nibble-unpack semantics.
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target): the unpack runs one
+    vsetvl_e8m2(32) per 32-element nibble group (NO VLEN-robust re-strip loop --
+    a VLEN<128 board would leave part of aux8 unwritten; the zve32x/zve64x
+    re-strip is a capability item, not built here). No resource shape knobs yet.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_qs_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $vl attr-dict `:` type($weight_base) `,` type($vl) "
+    "`->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {
