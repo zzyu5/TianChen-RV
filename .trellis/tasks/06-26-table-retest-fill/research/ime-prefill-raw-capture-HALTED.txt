@@ -1,0 +1,22 @@
+RAW CAPTURE — HALTED, NOT A RESULT, NOT A FINDING. DO NOT CITE AS A VERDICT.
+================================================================================
+Perf testing for the IME prefill re-test was HALTED as premature (perf = 收尾,
+done after implementation matures). This file only preserves the raw t/s that one
+in-flight sweep emitted before the halt, so a future wrap-up run is not starting
+cold. NO ratio is derived here; NO net-IME verdict is asserted. See the governing
+file: ime-prefill-FINDING.md (status = halted).
+
+Board: k1 = SpacemiT X60 VLEN256 IME1, taskset -c 0-3, llama-bench -r 5,
+       model tinyllama-1B-Q4_0. idle pre/post ~96-97% id.
+ON  = build-ime  (GGML_CPU_RISCV64_SPACEMIT=ON,  vmadot present)
+OFF = build-off  (GGML_CPU_RISCV64_SPACEMIT=OFF, vmadot absent)
+
+  arm           pp256          pp512          pp1024         tg64 (decode)
+  ON  (IME)     39.04 ± 2.04   35.07 ± 0.77   24.73 ± 4.25   8.09 ± 0.03
+  OFF (no-IME)  24.89 ± 0.02   24.28 ± 0.01   22.85 ± 0.02   5.57 ± 0.00
+
+Caveats (further reasons NOT to bank this): box was 2-day uptime with anomalous,
+uneven prefill variance (pp1024 ON ±4.25); a separate earlier exploratory round
+left a remote orphan that contended before being killed. This data has limited
+reuse value and is retained only as a cold-start hint, not as a measurement.
+The standing un-sealed reference remains IME-E2E-SPACEMIT-TOGGLE-FINDING.md (06-25).
