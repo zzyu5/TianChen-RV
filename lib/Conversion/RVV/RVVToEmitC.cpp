@@ -395,6 +395,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_KNibbleUnpack},
         {&isQ4_KScaleMinBitDanceBody,
          &VariantToEmitCFunc::emitQ4_KScaleMinBitDance},
+        {&isQ4_KScaledDotBody,
+         &VariantToEmitCFunc::emitQ4_KScaledDot},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
         {&isQ4_KQ8_KBlockDotBody,
@@ -1495,6 +1497,20 @@ bool VariantToEmitCFunc::isQ4_KScaleMinBitDanceBody(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawBitDance;
+  }
+
+bool VariantToEmitCFunc::isQ4_KScaledDotBody(tcrvrvv::WithVLOp scope) {
+    bool sawScaledDot = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::Q4KScaledDotOp>(op)) {
+        if (sawScaledDot)
+          return false;
+        sawScaledDot = true;
+      } else {
+        return false;
+      }
+    }
+    return sawScaledDot;
   }
 
 bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {

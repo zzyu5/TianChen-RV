@@ -5491,6 +5491,130 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Q4KScaledDotOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Track B q4_K BRICK 3: the op carries ONLY its bounded mirror attrs (I4) --
+  // the operation kind, the super-block-format facts the Region-C scaled dot
+  // needs (qk, sub_block, the weight block stride), and the OPTIONAL
+  // integer_core_lmul resource/scheduling anchor (the per-sub-block integer-MAC
+  // widening-chain base LMUL). NO scale model (Region C HAS no scale model -- it
+  // APPLIES the BRICK 2 decoded 6-bit scales fused into the vwmacc). A forbidden
+  // local element_count/SEW/LMUL/policy attr or an unexpected name is rejected
+  // fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "sub_block" ||
+           name == "weight_block_stride" || name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q4_k_scaled_dot keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded scaled-dot attributes 'kind', 'qk', "
+                "'sub_block', 'weight_block_stride', and 'integer_core_lmul'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  // The optional integer_core_lmul anchors the per-sub-block integer-MAC widening
+  // chain i8 -> i16 -> i32 (the *how*, never the *what*; the integer accumulation
+  // order is untouched). Only three anchors are legal, bounded on TWO independent
+  // grounds (I7, fail-closed):
+  //   * absent / "mf2" -- today's fractional chain (i8mf2 -> i16m1 -> i32m2, NO
+  //     fold-back).
+  //   * "m1" -- the whole-LMUL chain one notch up (i8m1 -> i16m2 -> i32m4, the
+  //     16-lane aux32 folded back to 8).
+  //   * "m2" -- the hard ceiling (i8m2 -> i16m4 -> i32m8): i8m2 == 32 elements ==
+  //     exactly ONE sub-block under ONE scalar scale (32-lane aux32 folded back).
+  //     A wider "m4" base would need an illegal i32m16 product AND would fold TWO
+  //     sub-blocks under one scalar -- rejected.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1" && coreLmul != "m2")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\", \"m2\"} (the "
+                "base LMUL of the i8 -> i16 -> i32 integer-MAC chain; \"m2\" is "
+                "the ceiling at one sub-block == 32 elements per scalar scale) "
+                "for the q4_K/q5_K Region-C scaled-dot route; got \""
+             << coreLmul << "\"";
+  }
+
+  if (getKind() != "q4_k_scaled_dot")
+    return emitOpError()
+           << "currently supports only kind \"q4_k_scaled_dot\" for the bounded "
+              "q4_K/q5_K Region-C per-sub-block uint6-scaled i32 dot + integer "
+              "fold-back typed surface";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256, 8
+  // sub-blocks of 32 elements, block_q4_K stride 144 (d@0|dmin@2|scales@4|qs@16).
+  // Pin them so a malformed typed body cannot lower under the Region-C emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
+                            "Region-C scaled-dot route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block scale boundary) "
+              "for the q4_K/q5_K Region-C scaled-dot route";
+  if (getWeightBlockStride() != 144)
+    return emitOpError()
+           << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
+              "q4_K/q5_K Region-C scaled-dot route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires three runtime ABI base pointer operands (aux8 / scales / "
+              "q8), one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  // The three base operands are runtime ABI values: the BRICK 1 unpacked aux8
+  // scratch (const int8_t *), the BRICK 2 decoded scales (const uint8_t *), and
+  // the q8_K activation data (const uint8_t * -- the same binding the monolithic
+  // q4_K core's activation base uses; the dot casts it to const int8_t *).
+  RuntimeABIValueOp aux8Binding =
+      getAux8Base().getDefiningOp<RuntimeABIValueOp>();
+  if (!aux8Binding || aux8Binding.getCType() != "const int8_t *")
+    return emitOpError()
+           << "requires the aux8 base operand to bind a runtime ABI value of C "
+              "type 'const int8_t *' (the BRICK 1 unpacked aux8[256] scratch)";
+  RuntimeABIValueOp scalesBinding =
+      getScalesBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!scalesBinding || scalesBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the scales base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the BRICK 2 decoded 6-bit scales)";
+  RuntimeABIValueOp q8Binding = getQ8Base().getDefiningOp<RuntimeABIValueOp>();
+  if (!q8Binding || q8Binding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the q8 base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the q8_K activation data)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> (the side-effect-only completion token) for the q4_K/q5_K "
+              "Region-C scaled-dot route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the q4_K/q5_K Region-C scaled dot";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ4KQ8KAux32Op::verify() {
   mlir::Operation *op = getOperation();
 

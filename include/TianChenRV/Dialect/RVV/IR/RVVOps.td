@@ -6534,6 +6534,98 @@ def Q4KScaleMinBitDanceOp
   let hasVerifier = 1;
 }
 
+def Q4KScaledDotOp
+    : TCRVRVV_Op<"q4_k_scaled_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_K/q5_K per-sub-block uint6-scaled i32 dot + integer "
+      "fold-back op";
+  let description = [{
+    Records ONE super-block's per-sub-block uint6-scaled i32 dot into the 8-lane
+    aux32 PLUS the integer fold-back (Region C of the ggml `ggml_vec_dot_q4_K_q8_K`
+    integer core) as ONE bounded generic plugin-local typed RVV dataflow step --
+    the Track B q4_K auto-construction's BRICK 3 (sibling to BRICK 1's
+    tcrv_rvv.q4_k_nibble_unpack and BRICK 2's tcrv_rvv.q4_k_scale_min_bit_dance).
+    This is the q4_K-specific scaled integer MAC: over the 8 sub-blocks of 32
+    elements, the per-sub-block UINT6 6-bit scale `scales[js]` (the BRICK 2 decoded
+    scales) is applied in the i32 domain to the per-element products of the BRICK 1
+    unpacked aux8[256] weights with the q8_K activation bytes, accumulating into a
+    running aux32 accumulator. The scale is FUSED into the vwmacc (NOT a separable
+    pre-multiply). The plain 4-bit nibble unpack, the 6-bit scale/min bit-dance,
+    the MIN term, the two-level fp32 fold, and the fp16 d/dmin reads (bricks 1, 2,
+    and the deferred bricks 4-8) are NOT this op -- they are the sibling bricks and
+    the monolithic tcrv_rvv.q4_k_q8_k_aux_partial / q4_k_q8_k_block_dot ops, which
+    STAY.
+
+    The op is nested directly under tcrv_rvv.with_vl, consumes THREE runtime ABI
+    value operands -- the BRICK 1 unpacked aux8 base pointer (const int8_t *), the
+    BRICK 2 decoded scales base pointer (const uint8_t *), and the q8_K activation
+    base pointer (const uint8_t *) -- plus the active !tcrv_rvv.vl token, and
+    produces ONE i32 LMUL m1 !tcrv_rvv.vector token whose lowering DECLARES an
+    int32_t aux32_out[8] scratch and stores the canonical-8 aux32 into it.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256 (super-block size), 8 sub-blocks of 32
+    elements, and the AoS weight block stride (144 bytes for block_q4_K) -- are
+    carried as typed integer attributes (I4 mirror only). The fixed emission
+    mirrors `_generic` (quants.c) line-for-line so byte-exactness is by
+    construction: the aux32 is seeded to zero via vmv_v_x_i32<l32>, then the
+    sub-block loop loads the UINT6 scale, and per MAC strip of stripWidth elements
+    runs a vsetvl_e8<l8>(stripWidth) + two vle8 (q8 + aux8) + vwmul i16<l16> +
+    vwmacc.vx i32<l32> += scale x product into the running aux32. The integer add
+    is associative/order-free, so the per-lane accumulation is byte-exact. This
+    emission is the op's fixed structure, shared VERBATIM with the monolithic
+    q4_K/q5_K integer core's Region C (so both emit byte-identical C), NOT a
+    candidate-mirror string read in the conversion. The bounded surface kind is
+    limited to "q4_k_scaled_dot". Route ids, helper names, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, operand mirror strings, q8/q4
+    names, and common EmitC/export code must not infer or choose scaled-dot
+    semantics.
+
+    The optional `integer_core_lmul` attribute is a bounded resource/scheduling
+    knob selecting the BASE LMUL of the per-sub-block integer-MAC widening chain
+    i8 -> i16 -> i32 (the *how*, never the *what*; the integer accumulation order
+    is untouched). It anchors the chain at "mf2" (absent/default -- today's
+    e8mf2(8)->i16m1->e32m2 form, 4 strips/sub-block, NO fold-back), "m1"
+    (e8m1->i16m2->e32m4, 2 strips, the running aux32 holds 16 lanes whose
+    group-of-8 residues are folded back), or "m2" (e8m2->i16m4->e32m8, 1 strip ==
+    the whole 32-element sub-block, 32 lanes folded back). At "m1"/"m2" the wide
+    aux32 is collapsed to the canonical 8-lane vint32m2 by the VLEN-agnostic
+    integer fold-back (vslidedown the wide register by the literal element offset
+    8*k + vadd in the wide type + a final vget(.,0) of the low 8-lane group) BEFORE
+    the deferred fp fold (Region F) consumes it -- the q4_K capability flip this
+    brick auto-constructs. "m2" is the hard ceiling (i8m2 == 32 elements == exactly
+    one sub-block under one scalar scale; a wider m4 base would need an illegal
+    i32m16 product AND would fold TWO sub-blocks under one scalar). The verifier
+    pins the legal set {"mf2","m1","m2"} fail-closed (I7). The integer add being
+    associative/order-free, the fold-back is provably bit-exact at every legal
+    anchor (there is NO fp non-associativity here -- that is Region F, deferred).
+
+    The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
+    => Zvl128b => VLEN>=128, the validated target). No further resource shape knobs
+    yet.
+  }];
+
+  let arguments = (ins
+    AnyType:$aux8_base,
+    AnyType:$scales_base,
+    AnyType:$q8_base,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$aux8_base `,` $scales_base `,` $q8_base `,` $vl attr-dict `:` "
+    "type($aux8_base) `,` type($scales_base) `,` type($q8_base) `,` type($vl) "
+    "`->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ4KQ8KAux32Op
     : TCRVRVV_Op<"q4_k_q8_k_aux_partial",
     [TCRVEmitCLowerableOpInterface]> {

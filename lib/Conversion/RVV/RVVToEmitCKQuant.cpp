@@ -1080,19 +1080,32 @@ mlir::Value VariantToEmitCFunc::emitQ4_KScaleMinBitDanceCore(
     return scalesU8;
 }
 
-VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+// Track B q4_K BRICK 3: the per-sub-block uint6-scaled i32 dot into the 8-lane
+// aux32 PLUS the integer fold-back (Region C), factored out VERBATIM from
+// emitQ4_KSuperBlockAux32Core so the SAME node sequence is reachable both inline
+// (the monolithic q4_K/q5_K integer core) AND through the first-class
+// tcrv_rvv.q4_k_scaled_dot op. Emits at the current insertion point: declares the
+// per-super-block aux32 lvalue, seeds it to zero, runs the sub-block loop applying
+// the per-sub-block UINT6 scale `scalesU8[js]` in the i32 domain via the
+// vsetvl_e8<l8>/vle8x2/vwmul i16<l16>/vwmacc i32<l32> MAC strip (cx.numStrips per
+// 32-element sub-block), then (when foldGroups > 1) the VLEN-agnostic integer
+// fold-back of the WIDE aux32's group-of-8 residues to the canonical 8-lane
+// vint32m2_t accumulator (vslidedown + vadd register-only regroup + vget). The
+// scale is FUSED into the vwmacc -- this whole MAC+fold region reads scalesU8 as
+// ONE unit. Returns the canonical-8 aux32 lvalue (the byte-exact Region-F
+// contract type). The scale_load reads scalesU8, the activation q8 base is
+// derived from yb via cx.q8Offset/cx.activationPtrType, the aux8 base is
+// aux8Base. The integer add is associative/order-free so this regroup is
+// provably bit-exact at every legal LMUL (no fp non-associativity here -- that is
+// Region F, deferred).
+mlir::TypedValue<emitc::LValueType>
+VariantToEmitCFunc::emitQ4_KScaledDotIntoAux32(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
-    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
-    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
-    mlir::Value ib) const {
+    const Q4_KIntegerCoreContext &cx, mlir::Value yb, mlir::Value aux8Base,
+    mlir::Value scalesU8) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
     llvm::StringRef opName = cx.opName;
     llvm::StringRef role = cx.role;
-    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
-    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
-    // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
-    // now consumed inside the Region-A unpack helper, not here.
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
@@ -1105,47 +1118,6 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
         full = rewriter.create<emitc::AddOp>(loc, ptrType, base, sizeLit(fixed));
       return rewriter.create<emitc::CastOp>(loc, castType, full).getResult();
     };
-
-    // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
-    // Factored into the shared Track B brick-1 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
-    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
-
-    // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
-    // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
-    // Factored into the shared Track B brick-2 helper (the SAME node sequence,
-    // also reachable through the first-class tcrv_rvv.q4_k_scale_min_bit_dance
-    // op); returns scalesU8 = (const uint8_t *)&utmp[0].
-    mlir::Value scalesU8 =
-        emitQ4_KScaleMinBitDanceCore(rewriter, loc, cx, xb, utmpArray);
-
-    // (K4a only) vse8 the 16 decoded [scales[0..7], mins[0..7]] bytes to
-    // scaleMinOutput + ib*16 -- emitted IN-PLACE here (before the aux32 init) so
-    // K4a's node sequence is unchanged. K4b passes a null scaleMinOutput.
-    if (scaleMinOutput) {
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "store_scale_min"));
-      std::string smSetvl = "__riscv_vsetvl_e8m1";
-      mlir::Value vlsm = emitOpaqueCallBuilt(
-          rewriter, loc, cx.sizeType, smSetvl, opName, role,
-          [&](mlir::OpBuilder &b,
-              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            return {sizeLit(16)};
-          });
-      std::string smLoad = "__riscv_vle8_v_u8m1";
-      mlir::Type u8m1Type = emitc::OpaqueType::get(ctx, "vuint8m1_t");
-      mlir::Value smVec =
-          emitOpaqueCall(rewriter, loc, u8m1Type, smLoad,
-                         mlir::ValueRange{scalesU8, vlsm}, opName, role);
-      mlir::Type smOutPtrType = scaleMinOutput.getType();
-      mlir::Value smOff =
-          rewriter.create<emitc::MulOp>(loc, cx.sizeType, ib, sizeLit(16));
-      mlir::Value smOutPtr = rewriter.create<emitc::AddOp>(
-          loc, smOutPtrType, scaleMinOutput, smOff);
-      std::string smStore = "__riscv_vse8_v_u8m1";
-      emitOpaqueCallVoid(rewriter, loc, smStore,
-                         mlir::ValueRange{smOutPtr, smVec, vlsm}, opName, role);
-    }
 
     // ---- (C) per-sub-block uint6-scaled i32 dot into the 8-lane aux32 ----
     rewriter.create<emitc::VerbatimOp>(
@@ -1326,6 +1298,84 @@ VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Co
       resultAux32Var =
           llvm::cast<mlir::TypedValue<emitc::LValueType>>(aux32cVar.getResult());
     }
+
+    return resultAux32Var;
+}
+
+VariantToEmitCFunc::Q4_KCoreResult VariantToEmitCFunc::emitQ4_KSuperBlockAux32Core(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const Q4_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+    mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
+    mlir::TypedValue<emitc::ArrayType> utmpArray, mlir::Value scaleMinOutput,
+    mlir::Value ib) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    llvm::StringRef opName = cx.opName;
+    llvm::StringRef role = cx.role;
+    // NB: the legacy `quarter` local (== cx.quarter == 8) is gone — the strip
+    // offset is now derived from cx.stripWidth (mf2 -> 8 == the old quarter).
+    // The super-block element count `qk` (== cx.subBlock * cx.numSubBlocks) is
+    // now consumed inside the Region-A unpack helper, not here.
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, cx.sizeType,
+                                               std::to_string(v));
+    };
+    // NB: the byteOffsetPtr lambda that used to live here is now inside the
+    // shared Track B brick-3 helper emitQ4_KScaledDotIntoAux32 (the only Region
+    // that used it -- the q8 base derivation); sizeLit stays for the K4a-only
+    // store_scale_min vse8 below.
+
+    // ---- (A) 4-bit nibble unpack into aux8 (element-ordered, NO bias) ----
+    // Factored into the shared Track B brick-1 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_nibble_unpack op).
+    emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
+
+    // ---- (B) the 6-bit scale/min bit-dance (utmp/kmask), STRUCTURED scalar
+    // emitc.bitwise ops (NO raw string), mirroring _generic (quants.c:685-690).
+    // Factored into the shared Track B brick-2 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_scale_min_bit_dance
+    // op); returns scalesU8 = (const uint8_t *)&utmp[0].
+    mlir::Value scalesU8 =
+        emitQ4_KScaleMinBitDanceCore(rewriter, loc, cx, xb, utmpArray);
+
+    // (K4a only) vse8 the 16 decoded [scales[0..7], mins[0..7]] bytes to
+    // scaleMinOutput + ib*16 -- emitted IN-PLACE here (before the aux32 init) so
+    // K4a's node sequence is unchanged. K4b passes a null scaleMinOutput.
+    if (scaleMinOutput) {
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "store_scale_min"));
+      std::string smSetvl = "__riscv_vsetvl_e8m1";
+      mlir::Value vlsm = emitOpaqueCallBuilt(
+          rewriter, loc, cx.sizeType, smSetvl, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(16)};
+          });
+      std::string smLoad = "__riscv_vle8_v_u8m1";
+      mlir::Type u8m1Type = emitc::OpaqueType::get(ctx, "vuint8m1_t");
+      mlir::Value smVec =
+          emitOpaqueCall(rewriter, loc, u8m1Type, smLoad,
+                         mlir::ValueRange{scalesU8, vlsm}, opName, role);
+      mlir::Type smOutPtrType = scaleMinOutput.getType();
+      mlir::Value smOff =
+          rewriter.create<emitc::MulOp>(loc, cx.sizeType, ib, sizeLit(16));
+      mlir::Value smOutPtr = rewriter.create<emitc::AddOp>(
+          loc, smOutPtrType, scaleMinOutput, smOff);
+      std::string smStore = "__riscv_vse8_v_u8m1";
+      emitOpaqueCallVoid(rewriter, loc, smStore,
+                         mlir::ValueRange{smOutPtr, smVec, vlsm}, opName, role);
+    }
+
+    // ---- (C) per-sub-block uint6-scaled i32 dot into the 8-lane aux32 + the
+    // C-tail integer fold-back ----
+    // Factored into the shared Track B brick-3 helper (the SAME node sequence,
+    // also reachable through the first-class tcrv_rvv.q4_k_scaled_dot op); it
+    // seeds + accumulates the running (wide) aux32 via the integer_core_lmul MAC
+    // chain reading scalesU8/aux8Base and the q8 base derived from yb, then folds
+    // the wide aux32 back to the canonical 8-lane vint32m2 (no-op at mf2), and
+    // returns the canonical-8 aux32 lvalue Region F consumes.
+    mlir::TypedValue<emitc::LValueType> resultAux32Var =
+        emitQ4_KScaledDotIntoAux32(rewriter, loc, cx, yb, aux8Base, scalesU8);
 
     return Q4_KCoreResult{resultAux32Var, scalesU8};
   }
@@ -1648,13 +1698,34 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
     // Region B reads opName/role, sizeType, u32Type, weightPtrType, scalesOffset,
     // u32PtrType, constU32Type, u8PtrType. The remaining fields complete the
     // context and are unused by the bit-dance (no activation, no nibble, no dot).
-    Q4_KIntegerCoreContext cx{
-        opName,        role,          sizeType,      i32ImmType,
-        u32Type,       i8ElemType,    u8m2Type,      i8m2Type,
-        i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
-        u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
-        /*activationPtrType=*/weightPtrType, subBlock, scalesOffset,
-        /*qsOffset=*/0, /*q8Offset=*/0, numSubBlocks,  /*quarter=*/8};
+    // DESIGNATED (explicit field assignment, C++17) rather than positional
+    // aggregate-init: emitQ4_KScaleMinBitDanceCore does not read the Region-C
+    // l8/l16/l32/stripWidth fields, but a future mid-struct field insertion would
+    // silently misfeed a positional init -- the explicit-name form fails-safe.
+    Q4_KIntegerCoreContext cx;
+    cx.opName = opName;
+    cx.role = role;
+    cx.sizeType = sizeType;
+    cx.i32ImmType = i32ImmType;
+    cx.u32Type = u32Type;
+    cx.i8ElemType = i8ElemType;
+    cx.u8m2Type = u8m2Type;
+    cx.i8m2Type = i8m2Type;
+    cx.i8mf2Type = i8mf2Type;
+    cx.i16m1Type = i16m1Type;
+    cx.i32m2Type = i32m2Type;
+    cx.i8PtrType = i8PtrType;
+    cx.u8PtrType = u8PtrType;
+    cx.constU32Type = constU32Type;
+    cx.u32PtrType = u32PtrType;
+    cx.weightPtrType = weightPtrType;
+    cx.activationPtrType = weightPtrType;
+    cx.subBlock = subBlock;
+    cx.scalesOffset = scalesOffset;
+    cx.qsOffset = 0;
+    cx.q8Offset = 0;
+    cx.numSubBlocks = numSubBlocks;
+    cx.quarter = 8;
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -1737,6 +1808,186 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaleMinBitDance(
     mlir::Value resultToken =
         rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
     valueMap[bitDance.getResult()] = resultToken;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    (void)avlArg; // Region C dots ONE super-block; the strips use literal vl ==
+                  // stripWidth and the store uses literal 8 -- no n use.
+    tcrvrvv::Q4KScaledDotOp scaledDot;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto sd = llvm::dyn_cast<tcrvrvv::Q4KScaledDotOp>(op))
+        scaledDot = sd;
+    }
+    if (!scaledDot)
+      return rewriter.notifyMatchFailure(scope,
+                                         "q4_K scaled-dot body missing the op");
+
+    mlir::Value aux8Base = valueMap.lookup(scaledDot.getAux8Base());
+    mlir::Value scalesBase = valueMap.lookup(scaledDot.getScalesBase());
+    mlir::Value q8Base = valueMap.lookup(scaledDot.getQ8Base());
+    if (!aux8Base || !scalesBase || !q8Base)
+      return rewriter.notifyMatchFailure(scaledDot,
+                                         "q4_K scaled-dot ABI operand unmapped");
+
+    llvm::StringRef opName = scaledDot.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = scaledDot.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type activationPtrType = q8Base.getType();
+
+    // The Region-C structural facts come straight off the typed attrs (I4).
+    int64_t qk = scaledDot.getQk();                  // 256
+    int64_t subBlock = scaledDot.getSubBlock();      // 32
+    int64_t numSubBlocks = qk / subBlock;            //  8
+
+    // The Region-C integer-MAC LMUL anchor, sourced from the optional
+    // integer_core_lmul (default "mf2" == today's byte-identical emit). l8/l16/l32
+    // are the three rungs of the i8 -> i16 -> i32 widening chain; the default
+    // (mf2 -> m1 -> m2) reproduces the legacy callee/type strings exactly. This
+    // is the SAME single-source detail::deriveWideningChain the monolithic q4_K
+    // core uses, so the auto-constructed Region C is byte-identical at every legal
+    // anchor (the wide m1/m2 forms reach the q4_K capability flip: the fold-back).
+    llvm::StringRef coreLmul = scaledDot.getIntegerCoreLmul().value_or("mf2");
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef l8 = wideningChain.l8;
+    llvm::StringRef l16 = wideningChain.l16;
+    llvm::StringRef l32 = wideningChain.l32;
+    int64_t stripWidth = wideningChain.stripWidth; // 8 (mf2), 16 (m1), 32 (m2)
+    int64_t numStrips = subBlock / stripWidth;     // 4 / 2 / 1
+    int64_t foldGroups = wideningChain.foldGroups; // 1 (mf2), 2 (m1), 4 (m2)
+
+    // The integer-core vector types. The Region-A unpack types (u8m2/i8m2) are
+    // fixed at m2 (unused by Region C but completing the context); the Region-C
+    // MAC types are derived from the l8/l16/l32 chain (i8mf2Type = vint8<l8>,
+    // i16m1Type = vint16<l16>, i32m2Type = vint32<l32> -- the WIDE running aux32).
+    mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+    mlir::Type i16m1Type =
+        emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
+    mlir::Type i32m2Type =
+        emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
+    // The CANONICAL 8-lane integer accumulator type the wide aux32 folds back into
+    // -- ALWAYS vint32m2_t (8 lanes at SEW32, the byte-exact Region-F contract).
+    // At mf2 it equals i32m2Type (no widen).
+    mlir::Type i32Canon8Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    mlir::Type constU32Type = emitc::OpaqueType::get(ctx, "const uint32_t");
+    mlir::Type u32PtrType = emitc::PointerType::get(constU32Type);
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    // The integer-core context: the SAME shape the monolithic q4_K core builds,
+    // with the Region-C LMUL chain plumbed in. DESIGNATED (explicit field
+    // assignment, C++17) so a future mid-struct field insertion cannot silently
+    // misfeed the l8/l16/l32/stripWidth fields emitQ4_KScaledDotIntoAux32 reads.
+    // q8Offset is 0: the q8 operand is the ABI activation data pointer directly
+    // (single super-block; NO ib*292 stride, NO +4 quant offset -- the helper's
+    // byteOffsetPtr then emits only the (const int8_t *) cast, the declared
+    // ABI-input-ptr-vs-strided-base difference from the monolith's (yb + 4)).
+    Q4_KIntegerCoreContext cx;
+    cx.opName = opName;
+    cx.role = role;
+    cx.sizeType = sizeType;
+    cx.i32ImmType = i32ImmType;
+    cx.u32Type = u32Type;
+    cx.i8ElemType = i8ElemType;
+    cx.u8m2Type = u8m2Type;
+    cx.i8m2Type = i8m2Type;
+    cx.i8mf2Type = i8mf2Type;
+    cx.i16m1Type = i16m1Type;
+    cx.i32m2Type = i32m2Type;
+    cx.i8PtrType = i8PtrType;
+    cx.u8PtrType = u8PtrType;
+    cx.constU32Type = constU32Type;
+    cx.u32PtrType = u32PtrType;
+    cx.weightPtrType = activationPtrType;
+    cx.activationPtrType = activationPtrType;
+    cx.subBlock = subBlock;
+    cx.scalesOffset = 0;
+    cx.qsOffset = 0;
+    cx.q8Offset = 0;
+    cx.numSubBlocks = numSubBlocks;
+    cx.quarter = 8;
+    cx.coreLmul = coreLmul;
+    cx.l8 = l8;
+    cx.l16 = l16;
+    cx.l32 = l32;
+    cx.stripWidth = stripWidth;
+    cx.numStrips = numStrips;
+    cx.foldGroups = foldGroups;
+    cx.i32Canon8Type = i32Canon8Type;
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // int32_t aux32_out[8];  (function-scoped sink the canonical-8 aux32 is stored
+    // into as the observable, vs the monolithic K4a which vse32-stores the aux32
+    // through an ABI output pointer at base + ib*8. Here the sink is a local array
+    // and ib is the single super-block index 0.)
+    mlir::Type i32ElemType = emitc::OpaqueType::get(ctx, "int32_t");
+    mlir::Type aux32OutPtrType = emitc::PointerType::get(i32ElemType);
+    mlir::Type aux32OutArrayType = emitc::ArrayType::get({8}, i32ElemType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux32_out", opName, role));
+    auto aux32OutVar = rewriter.create<emitc::VariableOp>(
+        loc, aux32OutArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto aux32OutArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux32OutVar.getResult());
+    mlir::Value aux32OutIndex0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value aux32OutElem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, aux32OutArray,
+                                        mlir::ValueRange{aux32OutIndex0})
+            .getResult();
+    mlir::Value aux32Output =
+        rewriter
+            .create<emitc::ApplyOp>(loc, aux32OutPtrType, "&", aux32OutElem0)
+            .getResult();
+
+    // The aux8 / scales / q8 operands ARE the already-resolved super-block data
+    // pointers (single super-block; NO nb = n/256 loop). Region C's emit is the
+    // SAME node sequence the monolithic core emits inside its loop; it seeds +
+    // accumulates the running aux32 via the integer_core_lmul MAC chain, then
+    // (at the wide m1/m2 anchors) folds it back to the canonical 8-lane vint32m2,
+    // and returns that canonical-8 aux32 lvalue.
+    mlir::TypedValue<emitc::LValueType> resultAux32Var =
+        emitQ4_KScaledDotIntoAux32(rewriter, loc, cx, q8Base, aux8Base,
+                                   scalesBase);
+
+    // vse32_v_i32m2(aux32_out, aux32, 8);  -- store the canonical-8 aux32[8] state
+    // (the SAME vse32 the monolithic K4a emits; the canonical type is vint32m2_t
+    // at EVERY anchor). Void interleave (inline VL=8 literal): split the mangler
+    // at the first underscore after "__riscv_" and rejoin via emitVCallVoidBuilt
+    // -- byte-exact identity for "__riscv_vse32_v_i32m2".
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_aux32"));
+    mlir::Value aux32Final =
+        rewriter.create<emitc::LoadOp>(loc, i32Canon8Type, resultAux32Var)
+            .getResult();
+    emitVCallVoidBuilt(rewriter, loc, "vse32", "v_i32m2", opName, role,
+                       [&](mlir::OpBuilder &b, mlir::Location l)
+                           -> llvm::SmallVector<mlir::Value> {
+                         return {aux32Output, aux32Final, sizeLit(8)};
+                       });
+
+    // The op's i32 m1 result token: the dot writes aux32_out as a side effect, so
+    // the token has no live use; bind it to a zero literal to keep the map total.
+    mlir::Value resultToken =
+        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0");
+    valueMap[scaledDot.getResult()] = resultToken;
     return mlir::success();
   }
 

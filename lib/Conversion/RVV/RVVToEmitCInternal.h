@@ -277,6 +277,12 @@ private:
   /// 6-bit scale/min bit-dance into utmp[4], NO nibble unpack / dot / fold).
   static bool isQ4_KScaleMinBitDanceBody(tcrvrvv::WithVLOp scope);
 
+  /// The Track B q4_K brick-3 recognizer: a with_vl scope whose ONLY compute op
+  /// is a single tcrv_rvv.q4_k_scaled_dot (one super-block's Region-C
+  /// per-sub-block uint6-scaled i32 dot into aux32 + the integer fold-back, NO
+  /// nibble unpack / bit-dance / MIN term / fp32 fold).
+  static bool isQ4_KScaledDotBody(tcrvrvv::WithVLOp scope);
+
   /// The q4_K K4a recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q4_k_q8_k_aux_partial (the Q4_K x Q8_K super-block integer aux32 +
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
@@ -2097,6 +2103,33 @@ private:
       const Q4_KIntegerCoreContext &cx, mlir::Value xb,
       mlir::TypedValue<emitc::ArrayType> utmpArray) const;
 
+  /// Emit ONE super-block's q4_K/q5_K per-sub-block uint6-scaled i32 dot into the
+  /// 8-lane aux32 PLUS the C-tail integer fold-back (Region C): DECLARE the
+  /// per-super-block aux32 lvalue, seed it to zero via vmv_v_x_i32<l32>, run the
+  /// sub-block loop applying the per-sub-block UINT6 scale `scalesU8[js]` in the
+  /// i32 domain through the integer_core_lmul MAC strip (vsetvl_e8<l8> / two vle8
+  /// (q8 + aux8) / vwmul i16<l16> / vwmacc i32<l32>, cx.numStrips per 32-element
+  /// sub-block), then -- when cx.foldGroups > 1 (the wide m1/m2 anchors) -- the
+  /// VLEN-agnostic integer fold-back of the WIDE aux32's group-of-8 residues to
+  /// the canonical 8-lane vint32m2_t (vslidedown + vadd register-only regroup +
+  /// vget). The scale is FUSED into the vwmacc; this whole MAC+fold region reads
+  /// scalesU8 (the BRICK 2 decoded scales pointer) as ONE unit, the aux8 base
+  /// (the BRICK 1 unpack scratch) and the q8 activation base derived from `yb`
+  /// via cx.q8Offset / cx.activationPtrType. Integer add is associative/order-free
+  /// so the regroup is provably bit-exact at every legal LMUL (NO fp
+  /// non-associativity -- that is Region F, deferred). Returns the canonical-8
+  /// aux32 lvalue (the byte-exact Region-F contract type). This is the Track B
+  /// q4_K BRICK 3 vocabulary: the SAME node sequence is shared VERBATIM by
+  /// emitQ4_KSuperBlockAux32Core (the monolithic q4_K/q5_K integer core, which
+  /// calls this in-loop after the Region-A unpack + Region-B bit-dance) AND the
+  /// first-class tcrv_rvv.q4_k_scaled_dot op's lowering (which passes the aux8 /
+  /// scales / q8 ABI input pointers and stores the canonical-8 aux32 observable),
+  /// so both emit byte-identical Region-C C.
+  mlir::TypedValue<emitc::LValueType> emitQ4_KScaledDotIntoAux32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q4_KIntegerCoreContext &cx, mlir::Value yb, mlir::Value aux8Base,
+      mlir::Value scalesU8) const;
+
   /// Emit ONE super-block's integer core (the plain 4-bit nibble unpack into the
   /// element-ordered aux8[256] scratch with NO bias; the STRUCTURED scalar 6-bit
   /// scale/min bit-dance via utmp/kmask; the nested sub-block loop applying the
@@ -2190,6 +2223,27 @@ private:
   /// Binds the op's i32 m1 token to a zero literal (the bit-dance writes utmp/
   /// scale_min as a side effect; the token has no live use).
   mlir::LogicalResult emitQ4_KScaleMinBitDance(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the Track B q4_K BRICK 3 op (tcrv_rvv.q4_k_scaled_dot) as fully
+  /// STRUCTURED emitc nodes: derive the integer_core_lmul widening chain (the
+  /// SAME detail::deriveWideningChain the monolithic q4_K core uses), build the
+  /// integer-core context with the WIDE Region-C MAC types, then call the shared
+  /// emitQ4_KScaledDotIntoAux32 helper (byte-identical to the monolithic q4_K
+  /// integer core's Region C: the per-sub-block uint6-scaled i32 dot into the
+  /// 8-lane aux32 + the C-tail integer fold-back) on the aux8 / scales / q8 ABI
+  /// input pointer operands, and emit the store_aux32 observable (vse32 the
+  /// canonical-8 aux32 through a local int32_t aux32_out[8] sink) so the lit has
+  /// output to CHECK. At the default mf2 anchor NO fold-back appears (the running
+  /// aux32 is already canonical-8); at the wide m1/m2 anchors the fold-back
+  /// vslidedown/vadd/vget sequence appears -- the q4_K capability flip. The aux8 /
+  /// scales / q8 operands are ABI INPUT pointers (single super-block; NO nb =
+  /// n/256 loop, NO nibble unpack, NO bit-dance, NO MIN term, NO fp32 fold --
+  /// those are BRICK 1 / BRICK 2 / deferred bricks). Binds the op's i32 m1 token
+  /// to a zero literal (the dot writes aux32_out as a side effect; no live use).
+  mlir::LogicalResult emitQ4_KScaledDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
