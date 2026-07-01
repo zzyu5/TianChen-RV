@@ -28,7 +28,13 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 - **load binding**(`RVVEmitCRouteConfigBinding.cpp:2739-2771`):unique-ROLE → unique-SLOT(按 identity 有序 PerIterLoad 绑第 k 个 load 进 `productSources[k]`,校 role+abiCName vs `sources[k]`)。clamp `secondaryCompareLhs`(`:2754-2761`)建模成 clamp identity 自己的 aux、**不**当通用第 3-buffer。
 - **type 校验**(`:1629-1640`):两次 validate → 循环 `productSources[i]`(PerIterLoad)。LMUL/width 已 I5 结构、不动。
 - **结构 assert + VL**(`RVVEmitCRouteAnalysis.cpp:3858-3924`):`productSlotLhs==lhs&&productSlotRhs==rhs` → `for i: productSlotSource(i)==productSources[i]`;VL-token 循环 PerIterLoad 列表;error text N=2 逐字。`arithmeticLhs/Rhs`(`:383-384` 等)→ 有序列表。
-- **multiplicand-roles fact by join**(`Internal.h:167-174`;verify 消费 `Validation.cpp:2357-2359`;`RVVWideningProductRouteFacts` lhsRole/rhsRole `RouteProvider.h:1763-1774`):从 `join(identity.sources)` 建 multiplicand-roles 串,verify 从"compare vs 常量"→"compare vs identity-derived 串"。**这是本任务唯一被派生 + 需 diff 的输出串。**
+- **multiplicand-roles fact by join**(`RVVEmitCContractionRouteFamilyInternal.h:167-174`;verify 消费 `RVVEmitCContractionRouteFamilyValidation.cpp:2357-2359` + `...PlanOwners.cpp:72-74`;`RVVWideningProductRouteFacts` lhsRole/rhsRole `RouteProvider.h:1763-1774`):从 `join(identity.sources)` 建 multiplicand-roles 串,verify 从"compare vs 常量"→"compare vs identity-derived 串"。**这是本任务唯一被派生 + 需 diff 的输出串。**
+  - **byte-exact target(literal——串是 tail-free,证两轴分离)**:
+    - signed = `"lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"`
+    - unsigned = 同上但 `src-u8mf4`。
+    - **每 source 的 token 模板** = `{slotName}={abiRole}:{roleName}:{srcStripLabel}`,`;` 连接。对应 `ContractionSourceSpec` 4 字段(slotName/abiRole/roleName/srcStripLabel)——1b registry 已按此填。串**无 acc/out/n/scale**(tail-free)→ 派生只读 `sources[]`,不碰 tail。
+  - **⚠ 区分同名 easy-confuse 常量(1c **不碰**)**:`kRVVLowPrecisionResource...WideningProductMultiplicandRoles`(`RVVGearboxSchedule.h:848`)是**另一条** low_precision_resource 元数据串(N3 evidence,被 gate4/e2e oracle 消费,见 [[low-precision-resource-is-n3-evidence]]),**不是**本任务派生的 EmitC 串。别混。
+  - **form-owned ABI-order 常量(1c **不碰**,证 tail form-keyed)**:`kRVVWideningProductRuntimeABIOrder`="lhs,rhs,out,n"(bare,无 acc)/ `...ReductionChain...`="lhs,rhs,acc,out,n" / `...Dequantize...`="lhs,rhs,acc,scale,out,n" / `...DequantClampF32...`=加 lower/upper(`Internal.h:194-205`)——**form-named**,tail 归 form,1c 不动。
 
 ## ⚠ 不在 arity 轴(form-owned,1c **不碰**)
 
