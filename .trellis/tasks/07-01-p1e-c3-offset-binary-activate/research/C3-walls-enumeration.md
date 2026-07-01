@@ -22,7 +22,19 @@ spike 只**动态**到达 WALL 1(op 不识别),wall 2-4 是**静态**读码推�
 
 **教训 + 方法调整**:C3 activation **逐 wall 动态清**(清一个 → re-run → 看下一个 → 清),不硬套 spike 的静态 W2/W3/W4 顺序。每个 wall-fix = `size()/count != 2` → 从 descriptor arity 派生(`getContractionProductFactorCount(identity)`),byte-exact-for-existing(N=2 判定逐字)。下面 spike 的 WALL 2/3/4 仍是真 wall(会依次撞),只是 `:6681` 插在最前。
 
-## 4 个 wall(spike 静态顺序;实际按上面动态发现调整)
+## 实测 wall 序列(动态,随 activation 更新 —— 这是真序,非 spike 静态)
+
+1. **WALL 1** `RVVEmitCRouteAnalysis.cpp:~1788/:3140` op-recognition —— ✅ W1(`f78f3d51`)。
+2. **WALL 1.5** `:6681` `genericLoads.size()!=2` load-count —— ✅ 泛化(`bdf6dddd`)。
+3. **WALL 1.7** `:7165`(旧 :7244)`isWideningProductReductionChain?12` op-count → `8+2*arity` —— ✅(`bdf6dddd`)。
+4. **WALL 2** `RVVEmitCRouteConfigBinding.cpp:2817` qhi uniqueness rejection —— ✅ 路由(qhi→productSources[2],RVVProductSource 扩 buffer/abi/loadOp;待 commit)。
+5. **WALL 2.5(实测新,当前)** `RVVEmitCContractionRouteFamilyValidation.cpp:696-702` **relation-mirror validator**:硬编码 widening-product relation `signed-i8mf4xi8mf4-to-i16mf2`,拒 offset-binary op 自己的 `product_relation` `offset-binary-i4mf4-x-i8mf4x2-to-i16mf2`。`getContractionWideningProductRelation(...)` 不认 offset-binary。fix:validator 对 offset-binary route 用 op 自己的 relation(非硬编码 widening)—— byte-exact-for-existing(widening 路仍校 widening relation)。R1-side validator。
+6. **`:3924` 结构 guard = silent hole(非阻塞,待 correctness 补)**:qhi 路由后 productSources size=3 → `size()==2` false → 落 legacy else-branch,只校 w/qlo、**静默忽略 qhi**。C3 sails past。为正确性应泛化 `size()==arity` + `productSlotSource` 扩 slot 2(读 offset-binary op 第 3 operand)。**非阻塞但 thesis 要求 qhi 被真结构校验。**
+7. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
+
+**latent hazard(qhi 路由留)**:新 qhi 分支假设 **qlo 先于 qhi 绑**(只在 `rhsLoadOperation` 已 set 时 fire)。fixture 是 qlo→qhi 故对;若 qhi 先到,legacy first-rhs 路会误绑。W3/W4 泛化 first-rhs 路时定夺。
+
+## 4 个 wall(spike 静态顺序;实际按上面"实测 wall 序列"为准)
 
 ### WALL 1 — op-recognition dispatch 不识别 op(R1-structural,**动态确证**,首 fire)
 - **site**:`RVVEmitCRouteAnalysis.cpp:1788-1803`(hatch dispatch)+ 并行 `:3140-3149`(config-binding recording dispatch)。最近 analogue = `PackedI4NibbleUnpackProductOp` `:1730-1732`/`:3045-3051`。

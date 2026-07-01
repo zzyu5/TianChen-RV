@@ -46,6 +46,18 @@ struct RVVRouteOperandBindingPlan {
 struct RVVProductSource {
   mlir::Value value;
   unsigned sourceIndex = 0;
+  // P1e W2: per-source binding state (input buffer, runtime ABI, and the
+  // originating load op), populated at every load-binding site (lhs/rhs and the
+  // C3 qhi additional-source branch). This is the descriptor-unified successor to
+  // the N=2-only slice.{lhs,rhs}{Buffer,ABI,LoadOperation} slots: a consumer that
+  // must reach the k-th product source's buffer/role (e.g. the W4 canonical
+  // role-order derivation) reads productSources[k] by INDEX instead of the two
+  // hardcoded lhs/rhs buffer fields. Additive/dormant as of W2 -- no emit path
+  // reads these (the only productSources[] reader is the .value equality at
+  // RVVEmitCRouteAnalysis.cpp) -> byte-exact for every existing route.
+  mlir::Value buffer;
+  support::RuntimeABIParameter abi;
+  mlir::Operation *loadOperation = nullptr;
 };
 
 struct RVVSelectedBodyRouteSlice {
