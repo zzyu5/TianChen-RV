@@ -203,6 +203,38 @@ const std::vector<std::string> &contractionMultiplicandRoleSummaryTable() {
 
 } // namespace
 
+unsigned
+getContractionProductFactorCount(const ContractionRouteIdentity &route) {
+  unsigned count = 0;
+  for (const ContractionSourceSpec &source : route.sources)
+    if (source.kind == SourceKind::PerIterInputBufferLoad &&
+        source.isMultiplicandFactor)
+      ++count;
+  return count;
+}
+
+std::optional<unsigned>
+getContractionProductFactorSlotIndex(const ContractionRouteIdentity &route,
+                                     llvm::StringRef abiRole,
+                                     llvm::StringRef abiCName) {
+  // k = ordinal position among the product-factor PerIterInputBufferLoad
+  // sources (the productSources[] slot). The non-product-factor aux sources
+  // (e.g. the C4 constant table) are skipped and do NOT advance k, so the slot
+  // stays contiguous with the productSources[] arity.
+  unsigned k = 0;
+  for (const ContractionSourceSpec &source : route.sources) {
+    if (source.kind != SourceKind::PerIterInputBufferLoad ||
+        !source.isMultiplicandFactor)
+      continue;
+    // Match on BOTH the ABI role and the ABI c-name -- the 2b validation that
+    // the bound parameter agrees with the descriptor's sources[k] decoration.
+    if (source.abiRole == abiRole && source.abiCName == abiCName)
+      return k;
+    ++k;
+  }
+  return std::nullopt;
+}
+
 llvm::StringRef getContractionMultiplicandRoleSummary(llvm::StringRef mnemonic,
                                                       bool isSigned) {
   const std::vector<ContractionRouteIdentity> &registry =
@@ -268,6 +300,65 @@ bool contractionRouteIdentityRegistrySelfCheck() {
          getContractionMultiplicandRoleSummary(
              "tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true) ==
              kExpectedSignedWprodRoles;
+}
+
+//===----------------------------------------------------------------------===//
+// OPTIONAL 2b self-check (NOT wired into any emit path).
+//
+// Proves the identity-driven productSources[] SLOT derivation
+// (getContractionProductFactorSlotIndex + getContractionProductFactorCount)
+// reproduces the 2a hardcoded aliasing for EVERY registered N=2 product route:
+// the lhs-input-buffer/"lhs" binding lands at productSources[0] and the
+// rhs-input-buffer/"rhs" binding lands at productSources[1], with arity 2. This
+// is the correctness proof of the 2b load-binding change, which the byte gate
+// CANNOT observe because productSources[] has no reader on any emit path yet
+// (2c brings the reader online). Same pattern as
+// contractionRouteIdentityRegistrySelfCheck: defined + compiled + runnable off
+// any emit path, never called from a consumer.
+//===----------------------------------------------------------------------===//
+bool contractionProductSourceBindingSelfCheck() {
+  struct Route {
+    llvm::StringRef mnemonic;
+    bool isSigned;
+  };
+  const Route routes[] = {
+      {"tcrv_rvv.widening_product", /*isSigned=*/true},
+      {"tcrv_rvv.widening_product", /*isSigned=*/false},
+      {"tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true},
+  };
+
+  for (const Route &r : routes) {
+    const ContractionRouteIdentity *route =
+        getContractionRouteIdentity(r.mnemonic, r.isSigned);
+    if (!route)
+      return false;
+    // Arity 2 = the productSources[] size the 2b load-binding resizes to.
+    if (getContractionProductFactorCount(*route) != 2)
+      return false;
+    // lhs binding -> slot 0 (reproduces 2a's productSources[0] alias of lhs).
+    std::optional<unsigned> lhsSlot =
+        getContractionProductFactorSlotIndex(*route, "lhs-input-buffer", "lhs");
+    if (!lhsSlot || *lhsSlot != 0)
+      return false;
+    // rhs binding -> slot 1 (reproduces 2a's productSources[1] alias of rhs).
+    std::optional<unsigned> rhsSlot =
+        getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "rhs");
+    if (!rhsSlot || *rhsSlot != 1)
+      return false;
+    // A non-product-factor role/c-name is NOT a product-factor source: the
+    // route-provider error path (nullopt). This can only fire on a genuinely
+    // malformed binding, never for the valid N=2 lhs/rhs above.
+    if (getContractionProductFactorSlotIndex(*route, "accumulator-input-buffer",
+                                             "acc"))
+      return false;
+    // A right role with the wrong c-name must ALSO miss (the abiCName half of
+    // the 2b validation).
+    if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer",
+                                             "wrong-c-name"))
+      return false;
+  }
+
+  return true;
 }
 
 } // namespace tianchenrv::plugin::rvv

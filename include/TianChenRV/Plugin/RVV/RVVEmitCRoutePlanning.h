@@ -246,17 +246,18 @@ inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
          static_cast<bool>(slice.nibbleProductOp);
 }
 
-// P1c2 step 2a: "the contraction route identity resolves for this slice's
-// product head" -- getContractionRouteIdentity(headMnemonic, isSigned) returns
-// a registered descriptor. This is the identity-driven successor to the
-// op-presence hasProductHead predicate; it is added ALONGSIDE hasProductHead
-// (which has live callers and stays byte-exact -- NOT redefined), and as of 2a
-// has no reader. 2b/2c migrate the arity/assert derivation onto the resolved
-// identity's ordered `sources`.
-inline bool
-hasResolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
+// P1c2 step 2b: the resolved ContractionRouteIdentity descriptor for this
+// slice's product head, or nullptr when the slice has no product head or the
+// (headMnemonic, isSigned) pair is not registered. This is the identity-driven
+// successor to the op-presence hasProductHead predicate; the 2b load-binding
+// derives the productSources[] arity/slot from the returned descriptor's ordered
+// `sources` (see getContractionProductFactorSlotIndex). Returning the pointer
+// (rather than a bool) lets the single caller reuse the descriptor without a
+// second registry lookup.
+inline const ContractionRouteIdentity *
+resolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
   if (!hasProductHead(slice))
-    return false;
+    return nullptr;
   llvm::StringRef mnemonic;
   bool isSigned = false;
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp) {
@@ -266,7 +267,16 @@ hasResolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
     mnemonic = "tcrv_rvv.packed_i4_nibble_unpack_product";
     isSigned = true;
   }
-  return getContractionRouteIdentity(mnemonic, isSigned) != nullptr;
+  return getContractionRouteIdentity(mnemonic, isSigned);
+}
+
+// P1c2 step 2a predicate, now a thin non-null wrapper over
+// resolvedProductRouteIdentity (byte-exact: same computed result). Added
+// ALONGSIDE hasProductHead (which has live callers and stays byte-exact -- NOT
+// redefined).
+inline bool
+hasResolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
+  return resolvedProductRouteIdentity(slice) != nullptr;
 }
 
 inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {

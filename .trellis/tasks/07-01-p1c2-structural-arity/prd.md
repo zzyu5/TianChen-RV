@@ -29,10 +29,13 @@ R1 的**结构 arity 决策**从硬编码 2-operand 改成从 `getContractionRou
   1. **phantom product sources**:`assignRVVGenericLoadBinding`(`:2749/:2769`)对**任何** LHS/RHS-input-buffer 路都 fire → 非-product 路(如 elementwise-add)也存了 2 个 `productSources[]` entry(2a zero-diff 因 unread)。**2b 的 read 必须 gate 在 `hasResolvedProductRouteIdentity(slice)`(或 `hasProductHead`)** 上,否则这些 entry 看成幻影 product source。
   2. **rhsValue-reset 不清 productSources**:splat/broadcast 的 `slice.rhsValue = {}` reset(`:2999/:3010`)**不**清 `productSources`;走 `2769→2999` 的路 `productSources[1]` 指向已 reset 的 rhs。2b 须定:要么 splat 路也 reset productSources,要么靠 predicate gate 挡住(推荐后者——product 路不走 splat-reset,gate 即可)。
 
-### 2c — 结构 assert 派生
-- `RVVEmitCRouteAnalysis.cpp:3858-3924`:`productSlotLhs==lhs&&productSlotRhs==rhs` → `for i: productSlotSource(i)==productSources[i]`;VL-token 循环 PerIterLoad 列表;**error text N=2 逐字**。`arithmeticLhs/Rhs`(`:383-384` 等)→ 有序列表。
-- type 校验(`RVVEmitCRouteConfigBinding.cpp:1629-1640`)两次 validate → 循环 `productSources[i]`。LMUL/width 已 I5 结构、不动。
-- gate:error text + emitted metadata 逐字。
+### 2c — 结构 assert 派生(precise sites,已 read-only grounded)
+- **`RVVEmitCRouteAnalysis.cpp:3858-3859`**(product-reduction 结构 assert 首两 conjunct):`productSlotLhs(slice) != slice.lhsValue || productSlotRhs(slice) != slice.rhsValue` → `for i: productSlotSource(slice,i) != slice.productSources[i].value`。**N=2 逐字同**:`productSlotSource(0)`==`productSlotLhs`(都读 head.operand[0])、`productSources[0].value`==`lhsValue`(2a/2b aliased)→ 布尔结果不变、assert 不误 fire。
+- **`:3923-3924`**(VL-token check):`slice.lhsGenericLoad.getVl()`/`rhsGenericLoad.getVl()` 硬编码 → 循环 product-source load 的 VL。N=2 同。`productSlotVL(slice)`(`:3910`)已是 computed accessor,核是否已 N-general。
+- **⚠ error text 逐字**:大 error 串(`:3868-3875`、`:3926-3930`)**原样不动**。valid N=2 下 assert 过 → 串不 emit,但保逐字挡任何负测。
+- type 校验(`RVVEmitCRouteConfigBinding.cpp:1629-1640`)两次 validate → 循环 `productSources[i]`。LMUL/width 已 I5 结构、不动。`arithmeticLhs/Rhs`(`:383-384` 等)→ 有序列表。
+- **byte-exact 性质**:2c 让结构 assert 读 `productSources[]`,但 assert 对 valid N=2 恒过 → 不 emit error → **emitted 输出不变**(同 2a/2b 的 unread-so-zero-diff 家族,唯一敏感面 = error text 逐字 + 布尔结果不变)。
+- gate:error text 逐字 + 756/753/3 BEFORE==AFTER + md5;+ self-check 证 assert 对 N=2 判定不变。
 
 **若 2c 撞墙(某 assert 难逐字重现)→ STOP,2a+2b 已 bank。** 同 step 1 已验的 STOP-on-wall 纪律。
 

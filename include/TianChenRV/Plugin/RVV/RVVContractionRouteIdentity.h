@@ -25,6 +25,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <optional>
+
 namespace tianchenrv::plugin::rvv {
 
 /// How a contraction source materializes in the constructed body (DESIGN §1,
@@ -160,6 +162,37 @@ getContractionRouteIdentity(llvm::StringRef mnemonic, bool isSigned);
 /// kRVVLowPrecision{Signed,Unsigned}WideningProductMultiplicandRoles constants.
 llvm::StringRef getContractionMultiplicandRoleSummary(llvm::StringRef mnemonic,
                                                       bool isSigned);
+
+/// The number of ordered product-factor sources of a route -- the arity of its
+/// productSources[] vector (count of isMultiplicandFactor PerIterInputBufferLoad
+/// sources; the ConstantTableLoad aux of C4 does NOT count). For every N=2 route
+/// registered as of 2b this returns 2.
+///
+/// 2b: the load-binding derives the productSources[] SIZE from this, replacing
+/// the hardcoded 2.
+unsigned getContractionProductFactorCount(const ContractionRouteIdentity &route);
+
+/// Resolve the ORDERED product-factor slot index k of a bound input-buffer
+/// parameter identified by (abiRole, abiCName), among the route's product-factor
+/// PerIterInputBufferLoad sources. This is the index at which the bound load is
+/// placed into productSources[] (productSources[k]). Returns std::nullopt when no
+/// product-factor source matches BOTH abiRole and abiCName (a route-provider
+/// error: the bound ABI role/c-name is not a product factor of this route).
+///
+/// For every N=2 route this maps ("lhs-input-buffer","lhs") -> 0 and
+/// ("rhs-input-buffer","rhs") -> 1, exactly reproducing the 2a hardcoded 0/1
+/// aliasing; it cannot return nullopt for those valid bindings. (For all N=2
+/// routes the product-factor ordinal equals the source's index in the full
+/// `sources` vector, so k is ALSO the RVVProductSource.sourceIndex; the two
+/// diverge only when the C4 constant table lands, at which point the caller that
+/// needs the distinction will introduce it -- P1f.)
+///
+/// 2b: the load-binding derives the productSources[] SLOT from this, replacing
+/// the hardcoded 0 (LHS branch) / 1 (RHS branch).
+std::optional<unsigned>
+getContractionProductFactorSlotIndex(const ContractionRouteIdentity &route,
+                                     llvm::StringRef abiRole,
+                                     llvm::StringRef abiCName);
 
 } // namespace tianchenrv::plugin::rvv
 

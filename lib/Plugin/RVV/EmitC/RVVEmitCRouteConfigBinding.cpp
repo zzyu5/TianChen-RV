@@ -2735,6 +2735,53 @@ getRuntimeABIParameterBindingFromValue(
                                       *role, *ownership);
 }
 
+// P1c2 step 2b: record a bound product-factor input-buffer load into the
+// slice's ordered productSources[] vector.
+//
+// For a RESOLVED product route the productSources[] SLOT is DERIVED from the
+// route identity's `sources` (getContractionProductFactorSlotIndex), replacing
+// the 2a hardcoded index -- the load lands at productSources[k] by INDEX
+// (resize-to-arity then assign), so an out-of-order or N>2 binding still lands
+// correctly. The bound (role, c-name) is validated against the descriptor's
+// product-factor source: a miss is a route-provider error (it cannot fire for
+// the valid N=2 lhs/rhs bindings).
+//
+// LANDMINE 1: the LHS/RHS-input-buffer branches of assignRVVGenericLoadBinding
+// ALSO fire for non-product routes (e.g. elementwise-add). Those must NOT get
+// identity-driven product entries, so when the identity does not resolve this
+// preserves 2a's behavior EXACTLY: a blind push_back at the branch's legacy
+// slot. productSources[] has no reader on any emit path yet, so this whole
+// change is unobservable in emitted bytes (byte-exact); the 2b correctness proof
+// is contractionProductSourceBindingSelfCheck.
+static llvm::Error
+recordRVVBoundProductSource(RVVSelectedBodyRouteSlice &slice,
+                            const support::RuntimeABIParameter &parameter,
+                            mlir::Value loaded, unsigned legacySlot) {
+  const ContractionRouteIdentity *identity =
+      resolvedProductRouteIdentity(slice);
+  if (!identity) {
+    // Non-product / unresolved route: 2a behavior, unchanged.
+    slice.productSources.push_back(
+        RVVProductSource{loaded, /*sourceIndex=*/legacySlot});
+    return llvm::Error::success();
+  }
+  llvm::StringRef abiRole =
+      support::stringifyRuntimeABIParameterRole(parameter.role);
+  std::optional<unsigned> slot = getContractionProductFactorSlotIndex(
+      *identity, abiRole, parameter.cName);
+  if (!slot)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("bounded RVV contraction route '") + identity->headOpName +
+        "' has no product-factor source matching bound input-buffer role '" +
+        abiRole + "' / c-name '" + parameter.cName + "'");
+  unsigned arity = getContractionProductFactorCount(*identity);
+  if (slice.productSources.size() < arity)
+    slice.productSources.resize(arity);
+  slice.productSources[*slot] =
+      RVVProductSource{loaded, /*sourceIndex=*/*slot};
+  return llvm::Error::success();
+}
+
 llvm::Error
 assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
                             tcrv::rvv::LoadOp load,
@@ -2748,10 +2795,11 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     slice.lhsBuffer = load.getBuffer();
     slice.lhsValue = load.getLoaded();
     slice.lhsABI = parameter;
-    // P1c2 step 2a: additive product-source foundation. productSources[0]
-    // aliases lhsValue for the N=2 product routes; unread as of 2a (zero-diff).
-    slice.productSources.push_back(RVVProductSource{load.getLoaded(),
-                                                    /*sourceIndex=*/0});
+    // P1c2 step 2b: identity-driven productSources[] slot (legacy slot 0 for a
+    // non-product route). See recordRVVBoundProductSource.
+    if (llvm::Error error = recordRVVBoundProductSource(
+            slice, parameter, load.getLoaded(), /*legacySlot=*/0))
+      return error;
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
@@ -2772,10 +2820,11 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     slice.rhsBuffer = load.getBuffer();
     slice.rhsValue = load.getLoaded();
     slice.rhsABI = parameter;
-    // P1c2 step 2a: additive product-source foundation. productSources[1]
-    // aliases rhsValue for the N=2 product routes; unread as of 2a (zero-diff).
-    slice.productSources.push_back(RVVProductSource{load.getLoaded(),
-                                                    /*sourceIndex=*/1});
+    // P1c2 step 2b: identity-driven productSources[] slot (legacy slot 1 for a
+    // non-product route). See recordRVVBoundProductSource.
+    if (llvm::Error error = recordRVVBoundProductSource(
+            slice, parameter, load.getLoaded(), /*legacySlot=*/1))
+      return error;
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::TrueValueInputBuffer) {
