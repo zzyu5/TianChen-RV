@@ -3855,8 +3855,38 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     // In the deferred-wide chain the trailing standalone_reduce consumes the
     // i32m8 accumulate result; reduceInputSlotResult returns that wide carrier
     // when the accumulate is present, else the narrow product result (I5).
-    if (productSlotLhs(slice) != slice.lhsValue ||
-        productSlotRhs(slice) != slice.rhsValue ||
+    //
+    // P1c2 step 2c: derive the product-head arity from the ordered
+    // productSources[] instead of the hardcoded 2-operand lhs/rhs. Every route
+    // reaching this assert is a product-reduction chain (arithmeticKind is one of
+    // the WideningProductReduce* kinds), so it has a product head, a registered
+    // route identity, and -- because the lhs/rhs-input-buffer bindings are already
+    // required above -- productSources.size() == 2. For those N=2 routes
+    // productSources[0]/[1] are bound to the SAME slice values as lhsValue/
+    // rhsValue (2a/2b aliasing: recordRVVBoundProductSource stores the same
+    // load.getLoaded() the lhs/rhs binding assigns; proven for every registered
+    // route by contractionProductSourceBindingSelfCheck) and productSlotSource(
+    // slice, i) reads the same product-head operand as productSlotLhs/Rhs, so this
+    // loop yields the IDENTICAL boolean as the legacy
+    //   productSlotLhs(slice) != slice.lhsValue ||
+    //   productSlotRhs(slice) != slice.rhsValue
+    // check for both the passing routes (false) and any negative-test route
+    // (true) -- byte-exact. The guard keeps the iteration on resolved-product
+    // routes of matching arity; the else-branch reproduces the legacy check
+    // verbatim so byte-exactness holds for ANY route that might reach this assert.
+    bool productSourceBindingMismatch;
+    if (hasResolvedProductRouteIdentity(slice) &&
+        slice.productSources.size() == 2) {
+      productSourceBindingMismatch = false;
+      for (unsigned i = 0, e = slice.productSources.size(); i < e; ++i)
+        if (productSlotSource(slice, i) != slice.productSources[i].value)
+          productSourceBindingMismatch = true;
+    } else {
+      productSourceBindingMismatch =
+          productSlotLhs(slice) != slice.lhsValue ||
+          productSlotRhs(slice) != slice.rhsValue;
+    }
+    if (productSourceBindingMismatch ||
         slice.standaloneReduceOp.getInput() != reduceInputSlotResult(slice) ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||

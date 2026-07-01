@@ -41,7 +41,8 @@ R1 的**结构 arity 决策**从硬编码 2-operand 改成从 `getContractionRou
 
 ## ⚠ 为 P1e 留的 open item(本任务**不**解决,但 PRD 记下)
 
-**alias `productSources[0..1]`→lhs/rhs 只对 N=2 成立。** C3 激活(N=3)时 `productSources[2]`(qhi)无 lhs/rhs alias;**~80 个读 `lhsValue/rhsValue` 的非-product site 里,凡 C3-reachable 路径会静默看到语义不映射的 slot。P1e 激活前必须审计这个 reader-set 的 C3-reachable 子集**(本任务只需保证 N=2 alias 不变;审计是 P1e 的前置)。
+1. **~80-reader 审计**:alias `productSources[0..1]`→lhs/rhs 只对 N=2 成立。C3 激活(N=3)时 `productSources[2]`(qhi)无 lhs/rhs alias;**~80 个读 `lhsValue/rhsValue` 的非-product site 里,凡 C3-reachable 路径会静默看到语义不映射的 slot。P1e 激活前必须审计这个 reader-set 的 C3-reachable 子集**(本任务只需保证 N=2 alias 不变;审计是 P1e 的前置)。
+2. **2c guard 的 `size()==2` 字面量要泛化**:2c 的结构 assert guard = `hasResolvedProductRouteIdentity && productSources.size() == 2`,N=3 路会 fail 这个 `==2` → 落回 legacy 2-operand check(只校 lhs/rhs)→ **qhi(source[2])不被结构校验**。P1e 必须把 guard 从字面 `== 2` 改成 `== getContractionProductFactorCount(identity)`(或 `>= 1`),并让 legacy fallback 只对真正 unresolved 路生效。同理 C3 rejection(`RVVEmitCRouteConfigBinding.cpp` ~2817 "unique rhs-input-buffer")P1e 要按 descriptor arity 放行第 k 个 input-buffer。
 
 ## DoD / byte-exact gate(每 sub-step)
 - forced clean relink(`rm -f build/bin/tcrv-opt build/bin/tcrv-translate && ninja`,[[build-incremental-unreliable]])+ 756 lit(753 pass / 3 pre-existing fail)BEFORE==AFTER + 429/429 RVV 子集。
