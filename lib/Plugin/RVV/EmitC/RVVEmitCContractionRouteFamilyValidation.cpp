@@ -13,6 +13,7 @@
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
+#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
@@ -2352,11 +2353,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product multiplicand roles",
             description.wideningProductMultiplicandRoleSummary,
-            primitiveFacts->sourceSignedness == "unsigned"
-                ? llvm::StringRef(
-                      kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
-                : llvm::StringRef(
-                      kRVVLowPrecisionSignedWideningProductMultiplicandRoles)))
+            getContractionMultiplicandRoleSummary(
+                "tcrv_rvv.widening_product",
+                /*isSigned=*/primitiveFacts->sourceSignedness != "unsigned")))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product extension policy",

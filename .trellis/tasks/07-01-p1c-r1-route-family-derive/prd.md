@@ -10,6 +10,12 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 - **MULTIPLICAND / arity 轴 = head-owned = P1 的真债**(跨 mirror-validator 硬编码 2)→ **本任务派生这条**。
 - **ABI TAIL 轴 = form-owned = 已按 form key**(`getContractionRuntimeABIOrder` `PlanOwners.cpp:602`)→ **本任务不碰**(byte-exact-by-non-touch)。
 
+## 状态:Step 0 + Step 1 DONE(byte-exact);Step 2 结构 plumbing deferred
+
+- **Step 0 DONE**(commit `c757817c`):descriptor 收窄到 4 head-owned 字段。
+- **Step 1 DONE**(roles-derive abstraction proof,trellis-check PASS×6):multiplicand-roles 串现由**单一** `getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product", isSigned)` 从 `join(sources[])` 派生,跨 **producer + 全 mirror-validator**(4 site:`PlanOwners.cpp:75` producer、`Validation.cpp:2356` validator、`LowPrecisionResource.cpp:2758` verify + `:3608` producer)。旧 EmitC 常量 `Internal.h:168/172` 现**零 live reader**(dead-but-safe)= 真跨-mirror debt 消除、非-vacuous。identity TU 移入 `TianChenRVRVVConstructionProtocol`(EmitC→Construction 单向 dep inversion,无环)。byte-exact:756/753/3 + md5 `845ad91e`/`ebee2384` + 429/429 + STALE-ROLES 负测 PASS。
+- **Step 2 deferred**(下一 pass = 结构 arity plumbing:`productSources[]` slice 存储 + accessor + load-binding unique-slot + type-check + 结构 assert;这是 N>2 真正 enable 的地方、~80-reader `lhsValue/rhsValue` 风险面)→ 归入 [[P1d]](与 R2 construction-protocol 同属"construction arity"关切)或独立 step。**注:下面 §Step-1 Goal/R1 sites 里凡属 `productSources[]`/load-binding/结构 assert 的 = Step 2,未做。**
+
 ## Step 0:先修 1b foundation(zero-diff,strip form-owned 字段)
 
 1b 的 `ContractionRouteIdentity` 装了 form-owned 的投机字段,且对 bare `widening_product` 形**错**(混了 reduce-chain tail)。**strip**:`accSpec`、`outSpec`、`nSpec`、`reduceOpName`、`productRelation`、`leafProfile`(全 form-owned/candidate-driven/死占位;bare 形无 acc/无 reduce/out=int16_t*——head-keyed descriptor 装不下 4 form;`productRelation` 经 Route 3 证 candidate-driven `selectedResourceCandidate->primitiveWideningProductRelation` 且无 consumer)。**保留(最终只 4 字段,全可证 head-owned)**:`headOpName`、`isSigned`、`sources[]`、`conditionalInserts`(1d 机制,N=2 空)。同步清 header/`ContractionSourceSpec`/registry 里对 tail/productRelation 的 doc 引用。
@@ -41,7 +47,9 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 
 - **`routeOperandBindingSummary` + `runtimeABIParameters` + runtime-ABI cName/cType/role 三元**(`PlanOwners.cpp:117-150`):form-owned tail。加 C3 时是**每 form 一处** route-level 数据(1e),非跨-mirror 债。1c 不派生、不碰 = byte-exact-by-non-touch。
 - **Route-3 scale-insert(旧 v1 resolve-item 1)**:**消解**——scale 是 tail、form-owned、1c 不碰;ConditionalStep 推迟到 1d。
-- **LowPrecisionResource**(`Validation.cpp:2759`):不在 arity 轴,1c 不碰。
+- **⚠ 修正(step 1 落地后)**:早先"LowPrecisionResource 1c 不碰"是**措辞混淆**——把两个不同串混了。澄清:
+  - **N3 resource 元数据串** `kRVVLowPrecisionResourceWideningProductMultiplicandRoles`(def `RVVGearboxSchedule.h:848` + AttrName `:366`,consumer `RVVEmitCContractionRouteFamilyLowPrecisionResource.cpp:2196`)= **不碰**(N3 evidence,[[low-precision-resource-is-n3-evidence]])。
+  - **但** `LowPrecisionResource.cpp` 里消费 **EmitC** `kRVVLowPrecisionSigned/Unsigned...MultiplicandRoles` 的两处(`:2758` verify、`:3608` producer)**在 arity 轴、必须迁**(否则非-vacuity 破:同一 EmitC 常量仍 live)。step 1 已迁(见下 §DONE)。文件名 `LowPrecisionResource.cpp` ≠ N3 resource 串。
 
 ## v2 保留的 2 个 resolve-item(实现必处理)
 

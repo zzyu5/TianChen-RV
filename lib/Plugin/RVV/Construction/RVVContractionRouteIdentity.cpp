@@ -18,6 +18,7 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -185,7 +186,35 @@ std::string joinMultiplicandRoles(const ContractionRouteIdentity &route) {
   return out;
 }
 
+// Process-lifetime cache of the joined multiplicand-roles summary strings, one
+// per registry entry, in the same order as contractionRouteRegistry(). Gives
+// getContractionMultiplicandRoleSummary a stable StringRef to return (the join
+// itself produces a temporary std::string, which a StringRef field could not
+// safely alias). Function-local static -> thread-safe one-time init.
+const std::vector<std::string> &contractionMultiplicandRoleSummaryTable() {
+  static const std::vector<std::string> table = [] {
+    std::vector<std::string> t;
+    for (const ContractionRouteIdentity &route : contractionRouteRegistry())
+      t.push_back(joinMultiplicandRoles(route));
+    return t;
+  }();
+  return table;
+}
+
 } // namespace
+
+llvm::StringRef getContractionMultiplicandRoleSummary(llvm::StringRef mnemonic,
+                                                      bool isSigned) {
+  const std::vector<ContractionRouteIdentity> &registry =
+      contractionRouteRegistry();
+  const std::vector<std::string> &summaries =
+      contractionMultiplicandRoleSummaryTable();
+  for (std::size_t i = 0; i < registry.size(); ++i) {
+    if (registry[i].headOpName == mnemonic && registry[i].isSigned == isSigned)
+      return summaries[i];
+  }
+  return llvm::StringRef();
+}
 
 bool contractionRouteIdentityRegistrySelfCheck() {
   // EXACT copy of kRVVLowPrecisionSignedWideningProductMultiplicandRoles
@@ -212,7 +241,33 @@ bool contractionRouteIdentityRegistrySelfCheck() {
                                   /*isSigned=*/false);
   if (!unsignedWprod)
     return false;
-  return joinMultiplicandRoles(*unsignedWprod) == kExpectedUnsignedWprodRoles;
+  if (joinMultiplicandRoles(*unsignedWprod) != kExpectedUnsignedWprodRoles)
+    return false;
+
+  // The packed-i4 nibble-unpack route mirrors the SIGNED widening-product
+  // multiplicand decoration (same lhs/rhs slots, src-i8mf4): the Track-B flip
+  // only swaps the product HEAD op, reusing lhsValue/rhsValue. Prove its join
+  // reproduces the signed roles VERBATIM. (No live call site keys on the nibble
+  // head yet -- that is 1e/C3 activation; this self-check is the only
+  // reproduction proof for Route 3 in the roles-derive pass.)
+  const ContractionRouteIdentity *nibble = getContractionRouteIdentity(
+      "tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true);
+  if (!nibble)
+    return false;
+  if (joinMultiplicandRoles(*nibble) != kExpectedSignedWprodRoles)
+    return false;
+
+  // The public cache-backed accessor must agree with the direct join for every
+  // migrated route (this is the surface R1 producers/validators consume).
+  return getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+                                               /*isSigned=*/true) ==
+             kExpectedSignedWprodRoles &&
+         getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+                                               /*isSigned=*/false) ==
+             kExpectedUnsignedWprodRoles &&
+         getContractionMultiplicandRoleSummary(
+             "tcrv_rvv.packed_i4_nibble_unpack_product", /*isSigned=*/true) ==
+             kExpectedSignedWprodRoles;
 }
 
 } // namespace tianchenrv::plugin::rvv

@@ -146,6 +146,21 @@ struct ContractionRouteIdentity {
 const ContractionRouteIdentity *
 getContractionRouteIdentity(llvm::StringRef mnemonic, bool isSigned);
 
+/// Return the multiplicand-roles summary string for (mnemonic, isSigned),
+/// derived from the route's ordered `sources` (axis-A / headOperandIndex order)
+/// via the join template  {slotName}={abiRole}:{roleName}:{srcStripLabel}
+/// joined by ';'. Only entries with isMultiplicandFactor==true participate.
+///
+/// The returned StringRef is backed by a process-lifetime cache (one joined
+/// string per registry entry), so it is stable and safe to store in a StringRef
+/// field. Returns an empty StringRef when no route is registered.
+///
+/// 1c: this is the SINGLE source the R1 route-family producers/validators derive
+/// the multiplicand-roles fact from, replacing the per-site hardcoded
+/// kRVVLowPrecision{Signed,Unsigned}WideningProductMultiplicandRoles constants.
+llvm::StringRef getContractionMultiplicandRoleSummary(llvm::StringRef mnemonic,
+                                                      bool isSigned);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVCONTRACTIONROUTEIDENTITY_H

@@ -17,6 +17,7 @@
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
+#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
@@ -2754,11 +2755,9 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product multiplicand roles",
           selection.wideningProductMultiplicandRoleSummary,
-          isUnsignedPrimitive
-              ? llvm::StringRef(
-                    kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
-              : llvm::StringRef(
-                    kRVVLowPrecisionSignedWideningProductMultiplicandRoles)))
+          getContractionMultiplicandRoleSummary(
+              "tcrv_rvv.widening_product",
+              /*isSigned=*/!isUnsignedPrimitive)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product extension policy",
@@ -3602,11 +3601,13 @@ llvm::StringRef getRVVWideningProductMultiplicandRoleSummary(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (!plan.usesWideningProduct && !plan.usesProductReductionChain)
     return {};
-  return isRVVUnsignedLowPrecisionWideningProductPlan(plan)
-             ? llvm::StringRef(
-                   kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
-             : llvm::StringRef(
-                   kRVVLowPrecisionSignedWideningProductMultiplicandRoles);
+  // 1c: derive from the single ContractionRouteIdentity source (byte-identical
+  // to the retired kRVVLowPrecision{Signed,Unsigned}WideningProductMultiplicand-
+  // Roles). This is the producer feeding plan/description.widening-
+  // ProductMultiplicandRoleSummary.
+  return getContractionMultiplicandRoleSummary(
+      "tcrv_rvv.widening_product",
+      /*isSigned=*/!isRVVUnsignedLowPrecisionWideningProductPlan(plan));
 }
 
 llvm::StringRef getRVVWideningProductExtensionPolicy(

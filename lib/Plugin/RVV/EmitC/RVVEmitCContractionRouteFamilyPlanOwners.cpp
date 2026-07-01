@@ -2,6 +2,7 @@
 
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
+#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
@@ -67,11 +68,12 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
   facts.destinationMemoryForm = kRVVDestinationMemoryForm;
   facts.wideningProductRelation = relation;
+  // 1c: derive the multiplicand-roles fact from the single ContractionRoute-
+  // Identity source (byte-identical to the retired
+  // kRVVLowPrecision{Signed,Unsigned}WideningProductMultiplicandRoles).
   facts.wideningProductMultiplicandRoleSummary =
-      isUnsigned ? llvm::StringRef(
-                       kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
-                 : llvm::StringRef(
-                       kRVVLowPrecisionSignedWideningProductMultiplicandRoles);
+      getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product",
+                                            /*isSigned=*/!isUnsigned);
   facts.wideningProductExtensionPolicy =
       isUnsigned ? llvm::StringRef(
                        kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
