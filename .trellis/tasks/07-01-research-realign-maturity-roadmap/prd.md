@@ -34,11 +34,12 @@
 
 ## DoD
 
-- [ ] journal 落地:研究定义裁定(N1 complement / N3 (i)-or-(ii) / 归属三桶)+ freeze 后 delta + note-07 对齐现实评估 + 诚实成熟度/重构 roadmap(与 paper-defensibility 分开)。
-- [ ] 项目 README 重写到当前诚实态(N1 重表达 / N2 PROVEN / N3 corollary+Track-B / parity-not-below-scalar / dequant production-e2e / Track-B 机制)。
-- [ ] 论文 dossier 外科增补(freeze 后 delta 两项 + dependent-layering 头条)。
-- [ ] /spec 对齐(dequant production-e2e = proven production-reachable Track-B body;multi-validator N-operand = 已知设计边界)。spec=稳定契约,非状态/进度。
-- [ ] 全程无 unmeasured-as-success;每 perf 主张证据状态正确;归属清晰。
+- [x] journal 落地(`journal.md`,commit `3987af12`):研究定义裁定(N1 重表达成 mechanism-framing / N3 = option(i) corollary+指针 / 归属三桶)+ freeze 后 delta + note-07 对齐现实评估(发现 note-07:61 事实错)+ 诚实成熟度/重构 roadmap(与 paper-defensibility 分开)。
+- [x] 项目 README 重写(commit `9897a9a4`):N2 PROVEN(删'IME does not exist yet')/ N1 重表达 / N3 corollary+Track-B / parity-not-below-scalar(naive 2-4×=内部 sanity)/ dequant production-e2e(export-lit tier)/ Track-B 机制。
+- [x] 论文 dossier 外科 fold-in(papers repo commit `26fa87f`,8 文件):freeze 后 delta 两项 + note-07:61 事实修正 + dependent-layering 重铸成 mechanism + N3 option(i) + E14/E4/E20/E21/E24 + 00 post-freeze addendum + 05/06/01 reconciliation。
+- [x] /spec 对齐(commit `9897a9a4`,4 文件):capability-contract N1-demote echo、design-boundaries paper-language demote + (B) N-operand 已知边界、ime-plugin 'zero family-name branch'、rvv-plugin N1/N2/N3 非 coequal。core-invariants/gen-sel-tuning/emitc-route 不动。
+- [x] 全程无 unmeasured-as-success;每 perf 主张证据状态正确;归属清晰。**2 个 adversarial verifier PASS**:README/spec 面 10/10 guardrail PASS(1 MINOR:naive 范围 across-3-chips 误att→修 `8c04cf03`);dossier 面 HARD guardrail 1-8 全 CLEAN + git-verified frozen 完整(5 MINOR = count/pointer 传播残留→修 papers `28464c0`)。tier/name/over-claim/N1-demote/N3-subordinate/paper-vs-maturity 护栏全守。
+- **Deferred(非本 DoD)**:全面新 kernel 性能自测(用户"最终";板刚换)只**规划**未跑——见 journal §5。q4_0 N-operand 真重构见 roadmap §4.1。
 
 ## Deps / Risk
 
