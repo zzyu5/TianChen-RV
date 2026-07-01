@@ -26,7 +26,8 @@
     "07-01-p1e-c3-offset-binary-activate",
     "07-02-p1f-c4-codebook-activate",
     "07-02-p2a-dot-reduce-descriptor",
-    "07-02-p2b-q4k-block-dot-wiring"
+    "07-02-p2b-q4k-block-dot-wiring",
+    "07-02-p2c-blockdot-coverage"
   ],
   "parent": null,
   "relatedFiles": [],
