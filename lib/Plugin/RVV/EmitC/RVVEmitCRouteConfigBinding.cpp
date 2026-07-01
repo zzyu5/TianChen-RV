@@ -1602,7 +1602,19 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     const bool isWideStrip = isWideningProductReduceDequantize &&
                              (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
                               sourceLMUL == tcrv::rvv::getRVVLMULM2());
-    if (sourceLMUL != tcrv::rvv::getRVVLMULMF4() && !isWideStrip)
+    // The C4 codebook plain reduce-add strip FLIPS its i8 source rung with VLEN
+    // (mf2 at VLEN256, m1 at VLEN128 -- the gather must index the whole 16-entry
+    // table, so mf4 is pruned), UNLIKE the VLEN-invariant C3 offset-binary core
+    // pinned at mf4. Admit either codebook rung, gated to the codebook product op
+    // so every non-codebook reduce-add / dequant-clamp route stays narrow at mf4
+    // (fail-closed, I7); the product LMUL follows structurally as next-wider
+    // (mf2 -> i16m1, m1 -> i16m2) below.
+    const bool isCodebookStrip =
+        slice.codebookGatherProductOp &&
+        (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
+         sourceLMUL == tcrv::rvv::getRVVLMULM1());
+    if (sourceLMUL != tcrv::rvv::getRVVLMULMF4() && !isWideStrip &&
+        !isCodebookStrip)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("selected RVV typed config resolver requires "
                       "product-reduction source vector LMUL '") +

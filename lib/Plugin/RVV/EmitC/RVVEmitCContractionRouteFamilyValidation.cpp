@@ -85,10 +85,16 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
                tcrv::rvv::getRVVFirstSliceSEWBits(),
                tcrv::rvv::getRVVLMULM1(), /*isUnsigned=*/true));
+  // C4 codebook: the u8 weight gather-index SOURCE is unsigned, but the i16
+  // product / i32 result are SIGNED. This un-aliases the two signedness facts that
+  // coincide for every symmetric N=2 route: the codebook is unsigned-source /
+  // signed-result. Gated on the plan's codebook marker -> dormant (byte-exact) for
+  // every non-codebook route where the two expressions stay identical.
   const bool isUnsignedLowPrecisionIntegerResult =
       isUnsignedWideningProduct || isUnsignedProductReductionChain;
   const bool isUnsignedLowPrecisionSourceProduct =
-      isUnsignedWideningProduct || isUnsignedProductReductionChain;
+      isUnsignedWideningProduct || isUnsignedProductReductionChain ||
+      plan.usesCodebookProductReduction;
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
       isWideningMAcc
       ? RVVSelectedBodyMemoryForm::VectorRHSLoad
@@ -273,10 +279,26 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.productLMUL == getRVVNextWiderLMUL(plan.sourceLMUL) &&
       plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       plan.lmul == tcrv::rvv::getRVVLMULM1();
+  // The C4 codebook plain reduce-add chain runs a FLIPPING i8 source ladder --
+  // mf2 -> i16m1 at VLEN256, m1 -> i16m2 at VLEN128 (the gather must span the
+  // 16-entry table, so mf4 is pruned) -- with a per-iteration vwredsum to i32m1.
+  // Admitted structurally like the non-deferred wide dequant strip (product ==
+  // next-wider(source)) but at the codebook rung set {mf2, m1} and gated to the
+  // codebook marker instead of the dequantize kind, so no other route loosens (I7).
+  const bool supportsCodebookProductReductionChain =
+      plan.usesCodebookProductReduction &&
+      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      (plan.sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
+       plan.sourceLMUL == tcrv::rvv::getRVVLMULM1()) &&
+      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == getRVVNextWiderLMUL(plan.sourceLMUL) &&
+      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == tcrv::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
       supportsDeferredWideProductReductionChain ||
-      supportsNonDeferredWideProductReductionChain;
+      supportsNonDeferredWideProductReductionChain ||
+      supportsCodebookProductReductionChain;
   if (isProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("contraction route-family plan does not support "
@@ -428,7 +450,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "runtime ABI order", plan.runtimeABIOrder,
-          plan.usesOffsetBinaryProductReduction
+          (plan.usesOffsetBinaryProductReduction ||
+           plan.usesCodebookProductReduction)
               ? llvm::StringRef("w,qlo,qhi,acc,out,n")
               : getRVVSelectedBodyContractionRuntimeABIOrder(plan.operation)))
     return error;
@@ -711,10 +734,18 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     // descriptor field.
     constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
         "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
-    const bool usesOffsetBinaryProductRelation =
-        plan.wideningProductRelation == kRVVOffsetBinaryProductRelation;
+    // Both the C3 offset-binary and the C4 codebook heads carry their OWN op-owned
+    // canonical product_relation (offset-binary-.../codebook-gather-...) that is
+    // NOT the config-derived signed/unsigned widening relation; for those routes
+    // the mirror validates against the route's own (op-derived) relation. Keyed on
+    // the plan markers (equivalent to the offset-binary string match for every
+    // existing route: false for all N=2 routes, true only for the two N=3 routes).
+    (void)kRVVOffsetBinaryProductRelation;
+    const bool usesOpOwnedProductRelation =
+        plan.usesOffsetBinaryProductReduction ||
+        plan.usesCodebookProductReduction;
     const llvm::StringRef expectedWideningProductRelationMirror =
-        usesOffsetBinaryProductRelation
+        usesOpOwnedProductRelation
             ? plan.wideningProductRelation
             : getContractionWideningProductRelation(
                   plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
@@ -1079,8 +1110,41 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           rhsSourceValue, "rhs", "contraction route-family plan");
   if (!rhsSourceFacts)
     return rhsSourceFacts.takeError();
-  if (llvm::Error error = requireMatchingContractionSourceFacts(
-          *lhsSourceFacts, *rhsSourceFacts, "contraction route-family plan"))
+  if (analysis.slice.codebookGatherProductOp) {
+    // C4 codebook ASYMMETRY: the weight (lhs) is the UNSIGNED gather-INDEX lane
+    // (ui8) while the two plain-i8 activation halves (rhs = qlo; slot 2 = qhi)
+    // are SIGNED. So lhs and rhs legitimately DIFFER in signedness / C type /
+    // load leaf -- the strict lhs==rhs match does NOT apply. Instead require the
+    // weight to be an unsigned i8 gather-index at the strip rung, the activation
+    // to be a signed i8 at the SAME rung, and the two activation halves to match
+    // each other fully. Gated on the codebook head; every non-codebook route
+    // keeps the strict lhs==rhs match verbatim (byte-exact).
+    if (!lhsSourceFacts->isUnsigned || lhsSourceFacts->sew != 8)
+      return makeRVVEmitCRouteProviderError(
+          "codebook-gather contraction route-family plan requires the packed-i4 "
+          "weight source to be an unsigned i8 gather-index vector");
+    if (rhsSourceFacts->isUnsigned || rhsSourceFacts->sew != 8)
+      return makeRVVEmitCRouteProviderError(
+          "codebook-gather contraction route-family plan requires the plain-i8 "
+          "activation source to be a signed i8 vector");
+    if (lhsSourceFacts->lmul != rhsSourceFacts->lmul)
+      return makeRVVEmitCRouteProviderError(
+          "codebook-gather contraction route-family plan requires the weight "
+          "and activation sources to share the strip LMUL rung");
+    llvm::Expected<RVVContractionVectorFacts> activationHighFacts =
+        deriveContractionVectorFacts(productSlotSource(analysis.slice, 2),
+                                     "activation-high",
+                                     "codebook-gather contraction route-family "
+                                     "plan");
+    if (!activationHighFacts)
+      return activationHighFacts.takeError();
+    if (llvm::Error error = requireMatchingContractionSourceFacts(
+            *rhsSourceFacts, *activationHighFacts,
+            "codebook-gather contraction route-family plan"))
+      return std::move(error);
+  } else if (llvm::Error error = requireMatchingContractionSourceFacts(
+                 *lhsSourceFacts, *rhsSourceFacts,
+                 "contraction route-family plan"))
     return std::move(error);
   std::optional<RVVContractionVectorFacts> wideningProductResultFacts;
   if (operation == RVVSelectedBodyOperationKind::WideningProduct) {
@@ -1237,8 +1301,19 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       reductionResultFacts && lhsSourceFacts->isUnsigned &&
       rhsSourceFacts->isUnsigned && productFacts->isUnsigned &&
       reductionResultFacts->isUnsigned;
+  // C4 codebook ASYMMETRIC-SIGNED chain: the weight source lane is UNSIGNED (the
+  // u8 gather index) but the plain-i8 activation source, the i16 product, and the
+  // i32 reduction result are all SIGNED. This is neither a fully-signed nor a
+  // fully-unsigned chain -- it is the codebook's distinct signature. Gated on the
+  // codebook head; dormant (false) for every non-codebook route -> byte-exact.
+  const bool isCodebookProductReductionChain =
+      plan.usesProductReductionChain &&
+      static_cast<bool>(analysis.slice.codebookGatherProductOp) && productFacts &&
+      reductionResultFacts && lhsSourceFacts->isUnsigned &&
+      !rhsSourceFacts->isUnsigned && !productFacts->isUnsigned &&
+      !reductionResultFacts->isUnsigned;
   if (plan.usesProductReductionChain && !isSignedProductReductionChain &&
-      !isUnsignedProductReductionChain)
+      !isUnsignedProductReductionChain && !isCodebookProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         "product-reduction contraction route-family plan requires source, "
         "product, accumulator, and result facts to form either a signed "
@@ -1274,6 +1349,14 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   // the runtime-control-plan order verbatim (dormant) -> byte-exact.
   if (analysis.slice.offsetBinaryProductOp) {
     plan.usesOffsetBinaryProductReduction = true;
+    plan.runtimeABIOrder = "w,qlo,qhi,acc,out,n";
+  }
+  // P1e C4: the codebook route binds the SAME three multiplicands (w + qlo + qhi)
+  // as the C3 offset-binary route, so its runtime-ABI mirror order is likewise the
+  // front-door c-names w,qlo,qhi followed by the form-owned reduction tail
+  // acc,out,n. Gated on the codebook head -> byte-exact for every other route.
+  if (analysis.slice.codebookGatherProductOp) {
+    plan.usesCodebookProductReduction = true;
     plan.runtimeABIOrder = "w,qlo,qhi,acc,out,n";
   }
   plan.targetLeafProfile =
@@ -1444,8 +1527,17 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     // productSlotRelation UNCHANGED, so their leaf bytes are untouched.
     // plan.wideningProductRelation still holds the offset-binary string, so the W3
     // relation mirror above stays satisfied.
+    // The C4 codebook head's compound lowering (vand/vsrl nibble split -> vrgather
+    // codebook decode -> vwmul/vwmacc -> vwredsum) ALSO has a genuine SIGNED
+    // widening-product step (gathered signed-i8 x plain signed-i8 -> i16), so like
+    // the offset-binary route its widening-product LEAF is the standard signed
+    // __riscv_vwmul_vv_i16<W> derived from the config-derived signed relation (at
+    // the codebook's flipping rung: i16m2 at VLEN128, i16m1 at VLEN256), NOT its
+    // op-owned codebook relation (which getContractionWideningProductIntrinsic does
+    // not recognize). Detect via the op identity; every other route unchanged.
     const llvm::StringRef wideningProductLeafRelation =
-        analysis.slice.offsetBinaryProductOp
+        (analysis.slice.offsetBinaryProductOp ||
+         analysis.slice.codebookGatherProductOp)
             ? getContractionWideningProductRelation(
                   plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
                   plan.productLMUL, /*isUnsigned=*/false)
@@ -1903,9 +1995,15 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
   // -> byte-exact for existing routes (mirror only fires on mismatch).
   constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
       "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+  // The C4 codebook route (op-owned relation "codebook-gather-i8-x-i8x2-to-i16")
+  // binds the same three multiplicands w,qlo,qhi, so it likewise expects the
+  // 6-param descriptor ABI order instead of the abstract lhs,rhs order.
+  constexpr llvm::StringLiteral kRVVCodebookProductRelation(
+      "codebook-gather-i8-x-i8x2-to-i16");
   llvm::StringRef expectedRuntimeABIOrder =
       getRVVSelectedBodyContractionRuntimeABIOrder(description.operation);
-  if (description.wideningProductRelation == kRVVOffsetBinaryProductRelation)
+  if (description.wideningProductRelation == kRVVOffsetBinaryProductRelation ||
+      description.wideningProductRelation == kRVVCodebookProductRelation)
     expectedRuntimeABIOrder = "w,qlo,qhi,acc,out,n";
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "runtime ABI order", description.runtimeABIOrder,
@@ -2440,8 +2538,11 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     // never fires for them -> byte-exact.
     constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
         "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+    constexpr llvm::StringLiteral kRVVCodebookProductRelation(
+        "codebook-gather-i8-x-i8x2-to-i16");
     const llvm::StringRef expectedProductReductionWideningRelation =
-        description.wideningProductRelation == kRVVOffsetBinaryProductRelation
+        (description.wideningProductRelation == kRVVOffsetBinaryProductRelation ||
+         description.wideningProductRelation == kRVVCodebookProductRelation)
             ? description.wideningProductRelation
             : llvm::StringRef(primitiveFacts->wideningProductRelation);
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(

@@ -112,6 +112,13 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::DeferredAccumulateOp deferredAccumulateOp;
   tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
   tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp offsetBinaryProductOp;
+  // C4 (N=3 + LUT) codebook route: the product head + its ConstantTableLoad aux.
+  // The table broadcast is a genuine body source (a vle8 broadcast LOAD) but is
+  // NOT a generic load (never counted in genericLoads) and NOT a productSources[]
+  // multiplicand -- it is recorded inert and threaded only as the codebook
+  // product's `table` operand. Both are null for every non-codebook route.
+  tcrv::rvv::CodebookGatherXI8ProductOp codebookGatherProductOp;
+  tcrv::rvv::CodebookTableBroadcastOp codebookTableBroadcastOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
@@ -257,7 +264,8 @@ struct RVVSelectedBodyRouteSlice {
 inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
   return static_cast<bool>(slice.wideningProductOp) ||
          static_cast<bool>(slice.nibbleProductOp) ||
-         static_cast<bool>(slice.offsetBinaryProductOp);
+         static_cast<bool>(slice.offsetBinaryProductOp) ||
+         static_cast<bool>(slice.codebookGatherProductOp);
 }
 
 // P1c2 step 2b: the resolved ContractionRouteIdentity descriptor for this
@@ -285,6 +293,13 @@ resolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
     // kind is signed_packed_i4_offset_binary_x_i8_product).
     mnemonic = "tcrv_rvv.packed_i4_offset_binary_x_i8_product";
     isSigned = true;
+  } else if (slice.codebookGatherProductOp) {
+    // The C4 N=3 codebook-gather head is always signed (the op's only supported
+    // kind is signed_codebook_gather_x_i8_product). Its ConstantTableLoad aux is
+    // carried in the descriptor's sources[] but does not affect the (mnemonic,
+    // isSigned) key.
+    mnemonic = "tcrv_rvv.codebook_gather_x_i8_product";
+    isSigned = true;
   }
   return getContractionRouteIdentity(mnemonic, isSigned);
 }
@@ -306,6 +321,9 @@ inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
     return product.getResult();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
+    return product.getResult();
   return mlir::Value();
 }
 
@@ -316,6 +334,9 @@ inline mlir::Value productSlotVL(const RVVSelectedBodyRouteSlice &slice) {
     return product.getVl();
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
+    return product.getVl();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
     return product.getVl();
   return mlir::Value();
 }
@@ -328,6 +349,9 @@ productSlotOperation(const RVVSelectedBodyRouteSlice &slice) {
     return product.getOperation();
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
+    return product.getOperation();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
     return product.getOperation();
   return nullptr;
 }
@@ -344,6 +368,9 @@ inline mlir::Value productSlotLhs(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
     return product.getWeight();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
+    return product.getWeight();
   return mlir::Value();
 }
 
@@ -354,6 +381,9 @@ inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
     return product.getRhs();
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
+    return product.getActivationLow();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
     return product.getActivationLow();
   return mlir::Value();
 }
@@ -377,6 +407,12 @@ inline mlir::Value productSlotSource(const RVVSelectedBodyRouteSlice &slice,
     if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
             slice.offsetBinaryProductOp)
       return product.getActivationHigh();
+    // The C4 codebook head's THIRD multiplicand is also activation_high (the
+    // "qhi" source); its `table` operand is a ConstantTableLoad aux, NOT a
+    // product source, so it is never returned by slot index.
+    if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+            slice.codebookGatherProductOp)
+      return product.getActivationHigh();
   }
   return mlir::Value();
 }
@@ -390,6 +426,9 @@ productSlotRelation(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
           slice.offsetBinaryProductOp)
     return product.getProductRelation();
+  if (tcrv::rvv::CodebookGatherXI8ProductOp product =
+          slice.codebookGatherProductOp)
+    return product.getProductRelation();
   return llvm::StringRef();
 }
 
@@ -402,6 +441,11 @@ inline bool productSlotIsSigned(const RVVSelectedBodyRouteSlice &slice) {
   if (slice.nibbleProductOp)
     return true;
   if (slice.offsetBinaryProductOp)
+    return true;
+  // The C4 codebook product is signed (gathered signed-i8 weight x plain signed
+  // i8 activation -> signed widening reduce); the UNSIGNED weight LOAD is only
+  // the gather-index lane, not the product signedness.
+  if (slice.codebookGatherProductOp)
     return true;
   return false;
 }
@@ -568,6 +612,15 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   // the plan so the ABI-order mirror validators expect the 6-parameter
   // w,qlo,qhi,acc,out,n order instead of the abstract N=2 lhs,rhs,acc,out,n order.
   bool usesOffsetBinaryProductReduction = false;
+  // P1e C4: the codebook-gather N=3 product-reduction route. Like the offset-binary
+  // route it shares the WideningProductReduceAdd op-kind, so op-kind-keyed helpers
+  // cannot distinguish it; this marker carries the codebook fact onto the plan.
+  // The codebook chain is ASYMMETRIC-SIGNED (the u8 weight gather-index source is
+  // unsigned, the i16 product / i32 result are signed) and its i8 source rung
+  // capability-FLIPS (mf2 at VLEN256, m1 at VLEN128), so the signedness/LMUL
+  // validators consult this marker to expect the codebook shape instead of the
+  // symmetric-signed mf4 chain.
+  bool usesCodebookProductReduction = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;

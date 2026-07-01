@@ -3960,8 +3960,14 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts
   // gate never fires for them and this stays byte-exact.
   constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
       "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+  // The C4 codebook route likewise carries its OWN op-owned canonical product
+  // relation (codebook-gather-i8-x-i8x2-to-i16); validate the payload against its
+  // own relation for that route too. Byte-exact for every other route.
+  constexpr llvm::StringLiteral kRVVCodebookProductRelation(
+      "codebook-gather-i8-x-i8x2-to-i16");
   const llvm::StringRef expectedWideningProductRelation =
-      payload.wideningProductRelation == kRVVOffsetBinaryProductRelation
+      (payload.wideningProductRelation == kRVVOffsetBinaryProductRelation ||
+       payload.wideningProductRelation == kRVVCodebookProductRelation)
           ? llvm::StringRef(payload.wideningProductRelation)
           : llvm::StringRef(primitiveFacts.wideningProductRelation);
   TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(

@@ -185,6 +185,77 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
       table.push_back(std::move(r));
     }
 
+    // ======================================================================
+    // Route 5: tcrv_rvv.codebook_gather_x_i8_product, SIGNED (C4, N=3 + LUT)
+    // ----------------------------------------------------------------------
+    // The FIRST route with a ConstantTableLoad aux source: the ggml IQ4_NL /
+    // FP4 codebook x Q8_0 integer core. It shares the C3 N=3 product-factor
+    // shape (packed-i4 weight + the two plain-i8 q8 activation halves) but the
+    // weight nibble is not an arithmetic offset-binary value -- it is an INDEX
+    // gathered through a compile-time-constant 16-entry non-linear int8 codebook
+    // table (tcrv_rvv.codebook_table_broadcast). That table is a genuine body
+    // source (a vle8 broadcast LOAD) but is NOT a runtime-ABI input-buffer
+    // (compile-time constant, no ABI param) and NOT a multiplicand factor, so it
+    // is modeled as SourceKind::ConstantTableLoad with isMultiplicandFactor
+    // false -- getContractionProductFactorCount SKIPS it (arity stays 3 =
+    // weight/qlo/qhi, identical to C3) and getContractionProductFactorSlotIndex
+    // never advances its ordinal on it (see contractionProductSourceBindingC4-
+    // SelfCheck). This is the C4 case the SourceKind enum + the header's
+    // divergent-axis note were defined for (1f).
+    //
+    // ABI trio (abiRole / abiCName / abiCType) VERIFIED byte-for-byte vs the
+    // codebook front door RVVCodebookDotSourceFrontDoor.cpp:577-592:
+    //   weight -> role "lhs-input-buffer", c-name "w",   c-type "const uint8_t *"
+    //             (the gather-INDEX lane runs UNSIGNED -- DIFFERS from the C3
+    //              offset-binary weight's "const int8_t *")
+    //   qlo    -> role "rhs-input-buffer", c-name "qlo", c-type "const int8_t *"
+    //   qhi    -> role "rhs-input-buffer", c-name "qhi", c-type "const int8_t *"
+    // The TWO same-role rhs-input-buffer sources (qlo/qhi) are disambiguated on
+    // BOTH (role, c-name) exactly like C3: qlo -> slot 1, qhi -> slot 2.
+    //
+    // Roles-join trio (slotName / roleName / srcStripLabel) INFERRED (the op
+    // carries no multiplicand-roles metadata string; the roles-summary derive is
+    // only consulted for the tcrv_rvv.widening_product head, never for this
+    // packed-i4 route). srcStripLabel is left as the descriptive "src-*8" anchor
+    // WITHOUT an LMUL suffix because -- unlike the VLEN-invariant C3 core -- the
+    // codebook source LMUL capability-FLIPS (m1 at VLEN128, mf2 at VLEN256), so
+    // no single pinned strip label is truthful; the field is inert for this route
+    // (no consumer keys on it). The two axes (headOperandIndex vs bodyStepPosition)
+    // DIVERGE here for the first time: the ConstantTableLoad is materialized FIRST
+    // in the body (bodyStepPosition 0) but carries no ABI/roles position, while
+    // the three product factors keep ABI order 0/1/2 (headOperandIndex) yet shift
+    // to body positions 1/2/3.
+    {
+      ContractionRouteIdentity r;
+      r.headOpName = "tcrv_rvv.codebook_gather_x_i8_product";
+      r.isSigned = true;
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"weight", /*roleName=*/"wprod-weight",
+          /*abiRole=*/"lhs-input-buffer", /*abiCName=*/"w",
+          /*abiCType=*/"const uint8_t *", /*srcStripLabel=*/"src-u8",
+          /*headOperandIndex=*/0, /*bodyStepPosition=*/1});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"activation-low", /*roleName=*/"wprod-activation-low",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"qlo",
+          /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8",
+          /*headOperandIndex=*/1, /*bodyStepPosition=*/2});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"activation-high", /*roleName=*/"wprod-activation-high",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"qhi",
+          /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8",
+          /*headOperandIndex=*/2, /*bodyStepPosition=*/3});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::ConstantTableLoad, /*isMultiplicandFactor=*/false,
+          /*slotName=*/"", /*roleName=*/"",
+          /*abiRole=*/"", /*abiCName=*/"",
+          /*abiCType=*/"", /*srcStripLabel=*/"",
+          /*headOperandIndex=*/3, /*bodyStepPosition=*/0});
+      table.push_back(std::move(r));
+    }
+
     return table;
   }();
   return registry;
@@ -457,6 +528,59 @@ bool contractionProductSourceBindingC3SelfCheck() {
     return false;
   // Right c-name, wrong role must ALSO miss (the role half): "w" is bound to
   // lhs-input-buffer, so it is not an rhs-input-buffer product factor.
+  if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "w"))
+    return false;
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// OPTIONAL P1e/C4 codebook self-check (NOT wired into any emit path).
+//
+// C4 is the first route carrying a SourceKind::ConstantTableLoad aux (the
+// codebook broadcast table). It proves the aux is TRANSPARENT to the product-
+// factor arithmetic: despite the 4th `sources` entry, the product-factor arity
+// stays 3 (weight/qlo/qhi) and the slot ordinals are contiguous (w -> 0, qlo ->
+// 1, qhi -> 2) -- the ConstantTableLoad never advances the ordinal k. This is
+// the correctness proof that the C4 route reuses the C3 arity-driven load-binding
+// machinery unchanged. Defined + compiled + runnable off any emit path, never
+// called from a consumer (same pattern as the C3 self-check above).
+//===----------------------------------------------------------------------===//
+bool contractionProductSourceBindingC4SelfCheck() {
+  const ContractionRouteIdentity *route = getContractionRouteIdentity(
+      "tcrv_rvv.codebook_gather_x_i8_product", /*isSigned=*/true);
+  if (!route)
+    return false;
+  // The route carries FOUR ordered sources (3 product factors + 1 table)...
+  if (route->sources.size() != 4)
+    return false;
+  // ...but the product-factor arity is 3 -- the ConstantTableLoad is SKIPPED.
+  if (getContractionProductFactorCount(*route) != 3)
+    return false;
+  // The 4th source is the ConstantTableLoad aux (not a multiplicand factor).
+  const ContractionSourceSpec &tableSource = route->sources[3];
+  if (tableSource.kind != SourceKind::ConstantTableLoad ||
+      tableSource.isMultiplicandFactor)
+    return false;
+  // weight binding -> slot 0.
+  std::optional<unsigned> weightSlot =
+      getContractionProductFactorSlotIndex(*route, "lhs-input-buffer", "w");
+  if (!weightSlot || *weightSlot != 0)
+    return false;
+  // qlo binding (rhs-input-buffer / "qlo") -> slot 1 (the table between the
+  // factors and this source does NOT shift the ordinal).
+  std::optional<unsigned> qloSlot =
+      getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "qlo");
+  if (!qloSlot || *qloSlot != 1)
+    return false;
+  // qhi binding (SAME rhs-input-buffer role, distinct c-name "qhi") -> slot 2.
+  std::optional<unsigned> qhiSlot =
+      getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "qhi");
+  if (!qhiSlot || *qhiSlot != 2)
+    return false;
+  // Right role, wrong c-name misses; right c-name, wrong role misses.
+  if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer",
+                                           "wrong-c-name"))
+    return false;
   if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "w"))
     return false;
   return true;

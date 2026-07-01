@@ -732,8 +732,13 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     // order -> byte-exact for existing routes.
     constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
         "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+    // The C4 codebook route binds the same three multiplicands w,qlo,qhi, so it
+    // likewise expects the 6-parameter descriptor order.
+    constexpr llvm::StringLiteral kRVVCodebookProductRelation(
+        "codebook-gather-i8-x-i8x2-to-i16");
     expectedRuntimeABIOrder =
-        description.wideningProductRelation == kRVVOffsetBinaryProductRelation
+        (description.wideningProductRelation == kRVVOffsetBinaryProductRelation ||
+         description.wideningProductRelation == kRVVCodebookProductRelation)
             ? llvm::StringRef("w,qlo,qhi,acc,out,n")
             : getRVVSelectedBodyContractionRuntimeABIOrder(
                   operationProfile.operation);

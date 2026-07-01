@@ -901,6 +901,66 @@ llvm::Error recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
   return llvm::Error::success();
 }
 
+// Record the C4 codebook-table broadcast (the ConstantTableLoad aux source of
+// the codebook route). Mirrors the inert store/load recorders: the op is a
+// genuine body source (a vle8 broadcast LOAD of the compile-time-constant
+// 16-entry table) but it is NOT a runtime-ABI input-buffer, NOT a generic load
+// (never counted in genericLoads), and NOT a productSources[] multiplicand
+// factor. It is recorded only so the op-recognition dispatch accepts it and the
+// codebook product's `table` operand can be structurally validated against it;
+// it carries no arithmeticKind and does not participate in any arity/load count.
+// Dormant for every non-codebook route (the op only appears in a codebook body).
+llvm::Error recordRVVSelectedBodyCodebookTableBroadcast(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::CodebookTableBroadcastOp table) {
+  if (slice.codebookTableBroadcastOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC codebook route requires exactly one "
+        "tcrv_rvv.codebook_table_broadcast source");
+  slice.codebookTableBroadcastOp = table;
+  return llvm::Error::success();
+}
+
+// Record a typed signed codebook-gather packed-i4 x plain-i8 widening product as
+// the selected product head of the C4 (N=3 + LUT) low-precision product-reduction
+// chain. Mirrors recordRVVSelectedBodyPackedI4OffsetBinaryProduct but stores into
+// slice.codebookGatherProductOp; the op has THREE multiplicand operands (weight +
+// two plain-i8 activation halves) PLUS a fourth `table` operand -- the codebook
+// broadcast the gather indexes, which is the ConstantTableLoad aux (bound
+// structurally to slice.codebookTableBroadcastOp, NOT a product factor). The N=2
+// arithmeticLhs/arithmeticRhs slots carry weight / activation_low; activation_high
+// (the "qhi" source) is threaded via the descriptor-driven productSources[] slot 2
+// exactly like C3.
+llvm::Error recordRVVSelectedBodyCodebookGatherProduct(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::CodebookGatherXI8ProductOp product) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (product.getKind() != "signed_codebook_gather_x_i8_product" ||
+      product.getProductRelation() != "codebook-gather-i8-x-i8x2-to-i16")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic "
+                    "tcrv_rvv.codebook_gather_x_i8_product kind '") +
+        product.getKind() +
+        "' for bounded RVV low-precision codebook-gather x i8 product route");
+  // The codebook product's `table` operand must be the recorded broadcast source
+  // (the ConstantTableLoad); reject a body whose gather indexes an unrecognized
+  // table (structural I5 check, keeps the aux linkage honest).
+  if (!slice.codebookTableBroadcastOp ||
+      product.getTable() != slice.codebookTableBroadcastOp.getResult())
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV codebook-gather product route requires the `table` operand "
+        "to consume the selected tcrv_rvv.codebook_table_broadcast result");
+  slice.codebookGatherProductOp = product;
+  slice.arithmeticOp = product.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProduct;
+  slice.arithmeticLhs = product.getWeight();
+  slice.arithmeticRhs = product.getActivationLow();
+  slice.arithmeticResult = product.getResult();
+  return llvm::Error::success();
+}
+
 llvm::Error recordRVVSelectedBodyWideningDotReduce(
     RVVSelectedBodyRouteSlice &slice,
     tcrv::rvv::WideningDotReduceOp dotReduce) {
@@ -1768,6 +1828,12 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
           llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op))
     return recordRVVSelectedBodyPackedI4OffsetBinaryProduct(slice,
                                                             offsetBinaryProduct);
+  if (auto codebookTable =
+          llvm::dyn_cast<tcrv::rvv::CodebookTableBroadcastOp>(op))
+    return recordRVVSelectedBodyCodebookTableBroadcast(slice, codebookTable);
+  if (auto codebookProduct =
+          llvm::dyn_cast<tcrv::rvv::CodebookGatherXI8ProductOp>(op))
+    return recordRVVSelectedBodyCodebookGatherProduct(slice, codebookProduct);
   if (auto dotReduce = llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op))
     return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
   if (auto maskedDotReduce =
@@ -3091,6 +3157,20 @@ llvm::Error collectGenericRouteSliceOps(
             llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
               slice, offsetBinaryProduct))
+        return std::move(error);
+      continue;
+    }
+    if (auto codebookTable =
+            llvm::dyn_cast<tcrv::rvv::CodebookTableBroadcastOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyCodebookTableBroadcast(slice, codebookTable))
+        return std::move(error);
+      continue;
+    }
+    if (auto codebookProduct =
+            llvm::dyn_cast<tcrv::rvv::CodebookGatherXI8ProductOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyCodebookGatherProduct(slice, codebookProduct))
         return std::move(error);
       continue;
     }
@@ -7271,9 +7351,15 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
       slice.wideningAccumulateOp ? 1u
       : slice.deferredAccumulateOp ? 2u
                                    : 0u;
+  // The C4 codebook route carries ONE extra in-loop op the 8+2*arity frame does
+  // not: the tcrv_rvv.codebook_table_broadcast (the ConstantTableLoad aux, which
+  // is neither part of the fixed frame nor a per-factor load/param pair). Account
+  // for it structurally from the slice (I5). Zero for every non-codebook route.
+  const unsigned expectedCodebookTableAdjust =
+      slice.codebookTableBroadcastOp ? 1u : 0u;
   const unsigned expectedRVVOpsWithMarkers =
       expectedRVVOps - expectedHandoffAdjust + expectedDeferredWideAdjust +
-      slice.vsetvlRegionMarkers.size() +
+      expectedCodebookTableAdjust + slice.vsetvlRegionMarkers.size() +
       (slice.gearboxConsumerWithVL ? 1 : 0);
   if (rvvOpCount != expectedRVVOpsWithMarkers)
     return makeRVVEmitCRouteProviderError(
