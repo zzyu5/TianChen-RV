@@ -12,7 +12,7 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 
 ## Step 0:先修 1b foundation(zero-diff,strip form-owned 字段)
 
-1b 的 `ContractionRouteIdentity` 装了 form-owned 的投机字段,且对 bare `widening_product` 形**错**(混了 reduce-chain tail)。**strip**:`accSpec`、`outSpec`、`nSpec`、`reduceOpName`、`leafProfile`(全 form-owned 或死占位;bare 形无 acc/无 reduce/out=int16_t*——head-keyed descriptor 装不下 4 form)。**保留**:`headOpName`、`isSigned`、`sources[]`、`productRelation`(head-owned:product op 自身 attr、form-invariant)、`conditionalInserts`(1d 机制,N=2 空)。同步清 header/`ContractionSourceSpec`/registry 里对 tail 的 doc 引用。
+1b 的 `ContractionRouteIdentity` 装了 form-owned 的投机字段,且对 bare `widening_product` 形**错**(混了 reduce-chain tail)。**strip**:`accSpec`、`outSpec`、`nSpec`、`reduceOpName`、`productRelation`、`leafProfile`(全 form-owned/candidate-driven/死占位;bare 形无 acc/无 reduce/out=int16_t*——head-keyed descriptor 装不下 4 form;`productRelation` 经 Route 3 证 candidate-driven `selectedResourceCandidate->primitiveWideningProductRelation` 且无 consumer)。**保留(最终只 4 字段,全可证 head-owned)**:`headOpName`、`isSigned`、`sources[]`、`conditionalInserts`(1d 机制,N=2 空)。同步清 header/`ContractionSourceSpec`/registry 里对 tail/productRelation 的 doc 引用。
 
 - **self-check 重跑 signed AND unsigned**:assert `joinMultiplicandRoles(signed)` == `kRVVLowPrecisionSignedWideningProductMultiplicandRoles` 逐字 **且** unsigned 路同样逐字(v1 只测了 signed)。
 - **zero binary diff**:strip 的是**无 consumer** 字段 → 429 RVV lit + dequant e2e 完全不变(forced clean relink)。这是 step 1 前的 clean 基线修正。
@@ -29,6 +29,7 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 - **type 校验**(`:1629-1640`):两次 validate → 循环 `productSources[i]`(PerIterLoad)。LMUL/width 已 I5 结构、不动。
 - **结构 assert + VL**(`RVVEmitCRouteAnalysis.cpp:3858-3924`):`productSlotLhs==lhs&&productSlotRhs==rhs` → `for i: productSlotSource(i)==productSources[i]`;VL-token 循环 PerIterLoad 列表;error text N=2 逐字。`arithmeticLhs/Rhs`(`:383-384` 等)→ 有序列表。
 - **multiplicand-roles fact by join**(`RVVEmitCContractionRouteFamilyInternal.h:167-174`;verify 消费 `RVVEmitCContractionRouteFamilyValidation.cpp:2357-2359` + `...PlanOwners.cpp:72-74`;`RVVWideningProductRouteFacts` lhsRole/rhsRole `RouteProvider.h:1763-1774`):从 `join(identity.sources)` 建 multiplicand-roles 串,verify 从"compare vs 常量"→"compare vs identity-derived 串"。**这是本任务唯一被派生 + 需 diff 的输出串。**
+  - **⚠ 非-vacuity 要点(producer AND mirror-validator 同源)**:debt = 同一 multiplicand-roles 串在**多处**硬编码(producer 发 `description.wideningProductMultiplicandRoleSummary` + validator `RVVEmitCContractionRouteFamilyValidation.cpp:2352-2360` 比对常量 + facts provider)。step 1 必须让 **producer(发串)AND 所有 mirror-validator(比对 expected)都从同一次 `getContractionRouteIdentity()` 派生**——否则只改 validator expected = byte-exact 但 vacuous(没消除跨-mirror 重复)。gate 的 diff 覆盖 producer 发出的串;debt-removal 靠"两侧同一 identity call"。
   - **byte-exact target(literal——串是 tail-free,证两轴分离)**:
     - signed = `"lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"`
     - unsigned = 同上但 `src-u8mf4`。

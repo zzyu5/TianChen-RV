@@ -25,13 +25,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <optional>
-
 namespace tianchenrv::plugin::rvv {
 
 /// How a contraction source materializes in the constructed body (DESIGN §1,
-/// critic fix #3). Only the ordered `sources` of a route carry a meaningful
-/// SourceKind; the fixed acc/out/n tail specs do not classify as loads.
+/// critic fix #3). Every entry in a route's ordered `sources` carries a
+/// SourceKind (a product-factor load or a constant-table load).
 enum class SourceKind {
   /// A per-iteration unit/strided LOAD backed by a runtime-ABI input-buffer
   /// parameter (lhs / rhs / weight / qlo / qhi). Every one of these contributes
@@ -64,7 +62,8 @@ struct ContractionSourceSpec {
   /// join (e.g. "lhs" / "rhs").
   llvm::StringRef slotName;
   /// The product role token -- the middle token of the roles join (e.g.
-  /// "wprod-lhs"). Empty for fixed-tail specs (acc/out/n carry no product role).
+  /// "wprod-lhs"). Empty for non-multiplicand decode sources (e.g. the C4
+  /// constant table carries no product role).
   llvm::StringRef roleName;
   /// The runtime-ABI role -- the RuntimeABIValueOp "role" attr (e.g.
   /// "lhs-input-buffer", "accumulator-input-buffer", "output-buffer").
@@ -76,7 +75,7 @@ struct ContractionSourceSpec {
   /// "const int8_t *", "const int32_t *", "int32_t *", "float *", "size_t").
   llvm::StringRef abiCType;
   /// The source strip label -- the trailing token of the roles join (e.g.
-  /// "src-i8mf4" / "src-u8mf4"). Empty for fixed-tail specs.
+  /// "src-i8mf4" / "src-u8mf4"). Empty for non-multiplicand decode sources.
   llvm::StringRef srcStripLabel;
 
   /// axis-A: roles-join / routeOperandBindingSummary / ABI c-name order.
@@ -104,9 +103,23 @@ struct ConditionalStep {
 };
 
 /// One descriptor per (product-head op mnemonic, signedness). R1 and R2 both
-/// derive arity + decoration from this SINGLE source (1c/1d). Fields whose
-/// provenance is not yet fully pinned for a given route are documented at their
-/// registration site so 1c can promote them from inferred -> derived.
+/// derive arity + decoration from this SINGLE source (1c/1d).
+///
+/// This descriptor owns ONLY: the (headOpName, isSigned) key, the per-source
+/// multiplicand/arity decoration (`sources`), and the empty-for-now 1d
+/// conditional-insert mechanism (`conditionalInserts`). Nothing else lives here.
+///
+/// Two things deliberately do NOT belong on this descriptor because they are
+/// form-owned, not head-owned (a head-keyed descriptor cannot represent them):
+///   - The ABI tail (acc/out/n and the dequant scale/clamp) -- keyed by
+///     RVVSelectedBodyOperationKind via getContractionRuntimeABIOrder. >=4 body-op
+///     FORMS share the head "tcrv_rvv.widening_product" signed, each with a
+///     different tail (see DESIGN-noperand-route-identity.md REVISION v2).
+///   - product_relation -- candidate/form-owned, sourced from
+///     selectedResourceCandidate->primitiveWideningProductRelation at realization
+///     (RVVContractionSelectedBodyRealizationOwner.cpp:2371-2376), so it varies
+///     per selected candidate and is not provably head-owned; never on this
+///     descriptor.
 struct ContractionRouteIdentity {
   /// The product-head typed op mnemonic (e.g. "tcrv_rvv.widening_product",
   /// "tcrv_rvv.packed_i4_nibble_unpack_product").
@@ -117,27 +130,6 @@ struct ContractionRouteIdentity {
   /// The N=2 routes registered in 1b have exactly two PerIterInputBufferLoad
   /// product factors.
   llvm::SmallVector<ContractionSourceSpec, 4> sources;
-
-  /// Fixed ABI tail. accSpec is optional: the widening_product head keys
-  /// multiple ABI tails ("lhs,rhs,out,n" has NO acc; "lhs,rhs,acc,out,n" and the
-  /// dequant form do). See DESIGN §6 open Q1 (per-VL-config vs per-route keying)
-  /// -- 1c resolves whether the tail is descriptor-owned or route-form-owned.
-  std::optional<ContractionSourceSpec> accSpec;
-  ContractionSourceSpec outSpec;
-  ContractionSourceSpec nSpec;
-
-  /// The standalone-reduce head that follows the product (e.g.
-  /// "tcrv_rvv.standalone_reduce").
-  llvm::StringRef reduceOpName;
-
-  /// The narrow product-relation constant (the op's "product_relation" attr,
-  /// e.g. "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1").
-  llvm::StringRef productRelation;
-  /// The leaf-profile constant, if the route has one. No contraction
-  /// leaf-profile constant exists in-tree today (only the elementwise family
-  /// carries one), so this is an empty placeholder for the N=2 routes; 1c/1d
-  /// bind it if/when a contraction leaf-profile constant is introduced.
-  llvm::StringRef leafProfile;
 
   /// Predicate-keyed canonical-order inserts. Empty for the N=2 base routes;
   /// the deferred-wide / two-scope-handoff / dequant-scale shifts are attached

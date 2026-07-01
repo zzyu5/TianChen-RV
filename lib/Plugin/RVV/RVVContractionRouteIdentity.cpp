@@ -32,28 +32,6 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
   static const std::vector<ContractionRouteIdentity> registry = [] {
     std::vector<ContractionRouteIdentity> table;
 
-    // ---- Shared generic fixed-tail specs (route-independent decoration) ----
-    // outputRole / runtimeCountRole are the shared generic ABI roles
-    // (RVVEmitCContractionRouteFamilyPlanOwners.cpp:60-61). The signed
-    // dot-reduce tail c-types are VERIFIED vs RVVReductionSourceFrontDoor.cpp
-    // :712-720 (acc "const int32_t *", out "int32_t *", n "size_t").
-    auto signedAccSpec = ContractionSourceSpec{
-        SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-        /*slotName=*/"acc", /*roleName=*/"",
-        /*abiRole=*/"accumulator-input-buffer", /*abiCName=*/"acc",
-        /*abiCType=*/"const int32_t *", /*srcStripLabel=*/"",
-        /*headOperandIndex=*/2, /*bodyStepPosition=*/0};
-    auto signedI32OutSpec = ContractionSourceSpec{
-        SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-        /*slotName=*/"out", /*roleName=*/"", /*abiRole=*/"output-buffer",
-        /*abiCName=*/"out", /*abiCType=*/"int32_t *", /*srcStripLabel=*/"",
-        /*headOperandIndex=*/3, /*bodyStepPosition=*/0};
-    auto nSpec = ContractionSourceSpec{
-        SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-        /*slotName=*/"n", /*roleName=*/"", /*abiRole=*/"runtime-element-count",
-        /*abiCName=*/"n", /*abiCType=*/"size_t", /*srcStripLabel=*/"",
-        /*headOperandIndex=*/4, /*bodyStepPosition=*/0};
-
     // ======================================================================
     // Route 1: tcrv_rvv.widening_product, SIGNED
     // ----------------------------------------------------------------------
@@ -82,15 +60,6 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
           /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"rhs",
           /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8mf4",
           /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
-      r.accSpec = signedAccSpec;
-      r.outSpec = signedI32OutSpec;
-      r.nSpec = nSpec;
-      r.reduceOpName = "tcrv_rvv.standalone_reduce";
-      // "product_relation" widening-product constant, signed
-      // (kRVVLowPrecisionPrimitiveSignedProductKind,
-      //  RVVEmitCContractionRouteFamilyInternal.h:120-121).
-      r.productRelation = "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1";
-      r.leafProfile = ""; // no in-tree contraction leaf-profile constant (see header)
       table.push_back(std::move(r));
     }
 
@@ -102,11 +71,10 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // (RVVEmitCContractionRouteFamilyInternal.h:172-174):
     //   "lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;
     //    rhs=rhs-input-buffer:wprod-rhs:src-u8mf4"
-    // INFERRED (no front-door anchor found for the unsigned route): abiCType
-    // "const uint8_t *" as the natural analog of "const int8_t *" matching
-    // src-u8mf4; likewise the u32 accumulator/out tail follows the unsigned
-    // reduction primitive kind (u32m1). 1c must confirm the unsigned route is
-    // front-door reachable (or resolve it as metadata-only) before deriving.
+    // INFERRED (no front-door anchor found for the unsigned route): source
+    // abiCType "const uint8_t *" as the natural analog of "const int8_t *"
+    // matching src-u8mf4. 1c must confirm the unsigned route is front-door
+    // reachable (or resolve it as metadata-only) before deriving.
     {
       ContractionRouteIdentity r;
       r.headOpName = "tcrv_rvv.widening_product";
@@ -123,24 +91,6 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
           /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"rhs",
           /*abiCType=*/"const uint8_t *", /*srcStripLabel=*/"src-u8mf4",
           /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
-      // INFERRED unsigned tail (u32m1); 1c to confirm.
-      r.accSpec = ContractionSourceSpec{
-          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-          /*slotName=*/"acc", /*roleName=*/"",
-          /*abiRole=*/"accumulator-input-buffer", /*abiCName=*/"acc",
-          /*abiCType=*/"const uint32_t *", /*srcStripLabel=*/"",
-          /*headOperandIndex=*/2, /*bodyStepPosition=*/0};
-      r.outSpec = ContractionSourceSpec{
-          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-          /*slotName=*/"out", /*roleName=*/"", /*abiRole=*/"output-buffer",
-          /*abiCName=*/"out", /*abiCType=*/"uint32_t *", /*srcStripLabel=*/"",
-          /*headOperandIndex=*/3, /*bodyStepPosition=*/0};
-      r.nSpec = nSpec;
-      r.reduceOpName = "tcrv_rvv.standalone_reduce";
-      // kRVVLowPrecisionPrimitiveUnsignedProductKind
-      // (RVVEmitCContractionRouteFamilyInternal.h:122-123).
-      r.productRelation = "unsigned-u8mf4xu8mf4-to-u16mf2-widening-product.v1";
-      r.leafProfile = "";
       table.push_back(std::move(r));
     }
 
@@ -154,10 +104,11 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // from the packed-i4 dequant front door RVVDequantDotSourceFrontDoor.cpp
     // :910-930. So the two SOURCES mirror the signed widening-product lhs/rhs
     // decoration (packed-i4 nibble core pinned at i8mf4-i16mf2-i32m1, so
-    // srcStripLabel "src-i8mf4"). The tail is the dequant tail VERIFIED vs
-    // RVVDequantDotSourceFrontDoor.cpp:916-930 (acc "const int32_t *",
-    // out "float *", n "size_t"); the intervening f32 dequant-scale param is
-    // modeled by 1c/1d via conditionalInserts, not a fixed-tail field.
+    // srcStripLabel "src-i8mf4"). The ABI tail (the dequant f32 out + the
+    // intervening dequant-scale param) is FORM-owned and NOT on this descriptor
+    // -- it is keyed by body-op form via getContractionRuntimeABIOrder (see the
+    // header note + DESIGN REVISION v2); this route illustrates exactly why the
+    // tail cannot be head-keyed (same head as Route 1, different tail).
     // 1c will confirm the flip's emitted metadata string once the nibble route
     // is derived from this descriptor (its role names are assumed to be the
     // shared wprod-lhs/wprod-rhs generic slots -- no distinct nibble role string
@@ -178,21 +129,6 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
           /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"rhs",
           /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8mf4",
           /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
-      r.accSpec = signedAccSpec;
-      // Dequant path: f32 output (RVVDequantDotSourceFrontDoor.cpp:925-927).
-      r.outSpec = ContractionSourceSpec{
-          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
-          /*slotName=*/"out", /*roleName=*/"", /*abiRole=*/"output-buffer",
-          /*abiCName=*/"out", /*abiCType=*/"float *", /*srcStripLabel=*/"",
-          /*headOperandIndex=*/3, /*bodyStepPosition=*/0};
-      r.nSpec = nSpec;
-      r.reduceOpName = "tcrv_rvv.standalone_reduce";
-      // product_relation is candidate-driven at realization
-      // (selectedResourceCandidate->primitiveWideningProductRelation,
-      //  RVVContractionSelectedBodyRealizationOwner.cpp:2371-2376); the signed
-      // widening-product kind is the representative value.
-      r.productRelation = "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1";
-      r.leafProfile = "";
       table.push_back(std::move(r));
     }
 
@@ -215,8 +151,9 @@ getContractionRouteIdentity(llvm::StringRef mnemonic, bool isSigned) {
 //===----------------------------------------------------------------------===//
 // OPTIONAL self-check (NOT wired into any emit path).
 //
-// Proves the signed widening-product route's source data reproduces
-// kRVVLowPrecisionSignedWideningProductMultiplicandRoles VERBATIM -- i.e. the
+// Proves BOTH the signed and the unsigned widening-product routes' source data
+// reproduce kRVVLowPrecisionSignedWideningProductMultiplicandRoles /
+// kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles VERBATIM -- i.e. the
 // registry is "1c-ready" for the roles-join derivation. Never called from any
 // consumer; exists so the join logic is compiled + the invariant is executable
 // (e.g. from a future unit test). We compare against a LOCAL copy of the string
@@ -256,13 +193,26 @@ bool contractionRouteIdentityRegistrySelfCheck() {
   static constexpr llvm::StringLiteral kExpectedSignedWprodRoles(
       "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
       "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4");
+  // EXACT copy of kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles
+  // (RVVEmitCContractionRouteFamilyInternal.h:172-174).
+  static constexpr llvm::StringLiteral kExpectedUnsignedWprodRoles(
+      "lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;"
+      "rhs=rhs-input-buffer:wprod-rhs:src-u8mf4");
 
   const ContractionRouteIdentity *signedWprod =
       getContractionRouteIdentity("tcrv_rvv.widening_product",
                                   /*isSigned=*/true);
   if (!signedWprod)
     return false;
-  return joinMultiplicandRoles(*signedWprod) == kExpectedSignedWprodRoles;
+  if (joinMultiplicandRoles(*signedWprod) != kExpectedSignedWprodRoles)
+    return false;
+
+  const ContractionRouteIdentity *unsignedWprod =
+      getContractionRouteIdentity("tcrv_rvv.widening_product",
+                                  /*isSigned=*/false);
+  if (!unsignedWprod)
+    return false;
+  return joinMultiplicandRoles(*unsignedWprod) == kExpectedUnsignedWprodRoles;
 }
 
 } // namespace tianchenrv::plugin::rvv
