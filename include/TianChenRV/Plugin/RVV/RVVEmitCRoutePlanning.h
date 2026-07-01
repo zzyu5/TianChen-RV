@@ -335,7 +335,7 @@ productSlotOperation(const RVVSelectedBodyRouteSlice &slice) {
 // For the C3 offset-binary head the N=2 "lhs"/"rhs" accessors map to the first
 // two multiplicand operands (slot 0 = weight, slot 1 = activation_low); the
 // THIRD operand (slot 2 = activation_high, the "qhi" source) is read through
-// productSlotSource(slice, 2), which is generalized in W3 (still null here).
+// productSlotSource(slice, 2), generalized in P1e (see below).
 inline mlir::Value productSlotLhs(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getLhs();
@@ -358,18 +358,26 @@ inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
   return mlir::Value();
 }
 
-// P1c2 step 2a: the i-th product-source VALUE read from the typed product head
-// op (mirrors productSlotLhs/productSlotRhs). For the N=2 routes slot 0 is the
-// head lhs and slot 1 is the head rhs; higher slots (the C3 qhi, activated in
-// P1e) are not yet represented and return a null Value. This is the computed
-// (head-op) side of the eventual 2c structural equality against the stored
-// productSources[i] (bound-load) side. As of 2a nothing reads this accessor.
+// P1c2 step 2a / P1e (C3): the i-th product-source VALUE read from the typed
+// product head op (mirrors productSlotLhs/productSlotRhs). For the N=2 routes
+// slot 0 is the head lhs and slot 1 is the head rhs. Slot 2 is the C3 N=3
+// offset-binary head's THIRD multiplicand operand (activation_high, the "qhi"
+// source) -- null for every N=2 head, so the N=2 routes are byte-exact (slots
+// 0/1 unchanged; slot >= 2 was and stays null for non-offset-binary heads). This
+// is the computed (head-op) side of the 2c structural equality against the stored
+// productSources[i] (bound-load) side; the product-reduction structural guard in
+// RVVEmitCRouteAnalysis reads it per bound source.
 inline mlir::Value productSlotSource(const RVVSelectedBodyRouteSlice &slice,
                                      unsigned index) {
   if (index == 0)
     return productSlotLhs(slice);
   if (index == 1)
     return productSlotRhs(slice);
+  if (index == 2) {
+    if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+            slice.offsetBinaryProductOp)
+      return product.getActivationHigh();
+  }
   return mlir::Value();
 }
 

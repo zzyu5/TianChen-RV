@@ -693,12 +693,34 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
             plan, "result layout", plan.resultLayout,
             kRVVProductReductionResultLayout))
       return error;
+    // P1e (C3 offset-binary, N=3): the existing widening/nibble product-reduction
+    // heads carry the config-derived signed/unsigned i8xi8->i16 widening relation,
+    // so the mirror validates against getContractionWideningProductRelation --
+    // byte-identical to before (every existing route matches this branch; none
+    // carries the offset-binary relation). The C3 offset-binary head instead
+    // declares its OWN op-owned canonical product_relation
+    // ("offset-binary-i4mf4-x-i8mf4x2-to-i16mf2"), which is anchored UPSTREAM by
+    // the RVV op verifier (RVVDialectWideningOps.cpp) and flows into
+    // plan.wideningProductRelation via productSlotRelation(slice); for that route
+    // the mirror validates against the route's OWN (op-derived) relation rather
+    // than the hardcoded widening constant. product_relation is deliberately NOT
+    // stored on the ContractionRouteIdentity descriptor -- it is candidate/op-
+    // owned -- so this recognition keys on the op-owned canonical relation, not a
+    // descriptor field.
+    constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
+        "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+    const bool usesOffsetBinaryProductRelation =
+        plan.wideningProductRelation == kRVVOffsetBinaryProductRelation;
+    const llvm::StringRef expectedWideningProductRelationMirror =
+        usesOffsetBinaryProductRelation
+            ? plan.wideningProductRelation
+            : getContractionWideningProductRelation(
+                  plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+                  plan.productLMUL, isUnsignedProductReductionChain);
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening product relation mirror",
             plan.wideningProductRelation,
-            getContractionWideningProductRelation(
-                plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
-                plan.productLMUL, isUnsignedProductReductionChain)))
+            expectedWideningProductRelationMirror))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "product-reduction relation", plan.productReductionChainRelation,

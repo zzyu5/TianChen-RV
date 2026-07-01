@@ -30,7 +30,10 @@ spike 只**动态**到达 WALL 1(op 不识别),wall 2-4 是**静态**读码推�
 4. **WALL 2** `RVVEmitCRouteConfigBinding.cpp:2817` qhi uniqueness rejection —— ✅ 路由(qhi→productSources[2],RVVProductSource 扩 buffer/abi/loadOp;待 commit)。
 5. **WALL 2.5(实测新,当前)** `RVVEmitCContractionRouteFamilyValidation.cpp:696-702` **relation-mirror validator**:硬编码 widening-product relation `signed-i8mf4xi8mf4-to-i16mf2`,拒 offset-binary op 自己的 `product_relation` `offset-binary-i4mf4-x-i8mf4x2-to-i16mf2`。`getContractionWideningProductRelation(...)` 不认 offset-binary。fix:validator 对 offset-binary route 用 op 自己的 relation(非硬编码 widening)—— byte-exact-for-existing(widening 路仍校 widening relation)。R1-side validator。
 6. **`:3924` 结构 guard = silent hole(非阻塞,待 correctness 补)**:qhi 路由后 productSources size=3 → `size()==2` false → 落 legacy else-branch,只校 w/qlo、**静默忽略 qhi**。C3 sails past。为正确性应泛化 `size()==arity` + `productSlotSource` 扩 slot 2(读 offset-binary op 第 3 operand)。**非阻塞但 thesis 要求 qhi 被真结构校验。**
-7. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
+7. **WALL 2.5** `RVVEmitCContractionRouteFamilyValidation.cpp:696-702` relation-mirror —— ✅ W3(route-derived,offset-binary 用 op 自己 relation,widening/nibble 不变;待 commit)。
+8. **`:3924` silent hole** —— ✅ W3 关闭(guard `size()==arity` + `productSlotSource` slot 2 = `getActivationHigh()`,qhi 现被真结构校验;byte-exact N=2)。
+9. **WALL 2.7(实测新,当前)** `RVVEmitCContractionRouteFamilyValidation.cpp:~738` `requireRVVSelectedBodyContractionDerivedLeaf`(widening product leaf):`:1406-1409` 把 offset-binary relation 喂 `getContractionWideningProductIntrinsic` → 返 `{}`(不认此 relation)→ `plan.wideningProductIntrinsic` 空 → leaf validator fire。**R1-side leaf-intrinsic derivation gap**(非 validator/arity;emitter/facts-adjacent)。fix shape(agent 建议):镜像 q4_0 nibble 先例 —— 其 compound lowering 仍报 config-derived signed `__riscv_vwmul_vv_i16mf2` leaf(那是其底层 widening step);offset-binary 链 `vxor→vsll/vsra→vwmul/vwmacc→vwredsum` 同样 i8mf4→i16mf2 widen,故 gated 用 signed config relation 派生 leaf = byte-exact-for-existing。leaf-facts 决策。
+10. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
 
 **latent hazard(qhi 路由留)**:新 qhi 分支假设 **qlo 先于 qhi 绑**(只在 `rhsLoadOperation` 已 set 时 fire)。fixture 是 qlo→qhi 故对;若 qhi 先到,legacy first-rhs 路会误绑。W3/W4 泛化 first-rhs 路时定夺。
 

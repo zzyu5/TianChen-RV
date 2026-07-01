@@ -3904,15 +3904,17 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     // P1c2 step 2c: derive the product-head arity from the ordered
     // productSources[] instead of the hardcoded 2-operand lhs/rhs. Every route
     // reaching this assert is a product-reduction chain (arithmeticKind is one of
-    // the WideningProductReduce* kinds), so it has a product head, a registered
-    // route identity, and -- because the lhs/rhs-input-buffer bindings are already
-    // required above -- productSources.size() == 2. For those N=2 routes
-    // productSources[0]/[1] are bound to the SAME slice values as lhsValue/
-    // rhsValue (2a/2b aliasing: recordRVVBoundProductSource stores the same
-    // load.getLoaded() the lhs/rhs binding assigns; proven for every registered
-    // route by contractionProductSourceBindingSelfCheck) and productSlotSource(
-    // slice, i) reads the same product-head operand as productSlotLhs/Rhs, so this
-    // loop yields the IDENTICAL boolean as the legacy
+    // the WideningProductReduce* kinds), so it has a product head and a registered
+    // route identity; because the lhs/rhs-input-buffer bindings are already
+    // required above, every N=2 route has productSources.size() == 2 (the C3
+    // offset-binary route binds a THIRD product source, qhi -- handled by the
+    // descriptor-derived arity below). For those N=2 routes productSources[0]/[1]
+    // are bound to the SAME slice values as lhsValue/rhsValue (2a/2b aliasing:
+    // recordRVVBoundProductSource stores the same load.getLoaded() the lhs/rhs
+    // binding assigns; proven for every registered route by
+    // contractionProductSourceBindingSelfCheck) and productSlotSource(slice, i)
+    // reads the same product-head operand as productSlotLhs/Rhs, so this loop
+    // yields the IDENTICAL boolean as the legacy
     //   productSlotLhs(slice) != slice.lhsValue ||
     //   productSlotRhs(slice) != slice.rhsValue
     // check for both the passing routes (false) and any negative-test route
@@ -3920,8 +3922,24 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
     // routes of matching arity; the else-branch reproduces the legacy check
     // verbatim so byte-exactness holds for ANY route that might reach this assert.
     bool productSourceBindingMismatch;
-    if (hasResolvedProductRouteIdentity(slice) &&
-        slice.productSources.size() == 2) {
+    // P1e (C3 arity guard-flip): the resolved product head's source arity is the
+    // descriptor's product-factor count (2 for every N=2 route, 3 for the C3
+    // offset-binary w/qlo/qhi route), not a hardcoded 2. For every N=2 route
+    // expectedProductSourceArity == 2, so this guard AND its per-slot loop are
+    // byte-identical to the old `size() == 2` form (unresolved routes still fall
+    // to the legacy 2-operand else-branch). The C3 route now ENTERS the guard at
+    // size()==3 and genuinely validates qhi -- productSlotSource(slice, 2) (the
+    // offset-binary head's activation_high operand) == productSources[2].value
+    // (the bound qhi load) -- instead of silently dropping into the else-branch
+    // that only checks lhs/rhs (w/qlo).
+    const ContractionRouteIdentity *productReductionRouteIdentity =
+        resolvedProductRouteIdentity(slice);
+    const unsigned expectedProductSourceArity =
+        productReductionRouteIdentity
+            ? getContractionProductFactorCount(*productReductionRouteIdentity)
+            : 2;
+    if (productReductionRouteIdentity &&
+        slice.productSources.size() == expectedProductSourceArity) {
       productSourceBindingMismatch = false;
       for (unsigned i = 0, e = slice.productSources.size(); i < e; ++i)
         if (productSlotSource(slice, i) != slice.productSources[i].value)
