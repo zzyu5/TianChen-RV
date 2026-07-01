@@ -1,5 +1,7 @@
 # P1e: 激活 C3 offset-binary e2e(N=3,W1→W4)
 
+> ✅✅ **DONE(2026-07-01)—— refactor payoff 达成**:C3(第一条 N=3 offset-binary 路)端到端发射,6-arg `emitc.func(w,qlo,qhi,acc,out,n)`,三源全用对(低 nibble×qlo `vwmul` / 高 nibble×qhi `vwmacc` / `vwredsum`),production-export ≡ CORE emit 逐字节。锁 e2e lit(`packed-i4-offset-binary-dot-product-reduce-front-door-export-e2e.mlir`,mutation-tested teeth,757/754/3)。全程 byte-exact-for-existing。commit 链 `f78f3d51`…`e10e51be`。**N-operand descriptor thesis 端到端验证。** 详见 `research/C3-walls-enumeration.md` 顶部。剩 leaves-for-later:qlo-qhi 顺序依赖(robustness)、full descriptor-driven R2(maturity)。
+
 > 父 [[07-01-arch-refactor-noperand-core]] P1。**这是 refactor 的 payoff:第一条 N=3 路真流,证 N-operand descriptor 端到端 work。** wall 枚举见 `research/C3-walls-enumeration.md`(spike a3d4a36d,证据驱动)。承接 R1 完成(roles-derive + 结构 plumbing 2a/2b/2c,commit `69fca055`…`737dca9c`)。baseline HEAD = `737dca9c`。
 
 ## ⭐ gate 转变(byte-exact → new-capability)
