@@ -33,7 +33,9 @@ spike 只**动态**到达 WALL 1(op 不识别),wall 2-4 是**静态**读码推�
 7. **WALL 2.5** `RVVEmitCContractionRouteFamilyValidation.cpp:696-702` relation-mirror —— ✅ W3(route-derived,offset-binary 用 op 自己 relation,widening/nibble 不变;待 commit)。
 8. **`:3924` silent hole** —— ✅ W3 关闭(guard `size()==arity` + `productSlotSource` slot 2 = `getActivationHigh()`,qhi 现被真结构校验;byte-exact N=2)。
 9. **WALL 2.7(实测新,当前)** `RVVEmitCContractionRouteFamilyValidation.cpp:~738` `requireRVVSelectedBodyContractionDerivedLeaf`(widening product leaf):`:1406-1409` 把 offset-binary relation 喂 `getContractionWideningProductIntrinsic` → 返 `{}`(不认此 relation)→ `plan.wideningProductIntrinsic` 空 → leaf validator fire。**R1-side leaf-intrinsic derivation gap**(非 validator/arity;emitter/facts-adjacent)。fix shape(agent 建议):镜像 q4_0 nibble 先例 —— 其 compound lowering 仍报 config-derived signed `__riscv_vwmul_vv_i16mf2` leaf(那是其底层 widening step);offset-binary 链 `vxor→vsll/vsra→vwmul/vwmacc→vwredsum` 同样 i8mf4→i16mf2 widen,故 gated 用 signed config relation 派生 leaf = byte-exact-for-existing。leaf-facts 决策。
-10. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
+10. **WALL 2.7** leaf-intrinsic —— ✅ W3b(offset-binary 路 leaf 从 signed config relation 派生 signed vwmul i16mf2,镜像 nibble,gated on offsetBinaryProductOp;byte-exact)。
+11. **WALL 2.9(实测新,当前)** `lib/Dialect/RVV/IR/RVVConfigContract.cpp:1754` `verifyRVVSelectedBodyRuntimeABIParameters`(fall-through `:1920`):offset-binary 的 6-param ABI order `w,qlo,qhi,acc,out,n` 不匹配任何 enumerated `acceptsExpected(...)`(最近 = 5-param 2-mult `lhs,rhs,acc,out,n` `:836`)。**RVV dialect runtime-ABI contract 子系统**(dialect 层,非 Plugin/EmitC)。这正是两轴的 **ABI tail 轴**(form-owned)在 dialect 合同层的体现:multiplicand 部分(w/qlo/qhi)descriptor-derived + tail(acc/out/n)form-owned。fix:enumerate/派生 offset-binary 的 N-mult ABI order,byte-exact-for-existing。
+12. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
 
 **latent hazard(qhi 路由留)**:新 qhi 分支假设 **qlo 先于 qhi 绑**(只在 `rhsLoadOperation` 已 set 时 fire)。fixture 是 qlo→qhi 故对;若 qhi 先到,legacy first-rhs 路会误绑。W3/W4 泛化 first-rhs 路时定夺。
 

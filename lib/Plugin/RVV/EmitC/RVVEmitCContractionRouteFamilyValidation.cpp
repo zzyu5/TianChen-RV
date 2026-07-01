@@ -1403,10 +1403,33 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
             plan.productLMUL, typedConfig.sew, typedConfig.lmul,
             isUnsignedProductReductionChain);
     plan.relation = plan.productReductionChainRelation;
+    // The C3 offset-binary head carries its OWN op-owned canonical product
+    // relation ("offset-binary-i4mf4-x-i8mf4x2-to-i16mf2", flowed into
+    // plan.wideningProductRelation via productSlotRelation), which
+    // getContractionWideningProductIntrinsic does NOT recognize -- it keys on the
+    // config-derived dot/product/unsigned-product relations. But the offset-binary
+    // compound lowering (RVVToEmitC.cpp:2838; vxor 0x88 -> vsll/vsra ->
+    // vwmul/vwmacc -> vwredsum) has a genuine SIGNED widening-product step (vwmul
+    // widening i8mf4 -> i16mf2), so its widening-product LEAF is exactly the
+    // standard signed __riscv_vwmul_vv_i16mf2 -- the same leaf the q4_0 nibble
+    // route resolves because its op carries the STANDARD signed relation string.
+    // Derive the leaf from the config-derived signed widening relation for the
+    // offset-binary route (detect via slice.offsetBinaryProductOp, the op-identity
+    // equivalent of W3's relation-constant gate above -- both single out the same
+    // route); every N=2 route (widening/nibble/dequant) keeps passing its own
+    // productSlotRelation UNCHANGED, so their leaf bytes are untouched.
+    // plan.wideningProductRelation still holds the offset-binary string, so the W3
+    // relation mirror above stays satisfied.
+    const llvm::StringRef wideningProductLeafRelation =
+        analysis.slice.offsetBinaryProductOp
+            ? getContractionWideningProductRelation(
+                  plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+                  plan.productLMUL, /*isUnsigned=*/false)
+            : plan.wideningProductRelation;
     plan.wideningProductIntrinsic =
         getContractionWideningProductIntrinsic(
             plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
-            plan.productLMUL, plan.wideningProductRelation);
+            plan.productLMUL, wideningProductLeafRelation);
     // The deferred-wide chain reduces the i32m8 deferred accumulate with a PLAIN
     // same-width vredsum (not the narrow widening vwredsum of the i16 product);
     // its trailing reduce is __riscv_vredsum_vs_i32m8_i32m1 (I5, derived from the
