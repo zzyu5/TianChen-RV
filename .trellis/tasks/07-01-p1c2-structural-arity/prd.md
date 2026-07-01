@@ -25,6 +25,9 @@ R1 的**结构 arity 决策**从硬编码 2-operand 改成从 `getContractionRou
 ### 2b — load-binding 派生
 - `RVVEmitCRouteConfigBinding.cpp:2739-2771`:unique-ROLE→unique-SLOT,从硬编码 2 改成 `for (k, source) in identity.sources`(按有序 PerIterLoad 绑第 k 个 load 进 `productSources[k]`,校 role+abiCName vs `sources[k]`)。N=2 绑 slot[0]/[1] 与今日逐字同。clamp `secondaryCompareLhs`(`:2754-2761`)建模成 clamp 自己的 aux,**不**当通用第 3-buffer。
 - gate:BEFORE/AFTER diff 发出的 role/abiCName 串。
+- **⚠ 2a 暴露的两个 landmine(2b 必处理,否则 byte-break)**:
+  1. **phantom product sources**:`assignRVVGenericLoadBinding`(`:2749/:2769`)对**任何** LHS/RHS-input-buffer 路都 fire → 非-product 路(如 elementwise-add)也存了 2 个 `productSources[]` entry(2a zero-diff 因 unread)。**2b 的 read 必须 gate 在 `hasResolvedProductRouteIdentity(slice)`(或 `hasProductHead`)** 上,否则这些 entry 看成幻影 product source。
+  2. **rhsValue-reset 不清 productSources**:splat/broadcast 的 `slice.rhsValue = {}` reset(`:2999/:3010`)**不**清 `productSources`;走 `2769→2999` 的路 `productSources[1]` 指向已 reset 的 rhs。2b 须定:要么 splat 路也 reset productSources,要么靠 predicate gate 挡住(推荐后者——product 路不走 splat-reset,gate 即可)。
 
 ### 2c — 结构 assert 派生
 - `RVVEmitCRouteAnalysis.cpp:3858-3924`:`productSlotLhs==lhs&&productSlotRhs==rhs` → `for i: productSlotSource(i)==productSources[i]`;VL-token 循环 PerIterLoad 列表;**error text N=2 逐字**。`arithmeticLhs/Rhs`(`:383-384` 等)→ 有序列表。

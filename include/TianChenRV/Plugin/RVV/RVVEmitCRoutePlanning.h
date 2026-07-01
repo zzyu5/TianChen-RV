@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -31,6 +32,20 @@ struct RVVRouteOperandBinding {
 struct RVVRouteOperandBindingPlan {
   std::string planID;
   llvm::SmallVector<RVVRouteOperandBinding, 8> bindings;
+};
+
+/// One ordered product-source entry on a realized contraction route slice
+/// (P1c2 step 2a foundation). It pairs the materialized per-iteration slice
+/// VALUE of a product factor with the INDEX of its ContractionSourceSpec in the
+/// route descriptor's ordered `sources` (getContractionRouteIdentity()
+/// ->sources[sourceIndex]). For the N=2 product routes productSources[0]/[1]
+/// alias slice.lhsValue/slice.rhsValue. This is the additive base the 2b
+/// load-binding derivation and the 2c structural assert migrate onto; as of 2a
+/// NOTHING reads it, so emitted bytes are unchanged (trivially byte-exact, same
+/// shape as the earlier dead-field strip).
+struct RVVProductSource {
+  mlir::Value value;
+  unsigned sourceIndex = 0;
 };
 
 struct RVVSelectedBodyRouteSlice {
@@ -178,6 +193,10 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value outStride;
   mlir::Value lhsValue;
   mlir::Value rhsValue;
+  /// P1c2 step 2a: ordered product-source foundation (additive; unread as of
+  /// 2a). lhsValue/rhsValue are KEPT as-is (read by ~80 non-product sites); for
+  /// the N=2 product routes productSources[0]/[1] alias lhsValue/rhsValue.
+  llvm::SmallVector<RVVProductSource, 4> productSources;
   mlir::Value trueValue;
   mlir::Value falseValue;
   mlir::Value sourceValue;
@@ -227,6 +246,29 @@ inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
          static_cast<bool>(slice.nibbleProductOp);
 }
 
+// P1c2 step 2a: "the contraction route identity resolves for this slice's
+// product head" -- getContractionRouteIdentity(headMnemonic, isSigned) returns
+// a registered descriptor. This is the identity-driven successor to the
+// op-presence hasProductHead predicate; it is added ALONGSIDE hasProductHead
+// (which has live callers and stays byte-exact -- NOT redefined), and as of 2a
+// has no reader. 2b/2c migrate the arity/assert derivation onto the resolved
+// identity's ordered `sources`.
+inline bool
+hasResolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
+  if (!hasProductHead(slice))
+    return false;
+  llvm::StringRef mnemonic;
+  bool isSigned = false;
+  if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp) {
+    mnemonic = "tcrv_rvv.widening_product";
+    isSigned = product.getKind() == "signed_widening_product";
+  } else if (slice.nibbleProductOp) {
+    mnemonic = "tcrv_rvv.packed_i4_nibble_unpack_product";
+    isSigned = true;
+  }
+  return getContractionRouteIdentity(mnemonic, isSigned) != nullptr;
+}
+
 inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getResult();
@@ -265,6 +307,21 @@ inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
     return product.getRhs();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getRhs();
+  return mlir::Value();
+}
+
+// P1c2 step 2a: the i-th product-source VALUE read from the typed product head
+// op (mirrors productSlotLhs/productSlotRhs). For the N=2 routes slot 0 is the
+// head lhs and slot 1 is the head rhs; higher slots (the C3 qhi, activated in
+// P1e) are not yet represented and return a null Value. This is the computed
+// (head-op) side of the eventual 2c structural equality against the stored
+// productSources[i] (bound-load) side. As of 2a nothing reads this accessor.
+inline mlir::Value productSlotSource(const RVVSelectedBodyRouteSlice &slice,
+                                     unsigned index) {
+  if (index == 0)
+    return productSlotLhs(slice);
+  if (index == 1)
+    return productSlotRhs(slice);
   return mlir::Value();
 }
 

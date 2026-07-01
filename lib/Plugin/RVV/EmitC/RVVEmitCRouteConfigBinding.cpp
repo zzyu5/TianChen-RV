@@ -2748,6 +2748,10 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     slice.lhsBuffer = load.getBuffer();
     slice.lhsValue = load.getLoaded();
     slice.lhsABI = parameter;
+    // P1c2 step 2a: additive product-source foundation. productSources[0]
+    // aliases lhsValue for the N=2 product routes; unread as of 2a (zero-diff).
+    slice.productSources.push_back(RVVProductSource{load.getLoaded(),
+                                                    /*sourceIndex=*/0});
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
@@ -2768,6 +2772,10 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     slice.rhsBuffer = load.getBuffer();
     slice.rhsValue = load.getLoaded();
     slice.rhsABI = parameter;
+    // P1c2 step 2a: additive product-source foundation. productSources[1]
+    // aliases rhsValue for the N=2 product routes; unread as of 2a (zero-diff).
+    slice.productSources.push_back(RVVProductSource{load.getLoaded(),
+                                                    /*sourceIndex=*/1});
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::TrueValueInputBuffer) {
