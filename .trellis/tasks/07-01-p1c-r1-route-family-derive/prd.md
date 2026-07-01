@@ -14,7 +14,7 @@ abstraction 有两条正交轴,P1a 混成一个 descriptor:
 
 - **Step 0 DONE**(commit `c757817c`):descriptor 收窄到 4 head-owned 字段。
 - **Step 1 DONE**(roles-derive abstraction proof,trellis-check PASS×6):multiplicand-roles 串现由**单一** `getContractionMultiplicandRoleSummary("tcrv_rvv.widening_product", isSigned)` 从 `join(sources[])` 派生,跨 **producer + 全 mirror-validator**(4 site:`PlanOwners.cpp:75` producer、`Validation.cpp:2356` validator、`LowPrecisionResource.cpp:2758` verify + `:3608` producer)。旧 EmitC 常量 `Internal.h:168/172` 现**零 live reader**(dead-but-safe)= 真跨-mirror debt 消除、非-vacuous。identity TU 移入 `TianChenRVRVVConstructionProtocol`(EmitC→Construction 单向 dep inversion,无环)。byte-exact:756/753/3 + md5 `845ad91e`/`ebee2384` + 429/429 + STALE-ROLES 负测 PASS。
-- **Step 2 deferred**(下一 pass = 结构 arity plumbing:`productSources[]` slice 存储 + accessor + load-binding unique-slot + type-check + 结构 assert;这是 N>2 真正 enable 的地方、~80-reader `lhsValue/rhsValue` 风险面)→ 归入 [[P1d]](与 R2 construction-protocol 同属"construction arity"关切)或独立 step。**注:下面 §Step-1 Goal/R1 sites 里凡属 `productSources[]`/load-binding/结构 assert 的 = Step 2,未做。**
+- **Step 2 = 独立子任务 [[07-01-p1c2-structural-arity]]**(advisor 定:仍 R1、**不**并入 P1d/R2;分 2a additive-foundation / 2b load-binding / 2c 结构 assert,各自 gate)。结构 arity plumbing(`productSources[]` + accessor + load-binding unique-slot + type-check + 结构 assert)= debt-B(拒 qhi 的硬编码-2)= C3/C4 撞墙根、~80-reader `lhsValue/rhsValue` 风险面。**注:下面 §Step-1 Goal/R1 sites 里凡属 `productSources[]`/load-binding/结构 assert 的 = Step 2,归 p1c2,本任务未做。**
 
 ## Step 0:先修 1b foundation(zero-diff,strip form-owned 字段)
 
