@@ -1345,25 +1345,24 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.configContractID = typedConfig.configContractID;
   plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
-  // P1e C3: the offset-binary (N=3) product-reduction route binds THREE
-  // multiplicands (w + qlo + qhi, the packed-i4 weight and the two plain-i8
-  // activation halves) instead of the N=2 lhs/rhs pair. Its runtime-ABI mirror
-  // order is therefore the actual front-door c-names of the descriptor-bound
-  // product sources (w,qlo,qhi) followed by the form-owned reduction tail
-  // (acc,out,n). Gated on the offset-binary head: every existing N=2 route keeps
-  // the runtime-control-plan order verbatim (dormant) -> byte-exact.
-  if (analysis.slice.offsetBinaryProductOp) {
+  // Route-DATA recognition (kept): the offset-binary vs codebook head signals are
+  // genuinely per-route facts (they drive the downstream asymmetric-signedness and
+  // codebook-LMUL reads), so the flag assignment stays an op-identity read.
+  if (analysis.slice.offsetBinaryProductOp)
     plan.usesOffsetBinaryProductReduction = true;
-    plan.runtimeABIOrder = "w,qlo,qhi,acc,out,n";
-  }
-  // P1e C4: the codebook route binds the SAME three multiplicands (w + qlo + qhi)
-  // as the C3 offset-binary route, so its runtime-ABI mirror order is likewise the
-  // front-door c-names w,qlo,qhi followed by the form-owned reduction tail
-  // acc,out,n. Gated on the codebook head -> byte-exact for every other route.
-  if (analysis.slice.codebookGatherProductOp) {
+  if (analysis.slice.codebookGatherProductOp)
     plan.usesCodebookProductReduction = true;
-    plan.runtimeABIOrder = "w,qlo,qhi,acc,out,n";
-  }
+  // GENERIC runtime-ABI order (retires the two per-route literal
+  // "w,qlo,qhi,acc,out,n" overrides). The order is the resolved route descriptor's
+  // ordered product-factor c-names followed by the form-owned reduction tail:
+  // getContractionProductReductionRuntimeABIOrder reproduces the N=2
+  // "lhs,rhs,acc,out,n" IDEMPOTENTLY (descriptor c-names ARE lhs,rhs) and the N=3
+  // "w,qlo,qhi,acc,out,n" from ONE path. Non-product routes (no resolved head)
+  // keep the runtime-control-plan order verbatim -> byte-exact for existing.
+  if (const ContractionRouteIdentity *productRouteIdentity =
+          resolvedProductRouteIdentity(analysis.slice))
+    plan.runtimeABIOrder = getContractionProductReductionRuntimeABIOrder(
+        *productRouteIdentity, plan.runtimeABIOrder);
   plan.targetLeafProfile =
       isProductReductionDequantClamp
           ? "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
@@ -1448,18 +1447,14 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
-  // P1e C3: the offset-binary N=3 route's SECOND rhs-input-buffer product source
-  // (qhi, descriptor slot 2) is projected into the runtime-ABI mirror right after
-  // the legacy lhs/rhs multiplicands and BEFORE the reduction tail (acc/out/n) --
-  // mirroring the emitted 6-arg signature order w,qlo,qhi,acc,out,n (the signature
-  // itself comes from the withVL op operands, not this list). Read by INDEX from
-  // the descriptor-bound productSources[2] so no new hardcoded construction route
-  // is introduced. Dormant for every N=2 route (offsetBinaryProductOp null) ->
-  // byte-exact.
-  if ((analysis.slice.offsetBinaryProductOp ||
-       analysis.slice.codebookGatherProductOp) &&
-      analysis.slice.productSources.size() > 2)
-    plan.runtimeABIParameters.push_back(analysis.slice.productSources[2].abi);
+  // GENERIC: project every EXTRA product-factor param (descriptor ordinal k >= 2)
+  // right after the abstract lhs/rhs pair and BEFORE the reduction tail, matching
+  // the emitted N-arg signature (e.g. w,qlo,qhi,acc,out,n for the N=3 routes). Arity
+  // driven off the descriptor-bound productSources[]: empty for N=2, one qhi push
+  // for the N=3 offset-binary/codebook routes, any future N-operand route with no
+  // edit (retires the offset-binary/codebook op-identity gate + the hardcoded [2]).
+  for (std::size_t k = 2; k < analysis.slice.productSources.size(); ++k)
+    plan.runtimeABIParameters.push_back(analysis.slice.productSources[k].abi);
   if (plan.usesComputedMask) {
     plan.runtimeABIParameters.push_back(analysis.slice.dotLHSABI);
     plan.runtimeABIParameters.push_back(analysis.slice.dotRHSABI);
@@ -3009,15 +3004,14 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
   RVVRouteOperandBindingPlan plan;
   llvm::StringRef expectedRuntimeABIOrder =
       getContractionRuntimeABIOrder(slice.arithmeticKind);
-  // P1e C3 / P1f C4: the offset-binary AND codebook N=3 product-reduction routes
-  // share the WideningProductReduceAdd arithmetic kind with the N=2 nibble route,
-  // so the op-kind-keyed getContractionRuntimeABIOrder() cannot distinguish them.
-  // Their mirror order is the actual 6-parameter w,qlo,qhi,acc,out,n (the qhi 2nd
-  // rhs-input-buffer + the reduction tail). Gated on the two N=3 heads so every
-  // existing WideningProductReduceAdd route keeps the lhs,rhs,acc,out,n literal ->
-  // byte-exact.
-  if (slice.offsetBinaryProductOp || slice.codebookGatherProductOp)
-    expectedRuntimeABIOrder = "w,qlo,qhi,acc,out,n";
+  // GENERIC: the op-kind-keyed order is the abstract N=2 form (lhs,rhs,acc,out,n);
+  // when the slice resolves to a product route the mirror order is that route's
+  // descriptor c-names + form tail -- idempotent for N=2, "w,qlo,qhi,acc,out,n"
+  // for the N=3 offset-binary/codebook routes (retires the per-route literal).
+  if (const ContractionRouteIdentity *productRouteIdentity =
+          resolvedProductRouteIdentity(slice))
+    expectedRuntimeABIOrder = getContractionProductReductionRuntimeABIOrder(
+        *productRouteIdentity, expectedRuntimeABIOrder);
   std::optional<llvm::StringRef> planID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
           slice.arithmeticKind);
@@ -3111,15 +3105,26 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
     addContractionRouteOperandBinding(
         plan, "rhs", slice.rhsABI,
         {"abi", "src-load", "wprod-rhs", sourceWidthUse, "hdr"});
-    // P1e C3 / P1f C4: the N=3 offset-binary AND codebook routes bind the SECOND
-    // rhs-input-buffer product source (qhi, descriptor slot 2) as an additional
-    // multiplicand between rhs and the reduction tail, so the recorded runtime-ABI
-    // mirror order becomes w,qlo,qhi,acc,out,n. Dormant for N=2 routes -> byte-exact.
-    if ((slice.offsetBinaryProductOp || slice.codebookGatherProductOp) &&
-        slice.productSources.size() > 2)
-      addContractionRouteOperandBinding(
-          plan, "qhi", slice.productSources[2].abi,
-          {"abi", "src-load", "wprod-qhi", sourceWidthUse, "hdr"});
+    // GENERIC: bind every EXTRA product-factor source (descriptor ordinal k >= 2)
+    // as an additional multiplicand between rhs and the reduction tail. The operand
+    // label (c-name, e.g. "qhi") and the "wprod-<c-name>" product role token both
+    // derive from the resolved route descriptor, so the recorded runtime-ABI mirror
+    // order becomes w,qlo,qhi,acc,out,n for the N=3 routes with no per-route edit.
+    // Empty for N=2 -> byte-exact.
+    if (const ContractionRouteIdentity *productRouteIdentity =
+            resolvedProductRouteIdentity(slice)) {
+      llvm::SmallVector<ContractionProductFactorRoleLabels, 2> extraFactors =
+          getContractionExtraProductFactorRoleLabels(*productRouteIdentity);
+      for (std::size_t i = 0; i < extraFactors.size(); ++i) {
+        std::size_t k = i + 2;
+        if (k >= slice.productSources.size())
+          break;
+        addContractionRouteOperandBinding(
+            plan, extraFactors[i].runtimeABICallee, slice.productSources[k].abi,
+            {"abi", "src-load", extraFactors[i].productRoleToken, sourceWidthUse,
+             "hdr"});
+      }
+    }
     addContractionRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
         {"abi", "seed", "wred", accumulatorWidthUse, "hdr"});

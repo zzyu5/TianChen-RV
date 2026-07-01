@@ -8922,52 +8922,62 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     return 22u + clampTwoScopeExtra;
   }
   if (isWideningProductReduce) {
-    // P1e W4 (C3): the N=3 packed-i4 offset-binary route carries a THIRD
-    // multiplicand source (qhi) -- a 3rd runtime_abi_value inserted after rhs
+    // GENERIC N>=3 product-reduction canonical order (retires the former
+    // offset-binary/codebook op-identity gate). An N=3 product route carries a
+    // THIRD multiplicand source (qhi) -- a 3rd runtime_abi_value inserted after rhs
     // (canonical order 2) and a 3rd load inserted after rhs_load (order 10),
-    // shifting every trailing role order up. Assign the realized IR ops the orders
-    // that match the arity-3 14-step spec from
-    // appendWideningProductReduceAddRoleSteps. Gated on the offset-binary head
-    // (and the non-dequantize plain reduce path C3 exercises) so every existing
-    // arity-2 route keeps its byte-identical orders below.
-    // P1f C4: the codebook route is the SECOND N=3 head sharing this path. With its
-    // inert table_broadcast filtered out of the role sequence, its realized IR ops
-    // map to the SAME arity-3 14-step orders as C3 offset-binary (its head op is
-    // productSlotOperation() == the codebook_gather product). Gate on either N=3 head.
-    const bool isOffsetBinary =
+    // shifting every trailing role order up to match the arity-3 14-step spec from
+    // appendWideningProductReduceAddRoleSteps. The trigger is purely the
+    // descriptor-populated product-source ARITY: productSources.size() >= 3 holds
+    // for exactly the N=3 routes (every N=2 route binds size 2), so this reproduces
+    // BOTH the offset-binary and codebook cases (their inert table_broadcast is
+    // filtered out of the role sequence) without naming either head. A future
+    // N-operand route lands here by arity alone.
+    const bool isNProductReduce =
         !isWideningProductReduceDequantize &&
-        (static_cast<bool>(slice.offsetBinaryProductOp) ||
-         static_cast<bool>(slice.codebookGatherProductOp)) &&
         slice.productSources.size() >= 3;
-    if (isOffsetBinary) {
-      auto qhiABI = getRuntimeABI(slice.productSources[2].buffer);
+    if (isNProductReduce) {
+      // GENERIC arity-N canonical order (matches the arity-N role-step spec from
+      // appendWideningProductReduceAddRoleSteps). The abstract 12-step layout is
+      // spliced with one runtime_abi + one load per EXTRA product factor (ordinal
+      // k >= 2, count numExtra). numExtra == 1 reproduces the arity-3 offset-binary
+      // /codebook 14-step orders byte-for-byte (rhs=1, qhi=2, acc=3, ..., qhi_load
+      // =10, product=11, ...). A future N-operand route shifts by arity alone.
+      const unsigned numExtra =
+          static_cast<unsigned>(slice.productSources.size()) - 2u;
       if (rhsABI && op == rhsABI.getOperation())
         return 1;
-      if (qhiABI && op == qhiABI.getOperation())
-        return 2;
+      // Extra product-factor runtime_abi steps: orders 2 .. 1+numExtra.
+      for (unsigned i = 0; i < numExtra; ++i) {
+        auto extraABI = getRuntimeABI(slice.productSources[2 + i].buffer);
+        if (extraABI && op == extraABI.getOperation())
+          return 2 + i;
+      }
       if (accumulatorABI && op == accumulatorABI.getOperation())
-        return 3;
+        return 2 + numExtra;
       if (outABI && op == outABI.getOperation())
-        return 4;
+        return 3 + numExtra;
       if (nABI && op == nABI.getOperation())
-        return 5;
+        return 4 + numExtra;
       if (op == slice.setvl.getOperation())
-        return 6;
+        return 5 + numExtra;
       if (op == slice.withVL.getOperation())
-        return 7;
+        return 6 + numExtra;
       if (op == slice.lhsLoadOperation)
-        return 8;
+        return 7 + numExtra;
       if (op == slice.rhsLoadOperation)
-        return 9;
-      if (op == slice.productSources[2].loadOperation)
-        return 10;
+        return 8 + numExtra;
+      // Extra product-factor load steps: orders 9+numExtra .. 8+2*numExtra.
+      for (unsigned i = 0; i < numExtra; ++i)
+        if (op == slice.productSources[2 + i].loadOperation)
+          return 9 + numExtra + i;
       if (op == productSlotOperation(slice))
-        return 11;
+        return 9 + 2 * numExtra;
       if (op == slice.arithmeticOp)
-        return 12;
+        return 10 + 2 * numExtra;
       if (op == slice.storeOperation)
-        return 13;
-      return 14;
+        return 11 + 2 * numExtra;
+      return 12 + 2 * numExtra;
     }
     if (rhsABI && op == rhsABI.getOperation())
       return 1;
@@ -10134,16 +10144,15 @@ llvm::Error verifySelectedRVVRoleSequence(
                  ? slice.rhsLoadOperation->getName().getStringRef()
                  : llvm::StringRef()),
       routeSequenceContext,
-      // P1e W4 (C3) / P1f C4: the N=3 offset-binary AND codebook routes share the
+      // The N=3 offset-binary AND codebook routes share the
       // widening_product_reduce_add construction route (same operationMnemonic /
       // typedComputeOpName as the arity-2 widening-product-reduce path), so the
       // expected role-step spec cannot distinguish them from route/typedComputeOpName
-      // alone. Thread the two N=3 head signals so the role-step builder emits the
-      // 14-step spec (qhi runtime_abi + qhi load, and the codebook_gather head op)
-      // that matches the realized body's canonical role orders. Every other route
-      // passes false/false and keeps the byte-identical 12-step spec.
-      static_cast<bool>(slice.offsetBinaryProductOp),
-      static_cast<bool>(slice.codebookGatherProductOp));
+      // alone. Thread the RESOLVED product-route descriptor so the role-step builder
+      // derives the N runtime_abi + N load steps + the head op mnemonic generically
+      // from the route's arity/c-names (retires the former offset-binary/codebook
+      // boolean gates). Null for non-product routes -> byte-identical 12-step spec.
+      resolvedProductRouteIdentity(slice));
 }
 
 

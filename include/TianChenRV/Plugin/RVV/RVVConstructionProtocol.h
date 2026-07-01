@@ -16,6 +16,12 @@ class Operation;
 
 namespace tianchenrv::plugin::rvv {
 
+// One descriptor per N-operand product-reduction contraction route (defined in
+// RVVContractionRouteIdentity.h). The role-sequence verifier takes it by pointer
+// so the N runtime_abi + N load role steps + their orders derive from the route's
+// arity/c-names, not from per-route boolean gates.
+struct ContractionRouteIdentity;
+
 using RVVConstructionSemanticRole =
     tianchenrv::plugin::construction::SemanticRole;
 using RVVConstructionFamilyDeclaration =
@@ -140,8 +146,7 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
     llvm::StringRef context,
-    bool isOffsetBinaryProductRoute = false,
-    bool isCodebookProductRoute = false);
+    const ContractionRouteIdentity *productRouteIdentity = nullptr);
 
 llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(

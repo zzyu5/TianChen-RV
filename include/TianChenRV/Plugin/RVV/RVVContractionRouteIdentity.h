@@ -194,6 +194,46 @@ getContractionProductFactorSlotIndex(const ContractionRouteIdentity &route,
                                      llvm::StringRef abiRole,
                                      llvm::StringRef abiCName);
 
+/// The role-step callee labels of ONE product factor: its runtime_abi callee
+/// (the factor's abiCName, e.g. "qhi") and its per-iteration load callee (the
+/// abiCName + "_load", e.g. "qhi_load"). Both are process-lifetime-stable
+/// StringRefs safe to store in an ExecutableRoleStep::callee field.
+struct ContractionProductFactorRoleLabels {
+  llvm::StringRef runtimeABICallee;
+  llvm::StringRef loadCallee;
+  /// The operand-binding product role token spliced into the route operand
+  /// binding plan for this factor: "wprod-" + abiCName (e.g. "wprod-qhi"). Backed
+  /// by the same process-lifetime cache.
+  llvm::StringRef productRoleToken;
+};
+
+/// The ordered role-step callee labels for the route's product factors BEYOND
+/// the abstract lhs/rhs pair -- product-factor ordinal k >= 2 (the "extra" N=3+
+/// sources, e.g. the offset-binary/codebook qhi). The role-step builder + the
+/// canonical-order derivation splice one runtime_abi + one load step per entry
+/// into the otherwise-abstract 12-step widening-product-reduce spec, so a route
+/// of arity N contributes (N-2) extra middle sources with NO consumer edit --
+/// only its registry `sources[]` decoration. Empty for every N=2 route (so those
+/// keep the byte-identical 12-step spec). The returned StringRefs are backed by a
+/// process-lifetime cache.
+llvm::SmallVector<ContractionProductFactorRoleLabels, 2>
+getContractionExtraProductFactorRoleLabels(const ContractionRouteIdentity &route);
+
+/// Derive the runtime-ABI parameter ORDER string for a product-reduction route
+/// GENERICALLY from its descriptor: the ordered product-factor c-names (the
+/// headOperandIndex / axis-A order, e.g. "lhs,rhs" or "w,qlo,qhi") followed by
+/// the form-owned tail (acc[,scale][,bounds],out,n). The tail is recovered from
+/// `abstractOpKindABIOrder` -- the op-kind-keyed abstract order string, which
+/// lists the abstract binary form's TWO multiplicand slots (lhs,rhs) then the
+/// form tail -- by stripping that abstract multiplicand prefix and re-attaching
+/// the descriptor's concrete c-name prefix. This reproduces the N=2
+/// "lhs,rhs,acc,out,n" (IDEMPOTENT -- descriptor c-names ARE lhs,rhs) and the N=3
+/// "w,qlo,qhi,acc,out,n" from ONE path, retiring the per-route offset-binary /
+/// codebook literal overrides. The returned StringRef is process-lifetime cached.
+llvm::StringRef getContractionProductReductionRuntimeABIOrder(
+    const ContractionRouteIdentity &route,
+    llvm::StringRef abstractOpKindABIOrder);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVCONTRACTIONROUTEIDENTITY_H

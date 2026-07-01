@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstddef>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -356,6 +357,90 @@ getContractionProductFactorSlotIndex(const ContractionRouteIdentity &route,
     ++k;
   }
   return std::nullopt;
+}
+
+llvm::SmallVector<ContractionProductFactorRoleLabels, 2>
+getContractionExtraProductFactorRoleLabels(
+    const ContractionRouteIdentity &route) {
+  // Process-lifetime cache of the "<abiCName>_load" load-callee strings. The
+  // runtime_abi callee IS the abiCName (already a process-lifetime StringLiteral
+  // from the registry), so only the "_load" suffixed form needs backing storage
+  // to hand out a stable StringRef. Keyed by the label text so identical c-names
+  // across routes (qhi/qhi) share one entry.
+  // std::deque (NOT std::vector): push_back preserves references/pointers to
+  // existing elements ([deque.modifiers]), so a StringRef handed out from an
+  // earlier intern() stays valid across a later push in the same call. A vector
+  // would move its elements' SSO buffers on reallocation, dangling those refs.
+  static std::deque<std::string> *labelCache = new std::deque<std::string>();
+  auto intern = [](std::string want) -> llvm::StringRef {
+    for (const std::string &existing : *labelCache)
+      if (existing == want)
+        return existing;
+    labelCache->push_back(std::move(want));
+    return labelCache->back();
+  };
+
+  llvm::SmallVector<ContractionProductFactorRoleLabels, 2> labels;
+  unsigned k = 0;
+  for (const ContractionSourceSpec &source : route.sources) {
+    if (source.kind != SourceKind::PerIterInputBufferLoad ||
+        !source.isMultiplicandFactor)
+      continue;
+    // The abstract lhs/rhs pair (ordinals 0/1) keep their fixed abstract role-step
+    // callees ("rhs" / "lhs_load" / "rhs_load") in the consumer; only the extra
+    // product factors (k >= 2) are descriptor-derived.
+    if (k >= 2)
+      labels.push_back({source.abiCName,
+                        intern(source.abiCName.str() + "_load"),
+                        intern("wprod-" + source.abiCName.str())});
+    ++k;
+  }
+  return labels;
+}
+
+llvm::StringRef getContractionProductReductionRuntimeABIOrder(
+    const ContractionRouteIdentity &route,
+    llvm::StringRef abstractOpKindABIOrder) {
+  // The abstract op-kind order lists the abstract binary form's TWO multiplicand
+  // slots then the form tail (e.g. "lhs,rhs,acc,out,n"). Strip that abstract
+  // 2-multiplicand prefix and re-attach the descriptor's ordered product-factor
+  // c-names. "2" is the abstract binary widening-product arity -- a structural
+  // property of the op-kind form (not a per-route fact); the descriptor supplies
+  // the CONCRETE prefix, so a future N-operand route re-prefixes with no edit.
+  constexpr unsigned kAbstractBinaryProductArity = 2;
+
+  // Concrete prefix: the ordered product-factor c-names (axis-A ordinal order).
+  std::string prefix;
+  {
+    bool first = true;
+    for (const ContractionSourceSpec &source : route.sources) {
+      if (source.kind != SourceKind::PerIterInputBufferLoad ||
+          !source.isMultiplicandFactor)
+        continue;
+      if (!first)
+        prefix += ",";
+      first = false;
+      prefix += source.abiCName.str();
+    }
+  }
+
+  // Form tail: abstractOpKindABIOrder after its abstract multiplicand prefix.
+  llvm::SmallVector<llvm::StringRef, 8> tokens;
+  abstractOpKindABIOrder.split(tokens, ',');
+  std::string result = prefix;
+  for (std::size_t i = kAbstractBinaryProductArity; i < tokens.size(); ++i) {
+    result += ",";
+    result += tokens[i].str();
+  }
+
+  // Process-lifetime cache -> stable StringRef. std::deque (NOT std::vector) so
+  // push_back preserves references to previously-returned elements.
+  static std::deque<std::string> *cache = new std::deque<std::string>();
+  for (const std::string &existing : *cache)
+    if (existing == result)
+      return existing;
+  cache->push_back(std::move(result));
+  return cache->back();
 }
 
 llvm::StringRef getContractionMultiplicandRoleSummary(llvm::StringRef mnemonic,
