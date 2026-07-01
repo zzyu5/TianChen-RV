@@ -6678,7 +6678,22 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
         "bounded generic RVV widening dot-product reduction route requires "
         "exactly two tcrv_rvv.load ops for lhs and rhs; the accumulator seed "
         "is a scalar runtime ABI boundary");
-  if (isWideningProductReductionChain && genericLoads.size() != 2)
+  // P1e (arity guard-flip): the product-reduction route's i8 source-load count
+  // is the descriptor's product-factor arity, not the hardcoded 2. Every N=2
+  // product-reduction route resolves to a registered descriptor whose
+  // getContractionProductFactorCount is 2, so this boolean is byte-identical to
+  // `genericLoads.size() != 2`; the C3 N=3 offset-binary route resolves to 3
+  // (w/qlo/qhi). Unresolved routes fall back to the legacy literal 2. The error
+  // text is kept verbatim -- it only fires on a malformed route, which no
+  // existing N=2 route trips, so byte-exactness holds regardless of wording.
+  const ContractionRouteIdentity *productReductionRouteIdentity =
+      resolvedProductRouteIdentity(slice);
+  const unsigned expectedProductReductionLoadCount =
+      productReductionRouteIdentity
+          ? getContractionProductFactorCount(*productReductionRouteIdentity)
+          : 2;
+  if (isWideningProductReductionChain &&
+      genericLoads.size() != expectedProductReductionLoadCount)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV low-precision product-reduction route requires "
         "exactly two tcrv_rvv.load ops for i8 lhs and rhs; the accumulator "
@@ -7110,6 +7125,22 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
     bool isWideningProductReduceDequantGearboxRoute,
     bool isWideningProductReduceDequantize,
     bool isWideningProductReductionChain) {
+  // P1e (arity guard-flip): the plain product-reduction body carries a fixed
+  // 8-op frame (acc/out/n runtime_abi_value + setvl + with_vl + product head +
+  // standalone_reduce + store) plus exactly 2 tcrv_rvv ops per product-factor
+  // source (its runtime_abi_value input-buffer param + its load). So its total
+  // op count is 8 + 2*arity. For every N=2 product-reduction route arity is 2 ->
+  // 12, byte-identical to the former literal; the C3 N=3 offset-binary route ->
+  // 14 (w/qlo/qhi). Unresolved routes fall back to arity 2. (The dequant/clamp
+  // variants keep their own 15/23 counts -- they are selected by the earlier
+  // isWideningProductReduceDequantize/Clamp ternary arms and are all N=2.)
+  const ContractionRouteIdentity *productReductionRouteIdentity =
+      resolvedProductRouteIdentity(slice);
+  const unsigned productReductionArity =
+      productReductionRouteIdentity
+          ? getContractionProductFactorCount(*productReductionRouteIdentity)
+          : 2;
+  const unsigned expectedProductReductionOps = 8 + 2 * productReductionArity;
   const unsigned expectedRVVOps =
       isRuntimeScalarSplatStore
           ? 7
@@ -7134,7 +7165,7 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
       : isWideningProductReduceDequantize
           ? 15
       : isWideningProductReductionChain
-          ? 12
+          ? expectedProductReductionOps
       : isStridedInputWideningDotReduceAdd
           ? 13
       : isComputedMaskWideningDotReduceAdd
