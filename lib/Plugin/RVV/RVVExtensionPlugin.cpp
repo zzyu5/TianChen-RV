@@ -12,6 +12,7 @@
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVIQ4NLBlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "TianChenRV/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVQ40BlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVQ4KBlockDotSourceFrontDoor.h"
@@ -402,18 +403,19 @@ namespace rvv {
 
 namespace {
 
-// P2-b: monolithic ggml super-block block-dot production-export wiring.
+// P2-b: monolithic ggml block-dot production-export wiring (super-block + flat).
 //
 // Unlike the decomposed contraction/elementwise/memory routes (whose selected
 // with_vl body is a straight-line of generic typed micro-ops the RVV route-slice
-// analysis walks), the q4_K super-block block-dot body is ONE plugin-local typed
-// op (tcrv_rvv.q4_k_q8_k_block_dot) that carries the whole super-block dot as
-// first-class STRUCTURE and lowers DIRECTLY through the RVV->EmitC
-// DialectConversion. There is no decomposed route slice to describe, so the
-// slice-based describeRVVSelectedBodyEmitCRoute rejects it fail-closed. This is
-// the "proven-decomposable but not wired to production" gap (README): the CORE
-// emit (--tcrv-rvv-lower-to-emitc) already works, but the production-export
-// chain's --tcrv-materialize-emission-plans step could not build a plan.
+// analysis walks), a monolithic ggml block-dot body is ONE plugin-local typed op
+// (tcrv_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
+// ...) that carries the whole block dot as first-class STRUCTURE and lowers
+// DIRECTLY through the RVV->EmitC DialectConversion. There is no decomposed route
+// slice to describe, so the slice-based describeRVVSelectedBodyEmitCRoute rejects
+// it fail-closed. This is the "proven-decomposable but not wired to production"
+// gap (README): the CORE emit (--tcrv-rvv-lower-to-emitc) already works, but the
+// production-export chain's --tcrv-materialize-emission-plans step could not build
+// a plan.
 //
 // The honest fix is a peer, monolithic-body emission plan: the plan says exactly
 // what is true -- a single plugin-owned typed body that materializes EmitC
@@ -423,43 +425,16 @@ namespace {
 // come from the existing block-dot emitter unchanged; materialize-emission-plans
 // only APPENDS the diagnostic mirror, so every existing route stays byte-exact
 // (they never carry a single-block-dot body and never reach this branch).
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotRouteID(
-    "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotRuntimeABIName(
-    "rvv-ggml-super-block-block-dot-callable-c-abi.v1");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotArtifactKind(
-    "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kRVVEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotArchetype(
-    "rvv-ggml-super-block-monolithic-typed-body");
-constexpr llvm::StringLiteral kRVVConstructionProtocolValue(
-    "extension-family-construction-protocol.v1");
-
-// Recognize a selected with_vl scope whose ENTIRE compute body is exactly one
-// monolithic ggml Q4_K x Q8_K super-block block-dot op (the front-door shape).
-// Returns the op only for that single-op body; nullptr otherwise so decomposed
-// route bodies fall through to the slice-based route path unchanged.
-tcrv::rvv::GgmlBlockDotQ4KQ8KOp
-findSelectedMonolithicBlockDotBody(tcrv::rvv::WithVLOp withVL) {
-  if (withVL.getBody().empty())
-    return nullptr;
-  mlir::Block &block = withVL.getBody().front();
-  tcrv::rvv::GgmlBlockDotQ4KQ8KOp found;
-  for (mlir::Operation &op : block) {
-    auto blockDot = llvm::dyn_cast<tcrv::rvv::GgmlBlockDotQ4KQ8KOp>(&op);
-    if (!blockDot)
-      return nullptr; // any other op => not the monolithic single-op shape
-    if (found)
-      return nullptr; // more than one op => not the monolithic single-op shape
-    found = blockDot;
-  }
-  return found;
-}
+//
+// The recognition (findSelectedMonolithicBlockDotBody), the super-block/flat
+// route-family split, and the per-op ABI table all live in the shared
+// RVVMonolithicBlockDotFamily.h mechanism: this branch keys off the family
+// predicate, not any one op type, and reads its per-op data from that table.
 
 // Build the honest runtime-ABI parameter list from the selected variant's
-// tcrv_rvv.runtime_abi_value bindings (the ggml vec_dot ABI n/s/vx/vy). Each
-// binding carries the role/c_name/c_type/ownership the coherence check validates.
+// tcrv_rvv.runtime_abi_value bindings (the ggml vec_dot ABI: n/s/vx/vy for the
+// 4-role ops, n/s/bs/vx/bx/vy/by/nrc for the strided q4_0 op). Each binding
+// carries the role/c_name/c_type/ownership the coherence check validates.
 llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
     tcrv::exec::VariantOp variant,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
@@ -473,7 +448,7 @@ llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
         support::symbolizeRuntimeABIParameterOwnership(binding.getOwnership());
     if (!role || !ownership) {
       error = makeRVVPluginError(
-          llvm::Twine("monolithic super-block block-dot runtime ABI binding '") +
+          llvm::Twine("monolithic block-dot runtime ABI binding '") +
           binding.getCName() +
           "' carries an unsupported role/ownership for emission planning");
       return;
@@ -485,13 +460,31 @@ llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
   return error;
 }
 
-// Build the monolithic-body emission plan for a recognized super-block block-dot
-// variant, mirroring the fields the emission-plan diagnostic + coherence check
-// require, but describing the body honestly as a single plugin-owned typed body.
+// Build the monolithic-body emission plan for a recognized block-dot variant,
+// mirroring the fields the emission-plan diagnostic + coherence check require, but
+// describing the body honestly as a single plugin-owned typed body. The route id /
+// runtime-ABI name / archetype / op-derived metadata keys are selected by the op's
+// route family (super-block vs flat) from the shared mechanism; the kind /
+// scale_model values + the ordered ABI parameters are read from the op itself.
 llvm::Error buildMonolithicBlockDotEmissionPlan(
-    const VariantEmissionRequest &request,
-    tcrv::rvv::GgmlBlockDotQ4KQ8KOp blockDot, VariantEmissionPlan &out) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> abiParameters;
+    const VariantEmissionRequest &request, mlir::Operation *blockDot,
+    VariantEmissionPlan &out) {
+  const MonolithicBlockDotOpEntry *entry =
+      findMonolithicBlockDotOpEntry(blockDot);
+  if (!entry)
+    return makeRVVPluginError(
+        "internal: buildMonolithicBlockDotEmissionPlan requires a recognized "
+        "monolithic block-dot op");
+  const MonolithicBlockDotFamilyConstants &fc =
+      getMonolithicBlockDotFamilyConstants(entry->routeFamily);
+  auto kindAttr = blockDot->getAttrOfType<mlir::StringAttr>("kind");
+  auto scaleModelAttr = blockDot->getAttrOfType<mlir::StringAttr>("scale_model");
+  if (!kindAttr || !scaleModelAttr)
+    return makeRVVPluginError(
+        "monolithic block-dot op is missing its bounded kind/scale_model "
+        "attributes for emission planning");
+
+  llvm::SmallVector<support::RuntimeABIParameter, 8> abiParameters;
   if (llvm::Error error = collectMonolithicBlockDotRuntimeABIParameters(
           request.getVariant(), abiParameters))
     return error;
@@ -499,33 +492,24 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVSelectedBodyEmissionKind(), kRVVMonolithicBlockDotRouteID,
-      kRVVMonolithicBlockDotRuntimeABIName, kRVVMonolithicBlockDotArtifactKind,
-      "RVV selected monolithic ggml super-block block-dot typed body "
-      "materializes a verified EmitC module through the common RVV->EmitC "
-      "DialectConversion (the super-block loop, the 6-bit scale/min bit-dance, "
-      "the aux32 accumulation, and the deferred fp32 fold/min are first-class "
-      "op structure), then uses the MLIR EmitC C/C++ emitter before RISC-V "
-      "object packaging");
+      getRVVSelectedBodyEmissionKind(), fc.routeID, fc.runtimeABIName,
+      monolithic_block_dot::kArtifactKind,
+      getMonolithicBlockDotPlanDescription(entry->routeFamily));
   out.setRuntimeABIKind(getRVVSelectedBodyRuntimeABIKind());
-  out.setRuntimeABIName(kRVVMonolithicBlockDotRuntimeABIName);
+  out.setRuntimeABIName(fc.runtimeABIName);
   out.setRuntimeGlueRole(getRVVSelectedBodyRuntimeGlueRole());
   out.setLoweringBoundaryOpName(getRVVSelectedBodyLoweringBoundaryOpName());
   out.addRuntimeABIParameters(abiParameters);
-  out.addArtifactMetadata("rvv_emitc_lowerable_route",
-                          kRVVMonolithicBlockDotRouteID);
-  out.addArtifactMetadata("rvv_source_op_interface",
-                          kRVVEmitCLowerableOpInterfaceName);
-  out.addArtifactMetadata("rvv_extension_archetype",
-                          kRVVMonolithicBlockDotArchetype);
-  out.addArtifactMetadata("rvv_ggml_super_block_block_dot_kind",
-                          blockDot.getKind());
-  out.addArtifactMetadata("rvv_ggml_super_block_scale_model",
-                          blockDot.getScaleModel());
-  out.addArtifactMetadata("rvv_target_artifact_kind",
-                          kRVVMonolithicBlockDotArtifactKind);
-  out.addArtifactMetadata("rvv_construction_protocol",
-                          kRVVConstructionProtocolValue);
+  out.addArtifactMetadata(monolithic_block_dot::kRouteMetadataKey, fc.routeID);
+  out.addArtifactMetadata(monolithic_block_dot::kSourceOpInterfaceKey,
+                          monolithic_block_dot::kSourceOpInterfaceName);
+  out.addArtifactMetadata(monolithic_block_dot::kArchetypeKey, fc.archetype);
+  out.addArtifactMetadata(fc.kindMetadataKey, kindAttr.getValue());
+  out.addArtifactMetadata(fc.scaleModelMetadataKey, scaleModelAttr.getValue());
+  out.addArtifactMetadata(monolithic_block_dot::kTargetArtifactKindKey,
+                          monolithic_block_dot::kArtifactKind);
+  out.addArtifactMetadata(monolithic_block_dot::kConstructionProtocolKey,
+                          monolithic_block_dot::kConstructionProtocol);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -761,12 +745,13 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest))
     return error;
 
-  // P2-b monolithic super-block block-dot body: a single plugin-owned typed op
-  // that lowers directly through the RVV->EmitC DialectConversion, with no
-  // decomposed route slice for the slice-based description path to walk. Build
+  // P2-b monolithic block-dot body (super-block OR flat): a single plugin-owned
+  // typed op that lowers directly through the RVV->EmitC DialectConversion, with
+  // no decomposed route slice for the slice-based description path to walk. Build
   // the honest monolithic-body emission plan here and return before that path.
-  // Decomposed route bodies never satisfy this predicate and are untouched.
-  if (tcrv::rvv::GgmlBlockDotQ4KQ8KOp blockDot =
+  // Decomposed route bodies (and unwired block-dot ops) never satisfy this
+  // family predicate and are untouched.
+  if (mlir::Operation *blockDot =
           findSelectedMonolithicBlockDotBody(*selectedBoundary))
     return buildMonolithicBlockDotEmissionPlan(request, blockDot, out);
 

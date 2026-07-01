@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -1720,80 +1721,76 @@ llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
   return llvm::Error::success();
 }
 
-// P2-b chunk2: monolithic ggml super-block block-dot (q4_K) target-artifact-export
-// wiring.
+// P2-b chunk3: monolithic ggml block-dot (super-block + flat) target-artifact-export
+// wiring, generalized from chunk2's q4_K-only mirror.
 //
-// The q4_K super-block block-dot selected body is ONE plugin-owned typed op
-// (tcrv_rvv.q4_k_q8_k_block_dot) that lowers DIRECTLY through the RVV->EmitC
-// DialectConversion; there is no decomposed route slice for the slice-based
-// describeRVVSelectedBodyEmitCRoute to walk (it fails fail-closed on the
-// monolithic op). Chunk 1 wired the emission-plans stage by early-returning an
-// HONEST monolithic-body emission plan in the plugin (RVVExtensionPlugin.cpp
-// buildMonolithicBlockDotEmissionPlan), bypassing that slice describe. This is
-// the mirror at the target-artifact-export chokepoint: an HONEST peer OBJECT
-// exporter registered under the monolithic route id, with a purpose-built
+// A monolithic ggml block-dot selected body is ONE plugin-owned typed op
+// (tcrv_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
+// ...) that lowers DIRECTLY through the RVV->EmitC DialectConversion; there is no
+// decomposed route slice for the slice-based describeRVVSelectedBodyEmitCRoute to
+// walk (it fails fail-closed on the monolithic op). Chunk 1 wired the
+// emission-plans stage by early-returning an HONEST monolithic-body emission plan
+// in the plugin (RVVExtensionPlugin.cpp buildMonolithicBlockDotEmissionPlan),
+// keyed off the shared block-dot family predicate. This is the mirror at the
+// target-artifact-export chokepoint: HONEST peer OBJECT exporters (one per route
+// family) registered under the monolithic route ids, with a purpose-built
 // candidate validator that checks the emission plan's honest monolithic fields
-// DIRECTLY (no describe-slice). It is registered as a bare object exporter (not
+// DIRECTLY (no describe-slice). They are registered as bare object exporters (not
 // through the construction-template header/object bundle adapter) on purpose: a
 // second RVV header/bundle COMPOSITE would select every rvv-origin candidate by
 // origin and then reject the decomposed ones, breaking their header/bundle
-// export. The bare object exporter is keyed by the monolithic route id, so every
-// decomposed route is byte-exact untouched (it never carries this route id and
-// never reaches this validator/exporter). q4_K's plan produces only the object
-// candidate (no header artifact), so the object exporter is all it needs.
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotRouteID(
-    "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotHeaderRouteID(
-    "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family.header");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotRuntimeABIName(
-    "rvv-ggml-super-block-block-dot-callable-c-abi.v1");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotArchetype(
-    "rvv-ggml-super-block-monolithic-typed-body");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotSourceOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotConstructionProtocol(
-    "extension-family-construction-protocol.v1");
-// The 7 honest artifact-metadata keys the chunk-1 monolithic emission plan
-// attaches (must agree with RVVExtensionPlugin.cpp; the e2e full-pipeline test
-// pins agreement byte-for-byte).
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotRouteMetadataKey(
-    "rvv_emitc_lowerable_route");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotSourceOpInterfaceKey(
-    "rvv_source_op_interface");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotArchetypeKey(
-    "rvv_extension_archetype");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotKindKey(
-    "rvv_ggml_super_block_block_dot_kind");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotScaleModelKey(
-    "rvv_ggml_super_block_scale_model");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotTargetArtifactKindKey(
-    "rvv_target_artifact_kind");
-constexpr llvm::StringLiteral kRVVMonolithicBlockDotConstructionProtocolKey(
-    "rvv_construction_protocol");
+// export. The bare object exporters are keyed by the monolithic route ids, so
+// every decomposed route is byte-exact untouched (it never carries these route
+// ids and never reaches this validator/exporter). Each monolithic plan produces
+// only the object candidate (no header artifact), so the object exporter is all
+// it needs.
+//
+// The route ids, runtime-ABI name, archetype, and the two op-derived metadata
+// keys are parameterized by route family (super-block vs flat) from the shared
+// RVVMonolithicBlockDotFamily.h mechanism; the per-op ordered ABI expectation is
+// looked up there by the candidate's kind metadata. Keying q4_K off the
+// super-block family reproduces chunk2's exact constants/checks (byte-exact).
 
-// The honest ggml vec_dot Q4_K x Q8_K callable ABI (n, s, vx, vy), in order --
-// the runtime_abi_value bindings the front door materializes and the chunk-1
-// emission plan collects.
-struct RVVMonolithicBlockDotABIExpectation {
-  llvm::StringRef cName;
-  support::RuntimeABIParameterRole role;
-};
+// Determine the route family a candidate route id belongs to (error if the id is
+// neither the super-block nor the flat monolithic route id).
+llvm::Expected<plugin::rvv::MonolithicBlockDotRouteFamily>
+monolithicBlockDotFamilyForRouteID(llvm::StringRef routeID) {
+  using plugin::rvv::MonolithicBlockDotRouteFamily;
+  if (routeID == plugin::rvv::getMonolithicBlockDotFamilyConstants(
+                     MonolithicBlockDotRouteFamily::SuperBlock)
+                     .routeID)
+    return MonolithicBlockDotRouteFamily::SuperBlock;
+  if (routeID == plugin::rvv::getMonolithicBlockDotFamilyConstants(
+                     MonolithicBlockDotRouteFamily::Flat)
+                     .routeID)
+    return MonolithicBlockDotRouteFamily::Flat;
+  return makeRVVTargetRouteError(
+      llvm::Twine("candidate route id '") + routeID +
+      "' is not a monolithic ggml block-dot route id");
+}
 
 llvm::Error validateRVVMonolithicBlockDotTargetArtifactCandidate(
     const TargetArtifactCandidate &candidate) {
+  namespace mbd = plugin::rvv::monolithic_block_dot;
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
 
+  llvm::Expected<plugin::rvv::MonolithicBlockDotRouteFamily> family =
+      monolithicBlockDotFamilyForRouteID(candidate.routeID);
+  if (!family)
+    return family.takeError();
+  const plugin::rvv::MonolithicBlockDotFamilyConstants &fc =
+      plugin::rvv::getMonolithicBlockDotFamilyConstants(*family);
+
   if (candidate.role == "dispatch fallback")
     return makeRVVTargetRouteError(
-        "monolithic ggml super-block block-dot candidate must not be "
-        "fallback-only");
+        "monolithic ggml block-dot candidate must not be fallback-only");
   if (llvm::Error error = requireCandidateField(
           "origin", candidate.origin,
           plugin::rvv::getRVVConstructionManifest().family.pluginName))
     return error;
-  if (llvm::Error error = requireCandidateField(
-          "route id", candidate.routeID, kRVVMonolithicBlockDotRouteID))
+  if (llvm::Error error = requireCandidateField("route id", candidate.routeID,
+                                                fc.routeID))
     return error;
   if (llvm::Error error = requireCandidateField(
           "artifact kind", candidate.artifactKind,
@@ -1815,33 +1812,40 @@ llvm::Error validateRVVMonolithicBlockDotTargetArtifactCandidate(
           "runtime glue role", candidate.runtimeGlueRole,
           plugin::rvv::getRVVSelectedBodyRuntimeGlueRole()))
     return error;
-  if (llvm::Error error =
-          requireCandidateField("runtime ABI", candidate.runtimeABI,
-                                kRVVMonolithicBlockDotRuntimeABIName))
+  if (llvm::Error error = requireCandidateField("runtime ABI",
+                                                candidate.runtimeABI,
+                                                fc.runtimeABIName))
     return error;
   if (llvm::Error error = requireCandidateField(
-          "runtime ABI name", candidate.runtimeABIName,
-          kRVVMonolithicBlockDotRuntimeABIName))
+          "runtime ABI name", candidate.runtimeABIName, fc.runtimeABIName))
     return error;
 
-  static const RVVMonolithicBlockDotABIExpectation kABIExpectation[] = {
-      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
-      {"s", support::RuntimeABIParameterRole::OutputBuffer},
-      {"vx", support::RuntimeABIParameterRole::LHSInputBuffer},
-      {"vy", support::RuntimeABIParameterRole::RHSInputBuffer},
-  };
-  llvm::ArrayRef<RVVMonolithicBlockDotABIExpectation> abiExpectation(
-      kABIExpectation);
+  // Per-op ABI: look up the expected ordered ggml vec_dot ABI by the candidate's
+  // op-derived kind metadata (q4_0 carries the 8-role strided ABI; q4_K/iq4_nl
+  // carry the 4-role n/s/vx/vy). The op kind must belong to this route family.
+  llvm::StringRef kindValue =
+      lookupCandidateMetadataValue(candidate, fc.kindMetadataKey);
+  const plugin::rvv::MonolithicBlockDotOpEntry *opEntry =
+      plugin::rvv::findMonolithicBlockDotOpEntryByKind(kindValue);
+  if (!opEntry || opEntry->routeFamily != *family)
+    return makeRVVTargetRouteError(
+        llvm::Twine("monolithic ggml block-dot candidate carries an "
+                    "unrecognized op kind '") +
+        kindValue + "' for its route family");
+  llvm::ArrayRef<plugin::rvv::MonolithicBlockDotABIRole> abiExpectation =
+      opEntry->abiRoles();
   if (candidate.runtimeABIParameters.size() != abiExpectation.size())
     return makeRVVTargetRouteError(
-        "monolithic ggml super-block block-dot candidate must carry the four "
-        "ordered ggml vec_dot ABI parameters (n, s, vx, vy)");
+        llvm::Twine("monolithic ggml block-dot candidate for op kind '") +
+        kindValue + "' must carry its " +
+        llvm::Twine(static_cast<unsigned>(abiExpectation.size())) +
+        " ordered ggml vec_dot ABI parameters");
   for (auto [expected, actual] :
        llvm::zip(abiExpectation, candidate.runtimeABIParameters)) {
     if (actual.role != expected.role || actual.cName != expected.cName)
       return makeRVVTargetRouteError(
-          llvm::Twine("monolithic ggml super-block block-dot candidate ABI "
-                      "parameter must be c parameter '") +
+          llvm::Twine("monolithic ggml block-dot candidate ABI parameter must "
+                      "be c parameter '") +
           expected.cName + "' with role '" +
           support::stringifyRuntimeABIParameterRole(expected.role) +
           "' but was c parameter '" + actual.cName + "' with role '" +
@@ -1851,71 +1855,71 @@ llvm::Error validateRVVMonolithicBlockDotTargetArtifactCandidate(
   // The honest monolithic metadata mirror: the fixed-value keys are pinned, the
   // op-derived keys (kind / scale_model) are required present.
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVMonolithicBlockDotRouteMetadataKey,
-          kRVVMonolithicBlockDotRouteID, "monolithic block-dot route id"))
+          candidate, mbd::kRouteMetadataKey, fc.routeID,
+          "monolithic block-dot route id"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVMonolithicBlockDotSourceOpInterfaceKey,
-          kRVVMonolithicBlockDotSourceOpInterfaceName,
+          candidate, mbd::kSourceOpInterfaceKey, mbd::kSourceOpInterfaceName,
           "EmitC-lowerable op interface"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVMonolithicBlockDotArchetypeKey,
-          kRVVMonolithicBlockDotArchetype, "monolithic typed-body archetype"))
+          candidate, mbd::kArchetypeKey, fc.archetype,
+          "monolithic typed-body archetype"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVMonolithicBlockDotTargetArtifactKindKey,
+          candidate, mbd::kTargetArtifactKindKey,
           plugin::rvv::getRVVSelectedBodyTargetArtifactKind(),
           "target artifact kind"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVMonolithicBlockDotConstructionProtocolKey,
-          kRVVMonolithicBlockDotConstructionProtocol, "construction protocol"))
+          candidate, mbd::kConstructionProtocolKey, mbd::kConstructionProtocol,
+          "construction protocol"))
     return error;
-  if (lookupCandidateMetadataValue(candidate, kRVVMonolithicBlockDotKindKey)
-          .empty())
+  if (lookupCandidateMetadataValue(candidate, fc.kindMetadataKey).empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine("candidate metadata must carry ") + fc.kindMetadataKey +
+        " provenance");
+  if (lookupCandidateMetadataValue(candidate, fc.scaleModelMetadataKey).empty())
     return makeRVVTargetRouteError(
         llvm::Twine("candidate metadata must carry ") +
-        kRVVMonolithicBlockDotKindKey + " provenance");
-  if (lookupCandidateMetadataValue(candidate,
-                                   kRVVMonolithicBlockDotScaleModelKey)
-          .empty())
-    return makeRVVTargetRouteError(
-        llvm::Twine("candidate metadata must carry ") +
-        kRVVMonolithicBlockDotScaleModelKey + " provenance");
+        fc.scaleModelMetadataKey + " provenance");
 
   // The monolithic route honestly carries NO decomposed-route tcrv_rvv.* config
   // metadata (the slice-based describe never ran); assert none leaked in, which
   // is what positively distinguishes it from a decomposed selected-body route.
-  for (const support::ArtifactMetadataEntry &entry : candidate.artifactMetadata)
-    if (llvm::StringRef(entry.key).starts_with("tcrv_rvv."))
+  for (const support::ArtifactMetadataEntry &meta : candidate.artifactMetadata)
+    if (llvm::StringRef(meta.key).starts_with("tcrv_rvv."))
       return makeRVVTargetRouteError(
-          llvm::Twine("monolithic ggml super-block block-dot candidate must "
-                      "not carry decomposed-route config metadata '") +
-          entry.key + "'");
+          llvm::Twine("monolithic ggml block-dot candidate must not carry "
+                      "decomposed-route config metadata '") +
+          meta.key + "'");
 
   return rejectForbiddenRVVArtifactMetadata(candidate);
 }
 
 llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 8>
-buildRVVMonolithicBlockDotHeaderMetadataEvidence() {
+buildRVVMonolithicBlockDotHeaderMetadataEvidence(
+    plugin::rvv::MonolithicBlockDotRouteFamily family) {
+  namespace mbd = plugin::rvv::monolithic_block_dot;
+  const plugin::rvv::MonolithicBlockDotFamilyConstants &fc =
+      plugin::rvv::getMonolithicBlockDotFamilyConstants(family);
   llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 8> evidence;
   evidence.append({
-      {"emitc_lowerable_route", kRVVMonolithicBlockDotRouteMetadataKey,
-       kRVVMonolithicBlockDotRouteID, /*allowDynamicValue=*/false},
-      {"source_op_interface", kRVVMonolithicBlockDotSourceOpInterfaceKey,
-       kRVVMonolithicBlockDotSourceOpInterfaceName, /*allowDynamicValue=*/false},
-      {"extension_archetype", kRVVMonolithicBlockDotArchetypeKey,
-       kRVVMonolithicBlockDotArchetype, /*allowDynamicValue=*/false},
-      {"ggml_super_block_block_dot_kind", kRVVMonolithicBlockDotKindKey,
-       /*expectedValue=*/"", /*allowDynamicValue=*/true},
-      {"ggml_super_block_scale_model", kRVVMonolithicBlockDotScaleModelKey,
-       /*expectedValue=*/"", /*allowDynamicValue=*/true},
-      {"target_artifact_kind", kRVVMonolithicBlockDotTargetArtifactKindKey,
+      {"emitc_lowerable_route", mbd::kRouteMetadataKey, fc.routeID,
+       /*allowDynamicValue=*/false},
+      {"source_op_interface", mbd::kSourceOpInterfaceKey,
+       mbd::kSourceOpInterfaceName, /*allowDynamicValue=*/false},
+      {"extension_archetype", mbd::kArchetypeKey, fc.archetype,
+       /*allowDynamicValue=*/false},
+      {"ggml_block_dot_kind", fc.kindMetadataKey, /*expectedValue=*/"",
+       /*allowDynamicValue=*/true},
+      {"ggml_scale_model", fc.scaleModelMetadataKey, /*expectedValue=*/"",
+       /*allowDynamicValue=*/true},
+      {"target_artifact_kind", mbd::kTargetArtifactKindKey,
        plugin::rvv::getRVVSelectedBodyTargetArtifactKind(),
        /*allowDynamicValue=*/false},
-      {"construction_protocol", kRVVMonolithicBlockDotConstructionProtocolKey,
-       kRVVMonolithicBlockDotConstructionProtocol, /*allowDynamicValue=*/false},
+      {"construction_protocol", mbd::kConstructionProtocolKey,
+       mbd::kConstructionProtocol, /*allowDynamicValue=*/false},
   });
   return evidence;
 }
@@ -2017,44 +2021,93 @@ llvm::Error exportRVVSelectedBodyHeaderArtifact(mlir::ModuleOp module,
       module, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
-// P2-b chunk2: the monolithic block-dot object-export adapter config. It clones
-// the RVV selected-body adapter config and overrides ONLY the fields that make
-// the export honestly monolithic: the route id, the honest monolithic candidate
-// validator, the monolithic header route id, and the monolithic metadata
-// evidence. The object emit reuses the common RVV->EmitC DialectConversion
-// (materializeSelectedEmitCArtifactModule -> tryConvertModuleWithRegisteredBackend),
-// which chunk 1 already made lower the monolithic op, so the exported EmitC is
-// byte-identical to the CORE --tcrv-rvv-lower-to-emitc emit. This config is used
-// ONLY by the monolithic OBJECT export fn (below); it is never handed to the
-// header/object bundle registration helper, so no monolithic composite is
-// registered and decomposed routes are byte-exact untouched.
+// P2-b chunk3: the monolithic block-dot object-export adapter config, per route
+// family. It clones the RVV selected-body adapter config and overrides ONLY the
+// fields that make the export honestly monolithic: the (family) route id, the
+// honest monolithic candidate validator, the (family) header route id, and the
+// (family) metadata evidence. The object emit reuses the common RVV->EmitC
+// DialectConversion (materializeSelectedEmitCArtifactModule ->
+// tryConvertModuleWithRegisteredBackend), which chunk 1 already made lower the
+// monolithic op, so the exported EmitC is byte-identical to the CORE
+// --tcrv-rvv-lower-to-emitc emit. This config is used ONLY by the monolithic
+// OBJECT export fns (below); it is never handed to the header/object bundle
+// registration helper, so no monolithic composite is registered and decomposed
+// routes are byte-exact untouched.
 ConstructionTemplateArtifactAdapterConfig
-getRVVMonolithicBlockDotArtifactAdapterConfig() {
+getRVVMonolithicBlockDotArtifactAdapterConfig(
+    plugin::rvv::MonolithicBlockDotRouteFamily family) {
   static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
                                  8>
-      kMonolithicMetadataEvidence =
-          buildRVVMonolithicBlockDotHeaderMetadataEvidence();
+      kSuperBlockEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
+          plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock);
+  static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
+                                 8>
+      kFlatEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
+          plugin::rvv::MonolithicBlockDotRouteFamily::Flat);
+  const plugin::rvv::MonolithicBlockDotFamilyConstants &fc =
+      plugin::rvv::getMonolithicBlockDotFamilyConstants(family);
+  bool isSuperBlock =
+      family == plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock;
 
   ConstructionTemplateArtifactAdapterConfig config =
       getRVVSelectedBodyArtifactAdapterConfig();
-  config.selectedRoute.routeID = kRVVMonolithicBlockDotRouteID;
+  config.selectedRoute.routeID = fc.routeID;
   config.selectedRoute.routeDescription =
-      "RVV monolithic ggml super-block block-dot materialized EmitC target "
-      "artifact bridge (single plugin-owned typed body lowering directly "
-      "through the common RVV->EmitC DialectConversion)";
+      isSuperBlock
+          ? "RVV monolithic ggml super-block block-dot materialized EmitC "
+            "target artifact bridge (single plugin-owned typed body lowering "
+            "directly through the common RVV->EmitC DialectConversion)"
+          : "RVV monolithic ggml flat block-dot materialized EmitC target "
+            "artifact bridge (single plugin-owned typed body lowering directly "
+            "through the common RVV->EmitC DialectConversion)";
   config.selectedRoute.candidateValidationFn =
       validateRVVMonolithicBlockDotTargetArtifactCandidate;
-  config.headerRouteID = kRVVMonolithicBlockDotHeaderRouteID;
-  config.metadataEvidence = kMonolithicMetadataEvidence;
+  config.headerRouteID = fc.headerRouteID;
+  config.metadataEvidence = isSuperBlock ? kSuperBlockEvidence : kFlatEvidence;
   config.selectedObjectDescription =
-      "RVV monolithic ggml super-block block-dot materialized EmitC candidate";
+      isSuperBlock
+          ? "RVV monolithic ggml super-block block-dot materialized EmitC "
+            "candidate"
+          : "RVV monolithic ggml flat block-dot materialized EmitC candidate";
   return config;
 }
 
-llvm::Error exportRVVMonolithicBlockDotTargetArtifact(mlir::ModuleOp module,
-                                                      llvm::raw_ostream &os) {
+llvm::Error
+exportRVVMonolithicSuperBlockBlockDotTargetArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getRVVMonolithicBlockDotArtifactAdapterConfig());
+      module, os,
+      getRVVMonolithicBlockDotArtifactAdapterConfig(
+          plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock));
+}
+
+llvm::Error
+exportRVVMonolithicFlatBlockDotTargetArtifact(mlir::ModuleOp module,
+                                              llvm::raw_ostream &os) {
+  return exportConstructionTemplateObjectArtifact(
+      module, os,
+      getRVVMonolithicBlockDotArtifactAdapterConfig(
+          plugin::rvv::MonolithicBlockDotRouteFamily::Flat));
+}
+
+// Register one bare peer OBJECT exporter for a monolithic block-dot route family.
+llvm::Error registerRVVMonolithicBlockDotObjectExporter(
+    TargetArtifactExporterRegistry &registry,
+    plugin::rvv::MonolithicBlockDotRouteFamily family,
+    TargetArtifactExportFn exportFn) {
+  llvm::StringRef routeID =
+      plugin::rvv::getMonolithicBlockDotFamilyConstants(family).routeID;
+  if (registry.lookup(routeID))
+    return llvm::Error::success();
+  return registry.registerExporter(TargetArtifactExporter(
+      routeID, plugin::rvv::getRVVSelectedBodyTargetArtifactKind(),
+      getRVVManifest().family.pluginName,
+      plugin::rvv::getRVVSelectedBodyEmissionKind(), exportFn,
+      /*requiredRuntimeABIParameters=*/{},
+      getRVVTargetMapping().objectHandoffKind,
+      validateRVVMonolithicBlockDotTargetArtifactCandidate,
+      getRVVTargetMapping().bundleComponentGroup,
+      /*externalABIName=*/""));
 }
 
 llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
@@ -2068,26 +2121,20 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
           exportRVVSelectedBodyHeaderArtifact))
     return error;
 
-  // P2-b chunk2: the honest monolithic ggml super-block block-dot (q4_K) peer
-  // OBJECT route. Registered as a bare object exporter (NOT a header/object
-  // bundle composite) under its own route id so coherence + target-artifact
-  // export recognize the monolithic-body plan without a composite that would
-  // shadow the decomposed routes. Idempotent-guarded like the standard adapter.
-  if (!registry.lookup(kRVVMonolithicBlockDotRouteID)) {
-    if (llvm::Error error =
-            registry.registerExporter(TargetArtifactExporter(
-                kRVVMonolithicBlockDotRouteID,
-                plugin::rvv::getRVVSelectedBodyTargetArtifactKind(),
-                getRVVManifest().family.pluginName,
-                plugin::rvv::getRVVSelectedBodyEmissionKind(),
-                exportRVVMonolithicBlockDotTargetArtifact,
-                /*requiredRuntimeABIParameters=*/{},
-                getRVVTargetMapping().objectHandoffKind,
-                validateRVVMonolithicBlockDotTargetArtifactCandidate,
-                getRVVTargetMapping().bundleComponentGroup,
-                /*externalABIName=*/"")))
-      return error;
-  }
+  // P2-b chunk3: the honest monolithic ggml block-dot peer OBJECT routes, one per
+  // route family (super-block for q4_K; flat for q4_0/iq4_nl). Registered as bare
+  // object exporters (NOT header/object bundle composites) under their own route
+  // ids so coherence + target-artifact export recognize the monolithic-body plan
+  // without a composite that would shadow the decomposed routes. Idempotent-
+  // guarded like the standard adapter.
+  if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
+          registry, plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock,
+          exportRVVMonolithicSuperBlockBlockDotTargetArtifact))
+    return error;
+  if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
+          registry, plugin::rvv::MonolithicBlockDotRouteFamily::Flat,
+          exportRVVMonolithicFlatBlockDotTargetArtifact))
+    return error;
 
   return llvm::Error::success();
 }
