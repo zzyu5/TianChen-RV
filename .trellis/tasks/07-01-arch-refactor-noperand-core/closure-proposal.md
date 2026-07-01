@@ -17,16 +17,14 @@
 | [[06-26-gemm-op-builds-tooling]] | in_progress | **archive —— 意图拆分吸收** | `trackB-production-export`→**P1**(正是 q4_0/codebook production-export);`build-q80/q50-gemm`→**deferred perf** |
 | [[06-26-track-b-generic-lowering]] | in_progress | **archive —— 意图入 P2** | G1/G2 + 6-brick 见证 = done-history;full-kernel 泛化→**P2** |
 | [[06-26-substrate-probe-hart]] | planning | **archive —— 意图入 P4** | 真硅片 probe + hart gate→**P4**(perf-free) |
-| [[06-26-n2-ime-gemm]] | planning | **archive —— 归 deferred perf** | board/decode-washout;IME GEMM perf = 自测收尾步 |
-| [[06-26-row2-beat-levers]] | planning | **archive —— 归 deferred perf** | cm4/cm5/cm6 beat 杠杆 = board perf;两轴纪律下非 refactor 判据 |
-| [[06-26-winA-parity-bricks]] | in_progress | **archive —— 归 deferred perf** | wa1/wa2 已在 06-30 session 做;wa 砖 = board parity perf |
-| [[06-26-table-retest-fill]] | planning | **archive —— 归 deferred perf** | 表重测/填 = perf 自测的一部分,板刚换要整批重测 |
+| [[06-26-n2-ime-gemm]] | planning | **archive —— 意图入指标②/③** | IME GEMM payload = N2 payload(指标②)+ 跨 family benchmark(指标③ finale) |
+| [[06-26-row2-beat-levers]] | planning | **archive —— 意图入指标②/③** | cm4/cm5/cm6 beat = mechanism-synthesized 形状(指标② beat)+ 指标③ 证 |
+| [[06-26-winA-parity-bricks]] | in_progress | **archive —— 意图入指标③** | wa1/wa2 已做;wa 砖 = 指标③ coverage sweep 的 parity 格 |
+| [[06-26-table-retest-fill]] | planning | **archive —— 意图入指标③** | 表重测/填 = 指标③ finale 的诚实表(重构后整批重测) |
 
-## "deferred perf 自测" 去哪
+## perf 去哪(不再是独立 deferred task)
 
-上面 4 个归 deferred-perf 的 task,**不是丢掉**——它们的意图归入**一个独立的、未来的性能自测 task**(见 [[07-01-arch-refactor-noperand-core]] Out-of-Scope + [[06-26-research-realign-maturity-roadmap]] journal §5)。那个 perf task **在架构重构完成后、按需另起**(板刚换 = 新 rvv 211.87.236.28/openEuler;一致 7B 模型;correctness-before-timing;kernel-micro 与 e2e 分报;naive/scalar 绝不当贡献倍数)。**本次不建它**(重构先行,重构会 invalidate 一堆 perf 格,先测是浪费)。
-
-> ⚠ 若用户希望 deferred-perf 也现在就落成一个占位 parent task(而非等重构后再起),这是一个可选的第三决定——默认**不建**,等重构后按需起。
+新 PRD 把性能实验做成**指标③——重构的 finale**(在①覆盖成熟、②机制落地之后跑)。所以上面 4 个 perf child 的意图**归入指标②/③**,不是"独立 deferred perf task"。它们 archive;perf 工作在重构的 ②(payload/beat)+ ③(finale)里发生。新板(211.87.236.28/openEuler)、一致 7B、correctness-before-timing、kernel-micro 与 e2e 分报、naive/scalar 绝不当贡献倍数;重构会 invalidate 一堆 perf 格,所以**重构后整批重测**(先测是浪费)。
 
 ## ⚠ 执行后的 stale-hook 提示(给下个 session)
 
