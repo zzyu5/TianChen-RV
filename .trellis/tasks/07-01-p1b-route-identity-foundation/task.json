@@ -1,9 +1,9 @@
 {
-  "id": "arch-refactor-noperand-core",
-  "name": "arch-refactor-noperand-core",
-  "title": "compiler 架构重构：N-operand route 统一(核) + 成熟度 consolidation(supersedes compiler-maturity-retest)",
+  "id": "p1b-route-identity-foundation",
+  "name": "p1b-route-identity-foundation",
+  "title": "P1b: ContractionRouteIdentity 基建 header+registry(现有 N=2 路, 零 binary diff)",
   "description": "",
-  "status": "in_progress",
+  "status": "planning",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,11 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "07-01-p1a-noperand-route-identity-design",
-    "07-01-p1b-route-identity-foundation"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "07-01-arch-refactor-noperand-core",
   "relatedFiles": [],
   "notes": "",
   "meta": {}
