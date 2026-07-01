@@ -182,6 +182,14 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {tcrv::rvv::GgmlBlockDotQ4KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q4_k_q8_k_block_dot",
        &monolithicBlockDotABI4},
+      // iq4_xs is the SUPER-BLOCK-CODEBOOK rung: it takes the SAME super-block
+      // route family as q4_K (the codebook is an OP attr consumed by the emitter,
+      // NOT a route-family concern -- the emission plan + target-export validator
+      // key only off op name -> family + kind/scale_model + ABI roles). Its 4-role
+      // ggml vec_dot ABI (n, s, vx, vy) matches q4_K's.
+      {tcrv::rvv::GgmlBlockDotIQ4XSQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
+       &monolithicBlockDotABI4},
       {tcrv::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided},
