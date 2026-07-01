@@ -1,5 +1,7 @@
 # P1c step 2: R1 结构 arity 派生(productSources[],N=2 byte-exact)
 
+> ✅ **DONE(2026-07-01)**:2a(`f246cc73` additive foundation)+ 2b(`7abd074f` identity-driven population)+ 2c(`46f2df0a` 结构 assert 派生)全 committed,各 trellis-check PASS,byte-exact(756/753/3 + md5 845ad91e/ebee2384)。**R1 侧 debt-B 消除**:route-family arity 全路径从 descriptor 派生。剩余 = P1d(R2 construction-protocol)+ P1e(C3 激活,消 open-items)。
+
 > 父 [[07-01-arch-refactor-noperand-core]] P1。承接 [[07-01-p1c-r1-route-family-derive]](step 1 = roles-derive abstraction proof DONE,commit `69fca055`)。**这是 R1 的结构完成**(仍 R1,不是 R2/P1d)。baseline HEAD = `69fca055`。
 >
 > ⚠ **byte-exact 风险面比 step 1 大**:动 `productSources[]` slice 存储 + load-binding + 结构 assert,其中 `lhsValue/rhsValue` 被 **~80 个非-product site** 读(clamp/select/convert/masked)。**绝不 blind-replace `lhsValue/rhsValue`**。
