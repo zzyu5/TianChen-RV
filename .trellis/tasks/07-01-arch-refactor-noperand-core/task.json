@@ -27,7 +27,8 @@
     "07-02-p1f-c4-codebook-activate",
     "07-02-p2a-dot-reduce-descriptor",
     "07-02-p2b-q4k-block-dot-wiring",
-    "07-02-p2c-blockdot-coverage"
+    "07-02-p2c-blockdot-coverage",
+    "07-02-p2d-common-flat-blockdot"
   ],
   "parent": null,
   "relatedFiles": [],
