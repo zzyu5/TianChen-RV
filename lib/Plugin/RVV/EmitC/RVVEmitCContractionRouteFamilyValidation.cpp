@@ -1363,6 +1363,22 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           resolvedProductRouteIdentity(analysis.slice))
     plan.runtimeABIOrder = getContractionProductReductionRuntimeABIOrder(
         *productRouteIdentity, plan.runtimeABIOrder);
+  // P2-a: the dot-reduce family reuses the SAME generic ABI-order derivation,
+  // keyed on the fused dot-reduce head descriptor. Gated on the NON-mask fused head
+  // (wideningDotReduceOp) so it covers the base + strided forms (both N=2, so the
+  // strip+reattach is idempotent -> byte-exact). The deferred-wide dot form is NOT
+  // reached here: its decomposed body carries a real slice.wideningProductOp, so the
+  // FIRST branch (resolvedProductRouteIdentity) already derived its order via the
+  // widening_product descriptor. The masked head is EXCLUDED here (wideningDot-
+  // ReduceOp null) -- its compare-input ABI prefix the generic derivation cannot
+  // reproduce (see RVVContractionRouteIdentity.cpp Route 7). Non-dot-reduce slices
+  // keep the runtime-control-plan order verbatim.
+  else if (analysis.slice.wideningDotReduceOp) {
+    if (const ContractionRouteIdentity *dotRouteIdentity =
+            resolvedDotReduceRouteIdentity(analysis.slice))
+      plan.runtimeABIOrder = getContractionProductReductionRuntimeABIOrder(
+          *dotRouteIdentity, plan.runtimeABIOrder);
+  }
   plan.targetLeafProfile =
       isProductReductionDequantClamp
           ? "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
@@ -3012,6 +3028,18 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
           resolvedProductRouteIdentity(slice))
     expectedRuntimeABIOrder = getContractionProductReductionRuntimeABIOrder(
         *productRouteIdentity, expectedRuntimeABIOrder);
+  // P2-a: mirror the same descriptor-driven ABI order for the non-mask fused dot-
+  // reduce head (base + strided; both N=2 -> idempotent -> byte-exact). The
+  // deferred-wide form resolves via the widening_product descriptor in the FIRST
+  // branch (its decomposed body carries a product op); the masked head is excluded
+  // (its compare-input prefix breaks the generic strip+reattach -- see
+  // RVVContractionRouteIdentity.cpp Route 7).
+  else if (slice.wideningDotReduceOp) {
+    if (const ContractionRouteIdentity *dotRouteIdentity =
+            resolvedDotReduceRouteIdentity(slice))
+      expectedRuntimeABIOrder = getContractionProductReductionRuntimeABIOrder(
+          *dotRouteIdentity, expectedRuntimeABIOrder);
+  }
   std::optional<llvm::StringRef> planID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
           slice.arithmeticKind);

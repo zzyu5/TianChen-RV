@@ -313,6 +313,31 @@ hasResolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
   return resolvedProductRouteIdentity(slice) != nullptr;
 }
 
+// P2-a: the resolved ContractionRouteIdentity descriptor for this slice's FUSED
+// dot-reduce head (tcrv_rvv.widening_dot_reduce / tcrv_rvv.masked_widening_dot_
+// reduce), or nullptr when the slice has no dot-reduce head. This is the dot-
+// reduce sibling of resolvedProductRouteIdentity -- kept SEPARATE (not folded
+// into it) because the product resolver has 6+ call sites beyond ABI-order, and
+// the dot-reduce family never populates a product-head field (its single-compute-
+// op guard records only wideningDotReduceOp/maskedWideningDotReduceOp), so the two
+// resolvers are mutually exclusive by construction. Only the non-mask head is
+// consumed by the generic ABI-order path (the masked head's compare-input prefix
+// is not byte-exact reproducible -- see the registry Route 7 note); the masked
+// head resolves here purely so the registered route-DATA has a lookup surface.
+inline const ContractionRouteIdentity *
+resolvedDotReduceRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
+  llvm::StringRef mnemonic;
+  if (slice.wideningDotReduceOp)
+    mnemonic = "tcrv_rvv.widening_dot_reduce";
+  else if (slice.maskedWideningDotReduceOp)
+    mnemonic = "tcrv_rvv.masked_widening_dot_reduce";
+  else
+    return nullptr;
+  // The dot-reduce heads' only supported kinds are signed (signed_widening_dot_
+  // reduce_add / signed_masked_widening_dot_reduce_add).
+  return getContractionRouteIdentity(mnemonic, /*isSigned=*/true);
+}
+
 inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getResult();

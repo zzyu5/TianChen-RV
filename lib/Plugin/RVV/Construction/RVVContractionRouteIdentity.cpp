@@ -257,6 +257,117 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
       table.push_back(std::move(r));
     }
 
+    // ======================================================================
+    // Route 6: tcrv_rvv.widening_dot_reduce, SIGNED (P2-a dot-reduce family)
+    // ----------------------------------------------------------------------
+    // The 2nd contraction sub-family: the widening dot-product reduction. Unlike
+    // the product-reduction chain (routes 1-5) which widens an i8 source through a
+    // vwmul product before reducing, the dot-reduce FUSES product+reduce into ONE
+    // typed op (tcrv_rvv.widening_dot_reduce). Its two multiplicand sources are the
+    // ALREADY-i16 dot inputs (source i16mf2 -> result i32m1), so the source c-type
+    // is "const int16_t *" (NOT the i8 pointer of the product-reduction family).
+    //
+    // This SINGLE descriptor serves the TWO op-kind FORMS whose route slice carries
+    // the fused widening_dot_reduce head (resolvedDotReduceRouteIdentity keys on
+    // slice.wideningDotReduceOp); the differing tail is FORM-owned via
+    // getContractionRuntimeABIOrder, exactly like routes 1/3 sharing a head:
+    //   - WideningDotReduceAdd              (tail acc,out,n)
+    //   - StridedInputWideningDotReduceAdd  (tail acc,out,n,lhs_stride,rhs_stride)
+    // The 3rd non-mask form -- WideningProductDeferredDotAccumulateReduceAdd -- shares
+    // the dot-reduce ROUTE IDENTITY/binding-plan but its REALIZED body decomposes the
+    // fused op into widening_product -> deferred_accumulate -> standalone_reduce, so
+    // its slice carries a real slice.wideningProductOp. It therefore resolves its
+    // ABI order through the EXISTING widening_product descriptor (route 1) via
+    // resolvedProductRouteIdentity -- already descriptor-driven pre-P2a, needing zero
+    // new work here. This descriptor is NOT consulted for the deferred form.
+    //
+    // ABI trio (abiRole / abiCName / abiCType) VERIFIED byte-for-byte vs the
+    // emitted route_operand_binding_operands + header signature of
+    // pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir:
+    //   lhs -> role "lhs-input-buffer", c-name "lhs", c-type "const int16_t *"
+    //   rhs -> role "rhs-input-buffer", c-name "rhs", c-type "const int16_t *"
+    // ONLY the ordered product-factor abiCName prefix ("lhs,rhs") is consumed --
+    // by getContractionProductReductionRuntimeABIOrder (P1 generic ABI-order),
+    // which is IDEMPOTENT for this N=2 route (strips the abstract lhs,rhs prefix,
+    // re-attaches the descriptor lhs,rhs, keeps the form tail) -> byte-exact.
+    //
+    // Roles-join trio (slotName / roleName / srcStripLabel) INFERRED (the dot-reduce
+    // head carries no multiplicand-roles metadata string; getContractionMultiplicand-
+    // RoleSummary is only consulted for the tcrv_rvv.widening_product head, never for
+    // this route). The tokens mirror the emitted materialized-use "dot-lhs"/"dot-rhs"
+    // and the i16mf2 dot-source strip; inert (no consumer keys on them).
+    {
+      ContractionRouteIdentity r;
+      r.headOpName = "tcrv_rvv.widening_dot_reduce";
+      r.isSigned = true;
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"lhs", /*roleName=*/"dot-lhs",
+          /*abiRole=*/"lhs-input-buffer", /*abiCName=*/"lhs",
+          /*abiCType=*/"const int16_t *", /*srcStripLabel=*/"src-i16mf2",
+          /*headOperandIndex=*/0, /*bodyStepPosition=*/0});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"rhs", /*roleName=*/"dot-rhs",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"rhs",
+          /*abiCType=*/"const int16_t *", /*srcStripLabel=*/"src-i16mf2",
+          /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
+      table.push_back(std::move(r));
+    }
+
+    // ======================================================================
+    // Route 7: tcrv_rvv.masked_widening_dot_reduce, SIGNED (P2-a, route-DATA ONLY)
+    // ----------------------------------------------------------------------
+    // The computed-mask dot-reduce head (ComputedMaskWideningDotReduceAdd +
+    // ComputedMaskStridedInputWideningDotReduceAdd). Registered as route-DATA to
+    // document the family's full shape, but DELIBERATELY NOT consumed by the P1
+    // generic ABI-order path -- and it CANNOT be, byte-exact: the computed-mask ABI
+    // order is "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n", i.e. the TWO compare-input
+    // sources PREFIX the dot multiplicands. getContractionProductReductionRuntimeABI-
+    // Order assumes the multiplicands are the abstract order's leading TWO tokens
+    // (it strips positions 0/1); here positions 0/1 are cmp_lhs/cmp_rhs, so the
+    // generic derivation would emit the wrong "lhs,rhs,lhs,rhs,acc,out,n". This is
+    // the irreducible structural divergence reported for the two computed-mask kinds
+    // -- their ABI order stays op-kind-keyed (getContractionRuntimeABIOrder). The
+    // ABI-order consumer gates on slice.wideningDotReduceOp precisely to EXCLUDE this
+    // masked head from the generic path.
+    //
+    // ABI trio VERIFIED vs pre-realized-selected-body-artifact-computed-masked-
+    // widening-dot-reduce-add.mlir (cmp_lhs/cmp_rhs const int32_t*, dot lhs/rhs
+    // const int16_t*). isMultiplicandFactor: only the two dot sources are genuine
+    // multiplicands; the two compare sources feed the mask, not the product.
+    // Roles-join trio INFERRED (inert, no consumer). All fields inert here.
+    {
+      ContractionRouteIdentity r;
+      r.headOpName = "tcrv_rvv.masked_widening_dot_reduce";
+      r.isSigned = true;
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
+          /*slotName=*/"cmp_lhs", /*roleName=*/"cmp-lhs",
+          /*abiRole=*/"lhs-input-buffer", /*abiCName=*/"cmp_lhs",
+          /*abiCType=*/"const int32_t *", /*srcStripLabel=*/"src-i32m1",
+          /*headOperandIndex=*/0, /*bodyStepPosition=*/0});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/false,
+          /*slotName=*/"cmp_rhs", /*roleName=*/"cmp-rhs",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"cmp_rhs",
+          /*abiCType=*/"const int32_t *", /*srcStripLabel=*/"src-i32m1",
+          /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"dot_lhs", /*roleName=*/"dot-lhs",
+          /*abiRole=*/"dot-lhs-input-buffer", /*abiCName=*/"lhs",
+          /*abiCType=*/"const int16_t *", /*srcStripLabel=*/"src-i16mf2",
+          /*headOperandIndex=*/2, /*bodyStepPosition=*/2});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"dot_rhs", /*roleName=*/"dot-rhs",
+          /*abiRole=*/"dot-rhs-input-buffer", /*abiCName=*/"rhs",
+          /*abiCType=*/"const int16_t *", /*srcStripLabel=*/"src-i16mf2",
+          /*headOperandIndex=*/3, /*bodyStepPosition=*/3});
+      table.push_back(std::move(r));
+    }
+
     return table;
   }();
   return registry;
@@ -668,6 +779,64 @@ bool contractionProductSourceBindingC4SelfCheck() {
     return false;
   if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "w"))
     return false;
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// OPTIONAL P2-a dot-reduce self-check (NOT wired into any emit path).
+//
+// Proves the P1 generic ABI-order derivation (getContractionProductReduction-
+// RuntimeABIOrder) reproduces the dot-reduce family's op-kind-keyed ABI orders
+// byte-for-byte from the registered widening_dot_reduce descriptor, for the TWO
+// forms whose slice carries the fused head (base / strided). The derivation is
+// IDEMPOTENT for this N=2 route -- it strips the abstract leading two multiplicand
+// tokens and re-attaches the descriptor's product-factor c-names (lhs,rhs),
+// preserving the form tail. (The 3rd non-mask form, the deferred-wide dot, resolves
+// via the widening_product descriptor -- its decomposed body carries a real product
+// op -- so it is NOT exercised here.) This is the correctness proof of the P2-a
+// ABI-order migration (byte-exact vs the retired literal constants). Also proves
+// the arity is 2 and the extra-factor labels are empty (so the N=2 route keeps the
+// unspliced role-step/canonical-order shape). Same pattern as the C3/C4 self-checks
+// above: defined + compiled + runnable off any emit path, never called from a
+// consumer.
+//===----------------------------------------------------------------------===//
+bool contractionDotReduceRouteIdentitySelfCheck() {
+  const ContractionRouteIdentity *route = getContractionRouteIdentity(
+      "tcrv_rvv.widening_dot_reduce", /*isSigned=*/true);
+  if (!route)
+    return false;
+  // N=2 dot sources (lhs, rhs) -> arity 2, no extra product factors.
+  if (getContractionProductFactorCount(*route) != 2)
+    return false;
+  if (!getContractionExtraProductFactorRoleLabels(*route).empty())
+    return false;
+  // base:     lhs,rhs,acc,out,n            (IDEMPOTENT strip+reattach).
+  if (getContractionProductReductionRuntimeABIOrder(*route, "lhs,rhs,acc,out,n") !=
+      "lhs,rhs,acc,out,n")
+    return false;
+  // strided:  the form tail carries the stride params; the descriptor prefix is
+  // still lhs,rhs -> byte-exact.
+  if (getContractionProductReductionRuntimeABIOrder(
+          *route, "lhs,rhs,acc,out,n,lhs_stride,rhs_stride") !=
+      "lhs,rhs,acc,out,n,lhs_stride,rhs_stride")
+    return false;
+
+  // The masked head is registered as route-DATA but is PROVABLY not byte-exact
+  // reproducible by the generic derivation: the compare-input prefix (cmp_lhs,
+  // cmp_rhs) occupies the abstract order's leading two tokens, so stripping them
+  // and re-attaching the dot multiplicands (lhs,rhs) yields the WRONG order
+  // "lhs,rhs,lhs,rhs,acc,out,n" (vs the true "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n").
+  // This asserts the divergence (documents why the masked kinds stay op-kind-keyed).
+  const ContractionRouteIdentity *masked = getContractionRouteIdentity(
+      "tcrv_rvv.masked_widening_dot_reduce", /*isSigned=*/true);
+  if (!masked)
+    return false;
+  if (getContractionProductFactorCount(*masked) != 2)
+    return false;
+  if (getContractionProductReductionRuntimeABIOrder(
+          *masked, "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n") ==
+      "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n")
+    return false; // must NOT reproduce -> confirms the irreducible divergence.
   return true;
 }
 
