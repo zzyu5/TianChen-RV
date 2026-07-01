@@ -1738,10 +1738,20 @@ llvm::Error verifyRVVRouteOperandBindingPlan(
           "' to bind runtime ABI role '" +
           support::stringifyRuntimeABIParameterRole(*expectedRole) +
           "' but found '" + role + "'");
-    if (!runtimeRoles.insert(role).second)
+    // P1e C3: key uniqueness on (runtime role, C ABI name) rather than the role
+    // alone. An N-operand contraction route (the offset-binary N=3 route) binds
+    // TWO rhs-input-buffer product sources (qlo/qhi) that share a runtime role but
+    // are disambiguated by descriptor (role, c-name) -- exactly the key the
+    // route-identity product-factor lookup uses. Every existing N=2 route has all
+    // -unique roles, hence all-unique (role, c-name) pairs, so this still rejects a
+    // genuinely duplicated binding and is byte-exact for those routes.
+    std::string roleCNameKey =
+        (role + llvm::StringRef("\x01", 1) + binding.parameter.cName).str();
+    if (!runtimeRoles.insert(roleCNameKey).second)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("route operand ABI binding plan validation for ") +
-          context + " found duplicate runtime ABI role '" + role + "'");
+          context + " found duplicate runtime ABI role '" + role +
+          "' / c-name '" + binding.parameter.cName + "'");
     if (binding.parameter.cName.empty() || binding.parameter.cType.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("route operand ABI binding plan validation for ") +

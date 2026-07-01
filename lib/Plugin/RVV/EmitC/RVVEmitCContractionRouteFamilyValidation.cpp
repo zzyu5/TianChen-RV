@@ -428,7 +428,9 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "runtime ABI order", plan.runtimeABIOrder,
-          getRVVSelectedBodyContractionRuntimeABIOrder(plan.operation)))
+          plan.usesOffsetBinaryProductReduction
+              ? llvm::StringRef("w,qlo,qhi,acc,out,n")
+              : getRVVSelectedBodyContractionRuntimeABIOrder(plan.operation)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "target leaf profile", plan.targetLeafProfile,
@@ -1263,6 +1265,17 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.configContractID = typedConfig.configContractID;
   plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  // P1e C3: the offset-binary (N=3) product-reduction route binds THREE
+  // multiplicands (w + qlo + qhi, the packed-i4 weight and the two plain-i8
+  // activation halves) instead of the N=2 lhs/rhs pair. Its runtime-ABI mirror
+  // order is therefore the actual front-door c-names of the descriptor-bound
+  // product sources (w,qlo,qhi) followed by the form-owned reduction tail
+  // (acc,out,n). Gated on the offset-binary head: every existing N=2 route keeps
+  // the runtime-control-plan order verbatim (dormant) -> byte-exact.
+  if (analysis.slice.offsetBinaryProductOp) {
+    plan.usesOffsetBinaryProductReduction = true;
+    plan.runtimeABIOrder = "w,qlo,qhi,acc,out,n";
+  }
   plan.targetLeafProfile =
       isProductReductionDequantClamp
           ? "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
@@ -1347,6 +1360,17 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  // P1e C3: the offset-binary N=3 route's SECOND rhs-input-buffer product source
+  // (qhi, descriptor slot 2) is projected into the runtime-ABI mirror right after
+  // the legacy lhs/rhs multiplicands and BEFORE the reduction tail (acc/out/n) --
+  // mirroring the emitted 6-arg signature order w,qlo,qhi,acc,out,n (the signature
+  // itself comes from the withVL op operands, not this list). Read by INDEX from
+  // the descriptor-bound productSources[2] so no new hardcoded construction route
+  // is introduced. Dormant for every N=2 route (offsetBinaryProductOp null) ->
+  // byte-exact.
+  if (analysis.slice.offsetBinaryProductOp &&
+      analysis.slice.productSources.size() > 2)
+    plan.runtimeABIParameters.push_back(analysis.slice.productSources[2].abi);
   if (plan.usesComputedMask) {
     plan.runtimeABIParameters.push_back(analysis.slice.dotLHSABI);
     plan.runtimeABIParameters.push_back(analysis.slice.dotRHSABI);
@@ -2757,6 +2781,14 @@ getExpectedRVVSelectedBodyContractionRouteOperandBindingRole(
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "rhs")
       return RuntimeABIParameterRole::RHSInputBuffer;
+    // P1e C3: the offset-binary N=3 product-reduction route binds a SECOND
+    // rhs-input-buffer product source (qhi) on the shared product-reduction-chain
+    // plan. It carries the same rhs-input-buffer runtime role as "rhs"; the two
+    // are disambiguated by descriptor (role, c-name), which the binding-plan
+    // duplicate check keys on. No N=2 route emits a "qhi" logical operand ->
+    // byte-exact.
+    if (logicalOperand == "qhi")
+      return RuntimeABIParameterRole::RHSInputBuffer;
     if (logicalOperand == "acc")
       return RuntimeABIParameterRole::AccumulatorInputBuffer;
     if ((planID == kRVVWideningProductReductionDequantizeOperandBindingPlanID ||
@@ -2817,6 +2849,15 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
   RVVRouteOperandBindingPlan plan;
   llvm::StringRef expectedRuntimeABIOrder =
       getContractionRuntimeABIOrder(slice.arithmeticKind);
+  // P1e C3: the offset-binary N=3 product-reduction route shares the
+  // WideningProductReduceAdd arithmetic kind with the N=2 nibble route, so the
+  // op-kind-keyed getContractionRuntimeABIOrder() cannot distinguish them. Its
+  // mirror order is the actual 6-parameter w,qlo,qhi,acc,out,n (the qhi 2nd
+  // rhs-input-buffer + the reduction tail). Gated on the offset-binary head so
+  // every existing WideningProductReduceAdd route keeps the lhs,rhs,acc,out,n
+  // literal -> byte-exact.
+  if (slice.offsetBinaryProductOp)
+    expectedRuntimeABIOrder = "w,qlo,qhi,acc,out,n";
   std::optional<llvm::StringRef> planID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
           slice.arithmeticKind);
@@ -2910,6 +2951,14 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
     addContractionRouteOperandBinding(
         plan, "rhs", slice.rhsABI,
         {"abi", "src-load", "wprod-rhs", sourceWidthUse, "hdr"});
+    // P1e C3: the offset-binary N=3 route binds the SECOND rhs-input-buffer
+    // product source (qhi, descriptor slot 2) as an additional multiplicand
+    // between rhs and the reduction tail, so the recorded runtime-ABI mirror
+    // order becomes w,qlo,qhi,acc,out,n. Dormant for N=2 routes -> byte-exact.
+    if (slice.offsetBinaryProductOp && slice.productSources.size() > 2)
+      addContractionRouteOperandBinding(
+          plan, "qhi", slice.productSources[2].abi,
+          {"abi", "src-load", "wprod-qhi", sourceWidthUse, "hdr"});
     addContractionRouteOperandBinding(
         plan, "acc", slice.accumulatorABI,
         {"abi", "seed", "wred", accumulatorWidthUse, "hdr"});

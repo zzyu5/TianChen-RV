@@ -562,6 +562,12 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   bool usesProductReductionChain = false;
   bool usesProductReductionDequantization = false;
   bool usesProductReductionDequantClamp = false;
+  // P1e C3: the offset-binary N=3 product-reduction route. It shares the
+  // WideningProductReduceAdd op-kind with the N=2 nibble route, so op-kind-keyed
+  // helpers cannot distinguish it; this marker carries the offset-binary fact onto
+  // the plan so the ABI-order mirror validators expect the 6-parameter
+  // w,qlo,qhi,acc,out,n order instead of the abstract N=2 lhs,rhs,acc,out,n order.
+  bool usesOffsetBinaryProductReduction = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;

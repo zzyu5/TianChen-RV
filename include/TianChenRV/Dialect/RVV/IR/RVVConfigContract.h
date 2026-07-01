@@ -164,6 +164,8 @@ getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
 getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();

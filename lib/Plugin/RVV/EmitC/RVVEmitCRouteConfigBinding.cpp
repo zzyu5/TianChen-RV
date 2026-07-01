@@ -4115,6 +4115,13 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       slice.memoryForm !=
           RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction)
     ordered.push_back(slice.rhsABI);
+  // P1e C3: the offset-binary N=3 route's SECOND rhs-input-buffer product source
+  // (qhi, descriptor slot 2) projects into the explicit runtime-ABI value list
+  // right after the legacy lhs/rhs multiplicands and before the reduction tail,
+  // matching the 6-parameter w,qlo,qhi,acc,out,n dialect ABI contract. Dormant for
+  // every N=2 route (offsetBinaryProductOp null) -> byte-exact.
+  if (slice.offsetBinaryProductOp && slice.productSources.size() > 2)
+    ordered.push_back(slice.productSources[2].abi);
   if (isWideningMAcc || isWideningDotReduce || isWideningProductReduce ||
       isStridedInputWideningDotReduce || isStandaloneReduction)
     ordered.push_back(slice.accumulatorABI);

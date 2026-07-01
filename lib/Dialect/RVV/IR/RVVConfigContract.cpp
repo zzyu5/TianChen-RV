@@ -873,6 +873,38 @@ getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters() {
+  // P1e C3: the offset-binary (N=3) packed-i4 x i8 product-reduction route. Its
+  // multiplicand list is w (packed-i4 weight, lhs-input-buffer) + qlo/qhi (the
+  // two plain-i8 activation halves, both rhs-input-buffer). The route projects all
+  // three descriptor-bound product sources plus the reduction tail, so the ABI
+  // contract this route must satisfy is the 6-parameter w, qlo, qhi, acc, out, n
+  // shape -- the signed widening product-reduction tail (acc, out, n) with the
+  // N=3 multiplicand head. This is the dialect mirror of the emitted 6-arg
+  // signature (whose arg order derives from the withVL op operands). Gated
+  // addition: dormant for every existing route (no other list uses w/qlo/qhi).
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "w", "const int8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "qlo", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "qhi", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1884,6 +1916,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     return llvm::Error::success();
   if (acceptsExpected(
           getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters()))
+    return llvm::Error::success();
+  if (acceptsExpected(
+          getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters()))
     return llvm::Error::success();
   if (acceptsExpected(
           getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters()))
