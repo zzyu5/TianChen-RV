@@ -1,7 +1,7 @@
 {
   "id": "emitter-l0-l3-infra",
   "name": "emitter-l0-l3-infra",
-  "title": "Emitter L0-L3 \u57fa\u5efa (emitVCall\u8bcd\u6c47\u8868 + widening-chain\u5355\u6e90\u4feem2bug + facts\u53e5\u67c4 + per-family\u8868)",
+  "title": "Emitter L0-L3 基建 (emitVCall词汇表 + widening-chain单源修m2bug + facts句柄 + per-family表)",
   "description": "",
   "status": "completed",
   "dev_type": null,
@@ -19,7 +19,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "06-26-compiler-maturity-retest",
+  "parent": null,
   "relatedFiles": [],
   "notes": "",
   "meta": {}

@@ -1,7 +1,7 @@
 {
   "id": "phase0-doc-spec-closure",
   "name": "phase0-doc-spec-closure",
-  "title": "Phase0: doc/spec \u8bda\u5b9e\u95ed\u73af (bank-null\u5ba1\u8ba1 + IME prefill \u52d8\u8bef + spec \u00a79 \u72b6\u6001 + routing\u5ba1\u8ba1)",
+  "title": "Phase0: doc/spec 诚实闭环 (bank-null审计 + IME prefill 勘误 + spec §9 状态 + routing审计)",
   "description": "",
   "status": "completed",
   "dev_type": null,
@@ -19,7 +19,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "06-26-compiler-maturity-retest",
+  "parent": null,
   "relatedFiles": [],
   "notes": "",
   "meta": {}
