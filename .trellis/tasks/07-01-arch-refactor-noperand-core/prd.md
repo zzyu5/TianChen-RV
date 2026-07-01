@@ -12,6 +12,16 @@
 
 用户定的三个交付指标:**① kernel 覆盖度 + 成熟 compiler ② 量化的、强的论文创新点(每个点理清:是什么、要怎样)③ 最终性能实验。** 下面三节 = 这三个指标的 endpoint 描述;第四节 = 达成它们的 pillar 执行计划。
 
+> ### 🎯 理想状态(north-star —— 我们瞄这、往这努力,非保守版;= dossier `notes/07`§1 full-strength ideal)
+> 一个成熟 compiler,其中——
+> 1. **可迁移 mechanism 成真且可证**:同一个 relation-bearing capability schema **原样**统一 **compile-time variant generation** 与 **runtime dispatch guard**,并**原样跨 compute-paradigm 边界(VLA-SIMD → whole-matrix MAC)复用**——不是结构上碰巧共享,而是**可证的 load-bearing 属性**(今天 IME 共享 `CapabilityDescriptor` 只是结构性的;理想 = 做成 demonstrated 属性:同一 relation-set 可证地同时驱动 compile-time generation 与 runtime guard,且可证不改地跨 paradigm 复用)。
+> 2. **N1 = 主动且可测量的 substrate**:能力 relation 在**真硅片 probe** 下(非 march/synthetic fact)驱动一个真决定,且驱动**全 zoo** 的 generation。
+> 3. **N2 = 跨 dependent-layering 泛化 + benchmarked payload(keystone)**:第二个 RISC-V family 在同一**不变** schema 下 branch-free 接纳,**且有 benchmarked payload**(IME GEMM 实测),**非 correctness-only**。
+> 4. **coverage**:generic 机制生成全 body-shape zoo(= 指标①)。
+> 5. **beat**:mechanism-synthesized 形状 e2e 更快(= 指标③)。
+>
+> **纪律(不违)**:①~⑤ 是 **target、重构往这努力**;逐点 status 在指标②标(**target 非 achievement**,不 smuggle premature claim)。**唯一 feasibility-gated = N2 的*完全独立*(非 RVV-implying)family**(硅片可能不存在)——那一项 scope 外,提一次;**N2 的 benchmarked-payload 部分在内、要做。** 下面指标② = 逐点把这些理想 × (现状 → 重构 trajectory → status)。
+
 ---
 
 ## 指标 ① —— 成熟 compiler 是什么(endpoint,coverage)
@@ -39,29 +49,29 @@
 
 ## 指标 ② —— 量化的强论文创新点,逐点耦合到重构(科研化)
 
-> 这是"把 journal 的科研分析**应用到**重构"。每点:**(a) 现状诚实(引 [[06-26-research-realign-maturity-roadmap]] journal + dossier `notes/07`§0 Correction,不重推) (b) "强"是什么(note-07 的 ceiling-raiser) (c) 重构交付什么把它做到 (d) status = in-progress via P_x。** ⚠ rigor:"强 = ceiling-raiser" 是 **target 非 achievement**;status 写 in-progress,不 smuggle premature claim。
+> 这是"把 journal 的科研分析**应用到**重构"。每点:**(a) 现状诚实(引 [[06-26-research-realign-maturity-roadmap]] journal + dossier `notes/07`§0 Correction,不重推) (b) 理想状态(north-star,= note-07 §1 full-strength ideal,见上 🎯) (c) 重构如何往理想努力 (d) status = in-progress via P_x。** ⚠ rigor:理想状态是 **target 非 achievement**;status 写 in-progress,不 smuggle premature claim。
 
 ### N1 —— capability substrate
 - **现状**:substrate、已 demote(queryable object 是 prior-art:DLTI/IREE-HAL/TVM/SubtargetFeature+TTI/FODA);novelty 只在跨 family conjunction;三个真洞 = probe "probes no hardware"、conflicts inert、implies mechanism-thin。可迁移原则是 **mechanism**(同一 relation-bearing schema 统一 compile-time generation + runtime guard、跨 paradigm 边界不改复用)**非 discovery**("扩展会 layer" 是 `SubtargetFeature.Implies` 已建模的)。
-- **"强"**:N1 **active on silicon**——真 probe 驱动一个真决定;且 relation-set 驱动**一条成熟广覆盖机制**的 generation(不是 5 砖),conjunction 在**全 zoo + 跨 family** fire。
+- **理想状态(north-star)**:N1 **active on silicon**——真 probe 驱动一个真决定;且 relation-set 驱动**一条成熟广覆盖机制**的 generation(不是 5 砖),conjunction 在**全 zoo + 跨 family** fire。
 - **重构交付**:P4(真 probe ingestion + relation 真 fire)+ P1/P2(N-operand generation + full-zoo 构造让能力事实驱动**每个** kernel 怎么造 = "active measured driver" 上规模)。
 - **status**:in-progress via **P1/P2/P4**。
 
 ### N2 —— 零-core-branch 跨 family admission(keystone)
 - **现状**:结构 **PROVEN**(grep-clean、K1 16/16 = 一个 4×4 tile 的 16 int32 字);但 IME implies RVV(矩阵 paradigm 挂 vector 核、非独立 family);payload correctness-only(无 benchmarked GEMM)。
-- **"强"**:那条**成熟机制**正是第二 family branch-free 接入的东西——广 RVV 覆盖 + IME 走同一路 强化"一条 common 路服务所有";再加 **benchmarked IME GEMM payload**(非仅正确)。
+- **理想状态(north-star)**:那条**成熟机制**正是第二 family branch-free 接入的东西——广 RVV 覆盖 + IME 走同一路 强化"一条 common 路服务所有";再加 **benchmarked IME GEMM payload**(非仅正确)。
 - **重构交付**:P2(IME 接入的成熟机制)+ IME GEMM payload(原在 deferred perf,现耦合进③)。**唯一 feasibility-gated 项 = 独立第三 family 硅片,在重构 scope 外**(硅片可能不存在;提一次,不作 frame)。
 - **status**:结构 PROVEN;payload in-progress via **P2 + ③**。
 
 ### N3 / Track-B —— 能力驱动构造 + tune(指标①的引擎)
 - **现状**:Track-B 真在整数核(4 前门/2 flip)、q4_K decomposable-未接、全 zoo 手写;N3 selector capability-**盲**(memoization + 静态 argmin)、corollary;dequant 现 production-e2e(export-lit tier,非硅封)。N3 独立 tuning **不 licensed**(弱于 TopHub/Roller/Welder)——残值 = capability-keyed 统一选择,realization 杠杆在 Track-B。
-- **"强"**:generic 机制生成**全 zoo**(= Track-B-full-kernel ceiling,指标①);resource-aware cost model 驱动 selection;**mechanism-synthesized beat**(综合一个 ggml 没手写的 within-kernel 形状、e2e 更快)。
+- **理想状态(north-star)**:generic 机制生成**全 zoo**(= Track-B-full-kernel ceiling,指标①);resource-aware cost model 驱动 selection;**mechanism-synthesized beat**(综合一个 ggml 没手写的 within-kernel 形状、e2e 更快)。
 - **重构交付**:P1(N-operand enabler)+ P2(full-zoo 构造 = coverage)+ P3(resource-aware cost + selection)+ beat 在 ③ 证。
 - **status**:in-progress via **P1/P2/P3 + ③**。
 
 ### 性能 beat
 - **现状**:vs ggml 自己 kernel = **parity-now**(q4_0 ~0.94×/q8_0 ~1.0×/q4_K 1.26× micro+manual-stamp);无 clean e2e beat;赢 naive 2.27–3.79× = 内部 sanity 绝非基线。
-- **"强"**:一个 mechanism-synthesized within-kernel 形状,e2e 快过 ggml 自己 kernel,两板。
+- **理想状态(north-star)**:一个 mechanism-synthesized within-kernel 形状,e2e 快过 ggml 自己 kernel,两板。
 - **重构交付**:P3(resource-aware selection 综合形状)+ ③ 证。
 - **status**:**target 非 achieved**,in-progress via **P3 + ③**。
 
