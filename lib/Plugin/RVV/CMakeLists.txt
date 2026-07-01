@@ -13,6 +13,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVRuntimeScalarMemorySelectedBodyRealizationOwner.cpp
   RVVSegment2MemorySelectedBodyRealizationOwner.cpp
   RVVCapabilityProfile.cpp
+  RVVContractionRouteIdentity.cpp
   RVVContractionPathSelection.cpp
   RVVLowerQuantContraction.cpp
   RVVExtensionPlugin.cpp
