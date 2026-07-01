@@ -35,7 +35,19 @@ spike 只**动态**到达 WALL 1(op 不识别),wall 2-4 是**静态**读码推�
 9. **WALL 2.7(实测新,当前)** `RVVEmitCContractionRouteFamilyValidation.cpp:~738` `requireRVVSelectedBodyContractionDerivedLeaf`(widening product leaf):`:1406-1409` 把 offset-binary relation 喂 `getContractionWideningProductIntrinsic` → 返 `{}`(不认此 relation)→ `plan.wideningProductIntrinsic` 空 → leaf validator fire。**R1-side leaf-intrinsic derivation gap**(非 validator/arity;emitter/facts-adjacent)。fix shape(agent 建议):镜像 q4_0 nibble 先例 —— 其 compound lowering 仍报 config-derived signed `__riscv_vwmul_vv_i16mf2` leaf(那是其底层 widening step);offset-binary 链 `vxor→vsll/vsra→vwmul/vwmacc→vwredsum` 同样 i8mf4→i16mf2 widen,故 gated 用 signed config relation 派生 leaf = byte-exact-for-existing。leaf-facts 决策。
 10. **WALL 2.7** leaf-intrinsic —— ✅ W3b(offset-binary 路 leaf 从 signed config relation 派生 signed vwmul i16mf2,镜像 nibble,gated on offsetBinaryProductOp;byte-exact)。
 11. **WALL 2.9(实测新,当前)** `lib/Dialect/RVV/IR/RVVConfigContract.cpp:1754` `verifyRVVSelectedBodyRuntimeABIParameters`(fall-through `:1920`):offset-binary 的 6-param ABI order `w,qlo,qhi,acc,out,n` 不匹配任何 enumerated `acceptsExpected(...)`(最近 = 5-param 2-mult `lhs,rhs,acc,out,n` `:836`)。**RVV dialect runtime-ABI contract 子系统**(dialect 层,非 Plugin/EmitC)。这正是两轴的 **ABI tail 轴**(form-owned)在 dialect 合同层的体现:multiplicand 部分(w/qlo/qhi)descriptor-derived + tail(acc/out/n)form-owned。fix:enumerate/派生 offset-binary 的 N-mult ABI order,byte-exact-for-existing。
-12. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。
+12. **WALL 4(未到)** R2 construction-protocol(`getRVVCanonicalRoleOrder:8038` / `RVVConstructionProtocol.cpp`)。**C3 scope = gated addition**(识别 offsetBinaryProductOp、读 `productSources[k].buffer`、`appendWideningProductReduceAddRoleSteps` 按 arity 派生 load 数),**非** full descriptor-driven R2(见 leaves-for-later)。
+
+## 收敛判定(按 category,非 count)
+
+advisor:按 **kind** 数,非单个 gated addition。5 类已闭 / 2 类开:
+- ✅ recognition(1)· ✅ arity magic-number(2)· ✅ binding/routing(1)· ✅ validation string(relation-mirror + leaf-intrinsic,2)· ✅ structural(:3924,1)
+- ⬜ dialect ABI contract(当前 :1754)· ⬜ construction-protocol R2 · emitter 已 lower。
+spike undercount 因无法动态越过 WALL 1;count 惊讶是 baked-in、非 unbounded 信号。**bounded,~2-3 wall + finale。**
+
+## leaves for later(P1e 后续,**不**阻塞 C3;记下免丢)
+
+1. **qlo-先于-qhi 顺序依赖**(robustness):qhi 分支只在 `rhsLoadOperation` 已 set 时 fire;first-rhs 路仍 arrival-gated。fixture 确定(qlo→qhi)故对;若 emission 序反转会误绑。正解 = first-rhs 路也按 descriptor slot 派生(退 arrival gate)。风险 byte-exact,单独 robustness pass。
+2. **full descriptor-driven R2**(compiler-maturity):P1e 只对 offset-binary 做 **gated** R2(role-step/canonical-order 识别 offsetBinaryProductOp)。把**所有**构造路的 role-step generator 变成完全 descriptor-driven(退所有 per-form hardcode)= 独立 maturity task,非 P1e scope。
 
 **latent hazard(qhi 路由留)**:新 qhi 分支假设 **qlo 先于 qhi 绑**(只在 `rhsLoadOperation` 已 set 时 fire)。fixture 是 qlo→qhi 故对;若 qhi 先到,legacy first-rhs 路会误绑。W3/W4 泛化 first-rhs 路时定夺。
 
