@@ -1734,13 +1734,26 @@ llvm::Error validateRuntimeABIParameters(
 
     llvm::StringRef roleName =
         support::stringifyRuntimeABIParameterRole(parameter.role);
-    if (!seenRoles.insert(roleName).second)
+    // P1e C3 (N-operand core): key runtime-ABI-role uniqueness on (role, c_name)
+    // rather than the role alone, so an N-operand route (the offset-binary N=3
+    // route) may declare TWO rhs-input-buffer parameters (qlo/qhi) that share a
+    // runtime role but are disambiguated by their distinct C names -- the same
+    // (role, c-name) key the RVV route-operand binding-plan validator uses
+    // (lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp:1748) and the core emission
+    // manifest (lib/Target/EmissionManifest.cpp). Because c_name uniqueness is
+    // already enforced above via seenNames, every existing kernel has all-unique
+    // roles (hence all-unique (role, c-name) pairs), so this stays byte-exact and
+    // still rejects a genuinely duplicated (role, c_name) binding.
+    std::string roleCNameKey =
+        (llvm::Twine(roleName) + llvm::StringRef("\x01", 1) + parameter.cName)
+            .str();
+    if (!seenRoles.insert(roleCNameKey).second)
       return makeVariantEmissionPlanError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
               "' produced invalid emission plan: duplicate runtime ABI "
               "parameter role '" +
-              roleName + "'");
+              roleName + "' / c_name '" + parameter.cName + "'");
 
     if (llvm::Error error =
             validateBoundedPlanText(variant, kernel, role, plugin, plan,

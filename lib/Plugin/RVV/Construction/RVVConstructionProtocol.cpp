@@ -6337,11 +6337,25 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           unsignedProductReductionParameters =
               tcrv::rvv::
                   getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
+      // P1e C3 (offset-binary N=3): the offset-binary packed-i4 x i8 product-
+      // reduction route shares the widening_product_reduce_add mnemonic with the
+      // N=2 nibble route but projects the 6-parameter w,qlo,qhi,acc,out,n ABI
+      // shape (the qhi 2nd rhs-input-buffer). Accept its descriptor-derived
+      // parameter set as a third alternative -- the same acceptance the dialect
+      // runtime-ABI contract already grants (RVVConfigContract.cpp:1920-1922).
+      // Gated addition: strictly widens acceptance; every existing route still
+      // matches one of the two 5-parameter sets -> byte-exact for existing.
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          offsetBinaryProductReductionParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters();
       acceptsTypedI64Parameters =
           support::runtimeABIParametersEqual(facts.runtimeABIParameters,
                                              productReductionParameters) ||
-          support::runtimeABIParametersEqual(facts.runtimeABIParameters,
-                                             unsignedProductReductionParameters);
+          support::runtimeABIParametersEqual(
+              facts.runtimeABIParameters, unsignedProductReductionParameters) ||
+          support::runtimeABIParametersEqual(
+              facts.runtimeABIParameters, offsetBinaryProductReductionParameters);
     } else if (route->operationMnemonic ==
                "widening_product_reduce_dequantize_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>

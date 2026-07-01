@@ -3948,9 +3948,25 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts
       runtimeControlPlanID);
   TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "runtime AVL source", payload.runtimeAVLASource, runtimeAVLASource);
+  // P1e C3 (offset-binary N=3): the provider-owned primitive facts derive the
+  // config-keyed signed widening relation (signed-i8mf4xi8mf4-to-i16mf2), but
+  // the offset-binary route's payload carries its OWN op-owned canonical product
+  // relation (offset-binary-i4mf4-x-i8mf4x2-to-i16mf2, flowed from
+  // plan.wideningProductRelation via payload assignment above). For that route
+  // the mirror validates against the payload's own op-owned relation -- the same
+  // gated recognition the plan-level relation mirror uses
+  // (RVVEmitCContractionRouteFamilyValidation.cpp:704-715). Every existing
+  // route's payload relation equals the config-derived facts relation, so the
+  // gate never fires for them and this stays byte-exact.
+  constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
+      "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+  const llvm::StringRef expectedWideningProductRelation =
+      payload.wideningProductRelation == kRVVOffsetBinaryProductRelation
+          ? llvm::StringRef(payload.wideningProductRelation)
+          : llvm::StringRef(primitiveFacts.wideningProductRelation);
   TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "widening product relation", payload.wideningProductRelation,
-      primitiveFacts.wideningProductRelation);
+      expectedWideningProductRelation);
   TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
       "product-reduction chain relation",
       payload.productReductionChainRelation,

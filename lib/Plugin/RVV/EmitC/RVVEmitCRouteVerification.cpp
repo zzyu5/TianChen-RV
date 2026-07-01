@@ -721,8 +721,22 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   llvm::StringRef expectedRuntimeABIOrder = configContract.runtimeABIOrder;
   if (isContractionRoute) {
+    // P1e C3 (offset-binary N=3): getRVVSelectedBodyContractionRuntimeABIOrder()
+    // is keyed on the op kind alone, so it returns the 2-multiplicand
+    // "lhs,rhs,acc,out,n" order shared by every WideningProductReduceAdd route.
+    // The offset-binary route's actual descriptor runtimeABIOrder is the
+    // 6-parameter "w,qlo,qhi,acc,out,n" (the qhi 2nd rhs-input-buffer + the
+    // reduction tail). Gate the expected mirror on the op-owned canonical
+    // offset-binary product relation (the same signal the plan/description
+    // relation mirrors use) so every existing route keeps the op-kind-derived
+    // order -> byte-exact for existing routes.
+    constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
+        "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
     expectedRuntimeABIOrder =
-        getRVVSelectedBodyContractionRuntimeABIOrder(operationProfile.operation);
+        description.wideningProductRelation == kRVVOffsetBinaryProductRelation
+            ? llvm::StringRef("w,qlo,qhi,acc,out,n")
+            : getRVVSelectedBodyContractionRuntimeABIOrder(
+                  operationProfile.operation);
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::StridedAdd) {
     expectedRuntimeABIOrder = kRVVStridedRuntimeABIOrder;

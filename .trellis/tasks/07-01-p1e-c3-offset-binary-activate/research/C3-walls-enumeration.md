@@ -1,5 +1,8 @@
 # C3(N=3 offset-binary "qhi")wall 枚举 —— spike 结果(2026-07-01)
 
+> ## ✅✅ C3 EMITS END-TO-END(2026-07-01,payoff 达成)
+> 第一条 N=3 路端到端跑通:`w,qlo,qhi,acc,out,n` 6-arg `emitc.func`,三源全用对(w `vxor 0x88`→`vsll/vsra` 低/高 nibble;低 nibble × qlo `vwmul_i16mf2`;高 nibble × qhi `vwmacc_i16mf2`;`vwredsum_i32m1`→store)。**production-export emit ≡ CORE emit 逐字节相同**(emission-plan 路对正确 emission inert)。全程 byte-exact-for-existing(check-tianchenrv 756/753/3 全族 + md5 845ad91e/ebee2384)。总 wall = recognition→arity-magic(2)→qhi-routing→relation-mirror→:3924→leaf-intrinsic→ABI-projection-6-param(8 gated site + shared-validator)→R2-construction-protocol(14-step)→ABI-order-mirror 族(6 site,含 2 个 **noperand-core** framework `(role,c_name)` 松弛)。N-operand descriptor thesis 端到端验证。剩 W5 = 锁 e2e lit(756→757)。
+
 > 来源:bounded spike(agent a3d4a36d,in-tree self-reverting,git clean at `737dca9c`)。目的 = 用证据 scope P1e,不靠 speculation。父 [[07-01-arch-refactor-noperand-core]] P1。
 
 ## C3 candidate = 现存 offset-binary front door(非合成)

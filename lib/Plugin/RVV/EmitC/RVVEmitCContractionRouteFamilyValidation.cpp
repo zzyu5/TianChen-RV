@@ -1891,9 +1891,25 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           context, "family plan", description.contractionRouteFamilyPlanID,
           kRVVContractionRouteFamilyPlanID))
     return error;
+  // P1e C3 (offset-binary N=3): getRVVSelectedBodyContractionRuntimeABIOrder()
+  // is keyed on the op kind alone, so it returns the 2-multiplicand
+  // "lhs,rhs,acc,out,n" order shared by every WideningProductReduceAdd route.
+  // The offset-binary route's actual descriptor runtimeABIOrder is the
+  // 6-parameter "w,qlo,qhi,acc,out,n" (the qhi 2nd rhs-input-buffer + the
+  // reduction tail). Gate the expected mirror on the op-owned canonical
+  // offset-binary product relation -- the same signal the plan-level mirror at
+  // this file's :704-715 uses -- so every existing route keeps the op-kind-
+  // derived order and only the offset-binary route expects the 6-param order
+  // -> byte-exact for existing routes (mirror only fires on mismatch).
+  constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
+      "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+  llvm::StringRef expectedRuntimeABIOrder =
+      getRVVSelectedBodyContractionRuntimeABIOrder(description.operation);
+  if (description.wideningProductRelation == kRVVOffsetBinaryProductRelation)
+    expectedRuntimeABIOrder = "w,qlo,qhi,acc,out,n";
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "runtime ABI order", description.runtimeABIOrder,
-          getRVVSelectedBodyContractionRuntimeABIOrder(description.operation)))
+          expectedRuntimeABIOrder))
     return error;
   const bool supportsNarrowProductReductionChain =
       description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
@@ -2414,10 +2430,24 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             description.reductionResultLayout,
             kRVVProductReductionResultLayout))
       return error;
+    // P1e C3 (offset-binary N=3): the provider primitive facts derive the
+    // config-keyed signed widening relation, but the offset-binary route's
+    // description carries its OWN op-owned canonical product relation (flowed
+    // from the op's product_relation attr). Mirror the description's own
+    // relation for that route -- the same gated recognition the plan-level
+    // relation mirror at this file's :704-715 uses. Every existing route's
+    // description relation equals the config-derived facts relation, so the gate
+    // never fires for them -> byte-exact.
+    constexpr llvm::StringLiteral kRVVOffsetBinaryProductRelation(
+        "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2");
+    const llvm::StringRef expectedProductReductionWideningRelation =
+        description.wideningProductRelation == kRVVOffsetBinaryProductRelation
+            ? description.wideningProductRelation
+            : llvm::StringRef(primitiveFacts->wideningProductRelation);
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product relation",
             description.wideningProductRelation,
-            primitiveFacts->wideningProductRelation))
+            expectedProductReductionWideningRelation))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product multiplicand roles",
