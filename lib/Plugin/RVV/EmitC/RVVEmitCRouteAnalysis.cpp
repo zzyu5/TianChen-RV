@@ -8836,6 +8836,48 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     return 22u + clampTwoScopeExtra;
   }
   if (isWideningProductReduce) {
+    // P1e W4 (C3): the N=3 packed-i4 offset-binary route carries a THIRD
+    // multiplicand source (qhi) -- a 3rd runtime_abi_value inserted after rhs
+    // (canonical order 2) and a 3rd load inserted after rhs_load (order 10),
+    // shifting every trailing role order up. Assign the realized IR ops the orders
+    // that match the arity-3 14-step spec from
+    // appendWideningProductReduceAddRoleSteps. Gated on the offset-binary head
+    // (and the non-dequantize plain reduce path C3 exercises) so every existing
+    // arity-2 route keeps its byte-identical orders below.
+    const bool isOffsetBinary =
+        !isWideningProductReduceDequantize &&
+        static_cast<bool>(slice.offsetBinaryProductOp) &&
+        slice.productSources.size() >= 3;
+    if (isOffsetBinary) {
+      auto qhiABI = getRuntimeABI(slice.productSources[2].buffer);
+      if (rhsABI && op == rhsABI.getOperation())
+        return 1;
+      if (qhiABI && op == qhiABI.getOperation())
+        return 2;
+      if (accumulatorABI && op == accumulatorABI.getOperation())
+        return 3;
+      if (outABI && op == outABI.getOperation())
+        return 4;
+      if (nABI && op == nABI.getOperation())
+        return 5;
+      if (op == slice.setvl.getOperation())
+        return 6;
+      if (op == slice.withVL.getOperation())
+        return 7;
+      if (op == slice.lhsLoadOperation)
+        return 8;
+      if (op == slice.rhsLoadOperation)
+        return 9;
+      if (op == slice.productSources[2].loadOperation)
+        return 10;
+      if (op == productSlotOperation(slice))
+        return 11;
+      if (op == slice.arithmeticOp)
+        return 12;
+      if (op == slice.storeOperation)
+        return 13;
+      return 14;
+    }
     if (rhsABI && op == rhsABI.getOperation())
       return 1;
     if (accumulatorABI && op == accumulatorABI.getOperation())
@@ -9991,7 +10033,16 @@ llvm::Error verifySelectedRVVRoleSequence(
           : (slice.rhsLoadOperation
                  ? slice.rhsLoadOperation->getName().getStringRef()
                  : llvm::StringRef()),
-      routeSequenceContext);
+      routeSequenceContext,
+      // P1e W4 (C3): the N=3 packed-i4 offset-binary route shares the
+      // widening_product_reduce_add construction route (same operationMnemonic /
+      // typedComputeOpName as the arity-2 widening-product-reduce path), so the
+      // expected role-step spec cannot distinguish it from route/typedComputeOpName
+      // alone. Thread the offset-binary signal (the descriptor arity-3 head) so the
+      // role-step builder emits the 14-step spec (qhi runtime_abi + qhi load) that
+      // matches the realized body's canonical role orders. Every other route passes
+      // false and keeps the byte-identical 12-step spec.
+      static_cast<bool>(slice.offsetBinaryProductOp));
 }
 
 
