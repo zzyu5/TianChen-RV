@@ -185,6 +185,9 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {tcrv::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided},
+      {tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_q8_0_q8_0_block_dot",
+       &monolithicBlockDotABI8Strided},
       {tcrv::rvv::GgmlBlockDotIQ4NLQ80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_iq4_nl_q8_0_block_dot",
        &monolithicBlockDotABI4}};
