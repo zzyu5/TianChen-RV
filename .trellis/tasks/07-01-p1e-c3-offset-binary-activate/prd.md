@@ -19,7 +19,7 @@ registry 加候选 C3 路:head `tcrv_rvv.packed_i4_offset_binary_x_i8_product`,s
 
 ## 子步骤 W1→W4(顺序 gated,各自 trellis-implement→check,不 bundle)
 
-**顺序强制**:每 wall 挡住到达下一个(spike 证)。必须按序,各自 gate。
+**顺序强制 + 动态发现**:每 wall 挡住到达下一个。**W1 后实测:下一 wall 是 `RVVEmitCRouteAnalysis.cpp:6681` `genericLoads.size()!=2`(非 spike 预测的 config-binding `:2815`)**——spike 的 downstream 顺序是静态推断,真顺序**逐 wall 动态发现**(清一个→re-run→看下一个)。W2+ 的具体 site 以实测 error 为准;每个都是 `!=2`/`==2` 硬编码→从 `getContractionProductFactorCount(identity)` 派生,byte-exact-for-existing。见 `research/C3-walls-enumeration.md` 的"修正"节。
 
 ### W1 — op-recognition dispatch 识别 offset-binary op(R1-structural)
 - `RVVEmitCRouteAnalysis.cpp:1788-1803`(hatch)+ `:3140-3149`(config-binding recording)加 `dyn_cast<PackedI4OffsetBinary...ProductOp>` 分支,镜像 `PackedI4NibbleUnpackProductOp`(`:1730-1732`/`:3045-3051`)。

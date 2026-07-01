@@ -133,6 +133,58 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
       table.push_back(std::move(r));
     }
 
+    // ======================================================================
+    // Route 4: tcrv_rvv.packed_i4_offset_binary_x_i8_product, SIGNED (C3, N=3)
+    // ----------------------------------------------------------------------
+    // The first N=3 contraction route: the ggml Q4_0 x Q8_0 integer core, where
+    // ONLY the packed-i4 weight is nibble-decoded and the TWO plain-i8 q8
+    // activation halves (low/high) stay plain. The offset-binary op is
+    // PackedI4OffsetBinaryXI8ProductOp (three multiplicand operands: weight,
+    // activation_low, activation_high), lowered structurally by RVVToEmitC (no
+    // multiplicand-roles string read), so no existing hardcoded roles constant
+    // anchors it -- this descriptor is the sole registry source for the C3 route.
+    //
+    // ABI trio (abiRole / abiCName / abiCType) VERIFIED byte-for-byte vs the
+    // offset-binary front door RVVPackedI4DotSourceFrontDoor.cpp:571-579:
+    //   weight -> role "lhs-input-buffer", c-name "w",   c-type "const int8_t *"
+    //   qlo    -> role "rhs-input-buffer", c-name "qlo", c-type "const int8_t *"
+    //   qhi    -> role "rhs-input-buffer", c-name "qhi", c-type "const int8_t *"
+    // The TWO same-role rhs-input-buffer sources (qlo/qhi) are exactly why
+    // getContractionProductFactorSlotIndex disambiguates on BOTH (role, c-name):
+    // qlo -> slot 1, qhi -> slot 2 (see contractionProductSourceBindingC3SelfCheck).
+    //
+    // Roles-join trio (slotName / roleName / srcStripLabel) INFERRED (no
+    // front-door anchor exists -- the op carries no multiplicand-roles metadata
+    // string and W1 consumes none): structurally-descriptive tokens mirroring the
+    // weight/activation-low/activation-high operand names, src-i8mf4 matching the
+    // pinned i8mf4-i16mf2-i32m1 nibble integer core. NOT read on any W1 path; W4
+    // (the R2 construction-protocol role-step derive) is where the role-step
+    // ORDER is derived from these sources and confirmed -- not W1.
+    {
+      ContractionRouteIdentity r;
+      r.headOpName = "tcrv_rvv.packed_i4_offset_binary_x_i8_product";
+      r.isSigned = true;
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"weight", /*roleName=*/"wprod-weight",
+          /*abiRole=*/"lhs-input-buffer", /*abiCName=*/"w",
+          /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8mf4",
+          /*headOperandIndex=*/0, /*bodyStepPosition=*/0});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"activation-low", /*roleName=*/"wprod-activation-low",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"qlo",
+          /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8mf4",
+          /*headOperandIndex=*/1, /*bodyStepPosition=*/1});
+      r.sources.push_back(ContractionSourceSpec{
+          SourceKind::PerIterInputBufferLoad, /*isMultiplicandFactor=*/true,
+          /*slotName=*/"activation-high", /*roleName=*/"wprod-activation-high",
+          /*abiRole=*/"rhs-input-buffer", /*abiCName=*/"qhi",
+          /*abiCType=*/"const int8_t *", /*srcStripLabel=*/"src-i8mf4",
+          /*headOperandIndex=*/2, /*bodyStepPosition=*/2});
+      table.push_back(std::move(r));
+    }
+
     return table;
   }();
   return registry;
@@ -358,6 +410,55 @@ bool contractionProductSourceBindingSelfCheck() {
       return false;
   }
 
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
+// OPTIONAL P1e/W1 C3 self-check (NOT wired into any emit path).
+//
+// The N=2 sibling above cannot cover the C3 route: it asserts arity==2 and a
+// single lhs/rhs slot pair. C3 is the first N=3 route with TWO same-abiRole
+// (rhs-input-buffer) product-factor sources (qlo/qhi), so it is the first route
+// whose disambiguation genuinely EXERCISES the (abiRole, abiCName) join in
+// getContractionProductFactorSlotIndex -- role alone is ambiguous. This proves:
+// arity==3; weight/"w" -> slot 0; qlo/"qlo" -> slot 1; qhi/"qhi" -> slot 2 (the
+// two rhs-input-buffer sources split ONLY by c-name); and that a right-role /
+// wrong-c-name and a wrong-role / right-c-name binding both miss. Defined +
+// compiled + runnable off any emit path, never called from a consumer (same
+// pattern as contractionProductSourceBindingSelfCheck).
+//===----------------------------------------------------------------------===//
+bool contractionProductSourceBindingC3SelfCheck() {
+  const ContractionRouteIdentity *route = getContractionRouteIdentity(
+      "tcrv_rvv.packed_i4_offset_binary_x_i8_product", /*isSigned=*/true);
+  if (!route)
+    return false;
+  // Arity 3 = the productSources[] size the N=3 load-binding resizes to (W2/W3).
+  if (getContractionProductFactorCount(*route) != 3)
+    return false;
+  // weight binding -> slot 0.
+  std::optional<unsigned> weightSlot =
+      getContractionProductFactorSlotIndex(*route, "lhs-input-buffer", "w");
+  if (!weightSlot || *weightSlot != 0)
+    return false;
+  // qlo binding (rhs-input-buffer / "qlo") -> slot 1.
+  std::optional<unsigned> qloSlot =
+      getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "qlo");
+  if (!qloSlot || *qloSlot != 1)
+    return false;
+  // qhi binding (SAME rhs-input-buffer role, distinct c-name "qhi") -> slot 2.
+  // This is the (abiRole, abiCName) disambiguation the whole C3 route rests on.
+  std::optional<unsigned> qhiSlot =
+      getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "qhi");
+  if (!qhiSlot || *qhiSlot != 2)
+    return false;
+  // Right role, wrong c-name must miss (the c-name half of the disambiguation).
+  if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer",
+                                           "wrong-c-name"))
+    return false;
+  // Right c-name, wrong role must ALSO miss (the role half): "w" is bound to
+  // lhs-input-buffer, so it is not an rhs-input-buffer product factor.
+  if (getContractionProductFactorSlotIndex(*route, "rhs-input-buffer", "w"))
+    return false;
   return true;
 }
 

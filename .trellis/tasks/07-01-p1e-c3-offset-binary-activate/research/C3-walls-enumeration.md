@@ -14,7 +14,15 @@ op **已 lower 到 EmitC**(`lib/Conversion/RVV/RVVToEmitC.cpp:2838`;front-door C
 
 `getContractionProductFactorSlotIndex`(`RVVContractionRouteIdentity.cpp:216-236`)按 **abiRole AND abiCName** 匹配 → 两个 same-role 源(rhs-input-buffer/"qlo"→slot 1、rhs-input-buffer/"qhi"→slot 2)**已可消歧**。候选 N=3 registry entry(head `tcrv_rvv.packed_i4_offset_binary_x_i8_product`,signed;sources w/qlo/qhi,headOperandIndex 0/1/2)会正确 resolve。**wall 全在 un-migrated consumer,不在 descriptor。**
 
-## 4 个 wall(顺序 gated:每个挡住到达下一个)
+## ⚠ 修正(W1 落地后 2026-07-01):downstream 顺序是**动态发现**,非 spike 静态预测
+
+spike 只**动态**到达 WALL 1(op 不识别),wall 2-4 是**静态**读码推断(它无法越过 WALL 1 动态验证)。W1 关闭 WALL 1 后,**真正的下一个动态 wall 不是 spike 预测的 config-binding `:2815`**,而是:
+
+- **WALL 1.5(实测,W1 后首 fire)= `RVVEmitCRouteAnalysis.cpp:6681`**:`if (isWideningProductReductionChain && genericLoads.size() != 2)` → error `requires exactly two tcrv_rvv.load ops for i8 lhs and rhs`。C3 body 有 3 loads(w/qlo/qhi)→ 撞。这是 body 的实际 `tcrv_rvv.load` 计数 guard(独立于 recorder,任何识别路都撞),`size()!=2` 硬编码、结构上 W3-flavored 但 gate 在 config-binding `:2815` **之前**。
+
+**教训 + 方法调整**:C3 activation **逐 wall 动态清**(清一个 → re-run → 看下一个 → 清),不硬套 spike 的静态 W2/W3/W4 顺序。每个 wall-fix = `size()/count != 2` → 从 descriptor arity 派生(`getContractionProductFactorCount(identity)`),byte-exact-for-existing(N=2 判定逐字)。下面 spike 的 WALL 2/3/4 仍是真 wall(会依次撞),只是 `:6681` 插在最前。
+
+## 4 个 wall(spike 静态顺序;实际按上面动态发现调整)
 
 ### WALL 1 — op-recognition dispatch 不识别 op(R1-structural,**动态确证**,首 fire)
 - **site**:`RVVEmitCRouteAnalysis.cpp:1788-1803`(hatch dispatch)+ 并行 `:3140-3149`(config-binding recording dispatch)。最近 analogue = `PackedI4NibbleUnpackProductOp` `:1730-1732`/`:3045-3051`。

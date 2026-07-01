@@ -99,6 +99,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WideningAccumulateOp wideningAccumulateOp;
   tcrv::rvv::DeferredAccumulateOp deferredAccumulateOp;
   tcrv::rvv::PackedI4NibbleUnpackProductOp nibbleProductOp;
+  tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp offsetBinaryProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
@@ -243,7 +244,8 @@ struct RVVSelectedBodyRouteSlice {
 // other's null slot.
 inline bool hasProductHead(const RVVSelectedBodyRouteSlice &slice) {
   return static_cast<bool>(slice.wideningProductOp) ||
-         static_cast<bool>(slice.nibbleProductOp);
+         static_cast<bool>(slice.nibbleProductOp) ||
+         static_cast<bool>(slice.offsetBinaryProductOp);
 }
 
 // P1c2 step 2b: the resolved ContractionRouteIdentity descriptor for this
@@ -266,6 +268,11 @@ resolvedProductRouteIdentity(const RVVSelectedBodyRouteSlice &slice) {
   } else if (slice.nibbleProductOp) {
     mnemonic = "tcrv_rvv.packed_i4_nibble_unpack_product";
     isSigned = true;
+  } else if (slice.offsetBinaryProductOp) {
+    // The C3 N=3 offset-binary head is always signed (the op's only supported
+    // kind is signed_packed_i4_offset_binary_x_i8_product).
+    mnemonic = "tcrv_rvv.packed_i4_offset_binary_x_i8_product";
+    isSigned = true;
   }
   return getContractionRouteIdentity(mnemonic, isSigned);
 }
@@ -284,6 +291,9 @@ inline mlir::Value productSlotResult(const RVVSelectedBodyRouteSlice &slice) {
     return product.getResult();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getResult();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
+    return product.getResult();
   return mlir::Value();
 }
 
@@ -291,6 +301,9 @@ inline mlir::Value productSlotVL(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getVl();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
+    return product.getVl();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
     return product.getVl();
   return mlir::Value();
 }
@@ -301,14 +314,24 @@ productSlotOperation(const RVVSelectedBodyRouteSlice &slice) {
     return product.getOperation();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getOperation();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
+    return product.getOperation();
   return nullptr;
 }
 
+// For the C3 offset-binary head the N=2 "lhs"/"rhs" accessors map to the first
+// two multiplicand operands (slot 0 = weight, slot 1 = activation_low); the
+// THIRD operand (slot 2 = activation_high, the "qhi" source) is read through
+// productSlotSource(slice, 2), which is generalized in W3 (still null here).
 inline mlir::Value productSlotLhs(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getLhs();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getLhs();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
+    return product.getWeight();
   return mlir::Value();
 }
 
@@ -317,6 +340,9 @@ inline mlir::Value productSlotRhs(const RVVSelectedBodyRouteSlice &slice) {
     return product.getRhs();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getRhs();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
+    return product.getActivationLow();
   return mlir::Value();
 }
 
@@ -341,15 +367,21 @@ productSlotRelation(const RVVSelectedBodyRouteSlice &slice) {
     return product.getProductRelation();
   if (tcrv::rvv::PackedI4NibbleUnpackProductOp product = slice.nibbleProductOp)
     return product.getProductRelation();
+  if (tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product =
+          slice.offsetBinaryProductOp)
+    return product.getProductRelation();
   return llvm::StringRef();
 }
 
-// The product head is signed when it is the signed widening-product candidate or
-// the (always-signed) packed-i4 nibble-unpack candidate.
+// The product head is signed when it is the signed widening-product candidate,
+// the (always-signed) packed-i4 nibble-unpack candidate, or the (always-signed)
+// C3 packed-i4 offset-binary candidate.
 inline bool productSlotIsSigned(const RVVSelectedBodyRouteSlice &slice) {
   if (tcrv::rvv::WideningProductOp product = slice.wideningProductOp)
     return product.getKind() == "signed_widening_product";
   if (slice.nibbleProductOp)
+    return true;
+  if (slice.offsetBinaryProductOp)
     return true;
   return false;
 }

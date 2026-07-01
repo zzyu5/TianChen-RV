@@ -867,6 +867,40 @@ llvm::Error recordRVVSelectedBodyNibbleUnpackProduct(
   return llvm::Error::success();
 }
 
+// Record a typed signed packed-i4 OFFSET-BINARY x plain-i8 widening product as
+// the selected product head of the C3 (N=3) low-precision product-reduction
+// chain. Mirrors recordRVVSelectedBodyNibbleUnpackProduct but stores into
+// slice.offsetBinaryProductOp; the op has THREE multiplicand operands (weight +
+// two plain-i8 activation halves). The N=2 arithmeticLhs/arithmeticRhs slots
+// carry the first two (weight / activation_low); the third operand
+// (activation_high, the "qhi" source) is bound in W2 and threaded structurally
+// via the descriptor-driven productSources[] in W2/W3, not through the two
+// legacy arithmetic slots. As of W1 recording only MOVES the un-migrated
+// consumer error from op-recognition (WALL 1) to the 2nd rhs-input-buffer
+// uniqueness rejection (WALL 2); nothing yet binds the third source.
+llvm::Error recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp product) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (product.getKind() != "signed_packed_i4_offset_binary_x_i8_product" ||
+      product.getProductRelation() != "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic "
+                    "tcrv_rvv.packed_i4_offset_binary_x_i8_product kind '") +
+        product.getKind() +
+        "' for bounded RVV low-precision packed-i4 offset-binary x i8 product "
+        "route");
+  slice.offsetBinaryProductOp = product;
+  slice.arithmeticOp = product.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningProduct;
+  slice.arithmeticLhs = product.getWeight();
+  slice.arithmeticRhs = product.getActivationLow();
+  slice.arithmeticResult = product.getResult();
+  return llvm::Error::success();
+}
+
 llvm::Error recordRVVSelectedBodyWideningDotReduce(
     RVVSelectedBodyRouteSlice &slice,
     tcrv::rvv::WideningDotReduceOp dotReduce) {
@@ -1730,6 +1764,10 @@ llvm::Error recordRVVSelectedBodyScopedRouteOp(
   if (auto nibbleProduct =
           llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op))
     return recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct);
+  if (auto offsetBinaryProduct =
+          llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op))
+    return recordRVVSelectedBodyPackedI4OffsetBinaryProduct(slice,
+                                                            offsetBinaryProduct);
   if (auto dotReduce = llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op))
     return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
   if (auto maskedDotReduce =
@@ -3046,6 +3084,13 @@ llvm::Error collectGenericRouteSliceOps(
             llvm::dyn_cast<tcrv::rvv::PackedI4NibbleUnpackProductOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct))
+        return std::move(error);
+      continue;
+    }
+    if (auto offsetBinaryProduct =
+            llvm::dyn_cast<tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
+      if (llvm::Error error = recordRVVSelectedBodyPackedI4OffsetBinaryProduct(
+              slice, offsetBinaryProduct))
         return std::move(error);
       continue;
     }
