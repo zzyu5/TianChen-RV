@@ -2,7 +2,7 @@
 
 TianChen-RV is a **capability-driven, unified RISC-V MLIR execution layer** that sits *after* high-level MLIR. It does not introduce a new high-level tensor/tile IR, and it is not "one independent backend dialect per target." Instead it models RISC-V target capabilities (ISA extensions, VLEN/uarch, toolchain, runtime/offload) as first-class, queryable MLIR objects, and uses them to drive plugin-local variant generation, legality, selection, dispatch, tuning, and lowering across a single common pipeline.
 
-The long-term spec lives in [`.trellis/spec/`](.trellis/spec/index.md); read [`spec/index.md`](.trellis/spec/index.md) before changing design or code.
+The long-term spec lives in [`.trellis/spec/`](.trellis/spec/index.md); read [`spec/index.md`](.trellis/spec/index.md) before changing design or code. The paper-side research dossier (contributions, evidence ledger, threats, related work) lives out-of-tree under `papers/TianchenRV/`.
 
 ## Project spine
 
@@ -14,22 +14,32 @@ high-level MLIR op
   -> Gearbox: resource-aware tuning / selected-body realization
   -> plugin-built TCRVEmitCLowerableRoute -> common EmitC
   -> intrinsic / vendor builtin / runtime C/C++ -> clang -> target artifact
-  -> ssh rvv evidence when runtime/correctness/performance is claimed
+  -> hardware evidence when runtime/correctness/performance is claimed
 ```
 
-## Research contributions (what makes this more than plumbing)
+## Research contributions (calibrated — claims, with their honest boundaries)
 
-- **N1 — RISC-V extension heterogeneity as first-class capability IR.** RISC-V's à-la-carte ISA + vendor extensions + accelerators are combinatorial in a way x86/ARM are not. TianChen-RV models them as queryable capability objects with `provides`/`implies`/`conflicts` relations that drive variant legality and selection.
-- **N2 — zero-core-branch plugin generalization.** Adding an extension family is local: core/common passes route through capability queries and plugin interfaces, never `if RVV` / `if IME` branches. RVV is the first family; IME (matrix) and offload are intended to prove the same common path generalizes.
-- **N3 — capability/resource-aware cross-family tuning (Gearbox).** Capability objects don't only gate legality; they parameterize a resource-aware tuning space that turns a selected extension body into a tuned executable body — one mechanism reused across families.
+These are **claims to be demonstrated with evidence**, not assumed. "Variant containers" and "plugins" are architecture, not contributions — MLIR already provides them. The load-bearing contribution is a **conjunction**, not any single component; every conjunct in isolation is prior art.
 
-These are claims to be *demonstrated*, not assumed. "Variant containers" and "plugins" are architecture, not contributions — MLIR already provides them.
+- **N2 — zero-core-branch cross-family admission (the keystone, structurally PROVEN).** The single branch-free core absorbs **IME — a matrix-MAC engine — onto the RVV vector core through one unmodified capability schema**, with no `if RVV` / `if IME` family-name branch (grep-clean falsifier: 0 hits over `lib/` minus the IME plugin dir; dispatch is identity- and interface-based). This is the first *demonstrated* cross-family admission on RISC-V under one schema. **Honest boundary:** IME **implies RVV** and shares the V register file — it is a matrix *paradigm* on a vector core, **not** a register/ISA-independent family; the admission cost is "local-not-zero" (2 registration-table rows + ~2484 family-local LOC); the IME payload is **correctness-only** (K1 16/16 bit-exact — the 16 int32 words of one 4×4 MAC tile — no benchmarked GEMM yet).
+
+- **N1 — the capability substrate (NOT a standalone contribution).** RISC-V extensions are modeled as first-class `CapabilityDescriptor` objects with `provides`/`implies`/`conflicts` relations, queried by C++ passes (not string metadata). But the queryable-capability-object *itself* is anticipated on every axis (MLIR DLTI, IREE `#hal.executable.target`, TVM Target, LLVM `SubtargetFeature`+TTI, FODA's `requires`/`excludes`). **N1's only novelty is the conjunction** — one fine-grained fact-set drives generation+selection *and* is reused unchanged across a second family — defensible **only via N2**; strip the cross-family reuse and N1 collapses to pure engineering. The exportable framing is a *mechanism*, not a discovery: **one relation-bearing schema unifies compile-time variant generation with the runtime dispatch guard and is reused unchanged across a compute-paradigm boundary** (VLA-SIMD → whole-matrix MAC) — the thing FMV/IFUNC/`__riscv_hwprobe` (single-family, runtime-only, same-paradigm) cannot claim.
+
+- **Track B — generic capability-driven body construction (a bounded mechanism, real on integer cores).** The compiler auto-constructs kernel bodies from capability+shape facts rather than hand-writing them (TTGIR-shaped *in kind*, RISC-V-specialized). Real today: 4 production front doors auto-build integer cores byte-exact, 2 carrying real capability-driven LMUL flips (objdump-sealed on X60); the hardest K-quant (q4_K) is *proven-decomposable* (6-of-7 brick witnesses, byte-exact) **but not wired to production**; the full-kernel zoo (26 BlockDot ops / ~7,031 LOC) is still hand-written.
+
+- **N3 — capability-keyed selection (Gearbox) — a corollary of N1+N2, mechanism-thin.** Selection is keyed on the same fact-set, uniform across the two RISC-V families via the shared substrate. **Not a standalone tuning contribution** (strictly weaker than TopHub / Roller / Welder): the live path is offline memoization and the cold-start fallback is a **capability-blind** static argmin (a known maturity gap, honestly disclosed — not sold as "by design"). The capability-*driven* shape-realization lever lives in **Track B**, not the selector.
 
 ## Current status (honest)
 
-- **Real:** the `tcrv.exec` core dialect; a real C++ capability model (single-hop `provides`/`implies`/`conflicts`, queried by passes); a substantial typed `tcrv_rvv` vector dialect with verifiers; the RVV plugin (legality, selected-body realization, route provider); and a **live end-to-end RVV path** — `tcrv.exec` → typed `tcrv_rvv` body → Gearbox → MLIR EmitC → C/C++ → clang cross-compile → RISC-V object → `ssh rvv`. A packed-i4 dequant-contraction kernel has been generated, run on RVV hardware, and checked correct against a scalar oracle.
-- **Open / weak:** measured RVV speedups are currently **at or below scalar** — performance is the open N3 problem, not a solved feature. The capability model is real but shallow (no transitive closure / provider ranking yet). The Gearbox enumerates only a small fixed candidate set; making it genuinely resource-aware is in progress.
-- **Stub / future:** only RVV is a real family. `tcrv_scalar` is a reserved namespace with no active op; `tcrv_offload` is a single fail-closed handoff marker; IME does not exist yet. There is no high-level frontend (linalg→tcrv) — current input is hand-written TianChen-RV MLIR.
+- **Real / proven.** The `tcrv.exec` core dialect; a real C++ capability model (`provides`/`implies`/`conflicts`, queried by passes) reused unchanged across two families; a substantial typed `tcrv_rvv` vector dialect with verifiers; the RVV plugin (legality, selected-body realization, route provider); a **second real family, IME** (matrix MAC, 6 ODS ops, zero-core-branch admission, K1 16/16 bit-exact); and a **live end-to-end RVV path** — `tcrv.exec` → typed `tcrv_rvv` body → Gearbox → MLIR EmitC → C/C++ → clang cross-compile → RISC-V object → hardware. Track-B front doors auto-construct integer-core kernel bodies, checked byte-exact against scalar oracles.
+
+- **Performance (parity-now / beat-board-pending — evidence the substrate is real, NOT the contribution).** Against a *competent naive RVV* baseline the capability-driven wide-LMUL tune wins **2.27–3.79×** across 3 chips — but this is **internal sanity that the tune fires, never the contribution baseline**. Against **ggml's own RVV kernel** (the real baseline) the system is **parity-now**: q4_0 ~0.94×, q8_0 ~1.0×, one q4_K 1.26× micro-win that is manual-stamped (not auto-selected) and **does not clear the beat bar**. There is **no clean end-to-end beat vs ggml's own kernel yet**. All `rvv`-host perf cells are `board-pending` after a machine swap; kernel-micro wins are reported separately from e2e (a compute-bound kernel win does not transport to memory-bound decode).
+
+- **Recent (post-freeze) progress.** One Track-B body (the dequant `widening-product → reduce → dequantize` body) is now **production-reachable end-to-end and VLEN-general**: it exports through the full `--tcrv-materialize-emission-plans → --tcrv-rvv-lower-to-emitc` chain at **both VLEN128 (LMUL strip m2/m4) and VLEN256 (m1/m2)**, the strip flipping *structurally* with VLEN. This upgrades exactly one prior hedge ("Track-B witnesses not wired to production"). It is a **compiler-maturity / plumbing milestone at the export/lit tier — byte-identical and lit-verified, not yet objdump-sealed on silicon** — and it is *not* a new performance number, does *not* close the full-kernel-zoo gap, and does *not* upgrade the still-blind selector. Extending the same export to the next body (q4_0 offset-binary, a 3-input product head) is a *deliberate N-operand redesign* across multiple parallel 2-operand-assuming validators, banked as a known limit (see the task FINDING doc), not a clean follow-up.
+
+- **Open / weak (honest hedges).** The live `conflicts` set is inert (the only real conflicts are RVV0.7-vs-1.0, literature-only, and AME-vs-IME, no AME family exists); `implies` is mechanism-thin (no distinct core call site); capability is fed march/synthetic facts, **not a hardware probe** (the build pass self-states it "probes no hardware"); the cold-start cost model is capability-blind; the load-bearing full-kernel arithmetic stays largely per-kernel hand-written. The RISC-V-centric admission boundary (admit iff the capability is a RISC-V fact consumed zero-core-branch; exclude discrete GPU/TPU) is a **design principle the architecture is organized around, not a mechanized gate** — a discrete accelerator modeled as `kind="runtime-offload"` rides the same path (the falsifier fires); mechanizing an `isRiscV` gate is named future work (and must never be per-dispatch, which would break N2's zero-core-branch falsifier).
+
+- **Stub / future.** `tcrv_scalar` is a reserved namespace with no active op; `tcrv_offload` is a single fail-closed handoff marker. There is no high-level frontend (linalg→tcrv) — current input is hand-written TianChen-RV MLIR. A truly **RVV-independent** family (Zvk/Zb\*, or an AME matrix engine) is the named key future witness that would upgrade "paradigm" to "ISA-independent family" — feasibility-gated on such silicon existing.
 
 ## Repository layout
 
@@ -38,7 +48,7 @@ include/TianChenRV/   ODS/TableGen + headers (dialects, capability model, plugin
 lib/                  C++ implementation (dialects, passes, plugins, EmitC, target export)
 tools/                tcrv-opt, tcrv-translate
 test/                 lit/FileCheck + C++ tests
-scripts/              Python tooling: probes, runners, ssh-rvv evidence harnesses (tooling only)
+scripts/              Python tooling: probes, runners, ssh-hardware evidence harnesses (tooling only)
 .trellis/             project spec, tasks, and developer workspace
 ```
 
@@ -63,7 +73,7 @@ In-tree lit/FileCheck + C++ tests cover dialect syntax, verification, pass behav
 
 ## Hardware evidence
 
-The real hardware mainline is RVV 1.0 via `ssh rvv`. Any RVV correctness, runtime, or performance claim requires real `ssh rvv` evidence (correctness checked before timing; baseline and generated artifact on the same named target). Local CMake / `tcrv-opt` / lit checks are not runtime evidence.
+RISC-V correctness / runtime / performance claims require real on-device evidence (correctness checked before timing; baseline and generated artifact on the same named target). Local CMake / `tcrv-opt` / lit checks are not runtime evidence. The live hardware channel is currently `ssh k1` (SpacemiT X60, RVV1.0 + IME); the former `ssh rvv` host is board-pending after a machine swap. Non-interactive sessions must `source /opt/tcrv-toolchains/env.sh` first.
 
 ```bash
 python3 scripts/rvv_remote_probe.py   # records sanitized RVV host/toolchain capability facts

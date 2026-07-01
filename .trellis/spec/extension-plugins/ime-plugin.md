@@ -14,7 +14,8 @@ existing system supports RVV
 add IME plugin
 same validated scenario may gain an IME execution variant
 core pass does not hard-code IME
-core pass modifications remain small or zero when existing interfaces suffice
+zero core family-name branch (grep-clean proven: 0 hits over lib/ minus IME dir)
+admission cost is local-not-zero (2 registration rows + family-local LOC), NOT "zero core edits"
 ```
 
 ## Positioning

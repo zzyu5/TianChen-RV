@@ -2,6 +2,8 @@
 
 Capability 是系统第一对象（见 [core-invariants](../architecture/core-invariants.md) I1）。本文件定义它的来源、形态、关系和验证职责——这是 N1（RISC-V 扩展异构性作为 first-class capability IR）的契约。
 
+> ⚠ **N1 是 substrate，不是独立卖点**（见 [index](../index.md) 的 Novelty 段）。把能力建成可查询对象**本身** ≈ DLTI / IREE `#hal.executable.target` / TVM Target / LLVM `SubtargetFeature`+TTI / FODA `requires`/`excludes` 已做的工程。N1 的 novelty **只在**它是**跨 family 复用的同一 fact-set**——由 N2 的第二 family 证、由 N3 兑现；抽掉跨 family 复用，N1 就塌回纯工程。本契约定义 capability 的形态与职责，但**不**因此把"建模能力对象"本身当贡献。可迁移的表述是 *mechanism* 而非 *discovery*：同一 relation-bearing schema 统一 compile-time variant generation 与 runtime dispatch guard、并跨 compute-paradigm 边界不改地复用（不是"扩展会 layer"这个 `SubtargetFeature.Implies` 已建模的观察）。
+
 ## 它必须影响什么
 
 capability 对象必须能被 C++ MLIR pass 和插件查询，并影响：启用哪些插件、variant 提议 / 合法性、tuning 空间、cost 输入、selection、runtime dispatch、emission 路径选择、lowering 诊断、fallback 需求。它不是 prose / 裸字符串 / JSON-only 记录 / Python dict（见 I1）。

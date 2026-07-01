@@ -1,6 +1,6 @@
 # RVV Plugin
 
-RVV 是 TianChen-RV 当前的主真实硬件 family，也是第一个走通 typed-body → plugin-owned route → 公共 EmitC → `ssh rvv` 证据的完整 family。它是 N1/N2/N3 的第一个证据点，但 **RVV-first ≠ RVV-only**：同一套 plugin 协议要能让 IME / offload 复用（N2）。
+RVV 是 TianChen-RV 当前的主真实硬件 family，也是第一个走通 typed-body → plugin-owned route → 公共 EmitC → `ssh rvv` 证据的完整 family。它是 N1/N2/N3 的第一个证据点，但 **RVV-first ≠ RVV-only**：同一套 plugin 协议要能让 IME / offload 复用（N2）。（注：N1/N2/N3 **不是**三个 coequal 卖点——N1 是 substrate、非独立贡献，其 novelty 只在跨 family 复用同一 fact-set、由 N2 证；N3 是 N1+N2 的 corollary、mechanism-thin；见 [index](../index.md) Novelty 段。）
 
 durable 路径（authority chain，全项目唯一权威版本）：
 

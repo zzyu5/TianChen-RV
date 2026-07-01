@@ -39,7 +39,7 @@ TianChen-RV MLIR 不能变成：
 
 ```text
 TianChen-RV 是 high-level MLIR 之后的统一 RISC-V MLIR，组织 capability-scoped extension execution。
-Capability 对象驱动 variant 生成、legality、selection、dispatch、emission（N1）。
+Capability 对象驱动 variant 生成+selection、fail-closed-gate legality+dispatch（N1 是 substrate——novelty 只在跨 family 复用同一 fact-set、由 N2 证，别把"建模能力对象"本身当独立贡献；见 index Novelty 段）。
 RVV/IME/TensorExt/Offload/未来 vendor 是同一 TCRV 系统内的 extension family，core/common 不按 family 名分支（N2）。
 Gearbox 是 capability/resource-aware 的跨 family 调优层，把 selected body 变成调优过的可执行 body（N3）。
 当前 lowering route：extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++。
@@ -64,3 +64,7 @@ Sophgo 是 RISC-V custom ISA 扩展。
 repack / weight-packing / 算法选择当后端 N3 novelty（实为前端离线-prepack 类，见 system-positioning 的前端/后端判别）。
 发明 compiler-DRIVEN/harness-EXECUTED "第三类" 把 repack 升回后端 novelty。
 ```
+
+## 已知边界：wide-body 导出路的 product-head arity 是 2-operand
+
+生产 product-reduction 导出路的 route identity 现在是 **2-operand（lhs × rhs）**。这不是缺陷标记而是**边界事实**：能力驱动的 wide-body 导出（dequant body 已 VLEN128 m2/m4 + VLEN256 m1/m2 端到端可达）复用既有 2-operand head、只在 arity 内翻 LMUL 宽度。**N-operand product head**（如 q4_0 **offset-binary** 的 weight + 两个 plain-i8 activation 半 `qlo`/`qhi`，是 ggml q4_0_q8_0 format 的本质、不可 restructure 成 2-operand）是一次**跨多个平行 mirror-validator（route-family identity + construction-protocol conformance，可能还有 emit/role 层）的 deliberate N-operand route-identity 重设计**，**不是** fact-stamp follow-up。每-validator recon 见 [`production-export-wide-body-gap-FINDING.md`](../../tasks/06-26-compiler-maturity-retest/research/production-export-wide-body-gap-FINDING.md) DEEPEST 段（别在 spec 里 inline 7-step 细节）。**注**：公共 EmitC 的 operand-binding 契约本身是 N-ary 的（见 [emitc-route](../lowering-runtime/emitc-route.md)），这个重设计要满足的是它、不是收窄它。此为**工程成熟度**边界，不是 paper 主张的门槛。
