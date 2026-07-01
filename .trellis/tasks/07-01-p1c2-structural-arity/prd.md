@@ -45,7 +45,13 @@ R1 的**结构 arity 决策**从硬编码 2-operand 改成从 `getContractionRou
 
 ## DoD / byte-exact gate(每 sub-step)
 - forced clean relink(`rm -f build/bin/tcrv-opt build/bin/tcrv-translate && ninja`,[[build-incremental-unreliable]])+ 756 lit(753 pass / 3 pre-existing fail)BEFORE==AFTER + 429/429 RVV 子集。
-- dequant production-e2e md5 `845ad91e`(VLEN128)/`ebee2384`(VLEN256)不变。
+- dequant production-e2e md5 `845ad91e`(VLEN128)/`ebee2384`(VLEN256)不变。**本地可直接复现(无需 rvv host,2b check 证实)**:
+  ```
+  build/bin/tcrv-opt test/Target/RVV/non-deferred-wide-product-reduce-dequantize-f32-front-door-export-e2e.mlir \
+    --tcrv-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv \
+    --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | md5sum   # → 845ad91e...
+  # march=rv64gcv_zvl256b → ebee2384...(VLEN256)
+  ```
 - 5 board-sealed 砖 host-emit 不变。
 - 2a 额外:证 additive 字段无 live reader(zero-diff)。
 
