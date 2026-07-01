@@ -294,7 +294,7 @@ std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation,
     bool isUnsignedProductReduction, llvm::StringRef overrideSourceLMUL,
-    llvm::StringRef overrideProductLMUL) {
+    llvm::StringRef overrideProductLMUL, bool isCodebookAsymmetricSource) {
   const bool isProductReductionDequantClamp =
       operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
@@ -314,6 +314,15 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
     return std::nullopt;
   if (isUnsignedProductReduction && isProductReductionDequantization)
     return std::nullopt;
+
+  // P1f C4 codebook asymmetric-signedness: the u8 gather-index SOURCE is unsigned
+  // but the widening i16 product and the i32 reduction result stay SIGNED. Only
+  // the source dtype/signedness/extension/vector-type follow `sourceIsUnsigned`;
+  // the product/result/relations/kind/roles keep `isUnsignedProductReduction`.
+  // Every symmetric route leaves `isCodebookAsymmetricSource` false, so
+  // sourceIsUnsigned == isUnsignedProductReduction and the facts are byte-identical.
+  const bool sourceIsUnsigned =
+      isUnsignedProductReduction || isCodebookAsymmetricSource;
 
   // The deferred-wide (N3) realization runs the parallel WIDE ladder (source
   // i8m2, product i16m4) feeding the i32m8 deferred accumulate; the narrow
@@ -370,29 +379,26 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
           .str();
 
   facts.sourceElementTypeName =
-      getContractionIntegerElementTypeName(kSourceSEW,
-                                           isUnsignedProductReduction)
+      getContractionIntegerElementTypeName(kSourceSEW, sourceIsUnsigned)
           .str();
   facts.sourceSignedness =
-      (isUnsignedProductReduction
+      (sourceIsUnsigned
            ? llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessUnsigned)
            : llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessSigned))
           .str();
   facts.sourceLoadKind = kRVVLowPrecisionPrimitiveSourceLoadKind.str();
   facts.sourceExtensionKind =
-      (isUnsignedProductReduction
+      (sourceIsUnsigned
            ? llvm::StringRef(kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind)
            : llvm::StringRef(kRVVLowPrecisionPrimitiveSignedSourceExtensionKind))
           .str();
   facts.sourceSEW = kSourceSEW;
   facts.sourceLMUL = kSourceLMUL.str();
   facts.sourceVectorTypeName =
-      getContractionVectorTypeName(kSourceSEW, kSourceLMUL,
-                                   isUnsignedProductReduction)
+      getContractionVectorTypeName(kSourceSEW, kSourceLMUL, sourceIsUnsigned)
           .str();
   facts.sourceVectorCType =
-      getContractionVectorCType(kSourceSEW, kSourceLMUL,
-                                isUnsignedProductReduction)
+      getContractionVectorCType(kSourceSEW, kSourceLMUL, sourceIsUnsigned)
           .str();
 
   facts.productElementTypeName =
@@ -477,7 +483,8 @@ static std::optional<RVVWideningDotReduceRouteFacts>
 buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
                                     bool isUnsignedProductReduction,
                                     llvm::StringRef overrideProductSourceLMUL,
-                                    llvm::StringRef overrideProductLMUL) {
+                                    llvm::StringRef overrideProductLMUL,
+                                    bool isCodebookAsymmetricSource = false) {
   if (!isContractionDotReductionOperation(operation))
     return std::nullopt;
 
@@ -559,11 +566,16 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   RVVWideningDotReduceRouteFacts facts;
   facts.operation = operation;
   if (isProductReductionChain) {
+    // P1f C4: thread the codebook-asymmetric flag ONLY into the primitive facts
+    // (source u8, product/result signed). The rest of these route facts (leaf
+    // profile, cTypeMapping, element type names) stay on the signed path -- the
+    // codebook route's canonical facts ARE the signed ones, only its primitive
+    // source dtype/signedness/extension is unsigned. Byte-exact for symmetric routes.
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts =
             getRVVLowPrecisionWideningReductionPrimitiveFacts(
                 operation, isUnsignedProductReduction, kProductSourceLMUL,
-                kProductLMUL);
+                kProductLMUL, isCodebookAsymmetricSource);
     if (!primitiveFacts)
       return std::nullopt;
     facts.lowPrecisionWideningReductionPrimitiveFacts =
@@ -587,9 +599,17 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   }
   const bool usesUnsignedIntegerRoute =
       isProductReductionChain && isUnsignedProductReduction;
+  // P1f C4: the codebook route's SOURCE facts are u8 (the unsigned gather-index
+  // load) while the product/accumulator/result stay signed. Only the source
+  // element/vector/load-intrinsic fields follow sourceUsesUnsignedRoute; every
+  // symmetric route leaves the codebook flag false, so this collapses to
+  // usesUnsignedIntegerRoute and is byte-identical.
+  const bool sourceUsesUnsignedRoute =
+      usesUnsignedIntegerRoute ||
+      (isProductReductionChain && isCodebookAsymmetricSource);
   facts.sourceElementTypeName =
       getContractionIntegerElementTypeName(kSourceSEW,
-                                           usesUnsignedIntegerRoute);
+                                           sourceUsesUnsignedRoute);
   facts.accumulatorElementTypeName =
       getContractionIntegerElementTypeName(kResultSEW,
                                            usesUnsignedIntegerRoute);
@@ -786,7 +806,7 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
         getContractionStridedLoadIntrinsic(kSourceSEW, kSourceLMUL);
   facts.sourceVectorLoadIntrinsic =
       getContractionVectorLoadIntrinsic(kSourceSEW, kSourceLMUL,
-                                        usesUnsignedIntegerRoute);
+                                        sourceUsesUnsignedRoute);
   facts.compareVectorLoadIntrinsic =
       isProductReductionDequantClamp
           ? getContractionFloatVectorLoadIntrinsic(kResultSEW, kResultLMUL)
@@ -830,10 +850,10 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.vlCType = "size_t";
   facts.sourceVectorTypeName =
       getContractionVectorTypeName(kSourceSEW, kSourceLMUL,
-                                   usesUnsignedIntegerRoute);
+                                   sourceUsesUnsignedRoute);
   facts.sourceVectorCType =
       getContractionVectorCType(kSourceSEW, kSourceLMUL,
-                                usesUnsignedIntegerRoute);
+                                sourceUsesUnsignedRoute);
   if (isProductReductionChain) {
     facts.productVectorTypeName =
         getContractionVectorTypeName(kProductSEW, kProductLMUL,
@@ -1059,6 +1079,14 @@ static bool isUnsignedProductReductionRouteDescription(
   if (description.operation !=
       RVVSelectedBodyOperationKind::WideningProductReduceAdd)
     return false;
+  // P1f C4: the codebook route is asymmetric -- its u8 gather-index source makes
+  // lowPrecisionPrimitiveSourceSignedness "unsigned", but the widening product and
+  // reduction result are SIGNED, so the ROUTE facts (leaf profile / cTypeMapping /
+  // primitive facts) are the SIGNED ones. Exclude it from the fully-unsigned
+  // classification; detect via its op-owned relation. Byte-exact (no fully-unsigned
+  // route carries this relation).
+  if (description.wideningProductRelation == "codebook-gather-i8-x-i8x2-to-i16")
+    return false;
   return description.wideningProductRelation ==
              "unsigned-u8mf4xu8mf4-to-u16mf2" ||
          description.productReductionChainRelation ==
@@ -1085,10 +1113,16 @@ getRVVWideningDotReduceRouteFacts(
   // distinguish from the narrow i8mf4/i16mf2 chain) so the route's primitive facts
   // mirror the realized body (I5). The narrow/deferred descriptions carry their
   // op-kind-default LMUL, keeping those routes byte-identical.
+  // P1f C4: the codebook route's canonical facts are signed, but its primitive
+  // source is u8 (asymmetric). Detect the codebook via its op-owned relation and
+  // thread the asymmetric flag so the primitive source dtype mirrors the u8 body.
+  const bool isCodebookAsymmetricSource =
+      description.wideningProductRelation == "codebook-gather-i8-x-i8x2-to-i16";
   return buildRVVWideningDotReduceRouteFacts(
       description.operation,
       isUnsignedProductReductionRouteDescription(description),
-      description.sourceLMUL, description.productLMUL);
+      description.sourceLMUL, description.productLMUL,
+      isCodebookAsymmetricSource);
 }
 
 

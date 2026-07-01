@@ -520,6 +520,18 @@ constexpr llvm::StringLiteral kRVVLowPrecisionProductReductionResourceCandidateS
     "rvv-low-precision-product-reduction-resource-candidate-set.v1["
     "signed-i8mf4-i16mf2-i32m1:u1-vector-carry,"
     "unsigned-u8mf4-u16mf2-u32m1:u1-vector-carry]");
+// P1f C4 codebook: the ASYMMETRIC-SIGNED product-reduction family candidate set.
+// The codebook route enumerates the same signed/unsigned siblings PLUS its own
+// asymmetric candidate (u8 gather-index source, SIGNED i16 product / i32 result).
+// This is a DISTINCT set string so the plain signed/unsigned add routes keep the
+// two-entry set verbatim (their emitted low_precision_resource.candidate_set is
+// byte-untouched); only the codebook head selects this three-entry set.
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionCodebookProductReductionResourceCandidateSet(
+        "rvv-low-precision-product-reduction-resource-candidate-set.v1["
+        "signed-i8mf4-i16mf2-i32m1:u1-vector-carry,"
+        "unsigned-u8mf4-u16mf2-u32m1:u1-vector-carry,"
+        "codebook-u8mf4-i16mf2-i32m1:u1-vector-carry]");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceProductReductionAddSignedCandidate(
         "rvv-low-precision-direct-contraction-resource-candidate.v1["
@@ -528,6 +540,14 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate(
         "rvv-low-precision-direct-contraction-resource-candidate.v1["
         "product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]");
+// P1f C4 codebook: the asymmetric-signed product-reduction-add candidate. The
+// u8 gather-index source is unsigned; the widening i16 product and the i32
+// reduction result stay SIGNED (the gathered kvalues are signed). Selected only
+// on the codebook head so the signed/unsigned candidates above are untouched.
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddCodebookCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-add,codebook-u8mf4-i16mf2-i32m1,u1]");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason(
         "static-bounded-product-reduction-add-signed-i8mf4-i16mf2-i32m1-"
@@ -535,6 +555,10 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason(
         "static-bounded-product-reduction-add-unsigned-u8mf4-u16mf2-u32m1-"
+        "runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddCodebookSelectionReason(
+        "static-bounded-product-reduction-add-codebook-u8mf4-i16mf2-i32m1-"
         "runtime-avl");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantCandidate(
     "rvv-low-precision-direct-contraction-resource-candidate.v1["
@@ -1095,6 +1119,16 @@ inline bool isRVVLowPrecisionResourceCandidateSetMember(
                kRVVLowPrecisionResourceProductReductionAddSignedCandidate ||
            candidateID ==
                kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate;
+  // P1f C4: the codebook set enumerates the plain signed/unsigned siblings plus
+  // the asymmetric codebook candidate.
+  if (candidateSetID ==
+      kRVVLowPrecisionCodebookProductReductionResourceCandidateSet)
+    return candidateID ==
+               kRVVLowPrecisionResourceProductReductionAddSignedCandidate ||
+           candidateID ==
+               kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate ||
+           candidateID ==
+               kRVVLowPrecisionResourceProductReductionAddCodebookCandidate;
   if (candidateSetID != kRVVLowPrecisionResourceCandidateSet)
     return false;
   return candidateID == kRVVLowPrecisionResourceDequantCandidate ||
@@ -1112,6 +1146,8 @@ inline bool isRVVLowPrecisionResourceSelectedLegalCandidateID(
              kRVVLowPrecisionResourceProductReductionAddSignedCandidate ||
          candidateID ==
              kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate ||
+         candidateID ==
+             kRVVLowPrecisionResourceProductReductionAddCodebookCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantGroupedCandidate ||

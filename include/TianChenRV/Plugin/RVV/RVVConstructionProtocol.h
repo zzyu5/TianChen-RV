@@ -140,7 +140,8 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
     llvm::StringRef context,
-    bool isOffsetBinaryProductRoute = false);
+    bool isOffsetBinaryProductRoute = false,
+    bool isCodebookProductRoute = false);
 
 llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(

@@ -384,9 +384,16 @@ llvm::StringRef getContractionWideningProductRelation(
       sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
       resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
       resultLMUL == tcrv::rvv::getRVVLMULMF2();
+  // The P1f C4 codebook route adds a lighter wide rung: at VLEN256 its i8 gather
+  // strip anchors at mf2 (product i16m1), one EMUL step below the m1/m2 dequant
+  // rungs. Admit mf2 alongside m1/m2 -- still the structural "product ==
+  // next-wider(source)" rule (mf2 -> m1), NOT a per-VLEN branch (I5). No existing
+  // product-reduction route sources from mf2 (narrow is mf4, wide is m1/m2), so
+  // this is dormant for every existing relation.
   const bool isWideProduct =
       !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
+      (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
+       sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
        sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
       resultSEW == tcrv::rvv::getRVVSEW16Bits() &&
       resultLMUL == getRVVNextWiderLMUL(sourceLMUL);
@@ -428,9 +435,13 @@ llvm::StringRef getContractionProductReductionChainRelation(
       productLMUL == tcrv::rvv::getRVVLMULMF2() &&
       resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       resultLMUL == tcrv::rvv::getRVVLMULM1();
+  // Admit the P1f C4 codebook mf2 source rung (VLEN256: i8mf2 -> i16m1 -> i32m1)
+  // alongside the m1/m2 dequant rungs -- same structural next-wider rule, dormant
+  // for every existing route (none sources a product-reduction chain from mf2).
   const bool isWideChain =
       !isUnsigned && sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
-      (sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
+      (sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
+       sourceLMUL == tcrv::rvv::getRVVLMULM1() ||
        sourceLMUL == tcrv::rvv::getRVVLMULM2()) &&
       productSEW == tcrv::rvv::getRVVSEW16Bits() &&
       productLMUL == getRVVNextWiderLMUL(sourceLMUL) &&

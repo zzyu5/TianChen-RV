@@ -71,8 +71,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
               tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
               tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
               /*isUnsigned=*/true);
+  // The codebook route carries an UNSIGNED source signedness (u8 gather index) but
+  // is NOT a fully-unsigned chain (its product/result are signed) -- exclude it here
+  // so isUnsignedLowPrecisionIntegerResult stays false (i32 result). The codebook's
+  // unsigned SOURCE is threaded separately via isUnsignedLowPrecisionSourceProduct
+  // below. Every symmetric unsigned route keeps firing on the same conditions.
   const bool isUnsignedProductReductionChain =
-      isProductReductionChain &&
+      isProductReductionChain && !plan.usesCodebookProductReduction &&
       (plan.lowPrecisionPrimitiveSourceSignedness == "unsigned" ||
        plan.wideningProductRelation ==
            getContractionWideningProductRelation(
@@ -1451,7 +1456,8 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   // the descriptor-bound productSources[2] so no new hardcoded construction route
   // is introduced. Dormant for every N=2 route (offsetBinaryProductOp null) ->
   // byte-exact.
-  if (analysis.slice.offsetBinaryProductOp &&
+  if ((analysis.slice.offsetBinaryProductOp ||
+       analysis.slice.codebookGatherProductOp) &&
       analysis.slice.productSources.size() > 2)
     plan.runtimeABIParameters.push_back(analysis.slice.productSources[2].abi);
   if (plan.usesComputedMask) {
@@ -2043,10 +2049,25 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
       description.productLMUL == getRVVNextWiderLMUL(description.sourceLMUL) &&
       description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
       description.lmul == tcrv::rvv::getRVVLMULM1();
+  // P1f C4: the codebook plain reduce-add chain's FLIPPING i8 source ladder (mf2 ->
+  // i16m1 at VLEN256, m1 -> i16m2 at VLEN128; mf4 pruned so the gather spans the
+  // 16-entry table), per-iteration vwredsum to i32m1. Mirror the plan-level support;
+  // detect the codebook via its op-owned relation (the description has no boolean
+  // marker), gated to that relation so no other route loosens (I7).
+  const bool supportsCodebookProductReductionChain =
+      description.wideningProductRelation == kRVVCodebookProductRelation &&
+      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      (description.sourceLMUL == tcrv::rvv::getRVVLMULMF2() ||
+       description.sourceLMUL == tcrv::rvv::getRVVLMULM1()) &&
+      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == getRVVNextWiderLMUL(description.sourceLMUL) &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1();
   const bool supportsProductReductionChain =
       supportsNarrowProductReductionChain ||
       supportsDeferredWideProductReductionChain ||
-      supportsNonDeferredWideProductReductionChain;
+      supportsNonDeferredWideProductReductionChain ||
+      supportsCodebookProductReductionChain;
   if (usesProductReductionChain && !supportsProductReductionChain)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2550,17 +2571,25 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             description.wideningProductRelation,
             expectedProductReductionWideningRelation))
       return error;
+    // The widening product's multiplicand roles + extension policy follow the
+    // PRODUCT signedness, not the source signedness. For every symmetric route the
+    // two coincide (byte-identical). The P1f C4 codebook is the one asymmetric case:
+    // its u8 gather-index source is unsigned but the gathered-value widening product
+    // is SIGNED (i16), so its roles/policy stay signed.
+    const bool isUnsignedWideningProductDescription =
+        llvm::StringRef(primitiveFacts->productElementTypeName)
+            .starts_with("u");
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product multiplicand roles",
             description.wideningProductMultiplicandRoleSummary,
             getContractionMultiplicandRoleSummary(
                 "tcrv_rvv.widening_product",
-                /*isSigned=*/primitiveFacts->sourceSignedness != "unsigned")))
+                /*isSigned=*/!isUnsignedWideningProductDescription)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product extension policy",
             description.wideningProductExtensionPolicy,
-            primitiveFacts->sourceSignedness == "unsigned"
+            isUnsignedWideningProductDescription
                 ? llvm::StringRef(
                       kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
                 : llvm::StringRef(
@@ -2980,14 +3009,14 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
   RVVRouteOperandBindingPlan plan;
   llvm::StringRef expectedRuntimeABIOrder =
       getContractionRuntimeABIOrder(slice.arithmeticKind);
-  // P1e C3: the offset-binary N=3 product-reduction route shares the
-  // WideningProductReduceAdd arithmetic kind with the N=2 nibble route, so the
-  // op-kind-keyed getContractionRuntimeABIOrder() cannot distinguish them. Its
-  // mirror order is the actual 6-parameter w,qlo,qhi,acc,out,n (the qhi 2nd
-  // rhs-input-buffer + the reduction tail). Gated on the offset-binary head so
-  // every existing WideningProductReduceAdd route keeps the lhs,rhs,acc,out,n
-  // literal -> byte-exact.
-  if (slice.offsetBinaryProductOp)
+  // P1e C3 / P1f C4: the offset-binary AND codebook N=3 product-reduction routes
+  // share the WideningProductReduceAdd arithmetic kind with the N=2 nibble route,
+  // so the op-kind-keyed getContractionRuntimeABIOrder() cannot distinguish them.
+  // Their mirror order is the actual 6-parameter w,qlo,qhi,acc,out,n (the qhi 2nd
+  // rhs-input-buffer + the reduction tail). Gated on the two N=3 heads so every
+  // existing WideningProductReduceAdd route keeps the lhs,rhs,acc,out,n literal ->
+  // byte-exact.
+  if (slice.offsetBinaryProductOp || slice.codebookGatherProductOp)
     expectedRuntimeABIOrder = "w,qlo,qhi,acc,out,n";
   std::optional<llvm::StringRef> planID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
@@ -3082,11 +3111,12 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
     addContractionRouteOperandBinding(
         plan, "rhs", slice.rhsABI,
         {"abi", "src-load", "wprod-rhs", sourceWidthUse, "hdr"});
-    // P1e C3: the offset-binary N=3 route binds the SECOND rhs-input-buffer
-    // product source (qhi, descriptor slot 2) as an additional multiplicand
-    // between rhs and the reduction tail, so the recorded runtime-ABI mirror
-    // order becomes w,qlo,qhi,acc,out,n. Dormant for N=2 routes -> byte-exact.
-    if (slice.offsetBinaryProductOp && slice.productSources.size() > 2)
+    // P1e C3 / P1f C4: the N=3 offset-binary AND codebook routes bind the SECOND
+    // rhs-input-buffer product source (qhi, descriptor slot 2) as an additional
+    // multiplicand between rhs and the reduction tail, so the recorded runtime-ABI
+    // mirror order becomes w,qlo,qhi,acc,out,n. Dormant for N=2 routes -> byte-exact.
+    if ((slice.offsetBinaryProductOp || slice.codebookGatherProductOp) &&
+        slice.productSources.size() > 2)
       addContractionRouteOperandBinding(
           plan, "qhi", slice.productSources[2].abi,
           {"abi", "src-load", "wprod-qhi", sourceWidthUse, "hdr"});

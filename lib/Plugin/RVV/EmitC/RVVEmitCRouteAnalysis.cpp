@@ -8930,9 +8930,14 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     // appendWideningProductReduceAddRoleSteps. Gated on the offset-binary head
     // (and the non-dequantize plain reduce path C3 exercises) so every existing
     // arity-2 route keeps its byte-identical orders below.
+    // P1f C4: the codebook route is the SECOND N=3 head sharing this path. With its
+    // inert table_broadcast filtered out of the role sequence, its realized IR ops
+    // map to the SAME arity-3 14-step orders as C3 offset-binary (its head op is
+    // productSlotOperation() == the codebook_gather product). Gate on either N=3 head.
     const bool isOffsetBinary =
         !isWideningProductReduceDequantize &&
-        static_cast<bool>(slice.offsetBinaryProductOp) &&
+        (static_cast<bool>(slice.offsetBinaryProductOp) ||
+         static_cast<bool>(slice.codebookGatherProductOp)) &&
         slice.productSources.size() >= 3;
     if (isOffsetBinary) {
       auto qhiABI = getRuntimeABI(slice.productSources[2].buffer);
@@ -9652,6 +9657,15 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
       return;
     if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
       return;
+    // P1f C4: the codebook_table_broadcast is an inert ConstantTableLoad aux source
+    // (accounted separately in the op-count frame; its table operand is structurally
+    // validated against the codebook product). It is NOT a runtime_abi/load/compute/
+    // store role in the ordered dot-product-reduce chain, so it is excluded from the
+    // role sequence -- the codebook body's remaining ops then match the same N=3
+    // 14-step spec as the C3 offset-binary route. Dormant for every non-codebook
+    // route (no other body carries this op) -> byte-exact.
+    if (llvm::isa<tcrv::rvv::CodebookTableBroadcastOp>(op))
+      return;
     ordered.operations.push_back(&op);
     ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
   };
@@ -10120,15 +10134,16 @@ llvm::Error verifySelectedRVVRoleSequence(
                  ? slice.rhsLoadOperation->getName().getStringRef()
                  : llvm::StringRef()),
       routeSequenceContext,
-      // P1e W4 (C3): the N=3 packed-i4 offset-binary route shares the
+      // P1e W4 (C3) / P1f C4: the N=3 offset-binary AND codebook routes share the
       // widening_product_reduce_add construction route (same operationMnemonic /
       // typedComputeOpName as the arity-2 widening-product-reduce path), so the
-      // expected role-step spec cannot distinguish it from route/typedComputeOpName
-      // alone. Thread the offset-binary signal (the descriptor arity-3 head) so the
-      // role-step builder emits the 14-step spec (qhi runtime_abi + qhi load) that
-      // matches the realized body's canonical role orders. Every other route passes
-      // false and keeps the byte-identical 12-step spec.
-      static_cast<bool>(slice.offsetBinaryProductOp));
+      // expected role-step spec cannot distinguish them from route/typedComputeOpName
+      // alone. Thread the two N=3 head signals so the role-step builder emits the
+      // 14-step spec (qhi runtime_abi + qhi load, and the codebook_gather head op)
+      // that matches the realized body's canonical role orders. Every other route
+      // passes false/false and keeps the byte-identical 12-step spec.
+      static_cast<bool>(slice.offsetBinaryProductOp),
+      static_cast<bool>(slice.codebookGatherProductOp));
 }
 
 

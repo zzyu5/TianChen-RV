@@ -2144,7 +2144,8 @@ void appendWideningProductReduceAddRoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
-    bool isOffsetBinaryProductRoute) {
+    bool isOffsetBinaryProductRoute,
+    bool isCodebookProductRoute = false) {
     // P1e W4 (C3): the N=3 packed-i4 offset-binary route flows through this same
     // widening-product-reduce family (it canonicalizes to
     // widening_product+standalone_reduce), but its realized body carries a THIRD
@@ -2163,8 +2164,18 @@ void appendWideningProductReduceAddRoleSteps(
     // name so the realized role op matches the expected step (mirrors the
     // dequantize path's nibble-head selection). Byte-exact for arity-2 (stays
     // tcrv_rvv.widening_product).
+    // P1f C4: the codebook route is the SECOND N=3 head reusing this path; its
+    // realized head op is tcrv_rvv.codebook_gather_x_i8_product (the vrgather-decode
+    // asymmetric widening product). Select the matching head op name so the realized
+    // role op matches the expected step. Its inert table_broadcast aux is filtered
+    // out of the role sequence (see collectRVVRoleOperationsInBodyOrder), so its step
+    // list is otherwise byte-identical to the C3 offset-binary 14-step spec.
+    const bool isNthreeProductRoute =
+        isOffsetBinaryProductRoute || isCodebookProductRoute;
     const llvm::StringRef headOp =
-        isOffsetBinaryProductRoute
+        isCodebookProductRoute
+            ? llvm::StringRef("tcrv_rvv.codebook_gather_x_i8_product")
+        : isOffsetBinaryProductRoute
             ? llvm::StringRef("tcrv_rvv.packed_i4_offset_binary_x_i8_product")
             : llvm::StringRef("tcrv_rvv.widening_product");
     int order = 1;
@@ -2172,7 +2183,7 @@ void appendWideningProductReduceAddRoleSteps(
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
                      "rhs", order++});
-    if (isOffsetBinaryProductRoute)
+    if (isNthreeProductRoute)
       steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                        "rvv.role.runtime_abi.runtime_abi_value",
                        "TCRVResourceOpInterface",
@@ -2202,7 +2213,7 @@ void appendWideningProductReduceAddRoleSteps(
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "rhs_load", order++});
-    if (isOffsetBinaryProductRoute)
+    if (isNthreeProductRoute)
       steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                        "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                        "qhi_load", order++});
@@ -3624,7 +3635,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
     llvm::StringRef operationMnemonic,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
-    bool isOffsetBinaryProductRoute = false) {
+    bool isOffsetBinaryProductRoute = false,
+    bool isCodebookProductRoute = false) {
   const RVVSelectedBodyConstructionRoute *route =
       findRouteByOperationMnemonicRaw(operationMnemonic);
   if (!route)
@@ -4617,7 +4629,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   if (isWideningProductReduceAdd) {
     appendWideningProductReduceAddRoleSteps(steps, route, typedComputeOpName,
                           rhsSourceOperationName,
-                          isOffsetBinaryProductRoute);
+                          isOffsetBinaryProductRoute,
+                          isCodebookProductRoute);
     return steps;
   }
   if (isWideningDotReduceAdd) {
@@ -6349,13 +6362,24 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           offsetBinaryProductReductionParameters =
               tcrv::rvv::
                   getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters();
+      // P1f C4: the codebook N=3 route projects the same 6-parameter head as the
+      // offset-binary route but with an UNSIGNED u8 weight (w). Accept its
+      // descriptor-derived parameter set as a fourth alternative (mirrors the
+      // dialect runtime-ABI contract acceptance). Byte-exact for existing routes.
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          codebookProductReductionParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyCodebookProductReductionRuntimeABIParameters();
       acceptsTypedI64Parameters =
           support::runtimeABIParametersEqual(facts.runtimeABIParameters,
                                              productReductionParameters) ||
           support::runtimeABIParametersEqual(
               facts.runtimeABIParameters, unsignedProductReductionParameters) ||
           support::runtimeABIParametersEqual(
-              facts.runtimeABIParameters, offsetBinaryProductReductionParameters);
+              facts.runtimeABIParameters,
+              offsetBinaryProductReductionParameters) ||
+          support::runtimeABIParametersEqual(
+              facts.runtimeABIParameters, codebookProductReductionParameters);
     } else if (route->operationMnemonic ==
                "widening_product_reduce_dequantize_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>
@@ -6420,11 +6444,11 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
     llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName, llvm::StringRef context,
-    bool isOffsetBinaryProductRoute) {
+    bool isOffsetBinaryProductRoute, bool isCodebookProductRoute) {
   llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
       steps = buildRVVSelectedBodyExecutableRoleSteps(
           operationMnemonic, typedComputeOpName, rhsSourceOperationName,
-          isOffsetBinaryProductRoute);
+          isOffsetBinaryProductRoute, isCodebookProductRoute);
   if (!steps)
     return steps.takeError();
 

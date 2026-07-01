@@ -1930,12 +1930,19 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
 // `overrideSourceLMUL`/`overrideProductLMUL` (I5) so the primitive facts mirror the
 // realized wide strip. Empty overrides keep the op-kind-derived narrow/deferred
 // default (byte-identical for every existing caller/route).
+// `isCodebookAsymmetricSource` (P1f C4): the codebook route's u8 gather-index
+// SOURCE is unsigned while the widening i16 product and i32 reduction result stay
+// SIGNED (the gathered kvalues are signed). When true the source dtype/signedness/
+// extension become unsigned but the product/result/relations/kind stay signed
+// (`isUnsignedProductReduction` must be false). Every symmetric route leaves it
+// false, so the derivation is byte-identical for existing routes.
 std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation,
     bool isUnsignedProductReduction,
     llvm::StringRef overrideSourceLMUL = {},
-    llvm::StringRef overrideProductLMUL = {});
+    llvm::StringRef overrideProductLMUL = {},
+    bool isCodebookAsymmetricSource = false);
 
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,

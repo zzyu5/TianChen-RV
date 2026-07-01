@@ -905,6 +905,35 @@ getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyCodebookProductReductionRuntimeABIParameters() {
+  // P1f C4: the codebook-gather (N=3) product-reduction route. It shares the
+  // offset-binary N=3 multiplicand head (w + qlo/qhi) and reduction tail (acc,
+  // out, n), but its weight is the UNSIGNED u8 gather index -- so its w parameter
+  // is `const uint8_t *`, the one field that distinguishes it from the signed C3
+  // offset-binary list. Gated addition: dormant for every existing route (no other
+  // list uses an unsigned-w w/qlo/qhi head).
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "w", "const uint8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "qlo", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "qhi", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1919,6 +1948,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     return llvm::Error::success();
   if (acceptsExpected(
           getRVVSelectedBodyOffsetBinaryProductReductionRuntimeABIParameters()))
+    return llvm::Error::success();
+  if (acceptsExpected(
+          getRVVSelectedBodyCodebookProductReductionRuntimeABIParameters()))
     return llvm::Error::success();
   if (acceptsExpected(
           getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters()))

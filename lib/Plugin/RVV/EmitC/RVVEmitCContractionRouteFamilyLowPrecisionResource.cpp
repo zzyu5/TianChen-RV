@@ -68,11 +68,17 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceCandidate(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return kRVVLowPrecisionResourceStridedInputWideningDotCandidate;
-  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd) {
+    // P1f C4: the codebook head selects the asymmetric candidate BEFORE the
+    // signedness fork (its source signedness is unsigned, which would otherwise
+    // alias the plain unsigned candidate).
+    if (plan.usesCodebookProductReduction)
+      return kRVVLowPrecisionResourceProductReductionAddCodebookCandidate;
     return plan.lowPrecisionPrimitiveSourceSignedness ==
                    kRVVLowPrecisionResourceSourceSignednessUnsigned
                ? kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate
                : kRVVLowPrecisionResourceProductReductionAddSignedCandidate;
+  }
   if (plan.usesProductReductionDequantClamp)
     return kRVVLowPrecisionResourceDequantClampCandidate;
   if (plan.usesProductReductionDequantization)
@@ -92,6 +98,17 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceCandidateSet(
   return kRVVLowPrecisionResourceCandidateSet;
 }
 
+// P1f C4: the codebook route enumerates the three-entry asymmetric candidate set
+// (signed/unsigned/codebook siblings). The plain signed/unsigned add routes keep
+// the operation-keyed two-entry set verbatim, so their emitted
+// low_precision_resource.candidate_set stays byte-identical.
+llvm::StringRef getExpectedRVVLowPrecisionResourceCandidateSet(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesCodebookProductReduction)
+    return kRVVLowPrecisionCodebookProductReductionResourceCandidateSet;
+  return getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation);
+}
+
 llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
@@ -100,11 +117,14 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason;
-  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd) {
+    if (plan.usesCodebookProductReduction)
+      return kRVVLowPrecisionResourceProductReductionAddCodebookSelectionReason;
     return plan.lowPrecisionPrimitiveSourceSignedness ==
                    kRVVLowPrecisionResourceSourceSignednessUnsigned
                ? kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason
                : kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason;
+  }
   if (plan.usesProductReductionDequantClamp)
     return kRVVLowPrecisionResourceDequantClampSelectionReason;
   if (plan.usesProductReductionDequantization)
@@ -274,6 +294,24 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceSourceSignedness(
   if (!description.lowPrecisionPrimitiveSourceSignedness.empty())
     return description.lowPrecisionPrimitiveSourceSignedness;
   return kRVVLowPrecisionResourceSourceSignednessSigned;
+}
+
+// P1f C4: the description struct has no boolean codebook marker; like C3
+// offset-binary it is recognized by its op-owned canonical product relation
+// carried in the round-tripped payload. Byte-exact -- no symmetric route's payload
+// ever carries this relation, so this is false for every existing route.
+bool isRVVCodebookLowPrecisionRouteDescription(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.lowPrecisionPrimitiveRoutePayload.wideningProductRelation ==
+         llvm::StringLiteral("codebook-gather-i8-x-i8x2-to-i16");
+}
+
+// P1f C4: description-side codebook set selection (mirrors the plan overload).
+llvm::StringRef getExpectedRVVLowPrecisionResourceCandidateSet(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (isRVVCodebookLowPrecisionRouteDescription(description))
+    return kRVVLowPrecisionCodebookProductReductionResourceCandidateSet;
+  return getExpectedRVVLowPrecisionResourceCandidateSet(description.operation);
 }
 
 llvm::StringRef getExpectedRVVLowPrecisionResourceAccumulatorElementType(
@@ -511,14 +549,19 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
       !plan.lowPrecisionPrimitiveKind.empty())
     selection.primitiveKind = plan.lowPrecisionPrimitiveKind.str();
   if (plan.usesProductReductionChain) {
+    // P1f C4: the codebook route's unsigned source signedness would otherwise
+    // flip the primitive facts fully unsigned (u16 product/u32 result); its
+    // asymmetric flag keeps the source u8 while the product/result stay signed.
+    const bool isCodebook = plan.usesCodebookProductReduction;
     const bool isUnsignedPrimitive =
+        !isCodebook &&
         getExpectedRVVLowPrecisionResourceSourceSignedness(plan) ==
-        kRVVLowPrecisionResourceSourceSignednessUnsigned;
+            kRVVLowPrecisionResourceSourceSignednessUnsigned;
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts =
             getRVVLowPrecisionWideningReductionPrimitiveFacts(
                 plan.operation, isUnsignedPrimitive, plan.sourceLMUL,
-                plan.productLMUL);
+                plan.productLMUL, isCodebook);
     if (primitiveFacts) {
       if (selection.primitiveChainContractID.empty())
         selection.primitiveChainContractID = primitiveFacts->contractID;
@@ -763,7 +806,7 @@ deriveRVVLowPrecisionContractionResourceSelection(
 
   selection.hasSelection = true;
   selection.candidateSetID =
-      getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation).str();
+      getExpectedRVVLowPrecisionResourceCandidateSet(plan).str();
   selection.selectedCandidateID =
       getExpectedRVVLowPrecisionResourceCandidate(plan).str();
   selection.selectionReason =
@@ -2749,20 +2792,25 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
           selection.primitiveSourceExtensionKind,
           primitiveFacts.sourceExtensionKind))
     return error;
-  const bool isUnsignedPrimitive =
-      primitiveFacts.sourceSignedness ==
-      kRVVLowPrecisionResourceSourceSignednessUnsigned;
+  // The widening product's multiplicand roles + extension policy follow the
+  // PRODUCT signedness, not the source signedness. For every symmetric route the
+  // two coincide (source and product are both signed or both unsigned), so this is
+  // byte-identical. The P1f C4 codebook route is the one asymmetric case: its u8
+  // gather-index source is unsigned but the gathered-value widening product is
+  // SIGNED (i16), so its roles/policy stay signed.
+  const bool isUnsignedWideningProduct =
+      llvm::StringRef(primitiveFacts.productElementTypeName).starts_with("u");
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product multiplicand roles",
           selection.wideningProductMultiplicandRoleSummary,
           getContractionMultiplicandRoleSummary(
               "tcrv_rvv.widening_product",
-              /*isSigned=*/!isUnsignedPrimitive)))
+              /*isSigned=*/!isUnsignedWideningProduct)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product extension policy",
           selection.wideningProductExtensionPolicy,
-          isUnsignedPrimitive
+          isUnsignedWideningProduct
               ? llvm::StringRef(
                     kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
               : llvm::StringRef(
@@ -2834,13 +2882,15 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
           context, selection, "primitive source signedness",
           selection.sourceSignedness, expectedSourceSignedness))
     return error;
+  const bool isCodebookPlan = plan.usesCodebookProductReduction;
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               plan.operation,
-              expectedSourceSignedness ==
-                  kRVVLowPrecisionResourceSourceSignednessUnsigned,
-              plan.sourceLMUL, plan.productLMUL);
+              !isCodebookPlan &&
+                  expectedSourceSignedness ==
+                      kRVVLowPrecisionResourceSourceSignednessUnsigned,
+              plan.sourceLMUL, plan.productLMUL, isCodebookPlan);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -2960,13 +3010,17 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
           context, selection, "primitive source signedness",
           selection.sourceSignedness, expectedSourceSignedness))
     return error;
+  const bool isCodebookDescription =
+      isRVVCodebookLowPrecisionRouteDescription(description);
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               description.operation,
-              expectedSourceSignedness ==
-                  kRVVLowPrecisionResourceSourceSignednessUnsigned,
-              description.sourceLMUL, description.productLMUL);
+              !isCodebookDescription &&
+                  expectedSourceSignedness ==
+                      kRVVLowPrecisionResourceSourceSignednessUnsigned,
+              description.sourceLMUL, description.productLMUL,
+              isCodebookDescription);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -3554,6 +3608,11 @@ llvm::StringRef getRVVLowPrecisionPrimitiveKind(
 
 llvm::StringRef getRVVLowPrecisionPrimitiveSourceSignedness(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  // P1f C4 codebook: the u8 gather-index source is UNSIGNED even though the
+  // product/result stay signed (asymmetric). Gated on the codebook head so every
+  // other route keeps its relation-derived signedness verbatim.
+  if (plan.usesCodebookProductReduction)
+    return kRVVLowPrecisionResourceSourceSignednessUnsigned;
   if ((plan.usesWideningProduct || plan.usesProductReductionChain) &&
       plan.wideningProductRelation ==
           getContractionWideningProductRelation(
@@ -3575,6 +3634,11 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceLoadKind(
 
 llvm::StringRef getRVVLowPrecisionPrimitiveSourceExtensionKind(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  // P1f C4 codebook: the u8 gather-index source is zero-extended (unsigned) even
+  // though the signed widening product extends the gathered i8 values. Mirrors the
+  // unsigned source signedness above; gated on the codebook head.
+  if (plan.usesCodebookProductReduction)
+    return kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind;
   if ((plan.usesWideningProduct || plan.usesProductReductionChain) &&
       plan.wideningProductRelation ==
           getContractionWideningProductRelation(
@@ -4049,10 +4113,14 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
         " low-precision primitive route payload product-reduction boundary "
         "must mirror the validated provider route-family plan");
   if (plan.usesProductReductionChain) {
+    // P1f C4: the codebook route's asymmetric flag keeps the payload facts' source
+    // u8 while the product/result stay signed (byte-identical for symmetric routes,
+    // where the flag is false).
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
         primitiveFacts = getRVVLowPrecisionWideningReductionPrimitiveFacts(
             plan.operation, isRVVUnsignedLowPrecisionWideningProductPlan(plan),
-            plan.sourceLMUL, plan.productLMUL);
+            plan.sourceLMUL, plan.productLMUL,
+            plan.usesCodebookProductReduction);
     if (!primitiveFacts)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
@@ -4195,7 +4263,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
 
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "candidate set", selection.candidateSetID,
-          getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation)))
+          getExpectedRVVLowPrecisionResourceCandidateSet(plan)))
     return error;
   if (plan.usesProductReductionDequantization) {
     const RVVLowPrecisionContractionResourceOperation resourceOperation =
@@ -4466,10 +4534,11 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   const bool isClamp =
       description.operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isCodebookDescription =
+      isRVVCodebookLowPrecisionRouteDescription(description);
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "candidate set", selection.candidateSetID,
-          getExpectedRVVLowPrecisionResourceCandidateSet(
-              description.operation)))
+          getExpectedRVVLowPrecisionResourceCandidateSet(description)))
     return error;
   if (description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
@@ -4503,7 +4572,9 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
                   description.operation)
                 ? kRVVLowPrecisionResourceStridedInputWideningDotCandidate
             : isPlainProductReduction
-                ? (description.lowPrecisionPrimitiveSourceSignedness ==
+                ? (isCodebookDescription
+                       ? kRVVLowPrecisionResourceProductReductionAddCodebookCandidate
+                   : description.lowPrecisionPrimitiveSourceSignedness ==
                            kRVVLowPrecisionResourceSourceSignednessUnsigned
                        ? kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate
                        : kRVVLowPrecisionResourceProductReductionAddSignedCandidate)
@@ -4520,7 +4591,9 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
                   description.operation)
                 ? kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason
             : isPlainProductReduction
-                ? (description.lowPrecisionPrimitiveSourceSignedness ==
+                ? (isCodebookDescription
+                       ? kRVVLowPrecisionResourceProductReductionAddCodebookSelectionReason
+                   : description.lowPrecisionPrimitiveSourceSignedness ==
                            kRVVLowPrecisionResourceSourceSignednessUnsigned
                        ? kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason
                        : kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason)
