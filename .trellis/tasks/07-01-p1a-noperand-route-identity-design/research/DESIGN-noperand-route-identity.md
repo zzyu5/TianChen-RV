@@ -2,6 +2,26 @@
 
 > 6-agent grounding+design+critic workflow(`w14g44umv`,640K tok)产出。critic verdict = **revise-with-these-fixes**(核心机制 sound、非 rethink);本 doc = 折入 4 个 named fix 的**已修设计**,喂 1b–1f。所有 file:line 来自 clean baseline HEAD `868c9b02`。
 
+## ⚠ REVISION v2(2026-07-01,P1c prototype-first STOP 触发——两轴分离)
+
+**P1c 发现 P1a 把 abstraction 的两条正交轴混成了一个 descriptor。这是本设计的主修正,supersede 下面 §1/§4/§5 里"descriptor 拥 tail"的部分。** 详见 [[07-01-p1c-r1-route-family-derive]] `research/P1c-STOP-two-axis-finding.md`;advisor 核实 Path C = 正确的轴分离(非妥协)。
+
+**两条轴**:
+- **MULTIPLICAND / arity 轴 = head-owned = P1 的真债**:product 因子数 + 每 slot role + input-buffer runtime_abi + loads + **multiplicand-roles join**。这条跨多个 mirror-validator 硬编码 2(load-binding 拒第 2 rhs-input-buffer、productSlotLhs/Rhs、multiplicand-roles fact 2-entry、结构 assert)= q4_0 撞墙根。**byte-exact-derivable 已证**(1b self-check `joinMultiplicandRoles(signedWprod)`==常量逐字)。**descriptor 拥这条。**
+- **ABI TAIL 轴 = form-owned = 从来不是债**:acc/scale/out/n/clamp-bounds。**已按 form key**(`getContractionRuntimeABIOrder` `PlanOwners.cpp:602`);≥4 个 form 共享 head `widening_product` signed 各不同 tail(`Internal.h:196-205`)。加 dequant/clamp 变体 = **每 form 一处 route-level 数据**,非跨 N-mirror 重复。**descriptor 不拥这条,form 拥。**
+
+**改 §1 descriptor**:**删** `accSpec/outSpec/nSpec` + `productRelation/leafProfile`(它们 form-owned,head-keyed descriptor 装不下)。`ContractionRouteIdentity` = **只 multiplicand/arity 轴**(headOpName、isSigned、`sources[]`、reduceOpName、conditionalInserts)。1b 的 tail 字段是投机的且对 bare 形错(Route 1 混了 reduce-chain tail)——**1b 小修:strip tail 字段 + self-check 重跑 signed AND unsigned**。
+
+**`routeOperandBindingSummary` 留 form-owned(名言为何非债)**:加 C3 需 PlanOwners 里**一处** C3-form summary 条目 = route-level 数据,非 N-mirror 重复;且 multiplicand token 本就 form-diverge(`wprod-lhs` vs `wpl` vs `dot-lhs`)→"head-uniform multiplicand decoration"对 summary **从不成立**。Path C 接受这是 form-idiosyncrasy,别去 un-name 它。
+
+**改 §4 gate(两个不同 guarantee,都要名)**:(a) **multiplicand-roles fact** = head-owned、descriptor-**derived** → byte-exact 靠 **join-diff**(BEFORE/AFTER 逐字);(b) **routeOperandBindingSummary / ABI-triples / tail** = form-owned、**不被 1c 碰** → byte-exact 靠 **not-touched**(不同保证:非派生一致,是根本没动)。1c 的 derived-string diff surface **收窄到 multiplicand-roles fact**。
+
+**改 §5 1c 边界(现更简单)**:1c = **纯 arity 派生**——multiplicand-roles join + product-factor decoration + load-binding unique-slot + 结构 assert + `productSlotSource` accessor;**`routeOperandBindingSummary` + ABI tail 不碰**(form-owned,byte-exact-by-non-touch)。**ConditionalStep 推迟到 1d**(role-step order shift 才需;1c 的 arity 派生不需 scale-insert,因为 tail 不派生)。→ Route-3-scale resolve-item **消解**:scale 是 tail、form-owned、1c 不碰。
+
+**1d 继承(现在记,免 1d 重发现)**:role-step gen = **walk `descriptor.multiplicands` → append `form.tail_role_steps` → running order**(比 P1a 的单 descriptor-walk 更干净);`kSourceRoles` + `semanticRoleGraph`(critic-fix-#1)同样 **按轴 split**:arity 部分 descriptor-derived,tail 部分 form-owned。
+
+---
+
 ## 0. 关键 scope 发现:P1 只有 2 个子系统(非 3)
 
 **R3(emit/role-execution)= DENIED**:FINDING 估计的"第 3 validator"**不存在**为 arity blocker。真正的 emitter `lib/Conversion/RVV/RVVToEmitC.cpp`(`--tcrv-rvv-lower-to-emitc`)**已经**完全 structural/per-op:按 op TYPE dyn_cast 派发(offset-binary `:917`/codebook `:922`/`:927`),读 op 自己的 native operands(offset-binary `getWeight/getActivationLow/getActivationHigh` `:2853-2855`;codebook 4-operand `:2992-2995`),body walk 逐个 emit LoadOp(`:789`,**无 2-load cap**),LMUL/width 按 I5 从 op VectorType 派生。**C3/C4 今天就正确 emit**(checked-in FileCheck:`rvv-packed-i4-offset-binary-dot-source-front-door.mlir` CORE `@106-107` = vwmul+vwmacc 3-input;`rvv-codebook-gather-dot-source-front-door.mlir` CORE128/256 = vrgather×2 + VLEN flip)。

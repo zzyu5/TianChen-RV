@@ -1,6 +1,8 @@
 # P1b: ContractionRouteIdentity 基建(header + registry, 零 binary diff)
 
 > 父 [[07-01-arch-refactor-noperand-core]] P1 第 2 子任务。设计在 [[07-01-p1a-noperand-route-identity-design]] `research/DESIGN-noperand-route-identity.md`(**实现前必读**)。**这是 FOUNDATION:零 binary diff**——建数据结构 + registry,但**无任何 validator 读它**,故 trivially byte-exact。
+>
+> ⚠ **REVISION(2026-07-01,P1c STOP 后)**:1b 首版(commit `8c8bc496`)给 descriptor 装了 form-owned 的投机 tail 字段(`accSpec/outSpec/nSpec/reduceOpName/leafProfile`),P1c prototype-first 证明它们对 bare `widening_product` 形**错**(4 form 共享 head、tail 各异,head-keyed descriptor 装不下)。**这些字段在 [[07-01-p1c-r1-route-family-derive]] step 0 被 strip**,descriptor 收窄到 **只 multiplicand/arity 轴**(见该任务 PRD + DESIGN 顶部 REVISION v2)。self-check 同时补 unsigned 路(首版只测 signed)。
 
 ## Goal
 
