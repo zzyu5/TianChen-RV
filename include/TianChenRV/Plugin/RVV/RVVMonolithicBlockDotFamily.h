@@ -198,6 +198,20 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        &monolithicBlockDotABI8Strided},
       {tcrv::rvv::GgmlBlockDotIQ4NLQ80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_iq4_nl_q8_0_block_dot",
+       &monolithicBlockDotABI4},
+      // The three common legacy FLAT block-dot formats (P2-d): q4_1 (Family-B
+      // scale+MIN), q5_0 (Family-A 5-bit weight), q5_1 (Family-B 5-bit scale+MIN).
+      // All three carry the SAME 4-role ggml vec_dot ABI (n, s, vx, vy) as iq4_nl --
+      // the block-format delta (min/qh planes) is op structure the emitter consumes,
+      // NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotQ41Q81Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_q4_1_q8_1_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotQ50Q80Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_q5_0_q8_0_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotQ51Q81Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_q5_1_q8_1_block_dot",
        &monolithicBlockDotABI4}};
   return kTable;
 }
