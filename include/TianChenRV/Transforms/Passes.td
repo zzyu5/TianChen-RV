@@ -470,10 +470,12 @@ def MaterializeRVVQ40Schedule
     resource facts -- NOT a lookup table: the only place the capability enters is
     the legality prune; the cost model is a pure structural function. The SAME
     argmin therefore DIVERGES by capability -- a full-V (rv64gcv, Zvl128b)
-    profile selects the strip-elided shape (the ~13% ggml beat), while a
+    profile selects the strip-elided shape, while a
     constrained zve32x profile has the elided shapes pruned and the same argmin
     selects the robust strip-loop shape. One capability fact -> N1 legality
-    divergence -> N3 win, on a real llama.cpp kernel.
+    divergence -> N3 capability-keyed shape divergence, on a real llama.cpp
+    kernel. (No performance claim: any vs-ggml delta is un-sealed until [PERF-1]
+    eight-gate passes; see NG-4.)
 
     Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
     authority (I4); the schedule is derived from the validated ISA tier and the

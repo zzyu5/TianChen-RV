@@ -14,10 +14,12 @@
 // legality prune (strip_elision "elided" is correct only at the m1 anchor on a
 // Zvl128b target); the cost model is a pure structural function of the shape
 // facts. The SAME argmin therefore diverges by capability -- a full-V (rv64gcv,
-// Zvl128b) profile selects the strip-elided shape that beats ggml ~13%, while a
+// Zvl128b) profile selects the strip-elided shape, while a
 // constrained zve32x profile (no Zvl128b) has the elided shapes pruned and the
 // same argmin selects the robust strip-loop shape. One capability fact -> N1
-// legality divergence -> N3 win, on a real llama.cpp kernel.
+// legality divergence -> N3 capability-keyed shape divergence, on a real
+// llama.cpp kernel. (No performance claim here: any vs-ggml delta is un-sealed
+// until [PERF-1] eight-gate passes; see NG-4.)
 //
 //===----------------------------------------------------------------------===//
 

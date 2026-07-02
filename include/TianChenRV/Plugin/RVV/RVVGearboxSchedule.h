@@ -2206,7 +2206,7 @@ makeRVVDotReduceMinimalDeferredM1Rung() {
 // (strip_elision == "elided" is legal only at the m1 anchor AND on a target that
 // guarantees Zvl128b / VLEN >= 128, since the elided single-vsetvl_e8m1(16)
 // half-block cover is correct only there). The SAME argmin over the legal set
-// then yields the strip-elided shape that beats ggml on a Zvl128b (full-V)
+// then yields the strip-elided shape on a Zvl128b (full-V)
 // target and the robust strip-loop shape on a non-Zvl128b (zve32x/zve64x)
 // target -- the capability-driven divergence falls out of one capability-
 // independent cost model applied to two different admitted candidate sets, NOT
@@ -2408,10 +2408,11 @@ inline std::int64_t getRVVQ40ShapeVectorRegisterCost(llvm::StringRef coreLMUL) {
 /// per-kernel input is the DERIVED depth, NOT a per-kernel factor lookup.
 ///
 /// The constants are MEASUREMENT-CALIBRATED to the ssh-rvv design-space sweep
-/// (artifacts/inc5-shape-knobs + inc7/inc8, vs ggml ~1169 ns/call). For a deep
-/// core (depth >= 4) the q4_0 m1 path reproduces the measured ladder elided
-/// 1260/1050/1005 and robust 1390/1310/1525 at factor 1/2/4 (the ~13% ggml beat
-/// at elided f4). kUnrollOverflowPenalty has a WIDE working plateau (~150..400+
+/// (artifacts/inc5-shape-knobs + inc7/inc8, ggml reference ~1169 ns/call). For a
+/// deep core (depth >= 4) the q4_0 m1 path reproduces the measured ladder elided
+/// 1260/1050/1005 and robust 1390/1310/1525 at factor 1/2/4 (elided f4 is the
+/// argmin; any vs-ggml delta is un-sealed pending [PERF-1], see NG-4).
+/// kUnrollOverflowPenalty has a WIDE working plateau (~150..400+
 /// all yield the same four required picks) -- a broad plateau, not a knife-edge,
 /// which is the anti-overfit signature. They are a relative-ranking calibration
 /// (the argmin), not an absolute-ns predictor. See RVVQ40Q80ShapeSelectionTest.cpp.
@@ -2806,7 +2807,7 @@ enumerateRVVQ40Q80ShapeCandidates(std::int64_t minimumVLEN,
 /// SELECT the minimum-cost LEGAL Q4_0 shape from the pruned enumeration (the
 /// resource-best legal shape: the capability-blind argmin over the admitted
 /// set). Returns nullopt if every candidate was pruned (fail-closed). On a
-/// Zvl128b target this picks (m1, factor=4, elided) -- the ~13% ggml-beating
+/// Zvl128b target this picks (m1, factor=4, elided) -- the strip-elided
 /// shape; on a non-Zvl128b target the elided shapes are pruned and the same
 /// argmin picks (m1, factor=2, robust) -- the robust optimum.
 inline std::optional<RVVBlockDotShapeCandidate>
