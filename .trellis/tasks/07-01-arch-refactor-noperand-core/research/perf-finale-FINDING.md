@@ -66,14 +66,29 @@ divergence, not just an LMUL knob: the two pre-realized bodies differ structural
 The clamp's compare+select tail is POST-reduce and cheap, so the wide-accumulate integer core
 (proven fast by dequantize) should apply to clamp too → hypothesis: ~500–700ns, beats autovec.
 
-**⚠ CRITICAL framing (over-optimism guard, cf. [[winc-structural-null]]):** feeding a hand-authored
-wide-accumulate clamp body via gate4 `--candidate-input` and measuring it win proves only that **a
-better variant EXISTS and measurably wins** (opportunity-evidence for measured-argmin tuning). It does
-**NOT** prove **the compiler's selector picks it** — those are different claims. The actual selector
-fix lives one layer down: **why does `--tcrv-rvv-materialize-gearbox-schedules` pick direct-`vwredsum`
-for the clamp op but wide-accumulate for dequantize?** Almost certainly the compare+select tail
-defeats a pattern-match in the schedule pass's strategy selection. That is a separate, deeper thrust —
-SCOPED here, NOT opened this run (handed to the user as the next steer, same discipline as Track-B).
+**⚠ CORRECTION (bounded probe REFUTED the simple "mis-selection" framing — cf. [[winc-structural-null]]).**
+A one-shot fixture probe tried to author a wide-accumulate clamp body and measure it via gate4
+`--input`. It did NOT land, and *why* it failed is the real finding: the wide-accumulate clamp is **not
+a variant the selector declined — it does not exist and is not single-scope-legal IR.**
+- **Single-scope wide clamp is ILLEGAL IR** (fails parse+verify, no passes):
+  `tcrv_rvv.splat op requires result element width 32 to agree with enclosing tcrv_rvv.with_vl SEW8
+  metadata`. The wide integer core (i8m2 → `vwmul` i16m4 → `vwadd.wv` i32m8) forces the `with_vl` scope
+  to SEW8; the clamp tail's f32 `splat`/`compare`/`select` is SEW32-locked. `dequantize` survives in a
+  SEW8 scope ONLY because it is an exempt converting op — the clamp ops are not.
+- **The only legal wide form is TWO-REGION** (SEW8 producer → gearbox cross-region handoff → SEW32
+  consumer carrying the clamp). The compiler deliberately keeps clamp OFF that path: hard-gated to
+  narrow at `lib/Plugin/RVV/Construction/RVVContractionSelectedBodyRealizationOwner.cpp:2838`
+  (`!plan.usesProductReductionDequantClamp`; comment ~:1986 "packed-i4 and clamp keep the narrow
+  path"), and there is **no wide-clamp EmitC emitter** (`isDeferredWideDequantBody`,
+  `RVVToEmitC.cpp:1044`, rejects the clamp tail; `RVVToEmitCDeferredDequant.cpp:336-339`).
+
+So the measured **0.5× clamp regression is the COST of a missing wide-clamp CAPABILITY, not a
+selector heuristic error.** The principled fix is NOT a gearbox-schedule strategy tweak (my earlier
+wording was imprecise) — it is a real `lib/` thrust: **build the two-region SEW8→SEW32 wide-clamp body
++ its realization branch (relax the :2838 narrow gate) + a wide-clamp recognizer/emitter.** Whether
+wide-clamp then beats autovec is *plausible-but-UNTESTED* (inference only: wide dequant is 440ns and
+the clamp is a cheap post-reduce f32 tail; NO number was produced — the variant does not exist).
+SCOPED here for user steer, same discipline as Track-B; NOT opened this run.
 
 ## Honest scope / caveats
 - These are the **N3 product-reduction/dequant lamp kernels** (gate4's two op-kinds), NOT the 24-op
