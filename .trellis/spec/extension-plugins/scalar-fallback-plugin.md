@@ -23,7 +23,8 @@ Stable first-slice names:
 plugin name: scalar-plugin
 plugin version: 0.1.0
 plugin capability id: scalar.fallback
-plugin capability kind: fallback
+plugin capability kind: policy          # [S-1] 闭合枚举值（可用性/兜底门），不是裸 "fallback"
+plugin capability subclass: fallback    # 原始类目保留（[S-5]① subclass，信息不丢）
 preferred kernel capability symbol: @scalar_fallback
 first-slice proposal / variant symbol: @scalar_fallback_first_slice
 variant origin: scalar-plugin

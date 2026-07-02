@@ -59,7 +59,8 @@ Reference attribute:
 
 ```mlir
 #tcrv.ext<"spacemit.ime",
-          kind = "isa-matrix-vector-backed",
+          kind = "isa_ext",                          // [S-1] 闭合枚举值
+          subclass = "isa-matrix-vector-backed",     // 子分类标签（[S-5]①），非 kind 值
           status = "available",
           register_model = "rvv-vector-register-backed",
           dtype = ["int8", "fp16", "bf16"],

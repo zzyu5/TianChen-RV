@@ -117,8 +117,10 @@ Rules:
 - passes and plugins must query it through compiler APIs;
 - it must not be plain text metadata that is ignored by the compiler.
 - a kernel-local `tcrv.exec.target` may remain a parse-only profile anchor when
-  it carries no capability identity, but when it carries both non-empty `id`
-  and `kind` attributes it is a structured capability provider;
+  it carries no capability identity, but when it carries capability identity — a
+  leaf capability-provider with non-empty `id` + capability-fact `kind`, OR a
+  **profile-provider with non-empty `id` + `target_kind` + `provides`** (a profile
+  carries `provides`, not a capability-fact `kind`) — it is a structured capability provider;
 - capability-provider target profiles participate in `TargetCapabilitySet`
   construction with the same generic `status` / `availability`, `provides`,
   `implies`, `conflicts`, and property preservation rules as
@@ -144,7 +146,9 @@ Rules:
   direct kernel-local capability providers; all of these may satisfy variant
   `requires` through exact id, `provides`, or `implies` lookup. The reference
   must resolve to a direct module-level `tcrv.exec.target` with non-empty `id`
-  and `kind`; parse-only targets, missing targets, non-target symbols,
+  (a leaf capability-provider also carries capability-fact `kind`; a **profile-provider
+  carries `target_kind` + `provides`, NOT a capability-fact `kind`**); parse-only
+  targets (no `id`), missing targets, non-target symbols,
   malformed provider composition, and direct kernel symbols that shadow the
   referenced profile are invalid.
 - module-level targets are not collected implicitly. A kernel receives only its

@@ -73,7 +73,8 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 ## [S-5] — schema.def 是声明工件（哈希对象）
 
 能力 schema 的**声明形态**冻结为一个可规范序列化、可哈希的工件 `schema.def`，其 shape 恰含六项、不多不少：
-① 事实记录字段与类型（含 `provenance`/`trust` 枚举）；② `kind` 闭合枚举；③ 关系类型表（`implies`/`conflicts` 及其语义标注）；④ `params` 命名空间声明；⑤ 插件接口签名的可序列化形态；⑥ 路由描述符操作数角色词表。
+① 事实记录字段与类型（含 `subclass`、`provenance`/`trust` 枚举）；② `kind` 闭合枚举；③ 关系类型表（`implies`/`conflicts` 及其语义标注）；④ `params` 命名空间声明；⑤ 插件接口签名的可序列化形态；⑥ 路由描述符操作数角色词表。
+（**六项字段级细节声明一次**、以 [capability-model/capability-contract.md](../capability-model/capability-contract.md) 的 [S-5] 为准；本处为不变量摘要，勿在两处重写字段列表以免漂移。）
 **不入 shape**（因此改它们不触 schema.def）：具体事实行、`params` 取值、插件内部代码、测量库、模式注册表条目。schema 只答"能不能/是什么"，**不内置成本模型**（成本住测量库，按 instance-hash 键控）。
 
 ## [F-2′] — 家族接入操作门（diff ∩ schema.def = ∅）
