@@ -1,0 +1,1 @@
+selector_config(constant|prior_only|memo_only|prior+memo),top1_oracle_agreement,avg_regret_pct,misselection_count,matrix_silent_loss_reproduced,gate(blocked_by_SEL-1),snapshot

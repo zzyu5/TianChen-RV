@@ -1,0 +1,1 @@
+row_key,candidate_set,keys_evaluated,chosen,reason(only_feasible|prior|measured),capability_keyed(Y/N),oracle_best_variant,regret_pct,instance_hash,snapshot,ts

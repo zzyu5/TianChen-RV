@@ -1,0 +1,1 @@
+format,M,cell_RVV@vecopt,cell_RVV@matopt,cell_IME@matopt,paradigm_main_effect,layout_main_effect,interaction,crossover_M_star,roofline_pred,pred_match,packing_cost_amortized(1-time),status(轨2_gated_M3+),snapshot
