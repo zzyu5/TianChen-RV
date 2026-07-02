@@ -29,7 +29,8 @@
     "07-02-p2b-q4k-block-dot-wiring",
     "07-02-p2c-blockdot-coverage",
     "07-02-p2d-common-flat-blockdot",
-    "07-02-p2e-common-kquant-blockdot"
+    "07-02-p2e-common-kquant-blockdot",
+    "07-02-p2f-rare-blockdot-zoo"
   ],
   "parent": null,
   "relatedFiles": [],
