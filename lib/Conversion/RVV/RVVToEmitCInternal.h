@@ -61,11 +61,31 @@ struct AbiParam {
 //   FiveBitOffsetBinary-> emitFiveBitOffsetBinaryDecodeProductValue (q5_0/q5_1,
 //                         nibble + qh 5th-bit merge; weight loads u8; the qh
 //                         field + activation_quant_byte_offset are read)
+//   CodebookGatherNibble-> the 2nd primitive class (Fork B codebook extension):
+//                         the two UNSIGNED nibble index lanes (vand 0x0F / vsrl
+//                         0x04) GATHER through a broadcast 16-entry int8 codebook
+//                         table (vrgather_vv_i8<L>(values, idx)) into signed-i8
+//                         weight lanes, then feed the SAME
+//                         emitOffsetBinaryProductFromDecodedValue product chain
+//                         the offset-binary sibling uses (iq4_nl / mxfp4). The
+//                         table register `values` is broadcast-loaded ONCE above
+//                         the block loop from the descriptor's codebook entries.
 enum class FlatDecodePrimitive {
   PlainI8,
   OffsetBinaryNibble,
   UnsignedNibble,
   FiveBitOffsetBinary,
+  CodebookGatherNibble,
+};
+
+// The per-block WEIGHT scale source. Fp16 is the sanctioned `(float)*(const
+// _Float16 *)` read every flat-plain + iq4_nl format uses; E8M0 is the mxfp4
+// FP4-class structured reconstruction `GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128)`
+// from a single shared-exponent byte (no fp16 field). The activation scale is
+// always the fp16 read. Selected by descriptor field, not op identity.
+enum class FlatWeightScaleSource {
+  Fp16,
+  E8M0,
 };
 
 // The per-block fp32 fold model. The fold is grouped into ONE emitc.expression
@@ -122,6 +142,15 @@ struct FlatBlockDotDescriptor {
   bool hasMinTerm = false;
   int64_t weightMinOffset = 0;
   int64_t activationSumOffset = 0;
+  // The 2nd primitive class (codebook) extension. When hasCodebook is set the
+  // shared body emits a `static const int8_t <tableName>[N]` decl + a `vle8`
+  // broadcast of `codebook` into a table register ONCE above the block loop, and
+  // the CodebookGatherNibble decode gathers through it. weightScaleSource selects
+  // the fp16 (iq4_nl) vs E8M0 (mxfp4) weight-scale read.
+  bool hasCodebook = false;
+  llvm::ArrayRef<int8_t> codebook;
+  llvm::StringRef codebookTableName;
+  FlatWeightScaleSource weightScaleSource = FlatWeightScaleSource::Fp16;
 };
 
 // Build a FlatBlockDotDescriptor from a GgmlBlockDot* op's `kind` string + its
@@ -1439,6 +1468,19 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, llvm::StringRef opName,
       llvm::StringRef role, const BlockDotFacts &facts,
       const FlatBlockDotDescriptor &descriptor) const;
+
+  /// The structured E8M0 -> fp32 HALF weight scale (the mxfp4 FP4-class scale
+  /// source, FlatWeightScaleSource::E8M0): GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128),
+  /// reconstructed from the single shared-exponent byte at `xb` by ggml's EXACT
+  /// bit construction (no scalbnf/ldexpf) -- read e, build uint32_t
+  /// bits = (e < 2) ? (0x00200000u << (e & 0x1F)) : ((e - 1) << 23), reinterpret
+  /// as float via a `*(const float *)&bits` pun. All structured emitc nodes; the
+  /// emitted C is byte-identical to the former inline mxfp4 emitter. Returns the
+  /// plain-`float` scale the shared fold multiplies as `d_x`.
+  mlir::Value emitE8M0HalfScale(mlir::ConversionPatternRewriter &rewriter,
+                                mlir::Location loc, mlir::Value xb,
+                                llvm::StringRef opName,
+                                llvm::StringRef role) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_iq4_nl_q8_0 block dot-product for one
   /// tcrv_rvv.iq4_nl_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no

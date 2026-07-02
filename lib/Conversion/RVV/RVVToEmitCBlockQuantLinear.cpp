@@ -5240,12 +5240,20 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
   d.qk = readI64("qk");
   d.weightStride = readI64("weight_block_stride");
   d.activationStride = readI64("activation_block_stride");
-  d.quantOffset = readI64("quant_byte_offset");
-  // The activation quant offset is a SEPARATE attr for the q5 formats (whose q8
-  // activation quants sit past a qh/second-scale field); otherwise it reuses the
-  // weight quant offset (q8_0/q4_0/q4_1 load both operands at the same offset).
-  d.activationQuantOffset =
-      tryReadI64("activation_quant_byte_offset").value_or(d.quantOffset);
+  // Quant offsets: most formats carry `quant_byte_offset` (the weight offset; the
+  // activation reuses it unless it has its own `activation_quant_byte_offset`, as
+  // the q5 formats do -- their q8 quants sit past a qh/second-scale field). mxfp4
+  // instead carries DISTINCT `weight_quant_byte_offset` + `activation_quant_byte_
+  // offset` (the E8M0 exponent byte shifts the weight quants off the q8 offset).
+  if (auto wq = tryReadI64("weight_quant_byte_offset")) {
+    d.quantOffset = *wq;
+    d.activationQuantOffset =
+        tryReadI64("activation_quant_byte_offset").value_or(*wq);
+  } else {
+    d.quantOffset = readI64("quant_byte_offset");
+    d.activationQuantOffset =
+        tryReadI64("activation_quant_byte_offset").value_or(d.quantOffset);
+  }
   if (auto high = tryReadI64("activation_high_byte_offset"))
     d.highOffset = *high;
   if (auto qh = tryReadI64("weight_qh_byte_offset")) {
@@ -5258,6 +5266,12 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
   }
   if (auto asum = tryReadI64("activation_sum_byte_offset"))
     d.activationSumOffset = *asum;
+  // The 16-entry codebook (DenseI8ArrayAttr) is a STRUCTURAL fact off the op, the
+  // 2nd primitive class's table source. Present only on the codebook kinds.
+  if (auto cb = op->getAttrOfType<mlir::DenseI8ArrayAttr>("codebook")) {
+    d.hasCodebook = true;
+    d.codebook = cb.asArrayRef();
+  }
 
   // Group-B primitive + fold + core-LMUL floor, selected by `kind` (unique per
   // format; `scale_model` is NOT sufficient -- q8_0/q4_0/q5_0 share
@@ -5289,6 +5303,28 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
     d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
     d.applyOffsetBias = false; // the bias lives in the per-block MIN scale
+  } else if (kind == "ggml_iq4_nl_q8_0_block_dot") {
+    // The 2nd primitive class: 16-entry int8 codebook gather. m1 anchor floor
+    // (the VLEN-capability gather anchor); the fp32 fold is ggml's iq4_nl
+    // scales-first order (SumiTimesScales, the q8_0 tree). The weight scale is a
+    // plain fp16 read (same as q8_0/q4_0); the codebook table is broadcast once.
+    d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
+    d.foldModel = FlatFoldModel::SumiTimesScales;
+    d.defaultCoreLmul = "m1";
+    d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
+    d.weightScaleSource = FlatWeightScaleSource::Fp16;
+    d.codebookTableName = "tcrv_iq4_nl_kvalues";
+  } else if (kind == "ggml_mxfp4_q8_0_block_dot") {
+    // The FP4-class codebook: the SAME 16-entry gather as iq4_nl, but the weight
+    // scale is the structured E8M0 -> fp32 half reconstruction (no fp16 weight
+    // field; dual weight/activation quant offsets read above). The fold is ggml's
+    // mxfp4 scales-first order (SumiTimesScales, node-identical to iq4_nl's).
+    d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
+    d.foldModel = FlatFoldModel::SumiTimesScales;
+    d.defaultCoreLmul = "m1";
+    d.blockLen = d.qk / 2;
+    d.weightScaleSource = FlatWeightScaleSource::E8M0;
+    d.codebookTableName = "tcrv_mxfp4_kvalues";
   } else {
     return std::nullopt;
   }
@@ -5317,11 +5353,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
     int64_t multiBlockFactor = facts.multiBlockFactor;
     bool stripElided = facts.stripElided;
     // i8 source LMUL -> the next-wider i16 product LMUL (m2->m4, m1->m2,
-    // mf4->mf2). This superset formula is byte-exact for every in-tree anchor of
-    // all five formats (q8_0 defaults m2; the nibble formats default m1; the
-    // verifier bounds each family's source set).
+    // mf2->m1, mf4->mf2). This superset formula is byte-exact for every in-tree
+    // anchor: the five flat-plain formats are verifier-bounded to {mf4,m1,m2}
+    // (q8_0 defaults m2; the nibble formats default m1), so the added mf2->m1
+    // rung is reached ONLY by the codebook class's {m1,mf2} anchor set (the
+    // VLEN256 `_vl256` mf2 form), leaving every flat-plain path byte-untouched.
     llvm::StringRef wideLmul =
-        (coreLmul == "m2") ? "m4" : (coreLmul == "m1") ? "m2" : "mf2";
+        (coreLmul == "m2")    ? "m4"
+        : (coreLmul == "m1")  ? "m2"
+        : (coreLmul == "mf2") ? "m1"
+                              : "mf2";
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
     std::string u8CoreTypeName = ("vuint8" + coreLmul + "_t").str();
     std::string i16WideTypeName = ("vint16" + wideLmul + "_t").str();
@@ -5346,6 +5387,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
 
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
+    // The 16-entry codebook (2nd primitive class) is a STRUCTURAL fact off the
+    // op's DenseI8ArrayAttr. Emit it as a `static const int8_t <name>[N]` decl
+    // ONCE, before the accumulator -- the task-sanctioned structured const for the
+    // gather table (the decl renders the verified attr entries; the register is
+    // broadcast-loaded below the block count and reused by every gather).
+    if (descriptor.hasCodebook) {
+      std::string decl =
+          ("static const int8_t " + descriptor.codebookTableName + "[" +
+           std::to_string(descriptor.codebook.size()) + "] = {")
+              .str();
+      for (size_t i = 0; i < descriptor.codebook.size(); ++i) {
+        if (i)
+          decl += ", ";
+        decl += std::to_string(static_cast<int>(descriptor.codebook[i]));
+      }
+      decl += "};";
+      rewriter.create<emitc::VerbatimOp>(loc, decl);
+    }
+
     // float sumf = 0.0f;  (function-scoped accumulator across the block loop)
     rewriter.create<emitc::VerbatimOp>(
         loc, localVariableComment("sumf", opName, role));
@@ -5367,6 +5427,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
     llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
+
+    // The codebook table broadcast into a vector register ONCE (reused by every
+    // gather): vint8<L>_t values = vle8_v_i8<L>(<name>, N). The table pointer is
+    // the structured-const decl above, spelled at the i8 anchor LMUL. Null for the
+    // non-codebook primitives (the gather case is the only reader).
+    mlir::Value codebookValues = nullptr;
+    if (descriptor.hasCodebook) {
+      std::string tableLoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
+      codebookValues = emitOpaqueCallBuilt(
+          rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+                loc, i8PtrType, descriptor.codebookTableName.str());
+            return {tableName, sizeLit(descriptor.codebook.size())};
+          },
+          llvm::StringRef("codebook_table_load"));
+    }
 
     // Per-block address arithmetic: const uint8_t *xb = vx + (ib+blockOffset)*Sw;
     // const uint8_t *yb = vy + (ib+blockOffset)*Sa.
@@ -5506,6 +5584,45 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
             rewriter, loc, w, y0, y1, qhLow16, qhHigh16, chunkOffset, vl,
             i8CoreType, u8CoreType, u16WideType, i16WideType, coreLmul, wideLmul,
             16, wideLmul, "i16", opName, role, descriptor.applyOffsetBias);
+        break;
+      }
+      case FlatDecodePrimitive::CodebookGatherNibble: {
+        // 2nd primitive class: split the packed weight byte into the two UNSIGNED
+        // nibble index lanes (vand 0x0F / vsrl 0x04), GATHER each through the
+        // broadcast codebook table (vrgather_vv_i8<L>) into signed-i8 weight lanes
+        // v0/v1, then feed the SAME asymmetric signed widening product the
+        // offset-binary sibling uses (vwmul low <-> q8[0..15], vwmacc + high).
+        mlir::Value w =
+            loadU8(chunkPtr(xb, weightPtrType, u8PtrType, quantOffset));
+        mlir::Value y0 =
+            loadI8(chunkPtr(yb, activationPtrType, i8PtrType, actQuantOffset));
+        mlir::Value y1 = loadI8(chunkPtr(yb, activationPtrType, i8PtrType,
+                                         actQuantOffset + highOffset));
+        auto u8ImmOp = [&](llvm::StringRef mnemonic, mlir::Value src,
+                           llvm::StringRef amount) -> mlir::Value {
+          std::string callee = ("__riscv_" + mnemonic + "_u8" + coreLmul).str();
+          return emitOpaqueCallBuilt(
+              rewriter, loc, u8CoreType, callee, opName, role,
+              [&](mlir::OpBuilder &b,
+                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                mlir::Value amt = rewriter.create<emitc::LiteralOp>(
+                    loc, emitc::OpaqueType::get(ctx, "int"), amount.str());
+                return {src, amt, vl};
+              });
+        };
+        mlir::Value idxLow = u8ImmOp("vand_vx", w, "0x0F");
+        mlir::Value idxHigh = u8ImmOp("vsrl_vx", w, "0x04");
+        std::string gatherCallee = ("__riscv_vrgather_vv_i8" + coreLmul).str();
+        auto gather = [&](mlir::Value idx) -> mlir::Value {
+          return emitOpaqueCall(rewriter, loc, i8CoreType, gatherCallee,
+                                mlir::ValueRange{codebookValues, idx, vl}, opName,
+                                role);
+        };
+        mlir::Value v0 = gather(idxLow);
+        mlir::Value v1 = gather(idxHigh);
+        productOr = emitOffsetBinaryProductFromDecodedValue(
+            rewriter, loc, v0, v1, y0, y1, vl, i16WideType, 16, wideLmul, "i16",
+            opName, role);
         break;
       }
       }
@@ -5731,7 +5848,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
       mlir::Value yb =
           blockBaseValue(ib, blockOffset, activationBase, activationPtrType,
                          activationStride, "block_base_y");
-      mlir::Value dX = fp16ReadAt(xb, weightPtrType, 0);
+      // The weight scale: the sanctioned fp16 read (every flat-plain + iq4_nl
+      // format) or the structured E8M0 -> fp32 half reconstruction (mxfp4, no
+      // fp16 weight field). The activation scale is always the fp16 read.
+      mlir::Value dX =
+          (descriptor.weightScaleSource == FlatWeightScaleSource::E8M0)
+              ? emitE8M0HalfScale(rewriter, loc, xb, opName, role)
+              : fp16ReadAt(xb, weightPtrType, 0);
       mlir::Value dY = fp16ReadAt(yb, activationPtrType, 0);
       mlir::Value mX = nullptr;
       mlir::Value sY = nullptr;
