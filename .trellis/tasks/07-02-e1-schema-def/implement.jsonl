@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-02-e1-schema-def/research/schema-def-six-items.md", "reason": "六项 target 确切字段 + HEAD-核实现形态(schema.def JSON 内容源)"}
+{"file": ".trellis/tasks/07-02-e1-schema-def/research/f2prime-gate-design.md", "reason": "两级门机制:F-2′ path-diff + report gate normalize→SHA256 + additive-vs-breaking(门脚本规格)"}
+{"file": ".trellis/tasks/07-02-e1-schema-def/research/schema-def-format-options.md", "reason": "格式 (c) canonical JSON + normalize 规则依据"}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "被序列化的能力事实/关系/params 契约(six items 的权威来源)"}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Python 仅 tooling 红线;门脚本住 .trellis/scripts/"}

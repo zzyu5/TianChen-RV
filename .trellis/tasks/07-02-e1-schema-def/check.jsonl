@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-02-e1-schema-def/research/schema-def-scope-summary.md", "reason": "MVP scope + 8 决策 + 落地序(验收比对)"}
+{"file": ".trellis/tasks/07-02-e1-schema-def/research/f2prime-gate-design.md", "reason": "门语义:operation vs report、additive vs breaking、onboarding=falsifier 触发"}
+{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "Python-tooling-only 红线;mirror 纪律;fail-closed(未知=假)语义一致性"}

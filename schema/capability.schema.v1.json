@@ -1,0 +1,211 @@
+{
+  "$meta": {
+    "schema_version": "v1.0.0",
+    "rfc_id": "SCHEMA-RFC-0001",
+    "declares": "target",
+    "note": "Declares the TARGET six-item capability schema shape ([S-5]), NOT a snapshot of current code. The fields provenance/trust/subclass, the closed kind enum, namespaced-typed params, unified operand roles, and the serializable plugin signature are grep=0 in code today; code and schema.def are intentionally divergent, and that divergence is the tracked conformance gap the E4/E5/G6/P2 roadmap closes, not a v1 defect.",
+    "authority": [
+      ".trellis/spec/capability-model/capability-contract.md#S-5",
+      ".trellis/spec/architecture/core-invariants.md#S-5",
+      ".trellis/spec/architecture/core-invariants.md#F-2prime",
+      "docs/TianChen-RV_科研目标总纲v2.md#S-5"
+    ],
+    "canon": "7d781994 (kind closed enum + subclass; profile = provider-only)"
+  },
+
+  "item_1_fact_record": {
+    "description": "[S-1] structured fact record: the fields + types carried by every capability fact. This declares field SHAPES/ENUMS, never instance content.",
+    "fields": {
+      "id": {
+        "type": "string",
+        "form": "namespaced dotted stable identifier (e.g. rvv.v / rvv.zvfh / ime.vmadot / scalar.zbb / uarch.vrgather_slow)",
+        "authoritative_key": true,
+        "note": "id is the authoritative key; benchmark names / logs / provider identity / measured perf values must not become id (I9)."
+      },
+      "kind": { "type": "enum", "ref": "item_2_kind_enum" },
+      "subclass": {
+        "type": "string",
+        "optional": true,
+        "note": "retains the original category (e.g. \"toolchain\" / \"runtime-offload\" / \"isa-matrix-vector-backed\") so closing kind to four values loses no information; a future enum split is mechanical and records as an additive minor ([S-6]). Declared-with-no-producer in v1."
+      },
+      "status": {
+        "type": "enum",
+        "closed": true,
+        "members": ["available", "unavailable", "disabled", "missing"],
+        "default": "available",
+        "note": "in-shape typed closed field (Decision #6). missing status is interpreted as available; status takes precedence over availability ([S-2])."
+      },
+      "availability": {
+        "type": "enum",
+        "closed": true,
+        "members": ["available", "unavailable"],
+        "note": "in-shape typed closed field (Decision #6)."
+      },
+      "provenance": {
+        "type": "enum",
+        "closed": true,
+        "members": ["hwprobe", "cpuinfo", "vendor_table", "manual"],
+        "default": "manual",
+        "note": "source channel of the fact; evidence-line field (I8), does NOT participate in compute semantics. Declared-with-no-producer in v1 (producer is P2); declaring now prevents a future [F-2'] violation."
+      },
+      "trust": {
+        "type": "enum",
+        "closed": true,
+        "members": ["measured", "declared"],
+        "default": "declared",
+        "note": "trust level of the fact (measured vs declared); evidence-line field (I8). Declared-with-no-producer in v1 (producer is P2)."
+      },
+      "params": { "type": "namespaced_struct", "ref": "item_4_params_namespaces" },
+      "relations": { "type": "relations", "ref": "item_3_relation_types" }
+    }
+  },
+
+  "item_2_kind_enum": {
+    "description": "[S-1] the fact category axis. Closed enum, orthogonal to family; core passes therefore never branch on family name (I3).",
+    "type": "enum",
+    "closed": true,
+    "members": ["isa_ext", "sub_ext", "uarch", "policy"],
+    "companion_field": "subclass",
+    "mapping": {
+      "isa_ext": "ISA extensions",
+      "sub_ext": "sub-extensions (zvfh / zbb ...)",
+      "uarch": "microarchitecture / memory / VLEN facts",
+      "policy": "toolchain / runtime-offload / thread-runtime availability + build/permission gates"
+    },
+    "distinct_from": "target_kind / region_kind (the op-classification axis, renamed commit 6e16322b). This is the capability-fact axis and is intentionally unchanged.",
+    "evolution": "new kind values are additive-minor schema evolution ([S-6]), not runtime open extension."
+  },
+
+  "item_3_relation_types": {
+    "description": "[S-1]/[S-2] relation-type table with per-relation semantic annotation (a typed table, not a flat three-column list). Declares the relation TYPES; the transitive-closure COMPUTATION is loading-time code and is NOT part of this shape.",
+    "relations": {
+      "provides": {
+        "value_type": "list<capability_id_string>",
+        "semantics": "satisfies-by-alias",
+        "note": "capability ids, not symbol names, not prose. lookupProviderByID resolves exact id first; otherwise an available provides/implies may satisfy. A profile is a provider carrying provides."
+      },
+      "implies": {
+        "value_type": "list<capability_id_string>",
+        "semantics": "transitive-satisfiable",
+        "note": "transitive closure materialized once at load time ([S-2]); bounded decision routing, not a full capability lattice or inference engine."
+      },
+      "conflicts": {
+        "value_type": "list<capability_id_string>",
+        "semantics": "fail-closed-mutual-exclusion",
+        "note": "bounded bidirectional conflict query; fail-closed on hit ([S-2]). A dispatch case may reference a conflicting requirement only when carrying typed runtime_guard_required = true (records the guarded surface, does not parse a printable string)."
+      }
+    }
+  },
+
+  "item_4_params_namespaces": {
+    "description": "[S-1] namespaced, typed structured param fields (replacing the implicit free-string property map). Declares the namespace + TYPE only; concrete param VALUES are NOT in-shape.",
+    "namespaces": {
+      "vlen": { "type": "int", "layer": "hardware-fact", "note": "raw hardware VLEN in bits (Parameter Layering Rule layer 1); not runtime thread count, dispatch guard, tensor shape, or AVL/vl." },
+      "elen": { "type": "int", "layer": "hardware-fact" },
+      "sew_set": { "type": "set_of_int", "layer": "hardware-fact", "note": "supported SEW allow-list, declared as a typed set (not a CSV string)." },
+      "lmul_budget": { "type": "int_or_fraction", "layer": "compile-time-variant-config" },
+      "vreg_count": { "type": "int", "layer": "hardware-fact" },
+      "cacheline": { "type": "int", "layer": "hardware-fact" },
+      "ime.tile": { "type": "struct", "layer": "hardware-fact", "note": "IME tile geometry, namespaced under ime." }
+    },
+    "layering_rule_ref": "Parameter Layering Rule (capability-contract.md): the hardware-fact / compile-time-variant-config / runtime-SSA / legacy-fixture layers must not cross except through an explicit compiler object or ABI surface with a declared new meaning."
+  },
+
+  "item_5_plugin_interface_signature": {
+    "description": "[S-5] serializable projection of the ExtensionPlugin quasi-ABI signature (P-1 frozen; changes go through RFC, recorded as \"extension not modification\" when additive). Shallowest projection (Decision #4): ordered method name + arity + signature text of the 18 virtual member functions. The transitive request/result structs (VariantProposalRequest, VariantEmissionPlan, ...) are NOT serialized here (that is K-1's serialization effort). Plugin internal code is NOT in-shape.",
+    "source": "include/TianChenRV/Plugin/ExtensionPlugin.h",
+    "virtual_destructor": "~ExtensionPlugin() = default (present; not counted among the 18 methods).",
+    "method_count": 18,
+    "pure_virtual_count": 3,
+    "methods": [
+      { "name": "getName", "arity": 0, "const": true, "pure": true, "signature": "llvm::StringRef getName() const = 0" },
+      { "name": "getVersion", "arity": 0, "const": true, "pure": false, "signature": "llvm::StringRef getVersion() const" },
+      { "name": "getCapabilities", "arity": 0, "const": true, "pure": true, "signature": "llvm::ArrayRef<PluginCapability> getCapabilities() const = 0" },
+      { "name": "registerDialects", "arity": 1, "const": true, "pure": true, "signature": "void registerDialects(mlir::DialectRegistry &registry) const = 0" },
+      { "name": "isEnabled", "arity": 0, "const": true, "pure": false, "signature": "bool isEnabled() const" },
+      { "name": "verifyExecutableConstructionConformance", "arity": 0, "const": true, "pure": false, "signature": "llvm::Error verifyExecutableConstructionConformance() const" },
+      { "name": "registerSourceFrontDoorPasses", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error registerSourceFrontDoorPasses(const ExtensionPluginRegistry &registry, llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const" },
+      { "name": "supportsOperation", "arity": 1, "const": true, "pure": false, "signature": "bool supportsOperation(const VariantProposalRequest &request) const" },
+      { "name": "proposeVariants", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error proposeVariants(const VariantProposalRequest &request, llvm::SmallVectorImpl<VariantProposal> &out) const" },
+      { "name": "collectVariantProposals", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error collectVariantProposals(const VariantProposalRequest &request, VariantProposalCollectionResult &out) const" },
+      { "name": "verifyVariantLegality", "arity": 1, "const": true, "pure": false, "signature": "llvm::Error verifyVariantLegality(const VariantLegalityRequest &request) const" },
+      { "name": "estimateVariantCost", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error estimateVariantCost(const VariantCostRequest &request, VariantCostEstimate &out) const" },
+      { "name": "checkVariantEmissionReadiness", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error checkVariantEmissionReadiness(const VariantEmissionRequest &request, VariantEmissionStatus &out) const" },
+      { "name": "buildVariantEmissionPlan", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request, VariantEmissionPlan &out) const" },
+      { "name": "materializeSelectedLoweringBoundary", "arity": 2, "const": true, "pure": false, "signature": "llvm::Error materializeSelectedLoweringBoundary(const VariantLoweringBoundaryRequest &request, VariantLoweringBoundaryResult &out) const" },
+      { "name": "validateSelectedLoweringBoundary", "arity": 1, "const": true, "pure": false, "signature": "llvm::Error validateSelectedLoweringBoundary(const VariantLoweringBoundaryValidationRequest &request) const" },
+      { "name": "configureTargetSupportExtensionBundle", "arity": 1, "const": true, "pure": false, "signature": "llvm::Error configureTargetSupportExtensionBundle(ExtensionBundle &bundle) const" },
+      { "name": "registerTargetSupportTranslateRoutes", "arity": 1, "const": true, "pure": false, "signature": "llvm::Error registerTargetSupportTranslateRoutes(target::TargetTranslateRouteRegistry &registry) const" }
+    ]
+  },
+
+  "item_6_operand_role_vocabulary": {
+    "description": "[S-5] operand-role vocabulary. Decision #5: encoded as TWO ORTHOGONAL AXES, not unified by fiat. Axis A = ABI-signature slot (typed enum on the N-operand / ABI-slice route). Axis B = body-op semantic role (roles on RVVOps.td typed body ops + ConstructionProtocol). accumulator_role's value coincides with an ABI-slot spelling, but mask_role (\"predicate-mask-produced-by-compare\") is a body-construction role and is NOT an ABI-param slot at all — that non-coincidence is exactly why the two axes are kept distinct.",
+    "axis_abi_signature_slot": {
+      "kind": "typed enum",
+      "source": "include/TianChenRV/Support/RuntimeABI.h (RuntimeABIParameterRole)",
+      "member_count": 28,
+      "members": [
+        "lhs-input-buffer",
+        "rhs-input-buffer",
+        "accumulator-input-buffer",
+        "source-input-buffer",
+        "true-value-input-buffer",
+        "false-value-input-buffer",
+        "dot-lhs-input-buffer",
+        "dot-rhs-input-buffer",
+        "index-input-buffer",
+        "mask-input-buffer",
+        "rhs-scalar-value",
+        "rhs-secondary-scalar-value",
+        "dequant-scale-value",
+        "lower-bound-scalar-value",
+        "upper-bound-scalar-value",
+        "output-buffer",
+        "segment-field0-input-buffer",
+        "segment-field1-input-buffer",
+        "segment-field0-output-buffer",
+        "segment-field1-output-buffer",
+        "segment-interleaved-output-buffer",
+        "runtime-element-count",
+        "lhs-input-stride",
+        "rhs-input-stride",
+        "source-byte-stride",
+        "destination-byte-stride",
+        "output-stride",
+        "dispatch-availability-guard"
+      ],
+      "ownership_enum": ["ir-modeled", "target-export-abi-owned"]
+    },
+    "axis_body_op_semantic_role": {
+      "kind": "named role attributes on typed body ops",
+      "source": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td + include/TianChenRV/Plugin/ConstructionProtocol.h",
+      "role_attributes": [
+        "accumulator_role",
+        "mask_role",
+        "scale_role",
+        "widening_product_multiplicand_roles",
+        "selected_path_role",
+        "source_role",
+        "typed_role"
+      ],
+      "known_role_values": {
+        "accumulator_role": "accumulator-input-buffer (coincides with the axis-A ABI-slot spelling)",
+        "mask_role": "predicate-mask-produced-by-compare (body-construction role; NOT an axis-A ABI slot)"
+      }
+    },
+    "target_note": "The [S-5] end target is one structured operand-role vocabulary with no in-table free strings. Decision #5 keeps the two axes explicit in v1 because they are genuinely orthogonal (ABI-signature slot ⟂ body-op semantic role); unification is deferred, not resolved by fiat."
+  },
+
+  "not_in_shape": {
+    "description": "[S-5] items explicitly NOT in schema.def — these are CONTENT, not SHAPE; changing them does not touch schema.def.",
+    "items": [
+      "concrete fact rows (which capabilities a particular target actually declares)",
+      "params VALUES (e.g. sew_set = {8,16,32}, vlen = 128)",
+      "plugin internal code (only the item-5 signature shape is in-shape)",
+      "measurement library (cost lives there keyed by instance-hash; schema answers only can/what — [S-7])",
+      "pattern-registry entries ([PAT-1] rows)",
+      "profiles (a tcrv.exec.target profile is a provider carrying provides with no capability-fact kind; it expands to a normalized fact set at load — content, not shape; declared-instance-hash is taken over the expanded set)"
+    ]
+  }
+}
