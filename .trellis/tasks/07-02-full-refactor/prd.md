@@ -122,10 +122,12 @@
 |---|---|---|---|
 | **E0** beat 越界清理 | ✅ done | b128e3d5 | 5 处 "beats ggml ~13%" 未封断言清除;残留 3 处 "beat" 合规 |
 | **E2a** kind→target_kind/region_kind | ✅ done | 6e16322b | 有界机械 rename;byte-exact 门 PASS;child task 已 completed;trellis-implement+check 双复核 |
-| **E1** schema.def v1 + F-2′ 操作门 | ⬜ next | — | E2a 已解锁(op 分类 kind 已消歧);六项反写见执行总纲 §4 |
-| E2b 目录归拢 / E3 falsifier CI / E4 归因 JSONL+D-2a / E5 provenance 六态 / E6 覆盖率+ledger / E7 D-1 自足 / E8 T-N+对手探针 | ⬜ pending | — | E1 后;E5/E6 是 G1 的度量尺子(先于引擎线主战场) |
+| **E1** schema.def v1 + F-2′ 操作门 | ✅ done | c8f3e945 | 纯声明工件(schema/ canonical JSON + VERSIONLOG + .trellis/scripts/check_schema_gate.py);六项 target 形态;SHA256 653127c6;门 self-test 16/16;不动 C++(收敛=G6/E4/E5/P2) |
+| _(spec 侧对齐)_ kind→闭合枚举+subclass | ✅ done | 93a71386 | 并发 spec 编辑巩固:ime/scalar 插件 kind 闭合枚举+subclass;core-invariants [S-5]①;tcrv-exec-contract target 消歧(了结 E2a deferred 语义张力) |
+| E4 归因 JSONL+D-2a | ⬜ next | — | [D-4①]/[D-2a];重构现有(富 in-IR 选择属性已在→JSONL 出口);reason 改三值枚举+candidates/keys/declared_instance_hash/ts;C_attr^CT=100%(M1 硬门) |
+| E2b 目录归拢 / E3 falsifier CI / E5 provenance 六态 / E6 覆盖率+ledger / E7 D-1 自足 / E8 T-N+对手探针 | ⬜ pending | — | E5/E6 是 G1 的度量尺子(先于引擎线主战场);E3 需 .github(与 F-1/K-5/PAT-3 一起点亮);E2b 解锁 F-3 |
 
-**下轮续接点:** E1 = 起草 `schema.def` v1(六项:①事实字段+provenance/trust ②kind 闭合枚举 ③关系类型表 ④params 命名空间 ⑤插件接口可序列化签名 ⑥操作数角色词表)+ [F-2′] 逐 PR diff∩schema.def=∅ 操作门。反写底账见执行总纲 §4;此前须重钉快照重跑基线 [A-2] 抽验(仓库已从 7d781994 前进到本 branch)。
+**下轮续接点:** E4 = 编译期归因 JSONL 出口——把现有富 in-IR 选择属性(`VariantSelection.cpp` 的 preference_score/rank/policy/explanation/tie_break,执行总纲 §5)重构为 JSONL `{kernel,candidates[],keys_evaluated{},chosen,reason∈{only_feasible,prior,measured},declared_instance_hash,ts}` + 装载期最小解析记录(每进程 1 条,declared-instance-hash)。这是"重构现有"非新建,C_attr^CT=100% 是 M1 硬门。注:declared_instance_hash 可复用 E1 的 SHA256 规范化 idiom。
 
 ## Technical Notes
 
