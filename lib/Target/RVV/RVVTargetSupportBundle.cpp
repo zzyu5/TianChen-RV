@@ -43,6 +43,45 @@ struct ScopedTempPath {
   }
 };
 
+// A scoped temporary DIRECTORY (recursively removed on destruction). Used to host
+// the freestanding libm declaration shim consumed by the RISC-V object-packaging
+// clang -isystem search path (see compileRVVGeneratedSourceToObject).
+struct ScopedTempDir {
+  llvm::SmallString<128> path;
+
+  ~ScopedTempDir() {
+    if (!path.empty())
+      (void)llvm::sys::fs::remove_directories(path);
+  }
+};
+
+// A minimal freestanding declaration shim for the scalar libm functions the RVV
+// EmitC bodies call. The local RISC-V cross clang has NO libc sysroot, so the
+// hosted <math.h> the libm-calling bodies emit (nvfp4's ldexpf UE4M3 scale
+// decode; rms_norm's 1/sqrtf; rope's cosf/sinf) is not found and the -c compile
+// fatals. A compile-to-object (no link) needs only these declarations; the
+// platform's own libm is linked on the target, so the object's libm symbols stay
+// undefined externals either way. The emitted C/C++ source is left byte-identical
+// -- only clang's header search is augmented, and only bodies that #include a
+// hosted header ever consult the shim.
+constexpr llvm::StringLiteral kFreestandingLibmShimHeader =
+    "#ifndef TCRV_RVV_FREESTANDING_LIBM_SHIM\n"
+    "#define TCRV_RVV_FREESTANDING_LIBM_SHIM\n"
+    "#ifdef __cplusplus\n"
+    "extern \"C\" {\n"
+    "#endif\n"
+    "float ldexpf(float, int);\n"
+    "float sqrtf(float);\n"
+    "float cosf(float);\n"
+    "float sinf(float);\n"
+    "float expf(float);\n"
+    "double ldexp(double, int);\n"
+    "double sqrt(double);\n"
+    "#ifdef __cplusplus\n"
+    "}\n"
+    "#endif\n"
+    "#endif\n";
+
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV materialized EmitC target artifact bridge "
@@ -1676,13 +1715,42 @@ llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
     stderrOS.close();
   }
 
-  llvm::SmallVector<llvm::StringRef, 12> args = {
+  // Host the freestanding libm declaration shim on an -isystem path so the
+  // hosted <math.h> the libm-calling bodies emit resolves under the sysroot-less
+  // RISC-V cross clang. See kFreestandingLibmShimHeader: the emitted source is
+  // byte-identical; only bodies that #include a hosted header consult the shim.
+  ScopedTempDir libmShimDir;
+  if (std::error_code error = llvm::sys::fs::createUniqueDirectory(
+          "tcrv-rvv-libm-shim", libmShimDir.path))
+    return makeRVVTargetRouteError(
+        llvm::Twine("failed to create freestanding libm shim directory: ") +
+        error.message());
+  llvm::SmallString<160> libmShimHeaderPath(libmShimDir.path);
+  llvm::sys::path::append(libmShimHeaderPath, "math.h");
+  {
+    std::error_code error;
+    llvm::raw_fd_ostream shimOS(libmShimHeaderPath, error);
+    if (error)
+      return makeRVVTargetRouteError(
+          llvm::Twine("failed to write freestanding libm shim header: ") +
+          error.message());
+    shimOS << kFreestandingLibmShimHeader;
+    shimOS.close();
+    if (shimOS.has_error())
+      return makeRVVTargetRouteError(
+          "failed to flush freestanding libm shim header before object "
+          "packaging");
+  }
+
+  llvm::SmallVector<llvm::StringRef, 14> args = {
       *clang,
       "-target",
       "riscv64",
       "-O2",
       "-march=rv64gcv",
       "-mabi=lp64d",
+      "-isystem",
+      libmShimDir.path,
       "-c",
       sourcePath.path,
       "-o",

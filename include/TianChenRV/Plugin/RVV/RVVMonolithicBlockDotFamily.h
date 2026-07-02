@@ -208,6 +208,18 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {tcrv::rvv::GgmlBlockDotQ6KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q6_k_q8_k_block_dot",
        &monolithicBlockDotABI4},
+      // The two TriLM ternary super-block K-quants: tq1_0 (base-3 packed) and
+      // tq2_0 (2-bit field). Both are genuine super-blocks (QK_K == 256) with the
+      // q8_K activation, so they take the SAME super-block route family as q4_K and
+      // carry the SAME 4-role ggml vec_dot ABI (n, s, vx, vy) -- the ternary decode
+      // (base-3 trit unpack / 2-bit field + bias) is op structure the emitter
+      // consumes, NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotTQ10Q8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotTQ20Q8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
+       &monolithicBlockDotABI4},
       {tcrv::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided},
@@ -230,6 +242,18 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        &monolithicBlockDotABI4},
       {tcrv::rvv::GgmlBlockDotQ51Q81Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q5_1_q8_1_block_dot",
+       &monolithicBlockDotABI4},
+      // The two flat FP4-codebook block-dots over a q8_0 activation: mxfp4 (E8M0
+      // shared-exponent) and nvfp4 (NVIDIA FP4, QK=64 sub-block UE4M3 scale). Both
+      // carry a FLAT block_q8_0 activation stream so they take the SAME flat route
+      // family as q4_0/iq4_nl, with the SAME 4-role ggml vec_dot ABI (n, s, vx, vy)
+      // as iq4_nl -- the 16-entry FP4 codebook gather + the fp4-scale reconstruction
+      // are op structure the emitter consumes, NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotMXFP4Q80Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_mxfp4_q8_0_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotNVFP4Q80Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_nvfp4_q8_0_block_dot",
        &monolithicBlockDotABI4}};
   return kTable;
 }

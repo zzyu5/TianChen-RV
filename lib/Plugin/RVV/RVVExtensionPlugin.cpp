@@ -25,6 +25,10 @@
 #include "TianChenRV/Plugin/RVV/RVVQ3KBlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVQ5KBlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVQ6KBlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVTQ10BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVTQ20BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVMXFP4BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVNVFP4BlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
@@ -619,7 +623,19 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
   if (llvm::Error error = rvv::registerRVVQ6KBlockDotSourceFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
-  return rvv::registerRVVIQ4XSBlockDotSourceFrontDoorPasses(kRVVPluginName,
+  if (llvm::Error error = rvv::registerRVVIQ4XSBlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVTQ10BlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVTQ20BlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVMXFP4BlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  return rvv::registerRVVNVFP4BlockDotSourceFrontDoorPasses(kRVVPluginName,
                                                             registry, out);
 }
 
