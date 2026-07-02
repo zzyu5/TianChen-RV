@@ -46,6 +46,93 @@ struct AbiParam {
   mlir::Type emitcType;
 };
 
+//===----------------------------------------------------------------------===//
+// Flat-plain block-dot body descriptor (Fork B: descriptor-driven emitter body).
+//===----------------------------------------------------------------------===//
+
+// The per-block INTEGER-CORE decode primitive selected by descriptor field
+// rather than op identity. Each value names the already-factored decode helper
+// the shared skeleton dispatches to inside emitStripReduce:
+//   PlainI8            -> inline vwmul i8xi8 (q8_0, no decode)
+//   OffsetBinaryNibble -> emitOffsetBinaryDecodeProductValue (q4_0, xor 0x88 +
+//                         sll/sra sign-extend + vwmul/vwmacc; weight loads i8)
+//   UnsignedNibble     -> emitUnsignedNibbleDecodeProductValue (q4_1, vand 0x0F
+//                         + vsrl 0x04 + reinterpret; weight loads u8)
+//   FiveBitOffsetBinary-> emitFiveBitOffsetBinaryDecodeProductValue (q5_0/q5_1,
+//                         nibble + qh 5th-bit merge; weight loads u8; the qh
+//                         field + activation_quant_byte_offset are read)
+enum class FlatDecodePrimitive {
+  PlainI8,
+  OffsetBinaryNibble,
+  UnsignedNibble,
+  FiveBitOffsetBinary,
+};
+
+// The per-block fp32 fold model. The fold is grouped into ONE emitc.expression
+// so mlir-translate renders a single C statement whose fp associativity /
+// contraction matches ggml byte-for-byte, so the fold tree MUST be explicit
+// (fp non-associativity). There are FOUR distinct trees in-tree -- q5_0's
+// ScalesTimesSumi is a DISTINCT emitc sequence from q8_0's SumiTimesScales even
+// though both carry scale_model "dual-fp16-per-block-d_x.d_y" (the operand +
+// emission order of the outer mul differ), so fold_model keys off `kind`, not
+// `scale_model`:
+//   SumiTimesScales -> sumf + (float)sumi * (d_x * d_y)   (q8_0)
+//   LeftAssoc       -> sumf + (float)sumi * d_x * d_y      (q4_0)
+//   ScalesTimesSumi -> sumf + (d_x * d_y) * (float)sumi    (q5_0)
+//   ScalePlusMin    -> sumf + ((d_x*d_y)*sumi + m_x*s_y)   (q4_1 / q5_1)
+enum class FlatFoldModel {
+  SumiTimesScales,
+  LeftAssoc,
+  ScalesTimesSumi,
+  ScalePlusMin,
+};
+
+// The block-format + primitive facts the shared emitFlatBlockDot body reads to
+// generate a flat-plain (q4_0/q8_0/q4_1/q5_0/q5_1) block-dot. The Group-A
+// geometry fields mirror the typed op attrs (I4); the Group-B primitive/fold
+// fields lift the decode-primitive + fold-model selection from op-identity to
+// descriptor fields. deriveFlatBlockDotDescriptor builds it from the op's
+// `kind` + attr-presence; the LMUL / unroll / elision SCHEDULE facts stay in
+// BlockDotFacts (deriveBlockDotFacts), read separately by the caller.
+struct FlatBlockDotDescriptor {
+  FlatDecodePrimitive decodePrimitive = FlatDecodePrimitive::PlainI8;
+  FlatFoldModel foldModel = FlatFoldModel::SumiTimesScales;
+  // The i8 integer-core LMUL anchor floor for an attr-less op ("m2" for q8_0's
+  // whole 32-element block, "m1" for the nibble half-blocks). Passed to
+  // deriveBlockDotFacts by the caller.
+  llvm::StringRef defaultCoreLmul = "m2";
+  int64_t qk = 0;
+  int64_t weightStride = 0;
+  int64_t activationStride = 0;
+  // Weight quant byte offset (past the fp16 scale). The activation quant offset
+  // is a SEPARATE attr for q5_0/q5_1 and otherwise reuses quantOffset.
+  int64_t quantOffset = 0;
+  int64_t activationQuantOffset = 0;
+  // qk (whole-block, plain_i8) or qk/2 (nibble half-block) -- the strip length.
+  int64_t blockLen = 0;
+  // The q8 high-half byte offset (used by the two-activation-load primitives).
+  int64_t highOffset = 0;
+  // The per-element 5th-bit qh field (five_bit primitive only).
+  bool hasQh = false;
+  int64_t qhOffset = 0;
+  // The 5-bit offset-binary `-16` bias: true for q5_0, false for q5_1 (its bias
+  // lives in the per-block MIN scale, like q4_1).
+  bool applyOffsetBias = true;
+  // The Family-B MIN/SUM correction: read m_x/s_y and fold the second product.
+  bool hasMinTerm = false;
+  int64_t weightMinOffset = 0;
+  int64_t activationSumOffset = 0;
+};
+
+// Build a FlatBlockDotDescriptor from a GgmlBlockDot* op's `kind` string + its
+// block-format attrs (attr-presence for the optional-by-format ones). This is
+// the emitter-side mirror of the front-door family table + deriveBlockDotFacts:
+// the `kind` selects the decode primitive / fold model / core-LMUL floor, and
+// the I4 geometry attrs fill the block-format fields. Returns std::nullopt for a
+// non-flat-plain kind (the caller keeps its bespoke emitter).
+std::optional<FlatBlockDotDescriptor>
+deriveFlatBlockDotDescriptor(mlir::Operation *op);
+
 class VariantToEmitCFunc final
     : public mlir::OpConversionPattern<tcrv::exec::VariantOp> {
 public:
@@ -1330,6 +1417,28 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The ONE descriptor-driven flat-plain block-dot body (Fork B). It emits the
+  /// shared skeleton the q4_0/q8_0/q4_1/q5_0/q5_1 emitters were ~85%-mechanical
+  /// mirrors of -- sumf accumulator, nb = n/qk, the block loop (factor-1 or
+  /// multi-block unroll main+tail), per-block blockBaseValue address arithmetic,
+  /// the per-block fp16 scale reads, the integer core (elided-vs-robust strip),
+  /// the strip reduce seed+vwredsum+extract, and the `*s = sumf` store -- and
+  /// dispatches the THREE per-op divergence points on descriptor fields: the
+  /// decode+product primitive (switch on decodePrimitive over the EXISTING
+  /// factored decode helpers), the strip block_len, and the fp32 fold tree
+  /// (switch on foldModel). The caller (a thin per-op shim) resolves the ABI
+  /// operands + opName/role, derives the descriptor + BlockDotFacts, and calls
+  /// this. Byte-identical to the former per-op emitQxxx methods: the emitted
+  /// emitc ops are the SAME nodes in the SAME order (the 22/24 block-dot e2e lit
+  /// diff core.mlir vs prod.mlir at VLEN128 + VLEN256 proves it).
+  mlir::LogicalResult emitFlatBlockDot(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value blockDotResult, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, llvm::StringRef opName,
+      llvm::StringRef role, const BlockDotFacts &facts,
+      const FlatBlockDotDescriptor &descriptor) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_iq4_nl_q8_0 block dot-product for one
   /// tcrv_rvv.iq4_nl_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
