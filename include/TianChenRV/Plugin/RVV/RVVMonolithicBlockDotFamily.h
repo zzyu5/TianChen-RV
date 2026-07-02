@@ -190,6 +190,34 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {tcrv::rvv::GgmlBlockDotIQ4XSQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4},
+      // The seven iq* super-block-CODEBOOK rungs (siblings of iq4_xs): the ternary
+      // iq1_s/iq1_m grids, the iq2_xxs/iq2_xs/iq2_s grid+sign codebooks, and the
+      // iq3_xxs/iq3_s grid codebooks. All are genuine super-blocks (QK_K == 256)
+      // over the q8_K activation, so they take the SAME super-block route family as
+      // q4_K/iq4_xs and all carry the SAME 4-role ggml vec_dot ABI (n, s, vx, vy) --
+      // the grid/sign codebook is op structure the emitter consumes (a grid/ksigns
+      // OP attr), NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotIQ1SQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ1MQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ2XXSQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ2XSQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ2SQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ3XXSQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotIQ3SQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
+       &monolithicBlockDotABI4},
       // The four common super-block-PLAIN K-quants (P2-e): q2_K/q3_K/q5_K/q6_K.
       // All are genuine super-blocks (QK_K == 256) so they take the SAME super-block
       // route family as q4_K, and all carry the SAME 4-role ggml vec_dot ABI
