@@ -1472,3 +1472,36 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: E1 schema.def v1 + F-2′ 门落地 + spec kind/subclass 对齐
+
+**Date**: 2026-07-02
+**Task**: E1 schema.def v1 + F-2′ 门落地 + spec kind/subclass 对齐
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+承接同 session:E1(c8f3e945)=schema.def v1 纯声明工件——schema/capability.schema.v1.json 声明六项 TARGET 形态([S-5],非代码快照,分歧=conformance gap)+VERSIONLOG(SHA256 653127c6)+.trellis/scripts/check_schema_gate.py(report normalize→SHA256 / gate F-2′ path-diff+Family-Onboarding trailer / additive-vs-breaking 含 list-of-object keyed / --self-test 16/16)。不动 C++(scope 决策#8)。research 8 决策定案(格式c/位置schema/顶层/⑤最浅18虚方法/⑥两正交轴/status-availability in-shape/onboarding=commit-trailer)。trellis-research→implement→check 三 agent,5 验收全 PASS;check 修了 classifier 假阴性(item⑤ P-1-frozen 掉方法误判 additive→keyed by name/id→breaking,hash-neutral)。并发 spec 编辑(93a71386,intentional/canon 对齐/check 核实)巩固:ime/scalar kind→闭合枚举+subclass、core-invariants[S-5]①、tcrv-exec-contract target 消歧(了结 E2a deferred 张力)。本 session 累计 modules: E0+E2a+E1 done。下轮=E4 归因 JSONL(重构 VariantSelection.cpp 富属性→JSONL{kernel,candidates,keys,chosen,reason∈三值,declared_instance_hash,ts}+装载期解析记录)。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `700a41aa` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

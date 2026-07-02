@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-07-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1474 | Active |
+| `journal-1.md` | ~1507 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-07-02 | E1 schema.def v1 + F-2′ 门落地 + spec kind/subclass 对齐 | `700a41aa` | `refactor/full-refactor-m1` |
 | 28 | 2026-07-02 | full-refactor program 放行 + E0/E2a 落地 | `598d1931` | `refactor/full-refactor-m1` |
 | 27 | 2026-06-24 | q4_K GEMM (prefill) built + oracle-VERIFIED + trellis-checked (complete repack pair); amortization REFUTED → the shape-mismatch 2×2 N3 finding + spec discipline | `a6fbc7cf`, `02c41f4d`, `1262b3b2`, `4202ad86`, `5a8f509b` | `main` |
 | 26 | 2026-06-24 | q4_K repack GEVM CORRECT (oracle-verified, hardest kernel) banked as expansion+Gearbox-motivation; N2 clarity DELIVERED (showcase + live 4th IME op vmadotsu silicon-verified 16/16) | `0d5ebc5a`, `73244fae`, `ac66155e`, `70bb845a`, `a75adc27`, `ed0fb37e` | `main` |
