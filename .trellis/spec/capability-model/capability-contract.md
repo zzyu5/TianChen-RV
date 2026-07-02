@@ -62,7 +62,7 @@ target capability 表示为结构化的 target-level / module-level MLIR attribu
 capability 带 `provides` / `implies` / `conflicts` 三类关系（first-class 描述符字段，不是 property-map 项，也不是 prose）。
 
 - **require**：variant 声明所需 capability（`requires = [@cap, ...]`，`FlatSymbolRefAttr` 指向 kernel capability scope 内的符号）。provider 是直接 `tcrv.exec.capability`、带 `id`+`kind` 的 kernel-local `tcrv.exec.target`、kernel `target = @profile` 指的那个 module-level profile、以及该 profile 经 `capability_providers = [...]` 显式组合的 providers。kernel 只看自己引用的 profile + 其命名 providers + kernel-local providers；id 在该 scope 内唯一。
-- **provide**：`provides = ["..."]` 是 capability id（不是符号名、不是 prose）。`lookupProviderByID(id)` 先解析 exact id；无 exact 时可由 available 的 `provides`/`implies` 满足。于是 `id="rvv.profile.rv64gcv", provides=["rvv"]` 能满足要求 `rvv` 的提议，同时 exact `id="rvv"` 在场时保持直接覆盖。
+- **provide**：`provides = ["..."]` 是 capability id（不是符号名、不是 prose）。`lookupProviderByID(id)` 先解析 exact id；无 exact 时可由 available 的 `provides`/`implies` 满足。于是 `id="rvv.profile.rv64gcv", provides=["rvv"]` 能满足要求 `rvv` 的提议，同时 exact `id="rvv"` 在场时保持直接覆盖。**profile 只作 provider（带 `provides`、不带 capability-fact `kind`）**——profile 不是一条带 `kind` 的叶子事实，而是装载期**展开成规范化事实集**的容器；`declared-instance-hash`（[D-2a]）对**展开后的事实集**取，故 profile 写法与语义等价的显式事实列表**哈希相同**。
 - **imply**：`implies = ["..."]`（如 `rv64gcv implies rvv`、`zvfh implies fp16 向量算术（受 toolchain 支持约束）`）。经同一 relation-aware lookup 暴露。这是 bounded 的决策路由，不是完整 capability lattice 或推断引擎。
 - **conflict**：`conflicts = ["..."]`（如"要 vendor runtime 但无 runtime lib"、"要 inline asm 但 build policy 禁止"）。`--tcrv-check-capability-requires` 用 bounded 双向冲突查询作 legality gate：静态 variant / dispatch fallback 在所需 capability 与另一 available capability 冲突时 fail closed；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求（记录保护面，不解析 printable 串）。这**不是**完整 conflict solver / lattice / provider ranking。
 - **dispatch condition**：runtime/shape 相关条件成为 dispatch 谓词（`if runtime_available && large_shape -> offload；else if rvv_available -> rvv；else -> fallback`）。
@@ -87,7 +87,7 @@ hwprobe / cpuinfo / 厂商表适配器**只产出 [S-1] 事实条目**（带 `pr
 
 schema.def 是 capability schema 的**声明式工件 + 哈希对象**：它声明 capability 的**稳定形态（shape）**，是 [S-6] 操作门 [F-2′]（家族接入 PR 系列 diff ∩ schema.def = ∅）与报告门（规范化序列化 → SHA256 + RFC 版本日志）的锚。schema.def 声明**恰好六项**：
 
-1. **事实记录字段与类型** —— [S-1] 的 `id` / `kind` / `implies` / `conflicts` / `params` / `provenance` / `trust`，含 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}`、`trust ∈ {measured,declared}` 枚举。
+1. **事实记录字段与类型** —— [S-1] 的 `id` / `kind` / **`subclass`** / `implies` / `conflicts` / `params` / `provenance` / `trust`，含 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}`、`trust ∈ {measured,declared}` 枚举。`subclass` **保留原始类目**（如 `subclass = "toolchain" / "runtime-offload" / "isa-matrix-vector-backed"`）：`kind` 收口为四值闭合枚举时**信息不丢**，将来若拆枚举是**机械操作**（此 field 的加入按 [S-6] 记 minor / 附加式演进）。
 2. **kind 闭合枚举** —— `{isa_ext, sub_ext, uarch, policy}`（[S-1]）。
 3. **关系类型表** —— `implies` / `conflicts` 的关系类型及其语义标注（带类型元数据，不是扁平三列表）。
 4. **params 命名空间声明** —— `vlen` / `elen` / `sew_set` / `lmul_budget` / `vreg_count` / `cacheline` / `ime.tile(...)` … 的命名空间与类型（[S-1]）。

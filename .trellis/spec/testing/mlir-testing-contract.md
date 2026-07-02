@@ -67,7 +67,7 @@
 - **naive-RVV** —— 朴素向量对照，仅 sanity。
 - **scalar-oracle** —— 标量对照，仅 sanity；**scalar 永不作贡献基线**（vector-vs-scalar 只测"我们向量化了"，MLIR/autovectorization 已提供，[L-6] vs-naive≠vs-framework）。
 
-三层基线纪律（scalar 永不入贡献列、只有 factory 计 beat、Win-A/B/C 各一强制基线）的完整措辞见 [../validation/experiment-reference.md](../validation/experiment-reference.md) 的 N3 baseline discipline，本节只提供其引用的对手类词表。
+三层基线纪律与 **Win 登记阶梯（[L-7] 定案：Win-A / Win-S = sanity（vs naive / scalar+naive）；Win-B = 贡献轴 vs factory-dispatched，**B1/B2 下标由对手探针定 = 该板出厂路径**，出厂走 repack 的板上打赢其 block-dot ≠ Win-B 而是 algorithm-matched 诊断、不入登记簿；Win-C = 相级 e2e 过 [PERF-1] 八门）** 的完整措辞见 [../validation/experiment-reference.md](../validation/experiment-reference.md)，本节只提供其引用的对手类词表（factory-dispatched = 唯一 beat 基线 / algorithm-matched / naive-RVV / scalar-oracle）。
 
 ## 正确性门：byte-exact 先于计时 + 浮点 ULP 上界（[K-5]）
 

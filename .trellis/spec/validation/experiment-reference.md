@@ -273,37 +273,37 @@ without an adversary-probe artifact is INVALID:
 - **Scalar is NEVER a contribution baseline.** vector-vs-scalar measures "we vectorized at all" — which
   MLIR/autovectorization already provide. It may appear only as an internal sanity check, never as a reported
   multiple. (The old "wide ÷ scalar 4–15×" framings are retracted.)
-- **Keep the three Wins separate; each has ONE mandated baseline:**
-  - **Win-A** = the compiler-automatic *tune* (e.g. max-legal-LMUL width, VLEN→strip selection). Baseline =
-    the SAME kernel with the tuned knob OFF (both arms compiler-emitted; only the knob differs).
-  - **Win-B** = a generated kernel for an algorithm/layout the framework also ships. The framework may ship TWO
-    kernels for one quant (a block-dot AND its own repack), so Win-B MUST be reported as two ORTHOGONAL
-    comparands, never collapsed into one column:
-    - **Win-B1 = vs the framework's block-dot** — "does the layout/algorithm change help". Where the framework
-      ships NO such kernel on that VLEN (e.g. ggml's `case 128: break // TODO` → no q4_0 repack at VLEN128), a
-      Win-B1 result is a legitimate GAP-FILL *coverage* result against the real shipping baseline, NOT a
-      weak-baseline artifact — but any "acceleration / beat" wording for it stays gated on [PERF-1] 八门 / [NG-4]
-      (registered Wins never enter beat 语境, [L-7]), and it is a frontend (added-algorithm) result, not a
-      backend-codegen win.
-    - **Win-B2 = vs the framework's OWN repack** (only exists where the framework ships one) — "is our codegen
-      competitive". The honest success criterion here is PARITY (matching the expert's hand-written kernel).
-    NEVER scalar / naive / `_generic`. Conflating the two comparands in one column (big-vs-block-dot numbers next
-    to parity-vs-own-repack numbers) is baseline-mixing and over-states the backend win.
-    *(Changing the algorithm/layout is a frontend/library contribution, NOT a backend N3 novelty; weight-storage
+- **Registered Win ladder (定案 taxonomy; A/S = sanity, B = kernel-level contribution, C = phase-level; opponent-class 1:1 per [L-7]):**
+  - **Win-A** = the compiler-automatic *tune* paired ablation (narrow↔wide LMUL/strip, same kernel/board/session). Baseline =
+    the SAME kernel with the tuned knob OFF (both arms compiler-emitted; only the knob differs). Opponent = naive. **sanity — never a contribution.**
+  - **Win-S** = a capability-tuned kernel beating BOTH true scalar AND an instruction-level-verified naive vector (two-axis, kernel-level).
+    Opponent = {scalar-oracle, naive-RVV}. **sanity class.** *(alias: this is the two-axis datapoint historically mislabeled "Win-B";
+    renamed to the sanity class — the ledger keeps an **alias note** rather than silently rewriting history.)*
+  - **Win-B** = a generated kernel for an algorithm/layout, measured vs the **framework's OWN dispatched kernel** (contribution axis).
+    Opponent = factory-dispatched. **The B1/B2 subscript is FIXED by the opponent-resolution probe (§ testing) = that board's out-of-box path**, never chosen by hand:
+    - **Win-B1 = beating the framework's block-dot, WHERE the probe says the out-of-box path IS block-dot** (e.g. a VLEN where the framework
+      ships no repack — ggml's `case 128: break` → no q4_0 repack at VLEN128). A GAP-FILL *coverage* result against the real shipping
+      baseline — but any "acceleration/beat" wording stays gated on [PERF-1] 八门 / [NG-4] (registered Wins never enter beat 语境, [L-7]);
+      it is a frontend (added-algorithm) result, not a backend-codegen win.
+    - **Win-B2 = beating the framework's OWN repack, WHERE the probe says the out-of-box path IS repack.** The honest success criterion is
+      PARITY (matching the expert's hand-written kernel).
+    - **Beating the framework's block-dot on a board whose out-of-box path is repack is NOT any Win-B** — it is an `algorithm-matched`
+      *diagnostic* increment (wrong opponent), and **it is NOT entered in the Win ledger**.
+    NEVER scalar / naive / `_generic`. *(Changing the algorithm/layout is a frontend/library contribution, NOT a backend novelty; weight-storage
     repack is the offline-prepack class — Marlin/AWQ/CUTLASS analog — that even Triton leaves outside the compiler.
-    See the frontend-vs-backend discriminator in [system-positioning](../architecture/system-positioning.md) N3
-    boundary. Win-B is kept here as honest-measurement discipline, not as an N3 backend claim.)*
-  - **Win-C** = an automatic *pass* that changes algorithm structure. Baseline = pass OFF vs ON. A
-    hand-authored kernel is Win-B, never relabeled as an automatic-pass contribution.
-    **A pass-ON/OFF number is NOT automatically a *structural* win.** If the ON arm changes BOTH the
-    structure AND an incidental emission property (e.g. it avoids a memory round-trip the OFF arm's emitter
-    happens to incur), the ON/OFF delta conflates the two. To attribute the win to the STRUCTURE you MUST
-    decompose against a *competently-emitted baseline of the SAME structure* (e.g. a register-kept-accumulator
-    per-iteration reduction). If that same-structure competent baseline TIES the ON arm, the structural
-    contribution is **NULL** — report only the pass-ON/OFF number with its real but non-structural mechanism,
-    never a "structural" win. *(A real instance: a deferred-vs-per-iteration reduction pass showed a large
-    ON/OFF gap, but a register-kept per-iter control tied the deferred arm — the gap was a per-iter `out[0]`
-    memory round-trip, not reduction-structure latency; the structural novelty was NOT demonstrated.)*
+    See the frontend-vs-backend discriminator in [system-positioning](../architecture/system-positioning.md).
+    Win-B is honest-measurement discipline, not a backend claim.)*
+  - **Win-C** = a **phase-level end-to-end win** (llama-bench, prefill/decode 分相, vs the SAME-version out-of-box ggml),
+    reported ONLY **after the [PERF-1] 八门 are all green**. Opponent = e2e factory ggml. **This is the only phase-level
+    contribution; a kernel-level micro win is never relabeled as a phase win.**
+- **Attribution rigor (applies to every structural claim, NOT a separate Win):** a pass/structure ON-OFF number is NOT automatically a
+  *structural* win. If the ON arm changes BOTH the structure AND an incidental emission property (e.g. it avoids a memory round-trip
+  the OFF arm's emitter happens to incur), the ON/OFF delta conflates the two. To attribute the win to the STRUCTURE you MUST
+  decompose against a *competently-emitted baseline of the SAME structure* (e.g. a register-kept-accumulator per-iteration reduction).
+  If that same-structure competent baseline TIES the ON arm, the structural contribution is **NULL** — report only the ON/OFF number
+  with its real but non-structural mechanism. *(A real instance: a deferred-vs-per-iteration reduction pass showed a large ON/OFF gap,
+  but a register-kept per-iter control tied the deferred arm — the gap was a per-iter `out[0]` memory round-trip, not
+  reduction-structure latency; the structural novelty was NOT demonstrated.)*
 - **Both harnesses are required and not interchangeable:** an isolated single-core microbench (clean
   ablation) AND a real end-to-end run (catches integration/memory effects). A microbench win that does not
   appear e2e must be disclosed as such; regime-dependence (compute-bound vs memory-bandwidth-bound vs

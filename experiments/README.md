@@ -29,6 +29,13 @@
 - **结构证明格** = `{判定 pass/fail, CI 日志, 快照}`。
 - **纪律:** `open`(原 presumed)永不可被正文引用;指纹任一分量变 → 同指纹格自动 `stale`;跨会话不比;强/弱义构造由 provenance 清单机检([L-8]);vs-framework 无对手探针工件即 INVALID。
 
+## Win 登记阶梯（[L-7] 定案 · 阶梯与对手类一一对应）
+- **Win-A** = 能力形状旋钮(narrow↔wide)vs naive —— **sanity**。
+- **Win-S** = 两轴 kernel 赢 vs 真标量 + 指令级核验朴素向量 —— **sanity 类**。*alias:即历史一度误标 "Win-B" 的两轴 datapoint;改名归 sanity,登记簿(T8)留 alias 注记、不改史。*
+- **Win-B** = 算法/布局 vs **框架自家 kernel** —— **kernel 级贡献**;**B1/B2 下标 = 该板出厂路径探针结果**(B1=出厂 block-dot / B2=出厂 repack);**在出厂走 repack 的板上打赢其 block-dot ≠ Win-B**,只是 `algorithm-matched` 诊断增量,**不入 T8 登记簿**。
+- **Win-C** = 相级 e2e 赢(过 [PERF-1] 八门后 prefill/decode 分相 vs 出厂 ggml)—— **相级贡献**。
+- **A/S/B 绝不入 beat 语境([NG-4]);任何落败/对比结论反汇编钉死前不得书面引用。**
+
 ## 板
 - **板 A** = RVV1.0 VLEN128(无 repack → block-dot 是唯一 ggml 对手)。
 - **板 B** = RVV1.0 VLEN256 + 整数矩阵扩展(部分格式 repack→GEMM 绕过 block-dot,对手身份随格式变)。

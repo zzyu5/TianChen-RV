@@ -54,7 +54,7 @@ selection 是两段式：
 
 ### [D-2a] 装载期最小解析记录
 
-装载期能力解析的稳定形态：消费**显式 schema 事实实例** → 计算 **declared-instance-hash** → 落**每进程一条**解析记录。热路径**零逐次**能力检查；**per-dispatch 强制检查永久禁止**（总纲 [NG-3]）。解析记录是缓存事实 / 镜像，不是 route / dtype / schedule authority（I4）。
+装载期能力解析的稳定形态：消费 schema 事实实例（**profile 先展开成规范化事实集**）→ 对**展开后的规范化事实集**计算 **declared-instance-hash**（故 profile 写法与语义等价的显式事实列表**哈希相同**）→ 落**每进程一条**解析记录。热路径**零逐次**能力检查；**per-dispatch 强制检查永久禁止**（总纲 [NG-3]）。解析记录是缓存事实 / 镜像，不是 route / dtype / schedule authority（I4）。
 
 ### [D-4] 三级归因
 

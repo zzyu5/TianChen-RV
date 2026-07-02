@@ -33,7 +33,7 @@
 |---|---|---|---|
 | **E0** | 清除代码注释里的 beat 措辞越界(零成本,即刻) | [NG-4]/[L-1]/[L-7] | 全仓无未过 [PERF-1] 的 beat 断言 |
 | **E1** | 起草 `schema.def` v1(六项反写已备)+ 操作门 | [S-5]/[F-2′] | schema.def 落盘 + 版本日志 + 逐 PR diff∩schema.def=∅ 门在 CI |
-| **E2** | 家族代码目录归拢(趁重构窗口,现在便宜) | [F-3] | 单一 `plugins/<family>/` 布局 + 收容门可判定 |
+| **E2** | 家族代码目录归拢(趁重构窗口)+ **op-attribute `kind` → `target_kind`/`region_kind` 消歧**(纯代码,**须先于 E1 schema.def v1**,免契约文档写消歧注记 + 减 [F-1] grep 假阳性) | [F-3]/命名消歧 | 单一 `plugins/<family>/` 布局 + 收容门可判定 + op 侧 kind rename 完成 |
 | **E3** | Falsifier 组进 CI(curated 正则四型谓词 + 判读规程 + fuzz + 独立性判据) | [F-1]/[F-5]/[F-6] | 每 PR 触发、假阳性排除、CI 绿 |
 | **E4** | 编译期归因 JSONL 出口(reason 三值枚举 + candidates/keys/declared_instance_hash/ts)+ 装载期最小解析记录 | [D-4①]/[D-2a] | C_attr^CT 抽样 100% + 每进程一条解析记录 |
 | **E5** | provenance 清单 → 六态自动读出 + [L-8] 执法 | [K-4]/[L-8] | T0 六态脚本可判、弱充强被 CI 拦 |
@@ -114,4 +114,4 @@
 
 ## Technical Notes
 
-三总纲 = 权威(docs/);spec 已吸收(.trellis/spec/);experiments/ 空表已建。执行总纲 §10 TOP-10 = 证据线 E0–E8 的落地清单;实验总纲 §6 前置工具 = 同一批。**一次核查快照 = 7185a62b(执行总纲);仓库已前进(现 6e2e4e56 + 后续),spin 子任务前须重钉快照重跑基线确认([A-2])。**
+三总纲 = 权威(docs/);spec 已吸收(.trellis/spec/);experiments/ 空表已建。执行总纲 §10 TOP-10 = 证据线 E0–E8 的落地清单;实验总纲 §6 前置工具 = 同一批。**三条术语定案已入 canon+spec:** ① Win 登记阶梯 A/S(sanity)/B(kernel 级,B1/B2 由对手探针定)/C(相级 e2e 过 [PERF-1]),Win-S 为历史误标 "Win-B" 的 alias(登记簿留注、不改史);② `kind` 闭合枚举 + `subclass` 保原始类目(schema.def ①,minor),profile 只作 provider(不带 kind)、declared-instance-hash 对**展开事实集**取(profile ≡ 显式列表哈希相同);③ op-attribute kind → `target_kind`/`region_kind`,随 E2 目录归拢、先于 E1 schema.def v1。**一次核查快照 = 7185a62b(执行总纲);仓库已前进(现 6e2e4e56 + 后续),spin 子任务前须重钉快照重跑基线确认([A-2])。**

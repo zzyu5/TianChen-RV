@@ -92,7 +92,7 @@ Reference shape:
 ```mlir
 tcrv.exec.target @rvv_profile attributes {
   id = "rvv.profile.rv64gcv",
-  kind = "profile",
+  target_kind = "profile",   // op-attribute 分类轴（profile / capability-provider），与能力事实闭合枚举 kind [S-1] 区分
   provides = ["rvv"]
 }
 
@@ -130,8 +130,11 @@ Rules:
 - a capability-provider target profile may declare additional module-level
   provider refs through `capability_providers = [@provider, ...]`. Each ref
   must resolve to a module-level `tcrv.exec.capability` or capability-provider
-  `tcrv.exec.target` with non-empty `id` and `kind`; provider symbols and ids
-  must be unique across the composed target scope. Missing refs, non-provider
+  `tcrv.exec.target` with non-empty `id` (a leaf capability-provider also carries a capability-fact `kind` [S-1];
+  a **profile-provider carries `provides`, NOT a capability-fact `kind`** — its op-classification uses `target_kind`,
+  and it expands to a normalized fact set at load-time); provider symbols and ids
+  must be unique across the composed target scope.
+  **命名消歧契约:** op-attribute 分类轴用 `target_kind` / `region_kind`，与能力事实的闭合枚举 `kind`（[S-1]）**同名易混，须区分**；此 op 侧 rename 是纯代码改动（不动 schema.def 冻结契约），**随目录归拢 PR、务必在 schema.def v1 定稿之前**落地（同时减少 [F-1] falsifier grep 的假阳性面）。 Missing refs, non-provider
   refs, malformed refs, self references, duplicate symbols/ids, and obvious
   nested target cycles are invalid. This is a target/capability composition
   contract only, not a compute or extension-route surface.

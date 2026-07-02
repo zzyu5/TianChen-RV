@@ -39,7 +39,12 @@
 - **[L-4]** 不与 autotuning 对标；唯一允许句式：能力键控**裁剪并结构化** autotuner 要搜索的空间，互补而非替代。
 - **[L-5]** 作废数据清单：06-14"输给 naive"永久作废；board-pending 期间旧性能格子不得进任何文本。
 - **[L-6] 成熟度三重区分**：①"能被能力调度路由"≠"主体由机制构造"（wiring ≠ construction）；②"击败朴素/标量基线"≠"击败框架自身同 ISA 内核"（vs-naive ≠ vs-framework）；③"编译期/lit 证据"≠"硅上封存（反汇编/实测）"（export-lit ≠ silicon-sealed）。
-- **[L-7] Win 登记制**：性能事件必须登记命名（Win-A：宽 LMUL vs naive 三芯片消融；Win-B：能力调优产品-归约-反量化内核，内核级，vs 真标量 + 指令级核验朴素向量，单板）。登记的 Win 只作"机制在工作"的 sanity，**绝不入 beat 语境**；任何落败/对比结论**反汇编钉死前不得书面引用**。
+- **[L-7] Win 登记制（定案 taxonomy；阶梯与实验宪法对手类一一对应）**：性能事件必须登记命名。
+  - **Win-A** = 能力形状配对消融（narrow↔wide 旋钮，同 kernel/板/会话）vs naive —— **sanity**。
+  - **Win-S** = 能力调优 kernel 内核级**同时**击败真标量 + 指令级核验朴素向量的两轴赢 —— **sanity 类**（*alias 注记：即历史上一度误标为 "Win-B" 的两轴 datapoint；改名归 sanity，登记簿**保留 alias 注记、不悄改史**）。
+  - **Win-B** = 算法/布局级 vs **框架自家 kernel**（贡献轴）；**B1/B2 下标 = 该板出厂路径探针结果**：B1 = 出厂走 block-dot 时打赢它；B2 = 出厂走 repack 时打赢它；**在出厂走 repack 的板上打赢人家的 block-dot ≠ 任何 Win-B，仅 algorithm-matched 诊断增量，不入登记簿**。
+  - **Win-C** = 相级 e2e 赢（过 [PERF-1] 八门后 prefill/decode 分相 vs 同版本出厂 ggml）。
+  - 阶梯：**A/S = sanity · B = kernel 级贡献 · C = 相级贡献**；对手类对应 A/S↔{naive-RVV, scalar-oracle}、B↔factory-dispatched（探针定 B1/B2）、C↔e2e factory ggml。**A/S/B 绝不入 beat 语境（[NG-4]）；Win-C 须过 [PERF-1] 八门；任何落败/对比结论反汇编钉死前不得书面引用。**
 - **[L-8] 构造语义纪律**：论文与文档中"由机制构造 / mechanically constructed"**仅指强义 constructed**（[K-4] 定义）；弱义必须写作 "descriptor-selected composition"。弱义充强义 = 违宪。
 
 ---

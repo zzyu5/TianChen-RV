@@ -78,6 +78,8 @@
 
 ## §4 消融目录(采纳草案 §5 + grounding)
 
+> **Win 登记阶梯([L-7] 定案,与对手类一一对应):Win-A**(能力形状旋钮 vs naive)/ **Win-S**(两轴 vs 标量+朴素;*即历史误标 "Win-B" 的条目,改名归 sanity,登记簿留 alias 注记*)= **sanity**;**Win-B**(算法/布局 vs 框架自家 kernel)= **kernel 级贡献**,**B1/B2 下标由对手探针定 = 该板出厂路径**(出厂走 repack 的板上打赢其 block-dot ≠ Win-B,只是 algorithm-matched 诊断、不入登记簿);**Win-C**(相级 e2e 过 [PERF-1] 八门 vs 出厂 ggml)= **相级贡献**。A/S/B 绝不入 beat 语境。
+
 1. **Win-A(能力形状)**:同 kernel/板/会话,旋钮 narrow↔wide 配对;**前置 = 双板候选集哈希相等**;跨板翻转主张 = (A 选窄 ∧ B 选宽) ∧ 双板归因日志 reason 在案。**身份 = sanity,永不入贡献列。**
 2. **选择器四配置**(常量/仅先验/仅记忆/先验+记忆)× oracle 遗憾度;专项复现并消灭"矩阵静默落败"。**gated on 先验层(M3)。**
 3. **模式逐条 on/off**(T3p):每条模式的机理声明获得数据判决。**gated on 模式注册表。**
