@@ -42,8 +42,12 @@ llvm::StringRef getCapabilityStatus(mlir::Operation *op) {
 }
 
 bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
+  // "kind" is the capability-fact axis; "target_kind" is the target op's
+  // classification axis. Both are core (not user property) attributes, so a
+  // capability-provider target's classification never leaks into its property
+  // map.
   return attrName == "sym_name" || attrName == "id" || attrName == "kind" ||
-         attrName == "status" ||
+         attrName == "target_kind" || attrName == "status" ||
          attrName == kCapabilityProvidersAttrName;
 }
 
@@ -254,7 +258,7 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
     if (llvm::Error error = capabilitySet.tryAddCapability(
             makeDescriptor(target.getOperation(), target.getSymName(),
                            getStringAttr(target.getOperation(), "id"),
-                           getStringAttr(target.getOperation(), "kind")),
+                           getStringAttr(target.getOperation(), "target_kind")),
             constructionContext))
       return std::move(error);
 
@@ -292,7 +296,7 @@ TargetCapabilitySet::buildFromKernelChecked(tcrv::exec::KernelOp kernel) {
       if (llvm::Error error = capabilitySet.tryAddCapability(
               makeDescriptor(target.getOperation(), target.getSymName(),
                              getStringAttr(target.getOperation(), "id"),
-                             getStringAttr(target.getOperation(), "kind")),
+                             getStringAttr(target.getOperation(), "target_kind")),
               constructionContext))
         return std::move(error);
 

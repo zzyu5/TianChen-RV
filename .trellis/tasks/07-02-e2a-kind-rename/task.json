@@ -1,7 +1,7 @@
 {
-  "id": "full-refactor",
-  "name": "full-refactor",
-  "title": "完整重构 — 能力驱动 RISC-V 执行层成熟化(引擎轴 × 证据轴)",
+  "id": "e2a-kind-rename",
+  "name": "e2a-kind-rename",
+  "title": "E2a — op-attribute kind → target_kind/region_kind 消歧",
   "description": "",
   "status": "in_progress",
   "dev_type": null,
@@ -12,16 +12,14 @@
   "assignee": "claude",
   "createdAt": "2026-07-02",
   "completedAt": null,
-  "branch": "refactor/full-refactor-m1",
-  "base_branch": "main",
+  "branch": null,
+  "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "07-02-e2a-kind-rename"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "07-02-full-refactor",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

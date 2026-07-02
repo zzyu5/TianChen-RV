@@ -71,14 +71,14 @@ int main() {
 module {
   tcrv.exec.target @module_rvv_profile {
     id = "rvv.profile.module",
-    kind = "profile",
+    target_kind = "profile",
     status = "available",
     relations = #tcrv.capability_relations<provides = ["module.rvv"]>,
     architecture = "riscv64"
   }
   tcrv.exec.target @unreferenced_module_profile {
     id = "unreferenced.profile",
-    kind = "profile",
+    target_kind = "profile",
     status = "available"
   }
   tcrv.exec.kernel @generic_target attributes {target = @module_rvv_profile} {
@@ -89,7 +89,7 @@ module {
     tcrv.exec.capability @probe_missing {id = "runtime.probe", kind = "runtime-offload", status = "missing"}
     tcrv.exec.target @rvv_profile {
       id = "rvv.profile.rv64gcv",
-      kind = "profile",
+      target_kind = "profile",
       status = "available",
       relations = #tcrv.capability_relations<provides = ["rvv"] implies = ["zvl128b"] conflicts = ["vendor.inline_asm_forbidden"]>,
       architecture = "riscv64"

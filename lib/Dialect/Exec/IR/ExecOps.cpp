@@ -33,7 +33,12 @@ namespace exec = tianchenrv::tcrv::exec;
 namespace {
 
 constexpr llvm::StringLiteral kIdAttrName("id");
+// Capability-fact classification axis ([S-1] closed enum) on tcrv.exec.capability.
 constexpr llvm::StringLiteral kKindAttrName("kind");
+// Op-classification axes, disambiguated from the capability-fact kind:
+//   target profile / capability-provider classification, and region tag.
+constexpr llvm::StringLiteral kTargetKindAttrName("target_kind");
+constexpr llvm::StringLiteral kRegionKindAttrName("region_kind");
 constexpr llvm::StringLiteral kNameAttrName("name");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
@@ -318,7 +323,7 @@ bool kernelContainsCapability(KernelOp kernel, llvm::StringRef symbolName) {
     auto target = llvm::dyn_cast<TargetOp>(op);
     if (target &&
         !isMissingOrEmptyStringAttr(target.getOperation(), kIdAttrName) &&
-        !isMissingOrEmptyStringAttr(target.getOperation(), kKindAttrName)) {
+        !isMissingOrEmptyStringAttr(target.getOperation(), kTargetKindAttrName)) {
       if (target.getSymName() == symbolName)
         return true;
 
@@ -588,18 +593,18 @@ mlir::LogicalResult CapabilityRelationsAttr::verify(
 mlir::LogicalResult TargetOp::verify() {
   auto idAttr = getOperation()->getAttrOfType<mlir::StringAttr>(kIdAttrName);
   auto kindAttr =
-      getOperation()->getAttrOfType<mlir::StringAttr>(kKindAttrName);
+      getOperation()->getAttrOfType<mlir::StringAttr>(kTargetKindAttrName);
   if (static_cast<bool>(idAttr) != static_cast<bool>(kindAttr))
     return emitOpError()
            << "requires capability-provider target profiles to specify both "
               "non-empty string attributes '"
-           << kIdAttrName << "' and '" << kKindAttrName << "'";
+           << kIdAttrName << "' and '" << kTargetKindAttrName << "'";
 
   if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
                                                       kIdAttrName)))
     return mlir::failure();
   if (mlir::failed(requireStableSingleLineWhenPresent(getOperation(),
-                                                      kKindAttrName)))
+                                                      kTargetKindAttrName)))
     return mlir::failure();
 
   if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
@@ -609,7 +614,7 @@ mlir::LogicalResult TargetOp::verify() {
     if (!exec::isCapabilityProviderTarget(*this))
       return emitOpError()
              << "declares capability_providers but does not carry non-empty "
-                "id and kind capability identity";
+                "id and target_kind capability identity";
 
     llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> providers =
         exec::collectComposedModuleCapabilityProviders(*this);
@@ -673,7 +678,7 @@ mlir::LogicalResult KernelOp::verify() {
       return emitOpError()
              << "target @" << targetAttr.getValue()
              << " must reference a capability-provider tcrv.exec.target with "
-                "non-empty id and kind";
+                "non-empty id and target_kind";
 
     if (findDirectKernelSymbol(*this, targetAttr.getValue()))
       return emitOpError()
@@ -727,7 +732,7 @@ mlir::LogicalResult KernelOp::verify() {
 
     if (auto target = llvm::dyn_cast<TargetOp>(op)) {
       auto idAttr = target->getAttrOfType<mlir::StringAttr>(kIdAttrName);
-      auto kindAttr = target->getAttrOfType<mlir::StringAttr>(kKindAttrName);
+      auto kindAttr = target->getAttrOfType<mlir::StringAttr>(kTargetKindAttrName);
       if (idAttr && kindAttr && !idAttr.getValue().trim().empty() &&
           !kindAttr.getValue().trim().empty()) {
         if (mlir::failed(addCapabilityProviderToKernelScope(
@@ -945,9 +950,10 @@ mlir::LogicalResult HartParallelOp::verify() {
 }
 
 mlir::LogicalResult RegionOp::verify() {
-  if (isMissingOrEmptyStringAttr(getOperation(), kKindAttrName))
+  if (isMissingOrEmptyStringAttr(getOperation(), kRegionKindAttrName))
     return emitOpError()
-           << "requires non-empty string attribute '" << kKindAttrName << "'";
+           << "requires non-empty string attribute '" << kRegionKindAttrName
+           << "'";
 
   if (isPresentButEmptyStringAttr(getOperation(), kNameAttrName))
     return emitOpError()

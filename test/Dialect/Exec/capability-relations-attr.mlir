@@ -37,7 +37,7 @@ tcrv.exec.capability @full_relations {
 // CHECK-LABEL: tcrv.exec.target @typed_target
 // CHECK-SAME: relations = #tcrv.capability_relations<provides = ["build.policy.no_inline_asm"]>
 tcrv.exec.target @typed_target {
-  id = "vendor.profile", kind = "build-policy",
+  id = "vendor.profile", target_kind = "build-policy",
   relations = #tcrv.capability_relations<provides = ["build.policy.no_inline_asm"]>}
 
 // -----

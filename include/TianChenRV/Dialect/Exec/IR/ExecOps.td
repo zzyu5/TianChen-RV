@@ -221,7 +221,7 @@ def RegionOp : TCRVExec_Op<"exec.region",
     but does not interpret RVV, IME, offload, or future plugin legality here.
   }];
 
-  let arguments = (ins OptionalAttr<StrAttr>:$kind,
+  let arguments = (ins OptionalAttr<StrAttr>:$region_kind,
                    OptionalAttr<StrAttr>:$name,
                    OptionalAttr<StrAttr>:$purpose);
   let regions = (region SizedRegion<1>:$body);

@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "被消歧的 target/region kind 契约 + 命名消歧契约(:95,133-137);能力事实 kind vs op 分类 kind 的权威区分"}
+{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "I-rules + byte-exact/镜像纪律;mirror 绝不是 authority(descriptor.kind 数据流不改)"}
+{"file": ".trellis/tasks/07-02-e2a-kind-rename/research/kind-rename-map.md", "reason": "逐 occurrence 主表:KEEP(能力事实)vs →target_kind vs →region_kind vs OUT-OF-SCOPE"}
+{"file": ".trellis/tasks/07-02-e2a-kind-rename/research/kind-rename-scope-summary.md", "reason": "scope 计数 + byte-exact 门 + 原子耦合(§4)+ 编辑序(§6)+ 升级项 out-of-scope"}

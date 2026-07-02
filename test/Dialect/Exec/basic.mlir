@@ -59,10 +59,10 @@ tcrv.exec.kernel @saxpy attributes {} {
     // CHECK-SAME: policy = "static"
     tcrv.exec.hart_parallel attributes {harts = 64 : i64, policy = "static"} {
       // CHECK: tcrv.exec.region
-      // CHECK-SAME: kind = "extension-resource"
       // CHECK-SAME: name = "rvv-resource"
       // CHECK-SAME: purpose = "extension-owned-body"
-      tcrv.exec.region attributes {kind = "extension-resource", name = "rvv-resource", purpose = "extension-owned-body"} {
+      // CHECK-SAME: region_kind = "extension-resource"
+      tcrv.exec.region attributes {region_kind = "extension-resource", name = "rvv-resource", purpose = "extension-owned-body"} {
         // CHECK: tcrv.exec.diagnostic
         // CHECK-SAME: message = "rvv variant selected by capability guard"
         // CHECK-SAME: reason = "variant-selected"

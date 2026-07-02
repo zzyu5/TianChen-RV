@@ -63,7 +63,7 @@ module {
   // PIPE-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning
   tcrv.exec.target @module_offload_scalar_profile {
     id = "profile.offload.scalar",
-    kind = "profile",
+    target_kind = "profile",
     relations = #tcrv.capability_relations<provides = ["offload.runtime", "scalar.fallback"]>,
     status = "available",
     runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",

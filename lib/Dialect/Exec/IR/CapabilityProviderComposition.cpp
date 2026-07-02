@@ -13,7 +13,9 @@ namespace {
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 constexpr llvm::StringLiteral kIdAttrName("id");
-constexpr llvm::StringLiteral kKindAttrName("kind");
+// Op-classification axis on tcrv.exec.target (profile / capability-provider),
+// disambiguated from the capability-fact kind on tcrv.exec.capability.
+constexpr llvm::StringLiteral kTargetKindAttrName("target_kind");
 
 llvm::Error makeProviderCompositionError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -80,7 +82,8 @@ public:
         !isCapabilityProviderTarget(root))
       return makeProviderCompositionError(
           llvm::Twine(formatTargetContext(root)) +
-          " declares capability_providers but does not carry non-empty id/kind");
+          " declares capability_providers but does not carry non-empty "
+          "id/target_kind");
 
     if (isCapabilityProviderTarget(root)) {
       seenSymbols.insert(root.getSymName());
@@ -201,7 +204,7 @@ llvm::StringRef getTargetCapabilityProvidersAttrName() {
 bool isCapabilityProviderTarget(TargetOp target) {
   return target &&
          !getStringAttr(target.getOperation(), kIdAttrName).trim().empty() &&
-         !getStringAttr(target.getOperation(), kKindAttrName).trim().empty();
+         !getStringAttr(target.getOperation(), kTargetKindAttrName).trim().empty();
 }
 
 bool isCapabilityProviderOperation(mlir::Operation *op) {
@@ -226,7 +229,7 @@ llvm::StringRef getCapabilityProviderKind(mlir::Operation *op) {
   if (auto capability = llvm::dyn_cast_or_null<CapabilityOp>(op))
     return capability.getKind().value_or("");
   if (auto target = llvm::dyn_cast_or_null<TargetOp>(op))
-    return getStringAttr(target.getOperation(), kKindAttrName);
+    return getStringAttr(target.getOperation(), kTargetKindAttrName);
   return {};
 }
 
