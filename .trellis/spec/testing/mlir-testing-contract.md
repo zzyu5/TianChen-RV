@@ -69,6 +69,18 @@
 
 三层基线纪律与 **Win 登记阶梯（[L-7] 定案：Win-A / Win-S = sanity（vs naive / scalar+naive）；Win-B = 贡献轴 vs factory-dispatched，**B1/B2 下标由对手探针定 = 该板出厂路径**，出厂走 repack 的板上打赢其 block-dot ≠ Win-B 而是 algorithm-matched 诊断、不入登记簿；Win-C = 相级 e2e 过 [PERF-1] 八门）** 的完整措辞见 [../validation/experiment-reference.md](../validation/experiment-reference.md)，本节只提供其引用的对手类词表（factory-dispatched = 唯一 beat 基线 / algorithm-matched / naive-RVV / scalar-oracle）。
 
+## [F-1] 零分支 falsifier —— manifest + 判读规程（C1/N2 头牌证据门）
+
+零核心分支不变量（I3）由 CI 门机检。可执行契约:
+
+- **family-regex manifest** —— 版本化表文件,每家族登记其名字/助记符正则(如 `rvv`、`ime`/`vmadot`、`scalar.zbb`)。falsifier 对**核心目录**(`lib/Dialect`、`lib/Support`、`lib/Transforms` 等 plugin 外的核心)grep 这些正则;白名单只含**表/数据文件**(如 monolithic op table、schedule descriptor registry)。manifest / 白名单变更走 **RFC 标记的 commit**。
+- **判读规程(真分支 vs 同名假阳性,命中即需裁决):** 一处命中判 **RED(真分支违规)** 当且仅当它是**核心里按家族名做的控制流/派发决策**(if/switch/StringSwitch/starts_with 键控 family)。以下为**声明式假阳性类**(manifest 逐条 allow,不判 RED):
+  1. **数据/表文件里的字符串字面量**(family 名作表数据,非分支);
+  2. **身份比较**(如 `candidate.origin == selectedRoute.originPlugin`,按 origin 相等而非按 family 名分支);
+  3. **op 属性名/类型助记符里含 family 子串**(如 `target_kind` / `region_kind`(E2a 引入)、类型助记符 `tcrv_rvv.*` / `!rvv...`)—— 是命名不是决策。
+- **allow-list 精确到 (文件 glob, 正则)**;新假阳性须**显式登记**方可豁免,不得放宽全局正则。命中不在 allow-list = RED。
+- 详细每家族正则表 + 白名单文件清单是 **E3 pillar 交付物**(本节钉判读规程与 manifest 形态,具体条目住 manifest 工件 + docs/科研目标总纲 [F-1])。
+
 ## 正确性门：byte-exact 先于计时 + 浮点 ULP 上界（[K-5]）
 
 计时永远在正确性之后（见上"先正确性、后计时"）。正确性门的形态（[K-5]）：

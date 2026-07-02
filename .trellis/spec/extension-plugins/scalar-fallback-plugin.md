@@ -9,6 +9,12 @@ target profile explicitly exposes a fallback capability.
 It is not the primary performance path and must not be reported as RVV, IME,
 offload, or hardware-specific evidence.
 
+## 与 [X-SCALAR] 独立家族的边界（勿混 —— 同名 "scalar"，实为两物）
+
+**本 fallback 插件 ≠ 科研总纲 [X-SCALAR]。** [X-SCALAR] 是 C1 广度见证的**向量缺席独立性能家族 #3**（owned 内核 = 三值 2-bit `vec_dot` 热性能路径；C2 第二数据点；须过 [F-6] 独立性 = 向量缺席实例下 `only_feasible` 且真实被选中）。本 fallback 插件是**可移植兜底覆盖槽**（correctness-only、非性能路径）。接 X1 pillar 的 agent **不得把 owned 性能内核塞进本 fallback 槽**：`tcrv_scalar` 命名空间保留的 "later scalar rebuild" **可作 [X-SCALAR] 的落点，但那是一个新的独立家族插件**（带 owned 内核 + 能力事实 + [P-2] 五件套），不是给本 fallback 槽加性能路径。
+
+**[X-SCALAR] 设计护栏（耐久约束，非任务选择）:低比特量化点积数学不走 XOR-popcount** —— 三值/低比特走位域抽取 / base-3 拆包 / 查表 gather，`zbb` 的 `cpop` 在这些内核**无处落地**；owned 内核**不得按 popcount 模板设计**、不为其造 popcount 语料。X-SCALAR 家族契约（模板 / 落点）是 **M3+ gated**，待 X1 pillar 落地（字段级不在此重述）。
+
 ## First C++ Plugin Slice
 
 The first scalar fallback C++ slice is intentionally bounded. It proves that a
