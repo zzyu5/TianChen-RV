@@ -1,6 +1,6 @@
 # 完整重构 —— 能力驱动 RISC-V 执行层成熟化(引擎轴 × 证据轴)
 
-> **状态:REVIEW-GATE(待用户审核)。** 本 PRD 定义**父级 program** 的目标、双轴 pillar 与子任务分解草案;**不 spin 子任务、不动代码,直到批准**。范围裁决(用户 60s 未答,采推荐档,待确认):父级 program PRD(M1→M4)· 证据线优先 · 理想项(X-SCALAR / IME 自有 GEMM)纳入为 gated M3+ pillar。
+> **状态:REVIEW-GATE(待用户审核)。** 本 PRD 定义**父级 program** 的目标、双轴 pillar 与子任务分解草案;**不 spin 子任务、不动代码,直到批准**(开工另起新 agent)。范围裁决:父级 program PRD(M1→M4)· **两轴并行(用户定:证据线与引擎线一起做,从一开始就是成熟 compiler,不是先证据后引擎)** · 理想项(X-SCALAR / IME 自有 GEMM)纳入为 gated M3+ pillar。
 >
 > **权威三总纲(docs/):** `科研目标总纲v2`(证什么·目标态)· `执行总纲v2`(现在到哪·代码锚点·钉快照)· `实验总纲v1`(怎么证·表集 T0–T8)。spec 已吸收三总纲思想(`.trellis/spec/` C1/C2/C3′ + [L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2] + 实验宪法)。experiments/ 已建空表模板。**本 PRD 是把三总纲落成可执行 pillar 的桥。**
 
@@ -82,7 +82,7 @@
 
 ## Scale 诚实(拒 small-scope,非拒 slow-scope)
 
-**multi-quarter 到 multi-year 工程。** 全 body-shape 强义构造 + 证据机检层全套 + N1-on-silicon + resource cost + 一个实测 beat = 大工程。**两轴并行,但先做便宜且解锁最多的证据线(E0–E8)、再啃引擎线主战场(G1)、硬件与理想项排后。** 诚实说规模不是 hedging 野心;野心不带 scale 诚实就会"以为快到了"再次卡半途。
+**multi-quarter 到 multi-year 工程。** 全 body-shape 强义构造 + 证据机检层全套 + 能力 live-on-silicon + resource cost + 一个实测 beat = 大工程。**两轴并行(用户定):证据线(E0–E8,便宜、先出量、关 C1/C2/C_attr 机检缺口)与引擎线(G1 body 强义构造主战场 + G3 SEL-1 先验层)一起做——目标是从一开始就是一个成熟 compiler,不是"先证据后引擎";硬件轴(P)与理想轴(X)排后 / gated。** 诚实说规模不是 hedging 野心;野心不带 scale 诚实就会"以为快到了"再次卡半途。
 
 ## Scope 纪律 / 保住 working
 
@@ -109,7 +109,8 @@
 
 ## Decision(ADR-lite)—— 待用户审核
 
-**待批:** (A) 范围 = 父级 program PRD(M1→M4)· 证据线优先 · 理想项纳入 M3+ gated —— **用户 60s 未答,采推荐档,请确认或改档**;(B) 首批 spin 的证据线子任务集(建议 E0 立即 + E1/E3/E4/E8 并行起步);(C) 是否本轮就把 T-N/对手探针(E8)与 schema.def(E1)作为最高优先(它们同时解锁实验 + 关闭机检缺口)。
+**已定:** 范围 = 父级 program PRD(M1→M4)· **两轴并行(证据线 × 引擎线一起做,从一开始就是成熟 compiler)** · 理想项纳入 M3+ gated。
+**待批(开工前,另起新 agent):** (B) 首批 spin 集 = **证据线 E0(立即)+ E1/E3/E4/E8 与引擎线 G1(body 模式库主战场)+ G3(SEL-1 先验层)一起起步**(两轴并行的第一批);(C) spin 子任务前**重钉快照 + 重跑基线确认 [A-2]**(仓库已从核查快照前进)。
 
 ## Technical Notes
 
