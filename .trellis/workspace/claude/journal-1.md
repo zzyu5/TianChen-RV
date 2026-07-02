@@ -1439,3 +1439,36 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: full-refactor program 放行 + E0/E2a 落地
+
+**Date**: 2026-07-02
+**Task**: full-refactor program 放行 + E0/E2a 落地
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+读三总纲(科研目标v2/实验v1/执行v2),确认母 PRD 07-02-full-refactor 为 REVIEW-GATE 父级 program;/goal 放行开工。修 PRD 排序矛盾(拆 E2→E2a kind改名/E2b 目录归拢;E2a 先于 E1;E0 quick-commit 非 round;G1 gated 在 E5/E6 度量尺子后)。开 branch refactor/full-refactor-m1,母任务 planning→in_progress。E0(b128e3d5):清 5 处 beats-ggml-13% 越界注释。E2a(6e16322b):op 分类 kind→target_kind/region_kind 消歧,能力事实 kind 保留;trellis-research 测绘 blast-radius+消歧,trellis-implement 执行(forced/clean rebuild+byte-exact 门 PASS,check-tianchenrv 780/783,3 fail 为 pre-existing 正交 Python self-test),trellis-check 5 项验收全 PASS。wrap(598d1931):spec region_kind 一致性+E2a child completed+父PRD台账。下轮=E1 schema.def v1(六项反写见执行总纲§4)+F-2′ 操作门,前须重钉快照重跑基线[A-2]抽验。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `598d1931` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
