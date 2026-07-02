@@ -19,15 +19,32 @@ TianChen-RV 是 high-level MLIR 之后的**能力驱动统一 RISC-V 执行层**
 
 ## Novelty（论文主张 — 写 spec / 代码前必须对齐）
 
-| # | 主张 | 成立所需证据（缺证据就只是工程，不是贡献） |
-|---|---|---|
-| N1 | RISC-V 扩展异构性作为 first-class capability IR | 同一 kernel 在多个**真实** profile 上，被 capability 查询导向不同的合法性 / 选择 / dispatch 结果 |
-| N2 | 零-core-branch 的 plugin 泛化 | RVV + 至少一个**非-RVV** family（IME）走同一 common pipeline，core/common pass 里不出现 family-name 分支 |
-| N3 | capability/resource-aware 的跨 family 调优 | Gearbox 的候选空间由 capability + resource facts 推导，且在若干 kernel 上对**框架自己出厂的同-ISA kernel**（如 ggml 真 RVV `vec_dot`）实测胜出或打平（baseline 纪律见 [validation/experiment-reference](./validation/experiment-reference.md)；scalar/naive 只作内部 sanity，**绝不**作贡献倍数）|
+论文主张按科研目标总纲 v2 的**三条贡献 C1/C2/C3′ + 成熟编译器**组织；旧的 N1/N2/N3 不作废，而是**下沉为机制轴的构件**（映射见下方 bridge，本树其他文件与 CLAUDE.md 仍按 N1/N2/N3 引用，不推倒）。
 
-> "execution-variant 容器""plugin 化"本身**不是** novelty —— MLIR 的 dialect + interface 已提供。不要把架构选择当贡献卖点。novelty 只在 N1–N3，且都以证据为准。
+| # | 主张（终态） | 成立所需证据（缺证据就只是工程，不是贡献） |
+|---|---|---|
+| **C1** | **合取机制的存在性 → 可复制协议**：一份带关系的能力 schema 同时驱动编译期变体生成与 fail-closed 运行期（装载期解析形态起步）调度守卫，**跨计算范式（向量 SIMD → 整矩阵 MAC）且跨独立家族（向量缺席的标量家族）**原封复用；接入升级为外部贡献者可循的**协议** | 零家族分支由 falsifier 组 [F-1..F-6]（含独立性判据 [core-invariants](./architecture/core-invariants.md) [F-6]、操作门 [F-2′]）机检并 CI 常绿；schema.def 自第二家族起未被接入触及（[F-2′] 逐 PR 审计）；≥3 家族下证据阶梯成立 |
+| **C2** | **泛化代价 → 边际成本规律**：零分支/零核心改动不变量下，逐家族接入代价形成**边际递减曲线**，并给出结构解释（成本住模式/谓词/测试哪一处） | 成本 ledger 脚本自动生成且首点可复算（cloc、测试单列）；≥3 数据点成曲线；术语按 [L-2] integrated/independent-attached；对照锚在位。"第三家族小"正是主张本身（边际递减），不是弱点 |
+| **C3′** | **能力键控优化模式库 → 带实测与迁移的模板**：模式以能力谓词表达、由机制选出（归因日志）、跨 VLEN/微结构**换键不改条目**地迁移，对 tuned 框架内核**分相**报告增量 | 注册表是**数据文件**（[PAT-1..3]）；迁移判据双板 diff=0 CI 常绿；对框架自身同-ISA kernel 实测胜出/持平（[core-invariants](./architecture/core-invariants.md) [L-6] vs-framework，过 [PERF-1] 八门）；scalar/naive 只作内部 sanity，**绝不**作贡献倍数 |
+| **成熟编译器** | 覆盖率与正确性门槛达标，成为本负载域内**真正可用的编译器** | 六态阶梯（[core-invariants](./architecture/core-invariants.md) [K-4]）自动读出、四覆盖率指标 + 燃减曲线进 CI；正确性门（字节精确 / ULP 上界 / VLEN 翻转 / objdump golden）全绿。**成熟度进 CI，不进 slides**（见双轴组织原则） |
+
+### 双轴组织原则（引擎轴 × 证据轴）
+
+交付按两轴并列组织，任何一轴单跑都不构成里程碑：
+
+- **引擎轴**——机制覆盖广、主体由机制构造（强义，[L-8]）、可跨家族：N-operand 统一、全 zoo 构造、资源感知选择、真硬件探测、性能击败。让系统成为**成熟编译器**。
+- **证据轴**——每条结构性主张机器可检验：schema 冻结哈希（[S-5]）、归因日志、模式注册表作数据、自动成本账、覆盖率进 CI、硬件探测。让成熟度可被机器**证明为论文证据**。
+- **裁定**：成熟度指标**进 CI，不进 slides**。引擎轴让它成为成熟编译器；证据轴让成熟度可被证明为论文证据。**两轴并列为交付，任何一轴单跑都不构成里程碑。**（注：引擎/证据两轴 与 学术贡献/工程面 是两条正交的切分——引擎轴本身即含性能击败、全 zoo 构造等 C1/C3′ 的实体，不要把 C1/C2/C3′ 整体等同于证据轴。）
+
+### N1/N2/N3 ↔ C1/C2/C3′ bridge（本文件桥接，其他文件仍按 N 号引用）
+
+- **C1 = N1 ∧ N2 的合取存在性证据**：N1（能力异构性作 first-class IR，是 substrate 而非独立卖点）与 N2（零-core-branch plugin 泛化，用第二 family 证明）在**同一 schema** 上合取复用，即 C1 的"合取机制存在性 → 可复制协议"。
+- **C2 = 泛化代价新轴**：在 N2 的零核心改动不变量之上，度量**逐家族接入的边际成本**，把工程不变量升级为经验规律。
+- **C3′ ⊇ N3 的升级**：N3（capability/resource-aware 跨 family tune）升级为**能力键控模式库**——不止选变体，而是把优化沉淀为带实测与迁移判据的一等注册表对象。
+
+> "execution-variant 容器""plugin 化"本身**不是** novelty —— MLIR 的 dialect + interface 已提供。不要把架构选择当贡献卖点。novelty 只在 C1/C2/C3′，且都以证据为准；成熟编译器是工程面、进 CI 不作 slide 卖点。
 >
-> **N1 是 substrate，不是独立卖点**：把能力建成可查询对象本身 ≈ LLVM `-mattr`/TTI 已做的工程；N1 的 novelty **只在**它是跨 family 复用的同一事实源——由 N2 的第二 family 证明、由 N3 的 tune 兑现。抽掉跨 family 复用 N1 就塌回纯工程。别把 N1 当 blockbuster 单卖。capability 驱动的 LMUL/形状选择是 enumerate→prune→select→stamp（一个 stamping pass 写 attr），**不是 IR-rewriting transform pass**，别这么描述。
+> **N1 是 substrate，不是独立卖点**：把能力建成可查询对象本身 ≈ LLVM `-mattr`/TTI 已做的工程；其 novelty **只在**它是跨 family 复用的同一事实源——由 N2 的第二 family 证明（→ C1）、由 N3 的 tune 兑现（→ C3′）。抽掉跨 family 复用就塌回纯工程。capability 驱动的 LMUL/形状选择是 enumerate→prune→select→stamp（一个 stamping pass 写 attr），**不是 IR-rewriting transform pass**，别这么描述。
 
 ## Spec Layers
 

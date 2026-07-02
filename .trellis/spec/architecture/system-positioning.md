@@ -2,7 +2,7 @@
 
 ## Role
 
-TianChen-RV 是 high-level MLIR 之后的**统一 RISC-V MLIR execution layer**。它不重表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capability、execution variant、extension family、dispatch、fallback 和 ABI/lowering route。
+TianChen-RV 是 high-level MLIR 之后的**统一 RISC-V MLIR execution layer**。定位红线：它是**执行层 / 编译后端层（Triton-backend 类比层），非 TVM**——拿给定的 op + 给定的 layout 自动生成该硬件最优码（capability 驱动的 lowering 选择/生成），不做搜索式 autotuning、不做图级端到端框架（前端/后端判别见下 §Core Contribution Boundaries）。它不重表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capability、execution variant、extension family、dispatch、fallback 和 ABI/lowering route。
 
 ```text
 high-level MLIR (linalg/tosa/stablehlo/custom)   ← 长期 frontend，opt-in

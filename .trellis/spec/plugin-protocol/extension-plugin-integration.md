@@ -77,6 +77,39 @@ Source-front-door/source-artifact RVV paths fail closed (见 core-invariants
 I7). No current test should require positive RVV artifact generation from
 source-only metadata.
 
+## [P-2] Integration Five-Piece Set
+
+A family integration is **one PR series**, and the series is not accepted until
+all five pieces are present (缺一不收):
+
+```text
+① fact + relation table rows         (capability facts + implies/conflicts)
+② legality predicate                 (plugin-owned, runs before route provider)
+③ emission pattern                   (or an explicit "reuse existing pattern" declaration)
+④ tests                              (lit byte-exact + per-board objdump golden)
+⑤ ledger entry                       (cost/attribution ledger row, 见 C2 automation)
+```
+
+The five-piece set is the concrete per-family form of [P-1]: each piece flows
+through the frozen `ExtensionPlugin` interface and touches only family-local
+surfaces plus table rows (change containment is [F-3], 见
+[locality-contract.md](./locality-contract.md)). Piece ④ is what upgrades a claim
+from compile-time to silicon-sealed: lit proves byte-exact emission
+(compile-lit), the per-board objdump golden is the silicon-facing artifact
+(编译≠硅封, 见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md) and
+core-invariants I8). Runtime/correctness/performance claims still need real
+hardware evidence (I8).
+
+## [P-4] External Integrability
+
+The integration documentation must be complete enough that a **non-core author
+can complete one family integration from the docs alone** — this is the criterion
+that upgrades C1 from a single in-house demonstration to a repeatable *protocol*
+(总纲 [P-4], M4). "External-integrable" means the five-piece set ([P-2]), the
+frozen interface ([P-1]), the typed-body/route flow (Standard Flow above), and
+the change-containment rule ([F-3]) are each documented as a followable
+procedure, not reconstructable only by reading core source.
+
 ## Integration Checklist
 
 - [ ] Does the plugin declare structured capabilities and requirements?
@@ -88,6 +121,10 @@ source-only metadata.
 - [ ] Are manifests/templates/source markers optional provenance only?
 - [ ] Are route ids and artifact kinds mirrors only?
 - [ ] Are tests attached to production compiler behavior?
+- [ ] Does the PR series carry all five pieces ([P-2]: facts+relations, legality predicate, emission pattern, tests, ledger)?
+- [ ] Does the integration touch only `plugins/<family>/` + table rows + docs ([F-3])?
+- [ ] Is the interface used as-is without editing core files ([P-1])?
+- [ ] Is the integration doc followable by a non-core author ([P-4])?
 
 ## Good / Bad Cases
 

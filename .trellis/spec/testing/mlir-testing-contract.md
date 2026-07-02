@@ -31,6 +31,57 @@
 
 > artifact ABI closeout、generated-bundle dry-run、本地 compile-only、单个 success marker —— **都不是**性能证据，不得描述成 llama.cpp parity 或"成熟"。这正是 [trunk-discipline](../guides/trunk-discipline.md) 点名的"无限证据 closeout"反模式。
 
+## 格 schema 二分（证据格的稳定契约）
+
+一切进 CI 的证据都落成两型**格**之一；本节是这两型格与其状态枚举的**权威声明**，别处（validation 层、experiments/ 模板、docs/实验总纲）按引用对齐，不重定义。
+
+- **测量格** = `{值, 单位, 状态, 环境指纹, 快照, 工件指针, 对手指针, 配对会话}`。
+- **结构证明格** = `{判定 ∈ {pass, fail}, CI 日志, 快照}`。
+
+**状态枚举（闭合）** = `{measured | stale | board-pending | open | n_a}`：
+
+- `measured` —— 真硬件 `ssh` 证据在案（I8），且指纹全分量与当前一致。
+- `stale` —— 曾 measured，但环境指纹任一分量（板/SoC、CPU、内核、libc、双方编译器与旗标、ggml 版本与构建开关、线程/亲和、governor、内存）已变，或发生 refactor 后未重测。
+- `board-pending` —— 待硬件重测（board-pending 期间旧性能格不得进任何文本，[L-5]）。
+- `open` —— 未测量（原 `presumed`；含"presumed parity / presumed null"）。
+- `n_a` —— 按构造不适用。
+
+**三条铁律（机检，不靠自觉）：**
+
+1. **`open` 永不可被正文引用。** 未测量默认 = 无主张，绝不默认成功态；把 `open` 当结果登记是复发性过度乐观失败模式。
+2. **指纹变即 `stale`。** 指纹任一分量变 → 同指纹的所有格自动降 `stale`；parity/win 是"每次构建重测的目标"，不是可长期结转的银行数字。
+3. **跨会话不比。** 只有同一配对会话（我方/对手同会话 A/B 交替）内的两值可作差；跨会话的两个 `measured` 不得相减成主张。
+
+## T-N 噪声地板（效应判定地基）
+
+任何"效应"（Δ、加速、回归）主张的资格前置是该板×该基准类的 **T-N 噪声地板**（重测-重测的运行间 IQR%）。判据：**`|Δ| > 2×噪声地板` 且 bootstrap 95%CI 不含 0**；**无 T-N = 无判定资格**。T-N 表结构与产出口径见 docs/实验总纲 §1.3 + `experiments/T-N_noise_floor.csv`；spec 只钉门槛。
+
+## 对手解析探针（vs-framework 证据的有效性门）
+
+对比框架（ggml/llama.cpp）的性能证据，必须在钉死的框架版本 + 该板默认构建下，探测每个 `(算子, 格式, 形状类)` **实际派发的 kernel**，产**对手探针工件**并写入测量格的对手指针。**vs-framework 测量格无探针工件 = CI 判 INVALID**（routing 随板/格式/版本变，手填必腐烂）。
+
+**对手类（闭合枚举，本节权威声明；validation 层的三 Win 基线纪律按此引用，不重列）：**
+
+- **factory-dispatched** —— 框架在该 `(板, 格式, 形状类)` 上**实际派发**的出厂 kernel；**唯一贡献/beat 基线**，只有它计 beat。
+- **algorithm-matched** —— 同算法/同布局对照，仅作诊断（"布局/算法是否有帮助"）。
+- **naive-RVV** —— 朴素向量对照，仅 sanity。
+- **scalar-oracle** —— 标量对照，仅 sanity；**scalar 永不作贡献基线**（vector-vs-scalar 只测"我们向量化了"，MLIR/autovectorization 已提供，[L-6] vs-naive≠vs-framework）。
+
+三层基线纪律（scalar 永不入贡献列、只有 factory 计 beat、Win-A/B/C 各一强制基线）的完整措辞见 [../validation/experiment-reference.md](../validation/experiment-reference.md) 的 N3 baseline discipline，本节只提供其引用的对手类词表。
+
+## 正确性门：byte-exact 先于计时 + 浮点 ULP 上界（[K-5]）
+
+计时永远在正确性之后（见上"先正确性、后计时"）。正确性门的形态（[K-5]）：
+
+- **整数路径 byte-exact**：与结构无关 oracle 逐字节相等。
+- **浮点路径 ULP 上界**：不追字节精确，改**声明 ULP 上界**并断言不越界（fp16 次正规/极端指数等极端输入进性质测试）。
+- **oracle 结构无关（实验宪法 §1.8）**：标量 oracle **不与**任何向量参考共享 bit→lane 解码；配性质测试（全零/交替符号/满幅/fp16 次正规）+ 变异测试；oracle 入库有版本。
+- VLEN 翻转 lit 矩阵 ≥ `{128,256}×{m1,m2,m4}`，每板 objdump golden（指令形态 + LMUL 断言）—— 结构证明格，进 CI。
+
+## [PERF-1] 击败八门（beat 的唯一放行通道）
+
+任何 beat/outperform 主张在 [PERF-1] 八门全绿前**不存在**（[NG-4]/[L-1]）；八门权威定义在 docs 科研总纲 [PERF-1]，此处只映射**测试证据可承担的子集**，不重抄：byte-exact（上）；VLEN 翻转 lit `{128,256}×{m1,m2,m4}`；双板各一次 objdump 验封；micro **且** e2e（llama-bench，prefill/decode 分相）；双板都验证；机制合成归因（selector 日志证明获胜变体由能力键选出）。其余门（实验纪律、措辞门）住实验/写作层。beat 措辞前须过全部八门。
+
 ## 给 agent 的判断点（不是 gate）
 
 - 写"第 N 个 generated-bundle evidence 测试"前：它验证的是一条**新改动的** route 吗？还是在已验证过的 family 上重复刷证据（枝节）？

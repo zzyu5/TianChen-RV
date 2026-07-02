@@ -12,12 +12,16 @@ This layer defines how experiments should be interpreted. It is validation guida
 - [ ] Is Linalg/Vector used as comparison or coverage calibration rather than current source-route authority?
 - [ ] Are ablations tied to capability model, plugin locality, and variant selection rather than ad hoc claims?
 - [ ] Are MLIR behavior claims backed by lit/FileCheck or C++ tests?
+- [ ] Is any strong-vs-weak constructed judgment made by the provenance-manifest machine-check ([L-8] enforcement), never by prose ([K-4] 六态)?
+- [ ] Are coverage numbers reported under the four口径 (C_dispatch / C_construct 强义 / C_construct+ 弱义 / C_attr 分级), with C_construct counting strong-only ([COV-2])?
+- [ ] Does any micro→e2e conduction claim carry the Amdahl four-column accounting, with parity as the null hypothesis for bandwidth-bound kernels?
+- [ ] Are performance cells tagged with the canonical state enum and paired within one session (跨会话不比)?
 
 ## Guidelines Index
 
 | Spec | Description |
 |---|---|
-| [Experiment Reference](./experiment-reference.md) | Research questions, metrics, and forbidden interpretations |
+| [Experiment Reference](./experiment-reference.md) | Research questions, metrics, forbidden interpretations, 六态 provenance 机检, 四覆盖率口径, 双层行键, 传导会计, N3 baseline discipline |
 | [Testing Specs](../testing/index.md) | Required compiler test forms |
 
 ## Quality Check

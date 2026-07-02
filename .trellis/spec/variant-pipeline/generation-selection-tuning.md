@@ -29,6 +29,43 @@ selection 由 capability 驱动，可产出：单个静态 selected variant；gu
 
 selection **不得**：从 `tcrv.exec` 推断 compute；从 ABI 字符串/参数名推断 dtype；按 artifact 名选 route；把 source-front-door metadata 当可执行 route 排名；把 readiness/status dashboard 当进度。
 
+## 选择器与归因契约（SEL / D）
+
+本节声明选择 / 调度 / 归因的稳定契约。三者均属 wiring（能力调度接线），**不是** body 构造（[core-invariants](../architecture/core-invariants.md) 的 wiring ≠ construction 纪律，对应总纲 [L-6]①）。合法性谓词的定义、implies 闭包与"未知即拒（未知 = 假）"住 I7 与 [capability-contract](../capability-model/capability-contract.md)（legality gate / verifier 职责），此处**按引用**，不重抄。
+
+### [SEL-1] 两段式选择器
+
+selection 是两段式：
+
+1. **合法性过滤**：`feasible = 合法性过滤(candidates, schema-instance)`——按能力谓词（含 implies 闭包）筛出可执行候选；未知能力即排除（I7）。
+2. **排序**（在 `feasible` 上定档）：
+   - **有实测** → 命中 memoized argmin（该 tuning key 的实测赢家，键控与回填见 Gearbox 权威顺序 + 总纲 [SEL-3]）；
+   - **冷启动（无实测记录）** → 走**能力先验排序层**：GEMM 形 ∧ `ime.present` → 矩阵**范式**变体（[L-3]：向量核上的矩阵范式，非"矩阵家族"）；否则寄存器预算内**最宽 LMUL**；否则默认档。
+
+**成本纯度**：先验排序层**独立于成本函数**，是基于能力事实的规则式裁决，**不污染成本纯度**（成本住测量库、按 instance-hash 键控；schema 不内置成本模型）。静态 cost 公式在此仅作(1)候选枚举 / 剪枝的 pruner 与(2)先验层之后的兜底默认，**不是**冷启动的排序 authority。`feasible` 为空 ⇒ fail closed 诊断（I7），不合成 route。
+
+### [SEL-2] 硬时序
+
+能力先验排序层必须**先于或同于**矩阵范式接管 GEMM 形 prefill（总纲 [PAT-2] P7）落地。一旦向量与矩阵两族为同一 GEMM 形内核竞标而先验层缺席，矩阵范式在 GEMM prefill 会**静默落败**——先验层此刻从装饰变裁决者。这是选择器时序的**硬契约**，不是可选优化。
+
+### [D-1] 编译期门自足 fail-closed
+
+编译期合法性门在 plan 的能力谓词无法在目标 schema 实例（含闭包）下全部满足、或存在任何未知能力时，**自身**拒绝并给 bounded 诊断——**该拒绝必须自足**，不依赖任何后置 pass / 调用方兜底来补救或把被拒 plan 翻译成可执行路径。（合法性谓词与"未知 = 假"语义见 I7 + capability-contract；[D-1] 只加"拒绝自足、不靠后置兜底"这一层契约。）
+
+### [D-2a] 装载期最小解析记录
+
+装载期能力解析的稳定形态：消费**显式 schema 事实实例** → 计算 **declared-instance-hash** → 落**每进程一条**解析记录。热路径**零逐次**能力检查；**per-dispatch 强制检查永久禁止**（总纲 [NG-3]）。解析记录是缓存事实 / 镜像，不是 route / dtype / schedule authority（I4）。
+
+### [D-4] 三级归因
+
+每次变体选择可归因，分三级：
+
+1. **编译期选择归因**——JSONL 每条 `{kernel, candidates[], keys_evaluated{}, chosen, reason ∈ {only_feasible, prior, measured}, declared_instance_hash, ts}`。`reason` 三值即 [SEL-1] 的三条出口：`only_feasible` = 合法性过滤后仅剩一个可执行候选；`prior` = 冷启动能力先验排序层裁决；`measured` = 命中 memoized 实测赢家。
+2. **装载期解析记录**——即 [D-2a] 的每进程一条记录。
+3. **运行期归因**——随完整运行期 dispatch 链（hwprobe → 事实 → instance-hash 键控调度）产出。
+
+**归因范围**含选择、**调度**（为何选此 LMUL / 此范式）与**合法性**（为何拒）三个阶段，不止最终 `chosen`。归因日志是 I4 镜像 / 事实，记录"为何选此变体"，**不**反向定义 compute / route / dtype，也不作进度 authority。
+
 ## Tuning / Realization — Gearbox
 
 Gearbox 是 **plugin-local 的 MLIR pass pipeline**，把一个 selected pre-realized typed body 变成 realized（调优过的）typed body。它是 N3（capability/resource-aware 跨 family 调优）的承载体。
@@ -60,7 +97,7 @@ Gearbox 的候选空间必须由**编译器可见的 capability + body facts** �
 - Offline profile：生成候选、编译、可选地查看汇编或在 `ssh rvv` 上跑，缓存某个 tuning key 的赢家。
 - JIT/runtime：对某 key 的首次出现调优，命中缓存复用，runtime 调优不可用时退回 static selector。
 
-**权威顺序（实测 > 静态）**：当某 tuning key 存在 offline-profile 的实测记录时，**实测赢家是该 key 的形状 authority**，static cost model 降级为(1)枚举/剪枝候选的 pruner 与(2)无记录时的 fallback。这是 N3 "实测胜出" 的直接含义——静态 cost model 的预测会在 register-pressure / 时序等微架构效应上系统性失真（每加一个 kernel 就要补一维静态 cost 是 curve-fit treadmill），只有真机实测能定档。实测记录必须先过 byte-exact gate（与 `_generic` 逐字节）再排名；记录 fail-closed-revalidate（候选不再合法则退回 static）。**实测记录是缓存事实，不是 route/dtype/schedule authority（I4）；当前覆盖了哪些 key 写 task/journal，不写进 spec。**
+**权威顺序（实测 > 静态）**：当某 tuning key 存在 offline-profile 的实测记录时，**实测赢家是该 key 的形状 authority**，static cost model 降级为(1)枚举/剪枝候选的 pruner 与(2)无记录时的 fallback（冷启动的排序规则见 [SEL-1]：能力先验排序层，非静态 argmin）。这是 N3 "实测胜出" 的直接含义——静态 cost model 的预测会在 register-pressure / 时序等微架构效应上系统性失真（每加一个 kernel 就要补一维静态 cost 是 curve-fit treadmill），只有真机实测能定档。实测记录必须先过 byte-exact gate（与 `_generic` 逐字节）再排名；记录 fail-closed-revalidate（候选不再合法则退回 static）。**实测记录是缓存事实，不是 route/dtype/schedule authority（I4）；当前覆盖了哪些 key 写 task/journal，不写进 spec。**
 
 tuning key 可含：target identity、VLEN/ELEN、operation signature、dtype/量化方案、memory form、shape bucket（如 `N` 或 `M/N/K`）。数据值不进 key，除非显式建模数据相关属性。
 
@@ -72,7 +109,7 @@ tuning key 可含：target identity、VLEN/ELEN、operation signature、dtype/�
 
 **Gearbox 调的是"给定 op+layout 怎么 lower"，不是"选/改算法"**（前端 vs 后端判别见 [system-positioning](../architecture/system-positioning.md) 的 N3 边界，此处不重抄）。VL/setvl/SEW/LMUL/policy/memory form/mask-tail/unroll/accumulator layout 都是对一个**固定 op+layout** 的 codegen 调优——属后端 N3。反之，选 repack-vs-block-dot 算法、weight-packing/repack、改交给后端的 layout，改的是 op/algorithm/layout 本身——是前端（库/autotuner/框架）贡献，不是 Gearbox 的 N3 后端 novelty。
 
-**判断依据（别自欺）**：选择在 realize 时由一个 stamping pass 物化（enumerate→prune→select→stamp），**非 IR-rewriting transform**；live 路上 select **先查实测记录（memoization）**、无记录才落静态 argmin（静态公式 capability-blind 是已知成熟度缺口，喂真资源 fact 是方向）。**追平框架自己出厂的同-ISA kernel = N3 主张为真（不是失败）；系统性 beat ⟺ Gearbox 综合一个框架没手写的 within-kernel 形状**（更宽 LMUL / VLEN-tuned strip / multi-accumulator），而非匹配其形状。
+**判断依据（别自欺）**：选择在 realize 时由一个 stamping pass 物化（enumerate→prune→select→stamp），**非 IR-rewriting transform**；live 路上 select **先查实测记录（memoization）**、无记录才落**能力先验排序层**（[SEL-1]，非纯静态 argmin——capability-blind 的静态公式是已知成熟度缺口，先验层是其收口方向，静态 cost 退居 pruner + 兜底默认）。**追平框架自己出厂的同-ISA kernel = N3 主张为真（不是失败）；系统性 beat ⟺ Gearbox 综合一个框架没手写的 within-kernel 形状**（更宽 LMUL / VLEN-tuned strip / multi-accumulator），而非匹配其形状。
 
 ## Tests required
 

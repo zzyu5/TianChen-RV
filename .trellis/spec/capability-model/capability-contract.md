@@ -15,7 +15,19 @@ capability 对象必须能被 C++ MLIR pass 和插件查询，并影响：启用
 - **Runtime/offload**：accelerator 存在性、runtime 名、ABI、PCIe/SoC 模式、支持的 offload op 集、model 格式、host-device 传输代价、async 支持。
 - **Toolchain**：march/mabi 事实、LLVM RVV 可伸缩向量支持、intrinsic 支持、builtin 支持、inline asm 许可、vendor header、patched compiler、runtime lib 可链接性。
 
-kind 是**开放字符串集**（isa-scalar / isa-vector / isa-vector-config / isa-matrix-* / isa-custom-instruction / runtime-offload / toolchain / uarch / memory / thread-runtime …，未来可扩）。Core pass **不**穷举 switch 所有 kind，只用插件注册的 interface + capability 查询（I3）。
+## [S-1] 结构化事实模型
+
+capability 由**结构化事实条目**承载，不是自由字符串。每条事实的稳定形态：
+
+- **`id`** —— 命名空间化的稳定标识（`rvv.v` / `rvv.zvfh` / `ime.vmadot` / `scalar.zbb` / `uarch.vrgather_slow` …）。id 是权威键，benchmark 名 / 日志 / provider 身份 / 性能测量值不得变成 id（I9）。
+- **`kind`** —— **闭合枚举** `{isa_ext, sub_ext, uarch, policy}`（不是开放字符串）。这是事实的**类别轴**，与 family **正交**：它区分「ISA 扩展 / 子扩展 / 微架构 / 策略」，**不**区分「RVV / IME / Sophgo」。核心 pass 因此仍**绝不**按 family-name 分支（I3）；kind 是有限类别，family 归属由插件注册与 capability 查询解析。前述来源映射进四值：ISA 扩展 → `isa_ext`；子扩展（zvfh / zbb …）→ `sub_ext`；uarch / memory / VLEN 事实 → `uarch`；toolchain / runtime-offload / thread-runtime 的**可用性**与 build/permission 门 → `policy`（offload accelerator 的**计算所有权**仍归 offload 插件，不进 kind，见 I2）。Logical Shape 示例里 descriptor 上的 `isa-vector` / `runtime-offload` / `isa-matrix-vector-backed` 是子分类标签，各自归约到上述某个 `kind` 值。
+- **`implies: [id]`** —— 见 [S-2]。
+- **`conflicts: [id]`** —— 见 [S-2]。
+- **`params`** —— **命名空间化的结构化字段**（取代隐式自由字符串键）：`vlen`、`elen`、`sew_set`、`lmul_budget`、`vreg_count`、`cacheline`、`ime.tile(...)` 等，各带类型。params 的分层语义另受 Parameter Layering Rule 约束。
+- **`provenance ∈ {hwprobe, cpuinfo, vendor_table, manual}`** —— 事实的来源渠道。
+- **`trust ∈ {measured, declared}`** —— 事实的可信级别（实测 vs 声明）。provenance/trust 是事实的一等字段，供证据线（I8）区分实测与声明，**不**参与 compute 语义。
+
+kind 保持闭合枚举，新增类别属于 schema 演进（[S-5]/[S-6] 的附加式 minor），不是运行期自由扩展。
 
 ## Parameter Layering Rule
 
@@ -37,8 +49,8 @@ target capability 表示为结构化的 target-level / module-level MLIR attribu
   arch = "riscv64",
   isa  = ["i","m","a","f","d","c","v","zvl128b","zvfh"],
   uarch = { cores = 64, vlen = 128, has_openmp = true, cache_model = "target_specific" },
-  extensions   = [ #tcrv.ext<"rvv", kind = "isa-vector", status = "available"> ],
-  accelerators = [ #tcrv.accel<"sophgo.bm1684x", kind = "runtime-offload", mode = "pcie", runtime = "vendor-c-abi"> ],
+  extensions   = [ #tcrv.ext<"rvv", kind = "isa_ext", status = "available", provenance = "hwprobe", trust = "measured"> ],
+  accelerators = [ #tcrv.accel<"sophgo.bm1684x", kind = "policy", subclass = "runtime-offload", mode = "pcie", runtime = "vendor-c-abi", provenance = "vendor_table", trust = "declared"> ],
   toolchain = { llvm_rvv = true, rvv_intrinsic = true, inline_asm = true, vendor_runtime_link = true }
 >
 ```
@@ -55,11 +67,44 @@ capability 带 `provides` / `implies` / `conflicts` 三类关系（first-class �
 - **conflict**：`conflicts = ["..."]`（如"要 vendor runtime 但无 runtime lib"、"要 inline asm 但 build policy 禁止"）。`--tcrv-check-capability-requires` 用 bounded 双向冲突查询作 legality gate：静态 variant / dispatch fallback 在所需 capability 与另一 available capability 冲突时 fail closed；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求（记录保护面，不解析 printable 串）。这**不是**完整 conflict solver / lattice / provider ranking。
 - **dispatch condition**：runtime/shape 相关条件成为 dispatch 谓词（`if runtime_available && large_shape -> offload；else if rvv_available -> rvv；else -> fallback`）。
 
+### [S-2] 关系语义：加载期传递闭包 + fail-closed + 未知=假
+
+- **implies 传递闭包在加载期计算**：`implies` 关系的传递闭包在 capability set 装载/构造期一次性物化，查询走物化闭包，**不**在每次查询时只查一层再让调用方补链。`rv64gcv implies rvv`、`zvfh implies fp16 向量算术` 这类链在闭包里对查询者直接可见。这是 bounded 的决策路由，不是完整 capability lattice 或推断引擎。
+- **conflicts 命中即 fail-closed**：任一被要求的 capability 与另一 available capability 冲突时**默认拒绝**（`--tcrv-check-capability-requires` 的 bounded 双向冲突查询）；dispatch case 只有携带 typed `runtime_guard_required = true` 时才能引用冲突需求，且只记录保护面、不解析 printable 串。
+- **未知事实 = 假**：schema 未声明 / 未 available 的事实一律视为**不满足**（缺省拒绝，绝不缺省放行）。这与「missing status 视为 available」不冲突——后者只在事实**已在场**时解释其 status 字段；事实**根本缺席**时判假。
+
 > 查询 API：`TargetCapabilitySet::buildFromKernelChecked(KernelOp)`（带诊断的构造，duplicate id/symbol fail closed）；`buildFromKernel` 仅用于已验证上下文。pass `--tcrv-check-capability-requires`。按符号名与 id 双向查询；relation-aware lookup 支持 exact/provided/implied，exact 在场时权威。missing status 视为 available；`status` 优先于 `availability`；`unavailable`/`disabled`/`missing` 视为不可用。**核心代码不解释具体 target-family 的 status 语义**（I3）——`if (target.hasRVV())` 是错的，要走 `capabilities.isCapabilityAvailableBySymbolName(...)`。
+
+## [S-3] 探针只写事实
+
+hwprobe / cpuinfo / 厂商表适配器**只产出 [S-1] 事实条目**（带 `provenance`/`trust`），绝不携带路由/选择决策。任何「探到 X 就走 Y」形态属违规——它把一个隐藏分支重新引入探针层，绕过 capability 查询与插件 legality（I3）。探针也不得伪造 SEW/LMUL/tail-mask 这类 plugin-selected 编译期 config 事实（那属 Parameter Layering Rule 第 2 层，不是硬件事实）。从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ capability profile 校验 + `TargetCapabilitySet` 填充，不是 Python 数据结构（I6，另见 [profiles](./profiles.md)）。
+
+## [S-4] uarch 作为事实
+
+微架构信息是 [S-1] 事实（`kind = uarch`），不是散落在核心里的常量或 if 分支。粗粒度 uarch 事实（如核数）驱动决策已属常规；契约进一步要求把**每核 quirk 表**建成事实：诸如「高 LMUL 下 vrgather 慢」「段加载收益」这类逐核性质，按核（如 C908 / X60 各一张）声明成 `uarch.*` 事实 + `params`，供选择/成本层（[SEL-*]/P6）**键控**。**走表不走 if**——核心与插件按 uarch 事实查表，绝不为具体核名写 `if (core == "...")` 分支（否则复现 family-name 分支的病，违 I3 精神）。uarch 事实约束 legality/selection，其 `count`/`vlen` 等是硬件事实，不是 runtime thread 数、dispatch guard、tensor shape 或 AVL/vl（Parameter Layering Rule 第 1 层）。
+
+## [S-5] schema.def 声明工件
+
+schema.def 是 capability schema 的**声明式工件 + 哈希对象**：它声明 capability 的**稳定形态（shape）**，是 [S-6] 操作门 [F-2′]（家族接入 PR 系列 diff ∩ schema.def = ∅）与报告门（规范化序列化 → SHA256 + RFC 版本日志）的锚。schema.def 声明**恰好六项**：
+
+1. **事实记录字段与类型** —— [S-1] 的 `id` / `kind` / `implies` / `conflicts` / `params` / `provenance` / `trust`，含 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}`、`trust ∈ {measured,declared}` 枚举。
+2. **kind 闭合枚举** —— `{isa_ext, sub_ext, uarch, policy}`（[S-1]）。
+3. **关系类型表** —— `implies` / `conflicts` 的关系类型及其语义标注（带类型元数据，不是扁平三列表）。
+4. **params 命名空间声明** —— `vlen` / `elen` / `sew_set` / `lmul_budget` / `vreg_count` / `cacheline` / `ime.tile(...)` … 的命名空间与类型（[S-1]）。
+5. **插件接口签名的可序列化形态** —— `ExtensionPlugin` 准 ABI 的**声明式可序列化签名**（见 [plugin-protocol](../plugin-protocol/interfaces-and-registry.md)；接口冻结属 [P-1]，改动需 RFC）。
+6. **路由描述符操作数角色词表** —— 路由描述符的操作数角色闭合词表（lhs/rhs/out/n、buffer/scalar、runtime count 等角色），N-operand 路与块点积角色**统一**结构化，不留表内自由字符串。
+
+**不入 schema.def 的 shape**：具体事实行、`params` 的取值、插件内部代码、测量库、模式注册表条目——这些是内容不是形态，改它们不触 schema.def。schema 不内置成本模型：成本住测量库（按 instance-hash 键控），schema 只答「能不能 / 是什么」（[S-7] 非目标）。schema 的**附加式演进**（新增可选字段 / 新 kind 值 / 新关系型）记 minor 并标注「extension not modification」；家族接入**要求**修改 shape 才是被 [F-2′] 挡下的违规。
 
 ## Verifier 职责
 
 capability verifier 检查：variant `requires` 被 target capability 满足或被 dispatch 守护；插件运行前通用 variant/capability 结构良构；extension-family legality 委派给插件 hook（不被 core 按 family 名硬编码，I3）；extension op 只出现在其插件 legality 接受了 capability 需求的 variant 内；selected emission 路径被 toolchain capability 支持；runtime ABI 声明完整；dispatch/fallback 覆盖不可用条件。verifier **不**证明数值正确性，只挡非法 target-feature 使用和缺失的执行前提。
+
+## [S-8] 家族语义 = 能力声明 + 所有权
+
+**family = 能力声明 + 所有权边界，不是指令密度。** 一个 extension family 由「它声明并拥有哪些 capability 事实 + 拥有哪些计算语义（I2）」界定，**不**由「它注入多少条自定义指令」界定。由此契约允许**「能力门家族」**：其 owned 内核主体用基础指令，家族事实充当**门（gate）与可选加速子事实**，而非新指令密度。典型即向量缺席的**标量家族**——它是合法的独立（independent）家族（其内核主体走标量路径），bit 操作扩展（zbb/zba/zbs）作为它的**子事实 / 能力门**。
+
+子事实粒度**对称**成立：`zvfh` 之于向量家族 ≡ `zbb`/`zba`/`zbs` 之于标量家族——都是同一家族下的 `sub_ext` 事实（[S-1]），经同一 [S-2] 关系语义参与 legality。独立性靠 [S-2] 传递闭包的**范围**保证：标量家族的 implies 闭包只排除 `rvv.*`，per-block scale 折叠等能力若需要则**显式声明为能力事实**、不破坏独立性。术语上「向量核上的矩阵范式」用 **paradigm**、家族独立性用 **family**，integrated（复用向量寄存器堆）/ independent-attached（独立寄存器堆）不混用（[L-2]/[L-3]）。
 
 ## 实现
 

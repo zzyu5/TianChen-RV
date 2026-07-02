@@ -88,7 +88,7 @@ RVV provider 按 route 契约要支持的算子族，按 [variant-pipeline](../v
 | mask / tail | computed-mask 各 memory/compute 形态、tail policy |
 | runtime shape / control | `setvl` / `with_vl`、runtime AVL/VL、runtime-scalar 形态 |
 
-低精度 contraction（i8/u8/packed-i4 widening-product-reduce-dequant）是 N3 的 RVV **性能轴**证据点。它必须按 typed body / provider 事实推进，不被 q8/q4/llama 之类工作负载名当 route authority（I9）。
+低精度 contraction（i8/u8/packed-i4 widening-product-reduce-dequant）是 N3 的 RVV **性能轴**证据点。它必须按 typed body / provider 事实推进，不被 q8/q4/llama 之类工作负载名当 route authority（I9）。其 body 由模式库原语构造（widening dot-product-reduce / dequant-LUT / 宽钳位 [K-2b] 等）、发射 provenance 清单、按强义 constructed 判据落位——统一契约见 [../lowering-runtime/emission-runtime-contract.md](../lowering-runtime/emission-runtime-contract.md) 的「发射与构造」段（[K-0]/[K-2]/[K-6]），此处不重述。dequant `[+clamp/select]` 一列正是 [K-2b] 宽钳位/双区落点，也是 [K-6] 首个缺口关闭实例。
 
 ## Legacy / fail-closed
 

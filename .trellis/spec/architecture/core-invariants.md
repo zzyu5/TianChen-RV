@@ -37,3 +37,61 @@ runtime / correctness / performance 主张需要对应的真实证据。RVV 即�
 ## I9 — 实验验证结构，不反向定义结构
 
 实验参考用于验证系统结构是否成立，**不**反过来决定系统该长什么样。benchmark 名、artifact 名、q8/q4/llama 之类的工作负载名，都不是 route / dtype / 进度 authority；它们只是 N1–N3 的压力测试输入。
+
+---
+
+# 附加硬规则（锚科研目标总纲 v2 条款 ID，声明一次）
+
+以下规则来自科研目标总纲 v2 的措辞宪法与机制层，是全项目复用的硬契约。**在此声明一次，用总纲条款 ID 引用**（如 `core-invariants [L-6]`），不在别处重述其正文。这些是**契约与判据**，不是现状——任何六态计数、覆盖率、燃减、性能数只住 CI 报告与执行总纲，绝不进 spec。
+
+## [L-6] — 成熟度三重区分
+
+论证成熟度时必须守住三条**不可混同**的边界，任一混同即为越界主张：
+1. **wiring ≠ construction**：kernel"能被能力调度路由到"（dispatch-wired）**不等于**其主体"由机制构造"（constructed）。
+2. **vs-naive ≠ vs-framework**：击败朴素/标量基线**不等于**击败框架自身同-ISA 内核（如 ggml 真 RVV `vec_dot`）。前者只作内部 sanity，绝不作贡献倍数（[I8]/[I9]）。
+3. **export-lit ≠ silicon-sealed**：编译期/lit 证据**不等于**硅上封存（每板 objdump/反汇编 + 实测）。本地 build/lit 是工具链证据，不充硬件正确性/性能证据（[I8]）。
+
+## [L-8] — 弱/强义构造纪律
+
+"由机制构造 / mechanically constructed"在论文与文档中**仅指强义 constructed**（[K-4] 定义）：body 由模式库原语构造。**弱义**（descriptor-selected：算术主体是被选择的手写 helper）必须写作 "descriptor-selected composition / constructed-weak"，**绝不冒充强义**。强/弱判定不靠自觉——由 provenance 清单机检（发射时写出模式原语 ID 列表：清单存在 ∧ 无不透明手写 helper ⇒ 强义）。弱义充强义 = 违宪。
+
+## [K-4] — 六态阶梯（覆盖态的稳定状态机定义）
+
+全分母内核共用一台可自动读出的状态机，态位单调递进：
+
+`absent → emittable → dispatch-wired → constructed-weak → constructed → covered`
+
+- **absent**：无任何路径。
+- **emittable**：可发射 + 有转换级单测。
+- **dispatch-wired**：生产调度已接线，但 body 仍手写。
+- **constructed-weak**：描述符参数化组装，算术主体为**被选择的手写 helper**（弱义，[L-8]）。
+- **constructed**：body 由模式库原语构造（**强义**，[L-8]）。
+- **covered**：constructed + 时效正确性门（[K-5]）适用项全绿 + 回归架记录在案。
+
+硅封状态（每板 objdump golden）**单列跟踪**，不并入六态。态位的**具体计数、燃减清单、CI 报告机制**不属 spec——只有这台状态机的定义是契约。
+
+## [S-5] — schema.def 是声明工件（哈希对象）
+
+能力 schema 的**声明形态**冻结为一个可规范序列化、可哈希的工件 `schema.def`，其 shape 恰含六项、不多不少：
+① 事实记录字段与类型（含 `provenance`/`trust` 枚举）；② `kind` 闭合枚举；③ 关系类型表（`implies`/`conflicts` 及其语义标注）；④ `params` 命名空间声明；⑤ 插件接口签名的可序列化形态；⑥ 路由描述符操作数角色词表。
+**不入 shape**（因此改它们不触 schema.def）：具体事实行、`params` 取值、插件内部代码、测量库、模式注册表条目。schema 只答"能不能/是什么"，**不内置成本模型**（成本住测量库，按 instance-hash 键控）。
+
+## [F-2′] — 家族接入操作门（diff ∩ schema.def = ∅）
+
+自第二家族接入起，任何家族接入 PR 系列的 diff **不得触及** `schema.def`（[S-5] 的六项 shape）。这是逐 PR 可审计的操作门。附加式演进（新增可选字段/新 `kind`/新关系型）走版本报告门（规范化序列化 → 哈希 + 版本日志），记为 "extension not modification"。论文主张的精确形态："自第二家族起，没有任何家族接入曾**要求**修改 shape"。
+
+## [F-6] — 独立家族判据（闭包 ∩ rvv.* = ∅）
+
+声称 **independent** 的家族，其全部变体的能力谓词 `implies` 传递闭包 ∩ `{rvv.*}` = ∅（脚本化机检）；且存在**向量缺席实例**使其变体 `only_feasible` 并被真实选中。这是与 [I3] 零分支互补的独立性硬判据，用术语 independent-attached（[L-2]），不与 integrated（复用向量寄存器堆）混用。
+
+## [SEL-2] — 能力先验层的硬时序
+
+冷启动能力先验排序层（GEMM 形状 ∧ 矩阵扩展在场 → 矩阵范式变体；否则寄存器预算内最宽 LMUL；否则默认）必须**先于或同于** P7（矩阵范式接管 GEMM 形 prefill）落地。P7 落地瞬间向量/矩阵两族开始为同一内核竞标，常量冷启动分会让矩阵范式静默落败；先验层在那一刻从装饰变裁决者。先验层独立于成本函数，不污染成本纯度。
+
+## [NG-3] — per-dispatch 强制检查永禁
+
+**绝不**做 per-dispatch 的强制能力检查。装载期最小解析消费显式 schema 事实实例、算出 declared-instance-hash、落一条解析记录即止（热路径零逐次检查）。per-dispatch 强制 = 破 N2/零分支（[I3]）与 fail-closed 自足门（[I7]）。
+
+## [NG-4] — 未过 [PERF-1] 前 beat 措辞禁入
+
+在性能验收门 [PERF-1]（性能验收八门，科研目标总纲 §4.4）未全绿前，任何无限定的 beat/outperform 措辞**禁止**进入代码注释、文档、slides 与提交信息（[L-1] 的执法）。落败/对比结论在反汇编钉死前不得书面引用（[L-7]）。性能主张必须绑定相（prefill/decode）× 板 × 格式 × 基线 commit。

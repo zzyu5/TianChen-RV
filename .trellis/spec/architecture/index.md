@@ -16,7 +16,7 @@
 
 | Spec | Description |
 |---|---|
-| [Core Invariants](./core-invariants.md) | 全项目复用的 9 条硬规则（I1–I9），其他文件引用它 |
+| [Core Invariants](./core-invariants.md) | 全项目复用的硬规则：I1–I9 + 附加硬规则（锚总纲 [L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]），其他文件引用它 |
 | [System Positioning](./system-positioning.md) | 系统定位、统一系统/family 责任、N1/N2/N3 贡献、模块边界 |
 | [Design Boundaries](./design-boundaries.md) | 禁止方向、硬件路线口径、论文表述边界 |
 

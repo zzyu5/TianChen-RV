@@ -18,6 +18,32 @@ tcrv.exec envelope
   -> common EmitC materializer
 ```
 
+## [P-1] Interface Freeze (Quasi-ABI)
+
+`ExtensionPlugin` is a **quasi-ABI**, not an internal convenience surface. Its
+serializable signature form is a declared schema object that enters schema.def ⑤
+(a declared-schema artifact governed by 总纲 [S-5]⑤ — reference by ID; the
+schema.def content and its owning layer are declared elsewhere, do not restate
+them here). Because it is a
+quasi-ABI, any change to the interface signature goes through **RFC**, and the
+change is recorded as `extension not modification` when it is purely additive
+([F-2′] operation gate).
+
+Through this frozen interface a plugin may contribute:
+
+```text
+fact + relation declarations
+legality predicates
+emission patterns (registered to [PAT-1], not open-coded into core)
+lowering hooks
+tests
+```
+
+A plugin **must not edit any file in the core directory** to integrate. Needing a
+core edit means either the interface is genuinely missing an execution semantic
+(justify via RFC + core-invariants I3 review, 见 [locality-contract.md](./locality-contract.md))
+or the work is misplaced.
+
 ## Registry Rules
 
 The registry owns lookup and orchestration only:

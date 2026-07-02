@@ -2,7 +2,7 @@
 
 Profiles 是 capability fixture：描述可被 pass 查询/验证的具体目标事实。它们是 capability 输入，**永远不**创造 `tcrv_rvv` body、dtype authority、route id、source-front-door route 或 intrinsic 选择（见 [core-invariants](../architecture/core-invariants.md) I5）。
 
-具体的 VLEN/VLENB/dtype 支持等应**探测或带 provenance 声明，不靠猜**——它们是 target capability 事实，不是 runtime SSA/control 值，也不是 per-variant 常量。
+具体的 VLEN/VLENB/dtype 支持等应**探测或带 provenance 声明，不靠猜**——它们是 target capability 事实，不是 runtime SSA/control 值，也不是 per-variant 常量。每条 profile 事实按 [S-1] 携带 `provenance ∈ {hwprobe,cpuinfo,vendor_table,manual}` 与 `trust ∈ {measured,declared}`；探针只写事实、不写路由（[S-3]）。
 
 ## rvv-main（当前主真实硬件）
 

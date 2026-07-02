@@ -22,6 +22,11 @@ Capability model is the first core of TianChen-RV MLIR. It turns target facts in
 
 ## Quality Check
 
+- Capability facts are structured records with `kind` from the closed enum `{isa_ext, sub_ext, uarch, policy}`, namespaced `params`, and `provenance`/`trust` fields ([S-1]); not free strings.
+- `implies` is a load-time transitive closure; `conflicts` is fail-closed; an unknown/absent fact counts as false ([S-2]).
+- Probes emit facts only — no "probed X therefore route Y" ([S-3]); uarch quirks are table-keyed facts, not `if (core == ...)` branches ([S-4]).
+- The capability shape is the six-item `schema.def` declaration artifact; family-onboarding PRs must not touch it ([S-5]/[F-2′]).
+- A family is a capability-declaration + ownership boundary, not instruction density; "capability-gate families" (e.g. the vector-absent scalar family) are legal ([S-8]).
 - Capability cannot be a plain string attached after lowering.
 - Capability facts such as VLEN, dtype throughput, preferred LMUL, or toolchain support must not directly become route ids, dtype authority, intrinsic choices, or artifact names.
 - If a variant requires an extension, the requirement must be represented in `#tcrv.requires<...>` or equivalent structured data.

@@ -225,10 +225,50 @@ capability-aware variant selection
 dispatch with offload threshold
 ```
 
+## 证据格与状态枚举（引 testing 层）
+
+一切进 CI 的证据落成测量格 / 结构证明格，状态 ∈ `{measured|stale|board-pending|open|n_a}`；这两型格与三条铁律（`open` 永不可正文引用、指纹变即 `stale`、跨会话不比）的**权威声明在** [../testing/mlir-testing-contract.md](../testing/mlir-testing-contract.md) 的"格 schema 二分"。本层按引用对齐，不重定义。效应判定的 T-N 噪声地板资格前置、对手解析探针与对手类词表同样在 testing 层声明。
+
+## 六态 provenance 清单机检（[L-8] 执法）
+
+六态阶梯（`absent → emittable → dispatch-wired → constructed-weak → constructed → covered`）定义在 core 科研总纲 [K-4]，此处只写**机检口径**——把 [L-8] 从 prose 纪律变成脚本可判：
+
+- 每个机制构造的 body 在发射时写出其**模式原语 ID 列表**（provenance 清单）。
+- **强义 `constructed`** = 清单存在 ∧ 无不透明手写 helper（算术主体是模式库原语）。
+- **弱义 `constructed-weak`** = 描述符选择的手写片段（算术主体是被选择的手写 helper）。
+- 六态从此脚本可判、不可辩解；弱义充强义 = 违宪（[L-8]）。清单是被发射的可测工件，其断言按 testing 层 `HARNESS`-source vs 运行期的来源区分执行。
+- 硅封状态（每板 objdump golden）单列跟踪，不并入六态。现值住 CI（[GOV-1]），不写进本 spec。
+
+## 四覆盖率口径（[COV-2]；C_construct 只计强义）
+
+- **C_dispatch** = ≥dispatch-wired 的 kernel 数 / 分母。
+- **C_construct** = ≥constructed（强义）/ 分母 —— 燃减主指标与论文口径（[L-8]）。
+- **C_construct+** = ≥constructed-weak / 分母 —— 过渡指标，**报告不 gate**。
+- **C_attr** = 按 [D-4] 三级分级（编译期 ^CT / 装载期 / 运行期 ^RT），**不报笼统比例**。
+- 分母 = 负载域 kernel 清单（[COV-1]），钉 ggml commit 后定稿。四指标现值、烧减曲线、六态计数一律住 CI/执行总纲，spec 只钉口径。
+
+## 双层行键（覆盖率口径 vs 性能口径）
+
+- **分母键（覆盖率口径）** = `(算子, 格式[, 形状类])`，每对只计一次；覆盖态 = 其全部变体行的最佳六态（防多路径重复计数虚增）。
+- **测量行键（性能口径）** = `(算子, 格式, 路径, arity, 形状类)` + 变体 ID + 选中方式 ∈ `{mechanism-selected, forced}`；**产品级主张只引 mechanism-selected 行，forced 行只用于消融科学**。
+- **形状类必入键**：`{decode-GEMV(M=1), prefill-GEMM(M 扫描), micro-fixed}` —— micro↛e2e 与 IME 交叉点实验的载体。
+
+## 传导会计（micro→e2e Amdahl 四列）
+
+- 核级赢**不得**直接写成 e2e 赢；须给 Amdahl 四列：`相内时间占比% → Amdahl 预测相级Δ → 实测相级Δ → 传导效率`。无传导列的核级赢不得声称传导到 e2e。
+- micro 赢不在 e2e 出现须如实披露；regime（compute-bound / memory-bandwidth-bound / per-block reduction-latency-bound）须声明，不得藏在更大的数字后。
+- **带宽受限内核以 parity 为零假设**（parity 是物理确认，不是失败）。
+
+> 表 schema 与落点（T0/T3/T6/T7 等）详情引 [docs 实验总纲 §2](../../../docs/TianChen-RV_实验总纲v1.md) + `experiments/`；本层只写口径与门，零现值。
+
 ## N3 Performance-Claim Discipline (baselines — durable contract)
 
 N3 ("capability/resource-aware tune that measurably wins") claims must obey a fixed baseline discipline so a
-number names a real contribution, not an artifact of a weak comparand:
+number names a real contribution, not an artifact of a weak comparand. The comparand classes referenced below
+(**factory-dispatched** = the only beat baseline; **algorithm-matched** = diagnostic; **naive-RVV** /
+**scalar-oracle** = sanity) are the adversary-class taxonomy declared in the testing layer
+([../testing/mlir-testing-contract.md](../testing/mlir-testing-contract.md) 对手解析探针); a vs-framework cell
+without an adversary-probe artifact is INVALID:
 
 - **Scalar is NEVER a contribution baseline.** vector-vs-scalar measures "we vectorized at all" — which
   MLIR/autovectorization already provide. It may appear only as an internal sanity check, never as a reported
@@ -268,8 +308,10 @@ number names a real contribution, not an artifact of a weak comparand:
   **per-block reduction-latency-bound** — the block-quant decode regime is the latter, not bandwidth, and a
   repack that dissolves the per-block reduction wall is what transplants) must be stated, not hidden behind
   the larger number.
-- **Every reported cell carries an evidence-status tag** `{measured | presumed | board-pending | N/A-by-construction}`.
-  An unmeasured cell defaults to NO claim — never to the success state. "presumed parity / presumed null" is not a
+- **Every reported cell carries an evidence-status tag** — the canonical five-state enum
+  `{measured | stale | board-pending | open | n_a}` declared in the testing lattice
+  ([../testing/mlir-testing-contract.md](../testing/mlir-testing-contract.md) 格 schema 二分; `open` renames the
+  old `presumed`, `stale` is added). An unmeasured cell defaults to NO claim — never to the success state. "presumed parity / presumed null" is not a
   result, it is an open measurement; banking it as success is the recurring over-optimism failure mode. After any
   refactor, prior numbers are STALE until re-measured on the named profile — a parity/win is a target re-measured
   per build, not a banked metric.

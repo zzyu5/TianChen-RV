@@ -275,6 +275,113 @@ broadest realized family; scalar fallback has no active executable body or route
 (unsupported diagnostics only); any family without a real producer route fails
 closed at candidate collection rather than exporting artifacts.
 
+## 发射与构造 / Construction Discipline (Track B)
+
+This umbrella section defines how a selected body becomes emitted code and when
+that emission counts as *construction* in the strong sense. It is family-generic
+(applies identically to RVV, IME, scalar, and future families) and consumes the
+master-doc Track B clauses by ID; it does not restate the six-state ladder
+([K-4]) or the pattern registry schema ([PAT-1]) — both are defined in the
+objectives 总纲; cite them by ID.
+
+### [K-0] Dual Emission Paths And Convergence
+
+Two emission paths coexist and are both acknowledged (总纲 [B-3]):
+
+```text
+(a) monolithic block-quantized operator
+      -> flat body emitter (descriptor *selection*)
+(b) decomposed N-operand construction path
+```
+
+Path (a) selects a descriptor and dispatches to a flat body; it is
+**descriptor-selected composition** — constructed-weak ([K-4]), never labeled
+`constructed`. Selecting a descriptor is dispatch/wiring, not construction
+(调度≠构造, 见 [L-6]①). Path (b) builds the body from operand-level structure.
+
+The terminal state is convergence, not permanent duality: the **generic operand
+layer becomes the sole emission authority** ([K-3b]) and both paths unify beneath
+it. During the transition both paths may run, but each kernel's path is honestly
+labeled by its [K-4] state (constructed-weak vs constructed, per [L-8]); a
+flat-path body is never reported as strong construction. Convergence acceptance
+criteria are owned by [K-3b] in the objectives 总纲; this contract only fixes the
+authority direction (operand layer wins; flat emitter subordinates to it).
+
+### [K-2] Body Pattern Library As Construction Primitives
+
+A strong-sense `constructed` body ([K-4]) is materialized by **referencing
+body-pattern-library primitives**, not by calling an opaque handwritten
+arithmetic helper. The primitive families are (总纲 [K-2]):
+
+```text
+widening dot-product-reduce
+dequant LUT / bit-unpack
+repack / blocking
+reduction tree
+masked tail handling
+[K-2b] wide-clamp / dual-zone body (widen-clamp-narrow)
+```
+
+Each primitive is parameterized by `(SEW, LMUL, VLEN-symbolic)` so that the same
+registry entry migrates across boards by key change, not rewrite (迁移性 owned by
+[PAT-3]). The pattern-registry data model is owned by [PAT-1] (cite by ID; do not
+restate its fields here); this
+contract only fixes the **emission-side discipline**: the arithmetic body of a
+constructed variant comes from pattern primitives, and any residual handwritten
+arithmetic helper downgrades the body to constructed-weak.
+
+### Construction Provenance Manifest
+
+Every mechanism-constructed body emits a provenance manifest
+`provenance = [pattern_id, ...]` naming the pattern primitives it was built from.
+
+The manifest is a **mirror** (I4) of a **structural fact** (I5) — that the body
+is genuinely assembled from typed pattern-library primitives. It is the
+判断依据 for placing a kernel at the `constructed` state ([K-4]); it is never
+itself route, dtype, compute, or progress authority, and it never *proves*
+construction on its own.
+
+Strong-sense `constructed` ([L-8]/[K-4]) requires the **conjunction**:
+
+```text
+provenance manifest exists  ∧  no opaque handwritten arithmetic helper in the body
+```
+
+The manifest is deliberately necessary-but-not-sufficient: this is what stops it
+being gamed as authority-by-itself. A body carrying a manifest but still routing
+its arithmetic through a selected handwritten helper is
+**descriptor-selected composition / constructed-weak**, and must be labeled so —
+reporting it as strong construction is 违宪 ([L-8]).
+
+### [K-6] Construction Gap-Closure Loop ([GAP-1])
+
+Any performance loss (or unexpected parity — 持平≠击败) against the same-ISA
+framework kernel is triaged into exactly one of:
+
+```text
+{ 缺能力事实 | 缺模式 | 选择错误 | 物理(带宽墙) }
+```
+
+Triage attribution requires disassembly evidence ([L-7]; compile-lit evidence is
+not silicon-sealed evidence, 见 [L-6]③). For the two construction-facing verdicts
+this layer owns:
+
+```text
+缺模式  -> name a new body-pattern-library entry (into [PAT-1] registry)
+缺能力事实 -> name a new capability/schema fact
+  -> close the gap -> re-emit the constructed body
+  -> same-kernel same-board retest
+  -> attribution log references the gap-ID
+```
+
+`[K-2b]` wide-clamp/dual-zone is the **canonical first gap-closure pattern** (the
+exemplar of a named-then-closed construction gap): a clamp regression becomes
+"gap named → closed → re-measured vs auto-vectorization." The performance
+measurement harness and the three-level attribution log ([D-4]) are owned by the
+variant-pipeline / validation layers; this contract only fixes the construction
+half — a 缺模式/缺事实 verdict must resolve to a *named registry/schema entry*
+that is then reconstructed and retested, not to an opaque one-off helper.
+
 ## Good / Bad Cases
 
 Good:
@@ -286,6 +393,23 @@ typed tcrv_rvv body
   -> provider-built route
   -> common EmitC
   -> target artifact mirror
+```
+
+Good:
+
+```text
+constructed body from pattern primitives
+  -> provenance = [widening-dot-reduce, dequant-lut, ...]
+  -> no opaque arithmetic helper
+  -> labeled constructed (strong, [K-4])
+```
+
+Bad:
+
+```text
+flat body emitter picks a descriptor
+  -> body arithmetic is a selected handwritten helper
+  -> reported as constructed (strong)   # 违宪 [L-8]; this is constructed-weak
 ```
 
 Good:

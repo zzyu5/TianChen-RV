@@ -73,6 +73,26 @@ first-slice plugin, register plugin dialects, and pass that registry into
 registry-dependent passes. The shared pass logic must still route only through
 generic `origin` lookup and plugin interfaces.
 
+## [F-3] Change Containment
+
+When family code is consolidated under one directory, a family integration PR is
+**contained to `plugins/<family>/` + table rows + docs**:
+
+```text
+plugins/<family>/    family ops/types/attrs, legality, realization, route provider, emission patterns, tests
+tables               capability fact rows + relation rows + ledger row
+docs                 integration doc ([P-4])
+```
+
+This is the containment form of [P-1] (no core-file edits) and the spatial
+counterpart to the five-piece set ([P-2], 见
+[extension-plugin-integration.md](./extension-plugin-integration.md)). It is
+conditional on the structural premise that family code is actually gathered under
+`plugins/<family>/`; where a family's code is still scattered, consolidating it is
+the prerequisite work, not a reason to spill the integration into core. Combined
+with zero family-name branches (I3) and the [F-1] grep-clean check, containment is
+the auditable evidence for C2 (marginal-cost) generalization.
+
 ## When Core May Change
 
 The system must not promise that every future extension needs zero core changes.
