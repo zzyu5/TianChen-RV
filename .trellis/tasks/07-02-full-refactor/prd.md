@@ -1,6 +1,6 @@
 # 完整重构 —— 能力驱动 RISC-V 执行层成熟化(引擎轴 × 证据轴)
 
-> **状态:REVIEW-GATE(待用户审核)。** 本 PRD 定义**父级 program** 的目标、双轴 pillar 与子任务分解草案;**不 spin 子任务、不动代码,直到批准**(开工另起新 agent)。范围裁决:父级 program PRD(M1→M4)· **两轴并行(用户定:证据线与引擎线一起做,从一开始就是成熟 compiler,不是先证据后引擎)** · 理想项(X-SCALAR / IME 自有 GEMM)纳入为 gated M3+ pillar。
+> **状态:ACTIVE(2026-07-02 经 `/goal` 放行开工)。** REVIEW-GATE 已由用户 `/goal` 指令解除——用户令"按 trellis 流程推进 PRD 直到达成科研目标 + 成熟 compiler + 完成实验",即对本 program 的放行。本 PRD 定义**父级 program** 的目标、双轴 pillar 与子任务分解;子任务按下方修正执行序逐一 spin+落地。范围裁决:父级 program PRD(M1→M4)· **两轴并行(用户定:证据线与引擎线一起做,从一开始就是成熟 compiler,不是先证据后引擎)** · 理想项(X-SCALAR / IME 自有 GEMM)纳入为 gated M3+ pillar。
 >
 > **权威三总纲(docs/):** `科研目标总纲v2`(证什么·目标态)· `执行总纲v2`(现在到哪·代码锚点·钉快照)· `实验总纲v1`(怎么证·表集 T0–T8)。spec 已吸收三总纲思想(`.trellis/spec/` C1/C2/C3′ + [L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2] + 实验宪法)。experiments/ 已建空表模板。**本 PRD 是把三总纲落成可执行 pillar 的桥。**
 
@@ -31,9 +31,10 @@
 
 | pillar | 内容 | 条款 | bounded exit |
 |---|---|---|---|
-| **E0** | 清除代码注释里的 beat 措辞越界(零成本,即刻) | [NG-4]/[L-1]/[L-7] | 全仓无未过 [PERF-1] 的 beat 断言 |
+| **E0** | 清除代码注释里的 beat 措辞越界(零成本,即刻)。**非 round-owner**——cleanup/metadata-only 不套完整 task→PRD→implement→check 仪式,主会话直接编辑 5 处注释 + 一个 quick commit 清 NG-4 越界即可 | [NG-4]/[L-1]/[L-7] | 全仓无未过 [PERF-1] 的 beat 断言 |
 | **E1** | 起草 `schema.def` v1(六项反写已备)+ 操作门 | [S-5]/[F-2′] | schema.def 落盘 + 版本日志 + 逐 PR diff∩schema.def=∅ 门在 CI |
-| **E2** | 家族代码目录归拢(趁重构窗口)+ **op-attribute `kind` → `target_kind`/`region_kind` 消歧**(纯代码,**须先于 E1 schema.def v1**,免契约文档写消歧注记 + 减 [F-1] grep 假阳性) | [F-3]/命名消歧 | 单一 `plugins/<family>/` 布局 + 收容门可判定 + op 侧 kind rename 完成 |
+| **E2a** | **op-attribute `kind` → `target_kind`/`region_kind` 消歧**(纯代码,有界,动 ODS;**须先于 E1 schema.def v1**——免契约文档写消歧注记 + 减 [F-1] grep 假阳性)。**本轮第一个真 module。** | 命名消歧 | op 侧 kind rename 完成 + byte-exact 门(clean relink + BEFORE==AFTER) |
+| **E2b** | 家族代码目录归拢(IME/RVV 从 `lib/{Dialect,Plugin,Conversion,Target}` 挪进 `plugins/<fam>/`;blast radius 大,单列一个 module 慎做,别当热身)。解锁 F-3(现"不可判定"的 C1 falsifier),值得靠前排 | [F-3] | 单一 `plugins/<family>/` 布局 + 收容门可判定 |
 | **E3** | Falsifier 组进 CI(curated 正则四型谓词 + 判读规程 + fuzz + 独立性判据) | [F-1]/[F-5]/[F-6] | 每 PR 触发、假阳性排除、CI 绿 |
 | **E4** | 编译期归因 JSONL 出口(reason 三值枚举 + candidates/keys/declared_instance_hash/ts)+ 装载期最小解析记录 | [D-4①]/[D-2a] | C_attr^CT 抽样 100% + 每进程一条解析记录 |
 | **E5** | provenance 清单 → 六态自动读出 + [L-8] 执法 | [K-4]/[L-8] | T0 六态脚本可判、弱充强被 CI 拦 |
@@ -102,15 +103,18 @@
 
 | 轴 | 草拟子任务 | 依赖 |
 |---|---|---|
-| 证据 | E0 越界清理 · E1 schema.def+F-2′ · E2 目录归拢 · E3 falsifier CI · E4 归因 JSONL+D-2a · E5 provenance 六态 · E6 覆盖率+ledger 脚本 · E7 D-1 自足 · E8 T-N+对手探针 | E1→E5/E6;E8 独立 |
+| 证据 | E0 越界清理(quick commit) · E2a kind 改名 · E1 schema.def+F-2′ · E2b 目录归拢 · E3 falsifier CI · E4 归因 JSONL+D-2a · E5 provenance 六态 · E6 覆盖率+ledger 脚本 · E7 D-1 自足 · E8 T-N+对手探针 | **E2a→E1**(改名先于契约固化);E1→E5/E6;E2b 解锁 F-3;E8 独立 |
 | 引擎 | G1 body 模式库+注册表 · G2 K-3b 权威 · G3 SEL-1 先验层 · G4 K-2b 缺口环 · G5 zvfh+闭包 · G6 结构化参数+uarch | E5/E6 后;G3 先于 P7 |
 | 硬件 | P1 资源 cost · P2 hwprobe+运行期链 · P3 两板实测 · P4 首 beat | E8/G1 后 |
 | 理想 | X1 X-SCALAR owned 内核 · X2 IME 自有 GEMM(gated)· X3 外部接入 | G1 原语后;X 回退解耦 |
 
-## Decision(ADR-lite)—— 待用户审核
+## Decision(ADR-lite)—— 已由 `/goal` 放行(2026-07-02)
 
 **已定:** 范围 = 父级 program PRD(M1→M4)· **两轴并行(证据线 × 引擎线一起做,从一开始就是成熟 compiler)** · 理想项纳入 M3+ gated。
-**待批(开工前,另起新 agent):** (B) 首批 spin 集 = **证据线 E0(立即)+ E1/E3/E4/E8 与引擎线 G1(body 模式库主战场)+ G3(SEL-1 先验层)一起起步**(两轴并行的第一批);(C) spin 子任务前**重钉快照 + 重跑基线确认 [A-2]**(仓库已从核查快照前进)。
+**放行后的修正执行序(本 session 定,写回 durable):**
+- (B′) **修正首批序**——PRD 原稿把 E1 列进首批却漏了 E2(而 E2 改名须先于 E1),已解:**E0(quick commit,非 round)→ E2a kind 改名(第一个真 module,E1 前置)→ E1 schema.def v1 → E3/E4/E8 + E2b 目录归拢(单列,解锁 F-3)**。**G1(引擎线 C_construct 主战场)gated 在 E5/E6 之后**——六态自动读出 + 覆盖率脚本是度量 C_construct 的尺子,没尺子无法给 G1 打分;故证据线 E 系列先行**不违背**"两轴并行"用户指令(先造尺再拧旋钮)。G3(SEL-1)硬绑先于/同于 P7,不急于首批。
+- (C′) **快照已重钉**:核查稿钉 7185a62b,现 HEAD=**7d781994**;E0 靶点(beat 措辞)已 grep 复验仍在(5 处,多出 `RVVGearboxSchedule.h:2809`)。动 E2a/E1 的锚点(ODS kind attr / `CapabilityModel.h`)前逐一 spot-check,不必重跑完整 [B-1..B-8]。
+- **循环纪律**:此 program multi-quarter~multi-year,单 session 完不成;每轮把一个 coherent module 做到 durable(implement→check→commit→journal + 精确续接点),不浅做凑数。
 
 ## Technical Notes
 
