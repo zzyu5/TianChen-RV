@@ -282,6 +282,18 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        &monolithicBlockDotABI4},
       {tcrv::rvv::GgmlBlockDotNVFP4Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_nvfp4_q8_0_block_dot",
+       &monolithicBlockDotABI4},
+      // The 24th and LAST block-dot op (100% literal-zoo coverage): q1_0, the BINARY
+      // {-1,+1}-sign class. Each q1_0 weight bit is a SIGN and the q8 value is the
+      // magnitude; one 128-element q1_0 super-block spans FOUR 32-element block_q8_0
+      // activation blocks. The activation is a FLAT block_q8_0 stream, so q1_0 takes
+      // the SAME flat route family as q4_0/q8_0/iq4_nl/mxfp4 and carries the SAME
+      // 4-role ggml vec_dot ABI (n, s, vx, vy) as iq4_nl -- the 128-element weight
+      // super-block loop + the binary sign decode (vlm_v_b{ratio} the packed bits
+      // straight into the i8 sign mask, i8-domain vneg/vmerge, one vwredsum) are op
+      // structure the emitter consumes, NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotQ10Q80Op::getOperationName(),
+       MonolithicBlockDotRouteFamily::Flat, "ggml_q1_0_q8_0_block_dot",
        &monolithicBlockDotABI4}};
   return kTable;
 }

@@ -58,6 +58,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVTQ20BlockDotSourceFrontDoor.cpp
   RVVMXFP4BlockDotSourceFrontDoor.cpp
   RVVNVFP4BlockDotSourceFrontDoor.cpp
+  RVVQ10BlockDotSourceFrontDoor.cpp
 
   DEPENDS
   TianChenRVPassesIncGen

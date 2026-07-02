@@ -36,6 +36,7 @@
 #include "TianChenRV/Plugin/RVV/RVVTQ20BlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVMXFP4BlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVNVFP4BlockDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVQ10BlockDotSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
@@ -663,8 +664,11 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
   if (llvm::Error error = rvv::registerRVVMXFP4BlockDotSourceFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
-  return rvv::registerRVVNVFP4BlockDotSourceFrontDoorPasses(kRVVPluginName,
-                                                            registry, out);
+  if (llvm::Error error = rvv::registerRVVNVFP4BlockDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  return rvv::registerRVVQ10BlockDotSourceFrontDoorPasses(kRVVPluginName,
+                                                          registry, out);
 }
 
 bool RVVExtensionPlugin::supportsOperation(
