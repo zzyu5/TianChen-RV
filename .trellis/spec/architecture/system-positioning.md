@@ -2,7 +2,7 @@
 
 ## Role
 
-TianChen-RV 是 high-level MLIR 之后的**统一 RISC-V MLIR execution layer**。定位红线：它是**执行层 / 编译后端层（Triton-backend 类比层），非 TVM**——拿给定的 op + 给定的 layout 自动生成该硬件最优码（capability 驱动的 lowering 选择/生成），不做搜索式 autotuning、不做图级端到端框架（前端/后端判别见下 §Core Contribution Boundaries）。它不重表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capability、execution variant、extension family、dispatch、fallback 和 ABI/lowering route。
+TianChen-RV 是 high-level MLIR 之后的**统一 RISC-V MLIR execution layer**。定位红线：它是**执行层 / 编译后端层（Triton-backend 类比层），非 TVM**——拿给定的 op + 给定的 layout 自动生成该硬件最优码（capability 驱动的 lowering 选择/生成），不做搜索式 autotuning、不做图级端到端框架（前端/后端判别见下 §机制子主张边界）。它不重表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capability、execution variant、extension family、dispatch、fallback 和 ABI/lowering route。
 
 ```text
 high-level MLIR (linalg/tosa/stablehlo/custom)   ← 长期 frontend，opt-in
@@ -34,7 +34,7 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 - **Core** 只拥有共享决策 envelope：capability、variant、requires、dispatch、fallback、ABI boundary、variant selection、plugin registry、extension family registration、diagnostics。core orchestration 只经 TCRV interface + 插件 registry 工作，**不**按 RVV/IME/vendor 名或 extension 计算语义分支（[core-invariants](./core-invariants.md) I3）。
 - **Extension family** 贡献硬件/runtime 特定的 compiler surface：ops/types/attrs/verifiers、local legalization hook、selected-body realization、route provider / EmitC 映射、tests。示例形态：`tcrv_rvv.{setvl,load,binary,mask,store}`、`tcrv.ime_{config,load_frag,mma,store_frag}`、`tcrv.offload_{bind,call,wait}`。namespace 拼写（`tcrv_rvv.*` 等）是实现细节，不使该 family 变成独立 backend。
 
-## Core Contribution Boundaries（对齐 N1/N2/N3）
+## 机制子主张边界（N1/N2/N3 → C1/C2/C3′；三贡献表与 bridge 见 [index](../index.md)）
 
 **N1 — capability-driven execution model.** `-march`、RVV、VLEN、microarchitecture、runtime/offload、toolchain 必须成为 MLIR 中可查询、可验证、可参与 pass 决策的对象。
 对：variant 生成与 legality 依赖 target capability 对象。
@@ -53,7 +53,7 @@ RVV、IME、TensorExt、Offload 概念上**不是**互不相关的独立 backend
 - 后端 N3（对）：capability 决定 VLEN→LMUL/SEW/VL-policy/宽度选择、自动生成 body——对**给定 op+layout** 调 codegen。这正是 **Triton layout assignment 的 within-kernel 类比**（决定 kernel 已声明数据怎么分布到寄存器/lane，对应我们的 LMUL/SEW/strip 选择）。**追平框架自己的 kernel = 主张为真（非失败）；系统性 beat ⟺ 综合一个框架没手写的 within-kernel 形状**（更宽 LMUL / VLEN-tuned strip / multi-accumulator），不是匹配其形状。
 - 前端（错，当作 N3 后端 novelty 是误判）：编译器"选 repack-vs-block-dot 算法"、weight-packing/repack、伸进框架（ggml）的加载布局——这些改的是 op/algorithm/layout 本身，是库/autotuner 贡献（有价值，但不是后端 novelty）。这条判别**修订**了"N3 = 编译器选 repack-vs-block-dot 算法"的旧表述：那条 demote 到前端栏。**weight-storage repack 属此前端栏 = 离线-prepack 类**（Marlin/AWQ/GPTQ/CUTLASS 的对应物——连 Triton 都把它留在编译器外、kernel 只消费预排权重；它是 data-adapts-to-kernel，与 within-kernel layout assignment 范畴相反）。**不得发明"第三类(compiler-DRIVEN/harness-EXECUTED)"把 repack 重新升格成后端 novelty**——那是 retired relapse（编译器 emit 的 packer 与框架自带 prepack byte-identical 冗余、抽象 op 无真 producer 只活 lit、零新 perf）。该轴唯一耐久的后端价值 = capability-driven **DECLINE**（按能力事实拒掉自家劣形 kernel = regression-removal），非 novelty 非 beat。
 
-> "variant 容器""plugin 化"本身不是 novelty——MLIR 已提供。novelty 在 N1–N3 的**整合 + 证据**：异构 capability 建模、零-core-branch 泛化（用第二 family 证明）、capability 驱动且实测胜出的 tuning（对给定 op+layout 的能力驱动 lowering，不是选/改算法）。
+> "variant 容器""plugin 化"本身不是 novelty——MLIR 已提供。novelty 在 **C1/C2/C3′**（= N1–N3 机制的整合 + 证据）：异构 capability 建模、零-core-branch 泛化（用第二 family 证明）、capability 驱动且实测胜出的 tuning（对给定 op+layout 的能力驱动 lowering，不是选/改算法）。
 
 ## Non-Architecture
 

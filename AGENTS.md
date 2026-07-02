@@ -33,7 +33,7 @@ The stable project boundary is:
 - The `tcrv.exec` core dialect only expresses kernel, target, capability, variant, hart_parallel, dispatch, and fallback.
 - Computation and hardware execution details belong in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin dialects.
 - The current real hardware mainline is RVV 1.0 via `ssh rvv`, with a 64-core CPU and sudo access.
-- K3/IME is a later IME plugin integration target.
+- IME is the keystone second extension family (N2), taken through the same common path as RVV — not a bolt-on backend; specific SpacemiT boards (K1/K3, etc.) are profile facts under `capability-model/profiles`, not scope items.
 - Sophgo/RISC-V + offload is a runtime-offload capability, not a custom RISC-V ISA extension.
 
 @RTK.md

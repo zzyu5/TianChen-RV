@@ -11,7 +11,7 @@ This layer defines the durable implementation stack for TianChen-RV MLIR.
 - [ ] Is Python limited to tooling, probes, runners, supervisors, artifact parsing, or small support scripts?
 - [ ] If MLIR tools are missing locally, does the change add detection and diagnostics instead of replacing MLIR with Python data structures?
 - [ ] Are selected-body realization, plugin route authority, capability mapping, and typed body generation implemented in C++/MLIR rather than Python compiler-core code?
-- [ ] 这一步推进的是哪个 Novelty 主张（N1/N2/N3）？还是只是相邻枝节？（见 [trunk-discipline](../guides/trunk-discipline.md)）
+- [ ] 这一步推进的是哪条贡献主张（C1/C2/C3′，经 N1/N2/N3 机制；映射见 [spec/index.md](../index.md) bridge）？还是只是相邻枝节？（见 [trunk-discipline](../guides/trunk-discipline.md)）
 
 ## Guidelines Index
 

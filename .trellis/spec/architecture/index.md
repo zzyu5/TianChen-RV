@@ -10,14 +10,14 @@
 - [ ] core/common 没有按 family 名分支吗？（I3）
 - [ ] RVV dtype/config/operation 来自 typed body，而不是 route id/ABI string/artifact name/旧 `i32m1` helper 吗？（I5）
 - [ ] 没有把 emission-plan status/dashboard/manifest/artifact metadata 当 route 或进度 authority 吗？（I4）
-- [ ] 这一步推进的是哪个 Novelty 主张（N1/N2/N3）？还是相邻枝节？（[trunk-discipline](../guides/trunk-discipline.md)）
+- [ ] 这一步推进的是哪条贡献 C1/C2/C3′？还是相邻枝节？（[trunk-discipline](../guides/trunk-discipline.md)）
 
 ## Guidelines Index
 
 | Spec | Description |
 |---|---|
 | [Core Invariants](./core-invariants.md) | 全项目复用的硬规则：I1–I9 + 附加硬规则（锚总纲 [L-6]/[L-8]/[K-4]/[S-5]/[F-2′]/[F-6]/[SEL-2]/[NG-3]/[NG-4]），其他文件引用它 |
-| [System Positioning](./system-positioning.md) | 系统定位、统一系统/family 责任、N1/N2/N3 贡献、模块边界 |
+| [System Positioning](./system-positioning.md) | 系统定位、统一系统/family 责任、N1/N2/N3 机制子主张边界（映射 C1/C2/C3′）、模块边界 |
 | [Design Boundaries](./design-boundaries.md) | 禁止方向、硬件路线口径、论文表述边界 |
 
 ## Quality Check

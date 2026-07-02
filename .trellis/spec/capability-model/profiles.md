@@ -40,4 +40,4 @@ role:     runtime-offload capability case
 
 capability 示例：`rvv` 或 scalar CPU fallback、sophgo runtime available、C ABI call path、PCIe/SoC mode、async（若有）。
 
-建模为 `kind = "runtime-offload"`，**不**归类成 RISC-V custom ISA。cost/dispatch 必须含 runtime launch、transfer、sync、fallback 行为。
+建模为 `kind = "policy"`（`subclass = "runtime-offload"`，即 accelerator 可用性 / 权限 / build 门，见 [S-1]）——runtime-offload **不是** `kind` 值。accelerator 的**计算所有权**（支持的 offload op 集、compute 语义）归 offload 插件（I2），**不**进 kind；也**不**归类成 RISC-V custom ISA。cost/dispatch 必须含 runtime launch、transfer、sync、fallback 行为。

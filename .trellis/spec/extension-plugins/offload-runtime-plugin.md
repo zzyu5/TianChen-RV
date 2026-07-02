@@ -34,7 +34,7 @@ Stable first-slice names:
 plugin name: offload-plugin
 plugin version: 0.1.0
 plugin capability id: offload.runtime
-plugin capability kind: runtime-offload
+plugin capability kind: policy (subclass: runtime-offload)
 preferred kernel capability symbol: @offload_runtime
 first-slice proposal / variant symbol: @offload_runtime_first_slice
 variant origin: offload-plugin
@@ -56,7 +56,7 @@ common extension family ops -> EmitC -> runtime C ABI route.
 The first slice may propose `@offload_runtime_first_slice` only when the kernel
 declares an available structured capability provider for id `offload.runtime`.
 That provider may be an exact capability with id `offload.runtime`, kind
-`runtime-offload`, or an explicit relation-provider profile whose `provides` or
+`policy` (subclass `runtime-offload`), or an explicit relation-provider profile whose `provides` or
 `implies` list satisfies id `offload.runtime`. The provider must carry bounded
 generic properties:
 
@@ -129,7 +129,8 @@ Reference attribute:
 
 ```mlir
 #tcrv.accel<"sophgo.runtime",
-            kind = "runtime-offload",
+            kind = "policy",
+            subclass = "runtime-offload",
             mode = "pcie",
             abi = "c",
             async = true,

@@ -152,12 +152,20 @@ Rules:
 
 ### `tcrv.exec.capability`
 
-Represents one compiler-visible target, toolchain, runtime/offload, policy, or
-microarchitecture capability available to a kernel.
+Represents one compiler-visible capability fact available to a kernel. Its
+category axis is `kind`, a **closed enum** `{isa_ext, sub_ext, uarch, policy}`
+that is orthogonal to family and is never a family name ([S-1]; category
+semantics and the source→kind mapping are declared once in
+[capability-contract](../capability-model/capability-contract.md), not repeated
+here). Toolchain / runtime-offload / thread-runtime are not `kind` values: their
+availability and build/permission gating map to `policy`, and an offload
+accelerator's compute ownership stays with the offload plugin (I2).
 
 Rules:
 
-- `id` and `kind` are required non-empty structured MLIR attributes;
+- `id` is a required non-empty structured MLIR attribute, and `kind` is required
+  and drawn from the [S-1] closed enum `{isa_ext, sub_ext, uarch, policy}`, not
+  an open free string;
 - direct capability `id` values must be unique within the enclosing
   `tcrv.exec.kernel`, because generic capability queries use exact id lookup
   before relation-provider lookup;

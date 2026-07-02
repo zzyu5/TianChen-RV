@@ -4,13 +4,18 @@
 
 ## 唯一标尺
 
-每个 task 都要能回答一句话：**"这一步把哪个 Novelty 主张（N1 / N2 / N3，见 [index](../index.md)）从'未证'推近到'已证'多少？"** 答不上来，就别做。
+每个 task 都要能回答一句话：**"这一步把哪个贡献主张（C1 / C2 / C3′，见 [index](../index.md) 的贡献表与 N1/N2/N3 ↔ C1/C2/C3′ bridge）从'未证'推近到'已证'多少？"** 答不上来，就别做。
 
-进度用**"离 N1/N2/N3 还差多少"**衡量——**不是**用 task 数、closeout 数、artifact 数、commit 数衡量。后面这些数字越大，往往说明越偏离主干。
+进度用**"离 C1/C2/C3′ 还差多少"**衡量——**不是**用 task 数、closeout 数、artifact 数、commit 数衡量。后面这些数字越大，往往说明越偏离主干。
+
+（N1/N2/N3 是映射进 C1/C2/C3′ 的机制/子主张——N1 能力基座与 N2 零核心分支准入合取成 **C1**，N3 能力键控选择并入 **C3′**，C2 是泛化的边际成本；映射只在 [index](../index.md) bridge 声明一次，本文用它们指代 C 的构件，不作 C 的并列项。）
 
 ## 主干 vs 枝节
 
-- **主干** = 让 Novelty 可证的工作：更深的 capability 模型 + 多 profile 行为分化（N1）；第二个**非-RVV** family 走通同一 common 路径（N2）；Gearbox 候选枚举/剪枝 + 对**框架出厂同-ISA kernel**实测胜出或打平（N3，baseline 纪律见 [validation/experiment-reference](../validation/experiment-reference.md)；scalar/naive 绝不作贡献基线）。
+- **主干** = 让贡献 C1/C2/C3′ 可证的工作：
+  - **推 C1**（合取存在性 → 可复制协议）：更深的 capability 模型 + 多 profile 行为分化（N1 基座）；第二个**非-RVV** family 走通同一 common 路径（N2 零核心分支准入 = C1 的结构证明）——两者在同一 schema 上合取即 C1。
+  - **推 C2**（泛化代价 → 边际成本规律）：再接家族并逐家族记录接入的**边际成本 ledger**（第二 family 即出 C2 首个数据点，≥3 点成曲线）。
+  - **推 C3′**（能力键控优化模式库）：Gearbox 候选枚举/剪枝 + 对**框架出厂同-ISA kernel**实测胜出或打平（N3 能力键控选择，baseline 纪律见 [validation/experiment-reference](../validation/experiment-reference.md)，需过 [PERF-1] 八门；scalar/naive 只作 sanity，绝不作贡献基线）。
 - **枝节** = adjacent route seam、又一个 ABI/artifact evidence closeout、rename/ownership 重排、metadata-only round、把一个算子拆成 N 个 boundary/owner/contract task。
 
 主干难、枝节易；loop 的天然引力往枝节滑。**默认抵抗这个引力。**

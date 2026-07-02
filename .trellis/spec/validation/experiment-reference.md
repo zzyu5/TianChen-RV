@@ -281,8 +281,10 @@ without an adversary-probe artifact is INVALID:
     comparands, never collapsed into one column:
     - **Win-B1 = vs the framework's block-dot** — "does the layout/algorithm change help". Where the framework
       ships NO such kernel on that VLEN (e.g. ggml's `case 128: break // TODO` → no q4_0 repack at VLEN128), a
-      Win-B1 win is a legitimate GAP-FILL e2e acceleration against the real shipping baseline, NOT a weak-baseline
-      artifact — but it is a frontend (added-algorithm) win, not a backend-codegen win.
+      Win-B1 result is a legitimate GAP-FILL *coverage* result against the real shipping baseline, NOT a
+      weak-baseline artifact — but any "acceleration / beat" wording for it stays gated on [PERF-1] 八门 / [NG-4]
+      (registered Wins never enter beat 语境, [L-7]), and it is a frontend (added-algorithm) result, not a
+      backend-codegen win.
     - **Win-B2 = vs the framework's OWN repack** (only exists where the framework ships one) — "is our codegen
       competitive". The honest success criterion here is PARITY (matching the expert's hand-written kernel).
     NEVER scalar / naive / `_generic`. Conflating the two comparands in one column (big-vs-block-dot numbers next
