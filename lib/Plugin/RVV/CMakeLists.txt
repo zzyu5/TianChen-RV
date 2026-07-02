@@ -35,30 +35,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVDequantDotSourceFrontDoor.cpp
   RVVPackedI4DotSourceFrontDoor.cpp
   RVVCodebookDotSourceFrontDoor.cpp
-  RVVQ40BlockDotSourceFrontDoor.cpp
-  RVVQ80BlockDotSourceFrontDoor.cpp
-  RVVIQ4NLBlockDotSourceFrontDoor.cpp
-  RVVQ41BlockDotSourceFrontDoor.cpp
-  RVVQ50BlockDotSourceFrontDoor.cpp
-  RVVQ51BlockDotSourceFrontDoor.cpp
-  RVVQ4KBlockDotSourceFrontDoor.cpp
-  RVVQ2KBlockDotSourceFrontDoor.cpp
-  RVVQ3KBlockDotSourceFrontDoor.cpp
-  RVVQ5KBlockDotSourceFrontDoor.cpp
-  RVVQ6KBlockDotSourceFrontDoor.cpp
-  RVVIQ4XSBlockDotSourceFrontDoor.cpp
-  RVVIQ1SBlockDotSourceFrontDoor.cpp
-  RVVIQ1MBlockDotSourceFrontDoor.cpp
-  RVVIQ2XXSBlockDotSourceFrontDoor.cpp
-  RVVIQ2XSBlockDotSourceFrontDoor.cpp
-  RVVIQ2SBlockDotSourceFrontDoor.cpp
-  RVVIQ3XXSBlockDotSourceFrontDoor.cpp
-  RVVIQ3SBlockDotSourceFrontDoor.cpp
-  RVVTQ10BlockDotSourceFrontDoor.cpp
-  RVVTQ20BlockDotSourceFrontDoor.cpp
-  RVVMXFP4BlockDotSourceFrontDoor.cpp
-  RVVNVFP4BlockDotSourceFrontDoor.cpp
-  RVVQ10BlockDotSourceFrontDoor.cpp
+  RVVMonolithicBlockDotSourceFrontDoor.cpp
 
   DEPENDS
   TianChenRVPassesIncGen
