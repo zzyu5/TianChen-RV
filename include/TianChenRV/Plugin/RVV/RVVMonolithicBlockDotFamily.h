@@ -190,6 +190,24 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {tcrv::rvv::GgmlBlockDotIQ4XSQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4},
+      // The four common super-block-PLAIN K-quants (P2-e): q2_K/q3_K/q5_K/q6_K.
+      // All are genuine super-blocks (QK_K == 256) so they take the SAME super-block
+      // route family as q4_K, and all carry the SAME 4-role ggml vec_dot ABI
+      // (n, s, vx, vy) as q4_K -- the block-format delta (2/3/5/6-bit weights, the
+      // qh/hmask high-bit planes, the scale/min hierarchy, the scalar-vs-deferred
+      // fold) is op structure the emitter consumes, NOT a route-family or ABI concern.
+      {tcrv::rvv::GgmlBlockDotQ2KQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q2_k_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotQ3KQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q3_k_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotQ5KQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q5_k_q8_k_block_dot",
+       &monolithicBlockDotABI4},
+      {tcrv::rvv::GgmlBlockDotQ6KQ8KOp::getOperationName(),
+       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q6_k_q8_k_block_dot",
+       &monolithicBlockDotABI4},
       {tcrv::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided},
