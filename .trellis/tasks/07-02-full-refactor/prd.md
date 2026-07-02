@@ -116,6 +116,17 @@
 - (C′) **快照已重钉**:核查稿钉 7185a62b,现 HEAD=**7d781994**;E0 靶点(beat 措辞)已 grep 复验仍在(5 处,多出 `RVVGearboxSchedule.h:2809`)。动 E2a/E1 的锚点(ODS kind attr / `CapabilityModel.h`)前逐一 spot-check,不必重跑完整 [B-1..B-8]。
 - **循环纪律**:此 program multi-quarter~multi-year,单 session 完不成;每轮把一个 coherent module 做到 durable(implement→check→commit→journal + 精确续接点),不浅做凑数。
 
+### 落地进度台账(证据轴 E 系列;每条带 commit)
+
+| pillar | 状态 | commit | 备注 |
+|---|---|---|---|
+| **E0** beat 越界清理 | ✅ done | b128e3d5 | 5 处 "beats ggml ~13%" 未封断言清除;残留 3 处 "beat" 合规 |
+| **E2a** kind→target_kind/region_kind | ✅ done | 6e16322b | 有界机械 rename;byte-exact 门 PASS;child task 已 completed;trellis-implement+check 双复核 |
+| **E1** schema.def v1 + F-2′ 操作门 | ⬜ next | — | E2a 已解锁(op 分类 kind 已消歧);六项反写见执行总纲 §4 |
+| E2b 目录归拢 / E3 falsifier CI / E4 归因 JSONL+D-2a / E5 provenance 六态 / E6 覆盖率+ledger / E7 D-1 自足 / E8 T-N+对手探针 | ⬜ pending | — | E1 后;E5/E6 是 G1 的度量尺子(先于引擎线主战场) |
+
+**下轮续接点:** E1 = 起草 `schema.def` v1(六项:①事实字段+provenance/trust ②kind 闭合枚举 ③关系类型表 ④params 命名空间 ⑤插件接口可序列化签名 ⑥操作数角色词表)+ [F-2′] 逐 PR diff∩schema.def=∅ 操作门。反写底账见执行总纲 §4;此前须重钉快照重跑基线 [A-2] 抽验(仓库已从 7d781994 前进到本 branch)。
+
 ## Technical Notes
 
 三总纲 = 权威(docs/);spec 已吸收(.trellis/spec/);experiments/ 空表已建。执行总纲 §10 TOP-10 = 证据线 E0–E8 的落地清单;实验总纲 §6 前置工具 = 同一批。**三条术语定案已入 canon+spec:** ① Win 登记阶梯 A/S(sanity)/B(kernel 级,B1/B2 由对手探针定)/C(相级 e2e 过 [PERF-1]),Win-S 为历史误标 "Win-B" 的 alias(登记簿留注、不改史);② `kind` 闭合枚举 + `subclass` 保原始类目(schema.def ①,minor),profile 只作 provider(不带 kind)、declared-instance-hash 对**展开事实集**取(profile ≡ 显式列表哈希相同);③ op-attribute kind → `target_kind`/`region_kind`,随 E2 目录归拢、先于 E1 schema.def v1。**一次核查快照 = 7185a62b(执行总纲);仓库已前进(现 6e2e4e56 + 后续),spin 子任务前须重钉快照重跑基线确认([A-2])。**

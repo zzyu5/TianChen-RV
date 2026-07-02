@@ -290,7 +290,7 @@ request a concrete capacity.
 Optional structured region for extension-resource use:
 
 ```mlir
-tcrv.exec.region kind = "rvv" {
+tcrv.exec.region region_kind = "rvv" {
   ... tcrv.rvv ops ...
 }
 ```
@@ -301,7 +301,7 @@ The initial compiler verifier slice may use builtin string attributes:
 
 ```mlir
 tcrv.exec.region attributes {
-  kind = "extension-resource",
+  region_kind = "extension-resource",
   name = "rvv-resource",
   purpose = "extension-owned-body"
 } {
@@ -309,10 +309,15 @@ tcrv.exec.region attributes {
 }
 ```
 
-For this compatibility form, `kind` is required and non-empty. `name` and
+For this compatibility form, `region_kind` is required and non-empty. `name` and
 `purpose` are optional but must be non-empty when present. The region must be
-nested in a `tcrv.exec.variant`. Core verification must not interpret the kind
-as RVV, IME, offload, or future-plugin legality.
+nested in a `tcrv.exec.variant`. Core verification must not interpret the
+`region_kind` as RVV, IME, offload, or future-plugin legality.
+
+> **命名消歧([S-1] 契约):** region op 的分类轴用 `region_kind`,target op 的用
+> `target_kind`;两者均与**能力事实闭合枚举 `kind`**(`tcrv.exec.capability` /
+> `CapabilityDescriptor`,值 ∈ {isa_ext, sub_ext, uarch, policy})区分——同名易混,
+> 已于 E2a(纯代码 rename、字节中性)消歧。
 
 ### `tcrv.exec.mem_window`
 
