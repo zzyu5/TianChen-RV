@@ -1,0 +1,51 @@
+# Falsifier CI — F-2' / S-6 schema.def governance gate (E3 slice, one gate only).
+#
+# Makes the schema.def gate (`.trellis/scripts/check_schema_gate.py`) CI-executable and
+# keeps a live red-team proof that it CATCHES a deliberate violation (the pivot's
+# gate-traffic clause: a gate that has never caught anything is a deletion candidate).
+#
+# Stdlib-Python only; the sole external action is actions/checkout. This wires ONLY the
+# F-2' schema.def gate — F-5 fuzz / F-6 independence / per-family regex are later rounds.
+name: falsifier-gate
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  schema-def-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history — the F-2' gate diffs base..head)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Hermetic gate logic: report determinism, F-2' path-intersection,
+      # additive-vs-breaking classification. No git refs, no repo writes.
+      - name: Gate self-test
+        run: python3 .trellis/scripts/check_schema_gate.py --self-test
+
+      # [S-6] report gate on the COMMITTED schema.def artifact: recompute the normalized
+      # SHA256 and fail if the shape hash drifted with no matching VERSIONLOG line.
+      # This fires on EVERY PR that mutates the schema shape without logging it.
+      - name: Report gate (committed schema.def shape hash vs VERSIONLOG)
+        run: python3 .trellis/scripts/check_schema_gate.py report --check
+
+      # Live red-team: prove the gate actually REJECTS a deliberate violation
+      # (hermetic content edit + read-only F-2' onboarding range).
+      - name: Red-team proof (gate catches a deliberate violation)
+        run: python3 .trellis/scripts/redteam_schema_gate.py --self-test
+
+      # [F-2'] operation gate on the PR diff range: a family-onboarding PR whose diff
+      # intersects schema/ is the falsifier firing. PR-only — on push, base..head refs
+      # (github.event.before) are unreliable / all-zeros on a new branch.
+      - name: F-2' operation gate (onboarding PR diff ∩ schema.def = ∅)
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 .trellis/scripts/check_schema_gate.py gate \
+            --base ${{ github.event.pull_request.base.sha }} \
+            --head ${{ github.event.pull_request.head.sha }}

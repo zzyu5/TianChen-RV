@@ -1,0 +1,13 @@
+# F-2' / S-6 schema.def gate red-team (E3 gate-traffic clause): prove the gate CATCHES
+# a deliberate violation. Hermetic + read-only; never dirties the real schema.def.
+# RUN: python3 %S/../../.trellis/scripts/check_schema_gate.py --self-test | FileCheck %s --check-prefix=SELF
+# RUN: python3 %S/../../.trellis/scripts/redteam_schema_gate.py --self-test | FileCheck %s --check-prefix=REDTEAM
+
+# SELF: ALL PASS
+
+# The content (S-6 shape-hash) gate must FAIL a breaking edit and the F-2' operation
+# gate must FAIL an onboarding PR touching schema/ — both proven here, then the tree
+# is left clean.
+# REDTEAM: report/S-6: breaking edit FAILs report --check (exit 1)
+# REDTEAM: F-2': onboarding PR touching schema/ FAILs the gate (exit 1)
+# REDTEAM: redteam_schema_gate red-team passed
