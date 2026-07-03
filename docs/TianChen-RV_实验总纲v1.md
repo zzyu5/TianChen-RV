@@ -51,7 +51,7 @@
 | **T3** 双板测量主表(板 A/B 各一) | C3′ + 成熟 | 板相关·测量 | 采纳草案 10 列;**对手身份列 gated on 探针**;**能力键消融列 blocked-by-SEL(先验层未落地)**;正确性/能力形状列现在可填(byte-exact + LMUL/VLEN 翻转已封) |
 | **T3p** 模式逐条消融 | C3′ 模板 | 板相关·测量 | gated on 模式注册表(收缩族已数据化,块量化 body 待数据化)+ T-N |
 | **T3m** 迁移判据(双板 diff=0) | C3′ 迁移性 | 板无关·结构 | gated on 模式注册表 + 双板 CI([PAT-3]) |
-| **T4a** 归因样本 | C3′/N3 可归因 | 结构+测量 | **gated on 归因 JSONL 出口**(现有富 in-IR 选择属性重构即可,**M1 可达**);reason 枚举须改 {only_feasible,prior,measured};+ oracle 遗憾% |
+| **T4a** 归因样本 | C3′/N3 可归因 | 结构+测量 | **gated on 归因 JSONL 出口**(现有富 in-IR 选择属性重构即可,**M1 可达**);reason 枚举 = {only_feasible, static_order, prior, measured}("是否由能力键选中"列直接从 reason 推导:static_order→否/prior/measured→是/only_feasible→N/A;static_order 在 SEL-1 后应归零=燃减信号);+ oracle 遗憾% |
 | **T4b** 选择器四配置消融 | N3 选择价值 | 测量 | **gated on 先验层(SEL-1,M3)**;含"矩阵静默落败"专项复现([SEL-2] 实验证据) |
 | **T5** IME 卷宗 | C1/N2 佐证 + P7 | 见 §3 | **重大 grounding,见 §3** |
 | **T6** 端到端分相 | beat(若有) | 板相关·测量 | gated on llama-bench harness(待接)+ [PERF-1] 八门(现 0/8);decode parity 区预着色 |

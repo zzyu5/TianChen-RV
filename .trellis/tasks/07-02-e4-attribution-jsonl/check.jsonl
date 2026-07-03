@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-02-e4-attribution-jsonl/research/e4-scope-summary.md", "reason": "验收比对:附加式不回归 + C_attr^CT=100% + scope 边界 + build 门"}
+{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "NG-3/mirror/fail-closed 一致性;reason 诚实(守卫字段防过度声称)"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit 确定性口径;现有 lit 不改期望;新 JSONL 独立确定性测试"}

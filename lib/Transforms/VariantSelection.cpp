@@ -1,6 +1,7 @@
 #include "TianChenRV/Transforms/VariantSelection.h"
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "TianChenRV/Support/DeclaredInstanceHash.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/Builders.h"
@@ -11,9 +12,14 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <ctime>
+#include <map>
 #include <optional>
+#include <string>
 
 namespace tianchenrv::transforms {
 
@@ -323,6 +329,84 @@ std::string buildPreferenceTieBreakReason(const VariantSelectionPlan &plan,
       .str();
 }
 
+// ---- Compile-time selection attribution ([D-4] (1)) canonical-JSON helpers ----
+//
+// The sink is purely additive and option-gated OFF by default; none of these
+// helpers touch the IR. Serialization is canonical JSON (sorted keys, no
+// incidental whitespace) so lines are byte-stable for lit/FileCheck.
+
+void appendJsonString(llvm::raw_ostream &os, llvm::StringRef value) {
+  // Reuse LLVM's JSON string escaper for standard, deterministic escaping.
+  os << llvm::json::Value(value.str());
+}
+
+// The SAME feasibility predicate the planner uses to pick selectedIndex: a
+// candidate is feasible iff it is generically available AND conflict-free.
+bool isFeasibleCandidate(const VariantSelectionCase &candidate) {
+  return candidate.genericallyAvailable && candidate.conflictFree;
+}
+
+// Re-derive a single keys_evaluated verdict at the sink from the live capability
+// set. Mirrors analyzeRequirementLegality's per-capability logic; "unknown" is
+// listed for completeness but cannot actually fire here because
+// analyzeRequirementLegality already errored (before this sink) on any required
+// symbol missing from the set.
+llvm::StringRef deriveKeyEvaluatedVerdict(const TargetCapabilitySet &capabilities,
+                                          llvm::StringRef symbolName) {
+  const support::CapabilityDescriptor *capability =
+      capabilities.lookupBySymbolName(symbolName);
+  if (!capability)
+    return "unknown";
+  if (!capability->isAvailable())
+    return "unavailable";
+  llvm::SmallVector<support::CapabilityConflict, 4> conflicts;
+  capabilities.collectAvailableConflictsForCapability(*capability, conflicts);
+  return conflicts.empty() ? "available" : "conflicting";
+}
+
+void appendCandidateObject(llvm::raw_ostream &os,
+                           const VariantSelectionCase &candidate,
+                           std::size_t rank) {
+  // Sorted keys: explicit_preference, [fallback_role], feasible, origin, rank,
+  // requires_runtime_guard, score, variant.
+  os << '{';
+  os << "\"explicit_preference\":"
+     << (candidate.cost.hasExplicitPreference() ? "true" : "false");
+  if (isConservativeFallbackCandidate(candidate.variant, candidate.cost)) {
+    os << ",\"fallback_role\":";
+    appendJsonString(os, plugin::kConservativeFallbackRoleValue);
+  }
+  os << ",\"feasible\":" << (isFeasibleCandidate(candidate) ? "true" : "false");
+  os << ",\"origin\":";
+  appendJsonString(os, candidate.cost.getOriginPlugin());
+  os << ",\"rank\":" << rank;
+  os << ",\"requires_runtime_guard\":"
+     << (candidate.requiresRuntimeCapabilityGuard ? "true" : "false");
+  // Emit the constant ranking score UNCONDITIONALLY (every ranked candidate has a
+  // validated score, core-invariants I via validateOriginOwnedCost): the static
+  // cold-start ordering key must be present so a `static_order` decision is fully
+  // reconstructible from the record.
+  os << ",\"score\":" << llvm::json::Value(candidate.cost.getScore());
+  os << ",\"variant\":";
+  VariantOp variant = candidate.variant;
+  appendJsonString(os, variant.getSymName());
+  os << '}';
+}
+
+void appendAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp) {
+  if (noTimestamp) {
+    // Fixed sentinel keeps lit/FileCheck output byte-deterministic.
+    appendJsonString(os, "0");
+    return;
+  }
+  std::time_t now = std::time(nullptr);
+  std::tm utc{};
+  gmtime_r(&now, &utc);
+  char buffer[32];
+  std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+  appendJsonString(os, buffer);
+}
+
 void addPreferenceMetadata(mlir::OpBuilder &builder,
                            mlir::OperationState &state,
                            const VariantSelectionPlan &plan,
@@ -546,6 +630,24 @@ public:
                                                         : other.registry) {}
 
   void runOnOperation() override {
+    // Open the compile-time selection attribution JSONL sink ONCE before the walk
+    // (truncate) when the option is set. Empty path => sink disabled, and the pass
+    // behaves byte-identically to today.
+    std::optional<llvm::raw_fd_ostream> attributionFile;
+    if (!attributionJsonl.empty()) {
+      std::error_code ec;
+      attributionFile.emplace(attributionJsonl, ec, llvm::sys::fs::OF_Text);
+      if (ec) {
+        getOperation()->emitError()
+            << "TianChen-RV variant selection could not open attribution JSONL "
+               "output file '"
+            << attributionJsonl << "': " << ec.message();
+        signalPassFailure();
+        return;
+      }
+      attributionStream = &*attributionFile;
+    }
+
     mlir::OpBuilder builder(&getContext());
     mlir::WalkResult walkResult =
         getOperation()->walk([&](KernelOp kernel) -> mlir::WalkResult {
@@ -553,6 +655,8 @@ public:
             return mlir::WalkResult::interrupt();
           return mlir::WalkResult::advance();
         });
+
+    attributionStream = nullptr;
 
     if (walkResult.wasInterrupted())
       signalPassFailure();
@@ -574,6 +678,16 @@ private:
       return emitSelectionError(kernel, planOrError.takeError());
 
     VariantSelectionPlan plan = std::move(*planOrError);
+
+    // Compile-time selection attribution ([D-4] (1)): one canonical-JSON record
+    // per planned kernel, emitted BEFORE the switch so every VariantSelectionKind
+    // (incl. NoViableVariant) is covered uniformly and the C_attr^CT denominator
+    // is honest. Additive + option-gated; no IR is mutated by this.
+    if (attributionStream)
+      *attributionStream << buildSelectionAttributionRecord(
+                                plan, *capabilities, attributionJsonlNoTimestamp)
+                         << '\n';
+
     switch (plan.kind) {
     case VariantSelectionKind::RuntimeDispatch:
       if (llvm::Error error = materializeRuntimeDispatchPlan(builder, plan))
@@ -603,6 +717,8 @@ private:
 
   ExtensionPluginRegistry ownedRegistry;
   const ExtensionPluginRegistry *registry = nullptr;
+  // Transient attribution sink, valid only for the duration of runOnOperation.
+  llvm::raw_ostream *attributionStream = nullptr;
 };
 
 } // namespace
@@ -927,6 +1043,104 @@ llvm::Error materializeSelectedVariantMarker(
                                                        *selectedCase);
 
   return llvm::Error::success();
+}
+
+std::string buildSelectionAttributionRecord(
+    const VariantSelectionPlan &plan, const TargetCapabilitySet &capabilities,
+    bool noTimestamp) {
+  // The statically-selected variant (== fallback for FallbackOnly). Null only
+  // for NoViableVariant (no variants at all) -> chosen=null, reason=null.
+  VariantOp chosen = plan.selectedVariant ? plan.selectedVariant : plan.fallback;
+
+  std::size_t feasibleCount = 0;
+  for (const VariantSelectionCase &candidate : plan.rankedVariants)
+    if (isFeasibleCandidate(candidate))
+      ++feasibleCount;
+
+  // keys_evaluated: union over every candidate's `requires`, sorted keys (std::map),
+  // re-derived at the sink. Same symbol -> same verdict, so assignment is stable.
+  std::map<std::string, std::string> keysEvaluated;
+  for (const VariantSelectionCase &candidate : plan.rankedVariants) {
+    auto requiresAttr =
+        candidate.variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+    if (!requiresAttr)
+      continue;
+    for (mlir::Attribute required : requiresAttr) {
+      auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(required);
+      if (!symbolRef)
+        continue;
+      keysEvaluated[symbolRef.getValue().str()] =
+          deriveKeyEvaluatedVerdict(capabilities, symbolRef.getValue()).str();
+    }
+  }
+
+  // reason: DERIVED (orthogonal to the in-IR `reason` attr). The distinction
+  // between "only one feasible" and "chosen among many" lives on the PRIMARY key,
+  // not a footnote. only_feasible = exactly one feasible candidate; static_order =
+  // >=2 feasible chosen by today's capability-blind constant-score cold-start
+  // ordering (no capability-prior layer exists at the exec selector yet). `prior`
+  // is STRICTLY reserved for a capability-DERIVED prior and is NEVER emitted at
+  // stage (1) until [SEL-1]/G3 lands; `measured` (memoized-measurement winner) is
+  // likewise never emitted here until [SEL-3] (measurement is a schedule-stage
+  // fact). So stage (1) today emits only `only_feasible` or `static_order`. reason
+  // is null when nothing was chosen (NoViableVariant). Every feasible candidate
+  // always carries its constant ranking score (see appendCandidateObject) so a
+  // static_order decision is fully reconstructible from the record.
+  bool hasChosen = static_cast<bool>(chosen);
+  llvm::StringRef reason =
+      hasChosen ? (feasibleCount >= 2 ? "static_order" : "only_feasible")
+                : llvm::StringRef();
+
+  std::string declaredInstanceHash =
+      support::computeDeclaredInstanceHash(capabilities);
+
+  std::string line;
+  llvm::raw_string_ostream os(line);
+  // Canonical top-level key order: candidates, chosen, declared_instance_hash,
+  // kernel, keys_evaluated, reason, ts.
+  os << '{';
+  os << "\"candidates\":[";
+  for (std::size_t index = 0; index < plan.rankedVariants.size(); ++index) {
+    if (index)
+      os << ',';
+    appendCandidateObject(os, plan.rankedVariants[index], index);
+  }
+  os << ']';
+  os << ",\"chosen\":";
+  if (hasChosen)
+    appendJsonString(os, chosen.getSymName());
+  else
+    os << "null";
+  os << ",\"declared_instance_hash\":";
+  appendJsonString(os, declaredInstanceHash);
+  os << ",\"kernel\":";
+  if (plan.kernel) {
+    KernelOp kernel = plan.kernel;
+    appendJsonString(os, kernel.getSymName());
+  } else {
+    appendJsonString(os, "");
+  }
+  os << ",\"keys_evaluated\":{";
+  bool firstKey = true;
+  for (const auto &entry : keysEvaluated) {
+    if (!firstKey)
+      os << ',';
+    firstKey = false;
+    appendJsonString(os, entry.first);
+    os << ':';
+    appendJsonString(os, entry.second);
+  }
+  os << '}';
+  os << ",\"reason\":";
+  if (hasChosen)
+    appendJsonString(os, reason);
+  else
+    os << "null";
+  os << ",\"ts\":";
+  appendAttributionTimestamp(os, noTimestamp);
+  os << '}';
+  os.flush();
+  return line;
 }
 
 std::unique_ptr<::mlir::Pass> createSelectVariantsPass() {

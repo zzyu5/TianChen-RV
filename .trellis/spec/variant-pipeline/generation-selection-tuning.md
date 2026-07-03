@@ -62,7 +62,7 @@ selection 是两段式：
 
 每次变体选择可归因，分三级：
 
-1. **编译期选择归因**——JSONL 每条 `{kernel, candidates[], keys_evaluated{}, chosen, reason ∈ {only_feasible, prior, measured}, declared_instance_hash, ts}`。`reason` 三值即 [SEL-1] 的三条出口：`only_feasible` = 合法性过滤后仅剩一个可执行候选；`prior` = 冷启动能力先验排序层裁决；`measured` = 命中 memoized 实测赢家。
+1. **编译期选择归因**——JSONL 每条 `{kernel, candidates[], keys_evaluated{}, chosen, reason ∈ {only_feasible, static_order, prior, measured}, declared_instance_hash, ts}`。`reason` 是**所有归因分析的主键**，能力键控与否做在主键上、不做在脚注守卫字段（否则某个查询会漏掉守卫字段，「能力键选中数」静默虚高）：`only_feasible` = 合法性过滤后仅剩一个可执行候选（N/A 能力键）；`static_order` = **能力盲**的冷启动排序（现每插件常量分 + explicit-preference）在 ≥2 候选中裁决——**非**能力派生；`prior` = **严格保留**给能力派生的先验排序层裁决（[SEL-1] 落地后才出现，今天 stage ① 绝不发）；`measured` = 命中 memoized 实测赢家（[SEL-3] 后）。**燃减/诊断不变量：** `static_order` 出现数在 [SEL-1] 落地后应归零；不归零 = 先验层覆盖缺口。此四值使 T4a「是否由能力键选中」列可直接从 reason 推导（static_order→否；prior/measured→是；only_feasible→N/A）。为使 `static_order` 决策可完整重建，参与排序的常量分须进记录（candidates[].score 恒发 / keys_evaluated）。
 2. **装载期解析记录**——即 [D-2a] 的每进程一条记录。
 3. **运行期归因**——随完整运行期 dispatch 链（hwprobe → 事实 → instance-hash 键控调度）产出。
 

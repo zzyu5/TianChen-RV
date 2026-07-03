@@ -87,7 +87,7 @@
 - **[D-2a] 装载期最小解析（M1，重构现有）**：现有"编译期物化、调用方一次性提供的能力开关"重构为：消费显式 schema 事实实例 → 计算 **declared-instance-hash** → 落一条解析记录。热路径零逐次检查；**per-dispatch 强制永久禁止**（[NG-3]）。
 - **[D-2b] 完整运行期链（M2/M3，增量）**：hwprobe 适配器 → 事实（provenance=hwprobe, trust=measured）→ instance-hash → **[D-3] 调度表按 instance-hash 键控**（同一二进制多板装载不同变体集，核心不变）。
 - **[D-4] 三级归因**：
-  ① **编译期选择归因（M1 硬门 = 100%）**：JSONL `{kernel, candidates[], keys_evaluated{}, chosen, reason∈{only_feasible, prior, measured}, declared_instance_hash, ts}`——由 [B-5] 富属性重构出口；
+  ① **编译期选择归因（M1 硬门 = 100%）**：JSONL `{kernel, candidates[], keys_evaluated{}, chosen, reason∈{only_feasible, static_order, prior, measured}, declared_instance_hash, ts}`——由 [B-5] 富属性重构出口；**`reason` 是所有归因分析的主键，能力键控与否须做在主键上、不做在脚注守卫字段**：`only_feasible`=合法性过滤后仅剩一个可执行候选（N/A 能力键）；`static_order`=**能力盲**的冷启动排序（现每插件常量分 + explicit-preference）在 ≥2 候选中裁决——非能力派生；`prior`=**严格保留**给能力派生的先验（[SEL-1]/P7 落地后才出现）；`measured`=命中 memoized 实测赢家（[SEL-3] 后）。由此 T4a "是否由能力键选中" 直接从 reason 推导（static_order→否；prior/measured→是；only_feasible→N/A），且 **`static_order` 出现数在 [SEL-1] 落地后应归零——不归零即先验层覆盖缺口，此过渡值自动成为诊断/燃减信号**。（此裁决取代旧 v1.1 [J-6]「prior 现值=插件常量分」一句：T4b 消融设计成立后该写法失效。附加式 canon 修订，不动 schema.def。）
   ② **装载期解析记录（M1 硬门 = 每进程 1 条）**；
   ③ **运行期归因（M2+，随 D-2b）**。
   **归因范围扩展（M2 增量）**：调度阶段（为何选此 LMUL）与合法性阶段（为何拒）纳入日志——[B-5] 指出这两段现缺。

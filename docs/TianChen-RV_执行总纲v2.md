@@ -61,7 +61,7 @@
 | **D-2a** 装载期最小解析 | 编译期物化单个 `dispatch_available` ABI 参、调用方一次给(`DispatchRuntimeGuard.cpp:210-223`),热路径零逐次(NG-3 遵守);**declared-instance-hash grep=0、无解析记录落盘** | 部分 | 重构现有 | C1 |
 | **D-2b** 完整运行期链 | 运行期 hwprobe grep=0;现有是 build-time 工具链探针,非运行期;无 instance-hash 键控 | 缺失 | 增量新建 | C1 |
 | **D-3** instance-hash 调度表 | instance-hash grep=0;dispatch 表按 runtime-guard 布尔键控(`DispatchRuntimeGuard.cpp:225-248`);工具链 `sourceSHA256/binarySHA256` 是探针二进制哈希非能力实例哈希 | 缺失 | 增量新建 | C1 |
-| **D-4** 三级归因 | ①富 in-IR 属性(`VariantSelection.cpp:326-358`)但非 JSONL、reason 值='variant-selected'/'fallback-coverage-missing'(`:36-40`)非 {only_feasible,prior,measured}、缺 candidates[]/keys_evaluated/declared_instance_hash/ts;②装载期缺;③运行期缺 | 部分 | 重构现有 | C1 |
+| **D-4** 三级归因 | ①富 in-IR 属性(`VariantSelection.cpp:326-358`)但非 JSONL、reason 值='variant-selected'/'fallback-coverage-missing'(`:36-40`)非 {only_feasible,static_order,prior,measured}、缺 candidates[]/keys_evaluated/declared_instance_hash/ts;②装载期缺;③运行期缺 | 部分 | 重构现有 | C1 |
 | **SEL-1** 两段式先验层 | 合法性过滤(`analyzeRequirementLegality`)+ score argmin 有;**能力先验层(GEMM∧ime.present→矩阵范式)缺失**,现由每插件常量分代理 | 部分 | 增量新建 | C3′ |
 | **SEL-2** 先于/同于 P7 硬时序 | **潜伏错选(定量):** P7 令两族对同一 GEMM co-propose 时,升序 RVV(1.0)<IME(20.0)→ 向量变体被选、矩阵范式静默落败无 error(`VariantSelection.cpp:649-650`)。P7 未落地→风险未触发但已定量可判(详见 §5) | 缺失 | 有界工作项 | C3′ |
 | **SEL-3** 测量回填 + 外部 tuner 插点 | enumerate→dump→load→measured-best\|结构成本 fallback,无搜索(NG-1 合规);**记录键=kernel+march(非 instance-hash)**,且是 RVV 本地 LMUL 调优、非 exec 层跨族 memoized | 部分 | 重构现有 | C3′ |
@@ -174,7 +174,7 @@
 ## §5 三级归因现状 + SEL-2 时序风险
 
 **三级归因:**
-- **① 编译期选择(最成熟但形态不合规):** `addPreferenceMetadata` 物化 `origin/preference_score/rank/policy/explanation/tie_break/fallback_role`(`VariantSelection.cpp:326-358`)+ selected-marker `reason/selection_kind`(`:908-919`)+ RVV 路 `selection_reason/candidate_count/legal_candidate_count/selected_cost/measured_ns`。**差距:非 JSONL(grep=0);reason 值='variant-selected'/'fallback-coverage-missing' 非 {only_feasible,prior,measured};缺 candidates[]/keys_evaluated/declared_instance_hash/ts。** → D-4① = 由此重构出口(重构现有,原料齐)。
+- **① 编译期选择(最成熟但形态不合规):** `addPreferenceMetadata` 物化 `origin/preference_score/rank/policy/explanation/tie_break/fallback_role`(`VariantSelection.cpp:326-358`)+ selected-marker `reason/selection_kind`(`:908-919`)+ RVV 路 `selection_reason/candidate_count/legal_candidate_count/selected_cost/measured_ns`。**差距:非 JSONL(grep=0);reason 值='variant-selected'/'fallback-coverage-missing' 非 {only_feasible,static_order,prior,measured};缺 candidates[]/keys_evaluated/declared_instance_hash/ts。** → D-4① = 由此重构出口(重构现有,原料齐)。
 - **② 装载期解析记录:缺**(instance-hash/resolution-record grep=0)。
 - **③ 运行期归因:缺**(无 hwprobe/instance-hash 调度表)。
 - **阶段覆盖:** 选择阶段富(非 JSONL);调度阶段(为何此 LMUL)缺;合法性阶段仅 emitError(`CheckCapabilityRequires.cpp:120-129`)不落记录。

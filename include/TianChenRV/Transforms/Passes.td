@@ -156,7 +156,37 @@ def SelectVariants
     materialize a missing-fallback diagnostic instead of inventing an implicit
     fallback. No-variant plans do not erase variants or inject target-specific
     IR.
+
+    Compile-time selection attribution (science target [D-4] (1)). When the
+    attribution-jsonl option is set the pass appends, for EVERY planned kernel
+    (all four VariantSelectionKinds, incl. NoViableVariant => chosen=null), one
+    canonical-JSON line to the given file:
+      {kernel, candidates[], keys_evaluated{}, chosen, reason,
+       declared_instance_hash, ts}
+    reason is a NEWLY DERIVED side field carrying the distinction on the PRIMARY
+    key: only_feasible = exactly one feasible candidate; static_order = >=2
+    feasible chosen by today's capability-blind constant-score cold-start
+    ordering. prior (capability-derived prior) and measured (memoized measurement)
+    are reserved enum values NOT emitted at this selection stage today (prior
+    awaits [SEL-1]/G3, measured awaits [SEL-3]). Every feasible candidate always
+    records its constant ranking score so a static_order decision is fully
+    reconstructible. The in-IR reason attribute (variant-selected) is NOT
+    remapped -- the JSONL sink is purely additive and defaults OFF, so existing
+    IR / lit expectations are byte-identical when the option is absent.
   }];
+  let options = [
+    Option<"attributionJsonl", "attribution-jsonl", "std::string",
+           /*default=*/"\"\"",
+           "Output file path for the compile-time selection attribution JSONL "
+           "([D-4] (1)). Empty (default) => the attribution sink is DISABLED and "
+           "the pass behaves byte-identically to today. When set, one canonical "
+           "JSON object per planned kernel is appended.">,
+    Option<"attributionJsonlNoTimestamp", "attribution-jsonl-no-timestamp",
+           "bool", /*default=*/"false",
+           "Emit a fixed sentinel timestamp (ts of 0) instead of a wall-clock "
+           "one so the attribution JSONL is byte-deterministic for lit/FileCheck. "
+           "Production runs leave this false to record a real ISO-8601 ts.">
+  ];
   let constructor =
       "::tianchenrv::transforms::createSelectVariantsPass()";
   let dependentDialects = [

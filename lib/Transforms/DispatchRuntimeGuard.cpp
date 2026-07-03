@@ -2,8 +2,11 @@
 
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/DeclaredInstanceHash.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Transforms/Passes.h"
+
+#include "mlir/IR/BuiltinAttributes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -33,6 +36,8 @@ using tianchenrv::tcrv::exec::VariantOp;
 
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kTargetAttrName("target");
+constexpr llvm::StringLiteral kDeclaredInstanceHashAttrName(
+    "declared_instance_hash");
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeGuardRequiredAttrName;
 
@@ -315,6 +320,22 @@ llvm::Error materializeDispatchRuntimeGuards(KernelOp kernel,
   if (llvm::Error error =
           ensureDispatchAvailabilityGuardParam(kernel, builder, guardParam))
     return error;
+
+  // [D-2a] loading-time resolution: stamp the declared-instance-hash of the
+  // EXPANDED normalized capability fact set onto the dispatch-availability guard
+  // param -- the switch the loader resolves. Computed ONCE here at compile time
+  // (never per dispatch, [NG-3]); the hot path still reads only the caller-
+  // provided dispatch_available value.
+  //
+  // The loader consumes this stamp to drop ONE per-process resolution record of
+  // the documented shape {declared_instance_hash, ts, resolved_variant_set}. That
+  // live per-process drop is [D-2b]/M2 and deliberately NOT materialized here; E4
+  // ships only the compile-time stamp + this documented shape. The stamp is an
+  // I4 cached-fact MIRROR, never a route/dtype/schedule authority.
+  guardParam->setAttr(
+      kDeclaredInstanceHashAttrName,
+      mlir::StringAttr::get(guardParam.getContext(),
+                            support::computeDeclaredInstanceHash(*capabilities)));
 
   for (DispatchCaseOp dispatchCase : casesNeedingGuard)
     if (llvm::Error error =

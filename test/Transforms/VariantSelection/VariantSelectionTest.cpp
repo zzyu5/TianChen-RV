@@ -732,6 +732,31 @@ module {
                  "dispatch case plan follows cost ranking with stable ties"))
     return result;
 
+  // Compile-time selection attribution ([D-4] (1)) over the RuntimeDispatch kind:
+  // this is the ONLY plan kind that exercises requires_runtime_guard=true and the
+  // "unavailable" keys_evaluated verdict, so assert both here (>=2 feasible
+  // fallbacks chosen by capability-blind constant-score ordering => reason
+  // "static_order"; `prior`/`measured` are reserved and never emitted today).
+  std::string dispatchRecord =
+      tianchenrv::transforms::buildSelectionAttributionRecord(
+          plan, capabilities, /*noTimestamp=*/true);
+  if (int result =
+          expect(dispatchRecord.find("\"requires_runtime_guard\":true") !=
+                     std::string::npos,
+                 "attribution record marks the guarded dispatch cases"))
+    return result;
+  if (int result =
+          expect(dispatchRecord.find("\"generic_probe\":\"unavailable\"") !=
+                     std::string::npos,
+                 "attribution record derives the unavailable keys_evaluated verdict"))
+    return result;
+  if (int result =
+          expect(dispatchRecord.find("\"reason\":\"static_order\"") !=
+                     std::string::npos &&
+                     dispatchRecord.find("\"prior\"") == std::string::npos,
+                 "runtime dispatch with >=2 feasible fallbacks is static_order"))
+    return result;
+
   mlir::OpBuilder builder(&context);
   DispatchOp createdDispatch;
   if (int result =
@@ -1025,6 +1050,23 @@ module {
                      !plan.dispatchCases.front().conflictFree &&
                      plan.dispatchCases.front().requiresRuntimeCapabilityGuard,
                  "conflicting available variant is retained as guarded case"))
+    return result;
+
+  // Compile-time selection attribution ([D-4] (1)): the RuntimeDispatch kind also
+  // exercises the "conflicting" keys_evaluated verdict (available-but-conflicting
+  // capability) alongside a guarded case (requires_runtime_guard=true).
+  std::string dispatchRecord =
+      tianchenrv::transforms::buildSelectionAttributionRecord(
+          plan, capabilities, /*noTimestamp=*/true);
+  if (int result =
+          expect(dispatchRecord.find("\"requires_runtime_guard\":true") !=
+                     std::string::npos,
+                 "attribution record marks the guarded conflicting case"))
+    return result;
+  if (int result =
+          expect(dispatchRecord.find("\"fast_runtime\":\"conflicting\"") !=
+                     std::string::npos,
+                 "attribution record derives the conflicting keys_evaluated verdict"))
     return result;
 
   mlir::OpBuilder builder(&context);

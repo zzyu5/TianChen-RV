@@ -1,7 +1,7 @@
 {
-  "id": "full-refactor",
-  "name": "full-refactor",
-  "title": "完整重构 — 能力驱动 RISC-V 执行层成熟化(引擎轴 × 证据轴)",
+  "id": "e4-attribution-jsonl",
+  "name": "e4-attribution-jsonl",
+  "title": "E4 — 编译期归因 JSONL 出口 + D-2a 装载期解析记录",
   "description": "",
   "status": "in_progress",
   "dev_type": null,
@@ -12,18 +12,14 @@
   "assignee": "claude",
   "createdAt": "2026-07-02",
   "completedAt": null,
-  "branch": "refactor/full-refactor-m1",
-  "base_branch": "main",
+  "branch": null,
+  "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "07-02-e2a-kind-rename",
-    "07-02-e1-schema-def",
-    "07-02-e4-attribution-jsonl"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "07-02-full-refactor",
   "relatedFiles": [],
   "notes": "",
   "meta": {}
