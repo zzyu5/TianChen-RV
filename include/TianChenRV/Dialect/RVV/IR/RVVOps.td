@@ -2660,16 +2660,27 @@ def LoadOp : TCRVRVV_Op<"load",
     Buffer ABI provenance comes from the explicit runtime ABI operand. Element
     dtype and LMUL come from the result type and are validated with the
     surrounding setvl/with_vl config by the RVV dialect/provider.
+
+    Additive loop-capable extension (M-FLAT W2): the OPTIONAL `block_index`
+    operand + `block_stride` attribute make one generic load address a per-block
+    strip live at `base + block_index*block_stride (+ quant_byte_offset)` inside
+    the flat nb loop -- byte-exact to the monolith's blockBaseValue+loadI8. When
+    `block_index` is ABSENT the op is the unchanged single-block ABI-base load
+    (block_stride/quant_byte_offset must not be set, fail-closed); the existing
+    single-block routes are untouched.
   }];
 
   let arguments = (ins
     AnyType:$buffer,
-    AnyType:$vl
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    OptionalAttr<I64Attr>:$block_stride,
+    OptionalAttr<I64Attr>:$quant_byte_offset
   );
   let results = (outs AnyType:$loaded);
 
   let assemblyFormat =
-    "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($loaded)";
+    "$buffer `,` $vl (`block` $block_index^ `:` type($block_index))? attr-dict `:` type($buffer) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 

@@ -35,10 +35,34 @@ mlir::LogicalResult LoadOp::verify() {
                                          isAllowedLoadAttr)))
     return mlir::failure();
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+  // M-FLAT W2: the OPTIONAL block_index operand toggles the per-block-source
+  // load. Present => the strip lives at `base + block_index*block_stride
+  // (+ quant_byte_offset)`; absent => the unchanged single-block ABI-base load.
+  mlir::Value blockIndex = getBlockIndex();
+  bool hasBlockIndex = static_cast<bool>(blockIndex);
+  unsigned expectedOperands = hasBlockIndex ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
-           << "requires exactly one explicit buffer ABI operand, one "
-              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+           << "requires one explicit buffer ABI operand, one !tcrv_rvv.vl "
+              "operand, one optional block_index induction operand, and one "
+              "generic RVV vector result";
+  if (hasBlockIndex) {
+    // The per-block block_stride the `base + block_index*block_stride` address
+    // arithmetic depends on is hard-required in the loop form (I7).
+    if (!getBlockStride())
+      return emitOpError()
+             << "requires block_stride when block_index is present (the "
+                "per-block stride the `base + block_index*block_stride` address "
+                "arithmetic depends on)";
+    if (*getBlockStride() == 0)
+      return emitOpError()
+             << "requires a nonzero block_stride in the per-block load form";
+  } else if (getBlockStride() || getQuantByteOffset()) {
+    // Fail-closed: the single-block form carries neither loop-offset fact.
+    return emitOpError()
+           << "must not set block_stride/quant_byte_offset without block_index "
+              "(the single-block ABI-base load form)";
+  }
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "buffer",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
@@ -83,6 +107,15 @@ mlir::LogicalResult LoadOp::verify() {
                                                                   withVL) ||
         isBoundedCodebookGatherChainSourceLoad(*this, withVL))
       return mlir::success();
+  // M-FLAT W2/W1: the per-block loop integer-core load sources the signed i8
+  // strip (i8m2 for q8_0). Its direct parent is the typed loop-body op, so the
+  // single-block widening-source fast-paths above (which require a direct
+  // with_vl parent for the whole load->product->reduce chain) are skipped.
+  // Accept exactly the integer-core source type for the per-block form -- the
+  // loop-body allowlist (M-FLAT step 4) and the byte-exact lowering guard chain
+  // integrity. Not generalized past the type the flat q8_0 core actually loads.
+  if (hasBlockIndex && isGenericRVVVectorSignedI8M2(getLoaded().getType()))
+    return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
 

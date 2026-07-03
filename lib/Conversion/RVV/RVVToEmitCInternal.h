@@ -176,6 +176,54 @@ struct FlatBlockDotDescriptor {
 std::optional<FlatBlockDotDescriptor>
 deriveFlatBlockDotDescriptor(mlir::Operation *op);
 
+// The shared per-block emit state the factored flat-block-dot core methods
+// (emitFlatBlockCore / emitFlatIntegerCore / emitFlatFold) read. It bundles the
+// block-format descriptor + the scheduled facts (coreLmul / wideLmul / elision)
+// + the interned emitc types + the ABI base pointers + the sumf accumulator
+// lvalue, so the per-block integer-core arithmetic + fp32-fold guts live as ONE
+// SHARED typed lowering that BOTH the monolithic emitFlatBlockDot AND the M-FLAT
+// tcrv_rvv.typed_flat_block_dot_loop_body region driver invoke. It is NOT
+// entangled with any GgmlBlockDot* op entry: a step-6 monolith delete removes
+// the GgmlBlockDot* op + dispatch + orchestration and these guts survive as the
+// typed body's lowering (the honest-LOC boundary).
+struct FlatBlockDotEmitState {
+  FlatBlockDotDescriptor descriptor;
+  llvm::StringRef opName;
+  llvm::StringRef role;
+  llvm::StringRef coreLmul;
+  llvm::StringRef wideLmul;
+  bool stripElided = false;
+  mlir::Value weightBase;
+  mlir::Value activationBase;
+  mlir::Value sumfVar;
+  mlir::Value codebookValues; // null unless the descriptor carries a codebook
+  mlir::Type sizeType;
+  mlir::Type floatType;
+  mlir::Type i32Type;
+  mlir::Type u32Type;
+  mlir::Type weightPtrType;
+  mlir::Type activationPtrType;
+  mlir::Type i8CoreType;
+  mlir::Type u8CoreType;
+  mlir::Type i16WideType;
+  mlir::Type u16WideType;
+  mlir::Type i32m1Type;
+  mlir::Type i8PtrType;
+  mlir::Type u8PtrType;
+  llvm::StringRef fp16ReadCallee;
+  llvm::StringRef u16ReadCallee;
+};
+
+// The per-block integer core + fp16 scale reads emitFlatBlockCore returns; the
+// caller folds them in strict ascending block order (fp non-associativity).
+struct FlatBlockCore {
+  mlir::Value sumiVar;
+  mlir::Value dX;
+  mlir::Value dY;
+  mlir::Value mX;
+  mlir::Value sY;
+};
+
 class VariantToEmitCFunc final
     : public mlir::OpConversionPattern<tcrv::exec::VariantOp> {
 public:
@@ -1558,6 +1606,46 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, llvm::StringRef opName,
       llvm::StringRef role, const BlockDotFacts &facts,
       const FlatBlockDotDescriptor &descriptor) const;
+
+  /// Build the shared per-block emit state both flat-block-dot callers use. The
+  /// interned emitc types + the wideLmul superset formula are single-sourced
+  /// here so the monolithic emitFlatBlockDot and the M-FLAT loop-body driver
+  /// emit BYTE-IDENTICAL per-block cores. The caller fills sumfVar /
+  /// codebookValues after emitting the accumulator decl / table broadcast.
+  FlatBlockDotEmitState buildFlatBlockDotEmitState(
+      mlir::ConversionPatternRewriter &rewriter,
+      const FlatBlockDotDescriptor &descriptor, const BlockDotFacts &facts,
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value sumfVar,
+      mlir::Value codebookValues, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role) const;
+
+  /// The per-block integer core (declares `int32_t sumi = 0`, runs the elided-
+  /// or-robust strip decode+product+reduce, returns the sumi lvalue). Factored
+  /// VERBATIM from emitFlatBlockDot's former emitIntegerCore lambda (byte-
+  /// identical emit); reads all shared state off `st`.
+  mlir::FailureOr<mlir::Value>
+  emitFlatIntegerCore(mlir::ConversionPatternRewriter &rewriter,
+                      mlir::Location loc, const FlatBlockDotEmitState &st,
+                      mlir::Value xb, mlir::Value yb, mlir::Value qhLow16,
+                      mlir::Value qhHigh16, bool forceRobust) const;
+
+  /// The per-block fp32 fold, grouped into ONE emitc.expression (a single C
+  /// statement whose fp associativity matches ggml). Factored VERBATIM from
+  /// emitFlatBlockDot's former emitFold lambda (byte-identical emit); the fold
+  /// tree switches on st.descriptor.foldModel and reads dX/dY (+ mX/sY) as
+  /// operands so it is REGION-DRIVEN, not attribute-rederived.
+  void emitFlatFold(mlir::ConversionPatternRewriter &rewriter,
+                    mlir::Location loc, const FlatBlockDotEmitState &st,
+                    mlir::Value sumiVar, mlir::Value dX, mlir::Value dY,
+                    mlir::Value mX, mlir::Value sY) const;
+
+  /// One full block's integer core + scale reads (addresses + dX/dY + optional
+  /// mX/sY + qh + sumi), WITHOUT the fold. Factored VERBATIM from
+  /// emitFlatBlockDot's former emitBlockCore lambda (byte-identical emit).
+  mlir::FailureOr<FlatBlockCore>
+  emitFlatBlockCore(mlir::ConversionPatternRewriter &rewriter,
+                    mlir::Location loc, const FlatBlockDotEmitState &st,
+                    mlir::Value ib, int64_t blockOffset, bool forceRobust) const;
 
   /// The M-FLAT loop-scaffold emitter (step 1/6): lower the region-carrying
   /// tcrv_rvv.typed_flat_block_dot_loop_body to the byte-exact skeleton

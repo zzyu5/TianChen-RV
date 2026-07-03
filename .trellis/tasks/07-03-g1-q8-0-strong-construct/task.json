@@ -28,7 +28,10 @@
     "07-03-m-flat-s1-loop-op-acc",
     "07-03-m-flat-s2-extract-bridge",
     "07-03-m-flat-s3-per-block-source",
-    "07-03-m-flat-s4-loop-validator"
+    "07-03-m-flat-s4-loop-validator",
+    "07-03-m-flat-s5a-full-body",
+    "07-03-m-flat-s5a1-perblock-load",
+    "07-04-m-flat-nb-loop-layer"
   ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],

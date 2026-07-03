@@ -645,7 +645,12 @@ bool isAllowedTypedSegment2InterleaveMemoryPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
-bool isAllowedLoadAttr(llvm::StringRef) { return false; }
+bool isAllowedLoadAttr(llvm::StringRef name) {
+  // M-FLAT W2 per-block load: the optional loop-offset facts. Any other attr on
+  // tcrv_rvv.load stays disallowed (dataflow attrs must not leak descriptor
+  // residue). The single-block form carries neither.
+  return name == "block_stride" || name == "quant_byte_offset";
+}
 
 bool isAllowedMaskLoadAttr(llvm::StringRef name) {
   return name == kMaskRoleAttrName || name == kMaskMemoryFormAttrName;
@@ -3750,10 +3755,24 @@ mlir::LogicalResult verifyI32M1VectorTypeForWithVL(mlir::Operation *op,
 }
 
 mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
-  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  // The nearest enclosing tcrv_rvv.with_vl -- normally the direct parent, but a
+  // region-carrying dataflow op (the M-FLAT typed_flat_block_dot_loop_body block
+  // loop) may sit between this op and its vl scope. Walking to the nearest
+  // ancestor keeps the single-block strong routes valid (their direct parent IS
+  // the with_vl, the degenerate ancestor) while letting the per-block loop body
+  // host the typed integer core under the loop's enclosing vl with no nested
+  // result-less with_vl (so the scalar sumi never has to cross a scope boundary).
+  WithVLOp withVL;
+  for (mlir::Operation *parent = op->getParentOp(); parent;
+       parent = parent->getParentOp()) {
+    if (auto candidate = llvm::dyn_cast<WithVLOp>(parent)) {
+      withVL = candidate;
+      break;
+    }
+  }
   if (!withVL)
     return op->emitOpError()
-           << "must be nested directly in a tcrv_rvv.with_vl body";
+           << "must be nested within a tcrv_rvv.with_vl body";
 
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "does not own regions";
