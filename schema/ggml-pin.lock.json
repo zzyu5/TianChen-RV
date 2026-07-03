@@ -1,0 +1,25 @@
+{
+  "$meta": {
+    "purpose": "Verifiable, TAG-ANCHORED pin of the upstream ggml/llama.cpp tree that the coverage roster denominator AND all opponent-resolution baselines are defined against. Replaces the prior anti-pattern (a bare SHA against an out-of-repo sibling checkout) which was neither third-party-verifiable nor CI-reproducible.",
+    "constitution": [
+      "The pin is TAG-anchored (an upstream release tag), never a bare SHA in prose.",
+      "Switching the pin to a DIFFERENT upstream tree = open a NEW epoch + re-run the T-N noise floor + the opponent-resolution probe; every measurement cell pinned to the old fingerprint goes STALE per the experiment constitution.",
+      "Local ggml patches are ONLY allowed as versioned .patch files applied by a build script. A dirty checkout is forbidden (it makes every baseline irreproducible).",
+      "CI and any third party MUST fetch upstream at the tag and verify sha == this file's sha before trusting any baseline (see .trellis/scripts/fetch_ggml_pin.py)."
+    ]
+  },
+  "upstream_url": "https://github.com/ggml-org/llama.cpp",
+  "tag": "b9652",
+  "sha": "6eab47181cbd3532c88a105682b81b4729ab809b",
+  "commit_date": "2026-06-15",
+  "commit_subject": "wasm : fix fallback symbol collision (#24639)",
+  "epoch": 1,
+  "verified": {
+    "on_upstream_master": true,
+    "tag_points_exactly_at_sha": true,
+    "working_tree_clean_when_pinned": true,
+    "verified_at": "2026-07-03",
+    "verify_note": "git -C <clone-of-upstream_url> fetch --tags origin && git rev-parse b9652^{commit} == 6eab47181cbd3532c88a105682b81b4729ab809b (confirmed, no describe offset -> the tag points EXACTLY at the SHA)."
+  },
+  "epoch_reasoning": "Re-anchoring from the prior bare SHA to tag b9652 did NOT move the tree: b9652 == 6eab471 exactly (git describe, zero offset). Therefore the epoch stays 1 and NO re-probe is required -- and none is possible to invalidate, since no T-N noise floor or opponent probe has been run yet (this is the cheapest possible moment to harden the pin, exactly as instructed). A future move to a different tree WILL bump the epoch per the constitution above."
+}

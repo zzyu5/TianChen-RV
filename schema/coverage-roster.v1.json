@@ -1,8 +1,9 @@
 {
   "$meta": {
     "roster_version": "v1",
-    "ggml_pin": "6eab47181cbd3532c88a105682b81b4729ab809b",
-    "ggml_ref_note": "sibling checkout /home/kingdom/phdworks/llama.cpp @ master; no git tag; NOT a submodule (raw SHA against an out-of-repo checkout). Human may later swap to a tagged upstream or vendor the format enum into the repo (实验总纲 line 28 epoch discipline).",
+    "ggml_pin": "b9652 @ 6eab47181cbd3532c88a105682b81b4729ab809b",
+    "ggml_pin_lockfile": "schema/ggml-pin.lock.json",
+    "ggml_ref_note": "TAG-ANCHORED pin: upstream release tag b9652 (ggml-org/llama.cpp) points EXACTLY at sha 6eab471 (git describe, zero offset), verified clean on upstream master. Replaces the prior bare-SHA-against-out-of-repo-sibling anti-pattern (unverifiable + CI-irreproducible). Authoritative lock + constitution (epoch/patch/verify rules) live in schema/ggml-pin.lock.json; verify via .trellis/scripts/fetch_ggml_pin.py. Re-anchoring did not move the tree -> epoch stays 1.",
     "epoch": 1,
     "denominator_key": "(op, format[, shape_class])",
     "decomposed_family_policy": "SEPARATE-KEYS (option a); vec_dot and product_reduce are distinct ops - do NOT merge (option b rejected: the decomposed-strong q4_0 path would pollute the G1 vec_dot burn-down denominator).",

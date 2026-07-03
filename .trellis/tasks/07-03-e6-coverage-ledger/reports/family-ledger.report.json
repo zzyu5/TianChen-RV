@@ -1,9 +1,9 @@
 {
   "$meta": {
     "report": "family_ledger",
-    "repo_snapshot": "1bbab882695e812a2d334a8d6f5c7860cc2c93b1",
-    "snapshot_commit_date": "2026-07-03T09:23:16+08:00",
-    "manifest_sha256": "2378f53acab55b74b488329ea506e157177c1ecbaf231e0e46284a7f63b7ba8f",
+    "repo_snapshot": "c6ebe0b1401c7e218ee34b73510e91d47a550aa3",
+    "snapshot_commit_date": "2026-07-03T10:26:40+08:00",
+    "manifest_sha256": "a569c77d58029cb274fe7601dacdc3dc4a887c4261016ab9cd14c4ec2b70daba",
     "loc_method": "cloc-approximation (cloc absent); install cloc for [A-5] wording",
     "spec_boundary": "numbers live in the CI report / 执行总纲, never in .trellis/spec/"
   },
@@ -19,7 +19,27 @@
       "test_LOC": {
         "raw_wc_l": 1003,
         "files": 14,
+        "by_segment": {
+          "dialect_verification": {
+            "raw_wc_l": 659,
+            "files": 6
+          },
+          "lowering": {
+            "raw_wc_l": 344,
+            "files": 8
+          },
+          "e2e": {
+            "raw_wc_l": 0,
+            "files": 0
+          }
+        },
         "single_listed": [
+          "test/Dialect/IME/matmul.mlir",
+          "test/Dialect/IME/mma.mlir",
+          "test/Dialect/IME/mma-slide.mlir",
+          "test/Dialect/IME/mma-su.mlir",
+          "test/Dialect/IME/mma-u.mlir",
+          "test/Dialect/IME/mma-us.mlir",
           "test/Conversion/EmitC/ime-matmul-materialization.mlir",
           "test/Conversion/EmitC/ime-mma-capability-absent-negative.mlir",
           "test/Conversion/EmitC/ime-mma-materialization.mlir",
@@ -27,15 +47,9 @@
           "test/Conversion/EmitC/ime-mma-slide-materialization.mlir",
           "test/Conversion/EmitC/ime-mma-su-materialization.mlir",
           "test/Conversion/EmitC/ime-mma-u-materialization.mlir",
-          "test/Conversion/EmitC/ime-mma-us-materialization.mlir",
-          "test/Dialect/IME/matmul.mlir",
-          "test/Dialect/IME/mma.mlir",
-          "test/Dialect/IME/mma-slide.mlir",
-          "test/Dialect/IME/mma-su.mlir",
-          "test/Dialect/IME/mma-u.mlir",
-          "test/Dialect/IME/mma-us.mlir"
+          "test/Conversion/EmitC/ime-mma-us-materialization.mlir"
         ],
-        "source": "explicit test-file manifest (decision 6); raw wc-l because lit RUN/CHECK directives are load-bearing"
+        "source": "FULL footprint, uniform口径 across families (ruling 2026-07-03); explicit test-file manifest; raw wc-l because lit RUN/CHECK directives are load-bearing. Three-way {dialect_verification, lowering, e2e} split = C2 cost-住址."
       },
       "table_rows": {
         "count": 6,

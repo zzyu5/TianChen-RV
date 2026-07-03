@@ -19,14 +19,17 @@ PRESERVING newlines (so adjacent code lines are never merged). Validated on the
 IME source set: raw wc-l = 2484, cloc-approx = ~1866 vs the [LED-1] target ~1865.
 The approximation is byte-reproducible (no external tool, no version skew).
 
-test_LOC ([A-5] tests single-listed, decision 6): via an EXPLICIT per-family
-test-file manifest (raw wc-l; a lit test's `// RUN:`/`// CHECK:` directives are
-load-bearing, not comments). We pin the file set rather than a path-glob (research
-escalation 6). The historically "un-sourced ~659" figure IS reproducible: it is the
-6 test/Dialect/IME/ dialect verifier tests (mma*.mlir/matmul.mlir), which the
-ime-*.mlir glob missed. The pinned IME manifest now spans all 14 files: 8 conversion
-(344) + 6 dialect (659) = 1003 raw. test_LOC is NOT the LED-1 headline (that is
-code_LOC); a human may re-scope to lowering-only 344 (see manifest test_files_note).
+test_LOC (RULED 2026-07-03): count the FULL test footprint via an EXPLICIT
+per-family test-file manifest, as a口径 fixed ONCE here and applied UNIFORMLY to
+every family -- never per-family discretion. Tests are a mandatory [P-2] 5-piece
+onboarding-kit deliverable, so dialect-verifier tests ARE a real part of the C2
+generalization cost; cutting them shrinks the honest account. Raw wc-l (a lit
+test's `// RUN:`/`// CHECK:` directives are load-bearing, not comments); pinned
+file set, not a path-glob (which missed the 6 test/Dialect/IME/ dialect tests
+named mma*.mlir/matmul.mlir = the historically "un-sourced ~659"). The manifest
+segments tests three-way {dialect_verification, lowering, e2e}; the ledger emits
+that split as C2 cost-住址 material (which layer the test cost lives in). IME:
+dialect 659 + lowering 344 + e2e 0 = 1003 raw. code_LOC remains the LED-1 headline.
 
 Subcommands
 -----------
@@ -115,17 +118,33 @@ def gather_code_loc(dirs):
 
 
 def gather_test_loc(test_files):
+    """test_LOC口径 fixed ONCE, applied UNIFORMLY to every family (ruling
+    2026-07-03): count the FULL test footprint -- tests are a mandatory [P-2]
+    onboarding-kit deliverable, so dialect-verifier tests ARE real C2 cost; never
+    per-family discretion. `test_files` is a segment dict
+    {dialect_verification|lowering|e2e: [paths]} (a legacy flat list is treated as
+    one 'unsegmented' segment). The three-way split is emitted as C2 cost-住址
+    material (which layer the test cost lives in)."""
+    segments = {"unsegmented": test_files} if isinstance(test_files, list) \
+        else test_files
     total = 0
     present = []
     missing = []
-    for rel in test_files:
-        p = REPO_ROOT / rel
-        if p.exists():
-            total += raw_loc(p.read_text(encoding="utf-8", errors="replace"))
-            present.append(rel)
-        else:
-            missing.append(rel)
-    return {"raw_wc_l": total, "files": len(present),
+    by_segment = {}
+    for seg, files in segments.items():
+        s_total = 0
+        s_files = 0
+        for rel in files:
+            p = REPO_ROOT / rel
+            if p.exists():
+                s_total += raw_loc(p.read_text(encoding="utf-8", errors="replace"))
+                s_files += 1
+                present.append(rel)
+            else:
+                missing.append(rel)
+        total += s_total
+        by_segment[seg] = {"raw_wc_l": s_total, "files": s_files}
+    return {"raw_wc_l": total, "files": len(present), "by_segment": by_segment,
             "missing": missing, "single_listed": present}
 
 
@@ -185,9 +204,12 @@ def family_record(fam):
         "test_LOC": {
             "raw_wc_l": tests["raw_wc_l"],
             "files": tests["files"],
+            "by_segment": tests["by_segment"],
             "single_listed": tests["single_listed"],
-            "source": ("explicit test-file manifest (decision 6); raw wc-l because "
-                       "lit RUN/CHECK directives are load-bearing"),
+            "source": ("FULL footprint, uniform口径 across families (ruling "
+                       "2026-07-03); explicit test-file manifest; raw wc-l because "
+                       "lit RUN/CHECK directives are load-bearing. Three-way "
+                       "{dialect_verification, lowering, e2e} split = C2 cost-住址."),
         },
         "table_rows": table,
         "interface_touchpoints": touch,
