@@ -124,7 +124,7 @@
 | **E2a** kind→target_kind/region_kind | ✅ done | 6e16322b | 有界机械 rename;byte-exact 门 PASS;child task 已 completed;trellis-implement+check 双复核 |
 | **E1** schema.def v1 + F-2′ 操作门 | ✅ done | c8f3e945 | 纯声明工件(schema/ canonical JSON + VERSIONLOG + .trellis/scripts/check_schema_gate.py);六项 target 形态;SHA256 653127c6;门 self-test 16/16;不动 C++(收敛=G6/E4/E5/P2) |
 | _(spec 侧对齐)_ kind→闭合枚举+subclass | ✅ done | 93a71386 | 并发 spec 编辑巩固:ime/scalar 插件 kind 闭合枚举+subclass;core-invariants [S-5]①;tcrv-exec-contract target 消歧(了结 E2a deferred 语义张力) |
-| **E4** 归因 JSONL+D-2a | ✅ done | 5824e30c | 附加式 option-gated JSONL(VariantSelection sink,四 SelectionKind)+ DeclaredInstanceHash helper + [D-2a] 编译期 stamp;**reason 编码=用户裁决选项2 `static_order`**(独立过渡值,不复用 prior;守卫字段删;能力键控做在主键;SEL-1 后 static_order→0=燃减信号);canon 四文档 reason 枚举扩四值;C_attr^CT=100%;三 agent 6 验收全 PASS |
+| **E4** 归因 JSONL+D-2a | ✅ done | 5824e30c | 附加式 option-gated JSONL(VariantSelection sink,四 SelectionKind)+ DeclaredInstanceHash helper + [D-2a] 编译期 stamp;**reason 编码=用户裁决选项2 `static_order`**(独立过渡值,不复用 prior;守卫字段删;能力键控做在主键;SEL-1 后 static_order→0=燃减信号);canon 四文档 reason 枚举扩四值;三 agent 6 验收全 PASS。**⚠ C_attr^CT 口径:E4 交付的是"跑起来即 100%"的机制,非已关闭的门——连续强制(across 覆盖分母)的门要 E3(CI 接线)+ E6(分母定稿)才关闭。别把此行读成 M1 硬门已满足。** |
 | E7 D-1 未知即拒自足 | ⬜ next | — | 重构现有(3 处 unknown 语义不一致:`CheckCapabilityRequires.cpp:150` continue 静默 vs 选择期/提案期拒;统一 symbol/ID 语义→编译期门自足 fail-closed);M1 硬门,小,与 F-5 fuzz 配对;不依赖 E5/E2b |
 | E2b 目录归拢 / E3 falsifier CI / E5 provenance 六态 / E6 覆盖率+ledger / E8 T-N+对手探针 | ⬜ pending | — | E5/E6 是 G1 的度量尺子(先于引擎线主战场);**E3 已半就位**(coordinator 给了 F-1 manifest 判读规程 ce9c1c7c + E1 的 F-2′ 门;剩 .github + F-5 fuzz + F-6 独立性 + 每家族正则);E2b 解锁 F-3 |
 
