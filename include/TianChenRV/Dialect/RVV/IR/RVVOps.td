@@ -9247,20 +9247,39 @@ def BlockFp16ScaleProductOp : TCRVRVV_Op<"block_fp16_scale_product",
     quant payload byte offset is NOT this op's concern. For the bounded surface
     kind is limited to "dual_fp16_per_block_scale_product" and scale_model to
     "dual-fp16-per-block-d_x.d_y".
+
+    LOOP-CAPABLE per-block-source form (M-FLAT step 3): the op is additively
+    extended with an OPTIONAL `block_index` operand and `lhs_block_stride` /
+    `rhs_block_stride` (I64) attrs so it can typed-express EACH block's fp16
+    scale header inside the flat block loop. When `block_index` is present it is
+    the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_flat_block_dot_loop_body region, and the two scale headers
+    live at `base + block_index*stride (+ byte_offset)` -- the imported ABI
+    bases are STILL the loop-invariant block-0 pointers (the base-import
+    contract is NOT relaxed; only the per-block loop offset is added). This
+    lowers byte-exact to the monolithic emitFlatBlockDot's blockBaseValue
+    (base + ib*stride) + fp16ReadAt reads. When `block_index` is ABSENT the op
+    keeps the single-block form unchanged: the imported ABI base IS the block
+    base, no per-block stride, and `lhs_block_stride` / `rhs_block_stride` must
+    not be set (fail-closed). The single-block form is the block_index-defaulted
+    degenerate special case of the loop variant.
   }];
 
   let arguments = (ins
     AnyType:$lhs_scale_base,
     AnyType:$rhs_scale_base,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     OptionalAttr<I64Attr>:$lhs_scale_byte_offset,
-    OptionalAttr<I64Attr>:$rhs_scale_byte_offset
+    OptionalAttr<I64Attr>:$rhs_scale_byte_offset,
+    OptionalAttr<I64Attr>:$lhs_block_stride,
+    OptionalAttr<I64Attr>:$rhs_block_stride
   );
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$lhs_scale_base `,` $rhs_scale_base attr-dict `:` type($lhs_scale_base) `,` type($rhs_scale_base) `->` type($result)";
+    "$lhs_scale_base `,` $rhs_scale_base (`block` $block_index^ `:` type($block_index))? attr-dict `:` type($lhs_scale_base) `,` type($rhs_scale_base) `->` type($result)";
   let hasVerifier = 1;
 }
 

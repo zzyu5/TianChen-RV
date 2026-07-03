@@ -9742,10 +9742,19 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
               "\"dual-fp16-per-block-d_x.d_y\" (ggml's q8_0 scale order: the "
               "two per-block fp16 scales are multiplied FIRST)";
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+  // Additive loop-capable extension (M-FLAT step 3): the OPTIONAL block_index
+  // operand toggles the per-block-source form. Present => the two fp16 scale
+  // headers live at `base + block_index*stride`; absent => the single-block
+  // backward-compat form where the imported ABI base IS the block base.
+  mlir::Value blockIndex = getBlockIndex();
+  bool hasBlockIndex = static_cast<bool>(blockIndex);
+
+  unsigned expectedOperands = hasBlockIndex ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires two imported runtime ABI block-base operands (the lhs "
-              "and rhs per-block fp16 scale sources) and one f32 scalar result";
+              "and rhs per-block fp16 scale sources), one optional block_index "
+              "induction operand, and one f32 scalar result";
 
   if (!llvm::isa<RuntimeABIValueType>(getLhsScaleBase().getType()))
     return emitOpError()
@@ -9755,6 +9764,9 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
     return emitOpError()
            << "requires rhs_scale_base operand to have "
               "!tcrv_rvv.runtime_abi_value type";
+  // The base-import contract is NOT relaxed by the loop extension: both bases
+  // stay imported ABI block-0 pointers with the LHS/RHS input-buffer roles; the
+  // per-block form only ADDS the loop offset on top of these imported bases.
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhsScaleBase(), "lhs scale base",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
@@ -9763,6 +9775,45 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
           op, getRhsScaleBase(), "rhs scale base",
           {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
+
+  if (hasBlockIndex) {
+    // The per-block AoS block strides the `base + block_index*stride` address
+    // arithmetic depends on are hard-required in the loop form (I7).
+    if (!getLhsBlockStride() || !getRhsBlockStride())
+      return emitOpError()
+             << "requires both lhs_block_stride and rhs_block_stride when "
+                "block_index is present (the per-block AoS block strides the "
+                "`base + block_index*stride` address arithmetic depends on)";
+    if (*getLhsBlockStride() == 0 || *getRhsBlockStride() == 0)
+      return emitOpError()
+             << "requires lhs_block_stride and rhs_block_stride to be positive "
+                "AoS block strides";
+    if (!llvm::isa<mlir::IndexType>(blockIndex.getType()))
+      return emitOpError()
+             << "requires block_index to be index-typed (the enclosing loop op "
+                "induction variable)";
+    // Structural: block_index must be the induction variable (region argument
+    // 0) of the enclosing tcrv_rvv.typed_flat_block_dot_loop_body region. SSA
+    // scoping already guarantees this op is nested in that region, so the
+    // block-arg owner check is sufficient (I7 fail-closed: a non-loop or
+    // non-induction index value is rejected).
+    auto blockArg = llvm::dyn_cast<mlir::BlockArgument>(blockIndex);
+    if (!blockArg || blockArg.getArgNumber() != 0 ||
+        !llvm::isa_and_nonnull<TypedFlatBlockDotLoopBodyOp>(
+            blockArg.getOwner()->getParentOp()))
+      return emitOpError()
+             << "requires block_index to be the induction variable (region "
+                "argument 0) of an enclosing "
+                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+  } else {
+    // Single-block backward-compat form: the per-block stride attrs are
+    // meaningless without a block_index and are rejected fail-closed.
+    if (getLhsBlockStride() || getRhsBlockStride())
+      return emitOpError()
+             << "lhs_block_stride / rhs_block_stride are only valid with a "
+                "present block_index; the single-block form imports fixed ABI "
+                "scale bases with no per-block stride";
+  }
 
   if (!getResult().getType().isF32())
     return emitOpError()

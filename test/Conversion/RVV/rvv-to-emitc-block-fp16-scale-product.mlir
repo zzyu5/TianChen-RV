@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's/dual-fp16-per-block-d_x.d_y/five-bit-offset-binary/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
 // RUN: sed 's/dual_fp16_per_block_scale_product/plain_i8_product/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/scale_model = "dual-fp16-per-block-d_x.d_y"/scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADSTRIDEONLY
 
 // M-FLAT milestone brick 1/5 -- the per-block dual-fp16 SCALE reconstruction
 // primitive (dismantling wall 1 of the four-walls flat-block-dot analysis:
@@ -45,3 +46,6 @@ module {
 // The bounded surface is fail-closed on the scale model and kind facts (I7).
 // BADMODEL: currently supports only scale_model "dual-fp16-per-block-d_x.d_y"
 // BADKIND: currently supports only kind "dual_fp16_per_block_scale_product"
+// The loop-capable extension is additive: in the single-block form (block_index
+// absent) the per-block stride attrs are meaningless and rejected fail-closed.
+// BADSTRIDEONLY: lhs_block_stride / rhs_block_stride are only valid with a present block_index

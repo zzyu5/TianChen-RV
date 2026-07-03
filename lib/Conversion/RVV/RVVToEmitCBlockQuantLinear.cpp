@@ -6038,12 +6038,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     valueMap[coreBlock.getArgument(1)] =
         rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
 
-    // Dispatch the minimal region body: brick 3 over the stub term, then the
+    // Dispatch the region body primitives in order: the per-block scale product
+    // (brick 1, step 3 -- the loop-capable per-block-source form using the
+    // block_index induction variable), then brick 3's cross-block fold, then the
     // typed loop-yield whose carried-OUT acc_next maps to an emitc.assign back
     // into the sumf lvalue at the BOTTOM (byte-exact to emitFlatBlockDot:5829).
+    // The remaining per-block primitives (load / widening_product / reduce /
+    // extract / brick 2) are later steps and are fail-closed here (I7).
     for (mlir::Operation &op : coreBlock) {
-      if (auto accumulate =
-              llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(op)) {
+      if (auto scaleProduct =
+              llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(op)) {
+        if (mlir::failed(emitBlockFp16ScaleProduct(
+                rewriter, loc, scaleProduct, valueMap,
+                /*bodyVL=*/mlir::Value())))
+          return mlir::failure();
+      } else if (auto accumulate =
+                     llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(op)) {
         if (mlir::failed(emitCrossBlockF32Accumulate(
                 rewriter, loc, accumulate, valueMap, /*bodyVL=*/mlir::Value())))
           return mlir::failure();
@@ -6058,9 +6068,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         rewriter.create<emitc::AssignOp>(loc, sumfVar, accNext);
       } else {
         return rewriter.notifyMatchFailure(
-            &op, "step-1 loop body only lowers a single "
-                 "cross_block_f32_accumulate over a stub term (the full "
-                 "per-block primitive chain is a later step)");
+            &op, "step-3 loop body lowers the per-block scale product (brick 1) "
+                 "and the cross-block fold (brick 3); the remaining per-block "
+                 "primitives (load / product / reduce / extract / brick 2) are "
+                 "later steps");
       }
     }
   }
@@ -6430,6 +6441,68 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
 
   llvm::StringRef opName = scaleProduct.getTCRVEmitCLowerableSourceOpName();
   llvm::StringRef role = scaleProduct.getTCRVEmitCLowerableSourceRole();
+
+  // M-FLAT step 3 -- the loop-capable per-block-source form. When block_index
+  // is present it is the enclosing tcrv_rvv.typed_flat_block_dot_loop_body
+  // region's induction variable, so each per-block fp16 scale header lives at
+  // `base + block_index*stride (+ byte_offset)`. This branch replicates
+  // emitFlatBlockDot's blockBaseValue (:5451-5462, blockOffset 0) + fp16ReadAt
+  // (:5467-5476) byte-exact: the SAME size_t emitc.mul + pointer emitc.add
+  // block-base arithmetic and the SAME `(float)*(const _Float16 *)` call_opaque
+  // read (spelled with fp16ReadAt's "fcvt.s.h" verbatim -- unlike the single-
+  // block form below, which keeps its own frozen "(float)*(const _Float16 *)"
+  // verbatim; only the per-block form is the byte-exact monolith replica). The
+  // imported ABI bases stay the loop-invariant block-0 pointers; only the loop
+  // offset is added. The single-block (block_index absent) path below is
+  // untouched.
+  if (mlir::Value blockIndex = scaleProduct.getBlockIndex()) {
+    mlir::Value ib = valueMap.lookup(blockIndex);
+    if (!ib)
+      return rewriter.notifyMatchFailure(
+          scaleProduct, "block_fp16_scale_product block_index unmapped");
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType,
+                                               std::to_string(v));
+    };
+    // const uint8_t *xb = base + ib*stride;  -- byte-exact to blockBaseValue
+    // (blockOffset 0): a size_t emitc.mul then a pointer emitc.add.
+    auto perBlockBase = [&](mlir::Value base, int64_t stride,
+                            const char *step) -> mlir::Value {
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+      mlir::Value off =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+      return rewriter.create<emitc::AddOp>(loc, base.getType(), base, off);
+    };
+    // (float)*(const _Float16 *)(blockBase (+ byte_offset))  -- byte-exact to
+    // fp16ReadAt: the optional pointer emitc.add for the header byte offset then
+    // the sanctioned opaque read.
+    auto perBlockRead = [&](mlir::Value blockBase,
+                            std::optional<int64_t> byteOffset) -> mlir::Value {
+      mlir::Value addr = blockBase;
+      if (byteOffset && *byteOffset != 0)
+        addr = rewriter.create<emitc::AddOp>(loc, blockBase.getType(), blockBase,
+                                             sizeLit(*byteOffset));
+      return emitOpaqueCall(rewriter, loc, floatType, kFp16ScaleReadCallee,
+                            mlir::ValueRange{addr}, opName, role,
+                            llvm::StringRef("fcvt.s.h"));
+    };
+
+    mlir::Value xb = perBlockBase(
+        lhsBase, static_cast<int64_t>(*scaleProduct.getLhsBlockStride()),
+        "block_base_x");
+    mlir::Value yb = perBlockBase(
+        rhsBase, static_cast<int64_t>(*scaleProduct.getRhsBlockStride()),
+        "block_base_y");
+    mlir::Value dX = perBlockRead(xb, scaleProduct.getLhsScaleByteOffset());
+    mlir::Value dY = perBlockRead(yb, scaleProduct.getRhsScaleByteOffset());
+    // float scale = d_x * d_y;  (ggml's q8_0 scale order: scales multiplied
+    // FIRST)
+    mlir::Value scale =
+        rewriter.create<emitc::MulOp>(loc, floatType, dX, dY).getResult();
+    valueMap[scaleProduct.getResult()] = scale;
+    return mlir::success();
+  }
 
   // Per-block fp16 read at `base (+ byte_offset)`. Default offset 0 reads the
   // AoS fp16 header at the block base (matching the monolithic q8_0 read).
