@@ -4,7 +4,7 @@
     "roster_ref": "schema/coverage-roster.v1.json (v1)",
     "repo_snapshot": "1bbab882695e812a2d334a8d6f5c7860cc2c93b1",
     "snapshot_commit_date": "2026-07-03T09:23:16+08:00",
-    "labeling": "HAND-LABELED, seeded from research/six-state-current.md (HEAD-verified 17 dispatch-wired / 7 constructed-weak / 3 strong constructed). The six-state AUTO-readout (state machine + [L-8] weak-vs-strong enforcement) is E5 (provenance manifest; 实验总纲 line 107 'provenance 清单先于六态自动化'). Rows whose state feeds C_construct carry auto_readout=pending-E5: E6 does NOT derive strong-vs-weak from code.",
+    "labeling": "HAND-LABELED, seeded from research/six-state-current.md (HEAD-verified 17 dispatch-wired / 7 constructed-weak / 3 strong constructed). The six-state AUTO-readout (state machine + [L-8] weak-vs-strong enforcement) is E5 (provenance manifest; 实验总纲 line 107 'provenance 清单先于六态自动化'). Rows whose state feeds C_construct carry auto_readout=pending-E5: E6 does NOT derive strong-vs-weak from code. | E5 增量① (strong-side auto): the 3 STRONG product_reduce rows carry a MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no opaque *_block_dot hand helper). Reproduces the hand-label; a q8_0 block-dot negative control derives NOT-strong. Weak rows' auto_readout stays pending-E5 (later increment). State values are unchanged (zero flip).",
     "ladder": [
       "absent",
       "emittable",
@@ -171,21 +171,21 @@
       "op": "product_reduce",
       "format": "q4_0_nibble",
       "state": "constructed",
-      "auto_readout": "pending-E5",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=load+load+widening_product+standalone_reduce+dequantize+store; opaque_helper=false",
       "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
     },
     {
       "op": "product_reduce",
       "format": "offset_binary_n3",
       "state": "constructed",
-      "auto_readout": "pending-E5",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=load+load+load+packed_i4_offset_binary_x_i8_product+standalone_reduce+store; opaque_helper=false",
       "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
     },
     {
       "op": "product_reduce",
       "format": "codebook_n3",
       "state": "constructed",
-      "auto_readout": "pending-E5",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=codebook_table_broadcast+load+load+load+codebook_gather_x_i8_product+standalone_reduce+store; opaque_helper=false",
       "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
     },
     {
