@@ -1571,3 +1571,36 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: E6 覆盖率尺子落地(honest 分母揭 42% C_dispatch)+ 6 模块里程碑
+
+**Date**: 2026-07-03
+**Task**: E6 覆盖率尺子落地(honest 分母揭 42% C_dispatch)+ 6 模块里程碑
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+承接同 session:E6(54465ee7)=覆盖率四指标+分母定稿+ledger 脚本(G1 度量尺子,advisor 点的 leverage)。全 net-new Python+JSON:schema/coverage-roster.v1.json(92 键分母,ggml pin 6eab471,epoch1,decomposed=独立键 q4_0 双路不 merge,low-bit 全 A,gelu/add/mul/cpy B-pending)+coverage-sixstate.v1.json(手工六态 17dw/7weak/3strong,每 weak/strong 行 auto_readout:pending-E5)+family-dirs.v1.json+coverage_metrics.py(四指标确定性,--self-test12/12)+family_ledger.py(cloc-approx,--self-test7/7)。**honest 分母揭真相:vec_dot C_construct 强义=0/24、C_construct+=7/24、全局 C_dispatch 39/92=42%(远低 M1≥80%)——in-code 24/24 口径是假象,honest 宽 roster 把 53 未建 kernel 留分母。** IME ledger code_LOC 1866 cloc-approx/2484 raw。trellis-check 6 验收 PASS 并解开'无源 659'谜:659 真实=6 个 test/Dialect/IME 方言测试(被 ime-* glob 漏),完整 14-file=1003;surface 待用户裁决 test_LOC 1003 vs 344。research(stall 但文件全落)→implement→check 三 agent。**本 session 累计 6 模块 done:E0+E2a+E1+E4+E7+E6**(M1 证据线主体)。下轮=E5 provenance 六态自动读出+L-8 执法(动 C++ 发射侧 emit provenance + 扩 coverage_metrics 读 provenance,消 pending-E5)。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `24f1d994` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
