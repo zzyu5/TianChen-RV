@@ -961,6 +961,23 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// typed_vector_lane0_to_scalar_extract(%red, %vl) lowers the i32 LMUL m1
+  /// lane0 -> scalar i32 extract bridge to the SAME __riscv_vmv_x_s_i32m1_i32
+  /// call_opaque the monolithic block-dot lowering emits for its vwredsum lane0
+  /// -> scalar sumi extraction (RVVToEmitCBlockQuantLinear.cpp:5653-5655),
+  /// byte-identical at the operation-spelling level:
+  ///   int32_t sumi = __riscv_vmv_x_s_i32m1_i32(red);
+  /// The intrinsic targets lane 0 regardless of vl, so the call takes only the
+  /// mapped i32m1 vector value; the op's vl operand is the boundary marker (the
+  /// bodyVL argument is unused, kept only to match the generic body-walk emitter
+  /// signature). Emitting an RVV intrinsic via call_opaque is NOT the monolithic
+  /// hand-written block-dot helper (the same shape as vwmul / vwredsum lower).
+  mlir::LogicalResult emitTypedVectorLane0ToScalarExtract(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::TypedVectorLane0ToScalarExtractOp extract,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// packed_i4_nibble_unpack_product(%lhs,%rhs,%vl) lowers to the FIXED signed
   /// i4-nibble sign-extend + widening-product intrinsic chain (each i8 packs two
   /// signed 4-bit nibbles), byte-equivalent to the legacy packed-i4 oracle:

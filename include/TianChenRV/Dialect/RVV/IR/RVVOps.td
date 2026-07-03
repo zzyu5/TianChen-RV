@@ -9457,6 +9457,61 @@ def TypedFlatBlockDotLoopYieldOp : TCRVRVV_Op<"typed_flat_block_dot_loop_yield",
   let hasVerifier = 1;
 }
 
+def TypedVectorLane0ToScalarExtractOp :
+    TCRVRVV_Op<"typed_vector_lane0_to_scalar_extract",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV i32 LMUL m1 lane0 -> scalar i32 extract bridge op";
+  let description = [{
+    Records one bounded generic plugin-local RVV scalar-lane extract as ONE
+    typed dataflow op: take a typed i32 LMUL m1 vector token whose lane 0 is
+    the scalar output boundary (the standalone-reduce / vwredsum output shape)
+    plus the active !tcrv_rvv.vl token, and extract lane 0 into ONE scalar i32.
+    The op does NOT touch the integer quant payload, the widening product, the
+    reduce that produced the lane0 boundary, the per-block scale/dequant, the
+    block loop, or the cross-block accumulate (those are separate typed steps).
+
+    This is the scalar-lane-extract BRIDGE the M-FLAT flat-block-dot loop body
+    requires: the integer core -> scalar fold handoff. The all-vector single-
+    block strong path never needs it (it stays vector lane0 through
+    tcrv_rvv.dequantize's vector fold), so before this op the dialect carried NO
+    typed scalar-extract op and the vwredsum lane0 -> scalar i32 jump lived only
+    as an opaque __riscv_vmv_x_s_i32m1_i32 call inside the monolithic block-dot
+    lowering. The flat loop body's per-block dequant (brick 2,
+    tcrv_rvv.block_computed_scale_dequant) hard-requires a SCALAR i32 sumi and
+    ggml's byte-exact fold `(float)sumi` is a scalar cast, so under the
+    zero-opaque + byte-exact constraints this vector-to-scalar jump must become
+    a typed primitive.
+
+    Making the lane0 extract a first-class typed body op (I5) means emission is
+    determined by op identity + the explicit extract kind/relation, never
+    inferred from candidate-mirror metadata, route ids, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, or q8/q4 names. The op
+    lowers to the RVV lane0-extract intrinsic __riscv_vmv_x_s_i32m1_i32 (the
+    SAME typed-op-lowers-to-an-intrinsic shape as tcrv_rvv.widening_product ->
+    vwmul or tcrv_rvv.standalone_reduce -> vwredsum); emitting an RVV intrinsic
+    via a structured call is NOT the monolithic hand-written block-dot helper.
+    The i32 range fully covers the lane0 value, so the extract is byte-exact by
+    construction. The op carries the active !tcrv_rvv.vl token as the vector
+    boundary marker (the extraction targets lane 0 regardless of vl, so the
+    intrinsic call itself takes only the vector). For the bounded surface kind
+    is limited to "vector_lane0_to_scalar_i32_extract" and extract_relation to
+    "i32m1-lane0-to-scalar-i32".
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$extract_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $vl attr-dict `:` type($input) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";

@@ -9994,3 +9994,46 @@ mlir::LogicalResult TypedFlatBlockDotLoopYieldOp::verify() {
               "block-carried cross-block accumulator domain)";
   return mlir::success();
 }
+
+mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded surface (I7 fail-closed): the extract bridge only owns the i32m1
+  // lane0 -> scalar i32 extraction; any other kind/relation spelling is
+  // rejected fail-closed.
+  if (getKind() != "vector_lane0_to_scalar_i32_extract")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"vector_lane0_to_scalar_i32_extract\" for the bounded i32m1 "
+              "lane0 -> scalar i32 extract bridge";
+  if (getExtractRelation() != "i32m1-lane0-to-scalar-i32")
+    return emitOpError()
+           << "currently supports only extract_relation "
+              "\"i32m1-lane0-to-scalar-i32\" (the vwredsum lane0 -> scalar i32 "
+              "boundary)";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one i32 LMUL m1 vector input, one !tcrv_rvv.vl operand, "
+              "and one scalar i32 result";
+
+  // The input is the standalone-reduce / vwredsum output shape: an i32 LMUL m1
+  // vector whose lane 0 is the scalar output boundary.
+  if (!isGenericRVVVectorI32M1(getInput().getType()))
+    return emitOpError()
+           << "requires the input to be an i32 LMUL m1 vector "
+              "(!tcrv_rvv.vector<i32, \"m1\">) -- the vwredsum lane0 boundary";
+  // The active VL token is carried as the vector boundary marker.
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires the runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  // The result is scalar i32 (the vmv_x_s extraction target); a vector result
+  // (a no-op passthrough) is rejected fail-closed -- this is exactly the
+  // vector -> scalar contrast the bridge exists for.
+  if (!getResult().getType().isInteger(32))
+    return emitOpError()
+           << "requires a scalar i32 result (the lane0 vmv_x_s extraction "
+              "target)";
+
+  return mlir::success();
+}

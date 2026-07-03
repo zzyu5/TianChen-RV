@@ -932,6 +932,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
           if (mlir::failed(emitCrossBlockF32Accumulate(
                   rewriter, loc, crossBlockAccumulate, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto lane0Extract =
+                       llvm::dyn_cast<tcrvrvv::TypedVectorLane0ToScalarExtractOp>(
+                           op)) {
+          if (mlir::failed(emitTypedVectorLane0ToScalarExtract(
+                  rewriter, loc, lane0Extract, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto offsetBinaryProduct = llvm::dyn_cast<
                        tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
           if (mlir::failed(emitPackedI4OffsetBinaryXI8Product(

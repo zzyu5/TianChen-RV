@@ -6516,6 +6516,35 @@ mlir::LogicalResult VariantToEmitCFunc::emitCrossBlockF32Accumulate(
   return mlir::success();
 }
 
+mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::TypedVectorLane0ToScalarExtractOp extract,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value /*bodyVL*/) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+
+  mlir::Value input = valueMap.lookup(extract.getInput());
+  if (!input)
+    return rewriter.notifyMatchFailure(
+        extract, "typed_vector_lane0_to_scalar_extract input unmapped");
+
+  // int32_t sumi = __riscv_vmv_x_s_i32m1_i32(red);  -- byte-identical at the
+  // operation-spelling level to the monolithic block-dot lane0 extraction
+  // (emitFlatBlockDot:5653-5655): the SAME __riscv_vmv_x_s_i32m1_i32 call_opaque
+  // that pulls the vwredsum lane0 into the scalar sumi. The intrinsic targets
+  // lane 0 regardless of vl, so the call takes ONLY the i32m1 vector value (the
+  // op's vl operand is the boundary marker, not a call argument).
+  std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+  mlir::Value scalar =
+      emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                     mlir::ValueRange{input},
+                     extract.getTCRVEmitCLowerableSourceOpName(),
+                     extract.getTCRVEmitCLowerableSourceRole());
+  valueMap[extract.getResult()] = scalar;
+  return mlir::success();
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

@@ -25,7 +25,8 @@
     "07-03-m-flat-brick4-block-loop",
     "07-03-m-flat-wire-first-strong-route",
     "07-03-m-flat-loop-scaffold-design",
-    "07-03-m-flat-s1-loop-op-acc"
+    "07-03-m-flat-s1-loop-op-acc",
+    "07-03-m-flat-s2-extract-bridge"
   ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],
