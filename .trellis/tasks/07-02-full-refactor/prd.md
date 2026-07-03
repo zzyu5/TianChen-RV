@@ -116,7 +116,17 @@
 - (C′) **快照已重钉**:核查稿钉 7185a62b,现 HEAD=**7d781994**;E0 靶点(beat 措辞)已 grep 复验仍在(5 处,多出 `RVVGearboxSchedule.h:2809`)。动 E2a/E1 的锚点(ODS kind attr / `CapabilityModel.h`)前逐一 spot-check,不必重跑完整 [B-1..B-8]。
 - **循环纪律**:此 program multi-quarter~multi-year,单 session 完不成;每轮把一个 coherent module 做到 durable(implement→check→commit→journal + 精确续接点),不浅做凑数。
 
-### 落地进度台账(证据轴 E 系列;每条带 commit)
+### ⚖ 进度真理 = 燃减(2026-07-03 结构性刹车,用户+高级 AI 裁定)
+
+**headline 进度指标从此只认两个数:`ΔC_construct(强义)` + `Δ手写 body LOC`(应为负)。** 证据轴产出(E 系列)一律记为**基建(造尺)**,单独列,**不计入"进展"**。真实重构的审美签名是**删除**:某手写 body 被删、由模式库原语构造替代、字节精确、六态翻 constructed——燃减曲线下行那天才是重构开始那天。
+
+- **诚实起跑线(HEAD 20c1d714):`C_construct 强义 = 0/24`,`Δ手写 body LOC = 0`。E 系列 6 done 全是基建、燃减为零。**
+- **硬约束(制度化担心,非靠记得):**每轮 module 引擎轴(改编译器本体能力):证据轴 ≥ **1:1**;引擎栏连续两轮为空 → 自动触发本类 review。
+- **契约须有消费者:**声明工件(schema.def 等)须在同一里程碑内获得**第一个机器消费者**(被代码生成/校验),否则是海报不是契约。
+- **玩具化四征兆**(自检):产物越来越 meta(度量度量的脚本/关于 spec 的 spec)· done 事后被降级 · 门禁零流量 · 口径一调再调而被测物纹丝不动。**成熟化四征兆:**kernel 本体 LOC 降而能力升 · 门禁拦到真实违规 · 同一机制出现第二个复用者 · 外人按文档独立做成一件事。
+- **门禁流量制:**每 falsifier bounded-exit 加"故意提交一次违规、证明 CI 拦得住";季度零流量的门是删除候选。
+
+### 落地进度台账(⚠ 证据轴 E 系列 = **基建/造尺,非"进展"**;每条带 commit)
 
 | pillar | 状态 | commit | 备注 |
 |---|---|---|---|
@@ -126,15 +136,23 @@
 | _(spec 侧对齐)_ kind→闭合枚举+subclass | ✅ done | 93a71386 | 并发 spec 编辑巩固:ime/scalar 插件 kind 闭合枚举+subclass;core-invariants [S-5]①;tcrv-exec-contract target 消歧(了结 E2a deferred 语义张力) |
 | **E4** 归因 JSONL+D-2a | ✅ done | 5824e30c | 附加式 option-gated JSONL(VariantSelection sink,四 SelectionKind)+ DeclaredInstanceHash helper + [D-2a] 编译期 stamp;**reason 编码=用户裁决选项2 `static_order`**(独立过渡值,不复用 prior;守卫字段删;能力键控做在主键;SEL-1 后 static_order→0=燃减信号);canon 四文档 reason 枚举扩四值;三 agent 6 验收全 PASS。**⚠ C_attr^CT 口径:E4 交付的是"跑起来即 100%"的机制,非已关闭的门——连续强制(across 覆盖分母)的门要 E3(CI 接线)+ E6(分母定稿)才关闭。别把此行读成 M1 硬门已满足。** |
 | **E7** D-1 门自足 fail-closed | ✅ done | 63d7a0e4 | **⚠ 防御性硬化,非活 bug 修复**:PRD 原前提错——`VariantOp::verify`(ExecOps.cpp:841,adb57f8a)**已在 parse 期拒** kernel-unknown requires,`:150 continue` 正常不可达。E7 = silent-continue(fail-open)→ hard reject,使门独立于 verifier 兜底而自足([I7]/[D-1]);Unknown 硬拒不可 dispatch-guard;隔离 lit(disable-verifier)证自足。**load-bearing 取决于 F-5(E3)是否在未验证 IR 上跑该门——接 E3 须确认。** 双 agent 6 验收 PASS |
-| **E6** 覆盖率+ledger 脚本 | ✅ done | 54465ee7 | G1 度量尺子(leverage)。schema/coverage-roster.v1.json(92 键分母,ggml pin 6eab471)+ coverage-sixstate.v1.json(手工六态,pending-E5)+ coverage_metrics.py + family_ledger.py(--self-test 12/12+7/7)。**honest 分母揭真相:vec_dot C_construct 强义=0/24、全局 C_dispatch 39/92=42%(远低 M1≥80%)**——in-code 24/24 口径是假象。IME ledger code_LOC 1866/2484;check 解开"659"谜=6 方言测试。**待用户裁决:** test_LOC 计方言(1003)vs lowering-only(344),报告双列 |
-| E5 provenance 六态自动读出 + L-8 执法 | ⬜ next | — | [K-4]/[L-8];机制构造 body 发射时写 pattern-primitive ID 列表 → 六态脚本从 provenance 判强/弱义(自动读出,替 E6 手工表)+ 弱充强 CI 拦([L-8] 执法工具)。解锁 E6 sixstate 的 auto_readout:pending-E5。动 C++(发射侧写 provenance)+ 扩 coverage_metrics 读 provenance |
+| **E6** 覆盖率+ledger 脚本 | ✅ done | 54465ee7 | G1 度量尺子(leverage)。schema/coverage-roster.v1.json(92 键分母,ggml pin 6eab471)+ coverage-sixstate.v1.json(手工六态,pending-E5)+ coverage_metrics.py + family_ledger.py(--self-test 12/12+7/7)。**honest 分母揭真相:vec_dot C_construct 强义=0/24、全局 C_dispatch 39/92=42%(远低 M1≥80%)**——in-code 24/24 口径是假象。IME ledger code_LOC 1866/2484;check 解开"659"谜=6 方言测试。**✅ 已裁(20c1d714):** test_LOC = 全量 1003;ggml pin 换 tag-anchored 锁文件(b9652@6eab471 可验证) |
+| **G1 切片 1** 平面 vec_dot body → typed 构造(燃减 #1) | ⬜ **领跑(引擎轴,本轮)** | — | **头号燃减砖**:一个平面手写 vec_dot body 翻 typed-primitive 构造 → 字节精确、删 helper → C_construct 强义 0/24→1/24。赢 = BEFORE==AFTER+lit(不需硬件)。选已有强义构造(q4_0-nibble 分解路)可复用的格式;不选 K-quant 超块 |
+| E5 provenance 六态自动读出 + L-8 执法 | ⬜ **跟随(非领跑)** | — | 由 G1 切片 1 的真实构造器形状反向塑形 provenance;与 G1 同 module 收尾。[K-4]/[L-8];发射侧写 pattern-primitive ID 列表 → 六态脚本自动判强/弱义(替 E6 手工表)+ 弱充强 CI 拦。消 E6 sixstate 的 auto_readout:pending-E5 |
+| G4 宽钳位双区 body | ⬜ **等硅(不本轮)** | — | 价值=关闭真实 perf 缺口+GAP-1 闭环,二者需 perf 复测=硬件+T-N 地板(E8 未建);本轮做只得 built-but-unclosed=反模式。待真在硅上测时做,不为它先建 E8 |
 | E2b 目录归拢 / E3 falsifier CI / E8 T-N+对手探针 | ⬜ pending | — | **E3 已半就位**(coordinator F-1 manifest 判读规程 ce9c1c7c + E1 的 F-2′ 门 + E7 让 F-5 可依赖门自足;剩 .github + F-5 fuzz + F-6 独立性 + 每家族正则);E2b 解锁 F-3 |
 
 **⚠ 并行 coordinator agent(同 branch):** 有第二个 agent 做**只读 spec 审计修复**(ce9c1c7c/6a4a2f4f;协调 note = `SPEC-AUDIT-FIXES-NOTE.md`)。分工:它修 spec/docs 矛盾(kind 闭合枚举/profile-provider 谓词/[F-1] manifest 判读规程/[X-SCALAR] popcount 护栏/[SEL-2] forced-stub 解锁),留 E1-S5/E6-LED/G1-PAT 字段 schema 给我(declare-once 在总纲)。**动 spec 前先 re-read**(文件可能在我编辑间被改);频繁 commit + 验证已在处理并发,无 lost-update(已核 E4 canon 编辑与 audit-fix 共存)。
 
-**下轮续接点:** E5 = provenance 清单 → 六态自动读出 + [L-8] 执法([K-4]/[L-8])。机制构造 body 发射时写出其 **pattern-primitive ID 列表**(强义 constructed = 清单存在 ∧ 无不透明手写 helper;弱义 = 描述符选择的手写片段)→ 六态脚本从 provenance **自动判强/弱义**(替 E6 的手工 sixstate 表,消 auto_readout:pending-E5 标记)+ **弱充强被 CI 拦**([L-8] 从 prose 纪律升级为机器可判执法工具)。实验总纲 §1.6 是权威。**动 C++**(发射侧在 body 构造时 emit provenance——分解路 typed 原语构造已是强义素材,平面路 decode 是被描述符选择的手写 helper=弱义)+ **扩 coverage_metrics.py 读 provenance**。这是把 E6 尺子从"手工标签"升级到"机器读出",也是 G1 燃减的机检地基。注:E6 已把 sixstate 行标 pending-E5,E5 落地即消。**并行写入者纪律**([[full-refactor-program-active]]):动 spec/共享文件前 re-read,不 commit 对方 in-flight 编辑。
+**下轮续接点(2026-07-03 引擎轴领跑,结构性刹车后):** 刹车 = **下一次 commit 删一个手写 body**,不是再写一份治理文档(治理文档 = 关于 spec 的 spec = 玩具化征兆①,自禁)。故下轮由**引擎轴 G1 切片 1 领跑**,证据轴跟随,守 1:1:
 
-**⚠ 待用户裁决(非阻塞,E6 报告已双列):** family `test_LOC` 计方言验证测试(1003=344 conversion+659 dialect)还是 lowering-only(344)?LED-1 headline `code_LOC`(1866)不受影响。
+- **G1 切片 1(领跑,本轮真工作):** 把**一个**平面手写 vec_dot body 翻成 typed-primitive 构造 → 字节精确、删掉不透明 helper → `C_construct 强义 0/24→1/24`、六态该键翻 constructed。**赢的条件 = 字节精确(BEFORE==AFTER + lit),不需硬件**——这是它领跑而非 G4 领跑的判别式。**格式选择约束:**① 不选 q6_K/K-quant 超块(多日难点 [[kernel-expansion-q8-q4k]]);② 选**已有强义 typed-primitive 机器可复用**的格式——分解路已强义构造 `q4_0-nibble`,把一个平面键收敛到该既有构造 = 最低发射工作量的燃减 + 顺带产出"同一机制第二个复用者"成熟化征兆。一次紧的 scoping(单问:哪个平面 vec_dot body 以最少发射工作收敛到既有 typed 构造、字节精确)后即 implement。
+- **E5 provenance 六态自动读出(跟随,非领跑):** 由第一个真实构造器的形状**反向塑形** provenance 格式,而非先造格式再找构造。G1 切片 1 落地后,E5 与之同 module 收尾:发射侧 emit pattern-primitive ID 列表 → 六态脚本自动判强/弱义(替 E6 手工表,消 auto_readout:pending-E5)+ 弱充强 CI 拦([L-8] 执法)。实验总纲 §1.6 权威。
+- **G4 宽钳位双区 body(等硅,不本轮):** 价值 = 关闭真实性能缺口 + GAP-1 闭环,**二者都需 perf 复测 = 硬件 + T-N 噪声地板(E8 未建)**。本轮做 G4 只会得到 built-but-unclosed body = 正要逃离的"基建无闭环"反模式。G4 待真在硅上测时做;**不为解锁 G4 去先建 E8**(那又是证据轴)。
+- **E2b/E3/E8 交错填充**,比例守 1:1(引擎:证据 ≥ 1:1;引擎栏连续两轮空 → 触发 review)。**E3 加门禁红队:** 故意提交一次违规变更、证明 CI 拦得住。
+- **并行写入者纪律**([[full-refactor-program-active]]):动 spec/共享文件前 re-read,不 commit 对方 in-flight 编辑。
+
+**✅ 两裁决已落(20c1d714,非阻塞项清空):** ① `test_LOC` = 全量 1003(方言 659+lowering 344+e2e 0),口径在 family_ledger.py 定死、所有家族一致;② ggml pin 换成 tag-anchored 锁文件(b9652 @ 6eab471,schema/ggml-pin.lock.json + fetch_ggml_pin.py 可验证,epoch 1 树未移)。
 
 ## Technical Notes
 
