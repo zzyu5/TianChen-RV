@@ -9727,3 +9727,48 @@ mlir::LogicalResult DequantizeOp::verify() {
     return mlir::failure();
   return verifyDequantizeResultVectorForWithVL(op, getResult(), "result");
 }
+
+mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (getKind() != "dual_fp16_per_block_scale_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"dual_fp16_per_block_scale_product\" for the bounded per-block "
+              "dual-fp16 scale reconstruction surface";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "currently supports only scale_model "
+              "\"dual-fp16-per-block-d_x.d_y\" (ggml's q8_0 scale order: the "
+              "two per-block fp16 scales are multiplied FIRST)";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two imported runtime ABI block-base operands (the lhs "
+              "and rhs per-block fp16 scale sources) and one f32 scalar result";
+
+  if (!llvm::isa<RuntimeABIValueType>(getLhsScaleBase().getType()))
+    return emitOpError()
+           << "requires lhs_scale_base operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  if (!llvm::isa<RuntimeABIValueType>(getRhsScaleBase().getType()))
+    return emitOpError()
+           << "requires rhs_scale_base operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhsScaleBase(), "lhs scale base",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhsScaleBase(), "rhs scale base",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+
+  if (!getResult().getType().isF32())
+    return emitOpError()
+           << "requires an f32 scalar result (f32 fully covers the fp16 "
+              "domain, so the dual-fp16 scale reconstruction is byte-exact by "
+              "construction)";
+
+  return mlir::success();
+}

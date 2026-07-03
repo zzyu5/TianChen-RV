@@ -1,0 +1,69 @@
+{
+  "$meta": {
+    "schema_version": "v1.0.0",
+    "declares": "PAT-1 unified pattern registry (C3' first-class data object)",
+    "note": "The [PAT-1] registry-as-data ([docs/TianChen-RV_科研目标总纲v2.md] §2.8:118). Each row is {pattern_id, requires, transform, mechanism, metrics_hook, status ∈ {mechanized|partial|planned}}. This is EVIDENCE-axis mirror data (core-invariants I4): it never chooses route/compute/dtype; it records which construction patterns are mechanized and points a lit/metrics artifact at each. A row's status flips planned->partial->mechanized ONLY when its construction primitive lands with a lit artifact hung on metrics_hook. Created in the M-FLAT milestone alongside brick 1 (the canon specifies this schema but no file existed).",
+    "authority": [
+      "docs/TianChen-RV_科研目标总纲v2.md#PAT-1",
+      ".trellis/tasks/07-03-g1-q8-0-strong-construct/prd.md",
+      ".trellis/tasks/07-03-m-flat-brick1-fp16-scale/prd.md"
+    ],
+    "engine_metric": "M-FLAT n/5 mechanized (registry primitives) -- the flat block-dot strong-construction milestone step. C_construct 强义 stays 0/24 until brick 5 closes AND the weak q8_0 body is deleted; this registry never bumps C_construct.",
+    "milestones": {
+      "M-FLAT": "Flat block-dot strong-construction family milestone. Turns the whole flat block-dot vec_dot family (q8_0 + q4_0 + q4_1 + q5_0 + q5_1 + iq4_nl + mxfp4) from constructed-weak (shared opaque emitFlatBlockDot) to constructed-strong. Four net-new typed construction primitives (bricks 1-4) then one atomic closing brick (brick 5). Step, not slope."
+    }
+  },
+
+  "patterns": [
+    {
+      "pattern_id": "MFLAT-1-dual-fp16-per-block-scale-reconstruct",
+      "milestone": "M-FLAT",
+      "brick": 1,
+      "requires": ["rvv.zvfh"],
+      "transform": "tcrv_rvv.block_fp16_scale_product op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockFp16ScaleProduct); ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (def BlockFp16ScaleProductOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockFp16ScaleProductOp::verify)",
+      "mechanism": "Per-block dual-fp16 scale reconstruct becomes a first-class typed body op (read d_x/d_y, fp16->f32, multiply -> one f32) instead of an inline opaque emitc.call_opaque; f32 covers fp16 so it is byte-exact by construction.",
+      "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-block-fp16-scale-product.mlir",
+      "status": "mechanized"
+    },
+    {
+      "pattern_id": "MFLAT-2-computed-scale-dequant",
+      "milestone": "M-FLAT",
+      "brick": 2,
+      "requires": ["rvv.zvfh", "rvv.v"],
+      "transform": "planned: accept a COMPUTED (non-imported) per-iteration f32 scale in dequant -- change tcrv_rvv.dequantize $scale contract (RVVDialectWideningOps.cpp:9531 hard-requires an imported RuntimeABIValueOp) or a sibling op",
+      "mechanism": "The per-block computed scale (brick 1 output) feeds dequant without being an imported ABI value; removes the imported-scale-only wall.",
+      "metrics_hook": null,
+      "status": "planned"
+    },
+    {
+      "pattern_id": "MFLAT-3-f32-cross-block-scalar-accumulate",
+      "milestone": "M-FLAT",
+      "brick": 3,
+      "requires": ["rvv.v"],
+      "transform": "planned: f32 cross-block scalar accumulate op (block-carried, strict ascending fold), distinct from the i32 intra-strip WideningAccumulate/DeferredAccumulate (RVVOps.td:3669/3717)",
+      "mechanism": "The `sumf += (float)sumi * (d_x*d_y)` cross-block fold becomes a typed f32 accumulate instead of emitc.add; correct dtype + scope for the block loop.",
+      "metrics_hook": null,
+      "status": "planned"
+    },
+    {
+      "pattern_id": "MFLAT-4-flat-block-loop-pre-realized-body",
+      "milestone": "M-FLAT",
+      "brick": 4,
+      "requires": ["rvv.v"],
+      "transform": "planned: block-loop pre-realized body ODS op (nb loop + per-block scale source + loop-carried f32 accumulator + single scalar store) + realizer + route-registry entry (RVVContractionRouteIdentity.cpp) + semanticRoleGraph entry (RVVConstructionProtocol.cpp) + loop-aware strong validator (recursive into loop-region allowlist)",
+      "mechanism": "The nb block loop itself becomes a typed pre-realized body with a loop-aware validator, so a looped body can be certified all-typed (rejectMixed only walks front(), does not recurse regions).",
+      "metrics_hook": null,
+      "status": "planned"
+    },
+    {
+      "pattern_id": "MFLAT-5-flat-family-strong-closing",
+      "milestone": "M-FLAT",
+      "brick": 5,
+      "requires": ["rvv.v"],
+      "transform": "planned (CLOSING brick, sole C_construct credit): wire q8_0 dispatch to the new block-loop route; new strong emit-consistency golden (CORE==emission-plans, typed-primitive body); DELETE the weak PlainI8 q8_0 branch (RVVToEmitCBlockQuantLinear.cpp:5279-5283), retire/migrate the flat golden; rerun coverage_metrics.py to flip the six-state row; the rest of the flat family follows (step)",
+      "mechanism": "Atomically flips the whole flat block-dot family constructed-weak -> constructed-strong; only here does C_construct 强义 move (0/24 -> family), a step not a slope.",
+      "metrics_hook": null,
+      "status": "planned"
+    }
+  ]
+}

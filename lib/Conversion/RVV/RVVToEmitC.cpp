@@ -914,6 +914,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
           if (mlir::failed(emitWideningProduct(rewriter, loc, wproduct,
                                                valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto scaleProduct =
+                       llvm::dyn_cast<tcrvrvv::BlockFp16ScaleProductOp>(op)) {
+          if (mlir::failed(emitBlockFp16ScaleProduct(rewriter, loc, scaleProduct,
+                                                     valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto offsetBinaryProduct = llvm::dyn_cast<
                        tcrvrvv::PackedI4OffsetBinaryXI8ProductOp>(op)) {
           if (mlir::failed(emitPackedI4OffsetBinaryXI8Product(

@@ -9215,6 +9215,55 @@ def DequantizeOp : TCRVRVV_Op<"dequantize",
   let hasVerifier = 1;
 }
 
+def BlockFp16ScaleProductOp : TCRVRVV_Op<"block_fp16_scale_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block dual-fp16 scale reconstruction op";
+  let description = [{
+    Records one bounded generic plugin-local RVV per-block dual-fp16 SCALE
+    reconstruction step as ONE typed dataflow op: read the two per-block fp16
+    scale headers (d_x from the lhs block base, d_y from the rhs block base),
+    convert each fp16 -> f32, and multiply into ONE f32 scalar
+    `f32(d_x) * f32(d_y)` (ggml's q8_0 scale order -- the two scales are
+    multiplied FIRST, the sumi fold `(float)sumi * (d_x * d_y)` consumes this
+    product downstream). The op consumes two explicitly imported runtime ABI
+    block-base pointers and produces ONE f32 scalar result; it does NOT touch
+    the integer quant payload, the block loop, or the fp32 accumulate (those
+    are separate typed steps).
+
+    This is the FIRST scalar-domain typed construction primitive: before it the
+    per-block fp16->f32 scale read existed only as an inline opaque
+    emitc.call_opaque in the monolithic block-dot lowering (the "one sanctioned
+    opaque piece"). Making the dual-fp16 scale product a first-class typed body
+    op (I5) means emission is determined by op identity + the explicit
+    dual-fp16 scale_model, never inferred from candidate-mirror metadata, route
+    ids, ABI strings, artifact names, status fields, exact intrinsic spellings,
+    or q8/q4 names.
+
+    The f32 range fully covers the fp16 domain, so the reconstruction is
+    byte-exact by construction. The optional `lhs_scale_byte_offset` /
+    `rhs_scale_byte_offset` facts locate the fp16 header within each block base
+    (default 0 -- the scale is the first 2 AoS bytes, QK=32 payload at +2); the
+    quant payload byte offset is NOT this op's concern. For the bounded surface
+    kind is limited to "dual_fp16_per_block_scale_product" and scale_model to
+    "dual-fp16-per-block-d_x.d_y".
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs_scale_base,
+    AnyType:$rhs_scale_base,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    OptionalAttr<I64Attr>:$lhs_scale_byte_offset,
+    OptionalAttr<I64Attr>:$rhs_scale_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs_scale_base `,` $rhs_scale_base attr-dict `:` type($lhs_scale_base) `,` type($rhs_scale_base) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";

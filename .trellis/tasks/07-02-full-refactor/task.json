@@ -25,7 +25,8 @@
     "07-03-e7-d1-self-sufficient",
     "07-03-e6-coverage-ledger",
     "07-03-e5-provenance-sixstate",
-    "07-03-g1-q8-0-strong-construct"
+    "07-03-g1-q8-0-strong-construct",
+    "07-03-e3-slice-ci-redteam"
   ],
   "parent": null,
   "relatedFiles": [],

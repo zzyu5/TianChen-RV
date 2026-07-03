@@ -6265,6 +6265,62 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     return mlir::success();
   }
 
+// The typed per-block dual-fp16 SCALE reconstruction primitive. This lowers the
+// SAME two scalar fp16->fp32 reads + scalar float multiply the monolithic
+// block-dot emitters produce inline for `d_x * d_y`, but as a first-class typed
+// body op (I5) rather than an opaque inline lambda. The emitted C is byte-EQUAL
+// to the monolith's inline `d_x * d_y` because kFp16ScaleReadCallee currently
+// holds the same spelling as the monolith's independent local fp16ReadCallee
+// literals (:187, :479, :5428, :6022) and the float emitc.mul spelling matches
+// -- a byte-equal-literal coincidence, NOT a mechanized single-source share
+// (those monolith literals do not reference this constant). The consolidation
+// that actually mechanizes drift-protection is deferred to brick(5) (the q8_0
+// wire-in), where the monolith inline reads are replaced by this typed op. The
+// op is scalar (no vl); bodyVL is unused.
+mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::BlockFp16ScaleProductOp scaleProduct,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value /*bodyVL*/) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type sizeType = getSizeType(rewriter);
+
+  mlir::Value lhsBase = valueMap.lookup(scaleProduct.getLhsScaleBase());
+  mlir::Value rhsBase = valueMap.lookup(scaleProduct.getRhsScaleBase());
+  if (!lhsBase || !rhsBase)
+    return rewriter.notifyMatchFailure(scaleProduct,
+                                       "block_fp16_scale_product operand "
+                                       "unmapped");
+
+  llvm::StringRef opName = scaleProduct.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = scaleProduct.getTCRVEmitCLowerableSourceRole();
+
+  // Per-block fp16 read at `base (+ byte_offset)`. Default offset 0 reads the
+  // AoS fp16 header at the block base (matching the monolithic q8_0 read).
+  auto fp16Read = [&](mlir::Value base,
+                      std::optional<int64_t> byteOffset) -> mlir::Value {
+    mlir::Value readBase = base;
+    if (byteOffset && *byteOffset != 0) {
+      mlir::Value offset =
+          rewriter.create<emitc::LiteralOp>(loc, sizeType,
+                                            std::to_string(*byteOffset));
+      readBase = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
+                                               offset);
+    }
+    return emitOpaqueCall(rewriter, loc, floatType, kFp16ScaleReadCallee,
+                          mlir::ValueRange{readBase}, opName, role);
+  };
+
+  mlir::Value dX = fp16Read(lhsBase, scaleProduct.getLhsScaleByteOffset());
+  mlir::Value dY = fp16Read(rhsBase, scaleProduct.getRhsScaleByteOffset());
+  // float scale = d_x * d_y;  (ggml's q8_0 scale order: scales multiplied FIRST)
+  mlir::Value scale =
+      rewriter.create<emitc::MulOp>(loc, floatType, dX, dY).getResult();
+  valueMap[scaleProduct.getResult()] = scale;
+  return mlir::success();
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

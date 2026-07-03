@@ -40,6 +40,20 @@ namespace detail {
 namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
 namespace emitc = ::mlir::emitc;
 
+/// The scalar fp16->fp32 read callee spelling used by the typed
+/// tcrv_rvv.block_fp16_scale_product lowering. It currently holds the SAME
+/// string as the monolithic block-dot emitters' independent local
+/// `fp16ReadCallee` literals (RVVToEmitCBlockQuantLinear.cpp:187, :479, :5428,
+/// :6022), so the emitted C is byte-EQUAL to the monolith's inline fp16 read.
+/// That equality is a byte-equal-literal coincidence, NOT a mechanized
+/// single-source share: those monolith literals do NOT reference this constant
+/// (only the brick lowering does). Consolidating them onto this constant --
+/// which is what would actually mechanize drift-protection -- is deferred to
+/// brick(5) (the q8_0 wire-in), where the monolith inline reads are replaced by
+/// the typed op.
+inline constexpr llvm::StringRef kFp16ScaleReadCallee =
+    "(float)*(const _Float16 *)";
+
 struct AbiParam {
   tcrvrvv::RuntimeABIValueOp op;
   std::string cType;
@@ -887,6 +901,25 @@ private:
                       mlir::Location loc, tcrvrvv::WideningProductOp product,
                       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
                       mlir::Value bodyVL) const;
+
+  /// block_fp16_scale_product(%lhs_base, %rhs_base) lowers the per-block
+  /// dual-fp16 SCALE reconstruction to two scalar fp16->fp32 reads (the ONE
+  /// sanctioned opaque piece, kFp16ScaleReadCallee) and a scalar float
+  /// multiply, byte-identical to the `d_x * d_y` the monolithic block-dot
+  /// emitters produce inline:
+  ///   float d_x = (float)*(const _Float16 *)(lhs_base);  // emitc.call_opaque
+  ///   float d_y = (float)*(const _Float16 *)(rhs_base);  // emitc.call_opaque
+  ///   float scale = d_x * d_y;                           // emitc.mul (float)
+  /// The optional lhs/rhs scale byte offsets add an emitc.add pointer bump
+  /// before the read when non-zero (default 0 -- the fp16 header is the first
+  /// AoS byte, matching the monolithic q8_0 read at the block base). The op is
+  /// scalar (no vl); the bodyVL argument is unused, taken only to keep the
+  /// generic body-walk emitter signature uniform.
+  mlir::LogicalResult emitBlockFp16ScaleProduct(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::BlockFp16ScaleProductOp scaleProduct,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
 
   /// packed_i4_nibble_unpack_product(%lhs,%rhs,%vl) lowers to the FIXED signed
   /// i4-nibble sign-extend + widening-product intrinsic chain (each i8 packs two
