@@ -1505,3 +1505,36 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: E4 归因JSONL 落地(reason=static_order 用户裁决)+ 并行 coordinator 协调
+
+**Date**: 2026-07-03
+**Task**: E4 归因JSONL 落地(reason=static_order 用户裁决)+ 并行 coordinator 协调
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+承接同 session:E4(5824e30c)=编译期归因 JSONL+D-2a stamp。用户裁决 reason 编码用选项2 独立过渡值 static_order(不复用 prior):能力键控与否做在 reason 主键、不做守卫脚注;prior 严格保留能力派生先验(SEL-1/G3 后)、measured 留 SEL-3,① 层今天只发 only_feasible/static_order;static_order 出现数 SEL-1 后应归零=燃减/覆盖诊断信号;常量分 score 恒发使决策可完整重建。守卫字段删(grep=0)。canon 四文档(科研/执行/实验总纲+spec generation-selection-tuning)reason 枚举扩四值 + 取代旧 v1.1 [J-6]。工件:VariantSelection.cpp option-gated JSONL sink+DeclaredInstanceHash.{h,cpp}(sorted-by-id→SHA256,profile≡显式列表同哈希)+DispatchRuntimeGuard D-2a stamp+2 确定性 lit。forced/clean rebuild 782/785(3 pre-existing 正交),目标 12/12。research→implement→check+用户裁决修订三 agent,6 验收 PASS。⚠并行 coordinator agent 同 branch 做只读 spec 审计(ce9c1c7c/6a4a2f4f,SPEC-AUDIT-FIXES-NOTE.md):给我 F-1 manifest 判读规程(E3 半就位)+X1 popcount 护栏+SEL-2 forced-stub 解锁;已核无 lost-update。本 session 累计 module:E0+E2a+E1+E4 done。下轮=E7 D-1 未知即拒自足(CheckCapabilityRequires.cpp:150 continue→拒,统一三处 unknown 语义,重构现有 M1 硬门)。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `760c3297` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

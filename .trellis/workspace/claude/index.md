@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 29
-- **Last Active**: 2026-07-02
+- **Total Sessions**: 30
+- **Last Active**: 2026-07-03
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1507 | Active |
+| `journal-1.md` | ~1540 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 30 | 2026-07-03 | E4 归因JSONL 落地(reason=static_order 用户裁决)+ 并行 coordinator 协调 | `760c3297` | `refactor/full-refactor-m1` |
 | 29 | 2026-07-02 | E1 schema.def v1 + F-2′ 门落地 + spec kind/subclass 对齐 | `700a41aa` | `refactor/full-refactor-m1` |
 | 28 | 2026-07-02 | full-refactor program 放行 + E0/E2a 落地 | `598d1931` | `refactor/full-refactor-m1` |
 | 27 | 2026-06-24 | q4_K GEMM (prefill) built + oracle-VERIFIED + trellis-checked (complete repack pair); amortization REFUTED → the shape-mismatch 2×2 N3 finding + spec discipline | `a6fbc7cf`, `02c41f4d`, `1262b3b2`, `4202ad86`, `5a8f509b` | `main` |
