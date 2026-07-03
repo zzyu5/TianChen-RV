@@ -15,7 +15,7 @@
   "branch": "refactor/full-refactor-m1",
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
-  "commit": null,
+  "commit": "63d7a0e4",
   "pr_url": null,
   "subtasks": [],
   "children": [],
