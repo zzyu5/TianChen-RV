@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
+- **Total Sessions**: 31
 - **Last Active**: 2026-07-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1540 | Active |
+| `journal-1.md` | ~1573 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-07-03 | E7 门自足硬化(诚实定性:防御性非活bug)+ advisor 纠偏 leverage 转向 E6 | `6d2fe7b4` | `refactor/full-refactor-m1` |
 | 30 | 2026-07-03 | E4 归因JSONL 落地(reason=static_order 用户裁决)+ 并行 coordinator 协调 | `760c3297` | `refactor/full-refactor-m1` |
 | 29 | 2026-07-02 | E1 schema.def v1 + F-2′ 门落地 + spec kind/subclass 对齐 | `700a41aa` | `refactor/full-refactor-m1` |
 | 28 | 2026-07-02 | full-refactor program 放行 + E0/E2a 落地 | `598d1931` | `refactor/full-refactor-m1` |

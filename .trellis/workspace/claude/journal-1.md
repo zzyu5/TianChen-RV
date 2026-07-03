@@ -1538,3 +1538,36 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: E7 门自足硬化(诚实定性:防御性非活bug)+ advisor 纠偏 leverage 转向 E6
+
+**Date**: 2026-07-03
+**Task**: E7 门自足硬化(诚实定性:防御性非活bug)+ advisor 纠偏 leverage 转向 E6
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+承接同 session:E7(63d7a0e4)=CheckCapabilityRequires 门自足 fail-closed。核心:kernel-set 未知 requires 从 silent-continue→Kind::Unknown hard reject(NOT dispatch-guardable;Unavailable/Conflict 豁免字节保留)。⚠诚实定性:implement 发现 PRD 前提错——VariantOp::verify(ExecOps.cpp:841,adb57f8a)已在 parse 期拒 kernel-unknown requires,:150 正常不可达;故 E7=防御性自足硬化(门独立于 verifier 兜底)非活 bug 修复。已修 PRD 前提 + commit 诚实措辞。隔离 lit(disable-verifier)证门自足含 guarded-case-with-unknown 仍拒。783/786(3 pre-existing 正交),零现有期望改。implement+check 双 agent 6 验收 PASS。advisor 纠偏两点已应用:(1)E4 C_attr^CT 台账去 over-claim(是'跑起来即100%'机制非已关闭门,门要 E3+E6);(2)并行写入者是 git author zzyu5(可能用户并行 session,非确认 coordinator agent),纪律=不 commit 对方 in-flight 编辑+动 spec 前 re-read。advisor 指 E5/E6 才是 unblock 新能力的 leverage(引擎线 G1 尺子),下轮转 E6 覆盖率+ledger 脚本(分母定稿+四指标+ledger,净新 Python;六态自动读出 gated on E5)。本 session 累计 module:E0+E2a+E1+E4+E7 done。存2 memory:attribution-reason-static-order + full-refactor-program-active。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6d2fe7b4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
