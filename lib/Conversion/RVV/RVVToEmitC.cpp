@@ -5500,11 +5500,87 @@ namespace transforms {
 
 namespace {
 
+// M-FLAT loop-scaffold step 4/6: the loop-aware allowlist RECURSIVE validator --
+// the strong-form gate ([L-8], core-invariants I5/I7). It RECURSIVELY walks the
+// tcrv_rvv.typed_flat_block_dot_loop_body region tree and asserts every op is a
+// member of the forward-compatible typed-primitive allowlist (the bricks + the
+// vector-core primitives + the scalar-extract bridge + the loop op/yield + the
+// setvl/with_vl/load/store structural ops). It FAIL-CLOSES on any op outside the
+// allowlist -- in particular an opaque emitc.call_opaque helper or a hand-written
+// *_block_dot monolith leaking into the region at ANY nesting depth. This is the
+// machine-checkable provenance basis a future q8_0 constructed(strong) flip
+// depends on: it certifies the loop body is built entirely from pattern-library
+// primitives with no sanctioned-opaque piece.
+//
+// It is deliberately the DUAL of the single-block rejectMixedPreRealizedContraction
+// body BLOCKLIST (RVVEmitCContractionRouteFamilyInternal.h): that template rejects
+// a variant that MIXES already-realized ops with the flat pre-realized op and does
+// NOT recurse into any region; feeding the bricks into that blocklist would wrongly
+// reject the brick BODY (the anti-write trap). This new allowlist walk is additive
+// and never touches rejectMixed, so the 3 single-block strong paths are structurally
+// unchanged.
+llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
+    tcrv::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+  mlir::WalkResult walk =
+      loopBody.getBody().walk([](mlir::Operation *op) -> mlir::WalkResult {
+        if (llvm::isa<
+                // brick 1 (per-block fp16 scale product / per-block-source)
+                tcrv::rvv::BlockFp16ScaleProductOp,
+                // vector integer core primitives
+                tcrv::rvv::WideningProductOp, tcrv::rvv::StandaloneReduceOp,
+                // step 2 scalar-lane extract bridge (integer core -> scalar fold)
+                tcrv::rvv::TypedVectorLane0ToScalarExtractOp,
+                // brick 2 (per-block computed-scale dequant term)
+                tcrv::rvv::BlockComputedScaleDequantOp,
+                // brick 3 (cross-block f32 loop-carried accumulate)
+                tcrv::rvv::CrossBlockF32AccumulateOp,
+                // structural VL / memory ops
+                tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
+                tcrv::rvv::StoreOp,
+                // the loop op itself + its terminator (forward-compatible)
+                tcrv::rvv::TypedFlatBlockDotLoopBodyOp,
+                tcrv::rvv::TypedFlatBlockDotLoopYieldOp>(op))
+          return mlir::WalkResult::advance();
+        op->emitOpError()
+            << "is not in the M-FLAT typed flat block-dot loop-body allowlist; "
+               "the loop-aware allowlist validator (step 4/6, the strong-form "
+               "[L-8] gate) recursively certifies every op in the loop region is "
+               "a typed pattern-library primitive and fail-closes on any "
+               "non-allowlist op (an opaque emitc.call_opaque or a hand-written "
+               "*_block_dot helper must never leak into the constructed-strong "
+               "body)";
+        return mlir::WalkResult::interrupt();
+      });
+  return walk.wasInterrupted() ? mlir::failure() : mlir::success();
+}
+
 class RVVLowerToEmitCPass final
     : public impl::RVVLowerToEmitCBase<RVVLowerToEmitCPass> {
 public:
   void runOnOperation() override {
     mlir::ModuleOp module = getOperation();
+
+    // M-FLAT step 4/6: run the loop-aware allowlist recursive validator on every
+    // typed flat block-dot loop body BEFORE the conversion driver. This is the
+    // real, always-firing call site for the strong-form gate: the loop op flows
+    // through THIS lowering pass (it never reaches the pre-realized realization
+    // owner -- it is not a pre-realized cluster op and already lives inside a
+    // with_vl), so the honest post-realization validation seam is here at the
+    // pass boundary (the blueprint's "new walk / new post-realization check", not
+    // an extension of an existing realization-owner call site). Running it before
+    // the applyPartialConversion driver keeps the fail-closed diagnostic outside
+    // the conversion's rolled-back attempt, so it reaches stderr reliably. The
+    // walk only fires on the loop op_kind, so the single-block strong paths are
+    // untouched (zero structural regression).
+    bool allowlistRejected = false;
+    module.walk([&](tcrv::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+      if (mlir::failed(validateTypedFlatBlockDotLoopBodyAllowlist(loopBody)))
+        allowlistRejected = true;
+    });
+    if (allowlistRejected) {
+      signalPassFailure();
+      return;
+    }
 
     // Run the single shared conversion driver (the same one the live
     // artifact-export materialization seam calls). It runs the

@@ -27,7 +27,8 @@
     "07-03-m-flat-loop-scaffold-design",
     "07-03-m-flat-s1-loop-op-acc",
     "07-03-m-flat-s2-extract-bridge",
-    "07-03-m-flat-s3-per-block-source"
+    "07-03-m-flat-s3-per-block-source",
+    "07-03-m-flat-s4-loop-validator"
   ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],
