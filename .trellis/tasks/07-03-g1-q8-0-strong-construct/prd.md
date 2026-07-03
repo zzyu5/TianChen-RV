@@ -1,52 +1,63 @@
-# G1 切片 1 — vec_dot/q8_0 平面弱体 → typed-primitive 强构造(燃减 #1)
+# M-FLAT 里程碑 — 平面 block-dot 强构造家族(引擎轴,多会话)
 
 **parent:** 07-02-full-refactor · **优先级:** P1 · **branch base:** refactor/full-refactor-m1
+**前身:** 本任务原名"G1 切片1 q8_0";ultracode 设计面板(3+1 agent,file:line 核验,run wf_355dffa7-c51)证伪了"便宜切片"前提 → 用户 2026-07-03 批准转为**家族门控里程碑**。裁决全文:`research/design-verdict-escalate.md`。
 
-## 这是什么(一句话)
+## 一句话
 
-把 `vec_dot/q8_0` 从 **constructed-weak**(描述符选中的手写 helper)翻成 **constructed-strong**(typed-primitive 构造),让全局燃减指标 `C_construct 强义 = 0/24 → 1/24`。**这是结构性刹车后的第一块引擎轴真工作**——不是再写一份治理文档。审美签名 = **删掉一段手写 body**。
+把**整个平面 block-dot vec_dot 家族**(q8_0 + q4_0 + q4_1 + q5_0 + q5_1 + iq4_nl + mxfp4)从 constructed-weak(单块共享 opaque `emitFlatBlockDot`)翻成 constructed-strong,需要先建**四个净新增 typed 构造原语**,再一块**闭合砖**原子地翻转家族。这不是切片,是里程碑;**燃减曲线呈台阶不呈斜坡**——先修地基、后全家收割。
 
-## 为什么是它(领跑而非 G4/E5)
+## 为什么是里程碑不是切片(四面墙,代码核验)
 
-- **赢的条件是 laptop 上可判的 emit-golden 一致性,不需硬件**(判别式:G4 的价值全在 perf 闭环=硬件,本轮做只得 built-but-unclosed;此砖结构燃减本身有独立 laptop 价值)。
-- **最低发射工作量的燃减:** q8_0 = 平面 i8,最贴既有 typed 原语(`widening_product`→`standalone_reduce`→`dequantize`);q4_0 只是在其上多一层 nibble-unpack。且强构造机器**已存在**:`RVVReductionSourceFrontDoor.cpp` 头注明写"exactly the q8_0 brick #1 shape"、auto-construct `load/widening_product/standalone_reduce/store`。这是**复用**,不是新造 → 顺带产出"同一机制第二个复用者"成熟化征兆。
-- E5(provenance 自动读出)**跟随本砖**,由本砖的真实构造器形状反向塑形 provenance 格式;不在本任务范围,但本砖的六态翻转是 E5 的第一个真实输入。
+强构造框架今天是**单块、无循环**;q8_0 vec_dot 是 per-block-fp16-scale 的 nb 块 KERNEL。桥接需四个各自独立、各拖一条完整纵向的净新增面:
 
-## 起跑状态(HEAD 20c1d714,已核)
+| 墙 | 现状(opaque) | 为什么净新增 | 锚 |
+|---|---|---|---|
+| ① per-block fp16→f32 scale 重建 | `emitc.call_opaque`("the one sanctioned opaque piece") | LoadOp 仅向量;无标量-fp16-load/convert/mul typed op。**单独就卡住哪怕单块** | RVVOps.td:5275-5276 |
+| ② 接受"计算 scale"的 dequant | DequantizeOp `$scale` 硬要求**导入** RuntimeABIValueOp(float) | per-block 计算出的 d_x·d_y SSA 值**非法** → 改契约或新 op | RVVDialectWideningOps.cpp:9531-9544 |
+| ③ f32 跨块标量累加 | `emitc.add` | WideningAccumulate/DeferredAccumulate 是 **i32 整数** intra-strip(dtype 错、scope 错) | RVVOps.td:3669/3717 |
+| ④ 块循环 body op + loop-aware validator | `emitc.for`(弱侧) | ODS 无 typed ForOp;rejectMixed 只走 `variant.getBody().front()`、**不递归 region** → 对循环 body 欠定 | RVVOps.td:5273 / Internal.h:527-541 |
 
-- `schema/coverage-sixstate.v1.json`:`{"op":"vec_dot","format":"q8_0","state":"constructed-weak","anchor":"RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"}` —— 弱体确证,燃减目标成立。
-- 弱体入口:`deriveFlatBlockDotDescriptor`(`RVVToEmitCBlockQuantLinear.cpp:5280`)对 `kind=="ggml_q8_0_q8_0_block_dot"` 设 `FlatDecodePrimitive::PlainI8` + `FlatFoldModel::SumiTimesScales` + `m2` + 整 32-元素块 → `emitFlatBlockDot`(`:5334`)发 `emitc.call_opaque("__riscv_*")`,**零 typed `tcrv_rvv` 原语**。
-- 强构造既存件(复用锚,来自 E5 emission-paths-map 研究):`RVVReductionSourceFrontDoor.cpp`(K=32 signed i8 dot-reduce 前门,stamp `rvv_construction_protocol`)· `RVVConstructionProtocol.cpp` `kRetainedSelectedBodySpecializations[]`(`:538-564`,`semanticRoleGraph` = 有序 primitive-ID 链)· `RVVContractionRouteIdentity.cpp` 静态路由注册表 · `RVVOps.td` typed ODS ops(`standalone_reduce :3394`/`widening_product :3632`/`dequantize :9185`)· `rejectMixedPreRealizedContractionBody<allowlist>`(强体"无不透明 helper"门)。
+**杀死"便宜"幻觉的两个结构事实:**(a) q8_0 vec_dot 写**一个标量输出**(ABI=vx/vy/s/n),nb 循环**内在**、不能像 GEMV 的 N 循环外提给 caller → 循环必须在 pre-realized body 内;(b) **q4_0 回退同墙**(GgmlBlockDotQ40Q80Op RVVOps.td:3982-4005 结构相同 + nibble)→ gap 是**家族结构缺口**,非 q8_0 独有。
 
-## 赢的条件(验收门,全部 laptop,本轮)
+## 度量(用户裁决,吸收进 canon,不发明新指标)
 
-1. **[DISPATCH] `vec_dot/q8_0`(`ggml_q8_0_q8_0_block_dot`)派发到 typed-primitive 强构造**(经 `RVVReductionSourceFrontDoor` / 等价 typed 路),body 由 `widening_product`→`standalone_reduce`→`dequantize`(+ load/store)构成,**pin 在与平面弱体相同的 m2 锚**(令 emit delta 最小可解释;VLEN256 能力翻转是后续,不是本砖)。
-2. **[STRONG-GATE] `rejectMixedPreRealizedContractionBody` 通过** —— body 只含 allowlist typed 原语、零不透明 helper。这是六态判"强"的机器门。
-3. **[GOLDEN] 强 emit 锁进 lit** —— 新/改的 golden 用本仓传统 emit-consistency 口径("byte-identical to CORE == emission-plans emit",见 `q8-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir` 头注)。**证明"我们发什么",不冒充"算得对"**(见下红线)。
-4. **[DELETE] 删掉 q8_0 的 `PlainI8`/`SumiTimesScales` 手写平面 decode 片段**(或使其对 q8_0 不可达并注明)—— 手写 body LOC 应为负。若该 helper 被其他格式共享(q4_0/q5_0 也走 emitFlatBlockDot),只删/绕 q8_0 分支,记 `Δ手写 LOC` 实际净值。
-5. **[METRIC] `coverage_metrics.py` 重跑显示 `vec_dot C_construct 强义 = 1/24`**(+ 更新 `coverage-sixstate.v1.json` 该行 `state: constructed`、`coverage-roster.v1.json` 若有派生字段);--self-test 仍全绿、确定性哈希稳定。
+**砖①–④ = [PAT-1] 模式注册表原语条目**(canon:科研总纲v2:118 `{pattern_id, requires, transform, mechanism, metrics_hook, status∈{mechanized,partial,planned}}`)。落地一砖 = 其行 `status: planned→mechanized` + 挂 lit 工件。
 
-## 红线(不可越——正是用户警告的空心指标风险)
+- **引擎栏从此报:`M-FLAT 里程碑:n/5 砖(注册表原语 mechanized)`。**
+- **headline `C_construct 强义` 严格保持 0/24,直到砖⑤闭合 ∧ 弱 body 删除**,然后整个平面家族(≈5–6 格式)**一次性翻强**。台阶不斜坡,**绝不按比例折算**。
+- 子砖 1-4 不是 built-but-unclosed 违规:它们是**朝着已承诺闭合砖的必要构造**,只要不提前 claim C_construct credit / 不提前翻六态行。混合 body(typed 核 + opaque 循环/fp16 读)**仍是弱**,不得当强。
+- [PAT-1] 统一注册表(`schema/pattern-registry.v1.json`)本里程碑内创建(canon 早已指定其 schema、现无文件),随砖① code 一起落,**不单开 meta 轮**(那是 度量度量 玩具化征兆)。
 
-**emit-golden 只证"这是我们发的 emit",不证"这算得出正确的 q8_0"。** 严禁在悄悄假设"强 golden == 旧弱数值"的前提下祝福新 golden。
+## 五砖分解(每条自成纵向;顺序依赖驱动)
 
-- 判别检查(implement 必答):`widening_product` / `standalone_reduce` / `dequantize` 各自**有真实数值正确性校验,还是只有 emit-consistency 测试?**
-  - 各自独立数值校验过 → q8_0 强构造 correct-by-construction(模式库论点成立),燃减独立站得住。
-  - 一路都只是 emit-consistency → 强构造在数值上未封,结构翻转仍真实,但 **bit-exact-vs-ggml 封印是硬件步(`ssh rvv`),本任务标 `pending-hardware`,绝不本轮宣称数值已验。**
-- 无论哪种:**本轮只在"结构"上推动 C_construct;不宣称数值验证,直到硬件复核跑过。** journal + 台账都要显式记这条 pending。
+1. **fp16→f32 per-block scale 重建原语**(本轮建 = 引擎位主活)。读 d_x/d_y、fp16→f32 convert、乘 d_x·d_y → 一个 f32 SSA。纵向:ODS op + C++ verifier + emitc lowering + emit-consistency lit。**字节精确可达(f32 ⊇ fp16)。** 最干净的孤立腿。
+2. **接受"每迭代计算 f32 scale"的 dequant**(改 DequantizeOp `$scale` 契约或兄弟 op)——因砖①输出非导入 ABI 值。
+3. **f32 跨块标量累加 op**(块携带、严格升序 fold)。
+4. **块循环 pre-realized body ODS op**(nb + per-block scale 源 + loop-carried f32 累加器 + 单标量 store)+ realizer + route-registry entry(RVVContractionRouteIdentity.cpp)+ semanticRoleGraph entry(RVVConstructionProtocol.cpp)+ **loop-aware 强 validator**(递归进循环 region allowlist)。
+5. **闭合砖(唯一产 C_construct credit):** q8_0 dispatch 接新块循环 route;新强 emit-consistency golden(CORE==emission-plans,typed body);**删**弱 PlainI8 q8_0 分支(RVVToEmitCBlockQuantLinear.cpp:5279-5283)、退役/迁移 flat golden;coverage_metrics.py 重跑翻六态。**家族其余格式随之接线翻转(台阶)。**
 
-## 硬门:范围失控即停
+## DequantDot 单块档 = 集成插座(非替代品,用户裁决)
 
-**若把 q8_0 接到强路需要"净新增 primitive"**(而非仅:一条注册表 entry + 一个复用 `widening_product/standalone_reduce/dequantize` 的 plain-i8 decode head)→ **STOP 并报告**,回退到 q4_0 作为切片 1。这不阻断 pivot,是收窄它。同理:不为本砖去先建 E8/硬件 harness(那是证据轴、是 G4 的前置,不是这里)。
+已脚手架的单块 DequantDot 档今天吃**导入** f32 scale;**砖①②落地后,它的第一个消费者 = 把 scale 从 imported 换成 computed**(端到端验证砖①②)。有并行产能就做,如实标注它动 product_reduce 键、不碰 vec_dot headline;没产能就排砖②之后当桥。
 
-## 交付物
+## 红线(裁决固化,implement 必守)
 
-- C++ 改动:q8_0 dispatch → typed 强构造 + 删弱 decode 分支(发射侧,`lib/Plugin/RVV/` + `lib/Conversion/RVV/`)。
-- lit:强 emit golden(emit-consistency 口径)+ 若删弱路则退役其平面 golden(注明迁移)。
-- schema:`coverage-sixstate.v1.json` q8_0 行翻 `constructed`;`coverage_metrics.py` 重跑证 1/24。
-- build:`cmake --build build` 干净;`check-tianchenrv` 相关 lit 全绿。ODS 改动按 [[build-incremental-unreliable]] 用 forced/clean rebuild 验。
-- 报告:判别检查结论(原语是否独立数值校验)+ `Δ手写 LOC` 实测净值 + 数值封印 pending-hardware 状态。
+- **不许提前翻 q8_0 六态行 / claim C_construct credit**,直到整个 body 过强门 ∧ 弱 q8_0 分支删除。半落地 = 禁止。
+- **不许把 "rejectMixed 通过" 单独当强测试**(它对循环 body 欠定、静默不查嵌套 region)→ 砖④必配 loop-aware validator。
+- **不许把计算 scale 塞进现 DequantizeOp `$scale`**(verifier 硬拒)→ 须 surface 为砖②净新增,不走私。
+- **数值 bit-exact-vs-ggml 本轮/闭合都不在 laptop 宣称**(三强原语只有 emit-consistency 测试)→ pending-hardware(`ssh rvv`)。emit-golden 只证"发什么"。
+- **pin m2 锚**;VLEN256 翻转是 follow-on。
+
+## 论文素材(用户战略注记,写进 dossier)
+
+- **闭合收益 = 家族级台阶**(q8_0+q4_0+全平面同时翻强);K-quant/码本下一里程碑**复用砖①–④再加超块层** = "**构造内部的边际成本递减**",与 **C2** 同一故事。
+- **四面墙进边界地图/机制章**:为什么强构造难、难在哪四个结构点、怎么逐一拆 = 设计空间知识,GAP-1 式正面素材。
+
+## 本轮范围(仅砖①,其余排后续会话)
+
+见子任务 `07-03-m-flat-brick1-fp16-scale`。本任务是里程碑 tracker;每砖落地更新 `n/5` + [PAT-1] 行 status。
 
 ## 权威 spec
 
-`.trellis/spec/architecture/core-invariants.md`(I1–I9)· 实验总纲 §1.6(强/弱构造纪律 [L-8])· 执行总纲 [K-4] 六态阶梯 / [COV-2] 四指标。E5 研究 `../07-03-e5-provenance-sixstate/research/emission-paths-map.md` = 强/弱路权威地图(本 PRD 锚点来源)。
+core-invariants(I1–I9)· 实验总纲 §1.6([L-8] 强/弱构造)· 执行总纲 [K-2]/[K-4]/[PAT-1]/[COV-2] · 科研总纲 [PAT-1] schema(:118)。裁决:`research/design-verdict-escalate.md`。

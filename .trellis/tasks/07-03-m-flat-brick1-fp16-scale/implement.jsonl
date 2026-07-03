@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/07-03-g1-q8-0-strong-construct/research/design-verdict-escalate.md", "reason": "里程碑裁决:四面墙+五砖分解+红线;砖①是第①面墙(fp16-scale opaque)的净新增原语"}
+{"file": ".trellis/tasks/07-03-g1-q8-0-strong-construct/prd.md", "reason": "M-FLAT 里程碑 PRD:度量=[PAT-1] n/5、C_construct 台阶不斜坡、DequantDot 插座"}
+{"file": "docs/TianChen-RV_科研目标总纲v2.md", "reason": "[PAT-1] 注册表 schema 权威定义(:118)={pattern_id,requires,transform,mechanism,metrics_hook,status}"}
+{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "I1–I9 硬规则(能力事实 dispatch、构造纪律上位约束)"}
+{"file": "schema/capability.schema.v1.json", "reason": "能力谓词命名(brick① [PAT-1] 行的 requires 字段引用:fp16/Zvfh 能力谓词)"}
