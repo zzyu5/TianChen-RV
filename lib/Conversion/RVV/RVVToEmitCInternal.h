@@ -308,6 +308,13 @@ private:
   /// single tcrv_rvv.q8_0_q8_0_block_dot.
   static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
 
+  /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
+  /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
+  /// block loop with a SSA loop-carried f32 accumulator). Routed through the
+  /// block-dot table (NOT the elementwise path) so no outer AVL loop wraps it;
+  /// the op owns its own internal block loop, exactly like emitFlatBlockDot.
+  static bool isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope);
+
   /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
@@ -1534,6 +1541,20 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap, llvm::StringRef opName,
       llvm::StringRef role, const BlockDotFacts &facts,
       const FlatBlockDotDescriptor &descriptor) const;
+
+  /// The M-FLAT loop-scaffold emitter (step 1/6): lower the region-carrying
+  /// tcrv_rvv.typed_flat_block_dot_loop_body to the byte-exact skeleton
+  /// emitFlatBlockDot emits for its mbf==1 form -- the sumf emitc.variable
+  /// seeded `0.0f`, nb = n / QK, the outer emitc.for over nb, the SSA
+  /// loop-carried acc mapped to a load-at-top / assign-at-bottom of the sumf
+  /// lvalue (emitc.for has no iter_args), and the `*s = sumf` scalar store. The
+  /// minimal region body (a single tcrv_rvv.cross_block_f32_accumulate over a
+  /// stub term) is dispatched through the existing brick emitters; the full
+  /// per-block primitive chain + full-body byte-exactness are later steps.
+  mlir::LogicalResult emitTypedFlatBlockDotLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// The structured E8M0 -> fp32 HALF weight scale (the mxfp4 FP4-class scale
   /// source, FlatWeightScaleSource::E8M0): GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128),

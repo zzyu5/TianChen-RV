@@ -9365,6 +9365,98 @@ def CrossBlockF32AccumulateOp : TCRVRVV_Op<"cross_block_f32_accumulate",
   let hasVerifier = 1;
 }
 
+def TypedFlatBlockDotLoopBodyOp : TCRVRVV_Op<"typed_flat_block_dot_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-carried nb loop op for the flat block dot-product";
+  let description = [{
+    Records the flat block-quantized dot-product's OUTER block loop as ONE
+    typed region-carrying dataflow op: the `nb = n / QK` block loop plus the
+    SSA loop-carried f32 accumulator that folds one per-block term into a
+    running scalar sum in STRICT ASCENDING block order, then stores the final
+    sum through the output pointer. This is the FIRST typed op that puts a loop
+    INTO the CORE typed body (every existing loop lives only in the emitc
+    lowering; tcrv_rvv.with_vl is the only prior region op and it is NOT a
+    loop). It consumes the same four runtime ABI operands as the monolithic
+    block-dot ops -- the weight base pointer, the activation base pointer, the
+    output pointer, and the runtime element count -- and owns one single-block
+    region whose entry arguments are the `block_index` induction variable
+    (index) and the loop-carried `acc` (f32). The region is terminated by
+    tcrv_rvv.typed_flat_block_dot_loop_yield, which names the carried-out
+    `acc_next`.
+
+    Making the block loop + the loop-carried f32 accumulate a first-class typed
+    body op (I5) means the emission is determined by op identity + the explicit
+    scheduling facts, never inferred from candidate-mirror metadata, route ids,
+    ABI strings, artifact names, status fields, exact intrinsic spellings, or
+    q8/q4 names. The SSA loop-carried accumulator lowers byte-exactly to the
+    monolithic block-dot's mutable `float sumf` form: emitc.for has no
+    iter_args, so the carried-in `acc` block argument maps to a load of the
+    emitc.variable lvalue at the top of the loop body and the carried-out
+    `acc_next` maps to an emitc.assign back into it at the bottom, exactly as
+    the SCFToEmitC iter_args lowering and the F3/F6 loop-carried scalars do.
+    The seed is the literal `0.0f` (ggml's `float sumf = 0.0f;` is a hardcoded
+    zero, not a caller-provided value, so the accumulator is seeded by the op's
+    lowering rather than an init operand -- mirroring the block-dot ops, which
+    also carry no init operand).
+
+    The bounded scheduling facts (qk, the AoS block strides, the optional
+    integer_core_lmul / multi_block_factor / strip_elision, the fold_model) are
+    the same byte-exact shape knobs deriveBlockDotFacts reads for the monolithic
+    body (the *how* -- LMUL / unroll / elision -- never the *what*). For the
+    current bounded surface kind is limited to "typed_flat_block_dot_loop_body"
+    and fold_model to "sumi_times_scales" (the q8_0 `(float)sumi * (d_x * d_y)`
+    fold tree). The op does NOT own dtype/route authority; the per-block integer
+    core, the per-block scale reconstruction, and the per-block dequant term are
+    separate typed steps carried inside the region.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$n,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    StrAttr:$fold_model,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$multi_block_factor,
+    OptionalAttr<StrAttr>:$strip_elision
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $activation_base `,` $output `,` $n
+    attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($activation_base) `,` type($output) `,`
+    type($n)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedFlatBlockDotLoopYieldOp : TCRVRVV_Op<"typed_flat_block_dot_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedFlatBlockDotLoopBodyOp">]> {
+  let summary =
+      "terminator naming the carried-out f32 accumulator of the block loop op";
+  let description = [{
+    Terminates the tcrv_rvv.typed_flat_block_dot_loop_body region by naming the
+    carried-out f32 accumulator `acc_next`. It makes the loop-carried dataflow
+    explicit (the SSA value carried into the next block iteration), so the
+    lowering maps `acc_next` to the emitc.assign back into the sumf
+    emitc.variable lvalue with no implicit convention. The operand is required
+    to be scalar f32 (the block-carried accumulator domain). It carries no
+    compute, dtype, memory, or route semantics.
+  }];
+
+  let arguments = (ins AnyType:$acc_next);
+
+  let assemblyFormat = "$acc_next attr-dict `:` type($acc_next)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";

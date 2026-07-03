@@ -9869,3 +9869,128 @@ mlir::LogicalResult CrossBlockF32AccumulateOp::verify() {
 
   return mlir::success();
 }
+
+mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded surface (I7 fail-closed): the loop op only owns the q8_0-style
+  // SumiTimesScales fold tree for the current step; the other flat fold trees
+  // (q4_0 LeftAssoc, q5_0 ScalesTimesSumi, q4_1/q5_1 ScalePlusMin) are later.
+  if (getKind() != "typed_flat_block_dot_loop_body")
+    return emitOpError()
+           << "currently supports only kind \"typed_flat_block_dot_loop_body\" "
+              "for the bounded flat block dot-product nb loop surface";
+  if (getFoldModel() != "sumi_times_scales")
+    return emitOpError()
+           << "currently supports only fold_model \"sumi_times_scales\" (the "
+              "q8_0 `(float)sumi * (d_x * d_y)` fold tree); the other flat fold "
+              "trees are later steps";
+
+  // Externally-defined ggml block facts: QK and the AoS block strides are
+  // positive byte counts the per-block address arithmetic depends on.
+  if (getQk() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count)";
+  if (getWeightBlockStride() <= 0)
+    return emitOpError()
+           << "requires weight_block_stride > 0 (the AoS weight block stride)";
+  if (getActivationBlockStride() <= 0)
+    return emitOpError()
+           << "requires activation_block_stride > 0 (the AoS activation block "
+              "stride)";
+
+  // Bounded scheduling knobs, mirroring the monolithic block-dot surface (the
+  // *how* -- LMUL / unroll / elision -- never the *what*). Any other spelling
+  // is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "m1" && *coreLmul != "m2" && *coreLmul != "mf4")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\", \"m2\", or \"mf4\"; got "
+                "\""
+             << *coreLmul << "\"";
+  }
+  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
+  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
+    return emitOpError()
+           << "only accepts multi_block_factor 1, 2, or 4; got "
+           << multiBlockFactor;
+  if (std::optional<llvm::StringRef> stripElision = getStripElision()) {
+    if (*stripElision != "robust" && *stripElision != "elided")
+      return emitOpError()
+             << "only accepts strip_elision \"robust\" or \"elided\"; got \""
+             << *stripElision << "\"";
+  }
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one output pointer, and one runtime element-count runtime ABI "
+              "operand, and no results (the scalar store is the sink)";
+
+  // The three buffer operands + element count are runtime ABI values whose C
+  // types pin the ggml ABI byte layout the emission depends on (mirroring the
+  // monolithic block-dot ops).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS weight byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS activation byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // Region structure: exactly two entry arguments -- the block_index induction
+  // variable (index) and the loop-carried f32 accumulator -- terminated by the
+  // typed loop yield naming the carried-out f32.
+  mlir::Block &block = getBody().front();
+  if (block.getNumArguments() != 2)
+    return emitOpError()
+           << "requires the region to carry exactly two entry arguments: the "
+              "block_index induction variable and the loop-carried f32 "
+              "accumulator";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the first region argument (block_index) to be "
+              "index-typed (the nb block induction variable)";
+  if (!block.getArgument(1).getType().isF32())
+    return emitOpError()
+           << "requires the second region argument (the loop-carried "
+              "accumulator) to be scalar f32";
+
+  TypedFlatBlockDotLoopYieldOp yield =
+      block.empty()
+          ? TypedFlatBlockDotLoopYieldOp()
+          : llvm::dyn_cast<TypedFlatBlockDotLoopYieldOp>(&block.back());
+  if (!yield)
+    return emitOpError()
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_flat_block_dot_loop_yield (the carried-out f32 "
+              "accumulator)";
+  if (!yield.getAccNext().getType().isF32())
+    return emitOpError()
+           << "requires the loop yield to carry a scalar f32 accumulator";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedFlatBlockDotLoopYieldOp::verify() {
+  if (!getAccNext().getType().isF32())
+    return emitOpError()
+           << "requires the carried-out accumulator to be scalar f32 (the "
+              "block-carried cross-block accumulator domain)";
+  return mlir::success();
+}

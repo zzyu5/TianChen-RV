@@ -5948,6 +5948,141 @@ mlir::LogicalResult VariantToEmitCFunc::emitFlatBlockDot(
     return mlir::success();
   }
 
+// M-FLAT loop-scaffold step 1/6: lower the region-carrying
+// tcrv_rvv.typed_flat_block_dot_loop_body to the byte-exact SKELETON that
+// emitFlatBlockDot emits for its mbf==1 form. The isolated hard bone this step
+// proves is the SSA loop-carried f32 accumulator -> emitc mutable-variable
+// mapping: emitc.for has no iter_args, so the region's carried-IN `acc` block
+// argument maps to a LOAD of the sumf lvalue at the top of the loop body and
+// the typed loop-yield's carried-OUT `acc_next` maps to an emitc.assign back
+// into it at the bottom (the SCFToEmitC / F3-F6 loop-carried-scalar pattern).
+// The seed is the literal `0.0f` emitted directly (ggml's `float sumf = 0.0f;`
+// is a hardcoded zero, not a caller value; the op carries no init operand,
+// mirroring the monolithic block-dot ops). The minimal region body is a single
+// tcrv_rvv.cross_block_f32_accumulate (brick 3) over a stub term, dispatched
+// through the existing brick emitter; the full per-block primitive chain and
+// full-body byte-exactness are later steps. Only the mbf==1 skeleton form is
+// lowered here; any unroll form is fail-closed (I7).
+mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+
+  tcrvrvv::TypedFlatBlockDotLoopBodyOp loopBody;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(op))
+      loopBody = lb;
+  }
+  if (!loopBody)
+    return rewriter.notifyMatchFailure(
+        scope, "typed flat block-dot loop body missing the op");
+
+  // Step-1 lowers only the mbf==1 (no-unroll) skeleton; the multi-block
+  // main+tail unroll is a later step.
+  int64_t multiBlockFactor = loopBody.getMultiBlockFactor().value_or(1);
+  if (multiBlockFactor != 1)
+    return rewriter.notifyMatchFailure(
+        loopBody, "step-1 loop body lowers only the multi_block_factor==1 "
+                  "skeleton form");
+
+  mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+  mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+  mlir::Value output = valueMap.lookup(loopBody.getOutput());
+  if (!weightBase || !activationBase || !output)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "loop-body ABI operand unmapped");
+
+  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  int64_t qk = loopBody.getQk();
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // float sumf = 0.0f;  -- byte-exact to emitFlatBlockDot's sumf accumulator
+  // decl (:5410-5417). The SSA loop-carried acc lowers to this mutable
+  // emitc.variable lvalue.
+  rewriter.create<emitc::VerbatimOp>(
+      loc, localVariableComment("sumf", opName, role));
+  auto sumfVar = rewriter.create<emitc::VariableOp>(
+      loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+  rewriter.create<emitc::AssignOp>(
+      loc, sumfVar,
+      rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
+
+  // size_t nb = n / QK;  -- byte-exact to emitFlatBlockDot:5419-5422. n is the
+  // scope AVL, exactly as the monolithic body derives it.
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  // for (size_t ib = 0; ib < nb; ib += 1) { ... }  -- byte-exact to
+  // emitFlatBlockDot:5879-5883 (the no-unroll block loop).
+  auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+  {
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(blockLoop.getBody());
+
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    // Map the block_index induction variable to the emitc.for var, and the
+    // carried-IN acc (the region's second entry arg) to a LOAD of the sumf
+    // lvalue at the TOP of the loop body (byte-exact to emitFlatBlockDot:5757).
+    valueMap[coreBlock.getArgument(0)] = blockLoop.getInductionVar();
+    valueMap[coreBlock.getArgument(1)] =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+
+    // Dispatch the minimal region body: brick 3 over the stub term, then the
+    // typed loop-yield whose carried-OUT acc_next maps to an emitc.assign back
+    // into the sumf lvalue at the BOTTOM (byte-exact to emitFlatBlockDot:5829).
+    for (mlir::Operation &op : coreBlock) {
+      if (auto accumulate =
+              llvm::dyn_cast<tcrvrvv::CrossBlockF32AccumulateOp>(op)) {
+        if (mlir::failed(emitCrossBlockF32Accumulate(
+                rewriter, loc, accumulate, valueMap, /*bodyVL=*/mlir::Value())))
+          return mlir::failure();
+      } else if (auto yield =
+                     llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(op)) {
+        mlir::Value accNext = valueMap.lookup(yield.getAccNext());
+        if (!accNext)
+          return rewriter.notifyMatchFailure(yield,
+                                             "loop yield acc_next unmapped");
+        rewriter.create<emitc::VerbatimOp>(
+            loc, assignComment("sumf", opName, role));
+        rewriter.create<emitc::AssignOp>(loc, sumfVar, accNext);
+      } else {
+        return rewriter.notifyMatchFailure(
+            &op, "step-1 loop body only lowers a single "
+                 "cross_block_f32_accumulate over a stub term (the full "
+                 "per-block primitive chain is a later step)");
+      }
+    }
+  }
+
+  // *s = sumf;  -- byte-exact to emitFlatBlockDot:5931-5945 (structured scalar
+  // store through the output pointer).
+  auto outPointer = llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+  if (!outPointer)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "loop-body output not a pointer");
+  rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "store_s"));
+  mlir::Value outIndex =
+      rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+  emitc::SubscriptOp outSubscript =
+      rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
+  mlir::Value sumfFinal =
+      rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+  rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
+
+  return mlir::success();
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
