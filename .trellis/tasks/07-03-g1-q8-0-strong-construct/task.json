@@ -20,7 +20,8 @@
   "subtasks": [],
   "children": [
     "07-03-m-flat-brick1-fp16-scale",
-    "07-03-m-flat-brick2-computed-scale-dequant"
+    "07-03-m-flat-brick2-computed-scale-dequant",
+    "07-03-m-flat-brick3-f32-accumulate"
   ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],

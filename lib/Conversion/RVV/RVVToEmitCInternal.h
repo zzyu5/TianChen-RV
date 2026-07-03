@@ -939,6 +939,21 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// cross_block_f32_accumulate(%acc, %term) lowers the cross-block fp32
+  /// accumulate to the SAME scalar float emitc.add the monolithic block-dot
+  /// emitters produce inline for `sumf + <block term>`, byte-identical at the
+  /// operation-spelling level:
+  ///   float sumf = acc + term;   // emitc.add (float)
+  /// acc is the block-carried f32 accumulator, term is the f32
+  /// tcrv_rvv.block_computed_scale_dequant output (M-FLAT brick 2). The op is
+  /// scalar (no vl); the bodyVL argument is unused, taken only to keep the
+  /// generic body-walk emitter signature uniform.
+  mlir::LogicalResult emitCrossBlockF32Accumulate(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::CrossBlockF32AccumulateOp accumulate,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// packed_i4_nibble_unpack_product(%lhs,%rhs,%vl) lowers to the FIXED signed
   /// i4-nibble sign-extend + widening-product intrinsic chain (each i8 packs two
   /// signed 4-bit nibbles), byte-equivalent to the legacy packed-i4 oracle:

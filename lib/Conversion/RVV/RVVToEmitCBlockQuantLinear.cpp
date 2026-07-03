@@ -6352,6 +6352,35 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockComputedScaleDequant(
   return mlir::success();
 }
 
+mlir::LogicalResult VariantToEmitCFunc::emitCrossBlockF32Accumulate(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::CrossBlockF32AccumulateOp accumulate,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value /*bodyVL*/) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+
+  mlir::Value acc = valueMap.lookup(accumulate.getAcc());
+  mlir::Value term = valueMap.lookup(accumulate.getTerm());
+  if (!acc || !term)
+    return rewriter.notifyMatchFailure(accumulate,
+                                       "cross_block_f32_accumulate operand "
+                                       "unmapped");
+
+  // float sumf = acc + term;  -- byte-identical at the operation-spelling level
+  // to the monolithic block-dot cross-block fold: the SAME scalar float
+  // emitc.add the monolith produces for `sumf + <block term>`. The caller folds
+  // in STRICT ascending block order (block-carried), so the fp non-associativity
+  // matches ggml byte-for-byte. acc is the block-carried f32 accumulator, term
+  // is the COMPUTED tcrv_rvv.block_computed_scale_dequant output
+  // (`(float)sumi * scale`). The op stops at the fold; the block loop and the
+  // final scalar store are separate typed steps.
+  mlir::Value sumfNext =
+      rewriter.create<emitc::AddOp>(loc, floatType, acc, term).getResult();
+  valueMap[accumulate.getResult()] = sumfNext;
+  return mlir::success();
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

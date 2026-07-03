@@ -9820,3 +9820,52 @@ mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
 
   return mlir::success();
 }
+
+mlir::LogicalResult CrossBlockF32AccumulateOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Standalone bounded surface checks by string equality (deliberately NOT the
+  // shared i32 intra-strip accumulator helpers): this op is APPENDED with zero
+  // reach into WideningAccumulateOp's or DeferredAccumulateOp's contract.
+  if (getKind() != "cross_block_f32_scalar_accumulate")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"cross_block_f32_scalar_accumulate\" for the bounded per-block "
+              "cross-block f32 accumulate fold surface";
+  if (getAccumulateOrder() != "strict-ascending-block-carried")
+    return emitOpError()
+           << "currently supports only accumulate_order "
+              "\"strict-ascending-block-carried\" (ggml's q8_0 accumulation "
+              "order: the fp32 fold is applied in STRICT ASCENDING block order, "
+              "preserving fp non-associativity)";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two operands (the block-carried f32 accumulator and the "
+              "per-block f32 term) and one f32 scalar result";
+
+  // Wall-3 contrast: acc, term, and the result must be scalar f32. The two
+  // typed accumulators the dialect already carries (widening_accumulate /
+  // deferred_accumulate) are i32-INTEGER INTRA-STRIP accumulators -- an i32
+  // lane accumulator or a vector value fails the f32 check, so requiring f32
+  // fail-closed rejects those wrong-dtype/wrong-scope forms (I7). This is the
+  // dedicated cross-block scalar f32 fold, not an intra-strip integer reduce.
+  if (!getAcc().getType().isF32())
+    return emitOpError()
+           << "requires the acc operand to be a scalar f32 (the block-carried "
+              "cross-block accumulator; an i32 lane accumulator or a vector "
+              "value is rejected -- this is the f32 cross-block fold, not the "
+              "i32 intra-strip widening/deferred accumulate)";
+  if (!getTerm().getType().isF32())
+    return emitOpError()
+           << "requires the term operand to be a scalar f32 (the per-block "
+              "`(float)sumi * scale` value from "
+              "tcrv_rvv.block_computed_scale_dequant)";
+  if (!getResult().getType().isF32())
+    return emitOpError()
+           << "requires an f32 scalar result (f32 fully covers the accumulator "
+              "and term domains, so the cross-block fold is byte-exact by "
+              "construction)";
+
+  return mlir::success();
+}

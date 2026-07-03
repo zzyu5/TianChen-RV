@@ -9312,6 +9312,59 @@ def BlockComputedScaleDequantOp : TCRVRVV_Op<"block_computed_scale_dequant",
   let hasVerifier = 1;
 }
 
+def CrossBlockF32AccumulateOp : TCRVRVV_Op<"cross_block_f32_accumulate",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV f32 cross-block scalar accumulate fold op";
+  let description = [{
+    Records one bounded generic plugin-local RVV cross-block fp32 accumulate as
+    ONE typed dataflow op: take the block-carried f32 accumulator `acc` and one
+    f32 per-block `term` and fold `acc + term` into ONE f32 scalar result. The
+    `term` operand is the f32 output of a preceding
+    tcrv_rvv.block_computed_scale_dequant (M-FLAT brick 2, the
+    `(float)sumi * scale` per-block term); the `acc` operand is the running
+    fp32 sum carried across blocks. The op does NOT touch the integer quant
+    payload, the per-block scale/sumi/dequant, the block loop, or the scalar
+    store (those are separate typed steps).
+
+    This is the THIRD scalar-domain typed construction primitive and it
+    dismantles wall 3 of the four-walls flat-block-dot analysis: today the
+    cross-block fold `sumf += (float)sumi * (d_x * d_y)` exists only as an
+    inline opaque emitc.add in the monolithic block-dot lowering, and the two
+    typed accumulators the dialect already carries -- tcrv_rvv.widening_accumulate
+    and tcrv_rvv.deferred_accumulate -- are i32-INTEGER INTRA-STRIP accumulators (wrong
+    dtype AND wrong scope: they accumulate widened i32 lanes inside one VL
+    strip, not a scalar f32 across blocks). Neither can express this fold.
+    Making the cross-block fp32 accumulate a first-class typed body op (I5)
+    means emission is determined by op identity + the explicit accumulate_order
+    fact, never inferred from candidate-mirror metadata, route ids, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, or q8/q4
+    names.
+
+    accumulate_order records that the caller folds in STRICT ASCENDING block
+    order (block-carried), preserving fp non-associativity byte-exactly to
+    match ggml's q8_0 accumulation. Both operands and the result are required
+    to be scalar f32 (an i32 lane accumulator or a vector value is rejected
+    fail-closed), which is exactly the wall-3 contrast against the i32
+    intra-strip accumulators. The f32 fold is byte-exact by construction at the
+    operation-spelling level. For the bounded surface kind is limited to
+    "cross_block_f32_scalar_accumulate" and accumulate_order to
+    "strict-ascending-block-carried".
+  }];
+
+  let arguments = (ins
+    AnyType:$acc,
+    AnyType:$term,
+    StrAttr:$kind,
+    StrAttr:$accumulate_order
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$acc `,` $term attr-dict `:` type($acc) `,` type($term) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";
