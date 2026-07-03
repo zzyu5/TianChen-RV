@@ -14,8 +14,12 @@ def CheckCapabilityRequires
     non-fallback variants only when they carry the typed generic
     runtime_guard_required marker, while dispatch fallback targets must be
     generically available.
-    Malformed requires attributes and unknown symbols remain the responsibility
-    of the tcrv.exec verifier.
+    This gate is self-sufficient: a requires symbol that is not present in the
+    kernel's capability set is rejected here as an unknown (unresolvable)
+    requirement (default-deny), rather than deferred to a later selection or
+    proposal pass. Because an unknown requirement is unresolvable, it is never
+    dispatch-guardable. Malformed requires attributes (non-symbol-ref) remain
+    the responsibility of the tcrv.exec verifier.
   }];
   let constructor =
       "::tianchenrv::transforms::createCheckCapabilityRequiresPass()";

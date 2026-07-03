@@ -28,6 +28,12 @@ struct RequirementIssue {
   enum class Kind {
     Unavailable,
     Conflict,
+    // A required capability symbol that is not present in the kernel's
+    // TargetCapabilitySet at all. Per core-invariants [I7] ("unknown = false,
+    // default-deny"), this is an unresolvable requirement: it is a hard reject
+    // and is NOT dispatch-guardable (a runtime guard cannot resolve a
+    // capability that does not exist in the kernel scope).
+    Unknown,
   };
 
   Kind kind = Kind::Unavailable;
@@ -147,8 +153,19 @@ private:
 
       const support::CapabilityDescriptor *capability =
           capabilities.lookupBySymbolName(symbolRef.getValue());
-      if (!capability)
+      if (!capability) {
+        // The requires symbol is not present in this kernel's capability scope.
+        // This compile-time gate rejects it self-sufficiently ([D-1]/[I7]
+        // "unknown = false"): it does not defer to a later selection/proposal
+        // pass. Keyed by symbol here because IR `requires` are symbol refs; the
+        // proposal path (ExtensionPlugin) rejects unknown by ID -- that is a
+        // by-input-type difference, not an inconsistency to merge.
+        RequirementIssue issue;
+        issue.kind = RequirementIssue::Kind::Unknown;
+        issue.symbolName = symbolRef.getValue();
+        issues.push_back(issue);
         continue;
+      }
 
       if (!capability->isAvailable()) {
         RequirementIssue issue;
@@ -192,10 +209,30 @@ private:
     if (issueIt == issuesByVariant.end())
       return;
 
-    if (hasTypedDispatchGuardRequirement(dispatchCase.getOperation()))
-      return;
+    bool guarded = hasTypedDispatchGuardRequirement(dispatchCase.getOperation());
 
     for (const RequirementIssue &issue : issueIt->getValue()) {
+      // Unknown requirements are unresolvable and are therefore NOT
+      // dispatch-guardable: a runtime guard cannot resolve a capability that is
+      // absent from the kernel scope. Reject unconditionally even when the case
+      // carries the typed runtime_guard_required marker ([I7] "unknown =
+      // false", self-sufficient default-deny).
+      if (issue.kind == RequirementIssue::Kind::Unknown) {
+        mlir::InFlightDiagnostic diagnostic =
+            dispatchCase.emitError()
+            << "dispatch case in kernel @" << kernel.getSymName()
+            << " targets variant @" << target << " with ";
+        appendIssueDetails(diagnostic, issue,
+                           /*includeRequiredAdjective=*/true);
+        foundRequirementIssue = true;
+        continue;
+      }
+
+      // Unavailable/Conflict requirements remain guardable: a typed
+      // runtime_guard_required marker exempts them.
+      if (guarded)
+        continue;
+
       mlir::InFlightDiagnostic diagnostic =
           dispatchCase.emitError()
           << "unguarded dispatch case in kernel @" << kernel.getSymName()
@@ -258,6 +295,15 @@ private:
                           const RequirementIssue &issue,
                           bool includeRequiredAdjective) const {
     switch (issue.kind) {
+    case RequirementIssue::Kind::Unknown:
+      // No capability descriptor exists for an unknown requirement, so no
+      // id/kind/status details are appended (issue.capability is null).
+      diagnostic << "unknown ";
+      if (includeRequiredAdjective)
+        diagnostic << "required ";
+      diagnostic << "capability @" << issue.symbolName
+                 << " not present in the kernel's TargetCapabilitySet";
+      return;
     case RequirementIssue::Kind::Unavailable:
       diagnostic << "unavailable ";
       if (includeRequiredAdjective)

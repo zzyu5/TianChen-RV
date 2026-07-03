@@ -21,7 +21,8 @@
   "children": [
     "07-02-e2a-kind-rename",
     "07-02-e1-schema-def",
-    "07-02-e4-attribution-jsonl"
+    "07-02-e4-attribution-jsonl",
+    "07-03-e7-d1-self-sufficient"
   ],
   "parent": null,
   "relatedFiles": [],
