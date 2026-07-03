@@ -1,0 +1,58 @@
+{
+  "$meta": {
+    "report": "family_ledger",
+    "repo_snapshot": "1bbab882695e812a2d334a8d6f5c7860cc2c93b1",
+    "snapshot_commit_date": "2026-07-03T09:23:16+08:00",
+    "manifest_sha256": "2378f53acab55b74b488329ea506e157177c1ecbaf231e0e46284a7f63b7ba8f",
+    "loc_method": "cloc-approximation (cloc absent); install cloc for [A-5] wording",
+    "spec_boundary": "numbers live in the CI report / 执行总纲, never in .trellis/spec/"
+  },
+  "families": [
+    {
+      "family": "IME",
+      "code_LOC": {
+        "cloc_approx": 1866,
+        "raw_wc_l": 2484,
+        "files": 7,
+        "note": "cloc-approx (cloc not installed); EXCL tests + CMakeLists.txt"
+      },
+      "test_LOC": {
+        "raw_wc_l": 1003,
+        "files": 14,
+        "single_listed": [
+          "test/Conversion/EmitC/ime-matmul-materialization.mlir",
+          "test/Conversion/EmitC/ime-mma-capability-absent-negative.mlir",
+          "test/Conversion/EmitC/ime-mma-materialization.mlir",
+          "test/Conversion/EmitC/ime-mma-slide-derive-negative.mlir",
+          "test/Conversion/EmitC/ime-mma-slide-materialization.mlir",
+          "test/Conversion/EmitC/ime-mma-su-materialization.mlir",
+          "test/Conversion/EmitC/ime-mma-u-materialization.mlir",
+          "test/Conversion/EmitC/ime-mma-us-materialization.mlir",
+          "test/Dialect/IME/matmul.mlir",
+          "test/Dialect/IME/mma.mlir",
+          "test/Dialect/IME/mma-slide.mlir",
+          "test/Dialect/IME/mma-su.mlir",
+          "test/Dialect/IME/mma-u.mlir",
+          "test/Dialect/IME/mma-us.mlir"
+        ],
+        "source": "explicit test-file manifest (decision 6); raw wc-l because lit RUN/CHECK directives are load-bearing"
+      },
+      "table_rows": {
+        "count": 6,
+        "file": "include/TianChenRV/Dialect/IME/IR/IMEOps.td",
+        "pattern": "^def [A-Za-z0-9_]+Op"
+      },
+      "interface_touchpoints": {
+        "count": 13,
+        "file": "include/TianChenRV/Plugin/IME/IMEExtensionPlugin.h",
+        "pattern": "override"
+      },
+      "calendar_days": {
+        "days": 2,
+        "first": "2026-06-23",
+        "last": "2026-06-25"
+      },
+      "notes": "IME = Spacemit X60 Integer Matrix Extension (N2 second family). First LED-1 point: code_LOC ~1866 cloc-approx / 2484 raw."
+    }
+  ]
+}

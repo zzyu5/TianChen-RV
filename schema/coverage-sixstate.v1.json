@@ -1,0 +1,609 @@
+{
+  "$meta": {
+    "sixstate_version": "v1",
+    "roster_ref": "schema/coverage-roster.v1.json (v1)",
+    "repo_snapshot": "1bbab882695e812a2d334a8d6f5c7860cc2c93b1",
+    "snapshot_commit_date": "2026-07-03T09:23:16+08:00",
+    "labeling": "HAND-LABELED, seeded from research/six-state-current.md (HEAD-verified 17 dispatch-wired / 7 constructed-weak / 3 strong constructed). The six-state AUTO-readout (state machine + [L-8] weak-vs-strong enforcement) is E5 (provenance manifest; 实验总纲 line 107 'provenance 清单先于六态自动化'). Rows whose state feeds C_construct carry auto_readout=pending-E5: E6 does NOT derive strong-vs-weak from code.",
+    "ladder": [
+      "absent",
+      "emittable",
+      "dispatch-wired",
+      "constructed-weak",
+      "constructed",
+      "covered"
+    ],
+    "note": "'constructed' == STRONG (typed pattern-library primitives). C_construct counts 'constructed'+ only; 'constructed-weak' feeds C_construct_plus, never C_construct."
+  },
+  "states": [
+    {
+      "op": "vec_dot",
+      "format": "q4_0",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q4_1",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q5_0",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q5_1",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q8_0",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q1_0",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCBlockQuantLinear.cpp:5951 emitQ1_0Q8_0BlockDot (own monolith)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q2_K",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q3_K",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q4_K",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q5_K",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "q6_K",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq1_s",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq1_m",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq2_xxs",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq2_xs",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq2_s",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq3_xxs",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq3_s",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq4_nl",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCCodebookFp4.cpp emitFlatBlockDot via CodebookGatherNibble/hasCodebook"
+    },
+    {
+      "op": "vec_dot",
+      "format": "iq4_xs",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "mxfp4",
+      "state": "constructed-weak",
+      "auto_readout": "pending-E5",
+      "anchor": "RVVToEmitCCodebookFp4.cpp emitFlatBlockDot via CodebookGatherNibble/hasCodebook"
+    },
+    {
+      "op": "vec_dot",
+      "format": "nvfp4",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCCodebookFp4.cpp emitNvfp4Q8_0BlockDot (own layout)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "tq1_0",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "vec_dot",
+      "format": "tq2_0",
+      "state": "dispatch-wired",
+      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+    },
+    {
+      "op": "product_reduce",
+      "format": "q4_0_nibble",
+      "state": "constructed",
+      "auto_readout": "pending-E5",
+      "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
+    },
+    {
+      "op": "product_reduce",
+      "format": "offset_binary_n3",
+      "state": "constructed",
+      "auto_readout": "pending-E5",
+      "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
+    },
+    {
+      "op": "product_reduce",
+      "format": "codebook_n3",
+      "state": "constructed",
+      "auto_readout": "pending-E5",
+      "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_0",
+      "state": "dispatch-wired",
+      "anchor": "GgmlQuantizeRowQ80Op / quantize_row_q8_0"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_1",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_0",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_1",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_0",
+      "state": "dispatch-wired",
+      "anchor": "dequantize_row_q5_0 referenced"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_1",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q8_0",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q1_0",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q2_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q3_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q6_K",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq1_s",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq1_m",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_xxs",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_xs",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_s",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq3_xxs",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq3_s",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq4_nl",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq4_xs",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "mxfp4",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "nvfp4",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "tq1_0",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "tq2_0",
+      "state": "absent",
+      "anchor": "no in-code op"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_0",
+      "engine": "rvv",
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemm/Gemv q4_0"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_1",
+      "engine": "rvv",
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemm/Gemv q4_1"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_0",
+      "engine": "rvv",
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemm/Gemv q5_0"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_1",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q8_0",
+      "engine": "rvv",
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemm/Gemv q8_0"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q1_0",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q2_K",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q3_K",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "engine": "rvv",
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemm/Gemv q4_K"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_K",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q6_K",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq1_s",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq1_m",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xxs",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xs",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_s",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq3_xxs",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq3_s",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_nl",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_xs",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "mxfp4",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "nvfp4",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq1_0",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq2_0",
+      "engine": "rvv",
+      "state": "absent",
+      "anchor": "no in-code repack GEMM"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_0",
+      "engine": "ime",
+      "state": "absent",
+      "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q8_0",
+      "engine": "ime",
+      "state": "absent",
+      "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "engine": "ime",
+      "state": "absent",
+      "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+    },
+    {
+      "op": "rms_norm",
+      "format": "f32",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+    },
+    {
+      "op": "softmax",
+      "format": "f32",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+    },
+    {
+      "op": "rope",
+      "format": "f32",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+    },
+    {
+      "op": "silu",
+      "format": "f32",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+    },
+    {
+      "op": "scale",
+      "format": "f32",
+      "state": "dispatch-wired",
+      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+    },
+    {
+      "op": "gelu",
+      "format": "f32",
+      "state": "absent",
+      "anchor": "no dedicated Ggml op in-code"
+    },
+    {
+      "op": "add",
+      "format": "f32",
+      "state": "absent",
+      "anchor": "no dedicated Ggml op in-code"
+    },
+    {
+      "op": "mul",
+      "format": "f32",
+      "state": "absent",
+      "anchor": "no dedicated Ggml op in-code"
+    },
+    {
+      "op": "cpy",
+      "format": "f32",
+      "state": "absent",
+      "anchor": "no dedicated Ggml op in-code"
+    },
+    {
+      "op": "flash_attn",
+      "format": "tile",
+      "state": "absent",
+      "anchor": "no flash_attn in lib/ or include/"
+    },
+    {
+      "op": "bf16",
+      "format": "all",
+      "state": "absent",
+      "anchor": "no dedicated bf16 forward/vec_dot op"
+    }
+  ]
+}

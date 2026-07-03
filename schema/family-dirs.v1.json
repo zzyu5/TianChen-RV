@@ -1,0 +1,46 @@
+{
+  "$meta": {
+    "manifest_version": "v1",
+    "purpose": "Hand-authored family->dirs manifest for family_ledger.py [LED-1]. INTERIM until [F-3]/E2b lands the plugins/<family>/ containment layout, at which point each family collapses to a single prefix. code_dirs exclude tests; test_files is the explicit per-family test manifest (decision 6 — pin the file set rather than a path-glob). The full IME test set was pinned by an exhaustive sweep (grep for ime.mma/ime.matmul across test/), which is what surfaced the 6 test/Dialect/IME/ dialect tests the ime-*.mlir glob missed (see test_files_note; this sources the previously 'un-reproducible' ~659).",
+    "loc_note": "code_LOC is a cloc-approximation (cloc not installed). table_anchor / interface_anchor are (file, regex) pairs counted per line."
+  },
+  "families": [
+    {
+      "family": "IME",
+      "code_dirs": [
+        "lib/Dialect/IME",
+        "lib/Plugin/IME",
+        "include/TianChenRV/Dialect/IME",
+        "include/TianChenRV/Plugin/IME"
+      ],
+      "test_files": [
+        "test/Conversion/EmitC/ime-matmul-materialization.mlir",
+        "test/Conversion/EmitC/ime-mma-capability-absent-negative.mlir",
+        "test/Conversion/EmitC/ime-mma-materialization.mlir",
+        "test/Conversion/EmitC/ime-mma-slide-derive-negative.mlir",
+        "test/Conversion/EmitC/ime-mma-slide-materialization.mlir",
+        "test/Conversion/EmitC/ime-mma-su-materialization.mlir",
+        "test/Conversion/EmitC/ime-mma-u-materialization.mlir",
+        "test/Conversion/EmitC/ime-mma-us-materialization.mlir",
+        "test/Dialect/IME/matmul.mlir",
+        "test/Dialect/IME/mma.mlir",
+        "test/Dialect/IME/mma-slide.mlir",
+        "test/Dialect/IME/mma-su.mlir",
+        "test/Dialect/IME/mma-u.mlir",
+        "test/Dialect/IME/mma-us.mlir"
+      ],
+      "test_files_note": "Full IME test footprint = 14 files: conversion/EmitC lowering (8 files named ime-*, raw 344) + dialect verifier/round-trip (6 files under test/Dialect/IME/, raw 659). The dialect subset is EXACTLY the historically 'un-sourced ~659' figure; the ime-*.mlir path-glob missed it because those files are named mma.mlir/matmul.mlir (no ime- prefix), which is why research escalation 6 concluded 659 'did not reproduce'. total = 1003. HUMAN-RATIFIABLE scoping call: include dialect-verifier tests in family test_LOC (default here) vs. lowering-only (344).",
+      "table_anchor": {
+        "file": "include/TianChenRV/Dialect/IME/IR/IMEOps.td",
+        "pattern": "^def [A-Za-z0-9_]+Op",
+        "note": "IME dialect op table (MMA execution op family + matmul/slide)"
+      },
+      "interface_anchor": {
+        "file": "include/TianChenRV/Plugin/IME/IMEExtensionPlugin.h",
+        "pattern": "override",
+        "note": "ExtensionPlugin virtual overrides the IME plugin implements"
+      },
+      "notes": "IME = Spacemit X60 Integer Matrix Extension (N2 second family). First LED-1 point: code_LOC ~1866 cloc-approx / 2484 raw."
+    }
+  ]
+}

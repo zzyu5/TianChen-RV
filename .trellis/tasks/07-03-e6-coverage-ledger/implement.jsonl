@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-03-e6-coverage-ledger/research/coverage-denominator.md", "reason": "分母 roster:ggml pin 6eab471 + A/B/C 格式 + in-code reconciliation + roster 工件格式"}
+{"file": ".trellis/tasks/07-03-e6-coverage-ledger/research/six-state-current.md", "reason": "六态手工标注表 seed(17 dispatch-wired/7 weak/3 strong + 前向 + absent);E5 依赖边界"}
+{"file": ".trellis/tasks/07-03-e6-coverage-ledger/research/metric-and-ledger-script-design.md", "reason": "两脚本设计:输入/输出/位置/CI-report;cloc-approx;IME 首点复算"}
+{"file": ".trellis/tasks/07-03-e6-coverage-ledger/research/e6-scope-summary.md", "reason": "MVP + 落地序 + 7 escalation(已在 PRD 定案)"}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "Python 仅 tooling 红线;脚本住 .trellis/scripts/"}
