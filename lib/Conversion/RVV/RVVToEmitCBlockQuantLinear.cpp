@@ -6321,6 +6321,37 @@ mlir::LogicalResult VariantToEmitCFunc::emitBlockFp16ScaleProduct(
   return mlir::success();
 }
 
+mlir::LogicalResult VariantToEmitCFunc::emitBlockComputedScaleDequant(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::BlockComputedScaleDequantOp dequant,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value /*bodyVL*/) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+
+  mlir::Value sumi = valueMap.lookup(dequant.getSumi());
+  mlir::Value scale = valueMap.lookup(dequant.getComputedScale());
+  if (!sumi || !scale)
+    return rewriter.notifyMatchFailure(dequant,
+                                       "block_computed_scale_dequant operand "
+                                       "unmapped");
+
+  // float term = (float)sumi * scale;  -- byte-identical at the operation
+  // spelling level to the monolithic block-dot fold: the SAME i32 -> float
+  // emitc.cast (the `(float)sumi` sitofp) + the SAME scalar float emitc.mul the
+  // monolith produces inline for the per-block `(float)sumi * <scale>` term.
+  // scale is the COMPUTED tcrv_rvv.block_fp16_scale_product output (d_x*d_y),
+  // not an imported ABI scale. This op stops at the per-block term; the
+  // cross-block fp32 accumulate (`sumf += term`) is a separate typed step.
+  mlir::Value sumiFloat =
+      rewriter.create<emitc::CastOp>(loc, floatType, sumi).getResult();
+  mlir::Value term =
+      rewriter.create<emitc::MulOp>(loc, floatType, sumiFloat, scale)
+          .getResult();
+  valueMap[dequant.getResult()] = term;
+  return mlir::success();
+}
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

@@ -9264,6 +9264,54 @@ def BlockFp16ScaleProductOp : TCRVRVV_Op<"block_fp16_scale_product",
   let hasVerifier = 1;
 }
 
+def BlockComputedScaleDequantOp : TCRVRVV_Op<"block_computed_scale_dequant",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block computed-scale i32-sumi dequant fold op";
+  let description = [{
+    Records one bounded generic plugin-local RVV per-block dequant fold as ONE
+    typed dataflow op: take a scalar i32 per-block partial sum `sumi` and a
+    COMPUTED f32 per-block scale, convert the sumi i32 -> f32 and multiply into
+    ONE f32 scalar `f32(sumi) * scale`. The computed scale is the SSA output of
+    a preceding tcrv_rvv.block_fp16_scale_product (M-FLAT brick 1, the
+    `f32(d_x) * f32(d_y)` per-block scale product); it is NOT an imported
+    runtime ABI value. The op does NOT touch the integer quant payload, the
+    reduce that produces sumi, the block loop, or the cross-block fp32
+    accumulate (those are separate typed steps).
+
+    This is the SECOND scalar-domain typed construction primitive and it
+    dismantles wall 2 of the four-walls flat-block-dot analysis: today
+    tcrv_rvv.dequantize hard-requires its $scale operand to be an imported
+    RuntimeABIValueOp (float, DequantScaleValue role), so it cannot consume a
+    per-iteration COMPUTED scale. This sibling op consumes the computed f32
+    scale directly -- structurally enforced by requiring the computed_scale
+    operand type to be f32 (an imported ABI scale carries the
+    !tcrv_rvv.runtime_abi_value type, which fails the f32 check), which is
+    exactly the wall-2 contrast. tcrv_rvv.dequantize's contract is untouched.
+
+    Making the computed-scale sumi fold a first-class typed body op (I5) means
+    emission is determined by op identity + the explicit dequant kind/relation,
+    never inferred from candidate-mirror metadata, route ids, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, or q8/q4 names.
+    The f32 range fully covers the sumi and scale domains, so the fold is
+    byte-exact by construction. For the bounded surface kind is limited to
+    "computed_scale_sumi_dequant" and dequant_relation to
+    "scalar-i32-sumi-to-f32-computed-scale-f32".
+  }];
+
+  let arguments = (ins
+    AnyType:$sumi,
+    AnyType:$computed_scale,
+    StrAttr:$kind,
+    StrAttr:$dequant_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$sumi `,` $computed_scale attr-dict `:` type($sumi) `,` type($computed_scale) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";

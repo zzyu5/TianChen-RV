@@ -9772,3 +9772,51 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
 
   return mlir::success();
 }
+
+mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Standalone bounded surface checks by string equality (deliberately NOT the
+  // shared tcrv_rvv.dequantize helpers): this op is APPENDED with zero reach
+  // into DequantizeOp's contract.
+  if (getKind() != "computed_scale_sumi_dequant")
+    return emitOpError()
+           << "currently supports only kind \"computed_scale_sumi_dequant\" "
+              "for the bounded per-block computed-scale i32-sumi dequant fold "
+              "surface";
+  if (getDequantRelation() != "scalar-i32-sumi-to-f32-computed-scale-f32")
+    return emitOpError()
+           << "currently supports only dequant_relation "
+              "\"scalar-i32-sumi-to-f32-computed-scale-f32\" for the bounded "
+              "computed-scale i32-sumi dequant fold surface";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two operands (the scalar i32 per-block sumi and the "
+              "computed f32 per-block scale) and one f32 scalar result";
+
+  if (!getSumi().getType().isInteger(32))
+    return emitOpError()
+           << "requires the sumi operand to be a scalar i32 (the per-block "
+              "partial sum consumed by the fp32 fold)";
+
+  // Wall-2 contrast: the computed scale must be a COMPUTED f32 SSA value (the
+  // tcrv_rvv.block_fp16_scale_product output), NOT an imported ABI scale. An
+  // imported runtime scale carries the !tcrv_rvv.runtime_abi_value type, which
+  // fails this f32 check -- so requiring f32 fail-closed rejects the
+  // imported-scale-only form tcrv_rvv.dequantize hard-requires (I7).
+  if (!getComputedScale().getType().isF32())
+    return emitOpError()
+           << "requires the computed_scale operand to be a COMPUTED f32 SSA "
+              "value (an imported !tcrv_rvv.runtime_abi_value scale is "
+              "rejected: this op consumes the per-block computed scale, not an "
+              "imported ABI scale)";
+
+  if (!getResult().getType().isF32())
+    return emitOpError()
+           << "requires an f32 scalar result (f32 fully covers the scalar i32 "
+              "sumi and f32 scale domains, so the fold is byte-exact by "
+              "construction)";
+
+  return mlir::success();
+}

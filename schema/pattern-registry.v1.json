@@ -30,10 +30,10 @@
       "milestone": "M-FLAT",
       "brick": 2,
       "requires": ["rvv.zvfh", "rvv.v"],
-      "transform": "planned: accept a COMPUTED (non-imported) per-iteration f32 scale in dequant -- change tcrv_rvv.dequantize $scale contract (RVVDialectWideningOps.cpp:9531 hard-requires an imported RuntimeABIValueOp) or a sibling op",
-      "mechanism": "The per-block computed scale (brick 1 output) feeds dequant without being an imported ABI value; removes the imported-scale-only wall.",
-      "metrics_hook": null,
-      "status": "planned"
+      "transform": "tcrv_rvv.block_computed_scale_dequant op lowering (lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp:VariantToEmitCFunc::emitBlockComputedScaleDequant); ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (def BlockComputedScaleDequantOp); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (BlockComputedScaleDequantOp::verify, APPENDED -- DequantizeOp::verify untouched)",
+      "mechanism": "A NEW sibling op consumes the per-block COMPUTED f32 scale (brick 1 output, tcrv_rvv.block_fp16_scale_product) + a scalar i32 sumi and folds `(float)sumi * scale`; requiring the scale operand to be f32 fail-closed rejects the imported !tcrv_rvv.runtime_abi_value scale that tcrv_rvv.dequantize hard-requires -- removing the imported-scale-only wall without touching DequantizeOp's contract.",
+      "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-block-computed-scale-dequant.mlir",
+      "status": "mechanized"
     },
     {
       "pattern_id": "MFLAT-3-f32-cross-block-scalar-accumulate",

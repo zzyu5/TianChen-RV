@@ -921,6 +921,24 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// block_computed_scale_dequant(%sumi, %computed_scale) lowers the per-block
+  /// computed-scale i32-sumi dequant fold to the SAME scalar i32 -> float
+  /// emitc.cast (the `(float)sumi` sitofp) + scalar float emitc.mul the
+  /// monolithic block-dot emitters produce inline for the per-block
+  /// `(float)sumi * <scale>` term, byte-identical at the operation-spelling
+  /// level:
+  ///   float term = (float)sumi * scale;   // emitc.cast + emitc.mul (float)
+  /// The computed_scale operand is the f32 tcrv_rvv.block_fp16_scale_product
+  /// output (M-FLAT brick 1), NOT an imported ABI scale. The op stops at the
+  /// per-block term; the cross-block fp32 accumulate is a separate typed step.
+  /// The op is scalar (no vl); the bodyVL argument is unused, taken only to
+  /// keep the generic body-walk emitter signature uniform.
+  mlir::LogicalResult emitBlockComputedScaleDequant(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::BlockComputedScaleDequantOp dequant,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// packed_i4_nibble_unpack_product(%lhs,%rhs,%vl) lowers to the FIXED signed
   /// i4-nibble sign-extend + widening-product intrinsic chain (each i8 packs two
   /// signed 4-bit nibbles), byte-equivalent to the legacy packed-i4 oracle:
