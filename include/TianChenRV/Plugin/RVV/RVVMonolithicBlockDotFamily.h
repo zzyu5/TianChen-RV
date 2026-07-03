@@ -1686,10 +1686,32 @@ findMonolithicBlockDotOpEntryByKind(llvm::StringRef kind) {
   return nullptr;
 }
 
+// Resolve the shared monolithic block-dot table entry for a SELECTED with_vl body
+// op. Handles both body shapes the front door constructs: the compound single
+// block-dot op (matched by op name), and the generic region-carrying typed flat
+// block-dot LOOP body op (tcrv_rvv.typed_flat_block_dot_loop_body) the q8_0 front
+// door substitutes for the compound q8_0 op. The loop body still exports through
+// the SAME shared q8_0 Flat monolithic plan (same route id / kind / 8-role ABI),
+// so it resolves to the existing q8_0 Flat table entry -- no new registry kind.
+inline const MonolithicBlockDotOpEntry *
+resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
+  if (!op)
+    return nullptr;
+  if (const MonolithicBlockDotOpEntry *entry = findMonolithicBlockDotOpEntry(op))
+    return entry;
+  if (op->getName().getStringRef() ==
+      tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName())
+    for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
+      if (entry.opName == tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName())
+        return &entry;
+  return nullptr;
+}
+
 // Recognize a selected with_vl scope whose ENTIRE compute body is exactly one
-// supported monolithic ggml block-dot op (any family). Returns the op for that
-// single-op body; nullptr otherwise -- so decomposed route bodies (and unwired
-// block-dot ops) fall through to the slice-based route path unchanged.
+// supported monolithic ggml block-dot op (any family) OR the generic typed flat
+// block-dot loop body op. Returns the op for that single-op body; nullptr
+// otherwise -- so decomposed route bodies (and unwired block-dot ops) fall
+// through to the slice-based route path unchanged.
 inline mlir::Operation *
 findSelectedMonolithicBlockDotBody(tcrv::rvv::WithVLOp withVL) {
   if (withVL.getBody().empty())
@@ -1697,7 +1719,7 @@ findSelectedMonolithicBlockDotBody(tcrv::rvv::WithVLOp withVL) {
   mlir::Block &block = withVL.getBody().front();
   mlir::Operation *found = nullptr;
   for (mlir::Operation &op : block) {
-    if (!findMonolithicBlockDotOpEntry(&op))
+    if (!resolveSelectedMonolithicBlockDotBodyEntry(&op))
       return nullptr; // any non-family op => not the monolithic single-op shape
     if (found)
       return nullptr; // more than one op => not the monolithic single-op shape

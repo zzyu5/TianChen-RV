@@ -20,10 +20,10 @@
 // the direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf
-// claim -- this is coverage/wiring maturity. q8_0's front-door-constructed op is
-// left attr-less (no shape knob); the emitter lowers it at its m2 default anchor
-// (the ggml-matching one-vwredsum-per-block anchor) -- there is NO VLEN128-vs-
-// VLEN256 byte-flip for q8_0.
+// claim -- this is coverage/wiring maturity. q8_0's front-door-constructed body is
+// the typed flat block-dot loop body, which pins the m2 integer-core anchor (the
+// ggml-matching one-vwredsum-per-block anchor) -- there is NO VLEN128-vs-VLEN256
+// byte-flip for q8_0.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
@@ -63,8 +63,11 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the FLAT monolithic route id + object kind.
+// The q8_0 front door's body is the typed flat block-dot LOOP body op (M-FLAT);
+// it exports through the SAME shared q8_0 Flat monolithic plan (identical route
+// id / kind / 8-role ABI) as the compound q8_0 block-dot op it replaced.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel
-// PLAN: tcrv_rvv.q8_0_q8_0_block_dot
+// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys

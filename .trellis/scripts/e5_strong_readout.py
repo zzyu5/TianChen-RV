@@ -18,7 +18,7 @@ The [L-8] machine rule (实验总纲 line 27 / core-invariants [L-8]/[K-4])
 ----------------------------------------------------------------------
 A selected-body path is `constructed` (STRONG) iff:
 
-    manifest non-empty  ∧  no opaque hand-written helper
+    manifest non-empty  ∧  no opaque hand-written helper  ∧  decomposed
 
 - manifest = the ordered op-identity list of the ops in the realized `with_vl`
   body (the pattern-library primitives: load / widening_product / *_x_i8_product
@@ -27,6 +27,12 @@ A selected-body path is `constructed` (STRONG) iff:
   AND carries `kind = "ggml_…block_dot"` (the descriptor-selected hand helper that
   lowers to emitFlatBlockDot). The two signals must AGREE, so it is not one fragile
   string match.
+- decomposed = the body realizes a REAL dot-product-family primitive
+  (widening_product / *_x_i8_product / *_unpack_product / *product_reduce) AND a
+  reduce-family primitive (standalone_reduce / *dot_reduce / ...). A per-block fp16
+  `block_fp16_scale_product` is a scale multiply, NOT a contraction, so it does not
+  satisfy this conjunct — a bare "product" substring would wrongly admit it. This
+  conjunct was report-only; it is now a GATE (E5 gate-hole fix).
 
 I4 red line: the manifest is the ACTUAL realized body's op-identity (CORE oracle),
 NEVER the `tcrv_rvv.low_precision_resource.*` mirror attributes (which ride on the
@@ -41,14 +47,14 @@ indistinguishable `emitc`/`call_opaque` and the discriminator vanishes).
 Scope (E5 增量①, bounded): strong side only. This is a standalone read-out +
 optional auto_readout write-back. No CI gate, no enforcement, no coverage_metrics.py
 edit, no committed JSONL sink — those are later increments. State values never
-change (zero flip); only the `auto_readout` field of the 3 strong rows is written.
+change (zero flip); only the `auto_readout` field of the strong rows is written.
 
 Subcommands
 -----------
 report                 run the machine-check; print per-path {manifest, has_opaque,
                        derived_state} + PASS/FAIL vs expected. Exit non-zero on any
                        mismatch or any tcrv-opt failure (fail-closed).
-update-sixstate        run report, then (only if all rows pass) rewrite the 3 strong
+update-sixstate        run report, then (only if all rows pass) rewrite the strong
                        rows' `auto_readout` in schema/coverage-sixstate.v1.json with
                        the machine result + manifest summary. Never touches `state`.
 --self-test            hermetic parser test over the 4 captured ground-truth bodies.
@@ -68,7 +74,7 @@ TCRV_OPT = REPO_ROOT / "build" / "bin" / "tcrv-opt"
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
 TEST_RVV = REPO_ROOT / "test" / "Target" / "RVV"
 
-# --- the 3 strong routes + 1 weak negative control -------------------------
+# --- the 4 strong routes + 1 weak negative control -------------------------
 # Each entry: the six-state (op, format) key, the source-op test input, and the
 # single front-door pass that CONSTRUCTS/REALIZES the typed with_vl body. NO
 # --tcrv-rvv-lower-to-emitc (stage discipline). Row<->test mapping per research
@@ -95,13 +101,27 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv",
         "front_door_id": "RVVCodebookDotSourceFrontDoor",
     },
-    # Negative control: a weak descriptor-selected block-dot. Must derive NOT-strong
-    # (constructed-weak) so the check is proven discriminating, not vacuously true.
+    # q8_0 vec_dot: STRONG. Its front door was upgraded to construct the typed flat
+    # block-dot LOOP body (tcrv_rvv.typed_flat_block_dot_loop_body) out of decomposed
+    # pattern-library primitives (load + widening_product + standalone_reduce), NOT the
+    # opaque emitFlatBlockDot hand helper. The SAME front-door pass now realizes a typed
+    # body, so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
         "op": "vec_dot", "format": "q8_0", "engine": "",
-        "kind": "negative", "expected_state": "constructed-weak",
+        "kind": "strong", "expected_state": "constructed",
         "input": "q8-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
+    },
+    # Negative control: a weak descriptor-selected block-dot. q5_0's front door still
+    # auto-constructs the MONOLITHIC tcrv_rvv.q5_0_q8_0_block_dot op (kind
+    # "ggml_q5_0_q8_0_block_dot"), so [L-8] derives NOT-strong (constructed-weak). This
+    # keeps the check proven discriminating (not vacuously true) now that q8_0 is strong.
+    {
+        "op": "vec_dot", "format": "q5_0", "engine": "",
+        "kind": "negative", "expected_state": "constructed-weak",
+        "input": "q5-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
         "front_door_id": "emitFlatBlockDot (descriptor-selected hand helper)",
     },
 ]
@@ -124,6 +144,14 @@ _WITHVL_TERMINATOR = re.compile(r"^(\s*)\}\s*:\s*!tcrv_rvv\.vl\s*$")
 # `tcrv_rvv.gearbox`). Anchoring with `$` is deliberate: it must NOT fire on the
 # legitimate pattern-library primitive `tcrv_rvv.gearbox_cross_region_handoff`.
 _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
+
+# [L-8] decomposed-gate whitelist. A REAL dot-product-family primitive is one of:
+# widening_product (+ *_widening_product_intrinsic), *_x_i8_product (the mixed
+# codebook / packed-i4 dot forms routes 2&3 realize), *_unpack_product, or a fused
+# *product_reduce. This is a WHITELIST on purpose: `block_fp16_scale_product` is a
+# per-block fp16 SCALE multiply — not a contraction — and carries none of these
+# tokens, so it is excluded. A bare "product" substring would wrongly admit it.
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce)")
 
 
 def _leading_ws(line):
@@ -191,21 +219,34 @@ def is_opaque_hand_helper(op):
 
 
 def derive(manifest):
-    """Apply the literal [L-8] rule: constructed iff (non-empty ∧ no opaque helper)."""
+    """Apply the [L-8] rule: constructed iff
+    (manifest non-empty ∧ no opaque *_block_dot helper ∧ decomposed).
+
+    `decomposed` is the promoted GATE conjunct (was report-only): the body must
+    realize a REAL dot-product-family primitive AND a separate reduce-family
+    primitive, so a body that merely carries a per-block fp16 scale_product — or no
+    contraction at all — does not vacuously read as constructed.
+    """
     mnemonics = [op["mnemonic"] for op in manifest]
     opaque_ops = [op["mnemonic"] for op in manifest if is_opaque_hand_helper(op)]
     has_opaque = len(opaque_ops) > 0
     non_empty = len(mnemonics) > 0
-    derived_state = "constructed" if (non_empty and not has_opaque) else "constructed-weak"
-    # Corroborating (report-only, NOT a gate): the dot is decomposed into a
-    # separate product-family primitive AND a reduce-family primitive.
-    has_product = any(("product" in m and not m.endswith("_block_dot")) for m in mnemonics)
+    # GATE conjunct: real dot-product-family primitive (whitelisted, so the fp16
+    # scale_product is excluded) AND a reduce-family primitive.
+    has_product = any(_DOT_PRODUCT_RE.search(m) for m in mnemonics)
     has_reduce = any("reduce" in m for m in mnemonics)
+    decomposed = has_product and has_reduce
+    derived_state = (
+        "constructed" if (non_empty and not has_opaque and decomposed)
+        else "constructed-weak"
+    )
     return {
         "manifest": mnemonics,
         "has_opaque": has_opaque,
         "opaque_ops": opaque_ops,
-        "decomposed": has_product and has_reduce,
+        "has_product": has_product,
+        "has_reduce": has_reduce,
+        "decomposed": decomposed,
         "derived_state": derived_state,
     }
 
@@ -251,7 +292,7 @@ def cmd_report(_args):
         print(f"        manifest      = {r['manifest']}")
         print(f"        has_opaque    = {r['has_opaque']}"
               + (f"  {r['opaque_ops']}" if r["opaque_ops"] else ""))
-        print(f"        decomposed    = {r['decomposed']} (corroborating, not a gate)")
+        print(f"        decomposed    = {r['decomposed']} (GATE: real dot-product + reduce)")
         print(f"        derived_state = {r['derived_state']}"
               f"  (expected {r['expected_state']})")
     print()
@@ -290,16 +331,21 @@ def cmd_update_sixstate(_args):
                 f"{_manifest_summary(r['manifest'])}; opaque_helper=false"
             )
             updated += 1
-    doc["$meta"]["labeling"] = (
-        doc["$meta"]["labeling"]
-        + " | E5 增量① (strong-side auto): the 3 STRONG product_reduce rows carry a "
-          "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
-          "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
-          "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "
-          "opaque *_block_dot hand helper). Reproduces the hand-label; a q8_0 block-dot "
-          "negative control derives NOT-strong. Weak rows' auto_readout stays pending-E5 "
-          "(later increment). State values are unchanged (zero flip)."
-    )
+    # Idempotent: the E5 增量① paragraph is appended only once. Re-running
+    # update-sixstate must not duplicate it (the JSON already carries the corrected,
+    # count-accurate paragraph), so guard on its marker.
+    if "E5 增量①" not in doc["$meta"]["labeling"]:
+        doc["$meta"]["labeling"] = (
+            doc["$meta"]["labeling"]
+            + " | E5 增量① (strong-side auto): the 4 STRONG rows (3 product_reduce "
+              "N-operand routes + q8_0 vec_dot typed_flat_block_dot_loop_body) carry a "
+              "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
+              "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
+              "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "
+              "opaque *_block_dot hand helper). Reproduces the hand-label; a q5_0 block-dot "
+              "negative control derives NOT-strong. Weak rows' auto_readout stays pending-E5 "
+              "(later increment). State values are unchanged (zero flip)."
+        )
     # ensure_ascii=False preserves the existing UTF-8 (实验总纲 etc.) so the diff
     # stays minimal and this file's byte content is not needlessly re-escaped.
     SIXSTATE_JSON.write_text(
@@ -342,6 +388,46 @@ module {
 }
 """
 
+# Scale-only ground truth: NOT opaque (no *_block_dot), but the only "product" op is
+# the per-block fp16 SCALE product and there is NO reduce. This is exactly the hole
+# the decomposed gate closes: it must derive NOT-strong.
+_GT_SCALE_ONLY = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %0 = tcrv_rvv.runtime_abi_value {c_name = "lhs"} : !tcrv_rvv.runtime_abi_value
+      %6 = tcrv_rvv.setvl %5 {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %6 attributes {lmul = "m1"} {
+        %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f16, "m1">
+        %8 = tcrv_rvv.block_fp16_scale_product %7, %2, %6 {kind = "block_fp16_scale_product"} : !tcrv_rvv.vector<f16, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        tcrv_rvv.store %4, %8, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# Mixed-dot ground truth: routes 2 & 3 realize a `*_x_i8_product` primitive (NOT
+# widening_product). Guards the gate against a "simplify to widening_product only"
+# regression that would silently demote two-thirds of the strong routes.
+_GT_XI8 = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %0 = tcrv_rvv.runtime_abi_value {c_name = "lhs"} : !tcrv_rvv.runtime_abi_value
+      %6 = tcrv_rvv.setvl %5 {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %6 attributes {lmul = "m1"} {
+        %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
+        %8 = tcrv_rvv.load %1, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "m1">
+        %9 = tcrv_rvv.codebook_gather_x_i8_product %7, %8, %6 {kind = "codebook_gather_x_i8_product"} : !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vector<i8, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "m2">
+        %10 = tcrv_rvv.standalone_reduce %9, %2, %6 {kind = "signed_widening_reduce_add"} : !tcrv_rvv.vector<i16, "m2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %4, %10, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
 
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
@@ -351,6 +437,8 @@ def cmd_self_test(_args):
         "tcrv_rvv.standalone_reduce", "tcrv_rvv.dequantize", "tcrv_rvv.store",
     ], strong["manifest"]
     assert strong["has_opaque"] is False, strong
+    assert strong["has_product"] is True, strong
+    assert strong["has_reduce"] is True, strong
     assert strong["decomposed"] is True, strong
     assert strong["derived_state"] == "constructed", strong
     # No mirror token leaked (guard would have raised; double-check explicitly).
@@ -362,6 +450,17 @@ def cmd_self_test(_args):
     assert _MIRROR_GUARD.search("tcrv_rvv.low_precision_resource")
     assert _MIRROR_GUARD.search("tcrv_rvv.gearbox")
 
+    # Mixed-dot ground truth: a `*_x_i8_product` primitive (routes 2 & 3) must ALSO
+    # pass the whitelist gate, not just widening_product.
+    xi8 = derive(parse_realized_body(_GT_XI8))
+    assert xi8["manifest"] == [
+        "tcrv_rvv.load", "tcrv_rvv.load", "tcrv_rvv.codebook_gather_x_i8_product",
+        "tcrv_rvv.standalone_reduce", "tcrv_rvv.store",
+    ], xi8["manifest"]
+    assert xi8["has_product"] is True, xi8
+    assert xi8["decomposed"] is True, xi8
+    assert xi8["derived_state"] == "constructed", xi8
+
     # Weak ground truth: single monolithic block-dot, opaque, not-strong.
     weak = derive(parse_realized_body(_GT_WEAK))
     assert weak["manifest"] == ["tcrv_rvv.q8_0_q8_0_block_dot"], weak["manifest"]
@@ -369,10 +468,25 @@ def cmd_self_test(_args):
     assert weak["opaque_ops"] == ["tcrv_rvv.q8_0_q8_0_block_dot"], weak
     assert weak["derived_state"] == "constructed-weak", weak
 
-    # Discrimination: same rule, opposite verdicts.
+    # Scale-only ground truth: NOT opaque, but the decomposed GATE must reject it —
+    # `block_fp16_scale_product` is a scale multiply, not a contraction, and there is
+    # no reduce. This is the exact hole the gate closes.
+    scale = derive(parse_realized_body(_GT_SCALE_ONLY))
+    assert scale["manifest"] == [
+        "tcrv_rvv.load", "tcrv_rvv.block_fp16_scale_product", "tcrv_rvv.store",
+    ], scale["manifest"]
+    assert scale["has_opaque"] is False, scale
+    assert scale["has_product"] is False, scale
+    assert scale["has_reduce"] is False, scale
+    assert scale["decomposed"] is False, scale
+    assert scale["derived_state"] == "constructed-weak", scale
+
+    # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
-    print("self-test PASS: parser position-anchored, no mirror leak, "
-          "strong=constructed / weak=constructed-weak")
+    assert strong["derived_state"] != scale["derived_state"]
+    print("self-test PASS: parser position-anchored, no mirror leak; "
+          "strong(widening_product)=constructed / strong(x_i8_product)=constructed / "
+          "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate)")
     return 0
 
 

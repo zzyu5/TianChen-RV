@@ -451,6 +451,12 @@ llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
           "' carries an unsupported role/ownership for emission planning");
       return;
     }
+    // The internal per-block reduce seed (the typed flat block-dot loop body's
+    // zero_seed, role accumulator-input-buffer) is NOT part of ggml's public
+    // vec_dot prototype and never appears in the exported strided ABI. Skip it so
+    // the ordered ABI stays the exact 4/8-role ggml vec_dot parameter list.
+    if (*role == support::RuntimeABIParameterRole::AccumulatorInputBuffer)
+      return;
     out.push_back(support::RuntimeABIParameter(binding.getCName(),
                                                binding.getCType(), *role,
                                                *ownership));
@@ -468,19 +474,37 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
     const VariantEmissionRequest &request, mlir::Operation *blockDot,
     VariantEmissionPlan &out) {
   const MonolithicBlockDotOpEntry *entry =
-      findMonolithicBlockDotOpEntry(blockDot);
+      resolveSelectedMonolithicBlockDotBodyEntry(blockDot);
   if (!entry)
     return makeRVVPluginError(
         "internal: buildMonolithicBlockDotEmissionPlan requires a recognized "
         "monolithic block-dot op");
   const MonolithicBlockDotFamilyConstants &fc =
       getMonolithicBlockDotFamilyConstants(entry->routeFamily);
-  auto kindAttr = blockDot->getAttrOfType<mlir::StringAttr>("kind");
-  auto scaleModelAttr = blockDot->getAttrOfType<mlir::StringAttr>("scale_model");
-  if (!kindAttr || !scaleModelAttr)
-    return makeRVVPluginError(
-        "monolithic block-dot op is missing its bounded kind/scale_model "
-        "attributes for emission planning");
+  // The compound single-op block-dot bodies stamp kind/scale_model FROM the entry
+  // (createBlockDot), so they carry them as op attributes read directly here. The
+  // generic typed flat block-dot loop body (q8_0 front door) instead carries the
+  // generic loop kind ("typed_flat_block_dot_loop_body") and NO scale_model attr;
+  // its export identity is the resolved shared q8_0 Flat entry, so kind/scale_model
+  // come from the entry (this also lets findMonolithicBlockDotOpEntryByKind resolve
+  // the kind target-side during export).
+  llvm::StringRef kindValue;
+  llvm::StringRef scaleModelValue;
+  if (blockDot->getName().getStringRef() ==
+      tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
+    kindValue = entry->kind;
+    scaleModelValue = entry->scaleModel;
+  } else {
+    auto kindAttr = blockDot->getAttrOfType<mlir::StringAttr>("kind");
+    auto scaleModelAttr =
+        blockDot->getAttrOfType<mlir::StringAttr>("scale_model");
+    if (!kindAttr || !scaleModelAttr)
+      return makeRVVPluginError(
+          "monolithic block-dot op is missing its bounded kind/scale_model "
+          "attributes for emission planning");
+    kindValue = kindAttr.getValue();
+    scaleModelValue = scaleModelAttr.getValue();
+  }
 
   llvm::SmallVector<support::RuntimeABIParameter, 8> abiParameters;
   if (llvm::Error error = collectMonolithicBlockDotRuntimeABIParameters(
@@ -502,8 +526,8 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
   out.addArtifactMetadata(monolithic_block_dot::kSourceOpInterfaceKey,
                           monolithic_block_dot::kSourceOpInterfaceName);
   out.addArtifactMetadata(monolithic_block_dot::kArchetypeKey, fc.archetype);
-  out.addArtifactMetadata(fc.kindMetadataKey, kindAttr.getValue());
-  out.addArtifactMetadata(fc.scaleModelMetadataKey, scaleModelAttr.getValue());
+  out.addArtifactMetadata(fc.kindMetadataKey, kindValue);
+  out.addArtifactMetadata(fc.scaleModelMetadataKey, scaleModelValue);
   out.addArtifactMetadata(monolithic_block_dot::kTargetArtifactKindKey,
                           monolithic_block_dot::kArtifactKind);
   out.addArtifactMetadata(monolithic_block_dot::kConstructionProtocolKey,

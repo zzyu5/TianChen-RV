@@ -290,6 +290,227 @@ tcrvrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   return withVL;
 }
 
+// ---------------------------------------------------------------------------
+// Typed flat block-dot loop-body construction (M-FLAT step 5b, q8_0 only).
+//
+// The gated typed path builds the COMPLETE per-block typed chain
+// (tcrv_rvv.typed_flat_block_dot_loop_body region: brick 1 dual-fp16 scale
+// product -> two per-block i8 loads -> signed widening product -> standalone
+// reduce -> lane0 scalar extract -> brick 2 computed-scale dequant -> brick 3
+// cross-block f32 accumulate -> yield) instead of the ONE monolith block-dot op.
+// The integer-core helpers are copied near-verbatim from the sibling
+// RVVReductionSourceFrontDoor.cpp; the six scalar-domain typed ops have no C++
+// builder and are built directly from OperationState + the ODS shape.
+// ---------------------------------------------------------------------------
+
+// Loop-capable per-block i8 load: base + block_index*block_stride
+// (+ quant_byte_offset). Adapts the sibling single-block createRVVLoad with the
+// trailing block_index operand + block_stride/quant_byte_offset facts.
+mlir::Value createRVVBlockLoad(mlir::OpBuilder &builder, mlir::Location loc,
+                               mlir::Value buffer, mlir::Value vl,
+                               mlir::Value blockIndex, std::int64_t blockStride,
+                               std::int64_t quantByteOffset,
+                               mlir::Type vectorType) {
+  mlir::OperationState state(loc, tcrvrvv::LoadOp::getOperationName());
+  state.addOperands({buffer, vl, blockIndex});
+  state.addAttribute("block_stride", builder.getI64IntegerAttr(blockStride));
+  state.addAttribute("quant_byte_offset",
+                     builder.getI64IntegerAttr(quantByteOffset));
+  state.addTypes(vectorType);
+  return builder.create(state)->getResult(0);
+}
+
+mlir::Value createWideningProduct(mlir::OpBuilder &builder, mlir::Location loc,
+                                  mlir::Value lhs, mlir::Value rhs,
+                                  mlir::Value vl, mlir::Type productType,
+                                  llvm::StringRef productRelation) {
+  mlir::OperationState state(loc,
+                             tcrvrvv::WideningProductOp::getOperationName());
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr("signed_widening_product"));
+  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
+  state.addTypes(productType);
+  return builder.create(state)->getResult(0);
+}
+
+mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
+                                   mlir::Value input, mlir::Value accumulatorSeed,
+                                   mlir::Value vl, mlir::Type resultType) {
+  mlir::OperationState state(loc,
+                             tcrvrvv::StandaloneReduceOp::getOperationName());
+  state.addOperands({input, accumulatorSeed, vl});
+  state.addAttribute("kind",
+                     builder.getStringAttr("signed_widening_reduce_add"));
+  state.addAttribute(
+      "accumulator_layout",
+      builder.getStringAttr("scalar-i32-seed-lane0-from-accumulator-input"));
+  state.addAttribute(
+      "result_layout",
+      builder.getStringAttr("store-standalone-reduction-lane0-to-output-scalar"));
+  state.addTypes(resultType);
+  return builder.create(state)->getResult(0);
+}
+
+// brick 1: per-block d_x * d_y fp16 scale product (block_index-sourced form).
+mlir::Value createBlockFp16ScaleProduct(mlir::OpBuilder &builder,
+                                        mlir::Location loc,
+                                        mlir::Value lhsScaleBase,
+                                        mlir::Value rhsScaleBase,
+                                        mlir::Value blockIndex,
+                                        std::int64_t lhsBlockStride,
+                                        std::int64_t rhsBlockStride) {
+  mlir::OperationState state(
+      loc, tcrvrvv::BlockFp16ScaleProductOp::getOperationName());
+  state.addOperands({lhsScaleBase, rhsScaleBase, blockIndex});
+  state.addAttribute("kind",
+                     builder.getStringAttr("dual_fp16_per_block_scale_product"));
+  state.addAttribute("scale_model",
+                     builder.getStringAttr("dual-fp16-per-block-d_x.d_y"));
+  state.addAttribute("lhs_block_stride",
+                     builder.getI64IntegerAttr(lhsBlockStride));
+  state.addAttribute("rhs_block_stride",
+                     builder.getI64IntegerAttr(rhsBlockStride));
+  state.addTypes(builder.getF32Type());
+  return builder.create(state)->getResult(0);
+}
+
+// integer-core -> scalar bridge: i32 m1 vector lane0 -> scalar i32 sumi.
+mlir::Value createTypedVectorLane0ToScalarExtract(mlir::OpBuilder &builder,
+                                                  mlir::Location loc,
+                                                  mlir::Value input,
+                                                  mlir::Value vl) {
+  mlir::OperationState state(
+      loc, tcrvrvv::TypedVectorLane0ToScalarExtractOp::getOperationName());
+  state.addOperands({input, vl});
+  state.addAttribute("kind",
+                     builder.getStringAttr("vector_lane0_to_scalar_i32_extract"));
+  state.addAttribute("extract_relation",
+                     builder.getStringAttr("i32m1-lane0-to-scalar-i32"));
+  state.addTypes(builder.getI32Type());
+  return builder.create(state)->getResult(0);
+}
+
+// brick 2: (float)sumi * computed scale. computed_scale is brick 1's f32 (NOT an
+// imported ABI value -- the verifier structurally requires f32 here).
+mlir::Value createBlockComputedScaleDequant(mlir::OpBuilder &builder,
+                                            mlir::Location loc, mlir::Value sumi,
+                                            mlir::Value computedScale) {
+  mlir::OperationState state(
+      loc, tcrvrvv::BlockComputedScaleDequantOp::getOperationName());
+  state.addOperands({sumi, computedScale});
+  state.addAttribute("kind", builder.getStringAttr("computed_scale_sumi_dequant"));
+  state.addAttribute(
+      "dequant_relation",
+      builder.getStringAttr("scalar-i32-sumi-to-f32-computed-scale-f32"));
+  state.addTypes(builder.getF32Type());
+  return builder.create(state)->getResult(0);
+}
+
+// brick 3: sumf + term (cross-block fp32 fold, strict ascending block order).
+mlir::Value createCrossBlockF32Accumulate(mlir::OpBuilder &builder,
+                                          mlir::Location loc, mlir::Value acc,
+                                          mlir::Value term) {
+  mlir::OperationState state(
+      loc, tcrvrvv::CrossBlockF32AccumulateOp::getOperationName());
+  state.addOperands({acc, term});
+  state.addAttribute("kind",
+                     builder.getStringAttr("cross_block_f32_scalar_accumulate"));
+  state.addAttribute("accumulate_order",
+                     builder.getStringAttr("strict-ascending-block-carried"));
+  state.addTypes(builder.getF32Type());
+  return builder.create(state)->getResult(0);
+}
+
+void createTypedFlatBlockDotLoopYield(mlir::OpBuilder &builder,
+                                      mlir::Location loc, mlir::Value accNext) {
+  mlir::OperationState state(
+      loc, tcrvrvv::TypedFlatBlockDotLoopYieldOp::getOperationName());
+  state.addOperands(accNext);
+  (void)builder.create(state);
+}
+
+// The gated typed q8_0 path: build the whole per-block typed chain inside a new
+// tcrv_rvv.typed_flat_block_dot_loop_body region (result-less, region-carrying),
+// replacing the ONE monolith block-dot op. The loop-body op's block strides / qk /
+// quant offset come from entry.facts (by-name lookup); multi_block_factor is OMITTED
+// (absent = mbf 1). weight/activation/out/n are the shared variant-scope ABI values;
+// zeroSeed is the variant-scope reduce seed (dominates the in-region reduce); vl is
+// the setvl VL referenced freely by the in-region loads/product/reduce/extract.
+void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
+                                      mlir::Location loc,
+                                      const MonolithicBlockDotOpEntry &entry,
+                                      mlir::Value weight, mlir::Value activation,
+                                      mlir::Value out, mlir::Value n,
+                                      mlir::Value vl, mlir::Value zeroSeed) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed flat block-dot chain: missing block-format fact");
+  };
+  std::int64_t qk = factByName("qk");
+  std::int64_t weightStride = factByName("weight_block_stride");
+  std::int64_t activationStride = factByName("activation_block_stride");
+  std::int64_t quantByteOffset = factByName("quant_byte_offset");
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute("kind",
+                         builder.getStringAttr("typed_flat_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  loopState.addAttribute("fold_model", builder.getStringAttr("sumi_times_scales"));
+  loopState.addAttribute("integer_core_lmul", builder.getStringAttr("m2"));
+  loopState.addAttribute("strip_elision", builder.getStringAttr("elided"));
+  // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value acc = body.addArgument(builder.getF32Type(), loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  mlir::MLIRContext *ctx = builder.getContext();
+  mlir::Type i8VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getI8Type(), "m2");
+  mlir::Type i16VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getI16Type(), "m4");
+  mlir::Type i32VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+
+  // brick 1: the per-block d_x * d_y fp16 scale product over block_index.
+  mlir::Value dd = createBlockFp16ScaleProduct(
+      builder, loc, weight, activation, blockIndex, weightStride,
+      activationStride);
+  // W4 integer core: two per-block i8 loads (base + ib*stride + quant_off).
+  mlir::Value wv = createRVVBlockLoad(builder, loc, weight, vl, blockIndex,
+                                      weightStride, quantByteOffset, i8VecType);
+  mlir::Value av = createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
+                                      activationStride, quantByteOffset,
+                                      i8VecType);
+  // signed widening product (i8m2 x i8m2 -> i16m4).
+  mlir::Value prod = createWideningProduct(builder, loc, wv, av, vl, i16VecType,
+                                           "signed-i8m2xi8m2-to-i16m4");
+  // reduce i16m4 -> i32m1 lane0, then extract lane0 -> scalar i32 sumi.
+  mlir::Value red =
+      createStandaloneReduce(builder, loc, prod, zeroSeed, vl, i32VecType);
+  mlir::Value sumi =
+      createTypedVectorLane0ToScalarExtract(builder, loc, red, vl);
+  // brick 2: (float)sumi * (d_x * d_y).
+  mlir::Value bterm = createBlockComputedScaleDequant(builder, loc, sumi, dd);
+  // brick 3: sumf + term (cross-block fp32 fold).
+  mlir::Value accNext = createCrossBlockF32Accumulate(builder, loc, acc, bterm);
+  createTypedFlatBlockDotLoopYield(builder, loc, accNext);
+}
+
 // The ggml block dot-product op for this row: the bounded WHAT (kind, scale model,
 // block-format i64 facts, and any codebook/grid/ksigns DATA) is stamped from the
 // table row. Shape knobs are NOT stamped (the op lowers at the emitter default,
@@ -517,18 +738,47 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     }
   }
 
-  tcrvrvv::SetVLOp setvl = createSetVL(builder, loc, n, /*sew=*/32, "m1", policy);
+  // GATED typed q8_0 path (M-FLAT step 5b): q8_0's front door constructs the
+  // COMPLETE per-block TYPED LOOP chain (typed_flat_block_dot_loop_body region)
+  // instead of the ONE monolith block-dot op. The typed core runs the plain i8
+  // widening product/reduce at the SEW8/m2 anchor, so the setvl/with_vl config
+  // is sew=8/m2 (NOT the shared monolith sew=32/m1). Every other (monolith) row
+  // stays byte-unchanged. Dispatch/coherence follow the constructed op format-
+  // agnostically. multi_block_factor is pinned to 1 (absent on the loop-body op).
+  const bool typedFlatLoopPath =
+      entry.opName == tcrvrvv::GgmlBlockDotQ80Q80Op::getOperationName();
+  const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
+  const llvm::StringRef configLMUL = typedFlatLoopPath ? "m2" : "m1";
+
+  // The per-block reduce seed (0), a variant-scope value that dominates the
+  // in-region standalone_reduce. Only the typed path needs it; adding it to the
+  // monolith path would perturb its byte-exact ABI value set.
+  mlir::Value zeroSeed;
+  if (typedFlatLoopPath)
+    zeroSeed = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
+                                     "zero_seed", "const int32_t *",
+                                     "loop-body:reduce-seed", runtimeABIType);
+
+  tcrvrvv::SetVLOp setvl =
+      createSetVL(builder, loc, n, configSEW, configLMUL, policy);
   tcrvrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), /*sew=*/32, "m1", policy,
+      createWithVL(builder, loc, setvl.getVl(), configSEW, configLMUL, policy,
                    kernelName, selectedVariantSymbol, rvvRequires);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
 
-  // The auto-constructed block dot-product op (the scale model, integer core,
-  // super-block bit-dance, codebook gather, and deferred fold are op structure).
-  (void)createBlockDot(builder, loc, entry, weight, activation, out, n,
-                       setvl.getVl());
+  if (typedFlatLoopPath) {
+    // The auto-constructed typed flat block-dot loop chain (brick 1 -> integer
+    // core -> brick 2 -> brick 3 -> yield are op structure inside the region).
+    createTypedFlatBlockDotLoopChain(builder, loc, entry, weight, activation,
+                                     out, n, setvl.getVl(), zeroSeed);
+  } else {
+    // The auto-constructed block dot-product op (the scale model, integer core,
+    // super-block bit-dance, codebook gather, and deferred fold are op structure).
+    (void)createBlockDot(builder, loc, entry, weight, activation, out, n,
+                         setvl.getVl());
+  }
 
   mlir::FailureOr<std::string> fallbackOrigin =
       materializeConservativeFallbackVariantViaPlugin(
