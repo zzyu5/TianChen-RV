@@ -1604,3 +1604,59 @@ Built the q4_K repack GEMM (prefill) — op+verifier+multi-column emitter (the G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: 结构性刹车 + M-FLAT 里程碑启动: 设计面板证伪切片→砖①/5 fp16-scale 原语 + E3 门禁流量制 (引擎轴首次接触本体)
+
+**Date**: 2026-07-03
+**Task**: 结构性刹车 + M-FLAT 里程碑启动: 设计面板证伪切片→砖①/5 fp16-scale 原语 + E3 门禁流量制 (引擎轴首次接触本体)
+**Branch**: `refactor/full-refactor-m1`
+
+### Summary
+
+进度真理=燃减;设计面板证伪便宜切片→M-FLAT 家族里程碑([PAT-1] n/5);砖① fp16-scale typed 原语落地(1/5,C_construct 0/24 未动)+E3 门禁流量制;守 1:1
+
+### Main Changes
+
+### Summary
+
+结构性刹车落地 + 引擎轴第一次真正接触本体。承接同 session E6:高级 AI + 用户裁定"进度真理只认燃减"(headline=ΔC_construct 强义+Δ手写body LOC),E 系列 6 done 重新记为证据轴基建、燃减为零。执行序反转为引擎轴领跑,守引擎:证据 1:1。刹车=删/建引擎本体,不写治理文档(那是玩具化征兆①)。
+
+**核心发现(设计面板证伪"便宜切片"):** 拟做 G1 切片1 = vec_dot/q8_0 平面弱体→typed 强构造。我 sub-probe 读得太浅(以为 DequantizeOp 有 $scale operand 就能喂计算值)。ultracode 设计面板(3 独立设计者 champion ARCH-1/2/3 + judge,全 file:line 核验,run wf_355dffa7-c51)一致 ESCALATE:这不是切片,是整个平面 block-dot 家族共享的**多会话净新增-ODS 里程碑**。四面墙(各代码核验):①per-block fp16→f32 scale 重建今天是 opaque call_opaque ②DequantizeOp verifier 硬拒计算 scale、只收导入 ABI float(:9531)③无 f32 跨块累加 op(现有 i32 整数)④无 typed 循环 op + rejectMixed 不递归循环 region。q4_0 回退同墙;循环因单标量输出不能外提。**教训:判复用要读 verifier 不只 operand。**
+
+**用户批准 Option 1 + 三裁决:** 度量=已有 canon [PAT-1] 注册表原语(n/5 mechanized),非 C_construct;headline C_construct 严格 0/24 至砖⑤闭合+删弱 body→全平面家族台阶翻转(不斜坡不折算);DequantDot 单块档=砖①②集成插座;论文=闭合家族台阶+构造内边际成本递减(C2 同故事)+四面墙进边界地图。转 M-FLAT 里程碑 tracker,拆 5 砖。
+
+**本轮真工作(引擎位):砖①** = tcrv_rvv.block_fp16_scale_product(读 d_x/d_y fp16→f32→乘,拆第①墙的 opaque piece)。ODS+verifier(append,DequantizeOp 未动)+emitc lowering(共享拼写 byte-EQUAL monolith)+emit-consistency lit(positive+BADMODEL+BADKIND 3/3)+创建 schema/pattern-registry.v1.json([PAT-1] 5 行,砖① mechanized→M-FLAT 1/5,I4 mirror)。byte-exact by f32⊇fp16;数值 pending-hardware。**C_construct 0/24 未动(coverage 文件未碰)**。2-lens 对抗验证 GO/0-blocker;回归 133/133+211/211 净零(全套 785/788,3 失败=pre-existing Python self-test,stash-baseline 证)。comment 诚实修正(byte-EQUAL 巧合非机制化共享,drift 机制化推砖⑤)。
+
+**证据位(守 1:1):E3 切片** = F-2′ schema.def 门→.github CI + 红队证明(2 门模式各故意违规→FAIL→复原真实捕获)+8/8 re-runnable driver = 门禁流量制。⚠ report --check 上 push 武装分支级 S-6 门,后续动 schema/ 须同 PR 更 VERSIONLOG。
+
+**遗留(非阻塞):** 3 个 pre-existing rvv-generated-bundle-abi-e2e Python self-test 失败(与本轮无关,单独 triage);drift-protection 机制化推砖⑤。**下轮=砖②**(接受计算 scale 的 dequant:改 DequantizeOp $scale 契约或兄弟 op)。
+
+### Testing
+- [OK] brick① build exit 0 无 warning;lit 3/3(positive+BADMODEL+BADKIND)
+- [OK] 回归 test/Conversion/RVV 133/133 + test/Target/RVV 211/211 净零
+- [OK] 2-lens 对抗验证 GO/0-blocker(correctness+regression / discipline+spec)
+- [OK] E3 red-team 8/8 + gate self-test 16/16
+- [KNOWN] 3 pre-existing Python self-test 失败(非本轮)
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f0dd257b` | (see git log) |
+| `8ccb2b88` | (see git log) |
+| `23852f56` | (see git log) |
+| `329d2112` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
