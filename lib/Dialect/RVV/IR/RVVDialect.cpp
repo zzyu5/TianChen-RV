@@ -2814,6 +2814,14 @@ bool isGenericRVVVectorSignedI8M2(mlir::Type type) {
       type, getRVVSEW8Bits(), getRVVLMULM2());
 }
 
+// The M-FLAT q4_0 half-block integer-core strip type: i8m1 (one EMUL rung
+// narrower than q8_0's i8m2), widened to the i16m2 packed-i4 offset-binary
+// product. The per-block loop-load form accepts this alongside i8m2.
+bool isGenericRVVVectorSignedI8M1(mlir::Type type) {
+  return isGenericRVVSignedOrSignlessIntegerVectorType(
+      type, getRVVSEW8Bits(), getRVVLMULM1());
+}
+
 bool isGenericRVVVectorSignedI16M4(mlir::Type type) {
   return isGenericRVVSignedOrSignlessIntegerVectorType(
       type, getRVVSEW16Bits(), getRVVLMULM4());
@@ -3458,6 +3466,29 @@ bool isBoundedByteAnchorDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
 
   bool hasByteAnchorProductUse = false;
   for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    // The asymmetric offset-binary packed-i4 x plain-i8 product (ggml Q4_0 x
+    // Q8_0 integer core) m1 flat-cohort rung reuses the SAME SEW8 byte-anchor
+    // strip scope: the packed-i4 weight or one of the two plain-i8 activation
+    // loads (all i8m1) feeds the m1 product whose i16m2 result drives the
+    // byte-anchor widening reduce. PARALLEL branch keyed on the m1 rung
+    // product_relation; the widening_product byte-anchor branch below is
+    // unchanged (the narrow mf4 packed-i4 chain stays on its own SEW32 predicate).
+    if (auto offsetBinary =
+            llvm::dyn_cast<PackedI4OffsetBinaryXI8ProductOp>(user)) {
+      if (offsetBinary->getParentOp() != withVL.getOperation() ||
+          offsetBinary.getVl() != load.getVl() ||
+          (offsetBinary.getWeight() != load.getLoaded() &&
+           offsetBinary.getActivationLow() != load.getLoaded() &&
+           offsetBinary.getActivationHigh() != load.getLoaded()))
+        return false;
+      if (offsetBinary.getKind() !=
+              "signed_packed_i4_offset_binary_x_i8_product" ||
+          offsetBinary.getProductRelation() !=
+              "offset-binary-i4m1-x-i8m1x2-to-i16m2")
+        return false;
+      hasByteAnchorProductUse = true;
+      continue;
+    }
     auto product = llvm::dyn_cast<WideningProductOp>(user);
     if (!product || product->getParentOp() != withVL.getOperation() ||
         product.getVl() != load.getVl() ||

@@ -333,6 +333,26 @@ mlir::Value createWideningProduct(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state)->getResult(0);
 }
 
+// The q4_0 asymmetric offset-binary packed-i4 x plain-i8 integer core: ONE
+// packed-i4 weight operand (each i8 packs two offset-binary nibbles) + TWO plain
+// int8 activation operands (the q8 low half paired with the low nibbles, the q8
+// high half with the high nibbles) -> ONE widened i16 product. The m1 flat-cohort
+// rung (i4m1 weight x i8m1 low/high activation -> i16m2) mirrors the mf4 anchor
+// rung; the verifier admits both.
+mlir::Value createPackedI4OffsetBinaryProduct(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value weight,
+    mlir::Value activationLow, mlir::Value activationHigh, mlir::Value vl,
+    mlir::Type productType, llvm::StringRef productRelation) {
+  mlir::OperationState state(
+      loc, tcrvrvv::PackedI4OffsetBinaryXI8ProductOp::getOperationName());
+  state.addOperands({weight, activationLow, activationHigh, vl});
+  state.addAttribute(
+      "kind", builder.getStringAttr("signed_packed_i4_offset_binary_x_i8_product"));
+  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
+  state.addTypes(productType);
+  return builder.create(state)->getResult(0);
+}
+
 mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
@@ -453,6 +473,16 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   std::int64_t activationStride = factByName("activation_block_stride");
   std::int64_t quantByteOffset = factByName("quant_byte_offset");
 
+  // Format branch: q8_0 (plain signed i8xi8 whole-block, m2 anchor, sumi-first
+  // fold) vs q4_0 (asymmetric offset-binary packed-i4 x i8 HALF-block, m1 anchor,
+  // left-assoc fold + the q8 high-half activation strip). Only these two flat ops
+  // take the typed loop path; everything else stays the monolith op. q8_0's chain
+  // is byte-unchanged from before the branch.
+  const bool isQ40 =
+      entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+  std::int64_t activationHighOffset =
+      isQ40 ? factByName("activation_high_byte_offset") : 0;
+
   mlir::OperationState loopState(
       loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
   loopState.addOperands({weight, activation, out, n});
@@ -463,8 +493,11 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                          builder.getI64IntegerAttr(weightStride));
   loopState.addAttribute("activation_block_stride",
                          builder.getI64IntegerAttr(activationStride));
-  loopState.addAttribute("fold_model", builder.getStringAttr("sumi_times_scales"));
-  loopState.addAttribute("integer_core_lmul", builder.getStringAttr("m2"));
+  loopState.addAttribute(
+      "fold_model",
+      builder.getStringAttr(isQ40 ? "left_assoc" : "sumi_times_scales"));
+  loopState.addAttribute("integer_core_lmul",
+                         builder.getStringAttr(isQ40 ? "m1" : "m2"));
   loopState.addAttribute("strip_elision", builder.getStringAttr("elided"));
   // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
   loopState.addRegion();
@@ -479,27 +512,58 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   builder.setInsertionPointToStart(&body);
 
   mlir::MLIRContext *ctx = builder.getContext();
+  // The integer-core widths: q8_0 anchors i8m2 -> i16m4; q4_0's half-block
+  // packed-i4 core anchors i8m1 -> i16m2. The i32m1 reduce lane is shared.
+  llvm::StringRef coreLmul = isQ40 ? "m1" : "m2";
+  llvm::StringRef wideLmul = isQ40 ? "m2" : "m4";
   mlir::Type i8VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI8Type(), "m2");
+      tcrvrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
   mlir::Type i16VecType =
-      tcrvrvv::VectorType::get(ctx, builder.getI16Type(), "m4");
+      tcrvrvv::VectorType::get(ctx, builder.getI16Type(), wideLmul);
   mlir::Type i32VecType =
       tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
 
-  // brick 1: the per-block d_x * d_y fp16 scale product over block_index.
+  // brick 1: the per-block d_x * d_y fp16 scale product over block_index (shared;
+  // the AoS strides differ per format but the scale model is identical).
   mlir::Value dd = createBlockFp16ScaleProduct(
       builder, loc, weight, activation, blockIndex, weightStride,
       activationStride);
-  // W4 integer core: two per-block i8 loads (base + ib*stride + quant_off).
-  mlir::Value wv = createRVVBlockLoad(builder, loc, weight, vl, blockIndex,
-                                      weightStride, quantByteOffset, i8VecType);
-  mlir::Value av = createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
-                                      activationStride, quantByteOffset,
-                                      i8VecType);
-  // signed widening product (i8m2 x i8m2 -> i16m4).
-  mlir::Value prod = createWideningProduct(builder, loc, wv, av, vl, i16VecType,
-                                           "signed-i8m2xi8m2-to-i16m4");
-  // reduce i16m4 -> i32m1 lane0, then extract lane0 -> scalar i32 sumi.
+
+  // The vector integer core diverges by format. q8_0: two per-block i8 loads ->
+  // signed widening product. q4_0: ONE packed-i4 weight load + TWO plain-i8
+  // activation loads (the q8 low half at quant_off, the q8 high half at
+  // quant_off + activation_high_byte_offset) -> the asymmetric offset-binary
+  // packed-i4 x i8 product.
+  mlir::Value prod;
+  if (isQ40) {
+    // packed-i4 weight strip (base + ib*18 + 2).
+    mlir::Value wv =
+        createRVVBlockLoad(builder, loc, weight, vl, blockIndex, weightStride,
+                           quantByteOffset, i8VecType);
+    // q8 low half (base + ib*34 + 2) and high half (base + ib*34 + 2 + 16).
+    mlir::Value avLow =
+        createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
+                           activationStride, quantByteOffset, i8VecType);
+    mlir::Value avHigh = createRVVBlockLoad(
+        builder, loc, activation, vl, blockIndex, activationStride,
+        quantByteOffset + activationHighOffset, i8VecType);
+    // asymmetric offset-binary packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
+    prod = createPackedI4OffsetBinaryProduct(
+        builder, loc, wv, avLow, avHigh, vl, i16VecType,
+        "offset-binary-i4m1-x-i8m1x2-to-i16m2");
+  } else {
+    // q8_0: two per-block i8 loads (base + ib*stride + quant_off).
+    mlir::Value wv =
+        createRVVBlockLoad(builder, loc, weight, vl, blockIndex, weightStride,
+                           quantByteOffset, i8VecType);
+    mlir::Value av =
+        createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
+                           activationStride, quantByteOffset, i8VecType);
+    // signed widening product (i8m2 x i8m2 -> i16m4).
+    prod = createWideningProduct(builder, loc, wv, av, vl, i16VecType,
+                                 "signed-i8m2xi8m2-to-i16m4");
+  }
+  // reduce i16<wide> -> i32m1 lane0, then extract lane0 -> scalar i32 sumi.
   mlir::Value red =
       createStandaloneReduce(builder, loc, prod, zeroSeed, vl, i32VecType);
   mlir::Value sumi =
@@ -738,17 +802,23 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     }
   }
 
-  // GATED typed q8_0 path (M-FLAT step 5b): q8_0's front door constructs the
-  // COMPLETE per-block TYPED LOOP chain (typed_flat_block_dot_loop_body region)
-  // instead of the ONE monolith block-dot op. The typed core runs the plain i8
-  // widening product/reduce at the SEW8/m2 anchor, so the setvl/with_vl config
-  // is sew=8/m2 (NOT the shared monolith sew=32/m1). Every other (monolith) row
-  // stays byte-unchanged. Dispatch/coherence follow the constructed op format-
-  // agnostically. multi_block_factor is pinned to 1 (absent on the loop-body op).
-  const bool typedFlatLoopPath =
+  // GATED typed flat-loop path (M-FLAT step 5b/6): q8_0 and q4_0's front doors
+  // construct the COMPLETE per-block TYPED LOOP chain
+  // (typed_flat_block_dot_loop_body region) instead of the ONE monolith block-dot
+  // op. The typed core runs at the SEW8 byte anchor, so the setvl/with_vl config
+  // is sew=8 (NOT the shared monolith sew=32/m1) with the per-format integer-core
+  // LMUL: q8_0's plain whole-block core anchors m2, q4_0's half-block packed-i4
+  // core anchors m1. Every other (monolith) row stays byte-unchanged.
+  // Dispatch/coherence follow the constructed op format-agnostically.
+  // multi_block_factor is pinned to 1 (absent on the loop-body op).
+  const bool isQ80TypedFlat =
       entry.opName == tcrvrvv::GgmlBlockDotQ80Q80Op::getOperationName();
+  const bool isQ40TypedFlat =
+      entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+  const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat;
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
-  const llvm::StringRef configLMUL = typedFlatLoopPath ? "m2" : "m1";
+  const llvm::StringRef configLMUL =
+      isQ40TypedFlat ? "m1" : (isQ80TypedFlat ? "m2" : "m1");
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
   // in-region standalone_reduce. Only the typed path needs it; adding it to the

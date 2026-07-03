@@ -3855,8 +3855,11 @@ def PackedI4OffsetBinaryXI8ProductOp
     plain low activation; vwmacc over i16mf2 against the plain high activation)
     is the op's lowering, NOT a candidate-mirror string read in the conversion.
     For the bounded Stage 4 surface kind is limited to
-    signed_packed_i4_offset_binary_x_i8_product and product_relation to
-    "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2". Source/result dtype/config, VL,
+    signed_packed_i4_offset_binary_x_i8_product and product_relation to one of
+    two LMUL rungs sharing the SAME decode + product structure:
+    "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2" (the narrow integer-core anchor)
+    or "offset-binary-i4m1-x-i8m1x2-to-i16m2" (the m1 flat-cohort rung).
+    Source/result dtype/config, VL,
     the offset-binary decode and the one-sided unpack structure are structural
     in the selected RVV body. Route ids, helper names, ABI strings, artifact
     names, status fields, exact intrinsic spellings, operand-packing mirror
@@ -9436,7 +9439,9 @@ def TypedFlatBlockDotLoopBodyOp : TCRVRVV_Op<"typed_flat_block_dot_loop_body",
     body (the *how* -- LMUL / unroll / elision -- never the *what*). For the
     current bounded surface kind is limited to "typed_flat_block_dot_loop_body"
     and fold_model to "sumi_times_scales" (the q8_0 `(float)sumi * (d_x * d_y)`
-    fold tree). The op does NOT own dtype/route authority; the per-block integer
+    fold tree) or "left_assoc" (the q4_0 `((float)sumi * d_x) * d_y` fold tree,
+    whose integer core is the asymmetric offset-binary packed-i4 x i8 product).
+    The op does NOT own dtype/route authority; the per-block integer
     core, the per-block scale reconstruction, and the per-block dequant term are
     separate typed steps carried inside the region.
   }];

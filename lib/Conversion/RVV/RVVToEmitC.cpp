@@ -5526,8 +5526,11 @@ llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
         if (llvm::isa<
                 // brick 1 (per-block fp16 scale product / per-block-source)
                 tcrv::rvv::BlockFp16ScaleProductOp,
-                // vector integer core primitives
-                tcrv::rvv::WideningProductOp, tcrv::rvv::StandaloneReduceOp,
+                // vector integer core primitives (q8_0 plain signed widening
+                // product + q4_0 asymmetric offset-binary packed-i4 x i8 product)
+                tcrv::rvv::WideningProductOp,
+                tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp,
+                tcrv::rvv::StandaloneReduceOp,
                 // step 2 scalar-lane extract bridge (integer core -> scalar fold)
                 tcrv::rvv::TypedVectorLane0ToScalarExtractOp,
                 // brick 2 (per-block computed-scale dequant term)

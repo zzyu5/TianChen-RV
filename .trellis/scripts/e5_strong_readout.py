@@ -113,6 +113,19 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
+    # q4_0 vec_dot: STRONG. Same typed flat block-dot LOOP construction as q8_0, but the
+    # decomposed body realizes the packed-i4 offset-binary dot primitive
+    # (tcrv_rvv.packed_i4_offset_binary_x_i8_product) instead of the plain widening_product,
+    # since q4_0 weights are packed nibbles. Its front door constructs the typed
+    # tcrv_rvv.typed_flat_block_dot_loop_body (NOT the opaque emitFlatBlockDot hand helper),
+    # so update-sixstate machine-reads the REAL constructor output (no hand .mlir).
+    {
+        "op": "vec_dot", "format": "q4_0", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q4-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
+    },
     # Negative control: a weak descriptor-selected block-dot. q5_0's front door still
     # auto-constructs the MONOLITHIC tcrv_rvv.q5_0_q8_0_block_dot op (kind
     # "ggml_q5_0_q8_0_block_dot"), so [L-8] derives NOT-strong (constructed-weak). This
@@ -337,8 +350,8 @@ def cmd_update_sixstate(_args):
     if "E5 增量①" not in doc["$meta"]["labeling"]:
         doc["$meta"]["labeling"] = (
             doc["$meta"]["labeling"]
-            + " | E5 增量① (strong-side auto): the 4 STRONG rows (3 product_reduce "
-              "N-operand routes + q8_0 vec_dot typed_flat_block_dot_loop_body) carry a "
+            + " | E5 增量① (strong-side auto): the 5 STRONG rows (3 product_reduce "
+              "N-operand routes + q8_0 vec_dot + q4_0 vec_dot, both typed_flat_block_dot_loop_body) carry a "
               "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
               "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
               "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "

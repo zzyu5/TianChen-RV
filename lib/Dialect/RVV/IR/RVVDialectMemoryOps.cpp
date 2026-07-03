@@ -108,13 +108,16 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedCodebookGatherChainSourceLoad(*this, withVL))
       return mlir::success();
   // M-FLAT W2/W1: the per-block loop integer-core load sources the signed i8
-  // strip (i8m2 for q8_0). Its direct parent is the typed loop-body op, so the
-  // single-block widening-source fast-paths above (which require a direct
-  // with_vl parent for the whole load->product->reduce chain) are skipped.
-  // Accept exactly the integer-core source type for the per-block form -- the
-  // loop-body allowlist (M-FLAT step 4) and the byte-exact lowering guard chain
-  // integrity. Not generalized past the type the flat q8_0 core actually loads.
-  if (hasBlockIndex && isGenericRVVVectorSignedI8M2(getLoaded().getType()))
+  // strip (i8m2 for q8_0, i8m1 for q4_0's half-block packed-i4 core). Its direct
+  // parent is the typed loop-body op, so the single-block widening-source
+  // fast-paths above (which require a direct with_vl parent for the whole
+  // load->product->reduce chain) are skipped. Accept exactly the integer-core
+  // source types for the per-block form -- the loop-body allowlist (M-FLAT step
+  // 4) and the byte-exact lowering guard chain integrity. Not generalized past
+  // the types the flat q8_0 / q4_0 cores actually load.
+  if (hasBlockIndex &&
+      (isGenericRVVVectorSignedI8M2(getLoaded().getType()) ||
+       isGenericRVVVectorSignedI8M1(getLoaded().getType())))
     return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }

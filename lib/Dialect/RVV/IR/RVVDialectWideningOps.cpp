@@ -826,34 +826,70 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
               "\"signed_packed_i4_offset_binary_x_i8_product\" for the bounded "
               "Stage 4 asymmetric offset-binary packed-i4 x plain-i8 "
               "widening-product typed surface";
-  if (getProductRelation() != "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2")
+  // Two LMUL rungs share the SAME offset-binary decode + asymmetric widening
+  // product STRUCTURE; only the vector width differs. The narrow mf4/mf2 rung is
+  // the INC-1 integer-core anchor; the m1/m2 rung is the M-FLAT flat-cohort core
+  // (i4m1 weight x i8m1 low/high activation -> i16m2). This mirrors how
+  // tcrv_rvv.widening_product declares multiple LMUL rungs; the emitter derives
+  // every intrinsic width from the operand/result types, so the m1 rung is
+  // byte-exact to the mf4 rung modulo the width tokens.
+  const bool isNarrowRung =
+      getProductRelation() == "offset-binary-i4mf4-x-i8mf4x2-to-i16mf2";
+  const bool isM1Rung =
+      getProductRelation() == "offset-binary-i4m1-x-i8m1x2-to-i16m2";
+  if (!isNarrowRung && !isM1Rung)
     return emitOpError()
            << "requires product_relation "
-              "\"offset-binary-i4mf4-x-i8mf4x2-to-i16mf2\" for the bounded "
-              "asymmetric offset-binary packed-i4 x plain-i8 widening-product "
-              "route";
+              "\"offset-binary-i4mf4-x-i8mf4x2-to-i16mf2\" (the narrow "
+              "integer-core rung) or \"offset-binary-i4m1-x-i8m1x2-to-i16m2\" "
+              "(the m1 flat-cohort rung) for the bounded asymmetric "
+              "offset-binary packed-i4 x plain-i8 widening-product route";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires one i8 LMUL mf4 packed-i4 weight operand, two i8 LMUL "
-              "mf4 plain-int8 activation operands, one !tcrv_rvv.vl operand, "
-              "and one i16 LMUL mf2 result";
-  if (!isGenericRVVVectorSignedI8MF4(getWeight().getType()))
-    return emitOpError()
-           << "requires the packed-i4 weight source vector to have type "
-              "!tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric offset-binary "
-              "packed-i4 x plain-i8 widening-product route";
-  if (!isGenericRVVVectorSignedI8MF4(getActivationLow().getType()) ||
-      !isGenericRVVVectorSignedI8MF4(getActivationHigh().getType()))
-    return emitOpError()
-           << "requires the low and high plain-int8 activation source vectors "
-              "to have type !tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric "
-              "offset-binary packed-i4 x plain-i8 widening-product route";
-  if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the asymmetric offset-binary "
-              "packed-i4 x plain-i8 widening-product route";
+           << "requires one packed-i4 weight operand, two plain-int8 "
+              "activation operands, one !tcrv_rvv.vl operand, and one widened "
+              "i16 result";
+  if (isM1Rung) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+      return emitOpError()
+             << "requires the packed-i4 weight source vector to have type "
+                "!tcrv_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
+                "offset-binary packed-i4 x plain-i8 widening-product rung";
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getActivationLow().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+      return emitOpError()
+             << "requires the low and high plain-int8 activation source vectors "
+                "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 "
+                "asymmetric offset-binary packed-i4 x plain-i8 "
+                "widening-product rung";
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
+                "offset-binary packed-i4 x plain-i8 widening-product rung";
+  } else {
+    if (!isGenericRVVVectorSignedI8MF4(getWeight().getType()))
+      return emitOpError()
+             << "requires the packed-i4 weight source vector to have type "
+                "!tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric offset-binary "
+                "packed-i4 x plain-i8 widening-product route";
+    if (!isGenericRVVVectorSignedI8MF4(getActivationLow().getType()) ||
+        !isGenericRVVVectorSignedI8MF4(getActivationHigh().getType()))
+      return emitOpError()
+             << "requires the low and high plain-int8 activation source vectors "
+                "to have type !tcrv_rvv.vector<i8, \"mf4\"> for the asymmetric "
+                "offset-binary packed-i4 x plain-i8 widening-product route";
+    if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<i16, \"mf2\"> for the asymmetric offset-binary "
+                "packed-i4 x plain-i8 widening-product route";
+  }
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -9924,18 +9960,20 @@ mlir::LogicalResult CrossBlockF32AccumulateOp::verify() {
 mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // Bounded surface (I7 fail-closed): the loop op only owns the q8_0-style
-  // SumiTimesScales fold tree for the current step; the other flat fold trees
-  // (q4_0 LeftAssoc, q5_0 ScalesTimesSumi, q4_1/q5_1 ScalePlusMin) are later.
+  // Bounded surface (I7 fail-closed): the loop op owns the q8_0-style
+  // SumiTimesScales fold tree and the q4_0 LeftAssoc fold tree for the current
+  // step; the remaining flat fold trees (q5_0 ScalesTimesSumi, q4_1/q5_1
+  // ScalePlusMin) are later.
   if (getKind() != "typed_flat_block_dot_loop_body")
     return emitOpError()
            << "currently supports only kind \"typed_flat_block_dot_loop_body\" "
               "for the bounded flat block dot-product nb loop surface";
-  if (getFoldModel() != "sumi_times_scales")
+  if (getFoldModel() != "sumi_times_scales" && getFoldModel() != "left_assoc")
     return emitOpError()
            << "currently supports only fold_model \"sumi_times_scales\" (the "
-              "q8_0 `(float)sumi * (d_x * d_y)` fold tree); the other flat fold "
-              "trees are later steps";
+              "q8_0 `(float)sumi * (d_x * d_y)` fold tree) or \"left_assoc\" "
+              "(the q4_0 `((float)sumi * d_x) * d_y` fold tree); the other flat "
+              "fold trees are later steps";
 
   // Externally-defined ggml block facts: QK and the AoS block strides are
   // positive byte counts the per-block address arithmetic depends on.
