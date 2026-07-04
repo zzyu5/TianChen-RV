@@ -555,12 +555,20 @@ void createTypedFlatBlockDotLoopYield(mlir::OpBuilder &builder,
 // (absent = mbf 1). weight/activation/out/n are the shared variant-scope ABI values;
 // zeroSeed is the variant-scope reduce seed (dominates the in-region reduce); vl is
 // the setvl VL referenced freely by the in-region loads/product/reduce/extract.
+// `lmul` is the integer-core LMUL schedule ("m1"|"m2"): it drives the
+// integer_core_lmul stamp, the coreLmul/wideLmul region vector types, and (for the
+// q8_0 whole-block path) the widening product_relation as ONE consistent source, so
+// the four verifier-cross-pinned knobs cannot diverge. It MUST agree with the
+// enclosing setvl/with_vl config LMUL (the caller passes the same value to both).
+// q8_0 defaults to "m2" (the anchor); the half-block packed-i4 formats always pass
+// "m1" (their region product_relation pins i8m1).
 void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                                       mlir::Location loc,
                                       const MonolithicBlockDotOpEntry &entry,
                                       mlir::Value weight, mlir::Value activation,
                                       mlir::Value out, mlir::Value n,
-                                      mlir::Value vl, mlir::Value zeroSeed) {
+                                      mlir::Value vl, mlir::Value zeroSeed,
+                                      llvm::StringRef lmul) {
   auto factByName = [&](llvm::StringRef name) -> std::int64_t {
     for (const MonolithicBlockDotI64Attr &fact : entry.facts)
       if (fact.name == name)
@@ -619,9 +627,19 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                                    : ((isQ41 || isQ51) ? "scale_plus_min"
                                             : (isQ40 ? "left_assoc"
                                                      : "sumi_times_scales"))));
-  loopState.addAttribute("integer_core_lmul",
-                         builder.getStringAttr(isHalfBlock ? "m1" : "m2"));
-  loopState.addAttribute("strip_elision", builder.getStringAttr("elided"));
+  loopState.addAttribute("integer_core_lmul", builder.getStringAttr(lmul));
+  // strip_elision is a VLEN-legality knob, not free. The elided single-cover emits
+  // ONE vsetvl(blockLen); that only covers the whole strip when blockLen <= VLMAX.
+  // q8_0's whole-block core has blockLen = qk = 32, so at m2 (VLMAX 32 @VLEN128) the
+  // elided cover is whole-block-legal, but at m1 (VLMAX 16 @VLEN128) it would
+  // SILENTLY cover half the block -- illegal below VLEN256. The half-block packed-i4
+  // formats have blockLen = qk/2 = 16, so their m1 elided cover is whole-strip-legal
+  // at VLEN128. So the ONLY form that must fall back to the VLEN-robust re-strip is
+  // q8_0 at m1; every currently-live path (q8_0-m2, half-block-m1) keeps "elided"
+  // byte-for-byte.
+  loopState.addAttribute(
+      "strip_elision",
+      builder.getStringAttr((!isHalfBlock && lmul == "m1") ? "robust" : "elided"));
   // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
   loopState.addRegion();
   auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
@@ -635,10 +653,13 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   builder.setInsertionPointToStart(&body);
 
   mlir::MLIRContext *ctx = builder.getContext();
-  // The integer-core widths: q8_0 anchors i8m2 -> i16m4; q4_0's half-block
-  // packed-i4 core anchors i8m1 -> i16m2. The i32m1 reduce lane is shared.
-  llvm::StringRef coreLmul = isHalfBlock ? "m1" : "m2";
-  llvm::StringRef wideLmul = isHalfBlock ? "m2" : "m4";
+  // The integer-core widths derive from the ONE `lmul` schedule (widening steps
+  // LMUL up one rung): q8_0 anchors i8m2 -> i16m4 (lmul "m2") but is also
+  // constructible at i8m1 -> i16m2 (lmul "m1"); q4_0's half-block packed-i4 core
+  // anchors i8m1 -> i16m2 (the caller always passes "m1"). The i32m1 reduce lane
+  // is shared.
+  llvm::StringRef coreLmul = lmul;
+  llvm::StringRef wideLmul = (lmul == "m1") ? "m2" : "m4";
   mlir::Type i8VecType =
       tcrvrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
   // q4_1's packed weight strip is UNSIGNED (the nibble value IS the weight, the
@@ -736,9 +757,13 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
     mlir::Value av =
         createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
                            activationStride, quantByteOffset, i8VecType);
-    // signed widening product (i8m2 x i8m2 -> i16m4).
+    // signed widening product: i8m2 x i8m2 -> i16m4 (lmul "m2", the anchor) or
+    // i8m1 x i8m1 -> i16m2 (lmul "m1", the byte-anchor dot-reduce rung). Both
+    // relations are admitted by the widening_product verifier; the arithmetic is
+    // bit-identical (LMUL is a schedule knob, not an arithmetic one).
     prod = createWideningProduct(builder, loc, wv, av, vl, i16VecType,
-                                 "signed-i8m2xi8m2-to-i16m4");
+                                 (lmul == "m1") ? "signed-i8m1xi8m1-to-i16m2"
+                                                : "signed-i8m2xi8m2-to-i16m4");
   }
   // reduce i16<wide> -> i32m1 lane0, then extract lane0 -> scalar i32 sumi.
   mlir::Value red =
@@ -1003,10 +1028,16 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                                  isQ41TypedFlat || isQ50TypedFlat ||
                                  isQ51TypedFlat;
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
-  const llvm::StringRef configLMUL =
-      (isQ40TypedFlat || isQ41TypedFlat || isQ50TypedFlat || isQ51TypedFlat)
-          ? "m1"
-          : (isQ80TypedFlat ? "m2" : "m1");
+  // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
+  // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
+  // stamp / coreLmul-wideLmul / q8_0 product_relation), so the verifier-cross-pinned
+  // knobs cannot diverge. q8_0's whole-block plain-i8 core anchors "m2" (step 1b
+  // makes "m1" a constructible schedule; the selector that would flip it is deferred
+  // to step 2, so the default stays "m2" = zero regression). The half-block
+  // packed-i4 formats anchor "m1" (their region product_relation pins i8m1). The
+  // monolith (non-typed) path keeps its SEW32 "m1" config.
+  const llvm::StringRef typedFlatLmul = isQ80TypedFlat ? "m2" : "m1";
+  const llvm::StringRef configLMUL = typedFlatLoopPath ? typedFlatLmul : "m1";
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
   // in-region standalone_reduce. Only the typed path needs it; adding it to the
@@ -1030,7 +1061,8 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // The auto-constructed typed flat block-dot loop chain (brick 1 -> integer
     // core -> brick 2 -> brick 3 -> yield are op structure inside the region).
     createTypedFlatBlockDotLoopChain(builder, loc, entry, weight, activation,
-                                     out, n, setvl.getVl(), zeroSeed);
+                                     out, n, setvl.getVl(), zeroSeed,
+                                     typedFlatLmul);
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).
