@@ -73,10 +73,21 @@ module {
 // CHECK: add %[[IB]], %{{.*}}
 // CHECK: %[[SUMI1:.*]] = "emitc.variable"() {{.*}} -> !emitc.lvalue<!emitc.opaque<"int32_t">>
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// --- THEN the two folds in STRICT ascending block order ---
-// CHECK: %[[ACC0:.*]] = expression : !emitc.opaque<"float"> {
+// --- THEN the two folds in STRICT ascending block order, each the PINNED
+// --- SeparatedLeftAssoc oracle [testing/flat-block-dot-fp-fold-oracle.md §1]:
+// --- SEPARATE cast/mul/mul/add emitc statements, NOT a fused emitc.expression,
+// --- so clang cannot contract (t*d_y)+sumf into fmaf; ((sumi*d_x)*d_y) with NO
+// --- d_x*d_y premultiply. The assign takes the ADD result directly (in a fused
+// --- expression it would take the expression result -- this locks separation).
+// CHECK: %[[C0:.*]] = cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// CHECK: %[[T0:.*]] = mul %[[C0]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[T0B:.*]] = mul %[[T0]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[ACC0:.*]] = add %{{.*}}, %[[T0B]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
 // CHECK: assign %[[ACC0]] : !emitc.opaque<"float"> to %[[SUMF]]
-// CHECK: %[[ACC1:.*]] = expression : !emitc.opaque<"float"> {
+// CHECK: %[[C1:.*]] = cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// CHECK: %[[T1:.*]] = mul %[[C1]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[T1B:.*]] = mul %[[T1]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[ACC1:.*]] = add %{{.*}}, %[[T1B]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
 // CHECK: assign %[[ACC1]] : !emitc.opaque<"float"> to %[[SUMF]]
 // --- the nb % 2 robust single-block scalar tail loop ---
 // CHECK: for %{{.*}} = %[[MAIN]] to %{{.*}} step
@@ -93,7 +104,12 @@ module {
 // MBF1: for %{{.*}} = %{{.*}} to %{{.*}} step
 // MBF1: for %{{.*}} = %{{.*}} to %{{.*}} step
 // MBF1: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// MBF1: %[[M1ACC:.*]] = expression : !emitc.opaque<"float"> {
+// The single fold: the separated SeparatedLeftAssoc oracle (no fused expression).
+// MBF1: %[[M1C:.*]] = cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// MBF1: %[[M1T:.*]] = mul %[[M1C]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// MBF1: %[[M1T2:.*]] = mul %[[M1T]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// MBF1: %[[M1ACC:.*]] = add %{{.*}}, %[[M1T2]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// MBF1: assign %[[M1ACC]] : !emitc.opaque<"float"> to
 // MBF1: return
 
 // The multi_block_factor==4 + elided combo: the by-4 main loop emits four elided
@@ -104,5 +120,10 @@ module {
 // MBF4: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // MBF4: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // MBF4: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// MBF4: expression : !emitc.opaque<"float"> {
+// The four folds are the separated SeparatedLeftAssoc oracle (no fused expression);
+// check the first fold's cast/mul/mul/add chain.
+// MBF4: cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// MBF4: %[[F4T:.*]] = mul %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// MBF4: %[[F4T2:.*]] = mul %[[F4T]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// MBF4: add %{{.*}}, %[[F4T2]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
 // MBF4: return

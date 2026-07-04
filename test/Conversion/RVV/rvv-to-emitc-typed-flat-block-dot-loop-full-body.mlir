@@ -19,25 +19,27 @@
 // widening product reads its lhs/rhs load results, the reduce reads its product,
 // the extract reads its reduce, brick 1's two fp16 reads share the load's
 // per-block base (memoized on the (buffer, block_index) SSA pair), and brick
-// 1/2/3 collapse COLLECTIVELY into the one fused fold emitc.expression. The
-// whole emitted body (loop skeleton + the plain i8xi8 widening-product/reduce
-// integer core + the fused fp32 fold `sumf + (float)sumi * (d_x * d_y)`) is
-// byte-identical to the q8_0 (plain_i8 / whole-block / SumiTimesScales,
-// integer_core_lmul m2, elided, mbf 1) instance of emitFlatBlockDot -- but is
-// SOURCED from the region ops, not re-derived from the loop-body attrs.
+// 1/2/3 lower to the PINNED SeparatedLeftAssoc fold. The whole emitted body
+// (loop skeleton + the plain i8xi8 widening-product/reduce integer core + the
+// pinned fp32 fold `t=(float)sumi*d_x; t=t*d_y; sumf=sumf+t`) is SOURCED from the
+// region ops, not re-derived from the loop-body attrs. The fold conforms to
+// [testing/flat-block-dot-fp-fold-oracle.md §1] (separate statements, no
+// premultiply, no FMA) and is therefore INTENTIONALLY no longer byte-exact vs
+// the monolith's fused `sumf + (float)sumi*(d_x*d_y)` (the sanctioned gate
+// migration, q8_0 only; the monolith retires later).
 //
 // This is an emit-consistency ("CORE == emission-plans") lit that locks the
-// WHOLE body byte-exact (not just the step-1 skeleton): it closes the two items
-// step 1 explicitly deferred -- the fused fold emitc.expression (the single C
-// statement `sumf += (float)sumi*(d_x*d_y)`) AND the sumf LOAD landing AFTER the
-// block integer core (not at the loop top). The gated integer-core ops are now
+// WHOLE body (not just the step-1 skeleton): the pinned fold is emitted as
+// SEPARATE cast/mul/mul/add emitc statements (NOT one emitc.expression) so clang
+// cannot contract the (t*d_y)+sumf into fmaf, AND the sumf LOAD lands AFTER the
+// block integer core (not at the loop top). The gated integer-core ops are
 // lowered OP-BY-OP from their operands: each load's vle8 address arithmetic is
 // built from the load op's block_stride/quant_byte_offset (see the operand-flow
 // CHECKs below pinning stride 34 into the base mul and quant offset 2 into the
 // load add), the vwmul/vwredsum/vmv_x_s consume their predecessor op results
-// through the valueMap, and only the fused fold tail (brick 1's `d_x*d_y` +
-// brick 2 + brick 3) collapses collectively into the one emitc.expression via
-// the reused emitFlatFold (fed the operand-derived d_x/d_y + sumi). Numerical
+// through the valueMap, and the fold tail (brick 1's d_x/d_y + brick 2 + brick 3)
+// lowers to the separated cast/mul/mul/add via the reused emitFlatFold (fed the
+// operand-derived d_x/d_y + sumi). Numerical
 // bit-exact-vs-ggml is pending-hardware (ssh rvv), not tested here. Nothing is
 // wired to a q8_0 dispatch and no format state is flipped (that is step 5b/6);
 // the provenance verbatim comments deliberately carry THIS op's identity.
@@ -123,18 +125,21 @@ module {
 // CHECK: %[[RED:.*]] = call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // CHECK: assign %[[RED]] : !emitc.opaque<"int32_t"> to %[[SUMI]]
 
-// The FUSED fp32 fold (step-1 deferred item 1): sumi loaded, sumf loaded AFTER
-// the core (step-1 deferred item 2), then ONE emitc.expression rendering the
-// single C statement `sumf + (float)sumi * (d_x * d_y)` (d_x*d_y FIRST).
+// The PINNED SeparatedLeftAssoc fp32 fold [testing/flat-block-dot-fp-fold-oracle.md
+// §1]: sumi loaded, sumf loaded AFTER the core, then SEPARATE cast/mul/mul/add
+// emitc statements (NOT a fused emitc.expression) so clang cannot contract
+// (t*d_y)+sumf into fmaf. The tree is ((sumi*d_x)*d_y) -- NO d_x*d_y premultiply
+// (the first mul takes the sumi cast and d_x, not d_x*d_y). The assign takes the
+// ADD result DIRECTLY -- a fused expression would assign the expression result,
+// so this locks the separation (and the q8_0 typed emit is INTENTIONALLY no
+// longer byte-exact vs the monolith's `sumi*(d_x*d_y)`).
 // CHECK: %[[SI:.*]] = load %[[SUMI]] : <!emitc.opaque<"int32_t">>
 // CHECK: %[[SF:.*]] = load %[[SUMF]] : <!emitc.opaque<"float">>
-// CHECK: %[[EXPR:.*]] = expression : !emitc.opaque<"float"> {
-// CHECK: cast %[[SI]] : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
-// CHECK: mul %[[DX]], %[[DY]] : (!emitc.opaque<"float">, !emitc.opaque<"float">)
-// CHECK: mul %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
-// CHECK: add %[[SF]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
-// CHECK: yield
-// CHECK: assign %[[EXPR]] : !emitc.opaque<"float"> to %[[SUMF]] : <!emitc.opaque<"float">>
+// CHECK: %[[CF:.*]] = cast %[[SI]] : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// CHECK: %[[T:.*]] = mul %[[CF]], %[[DX]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[T2:.*]] = mul %[[T]], %[[DY]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: %[[ACC:.*]] = add %[[SF]], %[[T2]] : (!emitc.opaque<"float">, !emitc.opaque<"float">) -> !emitc.opaque<"float">
+// CHECK: assign %[[ACC]] : !emitc.opaque<"float"> to %[[SUMF]] : <!emitc.opaque<"float">>
 
 // *s = sumf; the structured scalar store, then return.
 // CHECK: subscript

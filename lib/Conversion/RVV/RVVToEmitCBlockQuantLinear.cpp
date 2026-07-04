@@ -5829,6 +5829,32 @@ void VariantToEmitCFunc::emitFlatFold(
           rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
       mlir::Value sumfCur =
           rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+
+      // Pinned fp-fold oracle [K-5]/[testing/flat-block-dot-fp-fold-oracle.md §1]:
+      // strict left-assoc, ordered, NO dx*dy premultiply, NO FMA contraction.
+      // Emitted as SEPARATE emitc statements (standalone cast/mul/mul/add, NOT
+      // inside one emitc.expression) so clang's default -ffp-contract=on cannot
+      // fuse the (t*d_y)+sumf into an fmaf -- cross-statement contraction with
+      // named intermediates is not permitted. The two muls give ((sumi*d_x)*d_y),
+      // the add folds into the ordered running sumf:
+      //   float t = (float)sumi * d_x;   // t = f32(sumi) (x) dx
+      //   t = t * d_y;                   // t = t (x) dy
+      //   sumf = sumf + t;               // ordered (+)
+      if (descriptor.foldModel == FlatFoldModel::SeparatedLeftAssoc) {
+        mlir::Value sumiFloat =
+            rewriter.create<emitc::CastOp>(loc, floatType, sumiFinal)
+                .getResult();
+        mlir::Value t =
+            rewriter.create<emitc::MulOp>(loc, floatType, sumiFloat, dX);
+        mlir::Value t2 = rewriter.create<emitc::MulOp>(loc, floatType, t, dY);
+        mlir::Value sumfNext =
+            rewriter.create<emitc::AddOp>(loc, floatType, sumfCur, t2);
+        rewriter.create<emitc::VerbatimOp>(
+            loc, assignComment("sumf", opName, role));
+        rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfNext);
+        return;
+      }
+
       auto accumExpr = rewriter.create<emitc::ExpressionOp>(
           loc, floatType, /*do_not_inline=*/false);
       {
@@ -5895,6 +5921,11 @@ void VariantToEmitCFunc::emitFlatFold(
               rewriter.create<emitc::AddOp>(loc, floatType, sumfCur, blockTerm);
           break;
         }
+        case FlatFoldModel::SeparatedLeftAssoc:
+          // Handled above via SEPARATE emitc statements (no fused expression),
+          // so it never reaches this expression-body switch.
+          llvm_unreachable(
+              "SeparatedLeftAssoc is emitted before the fused-expression switch");
         }
         rewriter.create<emitc::YieldOp>(loc, sumfNext);
       }
@@ -6571,11 +6602,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           coreExtract, "q8_0 integer-core lane0 extract input must be the "
                        "reduce");
 
-    // ---- The SumiTimesScales fold descriptor + shared emit state (fold only;
-    // the integer core is emitted op-by-op below). ----
+    // ---- The pinned-oracle SeparatedLeftAssoc fold descriptor + shared emit
+    // state (fold only; the integer core is emitted op-by-op below). The q8_0
+    // TYPED body conforms to [testing/flat-block-dot-fp-fold-oracle.md §1]:
+    // ((sumi*d_x)*d_y) as SEPARATE emitc statements (no dx*dy premultiply, no FMA
+    // contraction). The MONOLITH keeps SumiTimesScales (`sumi*(d_x*d_y)`), so the
+    // typed emit is INTENTIONALLY no longer byte-exact vs monolith here -- the
+    // sanctioned gate migration (monolith retires later), q8_0 only. ----
     FlatBlockDotDescriptor descriptor;
     descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
-    descriptor.foldModel = FlatFoldModel::SumiTimesScales;
+    descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
     descriptor.defaultCoreLmul = "m2";
     BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m2");
     FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
@@ -7549,13 +7585,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                      /*mX=*/mlir::Value(), /*sY=*/mlir::Value());
       } else if (loopBody.getFoldModel() == "sumi_times_scales") {
 
-      // The q8_0 (plain_i8 / whole-block / SumiTimesScales) descriptor rebuilt
-      // from the loop-body scheduling facts. The int8 quant payload sits past
-      // the 2-byte fp16 scale header (quantOffset = stride - qk); q8_0 carries
-      // no qh / min / codebook.
+      // The q8_0 (plain_i8 / whole-block) descriptor rebuilt from the loop-body
+      // scheduling facts. The int8 quant payload sits past the 2-byte fp16 scale
+      // header (quantOffset = stride - qk); q8_0 carries no qh / min / codebook.
+      // (This else-branch full-body path is superseded by isQ80ScheduleParam for
+      // any brick-2 body; kept in sync with the pinned SeparatedLeftAssoc oracle.)
       FlatBlockDotDescriptor descriptor;
       descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
-      descriptor.foldModel = FlatFoldModel::SumiTimesScales;
+      descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
       descriptor.defaultCoreLmul = "m2";
       descriptor.qk = qk;
       descriptor.weightStride = loopBody.getWeightBlockStride();

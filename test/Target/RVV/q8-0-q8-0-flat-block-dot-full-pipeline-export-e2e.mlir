@@ -99,11 +99,16 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // CORE: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CORE-NOT: call_opaque "__riscv_vxor_vx_i8
 // CORE-NOT: call_opaque "__riscv_vwmacc_vv_i16
-// The q8_0 fold: d_x * d_y FIRST, then (float)sumi * that, then sumf + that.
-// CORE: cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
-// CORE: mul %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
-// CORE: mul %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
-// CORE: add %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
+// The q8_0 PINNED SeparatedLeftAssoc fold [testing/flat-block-dot-fp-fold-oracle.md
+// §1]: (float)sumi cast, then t=(float)sumi*d_x, then t=t*d_y, then sumf=sumf+t --
+// SEPARATE cast/mul/mul/add statements (NO d_x*d_y premultiply, NO fused
+// emitc.expression, so clang cannot contract into fmaf). The assign takes the ADD
+// result directly (locks separation).
+// CORE: %[[FC:.*]] = cast %{{.*}} : !emitc.opaque<"int32_t"> to !emitc.opaque<"float">
+// CORE: %[[FT:.*]] = mul %[[FC]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
+// CORE: %[[FT2:.*]] = mul %[[FT]], %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
+// CORE: %[[FACC:.*]] = add %{{.*}}, %[[FT2]] : (!emitc.opaque<"float">, !emitc.opaque<"float">)
+// CORE: assign %[[FACC]] : !emitc.opaque<"float"> to
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

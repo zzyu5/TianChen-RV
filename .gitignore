@@ -17,3 +17,6 @@ artifacts/tmp/
 /artifacts/p-a-fair-three-way/*/gen/
 /artifacts/p-a-fair-three-way/*/harness.c
 .claude/worktrees/
+
+# on-device measurement raw artifacts (kernels/objs/logs) — data, not source
+experiments/ondevice-*/

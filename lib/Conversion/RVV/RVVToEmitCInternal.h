@@ -110,15 +110,23 @@ enum class FlatWeightScaleSource {
 // though both carry scale_model "dual-fp16-per-block-d_x.d_y" (the operand +
 // emission order of the outer mul differ), so fold_model keys off `kind`, not
 // `scale_model`:
-//   SumiTimesScales -> sumf + (float)sumi * (d_x * d_y)   (q8_0)
+//   SumiTimesScales -> sumf + (float)sumi * (d_x * d_y)   (q8_0 MONOLITH)
 //   LeftAssoc       -> sumf + (float)sumi * d_x * d_y      (q4_0)
 //   ScalesTimesSumi -> sumf + (d_x * d_y) * (float)sumi    (q5_0)
 //   ScalePlusMin    -> sumf + ((d_x*d_y)*sumi + m_x*s_y)   (q4_1 / q5_1)
+//   SeparatedLeftAssoc -> t = (float)sumi * d_x; t = t * d_y; sumf = sumf + t;
+//     (the pinned flat-block-dot fp-fold oracle [K-5]/[testing/
+//     flat-block-dot-fp-fold-oracle.md §1]: strict left-assoc, ordered, NO
+//     dx*dy premultiply, NO FMA contraction. Emitted as SEPARATE emitc
+//     statements -- standalone mul/mul/add, NOT one emitc.expression -- so
+//     clang's default -ffp-contract=on cannot fuse (t*dy)+sumf into fmaf.
+//     Currently the q8_0 TYPED loop body; q4_0/q5_0 conform in step 4.)
 enum class FlatFoldModel {
   SumiTimesScales,
   LeftAssoc,
   ScalesTimesSumi,
   ScalePlusMin,
+  SeparatedLeftAssoc,
 };
 
 // The block-format + primitive facts the shared emitFlatBlockDot body reads to

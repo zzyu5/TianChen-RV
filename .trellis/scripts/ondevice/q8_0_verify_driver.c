@@ -6,10 +6,19 @@
 // (front-door -> materialize-emission-plans -> tcrv-translate
 //  --tcrv-export-target-artifact), calls it on hardware, and:
 //   1. VERIFY: quantizes random data to q8_0, compares the kernel result
-//      bit-for-bit against a hand-written scalar q8_0 vec_dot that uses ggml's
-//      fold order. Two reference fold variants are computed (non-contracted and
-//      explicit fmaf) so the kernel's actual float-contraction choice is
-//      DISCOVERED empirically, not assumed. Reports exact-match count + worst ULP.
+//      bit-for-bit against the PINNED fp-fold oracle
+//      [testing/flat-block-dot-fp-fold-oracle.md §1]: t=(float)sumi*d_x; t=t*d_y;
+//      sumf=sumf+t (strict left-assoc, ordered, NO d_x*d_y premultiply, NO FMA).
+//      That pinned oracle is THE correctness gate. Two old-ggml fold variants
+//      (premultiply, and premultiply+fmaf) are ALSO computed but ONLY as
+//      DIAGNOSTIC annotations of the kernel's empirical fold -- they are NOT
+//      the gate. Then two extra gates:
+//        1a. PROPERTY tests [实验宪法 §1.8]: all-zero / alternating-sign /
+//            full-scale (±127 int8 + large fp16 scale) / fp16 subnormal &
+//            extreme-exponent scale inputs, kernel-vs-pinned-oracle.
+//        1b. MUTATION test: a deliberately-wrong (premultiply) oracle must
+//            DIFFER from the pinned oracle on >=1 input -- proves the gate
+//            discriminates.
 //   2. PERF: times the kernel vs the scalar reference in the same binary. When
 //      built -march=rv64gcv the reference is clang-autovectorized (autovec
 //      baseline); when built -march=rv64gc it is pure scalar (scalar baseline).
@@ -153,24 +162,80 @@ static int32_t ref_block_sumi(const block_q8_0 *x, const block_q8_0 *y) {
 // CSE'd out -- which would give a fake ~4ns baseline).
 #define CLOBBER() __asm__ __volatile__("" ::: "memory")
 
-// Scalar reference vec_dot. use_fma selects the float fold contraction form.
-// The fp16 scales are read back from the SAME stored struct bytes the kernel
-// dereferences (never a kept pre-storage float), so both paths round-trip fp16.
+// The fold form the scalar reference computes.
+//   FOLD_PINNED       -- THE correctness gate: the pinned fp-fold oracle
+//     [testing/flat-block-dot-fp-fold-oracle.md §1]: t=(float)sumi*d_x;
+//     t=t*d_y; sumf=sumf+t. Strict left-assoc, ordered, NO d_x*d_y premultiply,
+//     NO FMA. Written as SEPARATE statements with a named intermediate so clang's
+//     default -ffp-contract=on cannot fuse (t*d_y)+sumf into fmaf -- this mirrors
+//     the kernel's separated emitc cast/mul/mul/add (the whole point of §1).
+//   FOLD_PREMUL_NOFMA -- DIAGNOSTIC ONLY (old ggml scales-first form,
+//     sumf + (float)sumi*(d_x*d_y)); reported so the kernel's empirical fold is
+//     still visible, but NOT a correctness gate.
+//   FOLD_PREMUL_FMA   -- DIAGNOSTIC ONLY (old ggml scales-first, fused fmaf);
+//     NOT a correctness gate.
+typedef enum {
+  FOLD_PINNED = 0,
+  FOLD_PREMUL_NOFMA,
+  FOLD_PREMUL_FMA,
+} fold_form;
+
+// Scalar reference vec_dot. The fp16 scales are read back from the SAME stored
+// struct bytes the kernel dereferences (never a kept pre-storage float), so both
+// paths round-trip fp16.
 __attribute__((noinline)) static float
-ref_vec_dot(size_t n, const block_q8_0 *x, const block_q8_0 *y, int use_fma) {
+ref_vec_dot(size_t n, const block_q8_0 *x, const block_q8_0 *y, fold_form form) {
   size_t nb = n / QK;
   float sumf = 0.0f;
   for (size_t i = 0; i < nb; i++) {
     int32_t sumi = ref_block_sumi(&x[i], &y[i]);
     float dx = fp16_to_fp32(x[i].d);
     float dy = fp16_to_fp32(y[i].d);
-    float dxdy = dx * dy; // d_x * d_y first, matching the kernel's emitc.expression
-    if (use_fma)
-      sumf = fmaf((float)sumi, dxdy, sumf);
-    else
-      sumf = sumf + (float)sumi * dxdy;
+    if (form == FOLD_PINNED) {
+      // Pinned §1: SEPARATE statements, no premultiply, no FMA contraction.
+      float t = (float)sumi * dx;
+      t = t * dy;
+      sumf = sumf + t;
+    } else {
+      float dxdy = dx * dy; // DIAGNOSTIC: old ggml scales-first premultiply.
+      if (form == FOLD_PREMUL_FMA)
+        sumf = fmaf((float)sumi, dxdy, sumf);
+      else
+        sumf = sumf + (float)sumi * dxdy;
+    }
   }
   return sumf;
+}
+
+// A DELIBERATELY-WRONG oracle used ONLY to prove the pinned oracle discriminates:
+// it premultiplies d_x*d_y (banned by §1's禁则), so its double-rounding tree
+// diverges from ((sumi*d_x)*d_y) on values where the two orders round apart. The
+// mutation test asserts pinned != mutated on >=1 input; if they matched
+// everywhere the gate would have no鉴别力.
+static float mutated_vec_dot(size_t n, const block_q8_0 *x,
+                             const block_q8_0 *y) {
+  size_t nb = n / QK;
+  float sumf = 0.0f;
+  for (size_t i = 0; i < nb; i++) {
+    int32_t sumi = ref_block_sumi(&x[i], &y[i]);
+    float dx = fp16_to_fp32(x[i].d);
+    float dy = fp16_to_fp32(y[i].d);
+    float dxdy = dx * dy;              // MUTATION: premultiply (violates §1)
+    sumf = sumf + (float)sumi * dxdy;  // MUTATION: sumi*(dx*dy) not (sumi*dx)*dy
+  }
+  return sumf;
+}
+
+// Construct a q8_0 block directly from a raw fp16 scale (bit pattern) + int8
+// quants, BYPASSING the quantizer. The random quantizer only ever derives a
+// NORMAL fp16 d = amax/127 from [-4,4] data, so the property regimes that need a
+// subnormal / extreme-exponent scale are unreachable through it -- they must be
+// hand-built. The kernel reads d from these SAME stored bytes, so bit-exactness
+// still holds; the point is only to reach the numeric regime.
+static void make_block(block_q8_0 *b, uint16_t d_bits, const int8_t *qs) {
+  b->d = d_bits;
+  for (int j = 0; j < QK; j++)
+    b->qs[j] = qs[j];
 }
 
 // ---- kernel under test (real exported .o) ---------------------------------
@@ -218,6 +283,25 @@ static void fill_random(float *v, size_t n, unsigned *seed) {
   }
 }
 
+// Run one property case: call the kernel on the pre-built blocks, compare
+// bit-for-bit against the PINNED oracle, print the outcome, and (when
+// expect_nonzero) assert the result is not a vacuous 0.0f. Returns 1 on pass.
+static int run_property_case(const char *name, size_t n, const block_q8_0 *x,
+                             const block_q8_0 *y, int expect_nonzero) {
+  float s_kernel = 12345.0f;
+  call_kernel(n, &s_kernel, (block_q8_0 *)x, (block_q8_0 *)y);
+  float r_pin = ref_vec_dot(n, x, y, FOLD_PINNED);
+  int match = (f2u(s_kernel) == f2u(r_pin));
+  int nonzero_ok = !expect_nonzero || (s_kernel != 0.0f);
+  int pass = match && nonzero_ok;
+  printf("  [%-16s] kernel=%.9g (0x%08x)  oracle=%.9g (0x%08x)  ulp=%llu  %s%s\n",
+         name, s_kernel, f2u(s_kernel), r_pin, f2u(r_pin),
+         (unsigned long long)ulp_dist(s_kernel, r_pin),
+         match ? "MATCH" : "MISMATCH",
+         nonzero_ok ? "" : " (VACUOUS-ZERO!)");
+  return pass;
+}
+
 int main(int argc, char **argv) {
   size_t n = 4096;         // elements per dot product (must be multiple of 32)
   int trials = 256;        // independent random dot products for verification
@@ -263,11 +347,12 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  // ---- VERIFY ----
+  // ---- VERIFY (gate = PINNED oracle; premul/fmaf are DIAGNOSTIC only) ----
   printf("\n== numerical verify (%d trials, n=%zu) ==\n", trials, n);
   unsigned seed = 0x1234567u;
-  int match_nofma = 0, match_fma = 0;
-  uint64_t worst_ulp_nofma = 0, worst_ulp_fma = 0;
+  int match_pin = 0, match_premul = 0, match_fma = 0;
+  uint64_t worst_ulp_pin = 0;
+  int mut_diff_random = 0; // mutation discrimination hits across the random trials
   float sample_k = 0, sample_r = 0;
   for (int t = 0; t < trials; t++) {
     fill_random(fx, n, &seed);
@@ -278,35 +363,113 @@ int main(int argc, char **argv) {
     }
     float s_kernel = 12345.0f;
     call_kernel(n, &s_kernel, bx, by);
-    float r_nofma = ref_vec_dot(n, bx, by, /*use_fma=*/0);
-    float r_fma = ref_vec_dot(n, bx, by, /*use_fma=*/1);
-    if (f2u(s_kernel) == f2u(r_nofma))
-      match_nofma++;
+    float r_pin = ref_vec_dot(n, bx, by, FOLD_PINNED);
+    float r_premul = ref_vec_dot(n, bx, by, FOLD_PREMUL_NOFMA);
+    float r_fma = ref_vec_dot(n, bx, by, FOLD_PREMUL_FMA);
+    float r_mut = mutated_vec_dot(n, bx, by);
+    if (f2u(s_kernel) == f2u(r_pin))
+      match_pin++;
+    if (f2u(s_kernel) == f2u(r_premul))
+      match_premul++;
     if (f2u(s_kernel) == f2u(r_fma))
       match_fma++;
-    uint64_t u0 = ulp_dist(s_kernel, r_nofma);
-    uint64_t u1 = ulp_dist(s_kernel, r_fma);
-    if (u0 > worst_ulp_nofma)
-      worst_ulp_nofma = u0;
-    if (u1 > worst_ulp_fma)
-      worst_ulp_fma = u1;
+    if (f2u(r_pin) != f2u(r_mut))
+      mut_diff_random++;
+    uint64_t u0 = ulp_dist(s_kernel, r_pin);
+    if (u0 > worst_ulp_pin)
+      worst_ulp_pin = u0;
     if (t == 0) {
       sample_k = s_kernel;
-      sample_r = r_nofma;
+      sample_r = r_pin;
     }
   }
-  printf("sample[0]: kernel=%.9g (0x%08x)  ref_nofma=%.9g (0x%08x)\n", sample_k,
+  printf("sample[0]: kernel=%.9g (0x%08x)  ref_pinned=%.9g (0x%08x)\n", sample_k,
          f2u(sample_k), sample_r, f2u(sample_r));
-  printf("exact-match vs ref(no-contract): %d/%d   worst ULP=%llu\n",
-         match_nofma, trials, (unsigned long long)worst_ulp_nofma);
-  printf("exact-match vs ref(fmaf fold)  : %d/%d   worst ULP=%llu\n", match_fma,
-         trials, (unsigned long long)worst_ulp_fma);
-  int bitexact = (match_nofma == trials) || (match_fma == trials);
-  printf("VERDICT: %s (kernel fold form = %s)\n",
-         bitexact ? "BIT-EXACT" : "NOT bit-exact",
-         match_fma == trials ? "fused-multiply-add"
-                             : (match_nofma == trials ? "separate mul+add"
-                                                      : "neither/indeterminate"));
+  printf("[GATE] exact-match vs PINNED oracle : %d/%d   worst ULP=%llu\n",
+         match_pin, trials, (unsigned long long)worst_ulp_pin);
+  printf("[diag] exact-match vs premul(no-fma): %d/%d\n", match_premul, trials);
+  printf("[diag] exact-match vs premul+fmaf   : %d/%d\n", match_fma, trials);
+  int bitexact = (match_pin == trials);
+  printf("VERDICT (pinned §1 gate): %s\n",
+         bitexact ? "BIT-EXACT" : "NOT bit-exact");
+
+  // ---- 1a. PROPERTY tests [实验宪法 §1.8]: hand-built regimes the random
+  // quantizer cannot reach, kernel-vs-pinned-oracle. ----
+  printf("\n== property tests (kernel vs pinned oracle) ==\n");
+  int prop_pass = 0, prop_total = 0;
+  int8_t qs[QK];
+  // (a) all-zero quants (sumi==0 => 0.0f regardless of scale).
+  for (int j = 0; j < QK; j++)
+    qs[j] = 0;
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x3c00 /*1.0*/, qs);
+    make_block(&by[i], 0x3c00, qs);
+  }
+  prop_total++;
+  prop_pass += run_property_case("all-zero", n, bx, by, /*expect_nonzero=*/0);
+  // (b) alternating-sign quants, normal scales.
+  for (int j = 0; j < QK; j++)
+    qs[j] = (j & 1) ? -37 : 41;
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x3c00, qs);
+    make_block(&by[i], 0x4000 /*2.0*/, qs);
+  }
+  prop_total++;
+  prop_pass += run_property_case("alt-sign", n, bx, by, /*expect_nonzero=*/1);
+  // (c) full-scale: ±127 int8 with a LARGE fp16 scale (0x7bff = 65504, the max
+  // normal fp16). The stress case for the fold's rounding tree.
+  for (int j = 0; j < QK; j++)
+    qs[j] = (j & 1) ? -127 : 127;
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x7bff, qs);
+    make_block(&by[i], 0x7bff, qs);
+  }
+  prop_total++;
+  prop_pass += run_property_case("full-scale", n, bx, by, /*expect_nonzero=*/1);
+  // (d) fp16 SUBNORMAL scale (0x0001 = smallest positive subnormal) on x, small
+  // normal on y, with non-zero quants so sumi!=0 (must not vacuously collapse).
+  for (int j = 0; j < QK; j++)
+    qs[j] = (int8_t)(j - 16);
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x0001, qs);
+    make_block(&by[i], 0x0200 /*subnormal*/, qs);
+  }
+  prop_total++;
+  prop_pass += run_property_case("subnormal-scale", n, bx, by,
+                                 /*expect_nonzero=*/1);
+  // (e) EXTREME-exponent scales: max-normal on x (0x7bff), min-normal on y
+  // (0x0400), ±127 quants -- the widest exponent spread.
+  for (int j = 0; j < QK; j++)
+    qs[j] = (j & 1) ? -127 : 127;
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x7bff, qs);
+    make_block(&by[i], 0x0400 /*min normal*/, qs);
+  }
+  prop_total++;
+  prop_pass += run_property_case("extreme-exp", n, bx, by, /*expect_nonzero=*/1);
+  printf("property: %d/%d passed\n", prop_pass, prop_total);
+
+  // ---- 1b. MUTATION test: a premultiply mutation of the oracle must DIFFER
+  // from the pinned oracle on >=1 input (else the gate has no discriminating
+  // power). We count divergences across the random trials above (very robust)
+  // AND require the full-scale property discriminator to diverge. ----
+  // Rebuild the full-scale ±127 / large-scale input as the deterministic
+  // discriminator and check pinned != mutated there.
+  for (int j = 0; j < QK; j++)
+    qs[j] = (j & 1) ? -127 : 127;
+  for (size_t i = 0; i < nb; i++) {
+    make_block(&bx[i], 0x7bff, qs);
+    make_block(&by[i], 0x7bff, qs);
+  }
+  float pin_fs = ref_vec_dot(n, bx, by, FOLD_PINNED);
+  float mut_fs = mutated_vec_dot(n, bx, by);
+  int mut_caught = (mut_diff_random > 0) || (f2u(pin_fs) != f2u(mut_fs));
+  printf("\n== mutation test (premultiply mutation vs pinned oracle) ==\n");
+  printf("random-trial divergences: %d/%d   full-scale discriminator: %s\n",
+         mut_diff_random, trials,
+         (f2u(pin_fs) != f2u(mut_fs)) ? "DIVERGED" : "same");
+  printf("mutation caught (oracle discriminates): %s\n",
+         mut_caught ? "YES" : "NO -- ORACLE HAS NO 鉴别力");
 
   // ---- PERF ----
   // one fixed random dataset, many timed calls. volatile sink defeats DCE.
@@ -324,7 +487,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 2000; i++) {
     call_kernel(n, &s, bx, by);
     sink += s;
-    sink += ref_vec_dot(n, bx, by, 0);
+    sink += ref_vec_dot(n, bx, by, FOLD_PINNED);
   }
 
   double best_kernel = 1e30, best_ref = 1e30;
@@ -342,7 +505,7 @@ int main(int argc, char **argv) {
     double t1 = now_s();
     for (long i = 0; i < perf_iters; i++) {
       CLOBBER(); // defeat hoist/CSE so the baseline is really recomputed
-      sink += ref_vec_dot(n, bx, by, 0);
+      sink += ref_vec_dot(n, bx, by, FOLD_PINNED);
     }
     double tr = now_s() - t1;
     if (tr < best_ref)
@@ -370,5 +533,7 @@ int main(int argc, char **argv) {
   free(fy);
   free(bx);
   free(by);
-  return bitexact ? 0 : 1;
+  // Overall gate: pinned bit-exact AND all property cases pass AND the mutation
+  // was caught (the oracle discriminates).
+  return (bitexact && prop_pass == prop_total && mut_caught) ? 0 : 1;
 }
