@@ -360,10 +360,6 @@ private:
   /// with the q4_K 8-sub-block dual (scale + bsums-min) 6-bit fold.
   static bool isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope);
 
-  /// The Family-A sibling recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.q8_0_q8_0_block_dot.
-  static bool isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
   /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
   /// block loop with a SSA loop-carried f32 accumulator). Routed through the
@@ -375,18 +371,6 @@ private:
   /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
   static bool isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
-
-  /// The Family-B sibling recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.q4_1_q8_1_block_dot.
-  static bool isQ4_1Q8_1BlockDotBody(tcrvrvv::WithVLOp scope);
-
-  /// The Family-A 5-bit sibling recognizer: a with_vl scope whose ONLY compute
-  /// op is a single tcrv_rvv.q5_0_q8_0_block_dot.
-  static bool isQ5_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
-
-  /// The Family-B 5-bit sibling recognizer: a with_vl scope whose ONLY compute
-  /// op is a single tcrv_rvv.q5_1_q8_1_block_dot.
-  static bool isQ5_1Q8_1BlockDotBody(tcrvrvv::WithVLOp scope);
 
   /// The Family-A CODEBOOK sibling recognizer: a with_vl scope whose ONLY compute
   /// op is a single tcrv_rvv.iq4_nl_q8_0_block_dot.
@@ -1120,96 +1104,6 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_q5_0_q8_0 block dot-product for one
-  /// tcrv_rvv.q5_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph). It is the
-  /// FAMILY-A 5-bit sibling of emitQ4_0Q8_0BlockDot, sharing its block-loop /
-  /// unroll / tail / scale-read / store / strip scaffolding STRUCTURE; the two
-  /// kernel-specific differences are (a) the integer core decodes a 5-BIT weight
-  /// (the q4_1 unsigned nibble unpack PLUS the per-element 5th high bit from the
-  /// 32-bit qh field PLUS the offset-binary `-16` bias, via
-  /// emitFiveBitOffsetBinaryDecodeProductValue) and (b) the fp32 fold is ggml's
-  /// q5_0 order `sumf = sumf + (d_x*d_y)*sumi` (the dual scales multiplied FIRST,
-  /// q8_0's order -- NOT the Q4_0 sibling's `((sumi*d_x)*d_y)`).
-  ///   float sumf = 0.0f;
-  ///   size_t nb = n / 32;
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*22;           // emitc.mul + emitc.add
-  ///     const uint8_t *yb = vy + ib*34;
-  ///     float d_x = (float)*(const _Float16 *)(xb);   // emitc.call_opaque
-  ///     float d_y = (float)*(const _Float16 *)(yb);
-  ///     uint16_t qhLo = *(const uint16_t *)(xb + 2);  // 5th-bit field, ALIGNED
-  ///     uint16_t qhHi = *(const uint16_t *)(xb + 4);  // (two halves, not u32)
-  ///     int32_t sumi = 0;
-  ///     for (size_t c = 0; c < 16; c += vl) {     // strip loop, VLEN-robust
-  ///       size_t vl = __riscv_vsetvl_e<W>m1(16 - c);
-  ///       vuint8<L>_t w  = __riscv_vle8_v_u8<L>(xb + 6 + c, vl);
-  ///       vint8<L>_t  y0 = __riscv_vle8_v_i8<L>(yb + 2 + c, vl);
-  ///       vint8<L>_t  y1 = __riscv_vle8_v_i8<L>(yb + 2 + 16 + c, vl);
-  ///       vint16<W>_t p  = <5-bit offset-binary decode/product>(w, y0, y1,
-  ///                          qh&0xFFFF, qh>>16, c, vl);
-  ///       vint32m1_t  seed = __riscv_vmv_v_x_i32m1(sumi, 1);
-  ///       vint32m1_t  red  = __riscv_vwredsum_vs_i16<W>_i32m1(p, seed, vl);
-  ///       sumi = __riscv_vmv_x_s_i32m1_i32(red);
-  ///     }
-  ///     sumf = sumf + (d_x * d_y) * (float)sumi;   // ggml q5_0 order
-  ///   }
-  ///   *s = sumf;
-  /// The strip loop anchors at integer_core_lmul ("mf4" default / "m1") exactly as
-  /// the Q4_0 sibling; the nibble half-block shape is byte-identical. The 5th-bit
-  /// injection uses a `vid + c` per-lane shift so it is correct for any chunk
-  /// offset c (the mf4 multi-strip path) and any VLEN. The block-format facts are
-  /// the op's typed attrs (I4 mirror); the emission is the op's fixed structure.
-  mlir::LogicalResult emitQ5_0Q8_0BlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q5_1_q8_1 block dot-product for one
-  /// tcrv_rvv.q5_1_q8_1_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph). It is the
-  /// FAMILY-B 5-bit sibling that COMBINES the two prior breadth increments,
-  /// sharing the block-loop / unroll / tail / strip scaffolding STRUCTURE; the
-  /// two kernel-specific facts are (a) the integer core decodes an UNSIGNED 5-bit
-  /// weight in [0,31] -- the SAME nibble unpack + 5th-bit injection q5_0 uses
-  /// (emitFiveBitOffsetBinaryDecodeProductValue) but with applyOffsetBias=false
-  /// so the `-16` bias is dropped (the bias lives in q5_1's separate per-block
-  /// MIN scale, exactly like q4_1), and (b) the fp32 fold reads FOUR per-block
-  /// fp16 scales (d_x,m_x at weight+0/+2; d_y,s_y at activation+0/+2) and folds
-  /// ggml's EXACT statement sumf += (d_x*d_y)*sumi + m_x*s_y (IDENTICAL to q4_1).
-  ///   float sumf = 0.0f;
-  ///   size_t nb = n / 32;
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*24;           // emitc.mul + emitc.add
-  ///     const uint8_t *yb = vy + ib*36;
-  ///     float d_x = (float)*(const _Float16 *)(xb);    // emitc.call_opaque
-  ///     float d_y = (float)*(const _Float16 *)(yb);
-  ///     float m_x = (float)*(const _Float16 *)(xb+2);
-  ///     float s_y = (float)*(const _Float16 *)(yb+2);
-  ///     uint16_t qhLo = *(const uint16_t *)(xb + 4);   // 5th-bit field, ALIGNED
-  ///     uint16_t qhHi = *(const uint16_t *)(xb + 6);   // (two halves, not u32)
-  ///     int32_t sumi = 0;
-  ///     for (size_t c = 0; c < 16; c += vl) {     // strip loop, VLEN-robust
-  ///       size_t vl = __riscv_vsetvl_e<W>m1(16 - c);
-  ///       vuint8<L>_t w  = __riscv_vle8_v_u8<L>(xb + 8 + c, vl);
-  ///       vint8<L>_t  y0 = __riscv_vle8_v_i8<L>(yb + 4 + c, vl);
-  ///       vint8<L>_t  y1 = __riscv_vle8_v_i8<L>(yb + 4 + 16 + c, vl);
-  ///       vint16<W>_t p  = <5-bit UNSIGNED decode/product>(w, y0, y1,
-  ///                          qh&0xFFFF, qh>>16, c, vl);   // NO -16 bias
-  ///       vint32m1_t  seed = __riscv_vmv_v_x_i32m1(sumi, 1);
-  ///       vint32m1_t  red  = __riscv_vwredsum_vs_i16<W>_i32m1(p, seed, vl);
-  ///       sumi = __riscv_vmv_x_s_i32m1_i32(red);
-  ///     }
-  ///     sumf = sumf + ((d_x * d_y) * (float)sumi + m_x * s_y);  // ggml q5_1
-  ///   }
-  ///   *s = sumf;
-  /// The block-format facts (QK/strides/offsets/scale model) are the op's typed
-  /// attrs (I4 mirror); the emission is the op's fixed structure.
-  mlir::LogicalResult emitQ5_1Q8_1BlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
   /// Emit the ggml Q4_0 x Q8_0 GEMM tile (weight-decode reuse) for one
   /// tcrv_rvv.q4_0_q8_0_gemm_tile op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-string blob -- every value is a node in the IR graph). It is the
@@ -1524,71 +1418,6 @@ private:
   /// the 16 weight columns, main term d*Sum(scale_sub*sumi_sub) and MIN term
   /// dmin*Sum(min_sub*bsums_sub). Lane-wise accumulator (NO vredsum).
   mlir::LogicalResult emitRepackGemvQ4KQ8K(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q4_1_q8_1 block kernel for one
-  /// tcrv_rvv.q4_1_q8_1_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph). It is the
-  /// FAMILY-B sibling of emitQ4_0Q8_0BlockDot, sharing its block-loop / unroll /
-  /// tail / strip-elision scaffolding, differing in exactly two kernel-specific
-  /// parts (the q4_1 quantization is scale+MIN, asymmetric):
-  ///   (a) the integer core decodes UNSIGNED nibbles [0,15]
-  ///       (emitUnsignedNibbleDecodeProductValue: vand 0x0F / vsrl 0x04 on the u8
-  ///       weight lane -> reinterpret -> the SAME signed vwmul/vwmacc against the
-  ///       plain q8 halves), NOT the offset-binary `-8` chain. The weight chunk is
-  ///       therefore loaded as u8 (the activations stay i8);
-  ///   (b) the fold reads FOUR per-block fp16 scales (d_x,m_x at weight+0/+2;
-  ///       d_y,s_y at activation+0/+2) and folds ggml's EXACT statement
-  ///       sumf += (d_x*d_y)*sumi + m_x*s_y -- the (d_x*d_y) scale product times
-  ///       sumi and the m_x*s_y MIN/SUM correction are SUMMED FIRST (the `+`
-  ///       binds before the `+=`), then added to sumf: sumf + (A + B), an
-  ///       fp-significant grouping required for byte-exactness.
-  /// The block-format facts (QK/strides/offsets/scale model) are the op's typed
-  /// attrs (I4 mirror); the emission is the op's fixed structure.
-  mlir::LogicalResult emitQ4_1Q8_1BlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q8_0_q8_0 block kernel for one
-  /// tcrv_rvv.q8_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph). It is the
-  /// FAMILY-A sibling of emitQ4_0Q8_0BlockDot, sharing its block-loop / unroll /
-  /// tail / scale-read / store scaffolding STRUCTURE; the ONLY kernel-specific
-  /// differences are (a) the integer core is a plain 32-element signed widening
-  /// product (vle8 x2 -> vwmul_vv i8->i16 -> vwredsum, NO nibble decode / offset-
-  /// binary bias / high-low split) and (b) the fp32 fold is ggml's q8_0 order
-  /// `sumf = sumf + (float)sumi * (d_x * d_y)` (scales multiplied FIRST, distinct
-  /// from the Q4_0 sibling's `((sumi*d_x)*d_y)`).
-  ///   float sumf = 0.0f;
-  ///   size_t nb = n / 32;
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*34;           // emitc.mul + emitc.add
-  ///     const uint8_t *yb = vy + ib*34;
-  ///     float d_x = (float)*(const _Float16 *)(xb);   // emitc.call_opaque
-  ///     float d_y = (float)*(const _Float16 *)(yb);
-  ///     int32_t sumi = 0;
-  ///     for (size_t c = 0; c < 32; c += vl) {     // strip loop, VLEN-robust
-  ///       size_t vl = __riscv_vsetvl_e8m2(32 - c);     // m2: whole block @128
-  ///       vint8m2_t  vx0 = __riscv_vle8_v_i8m2(xb + 2 + c, vl);
-  ///       vint8m2_t  vy0 = __riscv_vle8_v_i8m2(yb + 2 + c, vl);
-  ///       vint16m4_t p   = __riscv_vwmul_vv_i16m4(vx0, vy0, vl);
-  ///       vint32m1_t seed = __riscv_vmv_v_x_i32m1(sumi, 1);
-  ///       vint32m1_t red  = __riscv_vwredsum_vs_i16m4_i32m1(p, seed, vl);
-  ///       sumi = __riscv_vmv_x_s_i32m1_i32(red);
-  ///     }
-  ///     sumf = sumf + (float)sumi * (d_x * d_y);   // ggml q8_0 order
-  ///   }
-  ///   *s = sumf;
-  /// The strip loop anchors at integer_core_lmul: "m2" (the whole 32-element
-  /// block in one strip + one vwredsum at VLEN=128, matching ggml's hand-written
-  /// reduction anchor), "m1" (two 16-element strips), or "mf4" (eight 4-element
-  /// strips). All are byte-exact and VLEN-robust via the sumi-carrying seed. The
-  /// elided shape (single vsetvl_e8m2(32), no inner loop) is correct only at
-  /// VLEN >= 128 and requires the m2 anchor (verifier-enforced).
-  mlir::LogicalResult emitQ8_0Q8_0BlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

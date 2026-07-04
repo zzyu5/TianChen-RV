@@ -599,13 +599,13 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // added MIN brick, the scale_plus_min fold}. Every q4_0-guarded knob below is
   // shared (isQ40 || isQ41) EXCEPT the three-way fold_model.
   const bool isQ41 =
-      entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
+      entry.opName == "tcrv_rvv.q4_1_q8_1_block_dot";
   // q5_0 (five-bit): shares the HALF-block m1 packed-i4 shape (3 loads, m1 core,
   // u8 weight load like q4_1), diverging in {the qh 5th-bit source brick, the
   // five-bit offset-binary product with the `-16` bias, the ScalesTimesSumi fold,
   // and a DISTINCT activation quant offset (weight qs@6, activation qs@2)}.
   const bool isQ50 =
-      entry.opName == tcrvrvv::GgmlBlockDotQ50Q80Op::getOperationName();
+      entry.opName == "tcrv_rvv.q5_0_q8_0_block_dot";
   // q5_1 (Family-B five-bit, M-FLAT cohort LAST cell): the UNION of q5_0's
   // five-bit integer core (qh 5th-bit brick + five-bit product) and q4_1's MIN
   // term (min brick + scale_plus_min fold). Every knob is shared with EITHER q5_0
@@ -613,7 +613,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // brick, scale_plus_min fold) -- no q5_1-only knob. The ONE arithmetic delta vs
   // q5_0 (applyOffsetBias=false) lives entirely in the emit driver.
   const bool isQ51 =
-      entry.opName == tcrvrvv::GgmlBlockDotQ51Q81Op::getOperationName();
+      entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
   const bool isHalfBlock = isQ40 || isQ41 || isQ50 || isQ51;
   std::int64_t activationHighOffset =
       isHalfBlock ? factByName("activation_high_byte_offset") : 0;
@@ -1080,15 +1080,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // Dispatch/coherence follow the constructed op format-agnostically.
   // multi_block_factor is pinned to 1 (absent on the loop-body op).
   const bool isQ80TypedFlat =
-      entry.opName == tcrvrvv::GgmlBlockDotQ80Q80Op::getOperationName();
+      entry.opName == "tcrv_rvv.q8_0_q8_0_block_dot";
   const bool isQ40TypedFlat =
       entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
   const bool isQ41TypedFlat =
-      entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
+      entry.opName == "tcrv_rvv.q4_1_q8_1_block_dot";
   const bool isQ50TypedFlat =
-      entry.opName == tcrvrvv::GgmlBlockDotQ50Q80Op::getOperationName();
+      entry.opName == "tcrv_rvv.q5_0_q8_0_block_dot";
   const bool isQ51TypedFlat =
-      entry.opName == tcrvrvv::GgmlBlockDotQ51Q81Op::getOperationName();
+      entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
   const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat ||
                                  isQ41TypedFlat || isQ50TypedFlat ||
                                  isQ51TypedFlat;

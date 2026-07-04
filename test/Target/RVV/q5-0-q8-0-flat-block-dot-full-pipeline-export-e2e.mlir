@@ -32,19 +32,19 @@
 // schedule gearbox stamps the integer-core shape, the
 // tcrv-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --tcrv-check-execution-plan-coherence.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-q5-0-schedule=march=rv64gcv --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT: --tcrv-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export EmitC
 // is byte-for-byte the CORE --tcrv-rvv-lower-to-emitc emit.
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-q5-0-schedule=march=rv64gcv --tcrv-rvv-lower-to-emitc > %t.core.mlir
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-q5-0-schedule=march=rv64gcv --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-lower-to-emitc > %t.core.mlir
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-rvv-materialize-q5-0-schedule=march=rv64gcv --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 

@@ -355,16 +355,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
         {&isRepackGemvQ4KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ4KQ8K},
-        {&isQ8_0Q8_0BlockDotBody,
-         &VariantToEmitCFunc::emitQ8_0Q8_0BlockDot},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
-        {&isQ4_1Q8_1BlockDotBody,
-         &VariantToEmitCFunc::emitQ4_1Q8_1BlockDot},
-        {&isQ5_0Q8_0BlockDotBody,
-         &VariantToEmitCFunc::emitQ5_0Q8_0BlockDot},
-        {&isQ5_1Q8_1BlockDotBody,
-         &VariantToEmitCFunc::emitQ5_1Q8_1BlockDot},
         {&isIQ4NLQ8_0BlockDotBody,
          &VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot},
         {&isIQ4XSQ8KBlockDotBody,
@@ -1265,20 +1257,6 @@ bool VariantToEmitCFunc::isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope) {
     return sawGemv;
   }
 
-bool VariantToEmitCFunc::isQ8_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ80Q80Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
 bool VariantToEmitCFunc::isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
@@ -1297,48 +1275,6 @@ bool VariantToEmitCFunc::isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlBlockDotQ10Q80Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
-bool VariantToEmitCFunc::isQ4_1Q8_1BlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ41Q81Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
-bool VariantToEmitCFunc::isQ5_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ50Q80Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
-bool VariantToEmitCFunc::isQ5_1Q8_1BlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ51Q81Op>(op)) {
         if (sawBlockDot)
           return false;
         sawBlockDot = true;
