@@ -24,6 +24,9 @@ using tianchenrv::plugin::rvv::RVVLowPrecisionLMULRung;
 using tianchenrv::plugin::rvv::enumerateRVVLowPrecisionAccumulatorLMULRungs;
 using tianchenrv::plugin::rvv::getRVVLMULRegisterFootprint;
 using tianchenrv::plugin::rvv::selectRVVLowPrecisionMaxLegalAccumulatorLMULRung;
+using tianchenrv::plugin::rvv::RVVFillLMULReason;
+using tianchenrv::plugin::rvv::chooseFillOptimalLMUL;
+using tianchenrv::plugin::rvv::stringifyRVVFillLMULReason;
 
 namespace {
 
@@ -131,6 +134,68 @@ int runAllPrunedTest() {
   return 0;
 }
 
+// [SEL-1] fill-optimal LMUL prior: a DIRECT test of chooseFillOptimalLMUL over the
+// q8_0 constructible LMUL set {m1, m2}. This is a CAPABILITY prior, not a
+// cost-model pick -- the DISCRIMINANT (why reason=prior is honest): this test calls
+// ONLY chooseFillOptimalLMUL, which touches ZERO cost model (no vreg budget, no
+// measured_ns, no RVVLowPrecisionLMULRung.cost/.isLegal). Delete every cost-model
+// selector exercised by the tests above and this test still stands -- that
+// independence is the reason=prior / reason=static_order boundary.
+int runFillOptimalLMULPriorTest() {
+  llvm::SmallVector<llvm::StringRef, 2> q80Candidates = {"m1", "m2"};
+
+  // VLEN256: m1 VLMAX=32 (util min(32,32)/32=1.0) fully packs the qk=32 block; m2
+  // VLMAX=64 (util 32/64=0.5) idles half its lanes. Max util => m1. Two candidates
+  // ruled by the capability fill rule => reason=prior.
+  auto c256 = chooseFillOptimalLMUL(/*vlenBits=*/256, /*sew=*/8,
+                                                      /*blockLen=*/32,
+                                                      q80Candidates);
+  if (c256.lmul != "m1" || c256.reason != RVVFillLMULReason::Prior)
+    return fail("q8_0 VLEN256 fill-optimal LMUL should be m1/prior; got " +
+                c256.lmul + "/" + stringifyRVVFillLMULReason(c256.reason));
+
+  // VLEN128: m1 VLMAX=16 (util 16/16=1.0) AND m2 VLMAX=32 (util 32/32=1.0) BOTH
+  // fully pack the block. util tie => tiebreak WIDEST => m2. reason=prior.
+  auto c128 = chooseFillOptimalLMUL(/*vlenBits=*/128, /*sew=*/8,
+                                                      /*blockLen=*/32,
+                                                      q80Candidates);
+  if (c128.lmul != "m2" || c128.reason != RVVFillLMULReason::Prior)
+    return fail("q8_0 VLEN128 fill-optimal LMUL should be m2/prior; got " +
+                c128.lmul + "/" + stringifyRVVFillLMULReason(c128.reason));
+
+  // Half-block span (blockLen=16, packed-i4): m1 VLMAX=16 fully packs (util 1.0);
+  // m2 VLMAX=32 idles (util 0.5) at VLEN128, and at VLEN256 m1 (util 0.5) still
+  // exceeds m2 (util 0.25) in utilization -- half-block is m1 at EVERY VLEN.
+  auto cHalf128 = chooseFillOptimalLMUL(128, 8, 16, q80Candidates);
+  auto cHalf256 = chooseFillOptimalLMUL(256, 8, 16, q80Candidates);
+  if (cHalf128.lmul != "m1" || cHalf128.reason != RVVFillLMULReason::Prior ||
+      cHalf256.lmul != "m1" || cHalf256.reason != RVVFillLMULReason::Prior)
+    return fail("half-block fill-optimal LMUL should be m1/prior at every VLEN");
+
+  // Fail-safe (no guaranteed VLEN >= 128, i.e. no -march / embedded tier): NO
+  // capability fact to key on => widest sufficient default m2 = today's hardcoded
+  // q8_0 default, HONESTLY reason=fallback_widest (NOT prior). This is the
+  // byte-identical no-regression guarantee.
+  auto cNoVlen = chooseFillOptimalLMUL(0, 8, 32, q80Candidates);
+  if (cNoVlen.lmul != "m2" ||
+      cNoVlen.reason != RVVFillLMULReason::FallbackWidest)
+    return fail("q8_0 no-VLEN fill-optimal LMUL should be m2/fallback_widest; got " +
+                cNoVlen.lmul + "/" + stringifyRVVFillLMULReason(cNoVlen.reason));
+
+  // Single constructible candidate: no capability choice was made => only_feasible,
+  // NOT prior (guards the honesty boundary at the low end too).
+  llvm::SmallVector<llvm::StringRef, 1> single = {"m1"};
+  auto cOnly = chooseFillOptimalLMUL(256, 8, 16, single);
+  if (cOnly.lmul != "m1" || cOnly.reason != RVVFillLMULReason::OnlyFeasible)
+    return fail("single-candidate fill-optimal LMUL should be m1/only_feasible");
+
+  llvm::outs() << "[SEL-1] fill-optimal LMUL prior: VLEN256->m1/prior, "
+                  "VLEN128->m2/prior (util tie, widest), half-block->m1/prior, "
+                  "no-VLEN->m2/fallback_widest, single->only_feasible; "
+                  "cost-model-free\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -141,6 +206,8 @@ int main() {
   if (int result = runBudgetPruneBindsTest())
     return result;
   if (int result = runAllPrunedTest())
+    return result;
+  if (int result = runFillOptimalLMULPriorTest())
     return result;
   llvm::outs() << "RVV N3 resource-aware LMUL selection tests passed\n";
   return 0;

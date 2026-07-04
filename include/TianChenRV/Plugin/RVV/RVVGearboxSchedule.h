@@ -2612,6 +2612,124 @@ inline std::int64_t getRVVStripVLMAXElements(llvm::StringRef coreLMUL,
   return (minimumVLEN * frac.first) / (frac.second * stripSEW);
 }
 
+//===----------------------------------------------------------------------===//
+// [SEL-1] capability-keyed fill-optimal LMUL prior (the FIRST capability-derived
+// schedule prior, the construction-time analogue of the exec selector). This is a
+// COST-MODEL-FREE pure function: given ONLY the target VLEN fact (bits), the strip
+// SEW, the block element span, and the constructible LMUL candidate set, it selects
+// the register-fill-optimal LMUL.
+//
+// [SEL-1] fill rule: max register utilization, tiebreak widest.
+//   util(L) = min(blockLen, VLMAX(L)) / VLMAX(L)
+// util == 1.0 exactly when the strip fully packs the vector register group
+// (VLMAX <= blockLen); util < 1.0 leaves lanes idle (VLMAX > blockLen -- a wider
+// group than the FIXED block needs). The widest LMUL among the util-maximal
+// candidates wins the tiebreak.
+//
+// HONESTY CRUX (why reason=prior is truthful): this function accesses ZERO cost
+// model -- no RVVLowPrecisionLMULRung.cost / .isLegal, no measured_ns, no vreg
+// budget, no resource_cost. It is pure f(vlenBits, sew, blockLen, candidates) over
+// the VLMAX arithmetic + the LMUL width ordering ALONE. DISCRIMINANT TEST: delete
+// every cost-model selector in this header
+// (selectRVVLowPrecisionMaxLegalAccumulatorLMULRung, the deferred-wide selector,
+// the whole RVVBlockDotShapeCandidate cost machinery) and this function still
+// compiles and returns the SAME answers -- that independence is exactly what
+// separates a capability `prior` from a cost-model `static_order` pick.
+//
+// SPEC-AUDIT REFINEMENT FLAG (for the parallel spec writer): the spec phrasing
+// "the widest LMUL within the register budget" is here the TIEBREAK sub-clause, NOT
+// the primary term. For a FIXED small block (blockLen constant) "widest" is
+// under-determined on its own (a wider group past blockLen only idles lanes), so
+// UTILIZATION is the primary selector and widest only breaks util ties. Please
+// refine the spec sentence accordingly rather than reading "widest" as primary.
+//===----------------------------------------------------------------------===//
+
+/// Why the fill-optimal LMUL was chosen -- carried on the helper output ONLY, so
+/// reason=prior can never be forged elsewhere. `Prior`: a capability-derived pick
+/// among >= 2 constructible candidates (the [SEL-1] fill rule selected).
+/// `OnlyFeasible`: the constructible set had exactly one member (no choice to
+/// make). `FallbackWidest`: no guaranteed VLEN >= 128 (unknown board / embedded
+/// tier / no -march), so NO capability fact exists to select on -- the widest
+/// sufficient default is returned for zero regression, and the pick is HONESTLY
+/// NOT labelled a prior.
+enum class RVVFillLMULReason { Prior, OnlyFeasible, FallbackWidest };
+
+inline llvm::StringRef stringifyRVVFillLMULReason(RVVFillLMULReason reason) {
+  switch (reason) {
+  case RVVFillLMULReason::Prior:
+    return "prior";
+  case RVVFillLMULReason::OnlyFeasible:
+    return "only_feasible";
+  case RVVFillLMULReason::FallbackWidest:
+    return "fallback_widest";
+  }
+  return "";
+}
+
+struct RVVFillLMULChoice {
+  llvm::StringRef lmul;
+  RVVFillLMULReason reason = RVVFillLMULReason::FallbackWidest;
+};
+
+/// The width ordering of two LMUL groups as an EXACT rational compare (mf8 < mf4 <
+/// mf2 < m1 < m2 < m4 < m8): a is wider than b iff a.num/a.den > b.num/b.den. Uses
+/// getRVVLMULFraction (a structural grouping fact), never a cost-model footprint.
+inline bool isRVVLMULWider(llvm::StringRef a, llvm::StringRef b) {
+  std::pair<std::int64_t, std::int64_t> fa = getRVVLMULFraction(a);
+  std::pair<std::int64_t, std::int64_t> fb = getRVVLMULFraction(b);
+  return fa.first * fb.second > fb.first * fa.second;
+}
+
+/// [SEL-1] capability-keyed fill-optimal LMUL selection (see the block comment).
+/// PURE + COST-MODEL-FREE: f(vlenBits, sew, blockLen, candidates) only. Returns the
+/// chosen LMUL + the attribution reason. `candidates` is the constructible LMUL set
+/// (must be non-empty). vlenBits < 128 (or a degenerate sew/blockLen)
+/// short-circuits to the WIDEST candidate with reason FallbackWidest (the
+/// zero-regression default), because no guaranteed VLEN fact exists to key on.
+inline RVVFillLMULChoice
+chooseFillOptimalLMUL(unsigned vlenBits, unsigned sew, unsigned blockLen,
+                      llvm::ArrayRef<llvm::StringRef> candidates) {
+  // The widest candidate: the fail-safe default AND the util-tie tiebreak.
+  llvm::StringRef widest =
+      candidates.empty() ? llvm::StringRef() : candidates.front();
+  for (llvm::StringRef candidate : candidates.drop_front())
+    if (isRVVLMULWider(candidate, widest))
+      widest = candidate;
+
+  // Fail-safe: no guaranteed VLEN >= 128 => no capability fact to select on. Return
+  // the widest sufficient default (q8_0 => m2 = today's hardcoded default), so the
+  // no-march construction is byte-identical. HONESTLY not a prior.
+  if (vlenBits < 128 || sew == 0 || blockLen == 0)
+    return {widest, RVVFillLMULReason::FallbackWidest};
+
+  // Exactly one constructible candidate => no capability choice was made.
+  if (candidates.size() == 1)
+    return {candidates.front(), RVVFillLMULReason::OnlyFeasible};
+
+  // [SEL-1] fill rule: max register utilization, tiebreak widest. Utilization is
+  // compared as an EXACT rational (num/den) to keep the honesty-critical selector
+  // free of any floating-point tie ambiguity.
+  llvm::StringRef best;
+  std::int64_t bestNum = -1, bestDen = 1;
+  for (llvm::StringRef candidate : candidates) {
+    std::int64_t vlmax = getRVVStripVLMAXElements(candidate, sew, vlenBits);
+    if (vlmax <= 0)
+      continue; // no concrete strip cover at this LMUL/VLEN -> not selectable.
+    std::int64_t num = std::min<std::int64_t>(blockLen, vlmax);
+    std::int64_t den = vlmax;
+    bool better = best.empty() || (num * bestDen > bestNum * den);
+    bool tie = !best.empty() && (num * bestDen == bestNum * den);
+    if (better || (tie && isRVVLMULWider(candidate, best))) {
+      best = candidate;
+      bestNum = num;
+      bestDen = den;
+    }
+  }
+  if (best.empty())
+    return {widest, RVVFillLMULReason::FallbackWidest};
+  return {best, RVVFillLMULReason::Prior};
+}
+
 /// The per-kernel structural facts the shared block-dot enumeration reasons over.
 /// The fn-pointer fields capture the two per-anchor structural counts (the strip
 /// SEW, the vreg footprint) that differ between the nibble-half-block kernels

@@ -32,8 +32,10 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/DeclaredInstanceHash.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
@@ -51,8 +53,13 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/JSON.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
+#include <ctime>
 #include <memory>
 #include <optional>
 #include <string>
@@ -939,11 +946,69 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(fallbackState);
 }
 
+// ---------------------------------------------------------------------------
+// [D-4] SCHEDULE-STAGE fill-LMUL attribution sink. A canonical-JSON side channel
+// mirroring the exec-stage buildSelectionAttributionRecord FORM (sorted keys,
+// deterministic escaping via llvm::json::Value) but NOT routed through it -- this
+// is a DIFFERENT stage with DIFFERENT keys (candidates/chosen/minimum_vlen, no
+// keys_evaluated). The sink is a pure side effect: option-gated OFF by default and
+// writes to a stream only, so it NEVER touches the constructed IR or the exported
+// object -- the byte-identity of the untuned construction is preserved. reason
+// rides ONLY on the chooseFillOptimalLMUL output (it cannot be forged here).
+// ---------------------------------------------------------------------------
+
+void appendScheduleAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp) {
+  if (noTimestamp) {
+    // Fixed sentinel keeps lit/FileCheck output byte-deterministic.
+    os << llvm::json::Value("0");
+    return;
+  }
+  std::time_t now = std::time(nullptr);
+  std::tm utc{};
+  gmtime_r(&now, &utc);
+  char buffer[32];
+  std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+  os << llvm::json::Value(buffer);
+}
+
+std::string buildScheduleFillAttributionRecord(
+    llvm::StringRef kernelName, llvm::ArrayRef<llvm::StringRef> candidates,
+    const RVVFillLMULChoice &choice, std::int64_t minimumVLEN,
+    llvm::StringRef declaredInstanceHash, bool noTimestamp) {
+  std::string line;
+  llvm::raw_string_ostream os(line);
+  // Canonical top-level key order (sorted): candidates, chosen,
+  // declared_instance_hash, kernel, minimum_vlen, reason, ts.
+  os << '{';
+  os << "\"candidates\":[";
+  for (std::size_t index = 0; index < candidates.size(); ++index) {
+    if (index)
+      os << ',';
+    os << llvm::json::Value(candidates[index].str());
+  }
+  os << ']';
+  os << ",\"chosen\":" << llvm::json::Value(choice.lmul.str());
+  os << ",\"declared_instance_hash\":"
+     << llvm::json::Value(declaredInstanceHash.str());
+  os << ",\"kernel\":" << llvm::json::Value(kernelName.str());
+  os << ",\"minimum_vlen\":" << minimumVLEN;
+  os << ",\"reason\":"
+     << llvm::json::Value(stringifyRVVFillLMULReason(choice.reason).str());
+  os << ",\"ts\":";
+  appendScheduleAttributionTimestamp(os, noTimestamp);
+  os << '}';
+  os.flush();
+  return line;
+}
+
 mlir::LogicalResult
 materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                   const ExtensionPluginRegistry &registry,
                   const MonolithicBlockDotOpEntry &entry,
-                  BlockDotSourceMatch source) {
+                  BlockDotSourceMatch source, llvm::StringRef march,
+                  llvm::StringRef isaVectorHints,
+                  llvm::raw_ostream *attributionStream,
+                  bool attributionNoTimestamp) {
   mlir::Location loc = source.func.getLoc();
   tcrvrvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol = entry.variantSymbol.str();
@@ -1031,12 +1096,40 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
   // stamp / coreLmul-wideLmul / q8_0 product_relation), so the verifier-cross-pinned
-  // knobs cannot diverge. q8_0's whole-block plain-i8 core anchors "m2" (step 1b
-  // makes "m1" a constructible schedule; the selector that would flip it is deferred
-  // to step 2, so the default stays "m2" = zero regression). The half-block
-  // packed-i4 formats anchor "m1" (their region product_relation pins i8m1). The
-  // monolith (non-typed) path keeps its SEW32 "m1" config.
-  const llvm::StringRef typedFlatLmul = isQ80TypedFlat ? "m2" : "m1";
+  // knobs cannot diverge. [SEL-1] step 2: the schedule is now SELECTED by the
+  // capability-keyed fill-optimal LMUL prior instead of hardcoded. The rule lives
+  // ONLY in the shared cost-agnostic helper (NG-1); the front door merely supplies
+  // the per-format constructible candidate set + the block element span + the VLEN
+  // fact derived from the selected -march, then requests a fill-optimal LMUL:
+  //   - q8_0 (whole-block plain-i8 core, constructible at BOTH m1 and m2 per step
+  //     1b): VLEN>=256 fills the qk=32 block at m1 (util 1.0) => m1; VLEN==128 ties
+  //     m1/m2 at util 1.0 => tiebreak widest => m2; no -march / sub-128 fails safe
+  //     to the widest default m2 = today's hardcode (byte-identical construction).
+  //   - the half-block packed-i4 formats pin m1 (their region product_relation is
+  //     i8m1), so their candidate set is the single-member {m1} => reason
+  //     only_feasible, m1 at every VLEN.
+  // The monolith (non-typed) path keeps its SEW32 "m1" config untouched.
+  std::int64_t typedFlatQk = 0;
+  for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+    if (fact.name == "qk")
+      typedFlatQk = fact.value;
+  // The half-block packed-i4 core covers qk/2 elements per strip (the low OR high
+  // nibble half); q8_0's contiguous plain-i8 core covers the whole qk block.
+  const bool isTypedFlatHalfBlock = isQ40TypedFlat || isQ41TypedFlat ||
+                                    isQ50TypedFlat || isQ51TypedFlat;
+  const std::int64_t typedFlatBlockLen =
+      isTypedFlatHalfBlock ? (typedFlatQk / 2) : typedFlatQk;
+  llvm::SmallVector<llvm::StringRef, 2> typedFlatLMULCandidates;
+  if (isQ80TypedFlat)
+    typedFlatLMULCandidates = {"m1", "m2"};
+  else
+    typedFlatLMULCandidates = {"m1"};
+  const std::int64_t minimumVLEN = deriveMinimumVLEN(march, isaVectorHints);
+  const RVVFillLMULChoice fillChoice = chooseFillOptimalLMUL(
+      static_cast<unsigned>(minimumVLEN < 0 ? 0 : minimumVLEN), /*sew=*/8,
+      static_cast<unsigned>(typedFlatBlockLen < 0 ? 0 : typedFlatBlockLen),
+      typedFlatLMULCandidates);
+  const llvm::StringRef typedFlatLmul = fillChoice.lmul;
   const llvm::StringRef configLMUL = typedFlatLoopPath ? typedFlatLmul : "m1";
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
@@ -1079,6 +1172,26 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   builder.setInsertionPointToEnd(&kernel.getBody().front());
   createDispatch(builder, loc, entry.dispatchPolicy, selectedVariantSymbol,
                  fallbackVariantSymbol, *fallbackOrigin);
+
+  // [D-4] schedule-stage fill-LMUL attribution (side channel, option-gated OFF by
+  // default). Emit ONE record for the typed-flat LMUL decision after the kernel is
+  // fully built. Pure side effect: no IR / object change, so byte-identity holds.
+  // declared_instance_hash mirrors the exec sink: the SHA-256 of the constructed
+  // kernel's declared capability instance.
+  if (attributionStream && typedFlatLoopPath) {
+    std::string declaredInstanceHash;
+    if (llvm::Expected<support::TargetCapabilitySet> capabilities =
+            support::TargetCapabilitySet::buildFromKernelChecked(kernel))
+      declaredInstanceHash =
+          support::computeDeclaredInstanceHash(*capabilities);
+    else
+      llvm::consumeError(capabilities.takeError());
+    *attributionStream << buildScheduleFillAttributionRecord(
+                              kernelName, typedFlatLMULCandidates, fillChoice,
+                              minimumVLEN, declaredInstanceHash,
+                              attributionNoTimestamp)
+                       << "\n";
+  }
   return mlir::success();
 }
 
@@ -1135,8 +1248,51 @@ public:
       const ExtensionPluginRegistry *registry)
       : entry(entry), registry(registry) {}
 
+  // PassWrapper::clonePass copy-constructs the pass; the cl::opt-backed options are
+  // NOT copyable, so the option members are re-registered against the new *this
+  // (their values are then copied by MLIR's copyOptionValuesFrom). Only the
+  // non-option state is forwarded here.
+  MaterializeRVVMonolithicBlockDotSourceFrontDoorPass(
+      const MaterializeRVVMonolithicBlockDotSourceFrontDoorPass &other)
+      : mlir::PassWrapper<MaterializeRVVMonolithicBlockDotSourceFrontDoorPass,
+                          mlir::OperationPass<mlir::ModuleOp>>(other),
+        entry(other.entry), registry(other.registry) {}
+
   llvm::StringRef getArgument() const final { return entry->passArgument; }
   llvm::StringRef getDescription() const final { return kPassDescription; }
+
+  // [SEL-1] the selected -march whose guaranteed minimum VLEN keys the
+  // fill-optimal integer-core LMUL of the constructed typed-flat block-dot (e.g.
+  // rv64gcv => VLEN 128 => q8_0 m2; rv64gcv_zvl256b => VLEN 256 => q8_0 m1). Empty
+  // / sub-128 => the widest sufficient default (byte-identical to the untuned
+  // construction). This is the ONLY input that flips the constructed LMUL.
+  ::mlir::Pass::Option<std::string> march{
+      *this, "march",
+      llvm::cl::desc(
+          "Selected RISC-V -march whose guaranteed minimum VLEN keys the "
+          "[SEL-1] fill-optimal integer-core LMUL of the constructed typed-flat "
+          "block-dot. Empty / sub-128 => the widest sufficient default "
+          "(byte-identical to the untuned construction)."),
+      llvm::cl::init("")};
+  ::mlir::Pass::Option<std::string> isaVectorHints{
+      *this, "isa-vector-hints",
+      llvm::cl::desc("Optional probed isa/vector-hint string augmenting the "
+                     "-march evidence for the minimum-VLEN derivation."),
+      llvm::cl::init("")};
+  ::mlir::Pass::Option<std::string> attributionJsonl{
+      *this, "attribution-jsonl",
+      llvm::cl::desc(
+          "Optional path to a [D-4] schedule-stage attribution JSONL sink. When "
+          "set, one canonical-JSON record of the typed-flat fill-LMUL decision "
+          "(candidates, chosen, reason, minimum_vlen, declared_instance_hash) is "
+          "written. Pure side channel: OFF by default, never touches the "
+          "constructed IR or the exported object."),
+      llvm::cl::init("")};
+  ::mlir::Pass::Option<bool> attributionJsonlNoTimestamp{
+      *this, "attribution-jsonl-no-timestamp",
+      llvm::cl::desc("Emit a fixed sentinel ts instead of the wall-clock time so "
+                     "the attribution record is byte-deterministic for lit."),
+      llvm::cl::init(false)};
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
     registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
@@ -1190,11 +1346,32 @@ public:
       return;
     }
 
+    // [D-4] schedule-stage attribution sink: open ONCE, option-gated OFF by
+    // default (empty --attribution-jsonl leaves the stream null => no record =>
+    // byte-identical construction). Mirrors the exec-stage sink's file handling.
+    std::optional<llvm::raw_fd_ostream> attributionFile;
+    llvm::raw_ostream *attributionStream = nullptr;
+    if (!attributionJsonl.empty()) {
+      std::error_code ec;
+      attributionFile.emplace(attributionJsonl, ec, llvm::sys::fs::OF_Text);
+      if (ec) {
+        module.emitError()
+            << "RVV block-dot source front door could not open the [D-4] "
+               "attribution JSONL sink '"
+            << attributionJsonl << "': " << ec.message();
+        signalPassFailure();
+        return;
+      }
+      attributionStream = &*attributionFile;
+    }
+
     std::string kernelName = getKernelName(*entry, module);
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    if (mlir::failed(
-            materializeKernel(builder, kernelName, *registry, *entry, *source))) {
+    if (mlir::failed(materializeKernel(builder, kernelName, *registry, *entry,
+                                       *source, march, isaVectorHints,
+                                       attributionStream,
+                                       attributionJsonlNoTimestamp))) {
       signalPassFailure();
       return;
     }
