@@ -177,3 +177,62 @@ factory 单侧 1793→881ns(半个运行时蒸发)。同源核在含-zfh march �
 
 **修 + 复测.** 第 9 条钉死双板统一 clang-20;preflight 门 ③(同编译器断言)+ 门 ④(指纹-格匹配)前置
 拦截跨指纹测量。Phase 1 全部数据在 clang-20 单一基线重产,历史 clang-17/18 数不再引用。
+
+---
+
+## GAP-1 / P2c-DEFERRED-NULL — deferred-ordered fold 的 round-trip-elimination 假设【证伪】(measured-negative,layer-4 资产)[CLOSED 2026-07-05]
+
+**命名.** P2c deferred-ordered fold(commit 1185729a)的设计假设:把 per-block
+vector→scalar→fmaf 跨域往返消掉(PHASE-A 批量整数打包 + strided fp16 scale gather;PHASE-B 一次
+seed-first `vfredosum.vs` 有序归约)→ 回收 +8.4% no-FMA 折叠成本 + 兑现 +11% fill → 真 Win-B。
+公平复测后此假设【证伪】。
+
+**边界(measured-negative,幅度可引用——已过构建保真).**
+- **能力真、数值真**:deferred body 双板 256/256 bit-exact ULP=0 vs 钉死 §1 separated-left-assoc
+  oracle;CORE lit(`rvv-to-emitc-q8-0-q8-0-typed-flat-block-dot-loop-body-deferred.mlir`)绿,
+  `vfredosum.vs`/`vslide1down` 在、无 `vfredusum`/`vfmacc`/`vwmacc`。
+- **但 round-trip 省不回来**:deferred 发 **19 条 vsetvli**,per-block 只发 **5 条**——vsetvli churn
+  > 省下的 per-block 往返。
+- **公平 VLEN128 复测**(rvv board,`rv64gcv_zfh_zvfhmin`,两侧 clang-20,`-ffp-contract=off`,板全能力
+  march,objdump 0 libcall,IQR<0.02%,固频钉核):deferred **比 factory 慢 23%**(A/C=1.232)、
+  **比 per-block 慢 7.5%**(A/B=1.075)。原始 "1.69× vs factory"(A/C=0.592)= 100% factory 侧 fp16-libcall
+  混淆(GAP-1/P2c-A),公平后归零。
+
+**归因([K-6]).** = **physical**,非缺模式/非选择错。deferred 折叠 pattern 已 mechanized(green
+lit),它不赢是因为 vsetvli churn 这个微架构事实 > round-trip 节省,latency-bound 链上被折叠边界主导。
+
+**定位.** = **layer-4 characterization 资产**(登记一个已机制化构造、其优化假设被硬件实测证伪的边界),
+**不是失败、不是 planned 砖**。不开战役(选项 3 兔子洞被否)。pattern-registry 条目
+`MFLAT-P2c-deferred-ordered-fold` status=**measured-negative**;T8 首条 loss 行。
+证据:`experiments/ondevice-q8_0-deferred/fair/perf_rvv_vlen128_FAIR.csv`(公平)、
+`experiments/ondevice-q8_0-deferred/A_deferred.rv64gcv_zvfhmin.objdump`(反汇编)。
+
+---
+
+## GAP-1 / q8_0-CAPFILL-FINALE — q8_0 kernel perf 关闭 = capability-keyed fill 的 board-conditional 赢 + 特性化 emitter-gap [CLOSED 2026-07-05]
+
+**命名.** q8_0 kernel perf 收尾方式:**capability-keyed fill**(SEL-1 先验按 VLEN 能力事实选 integer-core
+LMUL)交付 **k1 VLEN256 +2.5% 公平赢** —— **第一个过 preflight 四门 + 对抗验证的诚实 kernel 赢**
+(IQR 0.01%、分布不重叠、CI 排 1.0、bit-exact ULP=0、no-FMA)。
+
+**诚实分解(反汇编隔离).**
+- **+9.9% 纯 fill 杠杆** = ours-m1 vs 自家 ours-m2(隔离 LMUL:m1 在 VLEN256 VLMAX_e8m1=32 满填 1 块,
+  m2 半填 32/64)—— SEL-1 先验选中 m1 是真机制赢。
+- **− 8.3% emitter-调度残余** = 自家 ours-m2 vs factory-m2(**同 LMUL**,故非 fill、非能力,是纯 emitter
+  调度差)—— **命名、未追**(kernel golf 停,授权)。
+- **净 = +2.5%**(fill 杠杆超过 emitter 残余的余量)。
+- **Q1-c 地板 = 325ns**(factory 在地板 **11.6×** 上方)→ **排除 parity-at-floor**(赢不是 min-统计地板
+  artifact,是真分离)。
+
+**framing(锁定措辞).** = **board-conditional capability win**:**VLEN256 赢**(m1 满填能力真兑现)、
+**VLEN128 会输**(那里 m1 会 underfill 半块 → 必须 m2 → 落到 −8.3% emitter-gap 那侧)。
++ **特性化 emitter maturity gap**(−8.3% 同-LMUL 调度残余,命名归 emitter 成熟度,非能力/非算法)。
+**不是 sealed 八门 universal Win-B**(未过 [PERF-1] 八门;KERNEL-only、单板方向、非 e2e)。
+
+**归因([K-6]).** = **missing_pattern**(emitter-sched):−8.3% 同-LMUL 残余是一个命名但未追的 emitter
+调度成熟度缺口;+2.5% 净赢的**机制来源是 capability-keyed fill**(能力事实驱动 LMUL 选择),不是 golf。
+
+**定位.** T8 **首条 capability-fill 赢实例** + emitter-gap 命名残余。诚实:VLEN256 赢真、VLEN128 因
+emitter-gap 会输 → board-conditional,不外推成 universal。证据 = 本会话 k1 VLEN256 公平板测
+(clang-20 + 板全能力 zfh march,过 board_ab.sh preflight 四门;raw 板数据 pending-file 归档,
+lineage = k1 SpacemiT-X60 VLEN256,原 stale step-3 锚见 T3_B fc1dd132)。

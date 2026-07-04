@@ -2,7 +2,7 @@
   "$meta": {
     "schema_version": "v1.0.0",
     "declares": "PAT-1 unified pattern registry (C3' first-class data object)",
-    "note": "The [PAT-1] registry-as-data ([docs/TianChen-RV_科研目标总纲v2.md] §2.8:118). Each row is {pattern_id, requires, transform, mechanism, metrics_hook, status ∈ {mechanized|partial|planned}}. This is EVIDENCE-axis mirror data (core-invariants I4): it never chooses route/compute/dtype; it records which construction patterns are mechanized and points a lit/metrics artifact at each. A row's status flips planned->partial->mechanized ONLY when its construction primitive lands with a lit artifact hung on metrics_hook. Created in the M-FLAT milestone alongside brick 1 (the canon specifies this schema but no file existed).",
+    "note": "The [PAT-1] registry-as-data ([docs/TianChen-RV_科研目标总纲v2.md] §2.8:118). Each row is {pattern_id, requires, transform, mechanism, metrics_hook, status ∈ {mechanized|partial|planned|measured-negative}}. This is EVIDENCE-axis mirror data (core-invariants I4): it never chooses route/compute/dtype; it records which construction patterns are mechanized and points a lit/metrics artifact at each. A row's status flips planned->partial->mechanized ONLY when its construction primitive lands with a lit artifact hung on metrics_hook. status=measured-negative is a LAYER-4 characterization outcome: the construction primitive IS mechanized (green lit) but a perf/optimization HYPOTHESIS attached to it was measured on hardware and FALSIFIED -- the row records the falsified boundary as a design-space asset, it is NOT a failed or planned brick. Created in the M-FLAT milestone alongside brick 1 (the canon specifies this schema but no file existed).",
     "authority": [
       "docs/TianChen-RV_科研目标总纲v2.md#PAT-1",
       ".trellis/tasks/07-03-g1-q8-0-strong-construct/prd.md",
@@ -64,6 +64,17 @@
       "mechanism": "Atomically flips the whole flat block-dot family constructed-weak -> constructed-strong; only here does C_construct 强义 move (0/24 -> family), a step not a slope.",
       "metrics_hook": null,
       "status": "planned"
+    },
+    {
+      "pattern_id": "MFLAT-P2c-deferred-ordered-fold",
+      "milestone": "M-FLAT",
+      "brick": "P2c",
+      "requires": ["rvv.v", "rvv.zvfhmin"],
+      "transform": "tcrv_rvv.typed_flat_block_dot_loop_body fold_structure=\"deferred-ordered\" schedule variant. ODS include/TianChenRV/Dialect/RVV/IR/RVVOps.td (TypedFlatBlockDotLoopBodyOp fold_model/fold_structure knobs ~9193-9274); verifier lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp (~9506-9606, per-knob bounds, does not couple); emit lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp (deferred body ~6721-6913; fail-closed gates ~5993-6000, 6706-6719: q8_0-only + mbf in {2,4} + strip=elided). Landed commit 1185729a.",
+      "mechanism": "PHASE-A batches the per-block sumi (vslide1down pack) + strided fp16 scale gather (vlse16 -> vfwcvt); PHASE-B replaces the per-block vector->scalar->fmaf round-trip with ONE seed-first vfredosum.vs ordered reduction. Byte-exact vs the pinned §1 separated-left-assoc oracle by construction (seed-first / lane-ascending = the serial left fold; no FMA). HYPOTHESIS at landing (commit 1185729a body): eliminating the per-block round-trip recovers the +8.4% no-FMA fold cost and unlocks Win-B.",
+      "metrics_hook": "test/Conversion/RVV/rvv-to-emitc-q8-0-q8-0-typed-flat-block-dot-loop-body-deferred.mlir (CORE construction, green) + experiments/ondevice-q8_0-deferred/fair/perf_rvv_vlen128_FAIR.csv (fair perf)",
+      "status": "measured-negative",
+      "measured_negative_boundary": "Round-trip-elimination HYPOTHESIS FALSIFIED. (1) Capability is real + numerics correct: dual-board 256/256 bit-exact ULP=0 vs pinned §1 oracle. (2) But vsetvli churn (deferred emits 19 vsetvli vs per-block 5) > the per-block round-trip it saves. (3) Fair VLEN128 retest (rv64gcv_zfh_zvfhmin, both sides clang-20, -ffp-contract=off, board-full-capability march, objdump 0 libcall): deferred is 23% SLOWER than factory (A/C=1.232) and 7.5% slower than per-block (A/B=1.075). The apparent original 1.69x deferred 'win' (A/C=0.592) was 100% the fp16-libcall confound on the factory opponent (see gap-log GAP-1/P2c-A), zeroed after fair retest. = layer-4 characterization asset (a mechanized construction whose optimization hypothesis is measured-false), NOT a failed/planned brick. Full trail: .trellis/tasks/07-04-m-flat-nb-loop-layer/evidence/gap-log.md GAP-1/P2c-DEFERRED-NULL; T8 first loss row."
     }
   ]
 }
