@@ -357,6 +357,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ4KQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
+        {&isTypedSuperBlockBlockDotLoopBody,
+         &VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody},
         {&isIQ4NLQ8_0BlockDotBody,
          &VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot},
         {&isIQ4XSQ8KBlockDotBody,
@@ -1261,6 +1263,21 @@ bool VariantToEmitCFunc::isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(op)) {
+        if (sawLoopBody)
+          return false;
+        sawLoopBody = true;
+      } else {
+        return false;
+      }
+    }
+    return sawLoopBody;
+  }
+
+bool VariantToEmitCFunc::isTypedSuperBlockBlockDotLoopBody(
+    tcrvrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(op)) {
         if (sawLoopBody)
           return false;
         sawLoopBody = true;

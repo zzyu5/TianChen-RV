@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <array>
 #include <optional>
 #include <string>
 #include <utility>
@@ -3099,6 +3100,443 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KQ8_KBlockDot(
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumf);
 
     valueMap[blockDot.getResult()] = sumf;
+    return mlir::success();
+  }
+
+// M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2, W5-W7).
+// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body to
+// the byte-exact skeleton emitQ4_KQ8_KBlockDot emits, but sourcing the in-loop
+// per-super-block ADDRESSES from the region bricks' OPERANDS (anti-bypass W4)
+// while REUSING the 8 shared CORE helpers so the emitted C stays byte-identical
+// to the monolith by construction (same helpers, same facts, same order). This
+// is the byte-exact DUAL-accumulator emit the scaffold (milestone-1) deferred:
+// the honest target IR now lowers to a real emitc.func through the
+// tcrv.exec.variant legalization (it no longer stops at the W5-W7 stub).
+//
+// W5 (addressing): each per-super-block base = base + ib*stride is built from a
+//   brick's (base operand, block_index induction operand) via a shared per-body
+//   memo (the flat blockBaseFor pattern) -- NOT the loop-invariant super-block-0.
+// W6 (accumulators): the carried `sums` vfloat32m2 + `sumf` float emitc.variable
+//   DUAL chain is declared + seeded ONCE outside the loop (emitc.for has no
+//   iter_args); the post-loop vector->scalar collapse REUSES the BRICK 7
+//   horizontal-fold helper.
+// W7 (chain): the driver orchestrates the 8 CORE helpers in super-block order,
+//   each fed OP-BY-OP from its region brick's operands.
+mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(op))
+        loopBody = lb;
+    }
+    if (!loopBody)
+      return rewriter.notifyMatchFailure(
+          scope, "q4_K super-block loop body missing the op");
+
+    // ---- Region walk (identify, no emit): the 5 in-loop bricks + the yield. ----
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    tcrvrvv::Q4KNibbleUnpackOp b1;
+    tcrvrvv::Q4KScaleMinBitDanceOp b2;
+    tcrvrvv::Q4KScaledDotOp b3;
+    tcrvrvv::Q4KMinTermOp b4;
+    tcrvrvv::Q4KSumsFoldScaleDOp b6;
+    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o = llvm::dyn_cast<tcrvrvv::Q4KNibbleUnpackOp>(bodyOp))
+        b1 = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KScaleMinBitDanceOp>(bodyOp))
+        b2 = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KScaledDotOp>(bodyOp))
+        b3 = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KMinTermOp>(bodyOp))
+        b4 = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::Q4KSumsFoldScaleDOp>(bodyOp))
+        b6 = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                       bodyOp))
+        yieldOp = o;
+    });
+
+    // ---- Region-driven gate (fail-closed, I7): the byte-exact DUAL-accumulator
+    // super-block body requires ALL 5 bricks + the dual yield, the (index, sums
+    // vector, sumf scalar) entry-arg triple, and every brick's block_index tied
+    // to the loop induction variable (region arg 0). This is the anti-bypass tie:
+    // the emit provably tracks the region content (the block_index operand + the
+    // brick base operands), not merely the loop op attrs. ----
+    if (!b1 || !b2 || !b3 || !b4 || !b6 || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q4_K super-block body requires the 5 in-loop bricks "
+                    "(nibble_unpack, scale_min_bit_dance, scaled_dot, min_term, "
+                    "sums_fold_scale_d) and the dual yield");
+    if (coreBlock.getNumArguments() != 3)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q4_K super-block body region must carry exactly the "
+                    "(super_block_index, sums, sumf) triple");
+    mlir::Value sbIndex = coreBlock.getArgument(0);
+    mlir::Value sumsArg = coreBlock.getArgument(1);
+    mlir::Value sumfArg = coreBlock.getArgument(2);
+    if (yieldOp.getSumsNext() != sumsArg || yieldOp.getSumfNext() != sumfArg)
+      return rewriter.notifyMatchFailure(
+          yieldOp, "q4_K super-block yield must carry the loop-carried sums "
+                   "vector and sumf scalar accumulators");
+    // Every addressing brick must key its per-super-block offset off the loop
+    // induction variable (region arg 0). A brick whose block_index is absent or
+    // is some other value would address the loop-invariant super-block-0 (ib>0
+    // all wrong), so it is fail-closed rejected -- the operand-driven gate.
+    std::array<mlir::Value, 5> bricksBlockIndex{
+        b1.getBlockIndex(), b2.getBlockIndex(), b3.getBlockIndex(),
+        b4.getBlockIndex(), b6.getBlockIndex()};
+    for (mlir::Value bi : bricksBlockIndex)
+      if (bi != sbIndex)
+        return rewriter.notifyMatchFailure(
+            loopBody, "every q4_K super-block brick's block_index must be the "
+                      "loop induction variable (region arg 0) so the emit "
+                      "addresses base + ib*stride, not super-block-0");
+
+    // ---- ABI operands (the same four the monolith reads). ----
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q4_K super-block loop ABI operand unmapped");
+
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type i32ImmType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type weightPtrType = weightBase.getType();
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // ---- The block-format structural facts. The strides + qk come off the LOOP
+    // OP (the byte-exact schedule shape knobs, exactly like the flat loop body
+    // reads deriveBlockDotFacts off the loop op); the per-region byte offsets +
+    // the integer-core LMUL come off the BRICKS that own them (I4 mirror), so the
+    // facts are sourced from the same typed surface the standalone bricks read --
+    // byte-identity by construction. ----
+    int64_t qk = loopBody.getQk();                              // 256
+    int64_t subBlock = b1.getSubBlock();                        // 32
+    int64_t weightStride = loopBody.getWeightBlockStride();     // 144
+    int64_t activationStride = loopBody.getActivationBlockStride(); // 292
+    int64_t weightDOffset = b6.getWeightDByteOffset();          //   0
+    int64_t weightDminOffset = b4.getWeightDminByteOffset();    //   2
+    int64_t scalesOffset = b2.getWeightScalesByteOffset();      //   4
+    int64_t qsOffset = b1.getWeightQsByteOffset();              //  16
+    int64_t activationDOffset = 0;                              //   0
+    int64_t q8Offset =
+        static_cast<int64_t>(b3.getActivationQuantByteOffset().value_or(4)); // 4
+    int64_t bsumsOffset = b4.getBsumsByteOffset();              // 260
+    int64_t numSubBlocks = qk / subBlock;                       //   8
+    int64_t quarter = 8;                                        // 8-elem quarters
+    int64_t numLanes = 8;                                       // aux32/sums lanes
+    int64_t numBsums = qk / 16;                                 //  16
+
+    // The Region-C integer-MAC LMUL anchor, sourced from the BRICK 3 scaled dot
+    // (the brick that owns the integer_core_lmul knob), default "mf2". Same
+    // detail::deriveWideningChain the monolith uses -> byte-identical at every
+    // legal anchor.
+    llvm::StringRef coreLmul = b3.getIntegerCoreLmul().value_or("mf2");
+    WideningChain wideningChain = deriveWideningChain(coreLmul);
+    llvm::StringRef l8 = wideningChain.l8;
+    llvm::StringRef l16 = wideningChain.l16;
+    llvm::StringRef l32 = wideningChain.l32;
+    int64_t stripWidth = wideningChain.stripWidth;
+    int64_t numStrips = subBlock / stripWidth;
+    int64_t foldGroups = wideningChain.foldGroups;
+
+    // The integer-core + fp fold types (copied VERBATIM from the monolith so the
+    // emitted C references the SAME Type instances).
+    mlir::Type u8m2Type = emitc::OpaqueType::get(ctx, "vuint8m2_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+    mlir::Type i8mf2Type = emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+    mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
+    mlir::Type i32m2Type = emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
+    mlir::Type i32Canon8Type = emitc::OpaqueType::get(ctx, "vint32m2_t");
+    mlir::Type f32m2Type = emitc::OpaqueType::get(ctx, "vfloat32m2_t");
+    mlir::Type i8ElemType = emitc::OpaqueType::get(ctx, "int8_t");
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    mlir::Type u8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+    mlir::Type constU32Type = emitc::OpaqueType::get(ctx, "const uint32_t");
+    mlir::Type u32PtrType = emitc::PointerType::get(constU32Type);
+    mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type constI16Type = emitc::OpaqueType::get(ctx, "const int16_t");
+    mlir::Type constI16PtrType = emitc::PointerType::get(constI16Type);
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // size_t nb = n / QK_K;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    // int8_t aux8[256];  (function-scoped scratch, shared with the integer core;
+    // W7 threads it as function-level declaration, exactly like the monolith.)
+    mlir::Type aux8ArrayType = emitc::ArrayType::get({qk}, i8ElemType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("aux8", opName, role));
+    auto aux8Var = rewriter.create<emitc::VariableOp>(
+        loc, aux8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto aux8Array =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(aux8Var.getResult());
+    mlir::Value aux8Index0 =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value aux8Elem0 =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, aux8Array,
+                                        mlir::ValueRange{aux8Index0})
+            .getResult();
+    mlir::Value aux8Base =
+        rewriter.create<emitc::ApplyOp>(loc, i8PtrType, "&", aux8Elem0)
+            .getResult();
+
+    // uint32_t utmp[4];
+    mlir::Type utmpArrayType = emitc::ArrayType::get({4}, u32Type);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("utmp", opName, role));
+    auto utmpVar = rewriter.create<emitc::VariableOp>(
+        loc, utmpArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto utmpArray =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(utmpVar.getResult());
+
+    // float sums8[8];
+    mlir::Type sums8ArrayType = emitc::ArrayType::get({numLanes}, floatType);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums8", opName, role));
+    auto sums8Var = rewriter.create<emitc::VariableOp>(
+        loc, sums8ArrayType, emitc::OpaqueAttr::get(ctx, ""));
+    auto sums8Array =
+        llvm::cast<mlir::TypedValue<emitc::ArrayType>>(sums8Var.getResult());
+
+    // vfloat32m2_t sums = __riscv_vfmv_v_f_f32m2(0.0f, 8);  -- W6 carried VECTOR
+    // accumulator, declared + zeroed ONCE OUTSIDE the super-block loop (the typed
+    // region arg `sums` lowers to this emitc.variable lvalue; emitc.for has no
+    // iter_args, so the helpers mutate it in place across iterations).
+    (void)sumsArg;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sums", opName, role));
+    auto sumsVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(f32m2Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    std::string sumsSeedCallee = "__riscv_vfmv_v_f_f32m2";
+    mlir::Value sumsZero = emitOpaqueCallBuilt(
+        rewriter, loc, f32m2Type, sumsSeedCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zeroF =
+              rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+          return {zeroF, sizeLit(8)};
+        });
+    rewriter.create<emitc::AssignOp>(loc, sumsVar, sumsZero);
+
+    // float sumf = 0.0f;  -- W6 carried SCALAR accumulator, declared + zeroed ONCE
+    // OUTSIDE the loop (the typed region arg `sumf` lowers to this lvalue).
+    (void)sumfArg;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value sumfZero =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfZero);
+
+    // The integer-core context (ONE cx, the SAME shape + facts the monolith
+    // builds) -> the 3 shared leaf helpers emit byte-identical Region A/B/C C.
+    Q4_KIntegerCoreContext cx{
+        opName,        role,          sizeType,      i32ImmType,
+        u32Type,       i8ElemType,    u8m2Type,      i8m2Type,
+        i8mf2Type,     i16m1Type,     i32m2Type,     i8PtrType,
+        u8PtrType,     constU32Type,  u32PtrType,    weightPtrType,
+        activationPtrType, subBlock,  scalesOffset,  qsOffset,
+        q8Offset,      numSubBlocks,  quarter,       coreLmul,
+        l8,            l16,           l32,           stripWidth,
+        numStrips,     foldGroups,    i32Canon8Type};
+
+    // The BRICK 4 MIN-term + BRICK 6 positive-fold contexts (the SAME facts/types
+    // the monolith builds; the shared helpers are byte-identical by construction).
+    Q4_KMinTermContext mx;
+    mx.opName = opName;
+    mx.role = role;
+    mx.sizeType = sizeType;
+    mx.floatType = floatType;
+    mx.i32Type = i32Type;
+    mx.constU8Type = constU8Type;
+    mx.constI16Type = constI16Type;
+    mx.constI16PtrType = constI16PtrType;
+    mx.fp16ReadCallee = fp16ReadCallee;
+    mx.bsumsOffset = bsumsOffset;
+    mx.weightDminOffset = weightDminOffset;
+    mx.numBsums = numBsums;
+
+    Q4_KSumsFoldContext sx;
+    sx.opName = opName;
+    sx.role = role;
+    sx.sizeType = sizeType;
+    sx.floatType = floatType;
+    sx.f32m2Type = f32m2Type;
+    sx.i32Canon8Type = i32Canon8Type;
+    sx.fp16ReadCallee = fp16ReadCallee;
+    sx.weightDOffset = weightDOffset;
+
+    // ---- The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_loop"));
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value ib = blockLoop.getInductionVar();
+
+      // W5: per-super-block base = base + ib*stride, built OP-BY-OP from each
+      // brick's (base operand, block_index operand) through a per-iteration memo
+      // (the flat blockBaseFor pattern). Correct wiring (all weight bricks -> the
+      // ABI weight base, all activation bricks -> the ABI activation base, all
+      // block_index == the IV) collapses to exactly TWO emitted bases -- xb
+      // (super_block_base_x) and yb (super_block_base_y) -- byte-identical to the
+      // monolith's blockBaseValue. A CHANGED brick base operand keys a DIFFERENT
+      // memo entry and emits a DIFFERENT base (anti-bypass: the emit tracks the
+      // operand, not a gate-only check).
+      llvm::DenseMap<std::pair<mlir::Value, mlir::Value>, mlir::Value>
+          blockBaseMemo;
+      auto blockBaseFor = [&](mlir::Value bufferSSA, mlir::Value blockIndexSSA,
+                              int64_t stride, const char *step) -> mlir::Value {
+        std::pair<mlir::Value, mlir::Value> key(bufferSSA, blockIndexSSA);
+        auto it = blockBaseMemo.find(key);
+        if (it != blockBaseMemo.end())
+          return it->second;
+        mlir::Value emittedBase = valueMap.lookup(bufferSSA);
+        rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+        mlir::Value off =
+            rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+        mlir::Value base = rewriter.create<emitc::AddOp>(
+            loc, emittedBase.getType(), emittedBase, off);
+        blockBaseMemo[key] = base;
+        return base;
+      };
+
+      // Establish the two canonical bases up-front in the monolith's byte-exact
+      // order (weight x before activation y), each from the brick that owns that
+      // base in the monolith: xb from BRICK 1 (nibble unpack weight base), yb from
+      // BRICK 3 (scaled dot q8 base).
+      mlir::Value xb = blockBaseFor(b1.getWeightBase(), b1.getBlockIndex(),
+                                    weightStride, "super_block_base_x");
+      mlir::Value yb = blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(),
+                                    activationStride, "super_block_base_y");
+
+      // ---- Region A/B/C: the 3 shared leaf helpers, in the monolith's order,
+      // each fed its per-brick base (BRICK 1 -> unpack, BRICK 2 -> bit-dance,
+      // BRICK 3 -> scaled dot). Aux32Core is exactly this sequence with a null
+      // scaleMinOutput; inlining the 3 leaves makes bricks 1/2/3 independently
+      // operand-driven while staying byte-identical. ----
+      emitQ4_KPlainNibbleUnpack(rewriter, loc, cx, xb, aux8Array);
+      mlir::Value scalesU8 = emitQ4_KScaleMinBitDanceCore(
+          rewriter, loc, cx,
+          blockBaseFor(b2.getWeightBase(), b2.getBlockIndex(), weightStride,
+                       "super_block_base_x"),
+          utmpArray);
+      mlir::TypedValue<emitc::LValueType> aux32Var = emitQ4_KScaledDotIntoAux32(
+          rewriter, loc, cx,
+          blockBaseFor(b3.getQ8Base(), b3.getBlockIndex(), activationStride,
+                       "super_block_base_y"),
+          aux8Base, scalesU8);
+
+      // ---- fp32 activation scale dy = *(const float *)(yb + 0), loaded ONCE. ----
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "fold_activation_d"));
+      mlir::Value dyAddr = yb;
+      if (activationDOffset != 0)
+        dyAddr = rewriter.create<emitc::AddOp>(loc, activationPtrType, yb,
+                                               sizeLit(activationDOffset));
+      mlir::Type constFloatPtrType =
+          emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+      mlir::Value dyPtr =
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, dyAddr)
+              .getResult();
+      mlir::Value dyIndex0 =
+          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+      mlir::Value dyElem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc,
+                  llvm::cast<mlir::TypedValue<emitc::PointerType>>(dyPtr),
+                  dyIndex0)
+              .getResult();
+      mlir::Type constFloatType = emitc::OpaqueType::get(ctx, "const float");
+      mlir::Value dy =
+          rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
+              .getResult();
+
+      // ---- BRICK 4 MIN term, FIRST half: the int16 bsums reduction (yb driven
+      // by BRICK 4's activation base). ----
+      mlir::TypedValue<emitc::LValueType> sumiVar = emitQ4_KMinTermBsumsDot(
+          rewriter, loc, mx,
+          blockBaseFor(b4.getActivationBase(), b4.getBlockIndex(),
+                       activationStride, "super_block_base_y"),
+          scalesU8);
+
+      // ---- BRICK 6 deferred positive fold (xb driven by BRICK 6's weight base):
+      // sums += (fp16(x.d) * dy) * (float)aux32. Slotted BETWEEN the two MIN-term
+      // halves exactly as the monolith, data-independent of the MIN chain. ----
+      emitQ4_KSumsFoldScaleD(
+          rewriter, loc, sx,
+          blockBaseFor(b6.getWeightBase(), b6.getBlockIndex(), weightStride,
+                       "super_block_base_x"),
+          dy, aux32Var,
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()));
+
+      // ---- BRICK 4 MIN term, SECOND half: sumf -= dmin * (float)sumi (xb driven
+      // by BRICK 4's weight base). ----
+      emitQ4_KMinTermSubtract(
+          rewriter, loc, mx,
+          blockBaseFor(b4.getWeightBase(), b4.getBlockIndex(), weightStride,
+                       "super_block_base_x"),
+          dy, sumiVar,
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
+    }
+
+    // ---- W6 post-loop vector->scalar collapse: REUSE the BRICK 7 horizontal-fold
+    // helper (moved OUT of the region to post-loop), byte-identical to the
+    // monolith's post-loop fold. ----
+    Q4_KHorizontalFoldContext hx;
+    hx.opName = opName;
+    hx.role = role;
+    hx.sizeType = sizeType;
+    hx.floatType = floatType;
+    hx.f32m2Type = f32m2Type;
+    hx.numLanes = numLanes;
+    mlir::Value sumf = emitQ4_KHorizontalFold(
+        rewriter, loc, hx, sums8Array,
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumsVar.getResult()),
+        llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
+
+    // *s = sumf;  (structured scalar store through the float * output pointer).
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q4_K super-block loop output not a pointer");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_s"));
+    mlir::Value outIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp outSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
+    rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumf);
     return mlir::success();
   }
 

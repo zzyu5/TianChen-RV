@@ -367,6 +367,15 @@ private:
   /// the op owns its own internal block loop, exactly like emitFlatBlockDot.
   static bool isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope);
 
+  /// The M-FLAT q4_K/q5_K super-block loop-scaffold recognizer (milestone-2): a
+  /// with_vl scope whose ONLY op is a single
+  /// tcrv_rvv.typed_super_block_block_dot_loop_body (the region-carrying nb
+  /// super-block loop with the DUAL sums-vector + sumf-scalar loop-carried
+  /// accumulator). Routed through the block-dot table (NOT the elementwise path)
+  /// so no outer AVL loop wraps it; the op owns its own internal super-block
+  /// loop, exactly like the monolithic emitQ4_KQ8_KBlockDot.
+  static bool isTypedSuperBlockBlockDotLoopBody(tcrvrvv::WithVLOp scope);
+
   /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
@@ -1494,6 +1503,25 @@ private:
   /// stub term) is dispatched through the existing brick emitters; the full
   /// per-block primitive chain + full-body byte-exactness are later steps.
   mlir::LogicalResult emitTypedFlatBlockDotLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2, W5-W7):
+  /// lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body to
+  /// the byte-exact skeleton emitQ4_KQ8_KBlockDot emits -- the function-scoped
+  /// aux8[256]/utmp[4]/sums8[8] scratch, the `sums` vfloat32m2 emitc.variable +
+  /// `sumf` float emitc.variable DUAL accumulator seeded once OUTSIDE the loop,
+  /// nb = n / QK_K, the outer emitc.for over nb, and (post-loop) the sequential
+  /// horizontal fold + `*s = sumf` store. The in-loop body is emitted OP-BY-OP
+  /// from the region bricks' OPERANDS: each per-super-block base is built from a
+  /// brick's (base operand, block_index induction operand) via a shared memo (the
+  /// flat W4 blockBaseFor pattern) so the emit provably tracks the region content
+  /// (anti-bypass), while the 8 shared CORE helpers (emitQ4_KSuperBlockAux32Core /
+  /// MinTermBsumsDot / SumsFoldScaleD / MinTermSubtract / HorizontalFold) keep it
+  /// byte-identical to the monolith by construction (same helpers, same facts,
+  /// same order). NO monolith retire, NO flip.
+  mlir::LogicalResult emitTypedSuperBlockBlockDotLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

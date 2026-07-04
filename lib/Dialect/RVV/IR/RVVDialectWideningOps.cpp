@@ -4768,10 +4768,18 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
            << "requires weight_qs_byte_offset == 16 (qs follow d+dmin+scales[12]) "
               "for the q4_K/q5_K Region-A nibble unpack route";
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+  // M-FLAT q4_K milestone-2: the OPTIONAL block_index operand toggles the
+  // per-super-block-source loop form. Present => the super-block base lives at
+  // `weight_base + block_index*weight_block_stride`; absent => the unchanged
+  // single-super-block ABI-base form. The block_index is index-typed (ODS) and
+  // carries no extra brick attr (the stride the loop op carries).
+  bool hasBlockIndex = static_cast<bool>(getBlockIndex());
+  unsigned expectedOperands = hasBlockIndex ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "!tcrv_rvv.vl operand, one optional block_index induction operand, "
+              "and one i32 LMUL m1 result";
 
   // The weight base operand is a runtime ABI value addressing the AoS block_q4_K
   // byte array as const uint8_t * (the same binding the monolithic
@@ -4861,10 +4869,16 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
            << "requires weight_scales_byte_offset == 4 (scales follow d+dmin) "
               "for the q4_K/q5_K Region-B scale/min bit-dance route";
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+  // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
+  // loop form (see Region-A). Present => scale words at `weight_base +
+  // block_index*weight_block_stride + scales_off`; absent => single-super-block.
+  bool hasBlockIndex = static_cast<bool>(getBlockIndex());
+  unsigned expectedOperands = hasBlockIndex ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer runtime ABI operand, one "
-              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "!tcrv_rvv.vl operand, one optional block_index induction operand, "
+              "and one i32 LMUL m1 result";
 
   // The weight base operand is a runtime ABI value addressing the AoS block_q4_K
   // byte array as const uint8_t * (the same binding the monolithic
@@ -4912,7 +4926,8 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   // fail-closed (I7).
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "qk" || name == "sub_block" ||
-           name == "weight_block_stride" || name == "integer_core_lmul";
+           name == "weight_block_stride" || name == "integer_core_lmul" ||
+           name == "activation_quant_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4926,8 +4941,8 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
     if (!isAllowedAttr(attrName))
       return emitOpError()
              << "only accepts the bounded scaled-dot attributes 'kind', 'qk', "
-                "'sub_block', 'weight_block_stride', and 'integer_core_lmul'; "
-                "unexpected attribute '"
+                "'sub_block', 'weight_block_stride', 'integer_core_lmul', and "
+                "'activation_quant_byte_offset'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -4974,10 +4989,24 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
            << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
               "q4_K/q5_K Region-C scaled-dot route";
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+  // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
+  // loop form. Present => the q8 strip lives at `q8_base +
+  // block_index*activation_block_stride + activation_quant_byte_offset` (the
+  // stride the loop op carries); absent => single-super-block (q8_base is the q8
+  // data pointer directly). The activation_quant_byte_offset is a loop-form fact:
+  // it is fail-closed rejected without block_index (I7).
+  bool hasBlockIndex = static_cast<bool>(getBlockIndex());
+  unsigned expectedOperands = hasBlockIndex ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (aux8 / scales / "
-              "q8), one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "q8), one !tcrv_rvv.vl operand, one optional block_index induction "
+              "operand, and one i32 LMUL m1 result";
+  if (!hasBlockIndex && getActivationQuantByteOffset())
+    return emitOpError()
+           << "must not set activation_quant_byte_offset without block_index "
+              "(the single-super-block form passes the q8 data pointer directly "
+              "at offset 0)";
 
   // The three base operands are runtime ABI values: the BRICK 1 unpacked aux8
   // scratch (const int8_t *), the BRICK 2 decoded scales (const uint8_t *), and
@@ -5084,11 +5113,17 @@ mlir::LogicalResult Q4KMinTermOp::verify() {
            << "requires weight_dmin_byte_offset == 2 (the block_q4_K/q5_K dmin "
               "fp16 offset) for the q4_K/q5_K MIN-term route";
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+  // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
+  // loop form. Present => the fp16 dmin / int16 bsums / fp32 activation d live at
+  // `weight_base|activation_base + block_index*stride (the strides the loop op
+  // carries)`; absent => single-super-block.
+  bool hasBlockIndex = static_cast<bool>(getBlockIndex());
+  unsigned expectedOperands = hasBlockIndex ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (weight / "
-              "scales / activation), one !tcrv_rvv.vl operand, and one i32 LMUL "
-              "m1 result";
+              "scales / activation), one !tcrv_rvv.vl operand, one optional "
+              "block_index induction operand, and one i32 LMUL m1 result";
 
   // The three base operands are runtime ABI values: the q4_K/q5_K weight block
   // (const uint8_t *, read at +2 for the fp16 dmin), the BRICK 2 decoded scales
@@ -5194,11 +5229,17 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
            << "requires weight_d_byte_offset == 0 (the block_q4_K/q5_K d fp16 "
               "offset) for the q4_K/q5_K positive-fold route";
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+  // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
+  // loop form. Present => the fp16 weight scale d / fp32 activation d live at
+  // `weight_base|activation_base + block_index*stride (the strides the loop op
+  // carries)`; absent => single-super-block.
+  bool hasBlockIndex = static_cast<bool>(getBlockIndex());
+  unsigned expectedOperands = hasBlockIndex ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires three runtime ABI base pointer operands (weight / aux32 "
-              "/ activation), one !tcrv_rvv.vl operand, and one i32 LMUL m1 "
-              "result";
+              "/ activation), one !tcrv_rvv.vl operand, one optional block_index "
+              "induction operand, and one i32 LMUL m1 result";
 
   // The three base operands are runtime ABI values: the q4_K/q5_K weight block
   // (const uint8_t *, read at +0 for the fp16 d), the BRICK 3 canonical-8 aux32

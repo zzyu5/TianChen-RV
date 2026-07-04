@@ -6122,11 +6122,24 @@ def Q4KNibbleUnpackOp
     vsetvl_e8m2(32) per 32-element nibble group (NO VLEN-robust re-strip loop --
     a VLEN<128 board would leave part of aux8 unwritten; the zve32x/zve64x
     re-strip is a capability item, not built here). No resource shape knobs yet.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q4_K milestone-2, mirrors
+    the flat load / block_fp16_scale_product bricks): the OPTIONAL `block_index`
+    operand toggles the per-super-block-source form. When present it is the
+    induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region, and the super-block
+    integer core reads the weight bytes at `weight_base + block_index*stride`
+    (the stride the loop op carries as weight_block_stride) -- byte-exact to the
+    monolithic q4_K block dot's super_block_base_x address arithmetic. When ABSENT
+    the op keeps the unchanged single-super-block form (the imported ABI base IS
+    the super-block base, no per-super-block offset). The single-block strong
+    paths never set block_index and are untouched.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$sub_block,
@@ -6136,8 +6149,8 @@ def Q4KNibbleUnpackOp
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$weight_base `,` $vl attr-dict `:` type($weight_base) `,` type($vl) "
-    "`->` type($result)";
+    "$weight_base `,` $vl (`block` $block_index^ `:` type($block_index))? "
+    "attr-dict `:` type($weight_base) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 
@@ -6198,11 +6211,21 @@ def Q4KScaleMinBitDanceOp
     vsetvl_e8m1(16) (NO VLEN-robust re-strip -- a VLEN<128 board would split the
     16-byte store; the zve32x/zve64x re-strip is a capability item, not built
     here). No resource shape knobs yet.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q4_K milestone-2): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region and the scale words are
+    read at `weight_base + block_index*stride + scales_off` (the stride the loop
+    op carries as weight_block_stride) -- byte-exact to the monolithic super_block_
+    base_x arithmetic. When ABSENT the op keeps the unchanged single-super-block
+    form. The single-block strong paths never set block_index and are untouched.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$sub_block,
@@ -6212,8 +6235,8 @@ def Q4KScaleMinBitDanceOp
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$weight_base `,` $vl attr-dict `:` type($weight_base) `,` type($vl) "
-    "`->` type($result)";
+    "$weight_base `,` $vl (`block` $block_index^ `:` type($block_index))? "
+    "attr-dict `:` type($weight_base) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 
@@ -6287,6 +6310,20 @@ def Q4KScaledDotOp
     The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
     => Zvl128b => VLEN>=128, the validated target). No further resource shape knobs
     yet.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q4_K milestone-2): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the q8 activation strip
+    is read at `q8_base + block_index*stride + activation_quant_byte_offset` (the
+    stride the loop op carries as activation_block_stride), byte-exact to the
+    monolithic super_block_base_y + q8-offset arithmetic. The OPTIONAL
+    `activation_quant_byte_offset` locates the q8 quant bytes within the q8_K
+    activation super-block (4, after the fp32 activation scale); it is only legal
+    with block_index (the loop form -- the standalone single-super-block form
+    passes the q8 data pointer directly at offset 0, fail-closed otherwise). When
+    block_index is ABSENT the op keeps the unchanged single-super-block form. The
+    single-block strong paths never set block_index and are untouched.
   }];
 
   let arguments = (ins
@@ -6294,16 +6331,19 @@ def Q4KScaledDotOp
     AnyType:$scales_base,
     AnyType:$q8_base,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$sub_block,
     I64Attr:$weight_block_stride,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$activation_quant_byte_offset
   );
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$aux8_base `,` $scales_base `,` $q8_base `,` $vl attr-dict `:` "
+    "$aux8_base `,` $scales_base `,` $q8_base `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
     "type($aux8_base) `,` type($scales_base) `,` type($q8_base) `,` type($vl) "
     "`->` type($result)";
   let hasVerifier = 1;
@@ -6372,6 +6412,16 @@ def Q4KMinTermOp
     The op emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
     => Zvl128b => VLEN>=128, the validated target). No resource shape knobs (the
     MIN term is scalar; there is no LMUL widening axis).
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q4_K milestone-2): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the fp16 dmin + fp32
+    activation d + int16 bsums are read at `weight_base + block_index*weight_stride`
+    and `activation_base + block_index*activation_stride` (the strides the loop op
+    carries), byte-exact to the monolithic super_block_base_x/y arithmetic. When
+    ABSENT the op keeps the unchanged single-super-block form. The single-block
+    strong paths never set block_index and are untouched.
   }];
 
   let arguments = (ins
@@ -6379,6 +6429,7 @@ def Q4KMinTermOp
     AnyType:$scales_base,
     AnyType:$activation_base,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$sub_block,
@@ -6389,7 +6440,8 @@ def Q4KMinTermOp
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$weight_base `,` $scales_base `,` $activation_base `,` $vl attr-dict `:` "
+    "$weight_base `,` $scales_base `,` $activation_base `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
     "type($weight_base) `,` type($scales_base) `,` type($activation_base) `,` "
     "type($vl) `->` type($result)";
   let hasVerifier = 1;
@@ -6456,6 +6508,16 @@ def Q4KSumsFoldScaleDOp
     => Zvl128b => VLEN>=128, the validated target). No resource shape knobs (the
     canonical-8 fp fold is fixed at 8 lanes f32m2; the integer-core LMUL widening
     axis lives on the upstream BRICK 3 scaled dot).
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q4_K milestone-2): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the fp16 weight scale d
+    + fp32 activation d are read at `weight_base + block_index*weight_stride` and
+    `activation_base + block_index*activation_stride` (the strides the loop op
+    carries), byte-exact to the monolithic super_block_base_x/y arithmetic. When
+    ABSENT the op keeps the unchanged single-super-block form. The single-block
+    strong paths never set block_index and are untouched.
   }];
 
   let arguments = (ins
@@ -6463,6 +6525,7 @@ def Q4KSumsFoldScaleDOp
     AnyType:$aux32_base,
     AnyType:$activation_base,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$sub_block,
@@ -6472,7 +6535,8 @@ def Q4KSumsFoldScaleDOp
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$weight_base `,` $aux32_base `,` $activation_base `,` $vl attr-dict `:` "
+    "$weight_base `,` $aux32_base `,` $activation_base `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
     "type($weight_base) `,` type($aux32_base) `,` type($activation_base) `,` "
     "type($vl) `->` type($result)";
   let hasVerifier = 1;

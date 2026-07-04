@@ -1,7 +1,17 @@
 // RUN: tcrv-opt %s | FileCheck %s --check-prefix=VERIFY
-// RUN: not tcrv-opt %s --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PASTGATE
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 // RUN: sed 's|// R1 ||' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // RUN: sed 's|// R2 ||' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT-NESTED
+// M-FLAT milestone-2 anti-bypass M-tests (the emit is OPERAND-DRIVEN, not
+// gate-only): (MSWAP) swapping BRICK 3's q8 activation base %vy -> %vx CHANGES
+// the emit -- the super_block_base_y activation-base arithmetic no longer
+// precedes the Region-A unpack (the scaled dot folds off the WEIGHT base now),
+// so a valid operand edit yields DIFFERENT C (not a rejection). (MGATE) dropping
+// BRICK 1's block_index still PARSES + VERIFIES but FAILS to legalize -- the
+// driver gate requires every brick's block_index to be the loop induction
+// variable so the emit addresses base + ib*stride, never super-block-0.
+// RUN: sed 's/q4_k_scaled_dot %%aux8, %%scales, %%vy,/q4_k_scaled_dot %%aux8, %%scales, %%vx,/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=MSWAP
+// RUN: sed 's/q4_k_nibble_unpack %%vx, %%vl block %%super_block_index : index/q4_k_nibble_unpack %%vx, %%vl/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MGATE
 // RUN: sed 's/kind = "typed_super_block_block_dot_loop_body"/kind = "plain_super_block_loop"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADKIND
 // RUN: sed 's/fold_model = "super_block_two_level_scale_min"/fold_model = "unsupported_fold"/' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=BADFOLD
 // RUN: sed 's|, fold_model = "super_block_two_level_scale_min"||' %s | not tcrv-opt 2>&1 | FileCheck %s --check-prefix=MISSINGFOLD
@@ -58,17 +68,21 @@ module {
           // R2   %r2 = tcrv_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // R2 } : !tcrv_rvv.vl
           // BRICK 1: plain 4-bit nibble unpack -> aux8[256] scratch (Region A).
-          %b1 = tcrv_rvv.q4_k_nibble_unpack %vx, %vl {kind = "q4_k_nibble_unpack", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, weight_qs_byte_offset = 16 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          // The `block %super_block_index` operand (W5) makes the weight base
+          // per-super-block (vx + ib*144), not loop-invariant super-block-0.
+          %b1 = tcrv_rvv.q4_k_nibble_unpack %vx, %vl block %super_block_index : index {kind = "q4_k_nibble_unpack", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, weight_qs_byte_offset = 16 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // BRICK 2: 6-bit scale/min bit-dance -> utmp[4] scratch (Region B).
-          %b2 = tcrv_rvv.q4_k_scale_min_bit_dance %vx, %vl {kind = "q4_k_scale_min_bit_dance", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, weight_scales_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          %b2 = tcrv_rvv.q4_k_scale_min_bit_dance %vx, %vl block %super_block_index : index {kind = "q4_k_scale_min_bit_dance", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, weight_scales_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // BRICK 3: per-sub-block uint6-scaled i32 dot + fold-back (Region C).
-          %b3 = tcrv_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", integer_core_lmul = "m2", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          // activation_quant_byte_offset = 4 places the q8 strip at yb + 4 (after
+          // the fp32 activation d), the loop-form q8 offset (W5).
+          %b3 = tcrv_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl block %super_block_index : index {kind = "q4_k_scaled_dot", integer_core_lmul = "m2", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 144 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // BRICK 4: MIN term (sumf -= dmin * Σ(mins * bsums)) -- the SCALAR sumf
           // accumulator chain.
-          %b4 = tcrv_rvv.q4_k_min_term %vx, %scales, %vy, %vl {kind = "q4_k_min_term", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, bsums_byte_offset = 260 : i64, weight_dmin_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          %b4 = tcrv_rvv.q4_k_min_term %vx, %scales, %vy, %vl block %super_block_index : index {kind = "q4_k_min_term", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, bsums_byte_offset = 260 : i64, weight_dmin_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // BRICK 6: deferred positive fold (sums += d * (float)aux32) -- the
           // 8-lane fp32 VECTOR sums accumulator chain.
-          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %aux32, %vy, %vl {kind = "q4_k_sums_fold_scale_d", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, weight_d_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %aux32, %vy, %vl block %super_block_index : index {kind = "q4_k_sums_fold_scale_d", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, weight_d_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
           // The DUAL carried-out accumulators (sums vector + sumf scalar). The
           // byte-exact fold expressions that update them are a later step; the
           // scaffold carries them through the region to the dual yield.
@@ -91,13 +105,62 @@ module {
 // VERIFY: tcrv_rvv.q4_k_sums_fold_scale_d
 // VERIFY: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}} : !tcrv_rvv.vector<f32, "m2">, f32
 
-// The honest body CLEARS the recursive [L-8] allowlist gate (the 6 q4_K bricks +
-// the super-block loop op/yield are allowlist members): the pass proceeds PAST
-// the gate to the conversion stage and stops ONLY because the byte-exact
-// dual-accumulator lowering is a later step (W5-W7) -- it never emits the
-// allowlist rejection.
-// PASTGATE: failed to legalize operation 'tcrv.exec.variant'
-// PASTGATE-NOT: allowlist
+// Milestone-2 (W5-W7): the honest body now lowers to a REAL emitc.func through
+// the tcrv.exec.variant legalization -- the byte-exact DUAL-accumulator emit. It
+// clears the recursive [L-8] allowlist gate (never emitting the allowlist
+// rejection) AND materializes the full super-block block dot. The emit is
+// byte-identical to the monolithic emitQ4_KQ8_KBlockDot (same shared CORE
+// helpers, same facts, same order) modulo the source-op provenance token; the
+// structural landmarks below assert the W5-W7 shape.
+// EMIT: emitc.func @tcrv_emitc_q4_k_super_block_loop_body_kernel_q4_k_super_block_loop_body(
+// W6 DUAL accumulator: the `sums` vfloat32m2 + `sumf` float emitc.variable
+// declared + seeded ONCE outside the super-block loop.
+// EMIT: local_variable=sums
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
+// EMIT: local_variable=sumf
+// EMIT: callee=super_block_loop
+// EMIT: for %{{.*}} = %{{.*}} to %{{.*}} step %{{.*}}
+// W5 per-super-block addressing (x weight-base then y activation-base, built
+// from the brick operands: vx + ib*144, vy + ib*292 -- not super-block-0).
+// EMIT: callee=super_block_base_x
+// EMIT: literal "144"
+// EMIT: callee=super_block_base_y
+// EMIT: literal "292"
+// W7 Region A/B/C integer core (shared leaf helpers, m2 widening chain):
+// EMIT: callee=unpack_4bit
+// EMIT: call_opaque "__riscv_vmv_v_x_i32m8"
+// EMIT: call_opaque "__riscv_vwmul_vv_i16m4"
+// EMIT: call_opaque "__riscv_vwmacc_vx_i32m8"
+// W7 MIN term + deferred positive fold (the SEPARATE vfmul/vfadd, no fma):
+// EMIT: callee=fold_activation_d
+// EMIT: callee=min_term_bsums
+// EMIT: call_opaque "__riscv_vfcvt_f_x_v_f32m2"
+// EMIT: call_opaque "__riscv_vfmul_vf_f32m2"
+// EMIT: call_opaque "__riscv_vfadd_vv_f32m2"
+// W6 post-loop vector->scalar horizontal fold (BRICK 7 helper) + *s store:
+// EMIT: callee=store_sums_lanes
+// EMIT: call_opaque "__riscv_vse32_v_f32m2"
+// EMIT: callee=horizontal_sum
+// EMIT: callee=store_s
+
+// MSWAP anti-bypass (operand-driven, NOT gate-only): with BRICK 3's q8 base
+// swapped %vy -> %vx, the emit is DIFFERENT -- the super_block_base_y activation
+// arithmetic no longer precedes the Region-A unpack (the scaled dot folds off
+// the weight base), so no super_block_base_y appears between super_block_base_x
+// and the first unpack_4bit. This would be FALSE for the honestly-wired body
+// (which emits super_block_base_y right there), so the emit provably tracks the
+// q8_base OPERAND.
+// MSWAP: callee=super_block_base_x
+// MSWAP-NOT: callee=super_block_base_y
+// MSWAP: callee=unpack_4bit
+
+// MGATE anti-bypass (the operand-driven driver gate): dropping BRICK 1's
+// block_index parses + verifies clean but FAILS to legalize -- the driver
+// requires every addressing brick's block_index to be the loop induction
+// variable (region arg 0), so a body that would silently address super-block-0
+// is fail-closed rejected.
+// MGATE: failed to legalize operation 'tcrv.exec.variant'
+// MGATE-NOT: allowlist
 
 // A TOP-LEVEL non-allowlist op in the super-block loop region is fail-closed
 // rejected (the allowlist default is deny, naming the offending op).
