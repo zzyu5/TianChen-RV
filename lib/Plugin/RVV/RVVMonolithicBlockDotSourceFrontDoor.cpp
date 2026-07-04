@@ -821,11 +821,24 @@ void createTypedSuperBlockBlockDotLoopChain(
         return fact.value;
     llvm_unreachable("typed super-block chain: missing block-format fact");
   };
+  // The OPTIONAL q5_K qh 5th-bit plane offset: PRESENT in kQ5KFacts (16), ABSENT
+  // in kQ4KFacts. Its presence is the ONLY q5_K-vs-q4_K difference the front door
+  // stamps -- it flows onto BRICK 1 (the nibble unpack) as weight_qh_byte_offset;
+  // the emitter reads it back to set cx.hasQh. Everything else (the 5 bricks, the
+  // dual accumulator, the loop op) is format-shared.
+  auto factByNameOpt = [&](llvm::StringRef name) -> std::optional<std::int64_t> {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    return std::nullopt;
+  };
   std::int64_t qk = factByName("qk");                          // 256 (QK_K)
   std::int64_t subBlock = factByName("sub_block");             //  32
-  std::int64_t weightStride = factByName("weight_block_stride");        // 144
+  std::int64_t weightStride = factByName("weight_block_stride");   // 144 q4/176 q5
   std::int64_t activationStride = factByName("activation_block_stride"); // 292
-  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");    //  16
+  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");  // 16 q4/48 q5
+  std::optional<std::int64_t> weightQhOffset =
+      factByNameOpt("weight_qh_byte_offset");                  //  16 (q5_K only)
   std::int64_t weightScalesOffset =
       factByName("weight_scales_byte_offset");                 //   4
   std::int64_t weightDminOffset = factByName("weight_dmin_byte_offset"); //  2
@@ -879,6 +892,11 @@ void createTypedSuperBlockBlockDotLoopChain(
                    builder.getI64IntegerAttr(weightStride));
     s.addAttribute("weight_qs_byte_offset",
                    builder.getI64IntegerAttr(weightQsOffset));
+    // q5_K ONLY: stamp the qh 5th-bit plane offset so the emitter injects the 5th
+    // bit (cx.hasQh). Absent for q4_K -> byte-identical q4_K unpack.
+    if (weightQhOffset)
+      s.addAttribute("weight_qh_byte_offset",
+                     builder.getI64IntegerAttr(*weightQhOffset));
     s.addTypes(i32VecType);
     (void)builder.create(s);
   }
@@ -1272,6 +1290,14 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // lowering). Every other (monolith) row stays byte-unchanged.
   const bool isQ4KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ4KQ8KOp::getOperationName();
+  // q5_K first flip: q5_K == q4_K + the qh 5th-bit plane. It takes the SAME typed
+  // super-block dual-accumulator loop chain (the 5 shared bricks + dual yield),
+  // the ONLY addition being BRICK 1's weight_qh_byte_offset attr (stamped from
+  // kQ5KFacts inside the chain builder). The stride-176 facts + qh offset flow
+  // through entry.facts, so no q5_K-specific construction code is needed here.
+  const bool isQ5KTypedSuperBlock =
+      entry.opName == tcrvrvv::GgmlBlockDotQ5KQ8KOp::getOperationName();
+  const bool isTypedSuperBlock = isQ4KTypedSuperBlock || isQ5KTypedSuperBlock;
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
@@ -1336,9 +1362,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     createTypedFlatBlockDotLoopChain(builder, loc, entry, weight, activation,
                                      out, n, setvl.getVl(), zeroSeed,
                                      typedFlatLmul);
-  } else if (isQ4KTypedSuperBlock) {
+  } else if (isTypedSuperBlock) {
     // The auto-constructed typed SUPER-BLOCK dual-accumulator loop chain (the 5
-    // q4_K bricks + the dual yield are op structure inside the region).
+    // shared q4_K/q5_K bricks + the dual yield are op structure inside the region;
+    // q5_K additionally stamps BRICK 1's qh offset from entry.facts).
     createTypedSuperBlockBlockDotLoopChain(builder, loc, entry, weight,
                                            activation, out, n, setvl.getVl());
   } else {

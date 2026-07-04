@@ -70,10 +70,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q5_K_q8_K_block_dot_source
 }
 
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
-// The kernel survived coherence with exactly the supported monolithic
-// emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
+// The kernel survived coherence with exactly the supported SUPER-BLOCK
+// emission-plan diagnostic naming the SUPER-BLOCK route id + object kind. After the
+// q5_K FLIP the front door constructs the TYPED super-block dual-accumulator loop
+// body (the 5 shared q4_K/q5_K bricks + BRICK 1's qh 5th-bit offset), NOT an opaque
+// tcrv_rvv.q5_k_q8_k_block_dot op; the export entry is resolved by the loop op's
+// weight_block_stride (176 -> the q5_K entry) so kind/ABI/route stay q5_K.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q5_K_q8_K_kernel
-// PLAN: tcrv_rvv.q5_k_q8_k_block_dot
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

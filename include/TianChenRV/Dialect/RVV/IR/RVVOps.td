@@ -6144,7 +6144,16 @@ def Q4KNibbleUnpackOp
     I64Attr:$qk,
     I64Attr:$sub_block,
     I64Attr:$weight_block_stride,
-    I64Attr:$weight_qs_byte_offset
+    I64Attr:$weight_qs_byte_offset,
+    // q5_K (the 5-bit K-quant) ONLY: the byte offset of the qh high-bit plane
+    // (the 5th weight bit). PRESENT selects the q5_K nibble unpack (each unpacked
+    // nibble gets the qh 5th bit injected in the u8 domain before the u8->i8
+    // reinterpret); ABSENT keeps the byte-identical q4_K unpack (no qh). The
+    // presence of this optional attr is the ONLY q5_K-vs-q4_K difference at BRICK
+    // 1 -- it does NOT add a new brick and does NOT enter the region. The verifier
+    // format-keys it: qh present <=> block_q5_K (stride 176, qs@48); absent <=>
+    // block_q4_K (stride 144, qs@16).
+    OptionalAttr<I64Attr>:$weight_qh_byte_offset
   );
   let results = (outs AnyType:$result);
 

@@ -1577,7 +1577,12 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q5_K_q8_K_block_dot", "rvv_q5_K_q8_K_block_dot_from_vector_source",
        "per-sub-block-uint6-scale-i32-domain-deferred-fp32-fold-min",
        "ggml Q5_K x Q8_K super-block block-dot source front door failed: ", "q5-weight", "q8-act",
-       "", kQ5KFacts, {}, {}, {}, {}},
+       "", kQ5KFacts, {}, {}, {}, {},
+       // q5_K first flip: shares the SuperBlock two-level scale/min typed loop body
+       // with q4_K (the fold model is identical -- q5_K is q4_K + the qh 5th-bit
+       // plane). The resolver disambiguates q4_K (stride 144) vs q5_K (stride 176)
+       // by the loop op's weight_block_stride so each exports its own entry.
+       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
       {tcrv::rvv::GgmlBlockDotQ6KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q6_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q6_K_q8_K_block_dot_source",
@@ -1738,16 +1743,26 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     return entry;
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
-    // The typed SUPER-BLOCK loop body (M-FLAT q4_K milestone-3) carries the
-    // generic loop kind + fold_model "super_block_two_level_scale_min"; only
-    // q4_K's super-block route is flipped to this typed body so far, so it
-    // resolves to the SuperBlockTwoLevelScaleMin entry by its selector -- the
-    // typed super-block path no longer depends on GgmlBlockDotQ4KQ8KOp existing.
-    // (Future super-block flips sharing this fold disambiguate by weight stride.)
-    for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
-      if (entry.typedFlatLoopSelector ==
+    // The typed SUPER-BLOCK loop body carries the generic loop kind + fold_model
+    // "super_block_two_level_scale_min". Both q4_K and q5_K are flipped to this
+    // typed body and share that fold model (q5_K == q4_K + the qh 5th-bit plane),
+    // so the selector alone is ambiguous -- DISAMBIGUATE by the loop op's OWN
+    // weight_block_stride (block_q4_K 144 vs block_q5_K 176) so each resolves to
+    // its OWN export entry (kind / ABI roles / facts). The typed super-block path
+    // depends on NO GgmlBlockDotQ*KQ8KOp existing. (Future plain-nibble super-block
+    // flips sharing this fold add their own stride.)
+    std::int64_t stride = 0;
+    if (auto strideAttr =
+            op->getAttrOfType<mlir::IntegerAttr>("weight_block_stride"))
+      stride = strideAttr.getInt();
+    for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
+      if (entry.typedFlatLoopSelector !=
           TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin)
-        return &entry;
+        continue;
+      for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+        if (fact.name == "weight_block_stride" && fact.value == stride)
+          return &entry;
+    }
     return nullptr;
   }
   if (op->getName().getStringRef() ==

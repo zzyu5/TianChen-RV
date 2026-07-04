@@ -4724,7 +4724,8 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
   // unexpected name is rejected fail-closed (I7).
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "qk" || name == "sub_block" ||
-           name == "weight_block_stride" || name == "weight_qs_byte_offset";
+           name == "weight_block_stride" || name == "weight_qs_byte_offset" ||
+           name == "weight_qh_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4738,8 +4739,9 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
     if (!isAllowedAttr(attrName))
       return emitOpError()
              << "only accepts the bounded nibble-unpack attributes 'kind', "
-                "'qk', 'sub_block', 'weight_block_stride', and "
-                "'weight_qs_byte_offset'; unexpected attribute '"
+                "'qk', 'sub_block', 'weight_block_stride', "
+                "'weight_qs_byte_offset', and the OPTIONAL q5_K "
+                "'weight_qh_byte_offset'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -4748,10 +4750,17 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
            << "currently supports only kind \"q4_k_nibble_unpack\" for the "
               "bounded q4_K/q5_K Region-A plain 4-bit nibble unpack typed "
               "surface";
-  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
-  // 8 sub-blocks of 32 elements, block_q4_K stride 144 (d@0|dmin@2|scales@4|
-  // qs@16). Pin them so a malformed typed body cannot lower under the Region-A
-  // unpack emission.
+  // ggml's externally-defined super-block formats (ggml-common.h): QK_K == 256,
+  // 8 sub-blocks of 32 elements. The BRICK is format-parameterized over the
+  // bounded (stride, qs_off, qh?) set of the two plain-nibble K-quants it serves,
+  // fail-closed on any other tuple (I7):
+  //   block_q4_K: stride 144, qs@16 (d@0|dmin@2|scales@4|qs@16),  NO qh plane.
+  //   block_q5_K: stride 176, qs@48 (d@0|dmin@2|scales@4|qh@16|qs@48), qh@16.
+  // The stride and qs offset are CORRELATED (they select the same format), so the
+  // pair is checked as ONE bounded key -- a mixed 144/48 or 176/16 tuple is
+  // rejected. This lifts the brick from a q4_K-hardcoded primitive to a
+  // format-keyed one (the campaign point), while keeping q4_K 144/16 legal
+  // (zero regression).
   if (getQk() != 256)
     return emitOpError() << "requires qk == 256 (QK_K) for the q4_K/q5_K "
                             "Region-A nibble unpack route";
@@ -4759,14 +4768,37 @@ mlir::LogicalResult Q4KNibbleUnpackOp::verify() {
     return emitOpError()
            << "requires sub_block == 32 (32-element sub-block boundary) for the "
               "q4_K/q5_K Region-A nibble unpack route";
-  if (getWeightBlockStride() != 144)
+  int64_t stride = getWeightBlockStride();
+  int64_t qsOff = getWeightQsByteOffset();
+  bool isQ4KFormat = (stride == 144 && qsOff == 16);
+  bool isQ5KFormat = (stride == 176 && qsOff == 48);
+  if (!isQ4KFormat && !isQ5KFormat)
     return emitOpError()
-           << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
-              "q4_K/q5_K Region-A nibble unpack route";
-  if (getWeightQsByteOffset() != 16)
+           << "requires the (weight_block_stride, weight_qs_byte_offset) pair to "
+              "be one of the bounded plain-nibble K-quant formats {(144, 16) "
+              "block_q4_K, (176, 48) block_q5_K} for the q4_K/q5_K Region-A "
+              "nibble unpack route; got ("
+           << stride << ", " << qsOff << ")";
+  // The optional qh plane is format-keyed to q5_K: present <=> block_q5_K (stride
+  // 176) at qh@16; a qh attr on the q4_K format, an absent qh on the q5_K format,
+  // or a wrong qh offset is fail-closed rejected (the 5th-bit inject is exactly
+  // the q5_K increment).
+  if (getWeightQhByteOffset().has_value()) {
+    if (!isQ5KFormat)
+      return emitOpError()
+             << "must not carry weight_qh_byte_offset on the block_q4_K format "
+                "(the qh 5th-bit plane is the q5_K-only increment)";
+    if (*getWeightQhByteOffset() != 16)
+      return emitOpError()
+             << "requires weight_qh_byte_offset == 16 (qh follows d+dmin+"
+                "scales[12], before qs@48) for the block_q5_K Region-A nibble "
+                "unpack route; got "
+             << *getWeightQhByteOffset();
+  } else if (isQ5KFormat) {
     return emitOpError()
-           << "requires weight_qs_byte_offset == 16 (qs follow d+dmin+scales[12]) "
-              "for the q4_K/q5_K Region-A nibble unpack route";
+           << "requires weight_qh_byte_offset (== 16) on the block_q5_K format "
+              "(stride 176): the q5_K nibble unpack MUST inject the qh 5th bit";
+  }
 
   // M-FLAT q4_K milestone-2: the OPTIONAL block_index operand toggles the
   // per-super-block-source loop form. Present => the super-block base lives at
@@ -4860,10 +4892,16 @@ mlir::LogicalResult Q4KScaleMinBitDanceOp::verify() {
     return emitOpError()
            << "requires sub_block == 32 (32-element sub-block boundary) for the "
               "q4_K/q5_K Region-B scale/min bit-dance route";
-  if (getWeightBlockStride() != 144)
+  // Format-keyed to the bounded plain-nibble K-quant strides {144 block_q4_K, 176
+  // block_q5_K}; the scales offset (4) is identical for both (Region B decodes the
+  // SAME 12 packed scale/min bytes after d+dmin regardless of the qh/qs tail), so
+  // only the stride is format-selected here. Any other stride is fail-closed (I7).
+  if (getWeightBlockStride() != 144 && getWeightBlockStride() != 176)
     return emitOpError()
-           << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
-              "q4_K/q5_K Region-B scale/min bit-dance route";
+           << "requires weight_block_stride in {144 (block_q4_K), 176 "
+              "(block_q5_K)} for the q4_K/q5_K Region-B scale/min bit-dance "
+              "route; got "
+           << getWeightBlockStride();
   if (getWeightScalesByteOffset() != 4)
     return emitOpError()
            << "requires weight_scales_byte_offset == 4 (scales follow d+dmin) "
@@ -4984,10 +5022,16 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
     return emitOpError()
            << "requires sub_block == 32 (32-element sub-block scale boundary) "
               "for the q4_K/q5_K Region-C scaled-dot route";
-  if (getWeightBlockStride() != 144)
+  // Format-keyed to the bounded plain-nibble K-quant strides {144 block_q4_K, 176
+  // block_q5_K}; Region C reads the BRICK 1 unpacked aux8 scratch (already lifted
+  // to q5 in [0,31] by the qh inject) + the q8 activation, so its per-sub-block
+  // MAC is identical across the two formats and only the stride is format-selected
+  // (the weight base advances by stride*ib). Any other stride is fail-closed (I7).
+  if (getWeightBlockStride() != 144 && getWeightBlockStride() != 176)
     return emitOpError()
-           << "requires weight_block_stride == 144 (sizeof block_q4_K) for the "
-              "q4_K/q5_K Region-C scaled-dot route";
+           << "requires weight_block_stride in {144 (block_q4_K), 176 "
+              "(block_q5_K)} for the q4_K/q5_K Region-C scaled-dot route; got "
+           << getWeightBlockStride();
 
   // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
   // loop form. Present => the q8 strip lives at `q8_base +

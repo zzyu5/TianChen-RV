@@ -121,7 +121,7 @@ module {
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q4_k_scaled_dot_rejects_wrong_weight_stride", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires weight_block_stride == 144}}
+        // expected-error @+1 {{requires weight_block_stride in}}
         %d = tcrv_rvv.q4_k_scaled_dot %aux8, %scales, %vy, %vl {kind = "q4_k_scaled_dot", qk = 256 : i64, sub_block = 32 : i64, weight_block_stride = 210 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }

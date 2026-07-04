@@ -85,8 +85,10 @@
     {
       "op": "vec_dot",
       "format": "q5_K",
-      "state": "dispatch-wired",
-      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_super_block_block_dot_loop_body+q4_k_nibble_unpack+q4_k_scale_min_bit_dance+q4_k_scaled_dot+q4_k_min_term+q4_k_sums_fold_scale_d+typed_super_block_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed super-block block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockBlockDotLoopChain (front door constructs tcrv_rvv.typed_super_block_block_dot_loop_body; q5_K stamps BRICK 1's weight_qh_byte_offset=16 = the qh 5th-bit plane) -> RVVToEmitCKQuant.cpp emitTypedSuperBlockBlockDotLoopBody (typed super-block DUAL-accumulator lowering; cx.hasQh drives the shared nibble-unpack leaf's qh 5th-bit inject). q5_K == q4_K + qh: it REUSES the SAME 5 bricks + CORE helpers + fold as q4_K, resolving to its OWN export entry by weight_block_stride 176 (q4_K 144). Realized body is the 5 decomposed q4_K/q5_K bricks (nibble_unpack[+qh inject]+scale_min_bit_dance+scaled_dot+min_term+sums_fold_scale_d); the fused per-sub-block q4_k_scaled_dot integer-MAC carries the contraction+reduction, NO opaque *_block_dot hand helper",
+      "note": "byte-identical-to-monolith emit (modulo the source-op provenance token; the executable C / exported object is byte-identical, INCLUDING the qh 5th-bit inject): the q5_K super-block block-dot is now constructed from typed pattern-library primitives (the 5 shared bricks + the DUAL sums/sumf accumulator + BRICK 1's qh-offset attr), not the opaque emitQ5_KQ8_KBlockDot hand helper (retired same action as the flip). SECOND K-quant super-block flipped dispatch-wired -> constructed; the ONLY net-new work over q4_K is the qh attr wiring (bricks lifted to format-keyed primitives). This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",

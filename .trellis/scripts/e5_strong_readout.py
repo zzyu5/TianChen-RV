@@ -181,6 +181,24 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockBlockDotLoopChain (typed super-block block-dot loop body)",
     },
+    # q5_K vec_dot: STRONG (the SECOND K-quant super-block flipped). q5_K == q4_K + the
+    # qh 5th-bit plane: it REUSES the SAME typed super-block dual-accumulator loop body
+    # (tcrv_rvv.typed_super_block_block_dot_loop_body) out of the SAME 5 decomposed
+    # bricks (q4_k_nibble_unpack -> q4_k_scale_min_bit_dance -> q4_k_scaled_dot ->
+    # q4_k_min_term -> q4_k_sums_fold_scale_d), the ONLY net-new work being BRICK 1's
+    # weight_qh_byte_offset attr (the emitter injects the 5th bit under cx.hasQh). NOT
+    # the opaque emitQ5_KQ8_KBlockDot hand helper (retired same action as the flip). The
+    # contraction+reduction is the fused per-sub-block integer-MAC q4_k_scaled_dot
+    # (vwmacc into aux32); NO opaque *_block_dot op, so [L-8] derives constructed
+    # (STRONG). The manifest is byte-identical to q4_K's (the qh inject is intra-brick,
+    # not a new op), resolved to q5_K's OWN export entry by weight_block_stride 176.
+    {
+        "op": "vec_dot", "format": "q5_K", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q5-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockBlockDotLoopChain (typed super-block block-dot loop body; q5_K stamps BRICK 1 qh offset)",
+    },
     # Negative control (weak descriptor-selected block-dot). iq4_nl is NOT in the front
     # door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1 now), so its front door
     # auto-constructs the MONOLITHIC

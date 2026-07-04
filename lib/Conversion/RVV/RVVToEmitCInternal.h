@@ -492,12 +492,6 @@ private:
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
   static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The q5_K recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.q5_k_q8_k_block_dot (the Q5_K x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- q4_K's integer core + the qh 5th-bit
-  /// injection + the deferred fp32 fold + the q4_K min term).
-  static bool isQ5_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The q2_K recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q2_k_q8_k_block_dot (the Q2_K x Q8_K super-block FULL block
   /// dot-product producing the fp32 *s -- the 2-bit weight unpack + the 4-bit
@@ -2672,27 +2666,6 @@ private:
   /// 5 loop). Binds the op's i32 m1 token to a zero literal (the fold writes
   /// sumf_out as a side effect; no live use).
   mlir::LogicalResult emitQ4_KHorizontalFold(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q5_K_q8_K block kernel (the q5_K
-  /// COVERAGE rung) for one tcrv_rvv.q5_k_q8_k_block_dot op as fully STRUCTURED
-  /// emitc nodes (I5; no verbatim C-control-flow blob, no raw()). q5_K is q4_K's
-  /// K4b emission EXACTLY -- the SAME shared super-block integer core
-  /// (emitQ4_KSuperBlockAux32Core: the 4-bit unpack into aux8[256] + the 6-bit
-  /// scale/min bit-dance + the per-sub-block uint6-scaled i32 accumulation), the
-  /// SAME deferred two-level fp32 fold, the SAME q4_K MIN term, the SAME
-  /// sequential horizontal sum and *s store -- with the ONLY new piece being the
-  /// qh 5th-bit injection plumbed into the shared core via cx.hasQh / cx.qhOffset
-  /// (each unpacked nibble gets +16 added in the u8 domain when its qh plane bit
-  /// is set, lifting q4 in [0,15] to q5 in [0,31], mirroring _generic
-  /// quants.c:756-764's `a[l] += (hm[l] & m ? 16 : 0); m <<= 1` per 32-element
-  /// half). The block-format facts (now including the qh @16 offset, the stride
-  /// 176, and qs @48) are the op's typed attrs (I4 mirror). Because the fold/min/
-  /// horizontal-sum are byte-identical to K4b and the core is shared, only the
-  /// gated qh inject distinguishes the emitted nodes.
-  mlir::LogicalResult emitQ5_KQ8_KBlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
