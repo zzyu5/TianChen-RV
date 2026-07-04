@@ -220,6 +220,10 @@
 
 **结论:门②满足、①⑥部分,③④⑤⑦缺失、⑧越界。门⑦是机制性缺口(先验层未落地),非仅日志缺。**
 
+**[P2c 证伪后新规 —— 2026-07-05;perf 测量前置门 + perf-thesis 再瞄准]:**
+1. **preflight + 工具链政策(硬前置,凌驾门③⑥)**:任何双板 A/B perf 测量【之前】,`experiments/T3_step3/board_ab.sh` 的 fail-closed preflight **四门必须全绿**——① march 完整性(板 hwprobe/cpuinfo 实测扩展 ⊄ 编译 march 则 FAIL,尤其 zfh/zvfhmin)② 双侧 objdump libcall 扫描(任一侧含 `__extendhfsf2` 类软浮点 fp16 libcall 则 FAIL)③ 同 clang 版本 + 同旗标 ④ 环境指纹-T格坐标匹配。双板统一 **clang-20** + march **含板全能力**(见实验总纲v1 §1 第 9/10 条)。**动因**:P2c deferred "1.69× vs factory" 已被公平复测证伪 = **100% fp16-libcall 混淆**(对手 march 漏 zfh → scalar fp16 走 libcall → 残废对手);step-3 双板数(1.004×/1.019×)因双方均 libcall 压比值向 1 = **全 stale**(见 GAP-1/P2c、P2c-A、P2c-B)。
+2. **perf-thesis 再瞄准(beat 的住址)**:**指令级高尔夫**(单核 vec_dot 逐指令抠 ns)= **已证薄边际**(P2c 双板 parity),**永久降级为 sanity 层活动**;beat 的真**住址 = 编译器够不着的层**——**repack/权重布局**、**同一二进制跨板装载期调度**、**e2e 分相**(prefill/decode)。[PERF-1] 八门的 beat 语境只对这些结构层开放;指令级 parity 是物理确认、不进 beat。
+
 ---
 
 ## §8 LED 首点复算(IME family-local)

@@ -99,6 +99,16 @@ byte-identical. Numerical bit-exact vs scalar oracle = pending-hardware.
 
 ## GAP-1 / P2c — q8_0 typed-flat per-block kernel = PARITY vs ggml factory (非 Win-B) [OPEN → P2c 关闭]
 
+> **⚠ [STALE / CONTAMINATED — 2026-07-05,P2c 证伪后置顶,原文下方保留不删]。** 本条
+> step-3 的双板 parity 数(VLEN256 m1 = 1.004× / VLEN128 m2 = 1.019× factory)**及其全部
+> 归因分解**(winA +11.0% register-fill / −8.4% no-FMA fold / −2.0% vsetvli-sched)= **幅度
+> 不可引用**。根因:step-3 双板 march **均无 zfh** → 双方 fp16 均走 `__extendhfsf2` libcall
+> → 同一大软浮点常数把比值压向 1(factory 光去 libcall 1793→881 = **半个运行时**)。故"两侧
+> 同板同 clang 同旗标、fp16 confound 已 objdump 证伪并移除"这一自述**不成立**——移除的只是
+> strawman-packed 对手,fp16-libcall confound 从未在 step-3 消除(对手【构建保真】从未进宪法,
+> 见新 GAP-1/P2c-A)。**方向性 parity 仅保留为定性结论**;须按新工具链政策(clang-20 + 板全
+> 能力 march;实验总纲v1 §1 第9/10条)重测(Phase 1)。T3_A/T3_B/T-N 对应格已 status→stale。
+
 **命名.** schedule-参数化相 step 3 宪法双板重测(snapshot fc1dd132,k1 VLEN256 board_fp
 0ccffb5f9130967a / rvv VLEN128 7040412c20700942,固频钉核 T-N IQR<0.02%):我方 SEL-1-选中
 per-block 核 vs ggml **出厂派发** q8_0 核(faithful non-packed TU + Zfh 硬件 fcvt,两侧同板同 clang
@@ -128,3 +138,42 @@ layer-4(家族串行折叠瓶颈命名 + fold 成本反汇编分解 + 同 .o 双
 insight×coverage)= step 5。填 T3_A/T3_B(micro_vs_factory=parity,status=measured)+ T-N 地板;
 T8 台账首条 loss/parity 实例(→ P2c 关闭)。**诚实定位:parity 对 latency-bound kernel 是物理确认
 非失败;真 Win-B gated on P2c。无 beat 措辞(过 [PERF-1] 八门前)。**
+
+---
+
+## GAP-1 / P2c-A — 对手【构建保真】违规:crippled opponent(march 漏 zfh → fp16 libcall) [命名 2026-07-05]
+
+**命名.** vs-framework 的保真探针(实验宪法第 4 条)只查**源码保真 + 派发身份保真**,**从未
+查对手 march 是否含板全能力**。板上有硬件 zfh,但对手编译 march 漏 zfh → 对手的 `(float)*(const
+_Float16 *)` scale 读回**降级为软浮点** `__extendhfsf2` libcall → 对手每 block 被拖慢 ~2×。这是
+一个"残废对手"(crippled build):把**工具链缺陷**误报成我方**算法赢**。P2c deferred "1.69× vs
+factory" = 100% 此混淆,公平复测后归零。
+
+**证据.** objdump 反汇编对手热路径出现 `__extendhfsf2`(软浮点半精转换 libcall);去 libcall 后
+factory 单侧 1793→881ns(半个运行时蒸发)。同源核在含-zfh march 下无此符号。
+
+**修 = 构建保真政策(已落).** 实验宪法**第 10 条**(对手构建保真:板全能力 march + 同 clang + objdump
+无软浮点 libcall,否则 INVALID)+ **第 9 条**(工具链政策:双板 clang-20 + march 从 hwprobe/cpuinfo
+生成)+ `board_ab.sh` **fail-closed preflight 四道门**(① march 完整性 ② 双侧 libcall 扫描 ③ 同编译器
+④ 指纹-格匹配)。preflight 门 ②正是这次混淆的指纹(任一侧含 `__extendhfsf2` → FAIL）。
+
+**复测.** 按第 9/10 条在 Phase 1 用 clang-20 + 板全能力 march(含 zfh/zvfhmin)双板重测,preflight
+四门全绿后方产新数;旧 P2c/step-3 数永久 stale。
+
+---
+
+## GAP-1 / P2c-B — 跨指纹比较作废:step-3 clang-17 vs deferred clang-20 [命名 2026-07-05]
+
+**命名.** step-3 双板测量用 **clang-17**(rvv openEuler)/ clang-18(k1 Bianbu);后来的 deferred
+"1.69×" 实验用 **clang-20**。两者**从不在同一编译器基线**上——同源核跨 clang 快 **3.5–4×** 且**排序
+翻转**(哪侧更快随 clang 版本变)。因此任何把 step-3 数与 deferred 数并列、或跨这两个指纹推断趋势的
+历史比较**一律作废**。
+
+**证据.** 同一 kernel `.o` 在 clang-17 vs clang-20 下 kernel-ns 相差 3.5–4×,且 our/factory 相对
+排序在两版本间翻转(编译器代际差 >> 我们要测的算法/布局差)。
+
+**归因.** 违实验宪法**第 1 条**(指纹任一分量变 → 同指纹格自动 stale,跨会话/跨指纹不比)+ 新**第 9
+条**(双板统一最新稳定 clang)。编译器版本是环境指纹的核心分量,混用即失去可比性。
+
+**修 + 复测.** 第 9 条钉死双板统一 clang-20;preflight 门 ③(同编译器断言)+ 门 ④(指纹-格匹配)前置
+拦截跨指纹测量。Phase 1 全部数据在 clang-20 单一基线重产,历史 clang-17/18 数不再引用。

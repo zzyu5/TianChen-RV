@@ -15,7 +15,7 @@
 
 ---
 
-## §1 实验宪法(八条全局纪律 —— 采纳草案 §2,补双层键)
+## §1 实验宪法(全局纪律 —— 采纳草案 §2,补双层键;P2c 证伪后补【第9条 工具链政策】+【第10条 对手构建保真】)
 
 把教训编进结构,而非靠人自觉:
 
@@ -27,6 +27,8 @@
 6. **provenance 清单(强/弱义机检 + [L-8] 执法)**:每个机制构造的 body 发射时写出其**模式原语 ID 列表**;强义 constructed = 清单存在 ∧ 无不透明手写 helper;弱义 constructed-weak = 描述符选择的手写片段。**六态从此脚本可判、不可辩解**(这是执行总纲里"[L-8] 现为 prose 纪律"的执法工具)。
 7. **快照/纪元**:分母清单 = 版本化工件(钉 ggml 版本);上游新增格式 → 开新纪元、曲线断点标注;一切导出携 `{repo 快照, ggml 版本, 纪元}`。
 8. **oracle 结构无关**:标量 oracle 不与任何向量参考共享 bit→lane 解码 + 性质测试(全零/交替符号/满幅/fp16 次正规极端指数)+ 变异测试;oracle 入库有版本。
+9. **工具链政策(P2c 证伪后补入 —— perf 测量的编译器与 march 全局规则)**:perf 测量**双板统一用最新稳定 clang**(当前 = **clang-20**),**两侧同一版本 + 同旗标**;`-march` **必须含板子全能力**(zfh/zvfhmin/zb* 等,**从板实测 `hwprobe`/`/proc/cpuinfo` 的实际扩展生成**,不得手写残缺 march),**完整 march 串入环境指纹**(指纹任一分量变 → 同指纹格自动 `stale`,见第 1 条)。**厂商编译器现实**(K1/Bianbu clang-18 等)= 记 **limitation 脚注**,**不做第二套测量**(不开第二条测量轨、不入贡献表)。**动因**:P2c deferred "1.69× vs factory" 被公平复测证伪 = 100% fp16-libcall 混淆——板有硬件 zfh,但对手 `march` 漏 zfh → scalar fp16 走 `__extendhfsf2` libcall → 对手被拖慢 ~2×(factory 光去 libcall 1793→881 = 半个运行时)。**执法工具 = harness `board_ab.sh` 的 fail-closed preflight 四道门**(见第 10 条)。
+10. **对手构建保真(P2c 证伪后补入 —— 扩展第 4 条对手探针,增第三重保真)**:vs-framework 对手不仅要**源码保真 + 派发身份保真**(第 4 条已有),还须**构建保真**——对手必须用**板全能力 march**(含板上实际存在的 zfh/zvfhmin 等)、**同一 clang 版本 + 同旗标**编译,并经 **objdump 验证无软浮点 libcall**(`__extendhfsf2` 类)。**任一未满足 → 该对比判 INVALID**(与第 4 条"vs-framework 无探针工件即 INVALID"并列)。**根因治理洞**:此前保真探针只查源码 + 派发身份,**从未查对手 march 是否含板全能力** → 造出"残废对手"(crippled build),把工具链缺陷误报成算法赢。**执法工具 = `board_ab.sh` fail-closed preflight 四道门**:① march 完整性(板实测扩展 ⊄ 编译 march 则 FAIL,尤其 zfh/zvfhmin)/ ② 双侧 objdump libcall 扫描(任一侧含软浮点 libcall 则 FAIL)/ ③ 同编译器断言(两侧非同一 clang+旗标则 FAIL)/ ④ 指纹-格匹配(环境指纹与目标 T-格坐标不一致则 FAIL)。
 
 **双层行键(采纳草案 §1 尾,替代先前的四元键):**
 - **分母键(覆盖率口径)** = `(算子, 格式[, 形状类])`,每对只计一次,覆盖态 = 其全部变体行的最佳六态(防多路径重复计数虚增)。
