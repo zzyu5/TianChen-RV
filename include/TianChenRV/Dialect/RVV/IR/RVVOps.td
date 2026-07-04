@@ -3948,6 +3948,72 @@ def UnsignedNibbleXI8ProductOp
   let hasVerifier = 1;
 }
 
+def FiveBitOffsetBinaryXI8ProductOp
+    : TCRVRVV_Op<"five_bit_offset_binary_x_i8_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV five-bit (nibble+qh) offset-binary x plain-i8 product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV FIVE-BIT offset-binary packed
+    weight x plain-i8 widening product dataflow step. This is the integer core of
+    the ggml Q5_0 x Q8_0 dot-product: the packed weight is reconstructed from a
+    4-bit nibble (loaded UNSIGNED u8) MERGED with a per-element 5th bit read from
+    the scalar-domain qh field, then offset-binary biased `(five_bit - 16)` into a
+    signed i8 weight; the two int8 activation operands stay plain. The op is nested
+    directly under tcrv_rvv.with_vl and consumes FIVE operands: ONE typed UNSIGNED
+    i8 LMUL m1 !tcrv_rvv.vector packed weight (each u8 packing two 4-bit nibbles),
+    ONE scalar i32 qh_source token (the SSA result of a preceding
+    tcrv_rvv.block_five_bit_qh_source brick, naming the 32-bit qh field bytes -- the
+    5th-bit source is operand/source-driven, NOT a descriptor-baked byte offset on
+    THIS op), TWO typed SIGNED/SIGNLESS i8 LMUL m1 !tcrv_rvv.vector PLAIN-int8
+    activation operands (the q8 low half paired with the low nibbles, the q8 high
+    half with the high nibbles), and the active !tcrv_rvv.vl token. It carries an
+    explicit operation kind and product relation, and produces ONE widened i16 LMUL
+    m2 !tcrv_rvv.vector result holding the sum of the low and high five-bit
+    asymmetric widening products.
+
+    This op makes the four-bit nibble decode + qh 5th-bit merge + offset-binary
+    `-16` bias + asymmetric i8(decoded) x i8(plain) product + low/high <-> q8 half
+    split pairing first-class STRUCTURE in the typed body. It is DISTINCT from the
+    UNSIGNED-nibble sibling tcrv_rvv.unsigned_nibble_x_i8_product (which has NO 5th
+    bit and NO bias) and from the offset-binary q4_0 sibling
+    tcrv_rvv.packed_i4_offset_binary_x_i8_product (which biases a 4-bit nibble via
+    xor-0x88 and has no qh field). The fixed intrinsic chain (vand_vx_u8<L> 0x0F /
+    vsrl_vx_u8<L> 0x04 for the nibbles; the per-lane 5th-bit lane vid/vadd/vmv/vsrl/
+    vand/vsll/narrow injected off the broadcast qh halves; vor into each nibble;
+    vreinterpret u8->i8; vsub 16 offset-binary bias; vwmul over i16<W> against the
+    plain low activation; vwmacc over i16<W> against the plain high activation) is
+    the op's lowering, NOT a candidate-mirror string read in the conversion. For
+    the bounded surface kind is limited to five_bit_offset_binary_x_i8_product and
+    product_relation to the SINGLE m1 rung
+    "five-bit-offset-binary-i4m1-x-i8m1x2-to-i16m2" (i4m1 weight + qh 5th bit x
+    i8m1 low/high activation -> i16m2). Source/result dtype/config, VL, the nibble
+    decode, the qh 5th-bit merge and the one-sided unpack structure are structural
+    in the selected RVV body. Route ids, helper names, ABI strings, artifact names,
+    status fields, exact intrinsic spellings, operand-packing mirror strings, q8/q5
+    names, and common EmitC/export code must not infer or choose five-bit
+    offset-binary packed x i8 product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight,
+    AnyType:$qh_source,
+    AnyType:$activation_low,
+    AnyType:$activation_high,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight `,` $qh_source `,` $activation_low `,` $activation_high `,` $vl "
+    "attr-dict `:` type($weight) `,` type($qh_source) `,` "
+    "type($activation_low) `,` type($activation_high) `,` type($vl) `->` "
+    "type($result)";
+  let hasVerifier = 1;
+}
+
 def CodebookTableBroadcastOp
     : TCRVRVV_Op<"codebook_table_broadcast",
     [TCRVEmitCLowerableOpInterface]> {
@@ -9416,6 +9482,60 @@ def BlockFp16MinProductOp : TCRVRVV_Op<"block_fp16_min_product",
 
   let assemblyFormat =
     "$lhs_min_base `,` $rhs_sum_base (`block` $block_index^ `:` type($block_index))? attr-dict `:` type($lhs_min_base) `,` type($rhs_sum_base) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def BlockFiveBitQhSourceOp : TCRVRVV_Op<"block_five_bit_qh_source",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block five-bit qh 32-bit field source brick op";
+  let description = [{
+    Records one bounded generic plugin-local RVV per-block qh-field SOURCE brick as
+    ONE typed dataflow op: it names the 32-bit qh field (the ggml q5_0 `uint8 qh[4]`
+    per-block header, read as TWO aligned 16-bit halves off the weight block base at
+    qh_byte_offset / qh_byte_offset+2) as an operand-flow token the FIVE-bit product
+    op tcrv_rvv.five_bit_offset_binary_x_i8_product consumes. This is the
+    scalar-domain 5th-bit SOURCE of the ggml Q5_0 reconstruction, made a first-class
+    operand edge so the 5th-bit provenance is operand/source-driven rather than a
+    descriptor-baked byte offset on the product op: mutating this brick's qh_base
+    operand or its qh_byte_offset attr changes the emitted `(xb + qhOffset)` address
+    -> changes the emitted bytes (anti-bypass). The op consumes ONE imported runtime
+    ABI weight block-base pointer (the qh field lives WITHIN the weight block, so the
+    base is the SAME weight ABI base the nibble weight load names) plus an OPTIONAL
+    block_index induction operand, and produces ONE scalar i32 result.
+
+    The i32 result is a GATE-ONLY edge (mirrors tcrv_rvv.block_fp16_min_product's
+    f32): it is never materialized standalone; the emitter RE-READS the two 16-bit
+    qh halves from THIS brick's own qh_base + block_index + qh_byte_offset when it
+    lowers the naming product op. For the bounded surface kind is limited to
+    "block_five_bit_qh_source"; qh_byte_offset locates the qh header within each
+    block base; block_stride is the per-block AoS weight stride (present only with
+    block_index). Emission is determined by op identity + these explicit facts,
+    never inferred from candidate-mirror metadata, route ids, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, or q8/q5 names.
+
+    LOOP-CAPABLE per-block-source form (mirrors block_fp16_min_product): the OPTIONAL
+    block_index operand toggles the per-block-source form; when present it is the
+    induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_flat_block_dot_loop_body region and the qh header lives at
+    `qh_base + block_index*block_stride (+ qh_byte_offset)`, with the imported ABI
+    base still the loop-invariant block-0 pointer. When absent the single-block form
+    keeps the imported ABI base as the block base and block_stride must not be set
+    (fail-closed).
+  }];
+
+  let arguments = (ins
+    AnyType:$qh_base,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    OptionalAttr<I64Attr>:$qh_byte_offset,
+    OptionalAttr<I64Attr>:$block_stride
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$qh_base (`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($qh_base) `->` type($result)";
   let hasVerifier = 1;
 }
 

@@ -59,7 +59,11 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q5_0_q8_0_block_dot_source
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the FLAT monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q5_0_q8_0_kernel
-// PLAN: tcrv_rvv.q5_0_q8_0_block_dot
+// The q5_0 front door's body is the typed flat block-dot LOOP body op (M-FLAT);
+// it exports through the SAME shared Flat monolithic plan (route id / object kind)
+// as the compound q5_0 block-dot op it replaced, but carries q5_0's OWN 4-role ABI
+// + scales_times_sumi op-derived kind metadata (NOT q8_0/q4_0's 8-role default).
+// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys

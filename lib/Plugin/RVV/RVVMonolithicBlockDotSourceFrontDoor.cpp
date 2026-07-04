@@ -375,6 +375,28 @@ mlir::Value createUnsignedNibbleXI8Product(
   return builder.create(state)->getResult(0);
 }
 
+// The q5_0 asymmetric FIVE-BIT offset-binary packed weight x plain-i8 integer
+// core: ONE UNSIGNED packed-i4 weight operand (each u8 packs two nibbles) MERGED
+// with a per-element 5th bit read from the scalar-domain qh field (the qh_source
+// gate-only token from a preceding block_five_bit_qh_source brick, NOT a byte
+// offset baked on THIS op) + TWO plain int8 activation operands (the q8 low half
+// paired with the low nibbles, the q8 high half with the high nibbles) -> ONE
+// widened i16 product. The `-16` offset-binary bias is applied in the decode. The
+// m1 flat-cohort rung (i4m1 + qh x i8m1 low/high -> i16m2) is the only rung.
+mlir::Value createFiveBitOffsetBinaryXI8Product(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value weight,
+    mlir::Value qhSource, mlir::Value activationLow, mlir::Value activationHigh,
+    mlir::Value vl, mlir::Type productType, llvm::StringRef productRelation) {
+  mlir::OperationState state(
+      loc, tcrvrvv::FiveBitOffsetBinaryXI8ProductOp::getOperationName());
+  state.addOperands({weight, qhSource, activationLow, activationHigh, vl});
+  state.addAttribute(
+      "kind", builder.getStringAttr("five_bit_offset_binary_x_i8_product"));
+  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
+  state.addTypes(productType);
+  return builder.create(state)->getResult(0);
+}
+
 mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
@@ -442,6 +464,29 @@ mlir::Value createBlockFp16MinProduct(
   state.addAttribute("rhs_block_stride",
                      builder.getI64IntegerAttr(rhsBlockStride));
   state.addTypes(builder.getF32Type());
+  return builder.create(state)->getResult(0);
+}
+
+// q5_0 qh-source brick: the per-block 5th-bit SOURCE (block_index-sourced form).
+// Names the SAME weight ABI base + block_index as the nibble weight load so the
+// emitter per-block base memo hits; the qh header sits at qh_byte_offset within
+// each weight block base. Its i32 result is a GATE-ONLY token the five-bit product
+// op names (never materialized standalone) -- the bytes are re-read from this
+// brick's own qh_base + qh_byte_offset in the emitter (operand/source-driven, NOT
+// a descriptor-baked offset on the product op).
+mlir::Value createBlockFiveBitQhSource(mlir::OpBuilder &builder,
+                                       mlir::Location loc, mlir::Value qhBase,
+                                       mlir::Value blockIndex,
+                                       std::int64_t blockStride,
+                                       std::int64_t qhByteOffset) {
+  mlir::OperationState state(
+      loc, tcrvrvv::BlockFiveBitQhSourceOp::getOperationName());
+  state.addOperands({qhBase, blockIndex});
+  state.addAttribute("kind",
+                     builder.getStringAttr("block_five_bit_qh_source"));
+  state.addAttribute("qh_byte_offset", builder.getI64IntegerAttr(qhByteOffset));
+  state.addAttribute("block_stride", builder.getI64IntegerAttr(blockStride));
+  state.addTypes(builder.getI32Type());
   return builder.create(state)->getResult(0);
 }
 
@@ -540,7 +585,13 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // shared (isQ40 || isQ41) EXCEPT the three-way fold_model.
   const bool isQ41 =
       entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
-  const bool isHalfBlock = isQ40 || isQ41;
+  // q5_0 (five-bit): shares the HALF-block m1 packed-i4 shape (3 loads, m1 core,
+  // u8 weight load like q4_1), diverging in {the qh 5th-bit source brick, the
+  // five-bit offset-binary product with the `-16` bias, the ScalesTimesSumi fold,
+  // and a DISTINCT activation quant offset (weight qs@6, activation qs@2)}.
+  const bool isQ50 =
+      entry.opName == tcrvrvv::GgmlBlockDotQ50Q80Op::getOperationName();
+  const bool isHalfBlock = isQ40 || isQ41 || isQ50;
   std::int64_t activationHighOffset =
       isHalfBlock ? factByName("activation_high_byte_offset") : 0;
 
@@ -556,9 +607,10 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                          builder.getI64IntegerAttr(activationStride));
   loopState.addAttribute(
       "fold_model",
-      builder.getStringAttr(isQ41 ? "scale_plus_min"
-                                   : (isQ40 ? "left_assoc"
-                                            : "sumi_times_scales")));
+      builder.getStringAttr(isQ50 ? "scales_times_sumi"
+                                   : (isQ41 ? "scale_plus_min"
+                                            : (isQ40 ? "left_assoc"
+                                                     : "sumi_times_scales"))));
   loopState.addAttribute("integer_core_lmul",
                          builder.getStringAttr(isHalfBlock ? "m1" : "m2"));
   loopState.addAttribute("strip_elision", builder.getStringAttr("elided"));
@@ -609,26 +661,53 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
         activationStride, factByName("weight_min_byte_offset"),
         factByName("activation_sum_byte_offset"));
 
+  // q5_0 qh-source brick: the per-block 5th-bit SOURCE token the five-bit product
+  // names. Like the q4_1 min brick, names the SAME weight ABI base + block_index
+  // (the qh header lives WITHIN the weight block), so the emitter per-block base
+  // memo hits. Null (no brick) for q8_0/q4_0/q4_1.
+  mlir::Value qhSource;
+  if (isQ50)
+    qhSource = createBlockFiveBitQhSource(builder, loc, weight, blockIndex,
+                                          weightStride,
+                                          factByName("weight_qh_byte_offset"));
+
   // The vector integer core diverges by format. q8_0: two per-block i8 loads ->
   // signed widening product. q4_0/q4_1: ONE packed-i4 weight load + TWO plain-i8
   // activation loads (the q8 low half at quant_off, the q8 high half at
   // quant_off + activation_high_byte_offset) -> the asymmetric packed-i4 x i8
   // product. q4_0 loads the weight SIGNED + offset-binary decode; q4_1 loads it
   // UNSIGNED (u8) + unsigned-nibble decode.
+  // Activation quant offset. For q4_0/q4_1 the weight and activation qs offsets
+  // COINCIDE, so both loads use quant_byte_offset. q5_0 is the FIRST flat op where
+  // they DIVERGE (weight qs@6, activation qs@2): its avLow/avHigh MUST read the
+  // separate activation_quant_byte_offset fact (the weight strip still uses
+  // quant_byte_offset). Keeping this = quantByteOffset off the q5_0 path leaves the
+  // q4_0/q4_1 loads byte-identical.
+  std::int64_t activationQuantByteOffset =
+      isQ50 ? factByName("activation_quant_byte_offset") : quantByteOffset;
+
   mlir::Value prod;
   if (isHalfBlock) {
-    // packed-i4 weight strip (base + ib*stride + quant_off). q4_1 = u8, q4_0 = i8.
+    // packed-i4 weight strip (base + ib*stride + quant_off). q4_1/q5_0 = u8 (the
+    // nibble decode is UNSIGNED), q4_0 = signed i8.
     mlir::Value wv = createRVVBlockLoad(builder, loc, weight, vl, blockIndex,
                                         weightStride, quantByteOffset,
-                                        isQ41 ? ui8VecType : i8VecType);
-    // q8 low half (quant_off) and high half (quant_off + activation_high_offset).
-    mlir::Value avLow =
-        createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
-                           activationStride, quantByteOffset, i8VecType);
+                                        (isQ41 || isQ50) ? ui8VecType : i8VecType);
+    // q8 low half (activation quant_off) and high half (+ activation_high_offset).
+    mlir::Value avLow = createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
+                                           activationStride,
+                                           activationQuantByteOffset, i8VecType);
     mlir::Value avHigh = createRVVBlockLoad(
         builder, loc, activation, vl, blockIndex, activationStride,
-        quantByteOffset + activationHighOffset, i8VecType);
-    if (isQ41)
+        activationQuantByteOffset + activationHighOffset, i8VecType);
+    if (isQ50)
+      // asymmetric FIVE-BIT offset-binary packed-i4 (+ qh 5th bit, `-16` bias) x i8
+      // product (i4m1 + qh x i8m1x2 -> i16m2). The qh 5th-bit source is the qh
+      // brick's gate-only token, NOT a byte offset on this product op.
+      prod = createFiveBitOffsetBinaryXI8Product(
+          builder, loc, wv, qhSource, avLow, avHigh, vl, i16VecType,
+          "five-bit-offset-binary-i4m1-x-i8m1x2-to-i16m2");
+    else if (isQ41)
       // asymmetric UNSIGNED-nibble packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
       prod = createUnsignedNibbleXI8Product(
           builder, loc, wv, avLow, avHigh, vl, i16VecType,
@@ -905,12 +984,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
       entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
   const bool isQ41TypedFlat =
       entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
+  const bool isQ50TypedFlat =
+      entry.opName == tcrvrvv::GgmlBlockDotQ50Q80Op::getOperationName();
   const bool typedFlatLoopPath =
-      isQ80TypedFlat || isQ40TypedFlat || isQ41TypedFlat;
+      isQ80TypedFlat || isQ40TypedFlat || isQ41TypedFlat || isQ50TypedFlat;
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   const llvm::StringRef configLMUL =
-      (isQ40TypedFlat || isQ41TypedFlat) ? "m1"
-                                         : (isQ80TypedFlat ? "m2" : "m1");
+      (isQ40TypedFlat || isQ41TypedFlat || isQ50TypedFlat)
+          ? "m1"
+          : (isQ80TypedFlat ? "m2" : "m1");
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
   // in-region standalone_reduce. Only the typed path needs it; adding it to the

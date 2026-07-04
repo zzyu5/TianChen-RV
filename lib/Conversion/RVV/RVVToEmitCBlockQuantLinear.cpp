@@ -7034,11 +7034,326 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // recomputed INSIDE the fused expression, so the min brick's f32 result is
         // gate-only (never materialized standalone).
         emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY, mX, sY);
+      } else if (loopBody.getFoldModel() == "scales_times_sumi") {
+        // ---- q5_0 half-block asymmetric FIVE-BIT offset-binary packed-i4 (+ qh
+        // 5th bit, `-16` bias) x i8 core + the ScalesTimesSumi fold. This is the
+        // q4_1 op-by-op emit with FIVE deltas: (1) the integer core routes to
+        // emitFiveBitOffsetBinaryDecodeProductValue (unsigned-nibble decode +
+        // per-lane qh 5th-bit merge + `-16` offset-binary bias), (2) the 5th-bit
+        // SOURCE is a per-block qh brick (re-read as two aligned u16 halves off the
+        // SHARED weight base) sitting in the min-brick's slot -- NO m_x/s_y reads,
+        // (3) the weight and activation quant offsets DIVERGE (weight qs@6 vs
+        // activation qs@2/18, stamped by the front door), (4) the fold is the
+        // ScalesTimesSumi tree `sumf + (d_x*d_y)*(float)sumi` with NO min term, and
+        // (5) applyOffsetBias is true. Byte-identical to the monolithic q5_0
+        // (five_bit_offset_binary / half-block / ScalesTimesSumi, m1, elided, mbf
+        // 1) instance; the decode + fold + qh source are selected from the WALKED
+        // op identity, not the fold_model string. ----
+        tcrvrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct;
+        loopBody.getBody().walk(
+            [&](tcrvrvv::FiveBitOffsetBinaryXI8ProductOp o) {
+              fiveBitProduct = o;
+            });
+        tcrvrvv::BlockFiveBitQhSourceOp qhBrick;
+        loopBody.getBody().walk(
+            [&](tcrvrvv::BlockFiveBitQhSourceOp o) { qhBrick = o; });
+        if (!fiveBitProduct || !qhBrick || coreLoads.size() != 3 || !coreExtract)
+          return rewriter.notifyMatchFailure(
+              loopBody,
+              "full q5_0 flat block-dot body requires the region integer core: "
+              "three per-block loads (a u8 packed-i4 weight + two plain-i8 q8 "
+              "halves), an asymmetric five-bit offset-binary packed-i4 x i8 "
+              "product, a lane0 scalar extract, and the per-block qh-source brick");
+        if (brick2.getSumi() != coreExtract.getResult())
+          return rewriter.notifyMatchFailure(
+              brick2, "brick 2 sumi must be the integer-core lane0 extract "
+                      "result");
+        // q5_0's ScalesTimesSumi fold has NO min correction: brick 2 must NOT carry
+        // a min_term (fail-closed against a mis-stamped q4_1/q5_1 body).
+        if (brick2.getMinTerm())
+          return rewriter.notifyMatchFailure(
+              brick2, "q5_0 brick 2 must NOT carry a min_term (the "
+                      "ScalesTimesSumi fold has no per-block MIN correction)");
+        // The KEY five-bit link (I7 fail-closed): the product's qh_source operand
+        // must be the per-block qh brick's gate-only token. Deleting or
+        // misdirecting the qh brick fails closed here.
+        if (fiveBitProduct.getQhSource() != qhBrick.getResult())
+          return rewriter.notifyMatchFailure(
+              fiveBitProduct, "q5_0 five-bit product qh_source must be the "
+                              "per-block qh-source brick's gate-only token");
+
+        // Follow the five-bit product's OPERANDS to their defining loads (the
+        // operand-flow real gate): weight <- getWeight (u8), q8 low half <-
+        // getActivationLow, q8 high half <- getActivationHigh.
+        auto weightLoad =
+            fiveBitProduct.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+        auto lowLoad =
+            fiveBitProduct.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+        auto highLoad =
+            fiveBitProduct.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+        if (!weightLoad || !lowLoad || !highLoad ||
+            weightLoad.getBuffer() != loopBody.getWeightBase() ||
+            lowLoad.getBuffer() != loopBody.getActivationBase() ||
+            highLoad.getBuffer() != loopBody.getActivationBase() ||
+            !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
+            !highLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
+            !lowLoad.getBlockStride())
+          return rewriter.notifyMatchFailure(
+              loopBody,
+              "q5_0 five-bit product operands must be the region's per-block "
+              "loads: a u8 packed-i4 weight load off the weight ABI buffer + two "
+              "plain-i8 q8 (low/high) activation loads off the activation ABI "
+              "buffer, each carrying a block_stride + quant_byte_offset");
+
+        if (!coreReduce ||
+            coreReduce.getInput() != fiveBitProduct.getResult())
+          return rewriter.notifyMatchFailure(
+              coreReduce ? coreReduce.getOperation() : loopBody.getOperation(),
+              "q5_0 integer-core reduce input must be the five-bit product");
+        if (coreExtract.getInput() != coreReduce.getResult())
+          return rewriter.notifyMatchFailure(
+              coreExtract, "q5_0 integer-core lane0 extract input must be the "
+                           "reduce");
+
+        // The ScalesTimesSumi fold descriptor. Only descriptor.foldModel + the
+        // shared state are consumed by emitFlatFold; the integer core + the qh
+        // harvest are emitted op-by-op below, NOT via emitFlatBlockCore.
+        FlatBlockDotDescriptor descriptor;
+        descriptor.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
+        descriptor.foldModel = FlatFoldModel::ScalesTimesSumi;
+        descriptor.defaultCoreLmul = "m1";
+        descriptor.applyOffsetBias = true;
+        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
+            rewriter, descriptor, facts, weightBase, activationBase,
+            sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
+            opName, role);
+
+        mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+        mlir::Value ib = blockLoop.getInductionVar();
+
+        // Shared per-block base memo (byte-exact to the monolith's single
+        // blockBaseValue): brick 1's + the qh brick's reads and the per-block loads
+        // that name the same (%buffer, %block_index) SSA pair share ONE
+        // `base + ib*stride`.
+        llvm::DenseMap<std::pair<mlir::Value, mlir::Value>, mlir::Value>
+            blockBaseMemo;
+        auto blockBaseFor = [&](mlir::Value bufferSSA, mlir::Value blockIndexSSA,
+                                int64_t stride, const char *step) -> mlir::Value {
+          std::pair<mlir::Value, mlir::Value> key(bufferSSA, blockIndexSSA);
+          auto it = blockBaseMemo.find(key);
+          if (it != blockBaseMemo.end())
+            return it->second;
+          mlir::Value emittedBase = valueMap.lookup(bufferSSA);
+          rewriter.create<emitc::VerbatimOp>(loc,
+                                             stepComment(opName, role, step));
+          mlir::Value off =
+              rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+          mlir::Value base = rewriter.create<emitc::AddOp>(
+              loc, emittedBase.getType(), emittedBase, off);
+          blockBaseMemo[key] = base;
+          return base;
+        };
+
+        mlir::Value xb = blockBaseFor(
+            weightLoad.getBuffer(), weightLoad.getBlockIndex(),
+            static_cast<int64_t>(*weightLoad.getBlockStride()), "block_base_x");
+        mlir::Value yb = blockBaseFor(
+            lowLoad.getBuffer(), lowLoad.getBlockIndex(),
+            static_cast<int64_t>(*lowLoad.getBlockStride()), "block_base_y");
+
+        // brick 1's two per-block fp16 -> f32 SCALE reads (d_x/d_y at offset 0),
+        // off the SHARED base (memo hits, no re-emit), byte-exact to fp16ReadAt.
+        auto fp16ReadAt = [&](mlir::Value blockBase,
+                              std::optional<int64_t> byteOffset) -> mlir::Value {
+          mlir::Value addr = blockBase;
+          if (byteOffset && *byteOffset != 0)
+            addr = rewriter.create<emitc::AddOp>(loc, blockBase.getType(),
+                                                 blockBase, sizeLit(*byteOffset));
+          return emitOpaqueCall(rewriter, loc, floatType, kFp16ScaleReadCallee,
+                                mlir::ValueRange{addr}, opName, role,
+                                llvm::StringRef("fcvt.s.h"));
+        };
+        mlir::Value dX = fp16ReadAt(
+            blockBaseFor(
+                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            brick1.getLhsScaleByteOffset());
+        mlir::Value dY = fp16ReadAt(
+            blockBaseFor(
+                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            brick1.getRhsScaleByteOffset());
+
+        // The qh field's TWO aligned 16-bit halves, read RIGHT AFTER brick 1's
+        // dX/dY and BEFORE the sumi decl (byte-exact to the monolith's
+        // dX,dY,qhLow16,qhHigh16 order at emitFlatBlockCore:5987-6004). Off the
+        // SHARED weight base (memo hit) at the qh brick's OWN qh_byte_offset --
+        // mutating the brick's qh_base operand or qh_byte_offset attr changes these
+        // emitted addresses -> changes the bytes (anti-bypass); the descriptor qh
+        // offset is NEVER read in this path. NOT fp16ReadAt: the qh read is a raw
+        // `(uint16_t)*(const uint16_t *)` call to a u32 (no fcvt hint).
+        mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+        llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
+        mlir::Value qhBase = blockBaseFor(
+            qhBrick.getQhBase(), qhBrick.getBlockIndex(),
+            static_cast<int64_t>(qhBrick.getBlockStride().value_or(0)),
+            "block_base_x");
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "qh_field"));
+        auto u16ReadAt = [&](int64_t byteOffset) -> mlir::Value {
+          mlir::Value ptr = rewriter.create<emitc::AddOp>(
+              loc, qhBase.getType(), qhBase, sizeLit(byteOffset));
+          return rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u32Type},
+                                           u16ReadCallee, mlir::ValueRange{ptr})
+              .getResult(0);
+        };
+        int64_t qhOffset =
+            static_cast<int64_t>(qhBrick.getQhByteOffset().value_or(0));
+        mlir::Value qhLow16 = u16ReadAt(qhOffset);
+        mlir::Value qhHigh16 = u16ReadAt(qhOffset + 2);
+
+        // The i32 sumi lvalue.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, localVariableComment("sumi", opName, role));
+        auto sumiVar = rewriter.create<emitc::VariableOp>(
+            loc, emitc::LValueType::get(i32Type),
+            emitc::OpaqueAttr::get(ctx, ""));
+        rewriter.create<emitc::AssignOp>(
+            loc, sumiVar,
+            rewriter.create<emitc::LiteralOp>(loc, i32Type, "0"));
+
+        // The inner block-capped vl: ONE vsetvl_e8<lmul>(qk/2). coreLmul is the
+        // LOAD result LMUL (u8m1 for the weight; the vsetvl spelling is m1).
+        auto loadVecType =
+            llvm::cast<tcrvrvv::VectorType>(weightLoad.getLoaded().getType());
+        llvm::StringRef coreLmul = loadVecType.getLmul();
+        unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
+        llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
+        std::string innerSetvlCallee =
+            riscvIntrinsicName("vsetvl", setvlSEW, setvlLmul, "");
+        mlir::Value vl = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, innerSetvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              return {sizeLit(qk / 2)};
+            });
+
+        // HETEROGENEOUS loads: the WEIGHT strip is loaded U8 (const uint8_t* /
+        // __riscv_vle8_v_u8m1) while the two q8 activation halves stay I8. The
+        // weight/activation quant offsets DIVERGE (weight@6, acts@2/18) -- the
+        // front door stamped them; this emit reads them straight off the load ops.
+        mlir::Type i8CoreType =
+            emitc::OpaqueType::get(ctx, ("vint8" + coreLmul + "_t").str());
+        mlir::Type u8CoreType =
+            emitc::OpaqueType::get(ctx, ("vuint8" + coreLmul + "_t").str());
+        mlir::Type i8PtrType =
+            emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+        mlir::Type u8PtrType =
+            emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+        std::string i8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "i8");
+        std::string u8LoadCallee = riscvIntrinsicName("vle", 8, coreLmul, "u8");
+        mlir::Value chunkOffset = sizeLit(0);
+        auto emitLoadTailI8 = [&](mlir::Value blockBase,
+                                  int64_t quantOff) -> mlir::Value {
+          mlir::Value withFixed = rewriter.create<emitc::AddOp>(
+              loc, blockBase.getType(), blockBase, sizeLit(quantOff));
+          mlir::Value full = rewriter.create<emitc::AddOp>(
+              loc, blockBase.getType(), withFixed, chunkOffset);
+          mlir::Value ptr =
+              rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
+          return emitOpaqueCall(rewriter, loc, i8CoreType, i8LoadCallee,
+                                mlir::ValueRange{ptr, vl}, opName, role);
+        };
+        auto emitLoadTailU8 = [&](mlir::Value blockBase,
+                                  int64_t quantOff) -> mlir::Value {
+          mlir::Value withFixed = rewriter.create<emitc::AddOp>(
+              loc, blockBase.getType(), blockBase, sizeLit(quantOff));
+          mlir::Value full = rewriter.create<emitc::AddOp>(
+              loc, blockBase.getType(), withFixed, chunkOffset);
+          mlir::Value ptr =
+              rewriter.create<emitc::CastOp>(loc, u8PtrType, full).getResult();
+          return emitOpaqueCall(rewriter, loc, u8CoreType, u8LoadCallee,
+                                mlir::ValueRange{ptr, vl}, opName, role);
+        };
+        valueMap[weightLoad.getLoaded()] = emitLoadTailU8(
+            xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
+        valueMap[lowLoad.getLoaded()] =
+            emitLoadTailI8(yb, static_cast<int64_t>(*lowLoad.getQuantByteOffset()));
+        valueMap[highLoad.getLoaded()] = emitLoadTailI8(
+            yb, static_cast<int64_t>(*highLoad.getQuantByteOffset()));
+
+        // The five-bit offset-binary nibble+qh decode + asymmetric widening
+        // product, emitted from the product op's OWN weight/low/high operands (via
+        // the valueMap) + the re-read qh halves + chunkOffset 0 (the elided
+        // single-strip base) -- the SAME emitFiveBitOffsetBinaryDecodeProductValue
+        // arithmetic the monolith's FiveBitOffsetBinary strip reduce runs, so
+        // byte-identical while op-sourced. applyOffsetBias=true is the q5_0 `-16`
+        // vsub (q5_1 shares the fn with false).
+        auto prodVecType = llvm::cast<tcrvrvv::VectorType>(
+            fiveBitProduct.getResult().getType());
+        llvm::StringRef wideLmul = prodVecType.getLmul();
+        mlir::Type i16WideType =
+            emitc::OpaqueType::get(ctx, ("vint16" + wideLmul + "_t").str());
+        mlir::Type u16WideType =
+            emitc::OpaqueType::get(ctx, ("vuint16" + wideLmul + "_t").str());
+        mlir::FailureOr<mlir::Value> productOr =
+            emitFiveBitOffsetBinaryDecodeProductValue(
+                rewriter, loc, valueMap.lookup(fiveBitProduct.getWeight()),
+                valueMap.lookup(fiveBitProduct.getActivationLow()),
+                valueMap.lookup(fiveBitProduct.getActivationHigh()), qhLow16,
+                qhHigh16, chunkOffset, vl, i8CoreType, u8CoreType, u16WideType,
+                i16WideType, coreLmul, wideLmul, 16, wideLmul, "i16", opName,
+                role, /*applyOffsetBias=*/true);
+        if (mlir::failed(productOr))
+          return mlir::failure();
+        valueMap[fiveBitProduct.getResult()] = *productOr;
+
+        // Reduce + lane0 extract, each from ITS op's input operand: seed a FRESH
+        // literal-0 lane (per-block, no sumi carry), vwredsum the product, pull
+        // lane0 into the mutable sumi lvalue.
+        mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
+        std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
+        mlir::Value seed = emitOpaqueCallBuilt(
+            rewriter, loc, i32m1Type, seedCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value zero =
+                  rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                      .getResult();
+              return {zero, sizeLit(1)};
+            });
+        std::string reduceCallee =
+            ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
+        mlir::Value red = emitOpaqueCall(
+            rewriter, loc, i32m1Type, reduceCallee,
+            mlir::ValueRange{valueMap.lookup(coreReduce.getInput()), seed, vl},
+            opName, role);
+        valueMap[coreReduce.getResult()] = red;
+        std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+        mlir::Value extractVal = emitOpaqueCall(
+            rewriter, loc, i32Type, extractCallee,
+            mlir::ValueRange{valueMap.lookup(coreExtract.getInput())}, opName,
+            role);
+        rewriter.create<emitc::VerbatimOp>(
+            loc, assignComment("sumi", opName, role));
+        rewriter.create<emitc::AssignOp>(loc, sumiVar, extractVal);
+
+        // brick 1 ((d_x*d_y)*(float)sumi, ScalesTimesSumi) + brick 3 (sumf + term)
+        // fold COLLECTIVELY into the one fused emitc.expression, fed the
+        // operand-derived d_x/d_y + the sumi lvalue. NO min term (q5_0's fold has
+        // no per-block MIN correction).
+        emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY,
+                     /*mX=*/mlir::Value(), /*sY=*/mlir::Value());
       } else {
         return rewriter.notifyMatchFailure(
             loopBody, "step-5b full body lowers the sumi_times_scales (q8_0), "
-                      "left_assoc (q4_0), and scale_plus_min (q4_1) folds; the "
-                      "other flat fold trees are later steps");
+                      "left_assoc (q4_0), scale_plus_min (q4_1), and "
+                      "scales_times_sumi (q5_0) folds; the other flat fold trees "
+                      "are later steps");
       }
     } else {
       // ---- Step 1-3 SKELETON body (brick 3 stub, or brick 1 + brick 3): the

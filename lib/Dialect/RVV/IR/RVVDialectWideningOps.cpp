@@ -987,6 +987,93 @@ mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult FiveBitOffsetBinaryXI8ProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.five_bit_offset_binary_x_i8_product keeps "
+                "source/result SEW/LMUL/policy on typed vector values and "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding control-plane "
+                "IR, and rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "five_bit_offset_binary_x_i8_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"five_bit_offset_binary_x_i8_product\" for the bounded five-bit "
+              "(nibble+qh) offset-binary x plain-i8 widening-product typed surface";
+  // The q5_0 five-bit offset-binary core has a SINGLE m1 rung: i4m1 weight + qh
+  // 5th bit x i8m1 low/high activation -> i16m2. DISTINCT from the unsigned-nibble
+  // rung -- the qh 5th bit merge and the `-16` offset-binary bias are structural.
+  if (getProductRelation() != "five-bit-offset-binary-i4m1-x-i8m1x2-to-i16m2")
+    return emitOpError()
+           << "requires product_relation "
+              "\"five-bit-offset-binary-i4m1-x-i8m1x2-to-i16m2\" (the single m1 "
+              "flat-cohort rung) for the bounded five-bit offset-binary packed x "
+              "plain-i8 widening-product route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one UNSIGNED packed weight operand, one scalar i32 "
+              "qh_source operand, two plain-int8 activation operands, one "
+              "!tcrv_rvv.vl operand, and one widened i16 result";
+
+  if (!isGenericRVVUnsignedIntegerVectorType(
+          getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+    return emitOpError()
+           << "requires the packed weight source vector to be an UNSIGNED i8 "
+              "!tcrv_rvv.vector<ui8, \"m1\"> for the m1 five-bit offset-binary "
+              "packed x plain-i8 widening-product rung";
+  // The qh_source is a SCALAR i32 gate-only token (the block_five_bit_qh_source
+  // brick result), NOT a typed vector -- the 5th-bit bytes are re-read from that
+  // brick's operand-flow source, so this edge must reject the vector-type checks
+  // the weight/activation operands carry.
+  if (!getQhSource().getType().isInteger(32))
+    return emitOpError()
+           << "requires the qh_source operand to be a scalar i32 (the "
+              "block_five_bit_qh_source gate-only token), NOT a typed vector";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationLow().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+    return emitOpError()
+           << "requires the low and high plain-int8 activation source vectors "
+              "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 five-bit "
+              "offset-binary packed x plain-i8 widening-product rung";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i16, \"m2\"> for the m1 five-bit offset-binary "
+              "packed x plain-i8 widening-product rung";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for five-bit offset-binary packed x plain-i8 widening "
+              "product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult CodebookTableBroadcastOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -10027,6 +10114,76 @@ mlir::LogicalResult BlockFp16MinProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult BlockFiveBitQhSourceOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (getKind() != "block_five_bit_qh_source")
+    return emitOpError()
+           << "currently supports only kind \"block_five_bit_qh_source\" for the "
+              "bounded per-block five-bit qh 32-bit field source brick surface";
+
+  // Additive loop-capable extension (mirrors block_fp16_min_product): the OPTIONAL
+  // block_index operand toggles the per-block-source form. Present => the qh header
+  // lives at `qh_base + block_index*block_stride`; absent => the single-block form
+  // where the imported ABI base IS the block base.
+  mlir::Value blockIndex = getBlockIndex();
+  bool hasBlockIndex = static_cast<bool>(blockIndex);
+
+  unsigned expectedOperands = hasBlockIndex ? 2 : 1;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one imported runtime ABI weight block-base operand (the "
+              "qh field source), one optional block_index induction operand, and "
+              "one scalar i32 result";
+
+  if (!llvm::isa<RuntimeABIValueType>(getQhBase().getType()))
+    return emitOpError()
+           << "requires qh_base operand to have !tcrv_rvv.runtime_abi_value type";
+  // The qh field lives WITHIN the weight block, so the base is the weight ABI
+  // base (the SAME LHS input-buffer the nibble weight load names).
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getQhBase(), "qh base",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+
+  if (hasBlockIndex) {
+    if (!getBlockStride())
+      return emitOpError()
+             << "requires block_stride when block_index is present (the per-block "
+                "AoS weight stride the `base + block_index*stride` address "
+                "arithmetic depends on)";
+    if (*getBlockStride() == 0)
+      return emitOpError()
+             << "requires block_stride to be a positive AoS block stride";
+    if (!llvm::isa<mlir::IndexType>(blockIndex.getType()))
+      return emitOpError()
+             << "requires block_index to be index-typed (the enclosing loop op "
+                "induction variable)";
+    auto blockArg = llvm::dyn_cast<mlir::BlockArgument>(blockIndex);
+    if (!blockArg || blockArg.getArgNumber() != 0 ||
+        !llvm::isa_and_nonnull<TypedFlatBlockDotLoopBodyOp>(
+            blockArg.getOwner()->getParentOp()))
+      return emitOpError()
+             << "requires block_index to be the induction variable (region "
+                "argument 0) of an enclosing "
+                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+  } else {
+    if (getBlockStride())
+      return emitOpError()
+             << "block_stride is only valid with a present block_index; the "
+                "single-block form imports a fixed ABI weight base with no "
+                "per-block stride";
+  }
+
+  if (!getResult().getType().isInteger(32))
+    return emitOpError()
+           << "requires a scalar i32 result (the gate-only qh-source token the "
+              "five-bit product op names; the bytes are re-read from qh_base + "
+              "qh_byte_offset in the emitter)";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -10143,22 +10300,24 @@ mlir::LogicalResult CrossBlockF32AccumulateOp::verify() {
 mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // Bounded surface (I7 fail-closed): the loop op owns the q8_0-style
-  // SumiTimesScales fold tree and the q4_0 LeftAssoc fold tree for the current
-  // step; the remaining flat fold trees (q5_0 ScalesTimesSumi, q4_1/q5_1
-  // ScalePlusMin) are later.
+  // Bounded surface (I7 fail-closed): the loop op owns the q8_0 SumiTimesScales,
+  // q4_0 LeftAssoc, q4_1 ScalePlusMin, and q5_0 ScalesTimesSumi fold trees for
+  // the current cohort; the remaining flat fold trees (q5_1 ScalePlusMin, ...)
+  // are later.
   if (getKind() != "typed_flat_block_dot_loop_body")
     return emitOpError()
            << "currently supports only kind \"typed_flat_block_dot_loop_body\" "
               "for the bounded flat block dot-product nb loop surface";
   if (getFoldModel() != "sumi_times_scales" && getFoldModel() != "left_assoc" &&
-      getFoldModel() != "scale_plus_min")
+      getFoldModel() != "scale_plus_min" &&
+      getFoldModel() != "scales_times_sumi")
     return emitOpError()
            << "currently supports only fold_model \"sumi_times_scales\" (the "
               "q8_0 `(float)sumi * (d_x * d_y)` fold tree), \"left_assoc\" (the "
-              "q4_0 `((float)sumi * d_x) * d_y` fold tree), or \"scale_plus_min\" "
-              "(the q4_1 `(d_x*d_y)*sumi + m_x*s_y` fold tree); the other flat "
-              "fold trees are later steps";
+              "q4_0 `((float)sumi * d_x) * d_y` fold tree), \"scale_plus_min\" "
+              "(the q4_1 `(d_x*d_y)*sumi + m_x*s_y` fold tree), or "
+              "\"scales_times_sumi\" (the q5_0 `(d_x*d_y)*(float)sumi` fold "
+              "tree); the other flat fold trees are later steps";
 
   // Externally-defined ggml block facts: QK and the AoS block strides are
   // positive byte counts the per-block address arithmetic depends on.

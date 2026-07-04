@@ -3731,6 +3731,48 @@ bool isBoundedUnsignedNibbleChainSourceLoad(LoadOp load, WithVLOp withVL) {
   return hasProductUse;
 }
 
+bool isBoundedFiveBitChainSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The q5_0 five-bit m1 rung reuses the SEW8 byte-anchor strip scope (the SAME
+  // framing q4_1's unsigned-nibble m1 rung uses): the i16m2 product drives the
+  // byte-anchor widening reduce; the strip config is SEW8 LMUL m1.
+  if (sew.getInt() != getRVVSEW8Bits() || lmul.getValue() != getRVVLMULM1())
+    return false;
+  // The five-bit source loads (packed weight UNSIGNED, the two plain-i8 q8
+  // activation halves SIGNED) land at the single m1 rung (i4m1 + qh x i8m1 ->
+  // i16m2). The qh 5th-bit is a SCALAR i32 gate-only token (the qh source brick),
+  // NOT a load, so it never appears here.
+  mlir::Type type = load.getLoaded().getType();
+  const bool i8AtM1 =
+      isGenericRVVSignedOrSignlessIntegerVectorType(type, getRVVSEW8Bits(),
+                                                    getRVVLMULM1()) ||
+      isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                            getRVVLMULM1());
+  if (!i8AtM1)
+    return false;
+
+  // The load must feed ONLY a five-bit offset-binary product (as the packed
+  // weight or one of the two plain-i8 activation operands).
+  bool hasProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<FiveBitOffsetBinaryXI8ProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getWeight() != load.getLoaded() &&
+         product.getActivationLow() != load.getLoaded() &&
+         product.getActivationHigh() != load.getLoaded()))
+      return false;
+    hasProductUse = true;
+  }
+  return hasProductUse;
+}
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL) {
   if (!load || !withVL)

@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's/kind = "typed_flat_block_dot_loop_body"/kind = "plain_block_dot_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/fold_model = "sumi_times_scales"/fold_model = "scales_times_sumi"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
+// RUN: sed 's/fold_model = "sumi_times_scales"/fold_model = "unsupported_fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
 // RUN: sed 's/integer_core_lmul = "m2"/integer_core_lmul = "m8"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADLMUL
 
 // M-FLAT loop-scaffold step 1/6 -- the FIRST typed op that puts a loop INTO

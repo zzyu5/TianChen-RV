@@ -1354,6 +1354,8 @@ bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL);
 
 bool isBoundedUnsignedNibbleChainSourceLoad(LoadOp load, WithVLOp withVL);
 
+bool isBoundedFiveBitChainSourceLoad(LoadOp load, WithVLOp withVL);
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL);
 

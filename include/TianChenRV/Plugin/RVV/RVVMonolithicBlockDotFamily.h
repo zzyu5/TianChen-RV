@@ -1694,11 +1694,12 @@ findMonolithicBlockDotOpEntryByKind(llvm::StringRef kind) {
 // the SAME shared q8_0 Flat monolithic plan (same route id / kind / 8-role ABI),
 // so it resolves to the existing q8_0 Flat table entry -- no new registry kind.
 //
-// EXCEPTION (q4_1 Family-B): q4_1's typed loop carries the 4-role n/s/vx/vy ggml
-// vec_dot ABI (NOT q8_0/q4_0's 8-role strided ABI), so it exports through its OWN
-// Flat entry (the export ABI-arity gate rejects the 8-role q8_0 entry against the
-// 4-role parameter list). It is distinguished from the q8_0/q4_0 default by its
-// scale_plus_min fold_model; the q8_0/q4_0 default path is byte-unchanged.
+// EXCEPTION (q4_1 Family-B, q5_0 five-bit): these typed loops carry the 4-role
+// n/s/vx/vy ggml vec_dot ABI (NOT q8_0/q4_0's 8-role strided ABI), so each exports
+// through its OWN Flat entry (the export ABI-arity gate rejects the 8-role q8_0
+// entry against the 4-role parameter list). They are distinguished from the
+// q8_0/q4_0 default by their fold_model (q4_1 scale_plus_min, q5_0
+// scales_times_sumi); the q8_0/q4_0 default path is byte-unchanged.
 inline const MonolithicBlockDotOpEntry *
 resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
   if (!op)
@@ -1711,7 +1712,9 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     llvm::StringRef targetOpName =
         (foldModel && foldModel.getValue() == "scale_plus_min")
             ? tcrv::rvv::GgmlBlockDotQ41Q81Op::getOperationName()
-            : tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName();
+            : (foldModel && foldModel.getValue() == "scales_times_sumi")
+                  ? tcrv::rvv::GgmlBlockDotQ50Q80Op::getOperationName()
+                  : tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName();
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
       if (entry.opName == targetOpName)
         return &entry;

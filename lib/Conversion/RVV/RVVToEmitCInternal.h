@@ -3493,6 +3493,34 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// The FIVE-bit (nibble+qh) offset-binary decode/product for ONE strip -- the
+  /// q5_0 variant. The weight is an UNSIGNED u8/m1 vector; the two nibble lanes are
+  /// split (vand 0x0F / vsrl 0x04), each MERGED with the per-lane qh 5th bit
+  /// (re-read from the block_five_bit_qh_source brick that defines the qh_source
+  /// operand -- two aligned 16-bit halves off the brick's own qh_base +
+  /// qh_byte_offset, the operand/source-driven anti-bypass), offset-binary biased
+  /// `-16` into signed i8, then fed the SAME asymmetric widening product the
+  /// siblings use. Routes to emitFiveBitOffsetBinaryDecodeProductValue with
+  /// applyOffsetBias=true and a literal-0 chunkOffset (elided single-strip typed
+  /// body). Pure node construction; no string plan read.
+  mlir::LogicalResult emitFiveBitOffsetBinaryXI8Product(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::FiveBitOffsetBinaryXI8ProductOp product,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
+  /// The per-block qh 32-bit field SOURCE brick -- a GATE-ONLY edge (mirrors
+  /// emitBlockFp16MinProduct): it materializes NOTHING into the valueMap; the
+  /// naming five-bit product op re-reads the two qh halves from THIS brick's
+  /// qh_base + qh_byte_offset. The handler only validates the operand mapping so
+  /// the op-by-op walk does not fail on the op (the whole variant body is erased
+  /// wholesale after the walk).
+  mlir::LogicalResult emitBlockFiveBitQhSource(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::BlockFiveBitQhSourceOp qhSource,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// widening_macc(%lhs,%rhs,%acc,%vl){kind=signed_widening_macc_add} ->
   ///   v<rd><rl> r = __riscv_vwmacc_vv_<rd><rl>(acc, lhs, rhs, vl);
   /// The fused widening multiply-accumulate widens the narrower i16 source

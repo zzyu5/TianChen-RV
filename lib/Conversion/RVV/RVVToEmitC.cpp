@@ -958,6 +958,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
           if (mlir::failed(emitUnsignedNibbleXI8Product(
                   rewriter, loc, unsignedNibbleProduct, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto qhSource =
+                       llvm::dyn_cast<tcrvrvv::BlockFiveBitQhSourceOp>(op)) {
+          if (mlir::failed(emitBlockFiveBitQhSource(rewriter, loc, qhSource,
+                                                    valueMap, bodyVL)))
+            return mlir::failure();
+        } else if (auto fiveBitProduct =
+                       llvm::dyn_cast<tcrvrvv::FiveBitOffsetBinaryXI8ProductOp>(
+                           op)) {
+          if (mlir::failed(emitFiveBitOffsetBinaryXI8Product(
+                  rewriter, loc, fiveBitProduct, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto wmacc =
                        llvm::dyn_cast<tcrvrvv::WideningMAccOp>(op)) {
           if (mlir::failed(
@@ -2363,12 +2374,13 @@ VariantToEmitCFunc::emitStandaloneReduce(mlir::ConversionPatternRewriter &rewrit
           !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp,
                      tcrvrvv::PackedI4OffsetBinaryXI8ProductOp,
                      tcrvrvv::CodebookGatherXI8ProductOp,
-                     tcrvrvv::UnsignedNibbleXI8ProductOp>(inputDef))
+                     tcrvrvv::UnsignedNibbleXI8ProductOp,
+                     tcrvrvv::FiveBitOffsetBinaryXI8ProductOp>(inputDef))
         return rewriter.notifyMatchFailure(
             reduce, "standalone reduce input must be an explicit vector load, "
                     "widening_product, packed-i4 offset-binary x i8 product, "
-                    "codebook-gather x i8 product, or unsigned-nibble x i8 "
-                    "product result");
+                    "codebook-gather x i8 product, unsigned-nibble x i8 "
+                    "product, or five-bit offset-binary x i8 product result");
     }
     std::optional<llvm::StringRef> mnemonic =
         standaloneReductionMnemonic(reduce.getKind());
@@ -3089,6 +3101,125 @@ mlir::LogicalResult VariantToEmitCFunc::emitUnsignedNibbleXI8Product(
         resultEmitC, weightVecType.getLmul(),
         vectorElementWidth(resultVecType), resultVecType.getLmul(),
         vectorDType(resultVecType), opName, role);
+    if (mlir::failed(pairSum))
+      return mlir::failure();
+    valueMap[product.getResult()] = *pairSum;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitBlockFiveBitQhSource(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::BlockFiveBitQhSourceOp qhSource,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value /*bodyVL*/) const {
+    // Gate-only edge (mirrors block_fp16_min_product): the qh bytes are re-read by
+    // the naming five-bit product op from THIS brick's qh_base + qh_byte_offset, so
+    // NOTHING is materialized into the valueMap here. Validate the base mapping
+    // only so the op-by-op walk does not fail on the op; the whole variant body
+    // (including this op) is erased wholesale after the walk.
+    mlir::Value qhBase = valueMap.lookup(qhSource.getQhBase());
+    if (!qhBase)
+      return rewriter.notifyMatchFailure(
+          qhSource, "block_five_bit_qh_source qh_base unmapped");
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitFiveBitOffsetBinaryXI8Product(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::FiveBitOffsetBinaryXI8ProductOp product,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value bodyVL) const {
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getResult().getType());
+    auto weightVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getWeight().getType());
+    if (!resultVecType || !weightVecType)
+      return rewriter.notifyMatchFailure(
+          product, "five-bit offset-binary packed x i8 product types not vectors");
+    // The weight is UNSIGNED u8; build the signed-i8 EmitC type the reinterpret
+    // decode feeds off the SAME weight LMUL (no i8-typed operand carries it).
+    auto weightI8VecType = tcrvrvv::VectorType::get(
+        ctx, rewriter.getI8Type(), weightVecType.getLmul());
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcU8EmitC = convertVectorTypeToEmitC(weightVecType);
+    mlir::Type srcI8EmitC = convertVectorTypeToEmitC(weightI8VecType);
+    if (!resultEmitC || !srcU8EmitC || !srcI8EmitC)
+      return rewriter.notifyMatchFailure(
+          product,
+          "five-bit offset-binary packed x i8 product type not convertible");
+    // The u16 wide-LMUL type for the per-lane 5th-bit extraction lives at the
+    // RESULT (wide) LMUL -- built as vuint16<W>_t (byte-exact to the monolith).
+    llvm::StringRef wideLmul = resultVecType.getLmul();
+    mlir::Type wideU16EmitC =
+        emitc::OpaqueType::get(ctx, ("vuint16" + wideLmul + "_t").str());
+
+    mlir::Value weight = valueMap.lookup(product.getWeight());
+    mlir::Value actLow = valueMap.lookup(product.getActivationLow());
+    mlir::Value actHigh = valueMap.lookup(product.getActivationHigh());
+    if (!weight || !actLow || !actHigh)
+      return rewriter.notifyMatchFailure(
+          product, "five-bit offset-binary packed x i8 product operand unmapped");
+
+    // The qh 5th bit is SOURCE-driven: re-read the two aligned 16-bit qh halves
+    // from the block_five_bit_qh_source brick that DEFINES the qh_source operand,
+    // at THAT brick's own qh_base + qh_byte_offset (single-block form -- the only
+    // form reachable in the op-by-op walk). Mutating the brick's qh_base operand or
+    // qh_byte_offset attr changes the emitted `(xb + qhOffset)` address -> the
+    // emitted bytes (anti-bypass); no byte offset is baked on this product op.
+    auto qhBrick =
+        product.getQhSource().getDefiningOp<tcrvrvv::BlockFiveBitQhSourceOp>();
+    if (!qhBrick)
+      return rewriter.notifyMatchFailure(
+          product, "five-bit product qh_source must be defined by a "
+                   "tcrv_rvv.block_five_bit_qh_source brick");
+    if (qhBrick.getBlockIndex())
+      return rewriter.notifyMatchFailure(
+          product, "op-by-op five-bit qh brick lowers the single-block form "
+                   "(the block_index-sourced form is the full-body driver path)");
+    mlir::Value qhBase = valueMap.lookup(qhBrick.getQhBase());
+    if (!qhBase)
+      return rewriter.notifyMatchFailure(product,
+                                         "five-bit product qh_base unmapped");
+
+    mlir::Type sizeType = getSizeType(rewriter);
+    mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type weightPtrType = qhBase.getType();
+    llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType,
+                                               std::to_string(v));
+    };
+    // Two aligned 16-bit halves off qh_base + qh_byte_offset (LE low @ off, high @
+    // off+2), byte-exact to the monolith qhRead's `(uint16_t)*(const uint16_t *)`.
+    int64_t qhByteOffset =
+        static_cast<int64_t>(qhBrick.getQhByteOffset().value_or(0));
+    auto u16ReadAt = [&](int64_t byteOffset) -> mlir::Value {
+      mlir::Value ptr = qhBase;
+      if (byteOffset != 0)
+        ptr = rewriter.create<emitc::AddOp>(loc, weightPtrType, qhBase,
+                                            sizeLit(byteOffset));
+      return rewriter
+          .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{u32Type},
+                                       u16ReadCallee, mlir::ValueRange{ptr})
+          .getResult(0);
+    };
+    mlir::Value qhLow16 = u16ReadAt(qhByteOffset);
+    mlir::Value qhHigh16 = u16ReadAt(qhByteOffset + 2);
+    // Elided single-strip typed body: the per-lane 5th-bit alignment offset is 0.
+    mlir::Value chunkOffset = sizeLit(0);
+
+    llvm::StringRef opName = product.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = product.getTCRVEmitCLowerableSourceRole();
+    // Route to the ALREADY-BYTE-EXACT five-bit decode arithmetic; applyOffsetBias
+    // = true is the q5_0 `-16` offset-binary bias.
+    mlir::FailureOr<mlir::Value> pairSum =
+        emitFiveBitOffsetBinaryDecodeProductValue(
+            rewriter, loc, weight, actLow, actHigh, qhLow16, qhHigh16,
+            chunkOffset, bodyVL, srcI8EmitC, srcU8EmitC, wideU16EmitC,
+            resultEmitC, weightVecType.getLmul(), wideLmul,
+            vectorElementWidth(resultVecType), resultVecType.getLmul(),
+            vectorDType(resultVecType), opName, role, /*applyOffsetBias=*/true);
     if (mlir::failed(pairSum))
       return mlir::failure();
     valueMap[product.getResult()] = *pairSum;
@@ -5582,6 +5713,10 @@ llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
                 tcrv::rvv::WideningProductOp,
                 tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp,
                 tcrv::rvv::UnsignedNibbleXI8ProductOp,
+                // q5_0 five-bit offset-binary packed-i4 (+ qh 5th bit) x i8 product
+                // + its per-block qh 32-bit-field source brick
+                tcrv::rvv::FiveBitOffsetBinaryXI8ProductOp,
+                tcrv::rvv::BlockFiveBitQhSourceOp,
                 tcrv::rvv::StandaloneReduceOp,
                 // step 2 scalar-lane extract bridge (integer core -> scalar fold)
                 tcrv::rvv::TypedVectorLane0ToScalarExtractOp,

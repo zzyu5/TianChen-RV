@@ -106,7 +106,8 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedWideningProductReductionChainSourceLoadCandidate(*this,
                                                                   withVL) ||
         isBoundedCodebookGatherChainSourceLoad(*this, withVL) ||
-        isBoundedUnsignedNibbleChainSourceLoad(*this, withVL))
+        isBoundedUnsignedNibbleChainSourceLoad(*this, withVL) ||
+        isBoundedFiveBitChainSourceLoad(*this, withVL))
       return mlir::success();
   // M-FLAT W2/W1: the per-block loop integer-core load sources the signed i8
   // strip (i8m2 for q8_0, i8m1 for q4_0's half-block packed-i4 core), or the

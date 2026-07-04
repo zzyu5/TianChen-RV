@@ -1,5 +1,5 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/fold_model = "scale_plus_min"/fold_model = "scales_times_sumi"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
+// RUN: sed 's/fold_model = "scale_plus_min"/fold_model = "unsupported_fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
 // Anti-bypass: the MIN brick's byte offset is READ to place the m_x read address,
 // so mutating lhs_min_byte_offset 2 -> 8 must MOVE the emitted m_x read to `xb+8`
 // (a gate-only build reading a fixed descriptor offset would stay at 2). The
