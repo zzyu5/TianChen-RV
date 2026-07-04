@@ -908,6 +908,85 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.unsigned_nibble_x_i8_product keeps source/result "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "unsigned_nibble_x_i8_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"unsigned_nibble_x_i8_product\" for the bounded unsigned-nibble "
+              "asymmetric packed-i4 x plain-i8 widening-product typed surface";
+  // The q4_1 unsigned-nibble core has a SINGLE m1 rung (no narrow INC-1 anchor):
+  // i4m1 weight x i8m1 low/high activation -> i16m2. The unsigned nibble value IS
+  // the weight, so there is no offset-binary bias and no codebook gather.
+  if (getProductRelation() != "unsigned-nibble-i4m1-x-i8m1x2-to-i16m2")
+    return emitOpError()
+           << "requires product_relation "
+              "\"unsigned-nibble-i4m1-x-i8m1x2-to-i16m2\" (the single m1 "
+              "flat-cohort rung) for the bounded asymmetric unsigned-nibble "
+              "packed-i4 x plain-i8 widening-product route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one UNSIGNED packed-i4 weight operand, two plain-int8 "
+              "activation operands, one !tcrv_rvv.vl operand, and one widened "
+              "i16 result";
+
+  if (!isGenericRVVUnsignedIntegerVectorType(
+          getWeight().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+    return emitOpError()
+           << "requires the packed-i4 weight source vector to be an UNSIGNED i8 "
+              "!tcrv_rvv.vector<ui8, \"m1\"> for the m1 asymmetric "
+              "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationLow().getType(), getRVVSEW8Bits(), getRVVLMULM1()) ||
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getActivationHigh().getType(), getRVVSEW8Bits(), getRVVLMULM1()))
+    return emitOpError()
+           << "requires the low and high plain-int8 activation source vectors "
+              "to have type !tcrv_rvv.vector<i8, \"m1\"> for the m1 asymmetric "
+              "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW16Bits(), getRVVLMULM2()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i16, \"m2\"> for the m1 asymmetric "
+              "unsigned-nibble packed-i4 x plain-i8 widening-product rung";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for asymmetric unsigned-nibble packed-i4 x plain-i8 "
+              "widening product";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult CodebookTableBroadcastOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -9860,6 +9939,94 @@ mlir::LogicalResult BlockFp16ScaleProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult BlockFp16MinProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (getKind() != "dual_fp16_per_block_min_product")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"dual_fp16_per_block_min_product\" for the bounded per-block "
+              "dual-fp16 MIN/SUM correction product surface";
+  if (getScaleModel() != "dual-fp16-per-block-m_x.s_y")
+    return emitOpError()
+           << "currently supports only scale_model "
+              "\"dual-fp16-per-block-m_x.s_y\" (ggml's Family-B correction: the "
+              "per-block MIN m_x and precomputed activation sum s_y are "
+              "multiplied)";
+
+  // Additive loop-capable extension (mirrors block_fp16_scale_product): the
+  // OPTIONAL block_index operand toggles the per-block-source form. Present =>
+  // the two fp16 correction headers live at `base + block_index*stride`;
+  // absent => the single-block form where the imported ABI base IS the block
+  // base.
+  mlir::Value blockIndex = getBlockIndex();
+  bool hasBlockIndex = static_cast<bool>(blockIndex);
+
+  unsigned expectedOperands = hasBlockIndex ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two imported runtime ABI block-base operands (the lhs "
+              "min and rhs sum per-block fp16 correction sources), one optional "
+              "block_index induction operand, and one f32 scalar result";
+
+  if (!llvm::isa<RuntimeABIValueType>(getLhsMinBase().getType()))
+    return emitOpError()
+           << "requires lhs_min_base operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  if (!llvm::isa<RuntimeABIValueType>(getRhsSumBase().getType()))
+    return emitOpError()
+           << "requires rhs_sum_base operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  // The base-import contract is NOT relaxed by the loop extension: both bases
+  // stay imported ABI block-0 pointers with the LHS/RHS input-buffer roles.
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhsMinBase(), "lhs min base",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhsSumBase(), "rhs sum base",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+
+  if (hasBlockIndex) {
+    if (!getLhsBlockStride() || !getRhsBlockStride())
+      return emitOpError()
+             << "requires both lhs_block_stride and rhs_block_stride when "
+                "block_index is present (the per-block AoS block strides the "
+                "`base + block_index*stride` address arithmetic depends on)";
+    if (*getLhsBlockStride() == 0 || *getRhsBlockStride() == 0)
+      return emitOpError()
+             << "requires lhs_block_stride and rhs_block_stride to be positive "
+                "AoS block strides";
+    if (!llvm::isa<mlir::IndexType>(blockIndex.getType()))
+      return emitOpError()
+             << "requires block_index to be index-typed (the enclosing loop op "
+                "induction variable)";
+    auto blockArg = llvm::dyn_cast<mlir::BlockArgument>(blockIndex);
+    if (!blockArg || blockArg.getArgNumber() != 0 ||
+        !llvm::isa_and_nonnull<TypedFlatBlockDotLoopBodyOp>(
+            blockArg.getOwner()->getParentOp()))
+      return emitOpError()
+             << "requires block_index to be the induction variable (region "
+                "argument 0) of an enclosing "
+                "tcrv_rvv.typed_flat_block_dot_loop_body region";
+  } else {
+    if (getLhsBlockStride() || getRhsBlockStride())
+      return emitOpError()
+             << "lhs_block_stride / rhs_block_stride are only valid with a "
+                "present block_index; the single-block form imports fixed ABI "
+                "min/sum bases with no per-block stride";
+  }
+
+  if (!getResult().getType().isF32())
+    return emitOpError()
+           << "requires an f32 scalar result (f32 fully covers the fp16 "
+              "domain, so the dual-fp16 MIN/SUM correction reconstruction is "
+              "byte-exact by construction)";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -9877,10 +10044,16 @@ mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
               "\"scalar-i32-sumi-to-f32-computed-scale-f32\" for the bounded "
               "computed-scale i32-sumi dequant fold surface";
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+  // Two-operand base form (q8_0 / q4_0 / q5_0, no min term) or three-operand
+  // Family-B form (q4_1 / q5_1) with the OPTIONAL min_term. The min_term
+  // presence is byte-neutral for the base form (the accessor stays null).
+  mlir::Value minTerm = getMinTerm();
+  unsigned expectedOperands = minTerm ? 3 : 2;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
-           << "requires two operands (the scalar i32 per-block sumi and the "
-              "computed f32 per-block scale) and one f32 scalar result";
+           << "requires the scalar i32 per-block sumi, the computed f32 "
+              "per-block scale, one optional computed f32 min_term, and one f32 "
+              "scalar result";
 
   if (!getSumi().getType().isInteger(32))
     return emitOpError()
@@ -9898,6 +10071,16 @@ mlir::LogicalResult BlockComputedScaleDequantOp::verify() {
               "value (an imported !tcrv_rvv.runtime_abi_value scale is "
               "rejected: this op consumes the per-block computed scale, not an "
               "imported ABI scale)";
+
+  // The OPTIONAL Family-B min_term (the m_x*s_y product from
+  // tcrv_rvv.block_fp16_min_product) must be a COMPUTED f32 SSA value, same
+  // fail-closed contrast as computed_scale (an imported ABI scale carries the
+  // !tcrv_rvv.runtime_abi_value type and fails the f32 check).
+  if (minTerm && !minTerm.getType().isF32())
+    return emitOpError()
+           << "requires the optional min_term operand to be a COMPUTED f32 SSA "
+              "value (the m_x*s_y per-block correction product from "
+              "tcrv_rvv.block_fp16_min_product)";
 
   if (!getResult().getType().isF32())
     return emitOpError()
@@ -9968,11 +10151,13 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
     return emitOpError()
            << "currently supports only kind \"typed_flat_block_dot_loop_body\" "
               "for the bounded flat block dot-product nb loop surface";
-  if (getFoldModel() != "sumi_times_scales" && getFoldModel() != "left_assoc")
+  if (getFoldModel() != "sumi_times_scales" && getFoldModel() != "left_assoc" &&
+      getFoldModel() != "scale_plus_min")
     return emitOpError()
            << "currently supports only fold_model \"sumi_times_scales\" (the "
-              "q8_0 `(float)sumi * (d_x * d_y)` fold tree) or \"left_assoc\" "
-              "(the q4_0 `((float)sumi * d_x) * d_y` fold tree); the other flat "
+              "q8_0 `(float)sumi * (d_x * d_y)` fold tree), \"left_assoc\" (the "
+              "q4_0 `((float)sumi * d_x) * d_y` fold tree), or \"scale_plus_min\" "
+              "(the q4_1 `(d_x*d_y)*sumi + m_x*s_y` fold tree); the other flat "
               "fold trees are later steps";
 
   // Externally-defined ggml block facts: QK and the AoS block strides are

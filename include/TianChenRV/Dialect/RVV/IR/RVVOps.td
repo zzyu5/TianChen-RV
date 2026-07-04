@@ -3884,6 +3884,70 @@ def PackedI4OffsetBinaryXI8ProductOp
   let hasVerifier = 1;
 }
 
+def UnsignedNibbleXI8ProductOp
+    : TCRVRVV_Op<"unsigned_nibble_x_i8_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV unsigned-nibble asymmetric packed-i4 x plain-i8 product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV ASYMMETRIC unsigned-nibble
+    packed-i4 x plain-i8 widening product dataflow step. This is the integer
+    core of the ggml Q4_1 x Q8_1 dot-product: ONLY the packed-i4 weight operand
+    is nibble-decoded; the two int8 activation operands stay plain. The op is
+    nested directly under tcrv_rvv.with_vl, consumes ONE typed UNSIGNED i8 LMUL
+    m1 !tcrv_rvv.vector packed-i4 weight operand (each u8 packing two UNSIGNED
+    4-bit nibbles in the [0,15] range), TWO typed SIGNED/SIGNLESS i8 LMUL m1
+    !tcrv_rvv.vector PLAIN-int8 activation operands (the q8 low half paired with
+    the low nibbles and the q8 high half paired with the high nibbles), and the
+    active !tcrv_rvv.vl token. It carries an explicit operation kind and product
+    relation, and produces ONE widened i16 LMUL m2 !tcrv_rvv.vector result
+    holding the sum of the low-nibble and high-nibble asymmetric widening
+    products.
+
+    This op makes the UNSIGNED nibble decode + ONE-SIDED unpack + asymmetric
+    i8(decoded) x i8(plain) product + low/high <-> q8 half split pairing
+    first-class STRUCTURE in the typed body. It is DISTINCT from the
+    offset-binary sibling tcrv_rvv.packed_i4_offset_binary_x_i8_product (which
+    biases each nibble via an xor-0x88 `(nibble - 8)` decode) and from the
+    codebook sibling tcrv_rvv.codebook_gather_x_i8_product (which gathers each
+    nibble through a non-linear 16-entry table): here the nibble value IS the
+    weight (q4_1 stores UNSIGNED quants, the `-8` shift folded into the block
+    minimum), so the decode is a plain unsigned split with NO bias and NO gather.
+    The packed weight low nibble pairs with the FIRST plain-i8 activation operand
+    and the high nibble with the SECOND; the int8 activations are NOT
+    nibble-unpacked. The fixed intrinsic chain (vand_vx_u8<L> 0x0F for the low
+    nibble; vsrl_vx_u8<L> 0x04 for the high nibble; vreinterpret_v_u8<L>_i8<L>
+    to feed the signed widening product; vwmul over i16<W> against the plain low
+    activation; vwmacc over i16<W> against the plain high activation) is the op's
+    lowering, NOT a candidate-mirror string read in the conversion. For the
+    bounded surface kind is limited to unsigned_nibble_x_i8_product and
+    product_relation to the SINGLE m1 rung
+    "unsigned-nibble-i4m1-x-i8m1x2-to-i16m2" (i4m1 weight x i8m1 low/high
+    activation -> i16m2). Source/result dtype/config, VL, the unsigned nibble
+    decode and the one-sided unpack structure are structural in the selected RVV
+    body. Route ids, helper names, ABI strings, artifact names, status fields,
+    exact intrinsic spellings, operand-packing mirror strings, q8/q4 names, and
+    common EmitC/export code must not infer or choose asymmetric unsigned-nibble
+    packed-i4 x i8 product semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight,
+    AnyType:$activation_low,
+    AnyType:$activation_high,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight `,` $activation_low `,` $activation_high `,` $vl attr-dict `:` "
+    "type($weight) `,` type($activation_low) `,` type($activation_high) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def CodebookTableBroadcastOp
     : TCRVRVV_Op<"codebook_table_broadcast",
     [TCRVEmitCLowerableOpInterface]> {
@@ -9297,6 +9361,64 @@ def BlockFp16ScaleProductOp : TCRVRVV_Op<"block_fp16_scale_product",
   let hasVerifier = 1;
 }
 
+def BlockFp16MinProductOp : TCRVRVV_Op<"block_fp16_min_product",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block dual-fp16 MIN/SUM correction product op";
+  let description = [{
+    Records one bounded generic plugin-local RVV per-block dual-fp16 MIN/SUM
+    correction step as ONE typed dataflow op: read the two per-block fp16
+    correction headers (m_x, the per-block MIN, from the lhs block base at
+    lhs_min_byte_offset; s_y, the PRECOMPUTED scaled activation sum, from the rhs
+    block base at rhs_sum_byte_offset), convert each fp16 -> f32, and multiply
+    into ONE f32 scalar `f32(m_x) * f32(s_y)`. This is the SECOND per-block scalar
+    header product of the ggml Family-B (q4_1 / q5_1) fold `sumf += (d_x*d_y)*sumi
+    + m_x*s_y`: it is the DISTINCT sibling of tcrv_rvv.block_fp16_scale_product
+    (which reads d_x/d_y at byte offset 0 and multiplies the two SCALES). The op
+    consumes two explicitly imported runtime ABI block-base pointers and produces
+    ONE f32 scalar result; it does NOT touch the integer quant payload, the block
+    loop, or the fp32 accumulate (those are separate typed steps).
+
+    The op is a distinct op TYPE (NOT a second block_fp16_scale_product) so the
+    two per-block scalar products stay separable region ops: the scale product
+    feeds tcrv_rvv.block_computed_scale_dequant's computed_scale, the min product
+    feeds that op's OPTIONAL min_term. The f32 range fully covers the fp16 domain,
+    so the reconstruction is byte-exact by construction. For the bounded surface
+    kind is limited to "dual_fp16_per_block_min_product" and scale_model to
+    "dual-fp16-per-block-m_x.s_y"; emission is determined by op identity + the
+    explicit scale_model, never inferred from candidate-mirror metadata, route
+    ids, ABI strings, artifact names, status fields, exact intrinsic spellings, or
+    q8/q4 names.
+
+    LOOP-CAPABLE per-block-source form (mirrors block_fp16_scale_product): the
+    OPTIONAL `block_index` operand toggles the per-block-source form; when present
+    it is the induction variable (region argument 0) of the enclosing
+    tcrv_rvv.typed_flat_block_dot_loop_body region and the two headers live at
+    `base + block_index*stride (+ byte_offset)`, with the imported ABI bases still
+    the loop-invariant block-0 pointers. When absent the single-block form keeps
+    the imported ABI base as the block base and the per-block strides must not be
+    set (fail-closed). The `lhs_min_byte_offset` / `rhs_sum_byte_offset` facts
+    locate the fp16 correction header within each block base.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs_min_base,
+    AnyType:$rhs_sum_base,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    OptionalAttr<I64Attr>:$lhs_min_byte_offset,
+    OptionalAttr<I64Attr>:$rhs_sum_byte_offset,
+    OptionalAttr<I64Attr>:$lhs_block_stride,
+    OptionalAttr<I64Attr>:$rhs_block_stride
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs_min_base `,` $rhs_sum_base (`block` $block_index^ `:` type($block_index))? attr-dict `:` type($lhs_min_base) `,` type($rhs_sum_base) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def BlockComputedScaleDequantOp : TCRVRVV_Op<"block_computed_scale_dequant",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
@@ -9330,18 +9452,29 @@ def BlockComputedScaleDequantOp : TCRVRVV_Op<"block_computed_scale_dequant",
     byte-exact by construction. For the bounded surface kind is limited to
     "computed_scale_sumi_dequant" and dequant_relation to
     "scalar-i32-sumi-to-f32-computed-scale-f32".
+
+    OPTIONAL Family-B min_term (q4_1 / q5_1): the ggml Family-B fold is `sumf +=
+    (d_x*d_y)*sumi + m_x*s_y`, so the per-block dequant term carries a SECOND
+    scalar product `m_x * s_y` (the output of a preceding
+    tcrv_rvv.block_fp16_min_product) summed with the `f32(sumi) * scale` term. The
+    OPTIONAL `min_term` operand carries that computed f32 min product; when present
+    the op semantically is `f32(sumi)*scale + min_term`. When absent (q8_0 / q4_0 /
+    q5_0, whose folds have NO min term) the op keeps its two-operand form
+    byte-neutral. The min_term, when present, must be a COMPUTED f32 SSA value,
+    same fail-closed contrast as computed_scale.
   }];
 
   let arguments = (ins
     AnyType:$sumi,
     AnyType:$computed_scale,
+    Optional<AnyType>:$min_term,
     StrAttr:$kind,
     StrAttr:$dequant_relation
   );
   let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$sumi `,` $computed_scale attr-dict `:` type($sumi) `,` type($computed_scale) `->` type($result)";
+    "$sumi `,` $computed_scale (`min` $min_term^ `:` type($min_term))? attr-dict `:` type($sumi) `,` type($computed_scale) `->` type($result)";
   let hasVerifier = 1;
 }
 

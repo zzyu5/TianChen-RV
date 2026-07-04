@@ -2836,6 +2836,11 @@ bool isGenericRVVVectorUnsignedI8MF4(mlir::Type type) {
                                                getRVVLMULMF4());
 }
 
+bool isGenericRVVVectorUnsignedI8M1(mlir::Type type) {
+  return isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                               getRVVLMULM1());
+}
+
 bool isGenericRVVVectorUnsignedI16MF2(mlir::Type type) {
   return isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW16Bits(),
                                                getRVVLMULMF2());
@@ -3684,6 +3689,46 @@ bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL) {
     hasGatherUse = true;
   }
   return hasGatherUse;
+}
+
+bool isBoundedUnsignedNibbleChainSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  // The q4_1 unsigned-nibble m1 rung reuses the SEW8 byte-anchor strip scope (the
+  // SAME framing q4_0's offset-binary m1 rung uses): the i16m2 product drives the
+  // byte-anchor widening reduce; the strip config is SEW8 LMUL m1.
+  if (sew.getInt() != getRVVSEW8Bits() || lmul.getValue() != getRVVLMULM1())
+    return false;
+  // The unsigned-nibble source loads (packed-i4 weight UNSIGNED, the two plain-i8
+  // q8 activation halves SIGNED) land at the single m1 rung (i4m1 x i8m1 -> i16m2).
+  mlir::Type type = load.getLoaded().getType();
+  const bool i8AtM1 =
+      isGenericRVVSignedOrSignlessIntegerVectorType(type, getRVVSEW8Bits(),
+                                                    getRVVLMULM1()) ||
+      isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                            getRVVLMULM1());
+  if (!i8AtM1)
+    return false;
+
+  // The load must feed ONLY an unsigned-nibble product (as the packed-i4 weight
+  // or one of the two plain-i8 activation operands).
+  bool hasProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<UnsignedNibbleXI8ProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getWeight() != load.getLoaded() &&
+         product.getActivationLow() != load.getLoaded() &&
+         product.getActivationHigh() != load.getLoaded()))
+      return false;
+    hasProductUse = true;
+  }
+  return hasProductUse;
 }
 
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,

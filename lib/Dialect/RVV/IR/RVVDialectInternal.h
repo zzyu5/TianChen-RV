@@ -1278,6 +1278,7 @@ bool isGenericRVVVectorSignedI8M2(mlir::Type type);
 // The M-FLAT q4_0 half-block integer-core strip type (i8m1); accepted by the
 // per-block loop-load form alongside q8_0's i8m2.
 bool isGenericRVVVectorSignedI8M1(mlir::Type type);
+bool isGenericRVVVectorUnsignedI8M1(mlir::Type type);
 
 bool isGenericRVVVectorSignedI16M4(mlir::Type type);
 
@@ -1350,6 +1351,8 @@ bool isBoundedWideningProductReductionChainSourceLoadCandidate(
     LoadOp load, WithVLOp withVL);
 
 bool isBoundedCodebookGatherChainSourceLoad(LoadOp load, WithVLOp withVL);
+
+bool isBoundedUnsignedNibbleChainSourceLoad(LoadOp load, WithVLOp withVL);
 
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL);

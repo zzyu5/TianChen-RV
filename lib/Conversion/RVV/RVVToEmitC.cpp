@@ -953,6 +953,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitScopeForLoop(
           if (mlir::failed(emitCodebookGatherXI8Product(
                   rewriter, loc, codebookGather, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto unsignedNibbleProduct =
+                       llvm::dyn_cast<tcrvrvv::UnsignedNibbleXI8ProductOp>(op)) {
+          if (mlir::failed(emitUnsignedNibbleXI8Product(
+                  rewriter, loc, unsignedNibbleProduct, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto wmacc =
                        llvm::dyn_cast<tcrvrvv::WideningMAccOp>(op)) {
           if (mlir::failed(
@@ -2357,11 +2362,13 @@ VariantToEmitCFunc::emitStandaloneReduce(mlir::ConversionPatternRewriter &rewrit
       if (!inputDef ||
           !llvm::isa<tcrvrvv::LoadOp, tcrvrvv::WideningProductOp,
                      tcrvrvv::PackedI4OffsetBinaryXI8ProductOp,
-                     tcrvrvv::CodebookGatherXI8ProductOp>(inputDef))
+                     tcrvrvv::CodebookGatherXI8ProductOp,
+                     tcrvrvv::UnsignedNibbleXI8ProductOp>(inputDef))
         return rewriter.notifyMatchFailure(
             reduce, "standalone reduce input must be an explicit vector load, "
-                    "widening_product, packed-i4 offset-binary x i8 product, or "
-                    "codebook-gather x i8 product result");
+                    "widening_product, packed-i4 offset-binary x i8 product, "
+                    "codebook-gather x i8 product, or unsigned-nibble x i8 "
+                    "product result");
     }
     std::optional<llvm::StringRef> mnemonic =
         standaloneReductionMnemonic(reduce.getKind());
@@ -3044,6 +3051,47 @@ mlir::LogicalResult VariantToEmitCFunc::emitCodebookGatherXI8Product(
     if (mlir::failed(product))
       return mlir::failure();
     valueMap[gather.getResult()] = *product;
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitUnsignedNibbleXI8Product(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::UnsignedNibbleXI8ProductOp product,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    mlir::Value bodyVL) const {
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getResult().getType());
+    auto weightVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(product.getWeight().getType());
+    if (!resultVecType || !weightVecType)
+      return rewriter.notifyMatchFailure(
+          product, "unsigned-nibble packed-i4 x i8 product types not vectors");
+    // The weight is UNSIGNED u8; build the signed-i8 EmitC type the reinterpret
+    // decode feeds off the SAME weight LMUL (no i8-typed operand carries it).
+    auto weightI8VecType = tcrvrvv::VectorType::get(
+        rewriter.getContext(), rewriter.getI8Type(), weightVecType.getLmul());
+    mlir::Type resultEmitC = convertVectorTypeToEmitC(resultVecType);
+    mlir::Type srcU8EmitC = convertVectorTypeToEmitC(weightVecType);
+    mlir::Type srcI8EmitC = convertVectorTypeToEmitC(weightI8VecType);
+    if (!resultEmitC || !srcU8EmitC || !srcI8EmitC)
+      return rewriter.notifyMatchFailure(
+          product, "unsigned-nibble packed-i4 x i8 product type not convertible");
+    mlir::Value weight = valueMap.lookup(product.getWeight());
+    mlir::Value actLow = valueMap.lookup(product.getActivationLow());
+    mlir::Value actHigh = valueMap.lookup(product.getActivationHigh());
+    if (!weight || !actLow || !actHigh)
+      return rewriter.notifyMatchFailure(
+          product, "unsigned-nibble packed-i4 x i8 product operand unmapped");
+    llvm::StringRef opName = product.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = product.getTCRVEmitCLowerableSourceRole();
+    mlir::FailureOr<mlir::Value> pairSum = emitUnsignedNibbleDecodeProductValue(
+        rewriter, loc, weight, actLow, actHigh, bodyVL, srcI8EmitC, srcU8EmitC,
+        resultEmitC, weightVecType.getLmul(),
+        vectorElementWidth(resultVecType), resultVecType.getLmul(),
+        vectorDType(resultVecType), opName, role);
+    if (mlir::failed(pairSum))
+      return mlir::failure();
+    valueMap[product.getResult()] = *pairSum;
     return mlir::success();
   }
 
@@ -5524,12 +5572,16 @@ llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
   mlir::WalkResult walk =
       loopBody.getBody().walk([](mlir::Operation *op) -> mlir::WalkResult {
         if (llvm::isa<
-                // brick 1 (per-block fp16 scale product / per-block-source)
+                // brick 1 (per-block fp16 scale product / per-block-source) +
+                // the Family-B (q4_1) per-block MIN/SUM correction product
                 tcrv::rvv::BlockFp16ScaleProductOp,
+                tcrv::rvv::BlockFp16MinProductOp,
                 // vector integer core primitives (q8_0 plain signed widening
-                // product + q4_0 asymmetric offset-binary packed-i4 x i8 product)
+                // product + q4_0 asymmetric offset-binary packed-i4 x i8 product
+                // + q4_1 asymmetric unsigned-nibble packed-i4 x i8 product)
                 tcrv::rvv::WideningProductOp,
                 tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp,
+                tcrv::rvv::UnsignedNibbleXI8ProductOp,
                 tcrv::rvv::StandaloneReduceOp,
                 // step 2 scalar-lane extract bridge (integer core -> scalar fold)
                 tcrv::rvv::TypedVectorLane0ToScalarExtractOp,

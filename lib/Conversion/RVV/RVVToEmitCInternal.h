@@ -3479,6 +3479,20 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       mlir::Value bodyVL) const;
 
+  /// The UNSIGNED-nibble decode/product for ONE strip -- the q4_1 variant. The
+  /// weight is an UNSIGNED u8/m1 vector; the two nibble lanes are split
+  /// (vand_vx_u8<L> 0x0F low, vsrl_vx_u8<L> 0x04 high), reinterpreted u8->i8
+  /// (value-identity for [0,15]), then fed the SAME asymmetric widening product
+  /// the offset-binary sibling uses (vwmul <-> plain low activation, vwmacc <->
+  /// plain high activation). NO xor-0x88 bias, NO codebook gather table. Routes
+  /// to emitUnsignedNibbleDecodeProductValue; the signed-i8 EmitC type is built
+  /// off the weight LMUL. Pure node construction; no string plan read.
+  mlir::LogicalResult emitUnsignedNibbleXI8Product(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::UnsignedNibbleXI8ProductOp product,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const;
+
   /// widening_macc(%lhs,%rhs,%acc,%vl){kind=signed_widening_macc_add} ->
   ///   v<rd><rl> r = __riscv_vwmacc_vv_<rd><rl>(acc, lhs, rhs, vl);
   /// The fused widening multiply-accumulate widens the narrower i16 source

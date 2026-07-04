@@ -353,6 +353,28 @@ mlir::Value createPackedI4OffsetBinaryProduct(
   return builder.create(state)->getResult(0);
 }
 
+// The q4_1 asymmetric UNSIGNED-nibble packed-i4 x plain-i8 integer core: ONE
+// packed-i4 weight operand (each u8 packs two UNSIGNED nibbles in [0,15]) + TWO
+// plain int8 activation operands (the q8 low half paired with the low nibbles, the
+// q8 high half with the high nibbles) -> ONE widened i16 product. The q4_1 `-8`
+// shift is folded into the block minimum (a separate min brick), so the decode is
+// a plain unsigned split (vand 0x0F / vsrl 0x04) with NO bias -- DISTINCT from the
+// q4_0 offset-binary sibling. The m1 rung (i4m1 x i8m1 low/high -> i16m2) is the
+// only declared rung.
+mlir::Value createUnsignedNibbleXI8Product(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value weight,
+    mlir::Value activationLow, mlir::Value activationHigh, mlir::Value vl,
+    mlir::Type productType, llvm::StringRef productRelation) {
+  mlir::OperationState state(
+      loc, tcrvrvv::UnsignedNibbleXI8ProductOp::getOperationName());
+  state.addOperands({weight, activationLow, activationHigh, vl});
+  state.addAttribute("kind",
+                     builder.getStringAttr("unsigned_nibble_x_i8_product"));
+  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
+  state.addTypes(productType);
+  return builder.create(state)->getResult(0);
+}
+
 mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
@@ -394,6 +416,35 @@ mlir::Value createBlockFp16ScaleProduct(mlir::OpBuilder &builder,
   return builder.create(state)->getResult(0);
 }
 
+// Family-B min brick: per-block dual-fp16 MIN/SUM correction product `m_x * s_y`
+// (block_index-sourced form). Distinct op TYPE from brick 1; names the SAME
+// weight/activation ABI bases + block_index so the emitter's per-block base memo
+// hits. The min/sum headers sit at lhs_min_byte_offset / rhs_sum_byte_offset
+// within each block base (2/2 for q4_1).
+mlir::Value createBlockFp16MinProduct(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value lhsMinBase,
+    mlir::Value rhsSumBase, mlir::Value blockIndex, std::int64_t lhsBlockStride,
+    std::int64_t rhsBlockStride, std::int64_t lhsMinByteOffset,
+    std::int64_t rhsSumByteOffset) {
+  mlir::OperationState state(
+      loc, tcrvrvv::BlockFp16MinProductOp::getOperationName());
+  state.addOperands({lhsMinBase, rhsSumBase, blockIndex});
+  state.addAttribute("kind",
+                     builder.getStringAttr("dual_fp16_per_block_min_product"));
+  state.addAttribute("scale_model",
+                     builder.getStringAttr("dual-fp16-per-block-m_x.s_y"));
+  state.addAttribute("lhs_min_byte_offset",
+                     builder.getI64IntegerAttr(lhsMinByteOffset));
+  state.addAttribute("rhs_sum_byte_offset",
+                     builder.getI64IntegerAttr(rhsSumByteOffset));
+  state.addAttribute("lhs_block_stride",
+                     builder.getI64IntegerAttr(lhsBlockStride));
+  state.addAttribute("rhs_block_stride",
+                     builder.getI64IntegerAttr(rhsBlockStride));
+  state.addTypes(builder.getF32Type());
+  return builder.create(state)->getResult(0);
+}
+
 // integer-core -> scalar bridge: i32 m1 vector lane0 -> scalar i32 sumi.
 mlir::Value createTypedVectorLane0ToScalarExtract(mlir::OpBuilder &builder,
                                                   mlir::Location loc,
@@ -412,12 +463,15 @@ mlir::Value createTypedVectorLane0ToScalarExtract(mlir::OpBuilder &builder,
 
 // brick 2: (float)sumi * computed scale. computed_scale is brick 1's f32 (NOT an
 // imported ABI value -- the verifier structurally requires f32 here).
-mlir::Value createBlockComputedScaleDequant(mlir::OpBuilder &builder,
-                                            mlir::Location loc, mlir::Value sumi,
-                                            mlir::Value computedScale) {
+mlir::Value createBlockComputedScaleDequant(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value sumi,
+    mlir::Value computedScale, mlir::Value minTerm = mlir::Value()) {
   mlir::OperationState state(
       loc, tcrvrvv::BlockComputedScaleDequantOp::getOperationName());
-  state.addOperands({sumi, computedScale});
+  if (minTerm)
+    state.addOperands({sumi, computedScale, minTerm});
+  else
+    state.addOperands({sumi, computedScale});
   state.addAttribute("kind", builder.getStringAttr("computed_scale_sumi_dequant"));
   state.addAttribute(
       "dequant_relation",
@@ -480,8 +534,15 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // is byte-unchanged from before the branch.
   const bool isQ40 =
       entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+  // q4_1 (Family-B): shares q4_0's HALF-block m1 packed-i4 shape (3 loads, m1
+  // core), diverging only in {u8 weight load, unsigned-nibble product op, the
+  // added MIN brick, the scale_plus_min fold}. Every q4_0-guarded knob below is
+  // shared (isQ40 || isQ41) EXCEPT the three-way fold_model.
+  const bool isQ41 =
+      entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
+  const bool isHalfBlock = isQ40 || isQ41;
   std::int64_t activationHighOffset =
-      isQ40 ? factByName("activation_high_byte_offset") : 0;
+      isHalfBlock ? factByName("activation_high_byte_offset") : 0;
 
   mlir::OperationState loopState(
       loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
@@ -495,9 +556,11 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                          builder.getI64IntegerAttr(activationStride));
   loopState.addAttribute(
       "fold_model",
-      builder.getStringAttr(isQ40 ? "left_assoc" : "sumi_times_scales"));
+      builder.getStringAttr(isQ41 ? "scale_plus_min"
+                                   : (isQ40 ? "left_assoc"
+                                            : "sumi_times_scales")));
   loopState.addAttribute("integer_core_lmul",
-                         builder.getStringAttr(isQ40 ? "m1" : "m2"));
+                         builder.getStringAttr(isHalfBlock ? "m1" : "m2"));
   loopState.addAttribute("strip_elision", builder.getStringAttr("elided"));
   // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
   loopState.addRegion();
@@ -514,10 +577,16 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   mlir::MLIRContext *ctx = builder.getContext();
   // The integer-core widths: q8_0 anchors i8m2 -> i16m4; q4_0's half-block
   // packed-i4 core anchors i8m1 -> i16m2. The i32m1 reduce lane is shared.
-  llvm::StringRef coreLmul = isQ40 ? "m1" : "m2";
-  llvm::StringRef wideLmul = isQ40 ? "m2" : "m4";
+  llvm::StringRef coreLmul = isHalfBlock ? "m1" : "m2";
+  llvm::StringRef wideLmul = isHalfBlock ? "m2" : "m4";
   mlir::Type i8VecType =
       tcrvrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
+  // q4_1's packed weight strip is UNSIGNED (the nibble value IS the weight, the
+  // `-8` folded into the block minimum), so the region weight LoadOp carries a
+  // u8-m1 vector type (cf. the codebook front door). q4_0's weight strip stays
+  // signed i8.
+  mlir::Type ui8VecType = tcrvrvv::VectorType::get(
+      ctx, builder.getIntegerType(8, /*isSigned=*/false), coreLmul);
   mlir::Type i16VecType =
       tcrvrvv::VectorType::get(ctx, builder.getI16Type(), wideLmul);
   mlir::Type i32VecType =
@@ -529,28 +598,46 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
       builder, loc, weight, activation, blockIndex, weightStride,
       activationStride);
 
+  // q4_1 min brick: the per-block m_x * s_y correction product (Family-B). Names
+  // the SAME weight/activation ABI bases + block_index as brick 1 so the emitter
+  // per-block base memo hits; the min/sum headers sit at weight_min_byte_offset /
+  // activation_sum_byte_offset. Null (no brick) for q8_0/q4_0.
+  mlir::Value minTerm;
+  if (isQ41)
+    minTerm = createBlockFp16MinProduct(
+        builder, loc, weight, activation, blockIndex, weightStride,
+        activationStride, factByName("weight_min_byte_offset"),
+        factByName("activation_sum_byte_offset"));
+
   // The vector integer core diverges by format. q8_0: two per-block i8 loads ->
-  // signed widening product. q4_0: ONE packed-i4 weight load + TWO plain-i8
+  // signed widening product. q4_0/q4_1: ONE packed-i4 weight load + TWO plain-i8
   // activation loads (the q8 low half at quant_off, the q8 high half at
-  // quant_off + activation_high_byte_offset) -> the asymmetric offset-binary
-  // packed-i4 x i8 product.
+  // quant_off + activation_high_byte_offset) -> the asymmetric packed-i4 x i8
+  // product. q4_0 loads the weight SIGNED + offset-binary decode; q4_1 loads it
+  // UNSIGNED (u8) + unsigned-nibble decode.
   mlir::Value prod;
-  if (isQ40) {
-    // packed-i4 weight strip (base + ib*18 + 2).
-    mlir::Value wv =
-        createRVVBlockLoad(builder, loc, weight, vl, blockIndex, weightStride,
-                           quantByteOffset, i8VecType);
-    // q8 low half (base + ib*34 + 2) and high half (base + ib*34 + 2 + 16).
+  if (isHalfBlock) {
+    // packed-i4 weight strip (base + ib*stride + quant_off). q4_1 = u8, q4_0 = i8.
+    mlir::Value wv = createRVVBlockLoad(builder, loc, weight, vl, blockIndex,
+                                        weightStride, quantByteOffset,
+                                        isQ41 ? ui8VecType : i8VecType);
+    // q8 low half (quant_off) and high half (quant_off + activation_high_offset).
     mlir::Value avLow =
         createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
                            activationStride, quantByteOffset, i8VecType);
     mlir::Value avHigh = createRVVBlockLoad(
         builder, loc, activation, vl, blockIndex, activationStride,
         quantByteOffset + activationHighOffset, i8VecType);
-    // asymmetric offset-binary packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
-    prod = createPackedI4OffsetBinaryProduct(
-        builder, loc, wv, avLow, avHigh, vl, i16VecType,
-        "offset-binary-i4m1-x-i8m1x2-to-i16m2");
+    if (isQ41)
+      // asymmetric UNSIGNED-nibble packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
+      prod = createUnsignedNibbleXI8Product(
+          builder, loc, wv, avLow, avHigh, vl, i16VecType,
+          "unsigned-nibble-i4m1-x-i8m1x2-to-i16m2");
+    else
+      // asymmetric offset-binary packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
+      prod = createPackedI4OffsetBinaryProduct(
+          builder, loc, wv, avLow, avHigh, vl, i16VecType,
+          "offset-binary-i4m1-x-i8m1x2-to-i16m2");
   } else {
     // q8_0: two per-block i8 loads (base + ib*stride + quant_off).
     mlir::Value wv =
@@ -568,8 +655,9 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
       createStandaloneReduce(builder, loc, prod, zeroSeed, vl, i32VecType);
   mlir::Value sumi =
       createTypedVectorLane0ToScalarExtract(builder, loc, red, vl);
-  // brick 2: (float)sumi * (d_x * d_y).
-  mlir::Value bterm = createBlockComputedScaleDequant(builder, loc, sumi, dd);
+  // brick 2: (float)sumi * (d_x * d_y) (+ m_x*s_y min_term for q4_1).
+  mlir::Value bterm =
+      createBlockComputedScaleDequant(builder, loc, sumi, dd, minTerm);
   // brick 3: sumf + term (cross-block fp32 fold).
   mlir::Value accNext = createCrossBlockF32Accumulate(builder, loc, acc, bterm);
   createTypedFlatBlockDotLoopYield(builder, loc, accNext);
@@ -815,10 +903,14 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
       entry.opName == tcrvrvv::GgmlBlockDotQ80Q80Op::getOperationName();
   const bool isQ40TypedFlat =
       entry.opName == tcrvrvv::GgmlBlockDotQ40Q80Op::getOperationName();
-  const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat;
+  const bool isQ41TypedFlat =
+      entry.opName == tcrvrvv::GgmlBlockDotQ41Q81Op::getOperationName();
+  const bool typedFlatLoopPath =
+      isQ80TypedFlat || isQ40TypedFlat || isQ41TypedFlat;
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   const llvm::StringRef configLMUL =
-      isQ40TypedFlat ? "m1" : (isQ80TypedFlat ? "m2" : "m1");
+      (isQ40TypedFlat || isQ41TypedFlat) ? "m1"
+                                         : (isQ80TypedFlat ? "m2" : "m1");
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
   // in-region standalone_reduce. Only the typed path needs it; adding it to the

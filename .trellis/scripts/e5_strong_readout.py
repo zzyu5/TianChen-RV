@@ -126,6 +126,20 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
+    # q4_1 vec_dot: STRONG. Same typed flat block-dot LOOP construction as q4_0, but the
+    # decomposed body realizes q4_1's Family-B scale+MIN structure: the integer core is the
+    # unsigned-nibble dot primitive (tcrv_rvv.unsigned_nibble_x_i8_product), and the per-block
+    # dequant is a dual-fp16 scale+min fold (block_fp16_scale_product d_x.d_y + block_fp16_min_product
+    # m_x.s_y, BOTH operand-derived from the block data, feeding block_computed_scale_dequant).
+    # Its front door constructs the typed tcrv_rvv.typed_flat_block_dot_loop_body (NOT the opaque
+    # emitFlatBlockDot hand helper), so update-sixstate machine-reads the REAL constructor output.
+    {
+        "op": "vec_dot", "format": "q4_1", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q4-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q4-1-q8-1-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
+    },
     # Negative control: a weak descriptor-selected block-dot. q5_0's front door still
     # auto-constructs the MONOLITHIC tcrv_rvv.q5_0_q8_0_block_dot op (kind
     # "ggml_q5_0_q8_0_block_dot"), so [L-8] derives NOT-strong (constructed-weak). This
@@ -350,8 +364,8 @@ def cmd_update_sixstate(_args):
     if "E5 增量①" not in doc["$meta"]["labeling"]:
         doc["$meta"]["labeling"] = (
             doc["$meta"]["labeling"]
-            + " | E5 增量① (strong-side auto): the 5 STRONG rows (3 product_reduce "
-              "N-operand routes + q8_0 vec_dot + q4_0 vec_dot, both typed_flat_block_dot_loop_body) carry a "
+            + " | E5 增量① (strong-side auto): the 6 STRONG rows (3 product_reduce "
+              "N-operand routes + q8_0 vec_dot + q4_0 vec_dot + q4_1 vec_dot, all three typed_flat_block_dot_loop_body) carry a "
               "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
               "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
               "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "
