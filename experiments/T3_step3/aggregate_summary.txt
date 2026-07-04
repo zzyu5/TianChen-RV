@@ -1,0 +1,20 @@
+# T3 step3 constitutional A/B aggregate (snapshot fc1dd132)
+# generated 2026年 07月 04日 星期六 14:45:45 UTC
+=== k1_ab_raw.txt ===
+freq_khz: min=1600000 max=1600000 span=0.00% (DVFS guard)
+OUR m1: median=3688.8ns  IQR%=0.02  n=24
+FACTORY:      median=3702.8ns  IQR%=0.02  n=24
+micro_vs_factory (factory_ns/our_ns) = 1.0038x   [95% CI 1.0036, 1.0038]
+|delta|=0.38%   between-run floor=0.01%   within-IQR=0.02%   2x-eff-floor=0.05%
+VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+--- WINA (pure LMUL, both our pipeline) ---
+m1: median=3689.0ns IQR%=0.02   m2: median=4096.3ns IQR%=0.02
+winA_ratio (m2_ns/m1_ns) = 1.1104x  [95% CI 1.1103,1.1106]
+
+=== rvv_ab_raw.txt ===
+freq_khz: min=2600000 max=2600000 span=0.00% (DVFS guard)
+OUR m2: median=3441.0ns  IQR%=0.05  n=24
+FACTORY:      median=3506.0ns  IQR%=0.01  n=24
+micro_vs_factory (factory_ns/our_ns) = 1.0189x   [95% CI 1.0187, 1.0190]
+|delta|=1.89%   between-run floor=0.01%   within-IQR=0.05%   2x-eff-floor=0.10%
+VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)

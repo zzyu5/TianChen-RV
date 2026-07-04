@@ -1,0 +1,22 @@
+# k1 VLEN256 fill-vs-fold decomposition (snapshot fc1dd132, board_fp 0ccffb5f9130967a)
+# All same board (k1 core4, clang-18.1.8, -march=rv64gcv_zfh, gov=perf 1.6GHz locked), 6 co-measured rounds.
+# Isolates WHY our capability-selected m1 reaches PARITY with ggml factory (not a win).
+#
+# median ns/call:
+#   m2 no-FMA (our SHIPPED m2, pinned separated fmul+fmul+fadd) = 4095.7
+#   m2 FMA    (same m2 rebuilt -ffp-contract=fast -> fmadd)      = 3776.7   (objdump: fmadd.s confirmed)
+#   factory   (ggml faithful i8m2, fmadd fold)                   = 3702.2
+#   m1        (our SHIPPED m1, i8m1 register-fill, no-FMA)       = 3688.5
+#
+# DECOMPOSITION of factory's +10.6% edge over our shipped m2:
+#   fold cost (no-FMA vs FMA, same m2 structure): 4095.7/3776.7 = 1.084  => +8.4%
+#   residual (our m2-FMA vs factory, vsetvli/scheduling diff):  3776.7/3702.2 = 1.020  => +2.0%
+#   product 1.084*1.020 = 1.106 == measured factory/our-m2 4095.7/3702.2 = 1.106  (exact)
+#
+# capability lever (winA, pure LMUL): m1 vs m2-noFMA = 4095.7/3688.5 = 1.110 => +11.0%
+#
+# NET: register-fill (+11.0%) offsets factory's fold+sched edge (+10.6%) => m1 == factory (PARITY, +0.4%).
+# The +8.4% no-FMA penalty is a MEASURED COST of the pinned separated-left-assoc oracle (step-1a correctness
+# constraint), NOT a codegen defect. m1 with FMA would beat factory but would break bit-exactness vs the
+# pinned oracle (it would instead match premul+fmaf). Correctness constraint is load-bearing on this verdict.
+# T8 entry: this is measured attribution, not inferred.

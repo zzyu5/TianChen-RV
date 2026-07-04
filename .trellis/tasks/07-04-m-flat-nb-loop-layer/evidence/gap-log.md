@@ -94,3 +94,37 @@ byte-identical. Numerical bit-exact vs scalar oracle = pending-hardware.
 **Stage: 靶 IR parse ✓ verify ✓ lower ✓ (op-by-op genuine).** Remaining: 拓真实 nb
 (multi_block_factor) → q8_0 首翻 constructed (+ resolve seed residue) → 五格 cohort
 → 删 monolith.
+
+---
+
+## GAP-1 / P2c — q8_0 typed-flat per-block kernel = PARITY vs ggml factory (非 Win-B) [OPEN → P2c 关闭]
+
+**命名.** schedule-参数化相 step 3 宪法双板重测(snapshot fc1dd132,k1 VLEN256 board_fp
+0ccffb5f9130967a / rvv VLEN128 7040412c20700942,固频钉核 T-N IQR<0.02%):我方 SEL-1-选中
+per-block 核 vs ggml **出厂派发** q8_0 核(faithful non-packed TU + Zfh 硬件 fcvt,两侧同板同 clang
+同旗标——两个侦察 confound[strawman packed opponent + fp16 libcall]已 objdump 证伪并移除,旧
+"1.21×/1.43× win" 是 artifact 非真赢)= **两板 PARITY**:VLEN256 我方 m1 = **1.004×** factory、
+VLEN128 我方 m2 = **1.019×** factory(过 2×地板仅因 min-统计地板~0.01%,经济上 parity)。
+
+**Triage([K-6] 四选一)= 缺模式(missing pattern),非选择错误/非缺能力事实/非带宽墙.**
+反汇编证据(objdump-verified,fold_isolation_k1.txt):
+- **能力机制真有效**:winA 纯 LMUL m1=3689ns vs m2=4096ns = **+11.0% 寄存器填满增益**(m1 VLMAX_e8m1@256=32=1 块满填;m2 半填 32/64)——SEL-1 先验选中 m1 是真机制赢。
+- **但被 correctness 约束成本抵消**:factory 对我方 shipped m2 的 +10.6% edge = **+8.4%(我方 step-1a 钉死 no-FMA 折叠成本:m2 no-FMA 4096 → m2-FMA 3777)** + 2.0%(vsetvli/sched),精确 1.084×1.020=1.106。
+- **净**:register-fill(+11.0%)≈ factory 的 fold+sched edge(+10.6%)→ m1 ≈ factory。
+- roofline_class = **latency-bound**(cache-resident,per-block 串行 reduce→vmv.x.s→标量 fmaf 链,非 DRAM 带宽墙)。
+
+**根因 = 家族级 per-block 串行折叠瓶颈(VLEN-无关,block-quant 全家族共享)+ 钉死 no-FMA 折叠
+的 +1 fp-op/block 延迟成本**。m1-with-FMA 能打赢 factory 但破 pinned-oracle bit-exactness——
+故 **no-FMA 成本是显式数值契约(layer-3)的【实测代价】**,不是缺陷。
+
+**关闭动作 = P2c(step 5):deferred-ordered 折叠**(相A 批量整数+打包、相B vfcvt→两次 vfmul→
+vfredosum.vs 有序种子归约,bit-exact vs **同一** §1 钉死 oracle)——把 per-block vector→scalar→
+fmaf 跨域往返消掉、strip k 有序归约与 strip k+1 整数相重叠,目标从 sum(int,fold) 逼近
+max(int,fold)=地板,**在 bit-exact 前提下**回收 +8.4% 折叠成本 + 兑现 +11.0% fill 增益 → 真 Win-B。
+关闭后同板复测、attribution 引用本 gap。
+
+**证据素材**:layer-1(机制选中+可归因 winA +11.0%)已证;layer-3(数值契约实测成本 +8.4%)已量;
+layer-4(家族串行折叠瓶颈命名 + fold 成本反汇编分解 + 同 .o 双板 parity 展品)已立;layer-2(P2c
+insight×coverage)= step 5。填 T3_A/T3_B(micro_vs_factory=parity,status=measured)+ T-N 地板;
+T8 台账首条 loss/parity 实例(→ P2c 关闭)。**诚实定位:parity 对 latency-bound kernel 是物理确认
+非失败;真 Win-B gated on P2c。无 beat 措辞(过 [PERF-1] 八门前)。**

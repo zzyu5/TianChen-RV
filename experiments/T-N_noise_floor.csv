@@ -1,1 +1,6 @@
 board,benchmark_class,run1_median,run2_median,IQR_pct,bootstrap_ci,board_fp,snapshot,status
+k1,q8_0-vecdot-micro-fixed/ours-m1,3688.7ns,3689.1ns,0.009,between-run(min-of-7-near-deterministic;pinned-core4;freq-locked-1.6GHz-0%span),0ccffb5f9130967a,fc1dd132,measured
+k1,q8_0-vecdot-micro-fixed/factory,3702.9ns,3702.4ns,0.012,between-run(min-of-7;pinned-core4;freq-locked-1.6GHz),0ccffb5f9130967a,fc1dd132,measured
+rvv,q8_0-vecdot-micro-fixed/ours-m2,3440.8ns,3441.1ns,0.007,between-run(min-of-7;pinned-core8;freq-locked-2.6GHz-0%span),7040412c20700942,fc1dd132,measured
+rvv,q8_0-vecdot-micro-fixed/factory,3506.0ns,3506.2ns,0.006,between-run(min-of-7;pinned-core8;freq-locked-2.6GHz),7040412c20700942,fc1dd132,measured
+# NOTE: floor is between-run repeat-repeat (pass1 vs pass2 median), same min-of-7 statistic as the T3 A/B ratio (self-consistent gate). Floor is <0.02% because min-of-7 on a pinned freq-locked core is near-deterministic -> per experiment-constitution the 2x-floor gate is technically passed by even the +0.4%/+1.9% T3 deltas, but those deltas are economically PARITY (<2%); the tight floor is a min-statistic precision artifact, NOT evidence of a meaningful perf difference.
