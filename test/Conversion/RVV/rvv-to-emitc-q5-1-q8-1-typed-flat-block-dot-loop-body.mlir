@@ -62,6 +62,19 @@ module {
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_vec_dot_q5_1_q8_1_kernel_rvv_q5_1_q8_1_block_dot(
 
+// The outer block loop + per-block base address arithmetic: xb = vx + ib*24 (the
+// q5_1 weight AoS block stride) and yb = vy + ib*36 (the q8_1 activation stride)
+// -- the family-defining block strides, propagated from the region load ops'
+// block_stride operands into the emitted base mul/add (migrated from the monolith
+// emit fixture, strengthened to pin the stride literals).
+// CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step
+// CHECK: %[[STRIDEX:.*]] = literal "24" : !emitc.opaque<"size_t">
+// CHECK: mul %[[IB]], %[[STRIDEX]]
+// CHECK: add %arg2, %{{.*}}
+// CHECK: %[[STRIDEY:.*]] = literal "36" : !emitc.opaque<"size_t">
+// CHECK: mul %[[IB]], %[[STRIDEY]]
+// CHECK: add %arg3, %{{.*}}
+
 // brick 1 (d_x/d_y) then the MIN brick reads m_x = fp16(xb + 2) and s_y =
 // fp16(yb + 2), then the qh halves -- the byte-exact dX,dY,mX,sY,qhLow,qhHigh order.
 // CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
@@ -94,15 +107,30 @@ module {
 // CHECK: call_opaque "__riscv_vand_vx_u8m1"(%{{.*}}, %[[LOWMASK]]
 // CHECK: %[[HISH:.*]] = literal "0x04" : !emitc.opaque<"int">
 // CHECK: call_opaque "__riscv_vsrl_vx_u8m1"(%{{.*}}, %[[HISH]]
+// The per-element qh 5th-bit injection: the vid+c shift vector / vsrl_vv / vand 1
+// / vsll 4 / vncvt narrowing -- the FULL injection chain migrated from the monolith
+// -m1 emit fixture (previously only vid/vncvt were pinned on the typed path).
 // CHECK: call_opaque "__riscv_vid_v_u16m2"
+// CHECK: call_opaque "__riscv_vadd_vx_u16m2"
+// CHECK: call_opaque "__riscv_vmv_v_x_u16m2"
+// CHECK: call_opaque "__riscv_vsrl_vv_u16m2"
+// CHECK: call_opaque "__riscv_vand_vx_u16m2"
+// CHECK: call_opaque "__riscv_vsll_vx_u16m2"
 // CHECK: call_opaque "__riscv_vncvt_x_x_w_u8m1"
+// The two vor merges (low + high nibble halves) + the value-identity reinterpret
+// on BOTH halves.
 // CHECK: call_opaque "__riscv_vor_vv_u8m1"
+// CHECK: call_opaque "__riscv_vor_vv_u8m1"
+// CHECK: call_opaque "__riscv_vreinterpret_v_u8m1_i8m1"
 // CHECK: call_opaque "__riscv_vreinterpret_v_u8m1_i8m1"
 // The q5_1 UNSIGNED path DROPS the offset-binary bias entirely: applyOffsetBias
 // FALSE emits NO `vsub 16` (the bias is folded into the per-block MIN scale).
 // CHECK-NOT: call_opaque "__riscv_vsub_vx_i8m1"
 // CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
 // CHECK: call_opaque "__riscv_vwmacc_vv_i16m2"
+// Per-block reduce: the seed broadcast + vwredsum + lane-0 extract (the reduce-
+// seed vmv_v_x migrated from the monolith emit fixture).
+// CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 

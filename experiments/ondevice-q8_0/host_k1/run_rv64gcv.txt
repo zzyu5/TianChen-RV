@@ -1,0 +1,18 @@
+compile_flags=-O2 -march=rv64gcv -mabi=lp64d -ffp-contract=off --rtlib=compiler-rt  clang=/usr/bin/clang
+== board identity ==
+VLEN(bits)=256  vlenb=32  VLMAX_e8m2=64  march=rv64gcv  driver_has_rvv_intrinsics=1
+n=4096 blocks/dot=128 QK=32 BLOCK_BYTES=34 sizeof(block_q8_0)=34
+
+== numerical verify (256 trials, n=4096) ==
+sample[0]: kernel=67.4738846 (0x4286f2a1)  ref_nofma=67.4738922 (0x4286f2a2)
+exact-match vs ref(no-contract): 53/256   worst ULP=80
+exact-match vs ref(fmaf fold)  : 256/256   worst ULP=0
+VERDICT: BIT-EXACT (kernel fold form = fused-multiply-add)
+
+== perf (200000 iters, n=4096, march=rv64gcv) ==
+kernel   : 6909.0 ns/call   1.26 GB/s
+reference: 5163.5 ns/call   1.69 GB/s   (baseline for this march)
+speedup kernel vs reference: 0.75x
+(sink=1.10417e+08)
+NOTE: kernel microbench, NOT e2e decode; kernel .o = local cross-clang -O2 -march=rv64gcv; baseline = on-board clang -O2 -march=rv64gcv.
+exit_status=0

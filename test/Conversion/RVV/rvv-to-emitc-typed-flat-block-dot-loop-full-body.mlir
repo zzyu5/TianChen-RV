@@ -116,6 +116,9 @@ module {
 // CHECK: %[[VY:.*]] = call_opaque "__riscv_vle8_v_i8m2"
 // CHECK: %[[PROD:.*]] = call_opaque "__riscv_vwmul_vv_i16m4"(%[[VX]], %[[VY]]
 // CHECK-NOT: call_opaque "__riscv_vxor_vx_i8
+// The plain-i8 whole-block core reduces ONE vwmul product (no two-nibble-half
+// vwmacc): the q8_0 integer-core assertion migrated from the monolith emit fixture.
+// CHECK-NOT: call_opaque "__riscv_vwmacc_vv_i16
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"(%[[PROD]]
 // CHECK: %[[RED:.*]] = call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // CHECK: assign %[[RED]] : !emitc.opaque<"int32_t"> to %[[SUMI]]

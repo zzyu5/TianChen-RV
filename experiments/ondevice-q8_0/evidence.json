@@ -1,0 +1,51 @@
+{
+  "harness": "on-device (ssh) numerical + perf verification for M-FLAT typed flat block-dot kernels",
+  "harness_files": {
+    "driver": ".trellis/scripts/ondevice/q8_0_verify_driver.c",
+    "orchestrator": ".trellis/scripts/ondevice/run_ondevice_verify.sh",
+    "reusable_for_next_flat_format": "copy driver (change decode+quantize+symbol), reuse orchestrator (set TEST_MLIR / FRONT_DOOR_PASS / DRIVER / TARGETS)"
+  },
+  "kernel_under_test": {
+    "family": "M-FLAT q8_0 x q8_0 typed flat block-dot loop body",
+    "symbol": "tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot",
+    "artifact": "real exported RISC-V ELF relocatable object (front-door -> materialize-emission-plans -> tcrv-translate --tcrv-export-target-artifact)",
+    "object_compiled_with": "local cross-clang -target riscv64 -O2 -march=rv64gcv -mabi=lp64d",
+    "abi_roles_9": ["n:size_t", "s:float*", "bs:size_t", "vx:const uint8_t*", "bx:size_t", "vy:const uint8_t*", "by:size_t", "nrc:int32_t", "zero_seed:const int32_t*"],
+    "abi_note": "8-role ggml strided vec_dot ABI plus a 9th reduce-seed pointer; emitted body consumes only n/s/vx/vy and uses a literal-0 reduce seed (zero_seed unused). Block = 34 bytes (fp16 scale + 32 int8). Integer core = one vle8_v_i8m2 x2 + vwmul_vv_i16m4 + vwredsum_vs per 32-elem block (m2 anchor).",
+    "computes": "s[0] = sum_block d_x*d_y*(sum_i x_i*y_i)"
+  },
+  "numerical": {
+    "reference": "hand-written scalar q8_0 vec_dot with ggml's fold order; pure-integer IEEE fp16<->fp32 (NOT _Float16, which clang-17/rv64gcv-no-Zfh miscompiles on-board)",
+    "method": "256 independent random dot products, n=4096 (128 blocks), bit-for-bit compare of s[0]; two fold variants computed to empirically discover the kernel's contraction form",
+    "verdict": "BIT-EXACT on both boards",
+    "kernel_fold_form_discovered": "fused-multiply-add (matches fmaf ref 256/256; non-contracted ref matches only 53/256, worst 80 ULP)",
+    "worst_ulp_vs_fma_ref": 0,
+    "cross_board_result_bits_identical": "0x4286f2a1 on both VLEN128 and VLEN256 (m2-anchor reduction is VLEN-invariant for this data)"
+  },
+  "perf": {
+    "framing": "kernel MICROBENCH, not e2e decode; cross-machine numbers are NOT comparable (different cores/VLEN); baseline = same scalar reference compiled on-board (autovec at rv64gcv, pure-scalar at rv64gc)",
+    "timing": "clock_gettime(CLOCK_MONOTONIC_RAW), best-of-7, 200000 iters, DCE defeated via memory-clobber barrier",
+    "boards": {
+      "rvv": {
+        "identity": "openEuler 24.03, clang 17.0.6, riscv64 model 0x2047000, VLEN128, 64c",
+        "kernel_ns_per_call": 1897.6,
+        "kernel_gbps": 4.59,
+        "vs_clang_autovec_rvv": {"baseline_ns": 2717.8, "speedup": 1.43},
+        "vs_pure_scalar": {"baseline_ns": 6483.1, "speedup": 3.41}
+      },
+      "k1": {
+        "identity": "Bianbu 2.2.1, clang 18.1.8, SpacemiT X60, VLEN256, 8c",
+        "kernel_ns_per_call": 6909.0,
+        "kernel_gbps": 1.26,
+        "vs_clang_autovec_rvv": {"baseline_ns": 5163.5, "speedup": 0.75},
+        "vs_pure_scalar": {"baseline_ns": 36215.9, "speedup": 5.25},
+        "honest_finding": "kernel LOSES to clang autovec on VLEN256: its fixed vsetvl_e8m2(32) m2-anchor under-fills the 256-bit vector (VLMAX_e8m2=64), while autovec uses the full width. The m2 anchor is VLEN128-tuned. Beats autovec on VLEN128 (1.43x)."
+      }
+    }
+  },
+  "infra_walls_hit_and_resolved": [
+    "link: kernel .o needs soft fp16 builtins __extendhfsf2/__truncsfhf2; board default gcc-12 libgcc lacks them -> fixed with --rtlib=compiler-rt",
+    "reference fp16: _Float16 C type is miscompiled by clang-17 on rv64gcv without Zfh (every conversion wrong) -> replaced with pure-integer IEEE fp16<->fp32",
+    "perf DCE: pure loop-invariant scalar reference was hoisted (fake 4ns baseline) -> memory-clobber barrier per iteration"
+  ]
+}

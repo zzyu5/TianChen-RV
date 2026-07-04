@@ -1,0 +1,16 @@
+
+Authorized users only. All activities may be monitored and reported.
+ssh_target=rvv
+remote_uname=Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb  2 22:50:01 CST 2026 riscv64 riscv64 riscv64 GNU/Linux
+clang_path=/usr/bin/clang-17
+clang_version=clang version 17.0.6 ( 17.0.6-16.oe2403)
+vlenb_hint=n/a
+lscpu_begin
+Architecture:                            riscv64
+CPU(s):                                  64
+On-line CPU(s) list:                     0-63
+Model name:                              -
+Model:                                   0x2047000
+CPU(s) scaling MHz:                      100%
+NUMA node0 CPU(s):                       0-63
+lscpu_end

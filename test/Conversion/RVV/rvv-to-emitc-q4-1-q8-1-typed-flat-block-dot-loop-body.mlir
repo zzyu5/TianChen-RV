@@ -52,6 +52,19 @@ module {
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_vec_dot_q4_1_q8_1_kernel_rvv_q4_1_q8_1_block_dot(
 
+// The outer block loop + per-block base address arithmetic: xb = vx + ib*20 (the
+// q4_1 weight AoS block stride) and yb = vy + ib*36 (the q8_1 activation stride)
+// -- the family-defining block strides, propagated from the region load ops'
+// block_stride operands into the emitted base mul/add (migrated from the monolith
+// emit fixture, strengthened to pin the stride literals).
+// CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step
+// CHECK: %[[STRIDEX:.*]] = literal "20" : !emitc.opaque<"size_t">
+// CHECK: mul %[[IB]], %[[STRIDEX]]
+// CHECK: add %arg2, %{{.*}}
+// CHECK: %[[STRIDEY:.*]] = literal "36" : !emitc.opaque<"size_t">
+// CHECK: mul %[[IB]], %[[STRIDEY]]
+// CHECK: add %arg3, %{{.*}}
+
 // brick 1 (d_x/d_y) then the MIN brick reads m_x = fp16(xb + 2) and s_y =
 // fp16(yb + 2) BEFORE the integer core -- the byte-exact dX,dY,mX,sY order.
 // CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
@@ -76,6 +89,9 @@ module {
 // CHECK: call_opaque "__riscv_vreinterpret_v_u8m1_i8m1"
 // CHECK: call_opaque "__riscv_vwmul_vv_i16m2"
 // CHECK: call_opaque "__riscv_vwmacc_vv_i16m2"
+// Per-block reduce into the i32 scalar: the seed broadcast + vwredsum + lane-0
+// extract (the reduce-seed vmv_v_x migrated from the monolith emit fixture).
+// CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 

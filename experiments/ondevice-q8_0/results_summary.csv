@@ -1,0 +1,5 @@
+board,board_id,os,clang,vlen_bits,cores,kernel_symbol,n,blocks,numeric_verdict,exact_match_fma,exact_match_nofma,worst_ulp,kernel_fold,march,kernel_ns_per_call,kernel_gbps,baseline_ns_per_call,baseline_gbps,baseline_kind,speedup_kernel_vs_baseline
+rvv,riscv64-model-0x2047000,openEuler-24.03,clang-17.0.6,128,64,tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot,4096,128,BIT-EXACT,256/256,53/256,0,fused-multiply-add,rv64gcv,1897.6,4.59,2717.8,3.20,clang-autovec-rvv,1.43
+rvv,riscv64-model-0x2047000,openEuler-24.03,clang-17.0.6,128,64,tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot,4096,128,BIT-EXACT,256/256,53/256,0,fused-multiply-add,rv64gc,1901.2,4.58,6483.1,1.34,pure-scalar-noV,3.41
+k1,SpacemiT-X60,Bianbu-2.2.1,clang-18.1.8,256,8,tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot,4096,128,BIT-EXACT,256/256,53/256,0,fused-multiply-add,rv64gcv,6909.0,1.26,5163.5,1.69,clang-autovec-rvv,0.75
+k1,SpacemiT-X60,Bianbu-2.2.1,clang-18.1.8,256,8,tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot,4096,128,BIT-EXACT,256/256,53/256,0,fused-multiply-add,rv64gc,6901.4,1.26,36215.9,0.24,pure-scalar-noV,5.25

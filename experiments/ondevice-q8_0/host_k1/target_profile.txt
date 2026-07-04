@@ -1,0 +1,12 @@
+ssh_target=k1
+remote_uname=Linux bianbu 6.6.63 #2.2.7.2 SMP PREEMPT Fri Aug 15 12:32:44 UTC 2025 riscv64 riscv64 riscv64 GNU/Linux
+clang_path=/usr/bin/clang
+clang_version=Bianbu clang version 18.1.8 (11bb4)
+vlenb_hint=n/a
+lscpu_begin
+Architecture:        riscv64
+CPU(s):              8
+On-line CPU(s) list: 0-7
+Model name:          Spacemit(R) X60
+CPU(s) scaling MHz:  100%
+lscpu_end
