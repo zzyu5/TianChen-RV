@@ -9294,6 +9294,114 @@ def TypedFlatBlockDotLoopYieldOp : TCRVRVV_Op<"typed_flat_block_dot_loop_yield",
   let hasVerifier = 1;
 }
 
+def TypedSuperBlockBlockDotLoopBodyOp
+    : TCRVRVV_Op<"typed_super_block_block_dot_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-carried nb loop op for the q4_K/q5_K SUPER-BLOCK "
+      "block dot-product (DUAL accumulator)";
+  let description = [{
+    Records the q4_K/q5_K SUPER-BLOCK-quantized dot-product's OUTER super-block
+    loop as ONE typed region-carrying dataflow op, the M-FLAT super-block
+    scaffold sibling of tcrv_rvv.typed_flat_block_dot_loop_body. It is the FIRST
+    typed loop op that carries a DUAL accumulator: the q4_K two-level fold splits
+    the running result into a `sums` 8-lane fp32 VECTOR accumulator (the deferred
+    positive `sums += d * (float)aux32` fold, BRICK 6) AND a `sumf` scalar fp32
+    accumulator (the in-loop `sumf -= dmin * (float)sumi` MIN term, BRICK 4) --
+    two DIFFERENT accumulator chains the flat single-accumulator loop op cannot
+    express. The op consumes the same four runtime ABI operands as the flat loop
+    op and the monolithic q4_K block dot -- the q4_K weight base pointer, the
+    q8_K activation base pointer, the output pointer, and the runtime element
+    count -- and owns one single-block region whose entry arguments are the
+    `super_block_index` induction variable (index), the loop-carried `sums`
+    8-lane fp32 vector accumulator (!tcrv_rvv.vector<f32, "m2">), and the
+    loop-carried `sumf` scalar fp32 accumulator (f32). The region is terminated
+    by tcrv_rvv.typed_super_block_block_dot_loop_yield, which names BOTH
+    carried-out accumulators (`sums_next`, `sumf_next`).
+
+    Making the super-block loop + the DUAL loop-carried accumulate a first-class
+    typed body op (I5) means the emission is determined by op identity + the
+    explicit scheduling facts, never inferred from candidate-mirror metadata,
+    route ids, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, or q8/q4 names. The two SSA loop-carried accumulators lower
+    byte-exactly to the monolithic q4_K block dot's mutable `float sums[8]` +
+    `float sumf` form (the vector accumulator via a vfloat32m2 emitc.variable, the
+    scalar via a float emitc.variable): emitc.for has no iter_args, so each
+    carried-in block argument maps to a load of its emitc.variable at the top of
+    the loop body and each carried-out yield operand maps to an emitc.assign back
+    at the bottom, exactly as the flat loop op and the SCFToEmitC iter_args
+    lowering do. Both seeds are the literal zero (ggml seeds `sums` to a
+    vfmv_v_f_f32m2(0.0f) and `sumf = 0.0f`, hardcoded, not caller-provided, so the
+    accumulators are seeded by the op's lowering rather than an init operand --
+    mirroring the block-dot ops, which also carry no init operand).
+
+    The bounded scheduling facts (qk == QK_K, the AoS super-block strides, the
+    optional integer_core_lmul) are the same byte-exact shape knobs the monolithic
+    q4_K body reads (the *how* -- the per-sub-block integer-MAC widening rung --
+    never the *what*). fold_model fixes the ARITHMETIC fold tree
+    (region-invariant); for the current bounded surface kind is limited to
+    "typed_super_block_block_dot_loop_body" and fold_model to
+    "super_block_two_level_scale_min" (the q4_K/q5_K two-level `sums += d*aux32`
+    positive fold PLUS the `sumf -= dmin*Σ(mins*bsums)` MIN term). The op does NOT
+    own dtype/route authority; the per-super-block nibble unpack, the 6-bit
+    scale/min bit-dance, the per-sub-block scaled i32 dot, the MIN term, and the
+    deferred fp32 positive fold are separate typed bricks carried inside the
+    region, and the post-loop horizontal fold is a separate post-loop brick.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$n,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    StrAttr:$fold_model,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $activation_base `,` $output `,` $n
+    attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($activation_base) `,` type($output) `,`
+    type($n)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedSuperBlockBlockDotLoopYieldOp
+    : TCRVRVV_Op<"typed_super_block_block_dot_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp">]> {
+  let summary =
+      "terminator naming the DUAL carried-out accumulators (sums vector + sumf "
+      "scalar) of the super-block loop op";
+  let description = [{
+    Terminates the tcrv_rvv.typed_super_block_block_dot_loop_body region by naming
+    BOTH carried-out accumulators: the `sums_next` 8-lane fp32 VECTOR accumulator
+    (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold chain) and the
+    `sumf_next` scalar fp32 accumulator (f32, the MIN-term chain). It makes the
+    DUAL loop-carried dataflow explicit (the two SSA values carried into the next
+    super-block iteration), so the lowering maps each carried-out value to the
+    emitc.assign back into its emitc.variable lvalue with no implicit convention.
+    The first operand is required to be the 8-lane fp32 vector accumulator and the
+    second scalar f32 (a single accumulator, a swapped pair, or a scalar-only
+    yield is rejected fail-closed -- this is exactly the dual-accumulator contrast
+    against the flat single-f32 yield). It carries no compute, dtype, memory, or
+    route semantics.
+  }];
+
+  let arguments = (ins AnyType:$sums_next, AnyType:$sumf_next);
+
+  let assemblyFormat =
+      "$sums_next `,` $sumf_next attr-dict `:` type($sums_next) `,` "
+      "type($sumf_next)";
+  let hasVerifier = 1;
+}
+
 def TypedVectorLane0ToScalarExtractOp :
     TCRVRVV_Op<"typed_vector_lane0_to_scalar_extract",
     [TCRVEmitCLowerableOpInterface]> {

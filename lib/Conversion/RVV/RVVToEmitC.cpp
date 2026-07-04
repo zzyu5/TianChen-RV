@@ -5634,50 +5634,85 @@ namespace {
 // reject the brick BODY (the anti-write trap). This new allowlist walk is additive
 // and never touches rejectMixed, so the 3 single-block strong paths are structurally
 // unchanged.
-llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
-    tcrv::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+// The shared forward-compatible typed-primitive allowlist membership test (the
+// bricks + the vector-core primitives + the scalar-extract bridge + the loop
+// ops/yields + the setvl/with_vl/load/store structural ops). Both the flat
+// single-accumulator loop body and the q4_K/q5_K DUAL-accumulator super-block
+// loop body share ONE union allowlist (the flat validator already unions all
+// four flat folds' primitives regardless of which fold a given body uses; adding
+// the q4_K super-block bricks keeps that union design -- it only ever makes the
+// allowlist MORE permissive, never rejecting an op it used to accept, so the flat
+// paths are structurally unchanged).
+bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
+  return llvm::isa<
+      // brick 1 (per-block fp16 scale product / per-block-source) +
+      // the Family-B (q4_1) per-block MIN/SUM correction product
+      tcrv::rvv::BlockFp16ScaleProductOp, tcrv::rvv::BlockFp16MinProductOp,
+      // vector integer core primitives (q8_0 plain signed widening
+      // product + q4_0 asymmetric offset-binary packed-i4 x i8 product
+      // + q4_1 asymmetric unsigned-nibble packed-i4 x i8 product)
+      tcrv::rvv::WideningProductOp, tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp,
+      tcrv::rvv::UnsignedNibbleXI8ProductOp,
+      // q5_0 five-bit offset-binary packed-i4 (+ qh 5th bit) x i8 product
+      // + its per-block qh 32-bit-field source brick
+      tcrv::rvv::FiveBitOffsetBinaryXI8ProductOp,
+      tcrv::rvv::BlockFiveBitQhSourceOp, tcrv::rvv::StandaloneReduceOp,
+      // step 2 scalar-lane extract bridge (integer core -> scalar fold)
+      tcrv::rvv::TypedVectorLane0ToScalarExtractOp,
+      // brick 2 (per-block computed-scale dequant term)
+      tcrv::rvv::BlockComputedScaleDequantOp,
+      // brick 3 (cross-block f32 loop-carried accumulate)
+      tcrv::rvv::CrossBlockF32AccumulateOp,
+      // W4: the q4_K/q5_K super-block bricks (nibble unpack, 6-bit scale/min
+      // bit-dance, per-sub-block scaled i32 dot, MIN term, deferred positive
+      // fold, post-loop horizontal fold)
+      tcrv::rvv::Q4KNibbleUnpackOp, tcrv::rvv::Q4KScaleMinBitDanceOp,
+      tcrv::rvv::Q4KScaledDotOp, tcrv::rvv::Q4KMinTermOp,
+      tcrv::rvv::Q4KSumsFoldScaleDOp, tcrv::rvv::Q4KHorizontalFoldOp,
+      // structural VL / memory ops
+      tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
+      tcrv::rvv::StoreOp,
+      // the loop ops themselves + their terminators (forward-compatible): the
+      // flat single-accumulator loop op and the q4_K DUAL-accumulator super-block
+      // loop op
+      tcrv::rvv::TypedFlatBlockDotLoopBodyOp,
+      tcrv::rvv::TypedFlatBlockDotLoopYieldOp,
+      tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp,
+      tcrv::rvv::TypedSuperBlockBlockDotLoopYieldOp>(op);
+}
+
+// Shared recursive allowlist walk over a loop-body region: fail-close on any op
+// outside the union allowlist (the strong-form [L-8] gate). `surfaceName` names
+// the loop surface in the diagnostic.
+llvm::LogicalResult validateLoopBodyAllowlist(mlir::Region &body,
+                                              llvm::StringRef surfaceName) {
   mlir::WalkResult walk =
-      loopBody.getBody().walk([](mlir::Operation *op) -> mlir::WalkResult {
-        if (llvm::isa<
-                // brick 1 (per-block fp16 scale product / per-block-source) +
-                // the Family-B (q4_1) per-block MIN/SUM correction product
-                tcrv::rvv::BlockFp16ScaleProductOp,
-                tcrv::rvv::BlockFp16MinProductOp,
-                // vector integer core primitives (q8_0 plain signed widening
-                // product + q4_0 asymmetric offset-binary packed-i4 x i8 product
-                // + q4_1 asymmetric unsigned-nibble packed-i4 x i8 product)
-                tcrv::rvv::WideningProductOp,
-                tcrv::rvv::PackedI4OffsetBinaryXI8ProductOp,
-                tcrv::rvv::UnsignedNibbleXI8ProductOp,
-                // q5_0 five-bit offset-binary packed-i4 (+ qh 5th bit) x i8 product
-                // + its per-block qh 32-bit-field source brick
-                tcrv::rvv::FiveBitOffsetBinaryXI8ProductOp,
-                tcrv::rvv::BlockFiveBitQhSourceOp,
-                tcrv::rvv::StandaloneReduceOp,
-                // step 2 scalar-lane extract bridge (integer core -> scalar fold)
-                tcrv::rvv::TypedVectorLane0ToScalarExtractOp,
-                // brick 2 (per-block computed-scale dequant term)
-                tcrv::rvv::BlockComputedScaleDequantOp,
-                // brick 3 (cross-block f32 loop-carried accumulate)
-                tcrv::rvv::CrossBlockF32AccumulateOp,
-                // structural VL / memory ops
-                tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
-                tcrv::rvv::StoreOp,
-                // the loop op itself + its terminator (forward-compatible)
-                tcrv::rvv::TypedFlatBlockDotLoopBodyOp,
-                tcrv::rvv::TypedFlatBlockDotLoopYieldOp>(op))
+      body.walk([&](mlir::Operation *op) -> mlir::WalkResult {
+        if (isTypedBlockDotLoopBodyAllowlistOp(op))
           return mlir::WalkResult::advance();
         op->emitOpError()
-            << "is not in the M-FLAT typed flat block-dot loop-body allowlist; "
-               "the loop-aware allowlist validator (step 4/6, the strong-form "
-               "[L-8] gate) recursively certifies every op in the loop region is "
-               "a typed pattern-library primitive and fail-closes on any "
-               "non-allowlist op (an opaque emitc.call_opaque or a hand-written "
-               "*_block_dot helper must never leak into the constructed-strong "
-               "body)";
+            << "is not in the M-FLAT typed " << surfaceName
+            << " block-dot loop-body allowlist; the loop-aware allowlist "
+               "validator (the strong-form [L-8] gate) recursively certifies "
+               "every op in the loop region is a typed pattern-library primitive "
+               "and fail-closes on any non-allowlist op (an opaque "
+               "emitc.call_opaque or a hand-written *_block_dot helper must never "
+               "leak into the constructed-strong body)";
         return mlir::WalkResult::interrupt();
       });
   return walk.wasInterrupted() ? mlir::failure() : mlir::success();
+}
+
+llvm::LogicalResult validateTypedFlatBlockDotLoopBodyAllowlist(
+    tcrv::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+  return validateLoopBodyAllowlist(loopBody.getBody(), "flat");
+}
+
+// W4: the q4_K/q5_K DUAL-accumulator super-block loop body's [L-8] allowlist gate
+// -- the SAME recursive strong-form certifier, wired to the super-block loop op.
+llvm::LogicalResult validateTypedSuperBlockBlockDotLoopBodyAllowlist(
+    tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
+  return validateLoopBodyAllowlist(loopBody.getBody(), "super-block");
 }
 
 class RVVLowerToEmitCPass final
@@ -5701,6 +5736,14 @@ public:
     bool allowlistRejected = false;
     module.walk([&](tcrv::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
       if (mlir::failed(validateTypedFlatBlockDotLoopBodyAllowlist(loopBody)))
+        allowlistRejected = true;
+    });
+    // W4: the same strong-form [L-8] gate on the q4_K/q5_K DUAL-accumulator
+    // super-block loop body. The walk only fires on the super-block op_kind, so
+    // the flat + single-block strong paths are untouched (zero regression).
+    module.walk([&](tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
+      if (mlir::failed(
+              validateTypedSuperBlockBlockDotLoopBodyAllowlist(loopBody)))
         allowlistRejected = true;
     });
     if (allowlistRejected) {

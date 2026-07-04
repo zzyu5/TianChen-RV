@@ -9680,6 +9680,162 @@ mlir::LogicalResult TypedFlatBlockDotLoopYieldOp::verify() {
   return mlir::success();
 }
 
+// The q4_K/q5_K super-block loop op carries a DUAL accumulator: an 8-lane fp32
+// VECTOR (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold `sums` chain)
+// and a scalar f32 (the `sumf` MIN-term chain). The predicate pins that exact
+// vector accumulator type.
+static bool isF32M2VectorAccumulator(mlir::Type type) {
+  auto vector = llvm::dyn_cast<VectorType>(type);
+  return vector && vector.getElementType().isF32() &&
+         vector.getLmul() == getRVVLMULM2();
+}
+
+mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded surface (I7 fail-closed): the super-block loop op owns the q4_K/q5_K
+  // two-level scale/min fold tree; any other kind/fold_model spelling is rejected
+  // fail-closed.
+  if (getKind() != "typed_super_block_block_dot_loop_body")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"typed_super_block_block_dot_loop_body\" for the bounded q4_K/q5_K "
+              "super-block block dot-product nb loop surface";
+  // W2: the bounded fold_model set gains super_block_two_level_scale_min -- the
+  // q4_K/q5_K two-level fold (`sums += d*(float)aux32` positive fold PLUS
+  // `sumf -= dmin*Σ(mins*bsums)` MIN term). Any other spelling is rejected
+  // fail-closed (I7); a missing/empty fold_model cannot reach this branch (the
+  // StrAttr is required by ODS).
+  if (getFoldModel() != "super_block_two_level_scale_min")
+    return emitOpError()
+           << "currently supports only fold_model "
+              "\"super_block_two_level_scale_min\" (the q4_K/q5_K two-level "
+              "`sums += d*(float)aux32` positive fold PLUS the "
+              "`sumf -= dmin*Σ(mins*bsums)` MIN term); the other super-block fold "
+              "trees are later steps";
+
+  // Externally-defined ggml super-block facts: QK_K and the AoS super-block
+  // strides are positive byte counts the per-super-block address arithmetic
+  // depends on.
+  if (getQk() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK_K super-block element count)";
+  if (getWeightBlockStride() <= 0)
+    return emitOpError()
+           << "requires weight_block_stride > 0 (the AoS weight super-block "
+              "stride)";
+  if (getActivationBlockStride() <= 0)
+    return emitOpError()
+           << "requires activation_block_stride > 0 (the AoS activation "
+              "super-block stride)";
+
+  // Bounded scheduling knob, mirroring the q4_K scaled-dot brick surface: the
+  // integer-MAC widening-chain base LMUL {"mf2","m1","m2"} (the *how*, never the
+  // *what*). Any other spelling is rejected fail-closed (I7).
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "mf2" && *coreLmul != "m1" && *coreLmul != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\", \"m1\", or \"m2\" (the "
+                "q4_K/q5_K Region-C integer-MAC widening-chain base LMUL); got \""
+             << *coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one output pointer, and one runtime element-count runtime ABI "
+              "operand, and no results (the scalar store is the sink)";
+
+  // The three buffer operands + element count are runtime ABI values whose C
+  // types pin the ggml ABI byte layout the emission depends on (mirroring the
+  // flat loop op and the monolithic q4_K block-dot ops).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q4_K byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // Region structure: exactly THREE entry arguments -- the super_block_index
+  // induction variable (index), the loop-carried `sums` 8-lane fp32 vector
+  // accumulator, and the loop-carried `sumf` scalar f32 accumulator -- terminated
+  // by the typed super-block loop yield naming BOTH carried-out accumulators. A
+  // single accumulator / wrong arg count is rejected fail-closed (this is the
+  // dual-accumulator contrast against the flat single-f32 loop op).
+  mlir::Block &block = getBody().front();
+  if (block.getNumArguments() != 3)
+    return emitOpError()
+           << "requires the region to carry exactly three entry arguments: the "
+              "super_block_index induction variable, the loop-carried `sums` "
+              "8-lane fp32 vector accumulator, and the loop-carried `sumf` "
+              "scalar f32 accumulator (the DUAL accumulator; a single-accumulator "
+              "region is rejected)";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the first region argument (super_block_index) to be "
+              "index-typed (the nb super-block induction variable)";
+  if (!isF32M2VectorAccumulator(block.getArgument(1).getType()))
+    return emitOpError()
+           << "requires the second region argument (the loop-carried `sums` "
+              "accumulator) to be an 8-lane fp32 vector "
+              "(!tcrv_rvv.vector<f32, \"m2\">)";
+  if (!block.getArgument(2).getType().isF32())
+    return emitOpError()
+           << "requires the third region argument (the loop-carried `sumf` "
+              "accumulator) to be scalar f32";
+
+  TypedSuperBlockBlockDotLoopYieldOp yield =
+      block.empty()
+          ? TypedSuperBlockBlockDotLoopYieldOp()
+          : llvm::dyn_cast<TypedSuperBlockBlockDotLoopYieldOp>(&block.back());
+  if (!yield)
+    return emitOpError()
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_super_block_block_dot_loop_yield (the DUAL "
+              "carried-out `sums` vector + `sumf` scalar accumulators)";
+  if (!isF32M2VectorAccumulator(yield.getSumsNext().getType()))
+    return emitOpError()
+           << "requires the loop yield to carry an 8-lane fp32 vector `sums` "
+              "accumulator (!tcrv_rvv.vector<f32, \"m2\">) as its first operand";
+  if (!yield.getSumfNext().getType().isF32())
+    return emitOpError()
+           << "requires the loop yield to carry a scalar f32 `sumf` accumulator "
+              "as its second operand";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedSuperBlockBlockDotLoopYieldOp::verify() {
+  // Fail-closed (I7) on a swapped/degenerate DUAL yield: the first operand is the
+  // 8-lane fp32 vector `sums` chain, the second the scalar f32 `sumf` chain (the
+  // dual-accumulator contrast against the flat single-f32 yield).
+  if (!isF32M2VectorAccumulator(getSumsNext().getType()))
+    return emitOpError()
+           << "requires the first carried-out accumulator to be an 8-lane fp32 "
+              "vector `sums` accumulator (!tcrv_rvv.vector<f32, \"m2\">)";
+  if (!getSumfNext().getType().isF32())
+    return emitOpError()
+           << "requires the second carried-out accumulator to be scalar f32 "
+              "(the block-carried `sumf` MIN-term accumulator domain)";
+  return mlir::success();
+}
+
 mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
   mlir::Operation *op = getOperation();
 
