@@ -179,7 +179,7 @@ module {
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } : index -> !tcrv_rvv.vl
-    // expected-error@+1 {{must be nested directly in a tcrv_rvv.with_vl body}}
+    // expected-error@+1 {{must be nested within a tcrv_rvv.with_vl body}}
     %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
   }
 }

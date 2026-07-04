@@ -10340,6 +10340,38 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
              << "only accepts integer_core_lmul \"m1\", \"m2\", or \"mf4\"; got "
                 "\""
              << *coreLmul << "\"";
+    // Anti-lie fail-closed (I7): the lowering derives the integer-core LMUL from
+    // the region's per-block vector loads (the widening/packed product op硬钉s
+    // that LMUL via its product_relation), NOT from this attr. So an
+    // integer_core_lmul that disagrees with the width the region can actually
+    // express would be SILENTLY ignored -- emit ships the region's LMUL core
+    // while the attr claims another width (lying IR). Require the attr to match
+    // every region integer-core load LMUL, so an unhonorable width fails verify
+    // here instead of emitting a mismatched core. This subsumes the format-
+    // specific monolith constraints: q4_0's region is硬钉ed i8m1 by
+    // "offset-binary-i4m1-x-i8m1x2-to-i16m2", so it rejects m2/mf4 (the
+    // "elided-only-at-m1" q4_0 legality); q8_0's region is硬钉ed i8m2, so it
+    // keeps the m2 default. The check is skipped on a load-less skeleton region
+    // (nothing to express yet; the emit gates those closed downstream).
+    LoadOp mismatchedLoad;
+    getBody().walk([&](LoadOp load) {
+      if (mismatchedLoad)
+        return;
+      if (auto vecTy =
+              llvm::dyn_cast<VectorType>(load.getLoaded().getType())) {
+        if (vecTy.getLmul() != *coreLmul)
+          mismatchedLoad = load;
+      }
+    });
+    if (mismatchedLoad)
+      return emitOpError()
+             << "integer_core_lmul \"" << *coreLmul
+             << "\" does not match the region integer-core load LMUL \""
+             << llvm::cast<VectorType>(mismatchedLoad.getLoaded().getType())
+                    .getLmul()
+             << "\"; the lowering derives the core LMUL from the region loads, "
+                "so a divergent integer_core_lmul would be silently ignored and "
+                "emit the region width (attribute-derived-emission lie)";
   }
   int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
   if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
