@@ -1694,12 +1694,15 @@ findMonolithicBlockDotOpEntryByKind(llvm::StringRef kind) {
 // the SAME shared q8_0 Flat monolithic plan (same route id / kind / 8-role ABI),
 // so it resolves to the existing q8_0 Flat table entry -- no new registry kind.
 //
-// EXCEPTION (q4_1 Family-B, q5_0 five-bit): these typed loops carry the 4-role
-// n/s/vx/vy ggml vec_dot ABI (NOT q8_0/q4_0's 8-role strided ABI), so each exports
-// through its OWN Flat entry (the export ABI-arity gate rejects the 8-role q8_0
-// entry against the 4-role parameter list). They are distinguished from the
-// q8_0/q4_0 default by their fold_model (q4_1 scale_plus_min, q5_0
-// scales_times_sumi); the q8_0/q4_0 default path is byte-unchanged.
+// EXCEPTION (q4_1 Family-B, q5_0/q5_1 five-bit): these typed loops carry the
+// 4-role n/s/vx/vy ggml vec_dot ABI (NOT q8_0/q4_0's 8-role strided ABI), so each
+// exports through its OWN Flat entry (the export ABI-arity gate rejects the 8-role
+// q8_0 entry against the 4-role parameter list). They are distinguished from the
+// q8_0/q4_0 default by their fold_model (q4_1/q5_1 scale_plus_min, q5_0
+// scales_times_sumi); the q8_0/q4_0 default path is byte-unchanged. The
+// scale_plus_min fold_model is a COLLISION -- q4_1 AND q5_1 both stamp it -- so it
+// is no longer a unique key: a five-bit qh-source brick in the loop body breaks
+// the tie to q5_1 (its OWN Flat entry / facts / route id), else q4_1.
 inline const MonolithicBlockDotOpEntry *
 resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
   if (!op)
@@ -1709,9 +1712,14 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
     auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
+    // scale_plus_min tiebreaker: a five-bit qh-source brick => q5_1, else q4_1.
+    bool hasFiveBitQh = false;
+    op->walk([&](tcrv::rvv::BlockFiveBitQhSourceOp) { hasFiveBitQh = true; });
     llvm::StringRef targetOpName =
         (foldModel && foldModel.getValue() == "scale_plus_min")
-            ? tcrv::rvv::GgmlBlockDotQ41Q81Op::getOperationName()
+            ? (hasFiveBitQh
+                   ? tcrv::rvv::GgmlBlockDotQ51Q81Op::getOperationName()
+                   : tcrv::rvv::GgmlBlockDotQ41Q81Op::getOperationName())
             : (foldModel && foldModel.getValue() == "scales_times_sumi")
                   ? tcrv::rvv::GgmlBlockDotQ50Q80Op::getOperationName()
                   : tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName();

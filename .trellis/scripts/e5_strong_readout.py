@@ -154,9 +154,21 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
     },
-    # Negative control (rotated in when q5_0 flipped strong): a weak descriptor-selected
-    # block-dot. iq4_nl is NOT in the front door's typedFlatLoopPath gate (only
-    # q8_0/q4_0/q4_1/q5_0), so its front door auto-constructs the MONOLITHIC
+    # q5_1 vec_dot: STRONG (cohort 5/5, LAST). Same typed flat block-dot LOOP body via the
+    # front-door gate; decomposed integer core = q5_1's five-bit offset-binary dot
+    # (five_bit_offset_binary_x_i8_product, bias-off) + qh 5th-bit source
+    # (block_five_bit_qh_source) + the min term (block_fp16_min_product), ScalePlusMin fold.
+    # NO opaque emitFlatBlockDot hand helper, so [L-8] derives constructed (STRONG).
+    {
+        "op": "vec_dot", "format": "q5_1", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q5-1-q8-1-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q5-1-q8-1-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body)",
+    },
+    # Negative control (weak descriptor-selected block-dot). iq4_nl is NOT in the front
+    # door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1 now), so its front door
+    # auto-constructs the MONOLITHIC
     # tcrv_rvv.iq4_nl_q8_0_block_dot op (kind "ggml_iq4_nl_q8_0_block_dot"), which
     # is_opaque_hand_helper matches -> [L-8] derives NOT-strong (constructed-weak). This
     # keeps the check proven discriminating (not vacuously true) now that q5_0 is strong.

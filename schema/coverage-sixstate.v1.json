@@ -43,9 +43,10 @@
     {
       "op": "vec_dot",
       "format": "q5_1",
-      "state": "constructed-weak",
-      "auto_readout": "pending-E5",
-      "anchor": "RVVToEmitCBlockQuantLinear.cpp emitFlatBlockDot (descriptor-selected hand helper)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_flat_block_dot_loop_body+block_fp16_scale_product+block_fp16_min_product+block_five_bit_qh_source+load+load+load+five_bit_offset_binary_x_i8_product+standalone_reduce+typed_vector_lane0_to_scalar_extract+block_computed_scale_dequant+cross_block_f32_accumulate+typed_flat_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed flat block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (q5_1 branch in typedFlatLoopPath gate; front door constructs tcrv_rvv.typed_flat_block_dot_loop_body) -> emitTypedFlatBlockDotLoopBody (typed lowering); realized body is decomposed load+five_bit_offset_binary_x_i8_product (bias-off, fed by a per-block block_five_bit_qh_source 5th-bit brick)+block_fp16_min_product (min term)+standalone_reduce with a per-block fp16 scale dequant, ScalePlusMin fold, NO opaque *_block_dot hand helper",
+      "note": "byte-identical-to-monolith emit: q5_1 flat block-dot now constructed from typed pattern-library primitives (five-bit offset-binary dot decomposed body + per-block qh 5th-bit source brick + fp16 min-product brick), not the opaque emitFlatBlockDot hand helper. Coverage/representation maturity, NOT a numerical/perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",
