@@ -1410,6 +1410,23 @@ inline constexpr MonolithicBlockDotI64Attr kMXFP4Facts[] = {{"qk", 32}, {"weight
 inline constexpr MonolithicBlockDotI64Attr kNVFP4Facts[] = {{"qk", 64}, {"qk_sub", 16}, {"weight_block_stride", 36}, {"activation_block_stride", 34}, {"weight_quant_byte_offset", 4}, {"activation_quant_byte_offset", 2}, {"activation_high_byte_offset", 8}};
 inline constexpr MonolithicBlockDotI64Attr kQ10Facts[] = {{"qk", 128}, {"weight_block_stride", 18}, {"activation_block_stride", 34}, {"activation_blocks_per_weight", 4}, {"weight_quant_byte_offset", 2}, {"activation_quant_byte_offset", 2}};
 
+// Schema-native binding for the generic typed flat block-dot LOOP body op
+// (tcrv_rvv.typed_flat_block_dot_loop_body). That op is NOT a monolith op, so it
+// has no op-name to look up in the table -- it carries its export identity in its
+// OWN schema-native attributes (the fold_model fact + whether its region sources
+// a five-bit qh plane). Each folded flat variant declares here the predicate that
+// binds a loop body to its export entry, so the typed path resolves WITHOUT any
+// monolith op-name lookback. `None` (default) = the entry is not reachable via
+// the typed loop path (it is matched only by its own op-name for the compound
+// monolith single-op body).
+enum class TypedFlatBlockDotLoopSelector {
+  None = 0,               // not a typed-loop export target
+  Q8Default,              // q8_0/q4_0 8-role default: fold_model neither folded key
+  ScalePlusMin,           // q4_1: fold_model == "scale_plus_min", no five-bit qh
+  ScalePlusMinFiveBitQh,  // q5_1: fold_model == "scale_plus_min" + five-bit qh
+  ScalesTimesSumi,        // q5_0: fold_model == "scales_times_sumi"
+};
+
 // The per-op family table (the "small per-op table"): every monolithic block-dot
 // op that is production-reachable (front door + brick witness + byte-exact CORE
 // emit). Its route family selects the route id; its kind keys the target-side ABI
@@ -1439,6 +1456,9 @@ struct MonolithicBlockDotOpEntry {
   llvm::ArrayRef<std::int64_t> gridI64;  // DenseI64 grid attr ({} = none)
   llvm::ArrayRef<std::int32_t> gridI32;  // DenseI32 grid attr ({} = none)
   llvm::ArrayRef<std::int32_t> ksigns;   // DenseI32 ksigns attr ({} = none)
+  // Schema-native typed flat block-dot LOOP body binding (None for entries only
+  // reached by the compound monolith op-name; see TypedFlatBlockDotLoopSelector).
+  TypedFlatBlockDotLoopSelector typedFlatLoopSelector;
 };
 
 inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
@@ -1595,7 +1615,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q8_0_q8_0_block_dot", "rvv_q8_0_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q8_0 x Q8_0 block-dot source front door failed: ", "q8-lhs", "q8-rhs",
-       "", kQ80Facts, {}, {}, {}, {}},
+       "", kQ80Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::Q8Default},
       {tcrv::rvv::GgmlBlockDotIQ4NLQ80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_iq4_nl_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_nl_q8_0_block_dot_source",
@@ -1613,7 +1633,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q4_1_q8_1_block_dot", "rvv_q4_1_q8_1_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y-plus-min",
        "ggml Q4_1 x Q8_1 block-dot source front door failed: ", "q4-weight", "q8-act",
-       "", kQ41Facts, {}, {}, {}, {}},
+       "", kQ41Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMin},
       {tcrv::rvv::GgmlBlockDotQ50Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q5_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_0_q8_0_block_dot_source",
@@ -1622,7 +1642,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q5_0_q8_0_block_dot", "rvv_q5_0_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q5_0 x Q8_0 block-dot source front door failed: ", "q5-weight", "q8-act",
-       "", kQ50Facts, {}, {}, {}, {}},
+       "", kQ50Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalesTimesSumi},
       {tcrv::rvv::GgmlBlockDotQ51Q81Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q5_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_1_q8_1_block_dot_source",
@@ -1631,7 +1651,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q5_1_q8_1_block_dot", "rvv_q5_1_q8_1_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y-plus-min",
        "ggml Q5_1 x Q8_1 block-dot source front door failed: ", "q5-weight", "q8-act",
-       "", kQ51Facts, {}, {}, {}, {}},
+       "", kQ51Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh},
       {tcrv::rvv::GgmlBlockDotMXFP4Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_mxfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_mxfp4_q8_0_block_dot_source",
@@ -1711,20 +1731,24 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     return entry;
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
+    // Derive the SCHEMA-NATIVE selector from the loop body's OWN attributes (the
+    // fold_model fact + a five-bit qh-source brick) -- no monolith op-name is
+    // consulted. scale_plus_min tiebreaker: a five-bit qh-source brick => q5_1,
+    // else q4_1. This resolves the export entry by its typedFlatLoopSelector, so
+    // the typed path no longer depends on any GgmlBlockDotQ*Op existing.
     auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
-    // scale_plus_min tiebreaker: a five-bit qh-source brick => q5_1, else q4_1.
     bool hasFiveBitQh = false;
     op->walk([&](tcrv::rvv::BlockFiveBitQhSourceOp) { hasFiveBitQh = true; });
-    llvm::StringRef targetOpName =
+    TypedFlatBlockDotLoopSelector selector =
         (foldModel && foldModel.getValue() == "scale_plus_min")
             ? (hasFiveBitQh
-                   ? tcrv::rvv::GgmlBlockDotQ51Q81Op::getOperationName()
-                   : tcrv::rvv::GgmlBlockDotQ41Q81Op::getOperationName())
+                   ? TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh
+                   : TypedFlatBlockDotLoopSelector::ScalePlusMin)
             : (foldModel && foldModel.getValue() == "scales_times_sumi")
-                  ? tcrv::rvv::GgmlBlockDotQ50Q80Op::getOperationName()
-                  : tcrv::rvv::GgmlBlockDotQ80Q80Op::getOperationName();
+                  ? TypedFlatBlockDotLoopSelector::ScalesTimesSumi
+                  : TypedFlatBlockDotLoopSelector::Q8Default;
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
-      if (entry.opName == targetOpName)
+      if (entry.typedFlatLoopSelector == selector)
         return &entry;
   }
   return nullptr;
