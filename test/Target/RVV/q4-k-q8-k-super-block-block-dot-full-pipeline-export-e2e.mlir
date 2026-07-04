@@ -36,9 +36,11 @@
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same
 // tryConvertModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
-// direct --tcrv-rvv-lower-to-emitc path uses; CORE emit md5 799aade2), so the
-// exported artifact's emit is byte-identical to chunk-1's CORE == emission-plans
-// emit. The exported function symbol is the kernel+variant handoff name. NO perf
+// direct --tcrv-rvv-lower-to-emitc path uses), so the exported artifact's emit is
+// byte-identical to the CORE == emission-plans emit. The typed super-block loop
+// body's executable C is byte-identical to the retired monolith's (modulo the
+// source-op provenance comment token; the exported object, comments stripped, is
+// byte-identical). The exported function symbol is the kernel+variant handoff name. NO perf
 // claim -- this is coverage/wiring maturity (q4_K is NOT in any schedule
 // autotuner; the op lowers at the emitter's default mf2 integer-core anchor).
 //
@@ -71,7 +73,12 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the monolithic route id + object artifact kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
-// PLAN: tcrv_rvv.q4_k_q8_k_block_dot
+// The q4_K front door's body is the typed SUPER-BLOCK block-dot LOOP body op
+// (M-FLAT milestone-3); it exports through the SAME shared super-block monolithic
+// plan (route id / object kind) as the compound q4_K block-dot op it replaced, but
+// carries q4_K's op-derived kind metadata resolved from its SuperBlockTwoLevelScaleMin
+// entry (NOT an opaque tcrv_rvv.q4_k_q8_k_block_dot op).
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The honest monolithic-body route id (NOT the decomposed generic-typed-body

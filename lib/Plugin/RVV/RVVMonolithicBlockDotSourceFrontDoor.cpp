@@ -785,6 +785,175 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   createTypedFlatBlockDotLoopYield(builder, loc, accNext);
 }
 
+// ---------------------------------------------------------------------------
+// Typed SUPER-BLOCK block-dot loop-body construction (M-FLAT q4_K milestone-3).
+//
+// The super-block sibling of createTypedFlatBlockDotLoopChain: it assembles the
+// q4_K/q5_K OUTER nb = n/QK_K loop as ONE region-carrying
+// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a DUAL accumulator
+// (the `sums` 8-lane fp32 vector + the `sumf` scalar fp32), with the 5 in-loop
+// q4_K bricks (nibble_unpack -> scale_min_bit_dance -> scaled_dot -> min_term ->
+// sums_fold_scale_d) + the dual yield inside the region, replacing the ONE
+// monolith tcrv_rvv.q4_k_q8_k_block_dot op. Every brick's per-super-block
+// addressing keys off the loop induction variable (region arg 0), so the emit is
+// operand-driven (anti-bypass): a changed brick base operand emits a different
+// base, and a dropped block_index fails to legalize.
+//
+// The bricks' aux8/scales/aux32 SCRATCH operands are function-scoped scratch the
+// super-block loop emitter DECLARES itself (int8_t aux8[256] / uint32_t utmp[4] /
+// int32_t aux32[8]); it never reads these operand slots in the loop form (it walks
+// only the LIVE weight/activation/q8 bases + block_index). So the front door wires
+// the vestigial scratch slots to the existing weight ABI base (%vx) rather than
+// minting placeholder runtime_abi_values -- keeping the exported ggml vec_dot C
+// signature the exact 4-role n/s/vx/vy list (byte-identical to the monolith),
+// eliminating milestone-2's 3 dead scratch parameters. The brick verifiers relax
+// their aux8/aux32 C-type check in the loop form (block_index present) since the
+// scratch is emitter-owned there. The integer-core LMUL is left at the emitter
+// default (mf2, no integer_core_lmul stamp on the loop op or the scaled-dot brick),
+// so the untuned construction lowers byte-identically to the untuned monolith.
+void createTypedSuperBlockBlockDotLoopChain(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed super-block chain: missing block-format fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 256 (QK_K)
+  std::int64_t subBlock = factByName("sub_block");             //  32
+  std::int64_t weightStride = factByName("weight_block_stride");        // 144
+  std::int64_t activationStride = factByName("activation_block_stride"); // 292
+  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");    //  16
+  std::int64_t weightScalesOffset =
+      factByName("weight_scales_byte_offset");                 //   4
+  std::int64_t weightDminOffset = factByName("weight_dmin_byte_offset"); //  2
+  std::int64_t weightDOffset = factByName("weight_d_byte_offset");      //   0
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");              //   4
+  std::int64_t bsumsOffset = factByName("activation_bsums_byte_offset"); // 260
+  std::int64_t numSubBlocks = qk / subBlock;                   //   8
+
+  mlir::MLIRContext *ctx = builder.getContext();
+  mlir::Type i32VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+  mlir::Type f32M2VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute(
+      "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  loopState.addAttribute(
+      "fold_model", builder.getStringAttr("super_block_two_level_scale_min"));
+  // integer_core_lmul is LEFT OFF (emitter default mf2) -- byte-identical to the
+  // untuned monolith export.
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value sbIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value sums = body.addArgument(f32M2VecType, loc);
+  mlir::Value sumf = body.addArgument(builder.getF32Type(), loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK 1: plain 4-bit nibble unpack -> aux8[256] scratch (Region A). Weight base
+  // + block_index (per-super-block address vx + ib*144).
+  {
+    mlir::OperationState s(loc, tcrvrvv::Q4KNibbleUnpackOp::getOperationName());
+    s.addOperands({weight, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_nibble_unpack"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("weight_qs_byte_offset",
+                   builder.getI64IntegerAttr(weightQsOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // BRICK 2: 6-bit scale/min bit-dance -> utmp[4] scratch (Region B).
+  {
+    mlir::OperationState s(loc,
+                           tcrvrvv::Q4KScaleMinBitDanceOp::getOperationName());
+    s.addOperands({weight, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_scale_min_bit_dance"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("weight_scales_byte_offset",
+                   builder.getI64IntegerAttr(weightScalesOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // BRICK 3: per-sub-block uint6-scaled i32 dot + fold-back (Region C). The LIVE
+  // operand is the q8 activation base (%vy); the aux8/scales scratch slots are
+  // vestigial (emitter-owned), so they are wired to the weight base (%vx). q8 lives
+  // at yb + activation_quant_byte_offset (4).
+  {
+    mlir::OperationState s(loc, tcrvrvv::Q4KScaledDotOp::getOperationName());
+    s.addOperands({weight, weight, activation, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_scaled_dot"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    // integer_core_lmul LEFT OFF => emitter default mf2 (untuned monolith parity).
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // BRICK 4: MIN term (sumf -= dmin * sum(mins * bsums)) -- the SCALAR sumf chain.
+  // The scales scratch slot is vestigial -> wired to the weight base (%vx).
+  {
+    mlir::OperationState s(loc, tcrvrvv::Q4KMinTermOp::getOperationName());
+    s.addOperands({weight, weight, activation, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_min_term"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("num_sub_blocks", builder.getI64IntegerAttr(numSubBlocks));
+    s.addAttribute("bsums_byte_offset", builder.getI64IntegerAttr(bsumsOffset));
+    s.addAttribute("weight_dmin_byte_offset",
+                   builder.getI64IntegerAttr(weightDminOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // BRICK 6: deferred positive fold (sums += d * (float)aux32) -- the 8-lane fp32
+  // sums VECTOR chain. The aux32 scratch slot is vestigial -> wired to %vx.
+  {
+    mlir::OperationState s(loc,
+                           tcrvrvv::Q4KSumsFoldScaleDOp::getOperationName());
+    s.addOperands({weight, weight, activation, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_sums_fold_scale_d"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("num_sub_blocks", builder.getI64IntegerAttr(numSubBlocks));
+    s.addAttribute("weight_d_byte_offset",
+                   builder.getI64IntegerAttr(weightDOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // The DUAL carried-out accumulators (sums vector + sumf scalar).
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+    s.addOperands({sums, sumf});
+    (void)builder.create(s);
+  }
+}
+
 // The ggml block dot-product op for this row: the bounded WHAT (kind, scale model,
 // block-format i64 facts, and any codebook/grid/ksigns DATA) is stamped from the
 // table row. Shape knobs are NOT stamped (the op lowers at the emitter default,
@@ -1092,6 +1261,17 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat ||
                                  isQ41TypedFlat || isQ50TypedFlat ||
                                  isQ51TypedFlat;
+  // GATED typed SUPER-BLOCK path (M-FLAT q4_K milestone-3): q4_K's front door
+  // constructs the COMPLETE per-super-block TYPED DUAL-accumulator loop chain
+  // (typed_super_block_block_dot_loop_body region) instead of the ONE monolith
+  // tcrv_rvv.q4_k_q8_k_block_dot op. Unlike the flat typed path, the super-block
+  // integer core runs at the shared SEW32/m1 config (the SAME setvl/with_vl the
+  // monolith used -- the per-sub-block e8/i16/i32 widening lives INSIDE the bricks),
+  // so configSEW/configLMUL are UNCHANGED from the monolith path (32/"m1"), and
+  // there is NO zero_seed (the dual accumulators are seeded internally by the
+  // lowering). Every other (monolith) row stays byte-unchanged.
+  const bool isQ4KTypedSuperBlock =
+      entry.opName == tcrvrvv::GgmlBlockDotQ4KQ8KOp::getOperationName();
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
@@ -1156,6 +1336,11 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     createTypedFlatBlockDotLoopChain(builder, loc, entry, weight, activation,
                                      out, n, setvl.getVl(), zeroSeed,
                                      typedFlatLmul);
+  } else if (isQ4KTypedSuperBlock) {
+    // The auto-constructed typed SUPER-BLOCK dual-accumulator loop chain (the 5
+    // q4_K bricks + the dual yield are op structure inside the region).
+    createTypedSuperBlockBlockDotLoopChain(builder, loc, entry, weight,
+                                           activation, out, n, setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).

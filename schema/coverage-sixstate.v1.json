@@ -77,8 +77,10 @@
     {
       "op": "vec_dot",
       "format": "q4_K",
-      "state": "dispatch-wired",
-      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_super_block_block_dot_loop_body+q4_k_nibble_unpack+q4_k_scale_min_bit_dance+q4_k_scaled_dot+q4_k_min_term+q4_k_sums_fold_scale_d+typed_super_block_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed super-block block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockBlockDotLoopChain (front door constructs tcrv_rvv.typed_super_block_block_dot_loop_body) -> RVVToEmitCKQuant.cpp emitTypedSuperBlockBlockDotLoopBody (typed super-block DUAL-accumulator lowering); realized body is the 5 decomposed q4_K bricks (nibble_unpack+scale_min_bit_dance+scaled_dot+min_term+sums_fold_scale_d), the fused per-sub-block q4_k_scaled_dot integer-MAC carries the contraction+reduction, NO opaque *_block_dot hand helper",
+      "note": "byte-identical-to-monolith emit (modulo the source-op provenance token; the executable C / exported object is byte-identical): the q4_K super-block block-dot is now constructed from typed pattern-library primitives (the 5 q4_K bricks + the DUAL sums/sumf accumulator), not the opaque emitQ4_KQ8_KBlockDot hand helper. FIRST K-quant super-block flipped weak/dispatch-wired -> constructed. This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",

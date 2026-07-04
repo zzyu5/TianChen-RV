@@ -490,8 +490,15 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
   // the kind target-side during export).
   llvm::StringRef kindValue;
   llvm::StringRef scaleModelValue;
-  if (blockDot->getName().getStringRef() ==
-      tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
+  llvm::StringRef bodyName = blockDot->getName().getStringRef();
+  if (bodyName == tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName() ||
+      bodyName ==
+          tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
+    // The generic typed flat/super-block loop bodies carry the generic loop kind
+    // ("typed_*_block_dot_loop_body") and NO scale_model attr; their export
+    // identity is the resolved shared Flat/SuperBlock entry, so kind/scale_model
+    // come from the entry (this also lets findMonolithicBlockDotOpEntryByKind
+    // resolve the kind target-side during export).
     kindValue = entry->kind;
     scaleModelValue = entry->scaleModel;
   } else {

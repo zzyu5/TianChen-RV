@@ -401,8 +401,6 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_KHorizontalFold},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
-        {&isQ4_KQ8_KBlockDotBody,
-         &VariantToEmitCFunc::emitQ4_KQ8_KBlockDot},
         {&isQ5_KQ8_KBlockDotBody,
          &VariantToEmitCFunc::emitQ5_KQ8_KBlockDot},
         {&isQ2_KQ8_KBlockDotBody,
@@ -1572,20 +1570,6 @@ bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlBlockDotQ4KQ8KAux32Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
-bool VariantToEmitCFunc::isQ4_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ4KQ8KOp>(op)) {
         if (sawBlockDot)
           return false;
         sawBlockDot = true;

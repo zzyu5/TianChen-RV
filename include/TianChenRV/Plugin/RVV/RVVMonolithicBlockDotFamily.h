@@ -1425,6 +1425,12 @@ enum class TypedFlatBlockDotLoopSelector {
   ScalePlusMin,           // q4_1: fold_model == "scale_plus_min", no five-bit qh
   ScalePlusMinFiveBitQh,  // q5_1: fold_model == "scale_plus_min" + five-bit qh
   ScalesTimesSumi,        // q5_0: fold_model == "scales_times_sumi"
+  // q4_K: the typed SUPER-BLOCK dual-accumulator loop body
+  // (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
+  // "super_block_two_level_scale_min"). Reuses this selector field for the
+  // super-block route: q4_K is the first (and, so far, only) super-block flipped
+  // to a typed loop body, so a super-block loop body resolves to this entry.
+  SuperBlockTwoLevelScaleMin,
 };
 
 // The per-op family table (the "small per-op table"): every monolithic block-dot
@@ -1471,7 +1477,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q4_K_q8_K_block_dot", "rvv_q4_K_q8_K_block_dot_from_vector_source",
        "per-sub-block-uint6-scale-i32-domain-deferred-fp32-fold-min",
        "ggml Q4_K x Q8_K super-block block-dot source front door failed: ", "q4-weight", "q8-act",
-       "", kQ4KFacts, {}, {}, {}, {}},
+       "", kQ4KFacts, {}, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
       {tcrv::rvv::GgmlBlockDotIQ4XSQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_xs_q8_K_block_dot_source",
@@ -1729,6 +1736,20 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     return nullptr;
   if (const MonolithicBlockDotOpEntry *entry = findMonolithicBlockDotOpEntry(op))
     return entry;
+  if (op->getName().getStringRef() ==
+      tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
+    // The typed SUPER-BLOCK loop body (M-FLAT q4_K milestone-3) carries the
+    // generic loop kind + fold_model "super_block_two_level_scale_min"; only
+    // q4_K's super-block route is flipped to this typed body so far, so it
+    // resolves to the SuperBlockTwoLevelScaleMin entry by its selector -- the
+    // typed super-block path no longer depends on GgmlBlockDotQ4KQ8KOp existing.
+    // (Future super-block flips sharing this fold disambiguate by weight stride.)
+    for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
+      if (entry.typedFlatLoopSelector ==
+          TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin)
+        return &entry;
+    return nullptr;
+  }
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
     // Derive the SCHEMA-NATIVE selector from the loop body's OWN attributes (the

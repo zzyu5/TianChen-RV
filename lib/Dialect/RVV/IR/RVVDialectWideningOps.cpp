@@ -5014,7 +5014,17 @@ mlir::LogicalResult Q4KScaledDotOp::verify() {
   // q4_K core's activation base uses; the dot casts it to const int8_t *).
   RuntimeABIValueOp aux8Binding =
       getAux8Base().getDefiningOp<RuntimeABIValueOp>();
-  if (!aux8Binding || aux8Binding.getCType() != "const int8_t *")
+  // In the loop form (block_index present -- nested in a
+  // typed_super_block_block_dot_loop_body) the int8_t aux8[256] scratch is a
+  // function-scoped variable the super-block loop emitter DECLARES itself, and it
+  // never reads this operand slot; the slot is vestigial (the front door wires it
+  // to the weight base to keep the exported ggml C signature the exact 4-role
+  // list), so only its binding-to-a-runtime-ABI-value is required. The standalone
+  // single-super-block form still pins the exact 'const int8_t *' scratch type.
+  if (!aux8Binding)
+    return emitOpError()
+           << "requires the aux8 base operand to bind a runtime ABI value";
+  if (!hasBlockIndex && aux8Binding.getCType() != "const int8_t *")
     return emitOpError()
            << "requires the aux8 base operand to bind a runtime ABI value of C "
               "type 'const int8_t *' (the BRICK 1 unpacked aux8[256] scratch)";
@@ -5255,7 +5265,16 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
               "lives at byte offset 0)";
   RuntimeABIValueOp aux32Binding =
       getAux32Base().getDefiningOp<RuntimeABIValueOp>();
-  if (!aux32Binding || aux32Binding.getCType() != "const int32_t *")
+  // In the loop form (block_index present) the int32_t aux32[8] scratch is a
+  // function-scoped variable the super-block loop emitter DECLARES itself, and it
+  // never reads this operand slot; the slot is vestigial (the front door wires it
+  // to the weight base to keep the exported ggml C signature the exact 4-role
+  // list), so only its binding-to-a-runtime-ABI-value is required. The standalone
+  // single-super-block form still pins the exact 'const int32_t *' scratch type.
+  if (!aux32Binding)
+    return emitOpError()
+           << "requires the aux32 base operand to bind a runtime ABI value";
+  if (!hasBlockIndex && aux32Binding.getCType() != "const int32_t *")
     return emitOpError()
            << "requires the aux32 base operand to bind a runtime ABI value of C "
               "type 'const int32_t *' (the BRICK 3 canonical-8 integer dot "

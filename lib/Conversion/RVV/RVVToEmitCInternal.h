@@ -492,12 +492,6 @@ private:
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
   static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The q4_K K4b recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.q4_k_q8_k_block_dot (the Q4_K x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- K4a's integer core + the deferred fp32
-  /// fold + the q4_K min term).
-  static bool isQ4_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The q5_K recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q5_k_q8_k_block_dot (the Q5_K x Q8_K super-block FULL block
   /// dot-product producing the fp32 *s -- q4_K's integer core + the qh 5th-bit
@@ -1507,9 +1501,10 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// The M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2, W5-W7):
+  /// The M-FLAT q4_K/q5_K super-block loop-scaffold emitter (milestone-2/3, W5-W7):
   /// lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body to
-  /// the byte-exact skeleton emitQ4_KQ8_KBlockDot emits -- the function-scoped
+  /// the byte-exact skeleton the retired q4_K monolith emitted (milestone-3: this
+  /// typed emitter is now the SOLE q4_K super-block lowering) -- the function-scoped
   /// aux8[256]/utmp[4]/sums8[8] scratch, the `sums` vfloat32m2 emitc.variable +
   /// `sumf` float emitc.variable DUAL accumulator seeded once OUTSIDE the loop,
   /// nb = n / QK_K, the outer emitc.for over nb, and (post-loop) the sequential
@@ -2677,53 +2672,6 @@ private:
   /// 5 loop). Binds the op's i32 m1 token to a zero literal (the fold writes
   /// sumf_out as a side effect; no live use).
   mlir::LogicalResult emitQ4_KHorizontalFold(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q4_K_q8_K block kernel (the q4_K K4b
-  /// increment) for one tcrv_rvv.q4_k_q8_k_block_dot op as fully STRUCTURED
-  /// emitc nodes (I5; no verbatim C-control-flow blob). It reuses the SAME K4a
-  /// super-block integer core (emitQ4_KSuperBlockAux32Core: the 4-bit unpack
-  /// into aux8[256] + the 6-bit scale/min bit-dance + the nested sub-block
-  /// uint6-scaled i32 accumulation, returning the per-super-block aux32[8] AND
-  /// the decoded scales/mins pointer) and adds the DEFERRED two-level fp32 fold
-  /// (the q6_K K2 mechanism), the q4_K MIN term, and the fp32 *s store, mirroring
-  /// _generic (quants.c:711-717) so byte-exactness is by construction:
-  ///   float sums[8]; vfloat32m2_t sumsv = vfmv_v_f_f32m2(0.0f, 8); // ONCE
-  ///   float sumf = 0.0f;                                            // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*144;  const uint8_t *yb = vy + ib*292;
-  ///     <K4a integer core -> aux32, scalesU8 (mins = scalesU8 + 8)>;
-  ///     float dy = *(const float *)(yb + 0);          // fp32 activation d, ONCE
-  ///     // ---- the MIN term (q4_K-specific) ----
-  ///     int sumi = 0;
-  ///     for (size_t j = 0; j < 16; ++j)
-  ///       sumi += (int)bsums[j] * (int)mins[j/2];     // bsums int16 SIGN-EXT
-  ///     // ---- the deferred fp32 positive fold (q6_K K2) ----
-  ///     float d = (float)*(const _Float16 *)(xb+0) * dy;
-  ///     vfloat32m2_t af = vfcvt_f_x_v_f32m2(aux32, 8);
-  ///     vfloat32m2_t pr = vfmul_vf_f32m2(af, d, 8);    // SEPARATE mul (NOT fma)
-  ///     sumsv = vfadd_vv_f32m2(sumsv, pr, 8);          // SEPARATE add (NOT fma)
-  ///     // ---- the MIN subtraction (single emitc.expression) ----
-  ///     float dmin = (float)*(const _Float16 *)(xb+2) * dy;
-  ///     sumf = sumf - dmin * (float)sumi;              // ONE C statement
-  ///   }
-  ///   float sums8[8];  vse32_v_f32m2(sums8, sumsv, 8); // lane l -> sums8[l]
-  ///   sumf += sums8[0]; ...; sumf += sums8[7];         // SEQUENTIAL l=0..7
-  ///   *s = sumf;
-  /// The fp32 byte-exactness pivots match q6_K K2 EXACTLY for the positive fold:
-  /// the 8 lanes are independent, the d-multiply is a SEPARATE vfmul then a
-  /// SEPARATE vfadd (NEVER fused), and the final horizontal sum is SEQUENTIAL
-  /// ascending l=0..7. The NEW q4_K piece is the MIN term: the integer
-  /// sumi = Σ_{j=0..15} bsums[j] * mins[j/2] (bsums int16 SIGN-extended, each
-  /// decoded uint6 min spanning TWO consecutive bsums via j/2, integer/order-free)
-  /// then `sumf -= dmin * sumi` carried in the SCALAR sumf accumulator IN-LOOP
-  /// (in super-block order) -- distinct from q6_K's post-loop-only sumf -- and
-  /// summed with the 8 lanes only AFTER the loop. The MIN subtraction is ONE
-  /// emitc.expression so it renders as ggml's single C statement. The
-  /// block-format facts are the op's typed attrs (I4 mirror).
-  mlir::LogicalResult emitQ4_KQ8_KBlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
