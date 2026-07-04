@@ -4476,11 +4476,17 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
            << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
               "d) for the ggml Q6_K x Q8_K super-block integer partial route";
 
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+  // M-FLAT q6_K milestone-1: the OPTIONAL loop-form `block_index` operand adds a
+  // 6th operand (the per-super-block induction variable). Absent = the standalone
+  // 5-operand single-super-block K1 form (byte-identical); present = the loop
+  // form. block_index is ODS-typed Index, so no extra type check is needed here.
+  unsigned expectedOperands = getBlockIndex() ? 6 : 5;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
               "one aux32 output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "operand, one !tcrv_rvv.vl operand, an OPTIONAL `block_index` "
+              "induction operand, and one i32 LMUL m1 result";
 
   // The three buffer operands and the element count are runtime ABI values; the
   // weight/activation bases address the AoS byte arrays as const uint8_t *, the
@@ -9805,18 +9811,22 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
            << "currently supports only kind "
               "\"typed_super_block_block_dot_loop_body\" for the bounded q4_K/q5_K "
               "super-block block dot-product nb loop surface";
-  // W2: the bounded fold_model set gains super_block_two_level_scale_min -- the
-  // q4_K/q5_K two-level fold (`sums += d*(float)aux32` positive fold PLUS
-  // `sumf -= dmin*Σ(mins*bsums)` MIN term). Any other spelling is rejected
-  // fail-closed (I7); a missing/empty fold_model cannot reach this branch (the
-  // StrAttr is required by ODS).
-  if (getFoldModel() != "super_block_two_level_scale_min")
+  // W2/W-B: the bounded fold_model set fixes the ARITHMETIC fold tree AND KEYS
+  // the accumulator arity: "super_block_two_level_scale_min" is the q4_K/q5_K
+  // two-level DUAL fold (`sums += d*(float)aux32` positive fold PLUS
+  // `sumf -= dmin*Σ(mins*bsums)` MIN term); "scales_times_sumi" is the q6_K
+  // no-min SINGLE fold (`sums += d*(float)aux32` positive fold ONLY, no scalar
+  // MIN chain). Any other spelling is rejected fail-closed (I7); a missing/empty
+  // fold_model cannot reach this branch (the StrAttr is required by ODS).
+  if (getFoldModel() != "super_block_two_level_scale_min" &&
+      getFoldModel() != "scales_times_sumi")
     return emitOpError()
            << "currently supports only fold_model "
-              "\"super_block_two_level_scale_min\" (the q4_K/q5_K two-level "
+              "\"super_block_two_level_scale_min\" (the q4_K/q5_K two-level DUAL "
               "`sums += d*(float)aux32` positive fold PLUS the "
-              "`sumf -= dmin*Σ(mins*bsums)` MIN term); the other super-block fold "
-              "trees are later steps";
+              "`sumf -= dmin*Σ(mins*bsums)` MIN term) or \"scales_times_sumi\" "
+              "(the q6_K no-min SINGLE `sums += d*(float)aux32` positive fold "
+              "ONLY); the other super-block fold trees are later steps";
 
   // Externally-defined ggml super-block facts: QK_K and the AoS super-block
   // strides are positive byte counts the per-super-block address arithmetic
@@ -9876,6 +9886,53 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
+  // W-A: fold_model KEYS the accumulator arity. The q6_K no-min
+  // "scales_times_sumi" path carries a SINGLE accumulator: exactly TWO region
+  // entry arguments (the super_block_index induction variable + the loop-carried
+  // `sums` 8-lane fp32 vector) and a yield naming the `sums` vector ALONE (no
+  // `sumf` scalar -- the no-min fold has no MIN chain). A dual (sumf-carrying)
+  // yield under this single fold is rejected fail-closed. The q4_K/q5_K dual path
+  // below is unchanged.
+  if (getFoldModel() == "scales_times_sumi") {
+    mlir::Block &block = getBody().front();
+    if (block.getNumArguments() != 2)
+      return emitOpError()
+             << "requires the region to carry exactly two entry arguments for "
+                "the single-accumulator no-min fold_model \"scales_times_sumi\": "
+                "the super_block_index induction variable and the loop-carried "
+                "`sums` 8-lane fp32 vector accumulator (a dual-accumulator region "
+                "with a `sumf` scalar is rejected under the no-min fold)";
+    if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+      return emitOpError()
+             << "requires the first region argument (super_block_index) to be "
+                "index-typed (the nb super-block induction variable)";
+    if (!isF32M2VectorAccumulator(block.getArgument(1).getType()))
+      return emitOpError()
+             << "requires the second region argument (the loop-carried `sums` "
+                "accumulator) to be an 8-lane fp32 vector "
+                "(!tcrv_rvv.vector<f32, \"m2\">)";
+    TypedSuperBlockBlockDotLoopYieldOp yield =
+        block.empty()
+            ? TypedSuperBlockBlockDotLoopYieldOp()
+            : llvm::dyn_cast<TypedSuperBlockBlockDotLoopYieldOp>(&block.back());
+    if (!yield)
+      return emitOpError()
+             << "requires the region to be terminated by "
+                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "carried-out `sums` vector accumulator)";
+    if (!isF32M2VectorAccumulator(yield.getSumsNext().getType()))
+      return emitOpError()
+             << "requires the loop yield to carry an 8-lane fp32 vector `sums` "
+                "accumulator (!tcrv_rvv.vector<f32, \"m2\">) as its first operand";
+    if (yield.getSumfNext())
+      return emitOpError()
+             << "the single-accumulator no-min fold_model \"scales_times_sumi\" "
+                "must NOT carry a `sumf` scalar accumulator in the yield (the "
+                "no-min fold uses only the `sums` vector; a dual yield here is "
+                "rejected)";
+    return mlir::success();
+  }
+
   // Region structure: exactly THREE entry arguments -- the super_block_index
   // induction variable (index), the loop-carried `sums` 8-lane fp32 vector
   // accumulator, and the loop-carried `sumf` scalar f32 accumulator -- terminated
@@ -9917,6 +9974,14 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     return emitOpError()
            << "requires the loop yield to carry an 8-lane fp32 vector `sums` "
               "accumulator (!tcrv_rvv.vector<f32, \"m2\">) as its first operand";
+  // fold_model-keyed arity: the DUAL fold requires the yield to name the `sumf`
+  // scalar (the sumf operand is now ODS-optional to support the q6_K single path,
+  // so a dual body with a sumf-absent single yield is rejected fail-closed here).
+  if (!yield.getSumfNext())
+    return emitOpError()
+           << "the dual fold_model \"super_block_two_level_scale_min\" requires "
+              "the loop yield to name the `sumf` scalar accumulator (a single, "
+              "sumf-absent yield is rejected under the dual fold)";
   if (!yield.getSumfNext().getType().isF32())
     return emitOpError()
            << "requires the loop yield to carry a scalar f32 `sumf` accumulator "
@@ -9926,17 +9991,20 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
 }
 
 mlir::LogicalResult TypedSuperBlockBlockDotLoopYieldOp::verify() {
-  // Fail-closed (I7) on a swapped/degenerate DUAL yield: the first operand is the
-  // 8-lane fp32 vector `sums` chain, the second the scalar f32 `sumf` chain (the
-  // dual-accumulator contrast against the flat single-f32 yield).
+  // Structural fail-closed (I7): the first carried-out operand is ALWAYS the
+  // 8-lane fp32 vector `sums` chain. The second `sumf` scalar operand is OPTIONAL
+  // (present = the q4_K/q5_K dual MIN-term chain; absent = the q6_K no-min single
+  // path); when present it must be scalar f32. A swapped pair is rejected by the
+  // `sums`-vector check. The fold_model-keyed arity match (which fold may carry
+  // sumf and which may not) is enforced by the parent loop body verifier.
   if (!isF32M2VectorAccumulator(getSumsNext().getType()))
     return emitOpError()
            << "requires the first carried-out accumulator to be an 8-lane fp32 "
               "vector `sums` accumulator (!tcrv_rvv.vector<f32, \"m2\">)";
-  if (!getSumfNext().getType().isF32())
+  if (getSumfNext() && !getSumfNext().getType().isF32())
     return emitOpError()
-           << "requires the second carried-out accumulator to be scalar f32 "
-              "(the block-carried `sumf` MIN-term accumulator domain)";
+           << "requires the second carried-out accumulator, when present, to be "
+              "scalar f32 (the block-carried `sumf` MIN-term accumulator domain)";
   return mlir::success();
 }
 

@@ -5654,6 +5654,11 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       tcrv::rvv::Q4KNibbleUnpackOp, tcrv::rvv::Q4KScaleMinBitDanceOp,
       tcrv::rvv::Q4KScaledDotOp, tcrv::rvv::Q4KMinTermOp,
       tcrv::rvv::Q4KSumsFoldScaleDOp, tcrv::rvv::Q4KHorizontalFoldOp,
+      // W-C (q6_K milestone-1): the q6_K no-min super-block INTEGER core (the
+      // 2-bit qh + 8-bit signed scale unpack + per-sub-block i32 aux32 dot); it
+      // is the single-accumulator body's integer brick (paired with the reused
+      // q4_K Q4KSumsFoldScaleDOp for the no-min positive fold)
+      tcrv::rvv::GgmlBlockDotQ6KQ8KAux32Op,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

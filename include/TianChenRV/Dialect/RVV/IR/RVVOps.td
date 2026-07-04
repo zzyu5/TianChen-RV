@@ -5931,6 +5931,16 @@ def GgmlBlockDotQ6KQ8KAux32Op
     zve32x/zve64x re-strip is a K2/capability item, not built here). No resource
     shape knobs yet; the K3 measurement tuner will register q6_K's candidate
     shapes. This K1 op carries only the structural facts.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q6_K milestone-1): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the q6_K weight strip
+    and the q8_K activation strip are read at `weight_base + block_index*
+    weight_block_stride` and `activation_base + block_index*
+    activation_block_stride`, byte-exact to the monolithic super_block_base_x/y
+    arithmetic. When ABSENT the op keeps the unchanged single-super-block
+    standalone form (the aux32 partial K1 route is untouched).
   }];
 
   let arguments = (ins
@@ -5939,6 +5949,7 @@ def GgmlBlockDotQ6KQ8KAux32Op
     AnyType:$output,
     AnyType:$element_count,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     I64Attr:$qk,
@@ -5953,7 +5964,8 @@ def GgmlBlockDotQ6KQ8KAux32Op
 
   let assemblyFormat =
     "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
     "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
@@ -9412,9 +9424,15 @@ def TypedSuperBlockBlockDotLoopBodyOp
     optional integer_core_lmul) are the same byte-exact shape knobs the monolithic
     q4_K body reads (the *how* -- the per-sub-block integer-MAC widening rung --
     never the *what*). fold_model fixes the ARITHMETIC fold tree
-    (region-invariant); for the current bounded surface kind is limited to
-    "typed_super_block_block_dot_loop_body" and fold_model to
-    "super_block_two_level_scale_min" (the q4_K/q5_K two-level `sums += d*aux32`
+    (region-invariant) AND KEYS the accumulator ARITY: for the current bounded
+    surface kind is limited to "typed_super_block_block_dot_loop_body" and
+    fold_model to one of two -- "super_block_two_level_scale_min" (q4_K/q5_K)
+    selects the DUAL accumulator (region (index, sums, sumf) + dual yield);
+    "scales_times_sumi" (q6_K) selects a SINGLE accumulator (the no-min `sums +=
+    d*(float)aux32` positive fold ONLY, NO scalar MIN chain, so the region carries
+    just (index, sums) and the yield names the `sums` vector alone, and the
+    post-loop horizontal add collapses `sums` straight into `*s`).
+    "super_block_two_level_scale_min" is (the q4_K/q5_K two-level `sums += d*aux32`
     positive fold PLUS the `sumf -= dmin*Σ(mins*bsums)` MIN term). The op does NOT
     own dtype/route authority; the per-super-block nibble unpack, the 6-bit
     scale/min bit-dance, the per-sub-block scaled i32 dot, the MIN term, and the
@@ -9450,28 +9468,32 @@ def TypedSuperBlockBlockDotLoopYieldOp
     [Terminator,
      HasParent<"::tianchenrv::tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp">]> {
   let summary =
-      "terminator naming the DUAL carried-out accumulators (sums vector + sumf "
-      "scalar) of the super-block loop op";
+      "terminator naming the carried-out super-block accumulator(s): the `sums` "
+      "vector always, plus the OPTIONAL `sumf` scalar (present = dual q4_K/q5_K, "
+      "absent = single-accumulator no-min q6_K)";
   let description = [{
     Terminates the tcrv_rvv.typed_super_block_block_dot_loop_body region by naming
-    BOTH carried-out accumulators: the `sums_next` 8-lane fp32 VECTOR accumulator
-    (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold chain) and the
-    `sumf_next` scalar fp32 accumulator (f32, the MIN-term chain). It makes the
-    DUAL loop-carried dataflow explicit (the two SSA values carried into the next
-    super-block iteration), so the lowering maps each carried-out value to the
-    emitc.assign back into its emitc.variable lvalue with no implicit convention.
-    The first operand is required to be the 8-lane fp32 vector accumulator and the
-    second scalar f32 (a single accumulator, a swapped pair, or a scalar-only
-    yield is rejected fail-closed -- this is exactly the dual-accumulator contrast
-    against the flat single-f32 yield). It carries no compute, dtype, memory, or
-    route semantics.
+    the carried-out accumulator(s). The `sums_next` 8-lane fp32 VECTOR accumulator
+    (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold chain) is ALWAYS
+    present. The `sumf_next` scalar fp32 accumulator (f32, the MIN-term chain) is
+    OPTIONAL and its presence is keyed by the parent loop op's fold_model:
+    "super_block_two_level_scale_min" (q4_K/q5_K) carries BOTH (the DUAL yield);
+    "scales_times_sumi" (q6_K no-min) carries the `sums` vector ONLY (the SINGLE
+    yield -- the no-min fold has no scalar MIN chain). The lowering maps each
+    carried-out value to the emitc.assign back into its emitc.variable lvalue with
+    no implicit convention. The first operand is required to be the 8-lane fp32
+    vector accumulator; when present the second is required to be scalar f32 (a
+    swapped pair is rejected fail-closed). The fold_model-keyed arity match (a
+    dual yield under the single fold, or a single yield under the dual fold) is
+    enforced by the parent loop body verifier. It carries no compute, dtype,
+    memory, or route semantics.
   }];
 
-  let arguments = (ins AnyType:$sums_next, AnyType:$sumf_next);
+  let arguments = (ins AnyType:$sums_next, Optional<AnyType>:$sumf_next);
 
   let assemblyFormat =
-      "$sums_next `,` $sumf_next attr-dict `:` type($sums_next) `,` "
-      "type($sumf_next)";
+      "$sums_next (`,` $sumf_next^)? attr-dict `:` type($sums_next) "
+      "(`,` type($sumf_next)^)?";
   let hasVerifier = 1;
 }
 
