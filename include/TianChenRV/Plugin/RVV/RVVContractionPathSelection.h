@@ -55,8 +55,14 @@ struct ContractionSelection {
 // ALL THREE capability facts hold; else BlockDot (= decline = match the ggml
 // VLEN-native kernel). The three facts encode the measured win/loss matrix as
 // per-quant capability facts (NOT magic constants):
-//   1. NO ggml hand-tuned VLEN-native kernel exists for this (quant, VLEN)
-//      (q4_K @ VLEN128 has one -> repack loses -> decline).
+//   1. NO ggml VLEN-native hand-tuned kernel that repack LOSES to exists for this
+//      (quant, VLEN). q4_K has one at every VLEN >= 128 (per-VLEN dispatch:
+//      @128 inline RVV ASM, @256 VLEN256-tuned -> repack loses -> decline). q4_0
+//      and q8_0 DO ship a hand-tuned RVV vec_dot too, but a non-VLEN-specialized
+//      one the measured repack out-streams, so it is NOT a decline trigger. (See
+//      the verified ggml opponent roster at the top of the .cpp; note this
+//      corrects an earlier premise that q4_K@128 was a scalar fallback -- it is
+//      the roster's STRONGEST opponent, inline RVV assembly.)
 //   2. the plain block-dot is COMPUTE-HEAVY enough that repack out-streams it
 //      (q4_0 yes: nibble + per-block vredsum + scattered reads; q8_0 no: LEAN,
 //      one vwredsum/block, nothing for repack to remove -> decline).
