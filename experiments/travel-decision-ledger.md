@@ -43,5 +43,15 @@ q4_0 repack→constructed 是**真多里程碑**(repack GEVM 结构 ≠ 两个�
 **sealed=单板 rvv/VLEN128 prefill;非完整 Win-B(措辞未出"Win")。剩 8 门**:(a)k1/VLEN256 dual-board(q4_0 应 parity=VLEN-flip 故事)(b)micro↔e2e Amdahl 传导(gate④)(c)prefill M-shape sweep + q8_0 T6 首批(d)PMU sampled 归因升级。
 **板状态(返程 FYI)**:A/B 双树重建到全能力 march(seal artifact);板 ggml CMakeLists MARCH_STR override,备份 .bak-l1seal(一 cp 可还原)。
 
+### F5 — L1-phase-2 dual-board flip：k1/VLEN256 q4_0 → prefill PARITY 确认 + decode SURPRISE（不 commit）
+**板/工具链（非结构墙）**：k1 可达 = SpacemiT X60 **VLEN256** 8c@1.6GHz governor=performance、glibc2.39、clang-18.1.8；march `rv64gcv_zfh_zvfh_zicbop_zihintpause`（板 ISA 多 zba/zbb/zbs/zvfhmin/ime → gate-1 ADVISORY，**A/B 同 march 对称**、gate-2 libcall-clean 双树）。q4_0 模型已在板（`/home/bianbu/tcrv-k1-llama/models/tinyllama-q4_0.gguf` sha `da3087fb14aede55`=rvv 同模型）。**A 树已存**（`/data/k1build` patched，VLEN256 decode 已发射 emitted GEVM）；**B 树自建**（`/data/k1build-stock`，surgical out-of-place relink：仅 patch-off `arch/riscv/repack.cpp` 的 GEMV `==256` 分支重编 repack.o + relink，其余 .o 复用 A、~2min、**未碰 A 树**、源已还原）。B 执行体 = LD_LIBRARY_PATH wrapper（RUNPATH 是 abs、patchelf 缺）。
+**preflight 4/4**（gate1 advisory / gate2 libcall-free 双树 / gate3 same-clang-18+flags / gate4 **board VLEN=256==target**）。DVFS span 0.00%。
+**结果（paired 2pass×5rep，median+IQR+CI+T-N floor）**：
+- **prefill pp128(GEMM)：ours 24.77 / stock 24.67 = 1.0043× [1.0018,1.0056]，|Δ|0.43% < 2×floor0.58% → PARITY**（zero-hypothesis）。
+- **decode tg32(GEVM)：ours 5.68 / stock 6.62 = 0.8574× [0.8492,0.8653]，|Δ|16.6%≫floor → DIFFERENCE（我方 emitted GEVM 慢 ~14%）**。
+**机制（objdump）**：A GEMV 有 1 call `tcrv_emitc_ggml_repack_gemv`（emitted 接合）、B GEMV 0（跑 ggml native 16x1 repack fallback）；**GEMM 两树反汇编 287 行仅差 1 条（stderr GOT 偏移，banner 用）→ prefill compute byte-identical，双侧都 = ggml native repack GEMM**。correctness greedy-token A==B 3/3 GREEN、无 NaN/Inf（未 claim bit-exact vs ggml）。
+**★flip 判读**：**prefill flip 确认**——VLEN128 SEALED 5.08× **不在 VLEN256 复现**（ggml 自己 repack q4_0 GEMM、GEMM 码 byte-identical）→ 赢键控在 **VLEN128 capability gap（ggml repack VLEN-gated）非 universal**。**decode 是 REVERSAL 非 parity**：VLEN128 decode 1.5× 赢是 repack-vs-block-dot；VLEN256 变 **emitted-repack-vs-ggml-native-repack、我方 emitted（construction-line scaffold）反慢 14%**。两相都印证核心命题（赢=routing-into-gap 非更强核）。**decode 慢 = surprising**：最可能 = emitted VLEN256 GEVM scaffold 欠优化 vs ggml 手调 native（且 vs 早期手写 repack；memory 历史 parity 0.997× 是 pre-emitted-kernel）→ **需 adversarial verify**（park）。
+**board identity 钉清**：k1 SpacemiT VLEN256，**cross-board 不可比 rvv/VLEN128**。产物 `experiments/e2e-harness/results/k1-vlen256-q4_0-flip/{preflight,phase_split_raw,correctness,aggregate,evidence.json}`。harness 两处泛化（experiments/ 内）：preflight gate-1 march 兜到 compile_commands.json、gate-4 VLEN 通用取数 + decode 探针（触 GEVM banner）——**additive、不破 rvv/128**。**未 commit（用户提交）**；未碰 lib//ODS/schema/test。
+
 ## 返程问题包（park 项，累积）
-（暂空）
+- **P1（F5 park）**：k1/VLEN256 q4_0 **decode emitted-GEVM 慢 ggml-native-repack 14%**（0.857×，稳定 paired、非测量混淆）——adversarial verify：①是否 emitted VLEN256 GEVM scaffold 欠优化（vs 早期手写 repack + vs ggml native）②B 的 native 16x1 fallback provenance（upstream ggml vs tcrv 自写 reference C；板 git 空、未证）——prefill parity 与此无关（GEMM byte-identical、铁）。

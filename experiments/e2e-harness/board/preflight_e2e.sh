@@ -54,7 +54,12 @@ echo "PREFLIGHT(3) same-compiler: OK ($CVER; flags='$A_FL'; type=$A_BT)"
 BOARD_ISA=$(grep -m1 -i isa /proc/cpuinfo 2>/dev/null | tr 'A-Z' 'a-z')
 [ -n "$BOARD_ISA" ] || pf_fail march "cannot read /proc/cpuinfo isa string"
 MARCH=$(echo "$A_FL" | grep -oE 'march=[a-z0-9_]+' | head -1)
-[ -n "$MARCH" ] || pf_fail march "no -march= found in build flags ('$A_FL')"
+# Some GGML builds inject -march as a per-target compile option (not in the
+# global CMAKE_C_FLAGS); recover the actual march from compile_commands.json.
+if [ -z "$MARCH" ] && [ -f "$A_BUILD/compile_commands.json" ]; then
+  MARCH=$(grep -oE 'march=[a-z0-9_]+' "$A_BUILD/compile_commands.json" | head -1)
+fi
+[ -n "$MARCH" ] || pf_fail march "no -march= found in build flags ('$A_FL') or $A_BUILD/compile_commands.json"
 MISSING=""
 for ext in zfh zvfhmin zvfh zba zbb zbs; do
   if echo "$BOARD_ISA" | grep -Eq "(_|^| )$ext(_| |\$)" && ! echo "$MARCH" | grep -q "$ext"; then
@@ -104,9 +109,11 @@ echo "PREFLIGHT(2) libcall-free: OK (A scanned $NA objs, B scanned $NB objs; no 
 # tiny A-tree llama-bench run over the probe model.
 ACT_VLEN=$(grep -m1 -oiE 'vlen[^0-9]*[0-9]+' /proc/cpuinfo 2>/dev/null | grep -oE '[0-9]+' | head -1)
 if [ -z "$ACT_VLEN" ] && [ -n "${PROBE_MODEL:-}" ] && [ -f "${PROBE_MODEL}" ]; then
-  if "$BENCH_A" -m "$PROBE_MODEL" -p 8 -n 0 -t 2 -r 1 2>&1 | grep -qE 'VLEN([_ ]?)128'; then
-    ACT_VLEN=128
-  fi
+  # Read the board VLEN from the TCRV emitted-kernel engage banner. Generic over
+  # VLEN (128 rvv / 256 k1): the GEMV banner ("...VLEN128... / ...VLEN256...
+  # ENGAGED") only fires on a DECODE call, so probe with -n>0.
+  VB=$("$BENCH_A" -m "$PROBE_MODEL" -p 8 -n 4 -t 2 -r 1 2>&1 | grep -oiE 'VLEN[_ ]?[0-9]+' | grep -oE '[0-9]+' | head -1)
+  [ -n "$VB" ] && ACT_VLEN="$VB"
 fi
 [ -n "$ACT_VLEN" ] || pf_fail fp-cell "cannot determine board VLEN (no cpuinfo vlen field; provide PROBE_MODEL so the TCRV VLEN banner can be read)"
 [ "$ACT_VLEN" = "$EXP_VLEN" ] || pf_fail fp-cell "board VLEN=$ACT_VLEN != target T-cell EXP_VLEN=$EXP_VLEN"

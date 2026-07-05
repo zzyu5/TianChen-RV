@@ -1,0 +1,13 @@
+== e2e PREFLIGHT (fail-closed 4-gate; 实验总纲v1 §1 第9/10条) ==
+A_BUILD=/data/k1build
+B_BUILD=/data/k1build-stock
+A: cc=/usr/bin/clang-18 flags='-fno-integrated-as' build=Release
+B: cc=/usr/bin/clang-18 flags='-fno-integrated-as' build=Release
+PREFLIGHT(3) same-compiler: OK (Bianbu clang version 18.1.8 (11bb4); flags='-fno-integrated-as'; type=Release)
+PREFLIGHT(1) march-complete: ADVISORY -- 'march=rv64gcv_zfh_zvfh_zicbop_zihintpause' omits board ext(s): zvfhmin zba zbb zbs
+   (downgraded to advisory: gate-2 libcall scan is the decisive anti-confound
+    check per §1 第9条 动因; a SEALED T6 cell still requires a full-march rebuild.)
+PREFLIGHT(2) libcall-free: OK (A scanned 4 objs, B scanned 4 objs; no __extendhfsf2-class libcall)
+   => march-incomplete but libcall-clean: the confound §1第9条 guards against is empirically ABSENT.
+PREFLIGHT(4) fingerprint<->T-cell: OK (board VLEN=256 == target 256)
+== e2e PREFLIGHT PASS (4/4 gates green; gate1 advisory) ==

@@ -1,0 +1,14 @@
+=== e2e phase-split aggregate  board=k1-spacemit-x60-vlen256/clang-18-rv64gcv_zfh_zvfh_zicbop model=tinyllama-q4_0.gguf quant=q4_0 ===
+freq_khz: min=1600000 max=1600000 span=0.00%  (DVFS guard; >2% span => INVALIDATE run)
+
+[prefill]  ours median=24.77 t/s (IQR%=0.29, n=10)   stock median=24.67 t/s (IQR%=0.21, n=10)
+  A/B ratio (ours/stock) = 1.0043x   95% CI [1.0018, 1.0056]
+  |delta|=0.43%   between-pass floor=0.22%   within-IQR=0.29%   2x-eff-floor=0.58%
+  VERDICT: PARITY (within noise / CI includes 1.0) => zero-hypothesis
+
+[decode]  ours median=5.68 t/s (IQR%=0.98, n=10)   stock median=6.62 t/s (IQR%=1.00, n=10)
+  A/B ratio (ours/stock) = 0.8574x   95% CI [0.8492, 0.8653]
+  |delta|=16.64%   between-pass floor=1.01%   within-IQR=1.00%   2x-eff-floor=2.02%
+  VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+
+wrote /home/kingdom/phdworks/TianchenRV/experiments/e2e-harness/results/k1-vlen256-q4_0-flip/evidence.json
