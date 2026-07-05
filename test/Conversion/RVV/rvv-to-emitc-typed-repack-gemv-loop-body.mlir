@@ -21,10 +21,14 @@
 // emitRepackQ4LaneWiseIntegerCore / emitRepackDualFp16ScaleFold leaves -- BYTE-
 // EXACT to the monolithic emitRepackGemvQ4_0Q8_0 (vle8 / sign-extension decode /
 // scalar q8 quant reads / lane-wise vwmacc lo+hi / lo/hi vwadd combine / vle16
-// weight scale / _Float16 act scale / vfwmul / vfcvt / vfmacc). This is the FULL-
-// BODY byte-exact numHalves==1 arm; the VLEN=128 two-halves (numHalves==2) multi-
-// accumulator generalization + monolith retirement + front-door construction are
-// later steps.
+// weight scale / _Float16 act scale / vfwmul / vfcvt / vfmacc). This is the
+// numHalves==1 (VLEN=256 fractional mf2) arm; Phase B generalizes the region to
+// FULL-BODY byte-exact on EVERY arm -- the VLEN=128 two-8-lane-halves
+// (numHalves==2) multi-accumulator arm and the RVV0.7 whole-LMUL m1/f32m4 arm are
+// pinned by the EMPIRICAL region-vs-monolith byte-diff lits
+// rvv-to-emitc-typed-repack-gemv-loop-body-vlen128-full-body.mlir /
+// -rvv07-full-body.mlir. Monolith retirement + front-door construction are later
+// steps. Numerical bit-exact-vs-ggml is pending-hardware (ssh rvv), not tested here.
 //
 // This is an emit-consistency ("CORE == emission-plans") lit that locks the loop-
 // nest + per-strip VECTOR accumulator skeleton AND the region-driven integer core

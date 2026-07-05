@@ -9701,9 +9701,12 @@ def RepackLaneWiseQ4Q8DotOp
     The op is carried inside the tcrv_rvv.typed_repack_gemv_loop_body region and
     consumes the repacked q4_0x16 weight base pointer, the plain q8_0 activation
     base pointer, the active !tcrv_rvv.vl token, and the loop's `block_index`
-    induction variable (region argument 0). It produces ONE i32 !tcrv_rvv.vector
-    result -- the per-strip 16-lane combined `sumi` (the lo/hi vwadd_vv result) --
-    which the dual-fp16 per-strip scale FOLD (a later repack milestone) consumes.
+    induction variable (region argument 0). It produces the per-strip 16-lane
+    combined `sumi` values (the lo/hi vwadd_vv results) as a VARIADIC result group
+    -- one i32 !tcrv_rvv.vector per disjoint strip (numHalves == weight_interleave
+    / half_lanes: ONE for the 16-lane one-strip VLEN=256/RVV0.7 form, TWO for the
+    two-8-lane-halves VLEN=128 form). The per-strip dual-fp16 scale FOLD siblings
+    (tcrv_rvv.repack_dual_fp16_scale_fold, one per strip) each consume one result.
 
     The block-as-lane integer core STRUCTURE is first-class in the typed body: the
     emission mirrors emitRepackGemvQ4_0Q8_0's integer part LINE-FOR-LINE (shared
@@ -9747,12 +9750,12 @@ def RepackLaneWiseQ4Q8DotOp
     I64Attr:$activation_quant_byte_offset,
     OptionalAttr<StrAttr>:$integer_core_lmul
   );
-  let results = (outs AnyType:$result);
+  let results = (outs Variadic<AnyType>:$results);
 
   let assemblyFormat =
     "$weight_base `,` $activation_base `,` $vl `block` $block_index `:` "
     "type($block_index) attr-dict `:` type($weight_base) `,` "
-    "type($activation_base) `,` type($vl) `->` type($result)";
+    "type($activation_base) `,` type($vl) `->` type($results)";
   let hasVerifier = 1;
 }
 
@@ -9779,17 +9782,20 @@ def TypedRepackGemvLoopBodyOp
     base pointer, the plain q8_0 activation base pointer, the fp32 output pointer,
     the runtime contraction element count (n), and the runtime weight-column count
     (nc) -- and owns one single-block region whose entry arguments are the
-    `block_index` induction variable (index) and the loop-carried per-strip f32
-    VECTOR accumulator `acc` (!tcrv_rvv.vector<f32, "m2">, the one-strip 16-lane
-    form). The region is terminated by tcrv_rvv.typed_repack_gemv_loop_yield,
-    which names the carried-out `acc_next` vector. The lowering wraps the region
-    in the OUTER weight-column-GROUP loop (for x in nc/weight_interleave), seeds
-    the per-strip vector accumulator with vfmv_v_f(0.0f) per group, maps the
-    carried-IN `acc` block argument to a LOAD of the accumulator's emitc.variable
-    lvalue at the top of the block loop and the carried-OUT `acc_next` to an
-    emitc.assign back at the bottom (emitc.for has no iter_args, exactly the
-    flat/super-block loop lowering and the SCFToEmitC iter_args convention), and
-    stores the final strip through s + x*weight_interleave with a lane-wise vse32.
+    `block_index` induction variable (index) FOLLOWED by the numHalves loop-carried
+    per-strip f32 VECTOR accumulators `acc` (numHalves + 1 entry arguments;
+    numHalves == weight_interleave / half_lanes: ONE 16-lane strip
+    !tcrv_rvv.vector<f32, "m2"> / <f32, "m4"> at VLEN=256 / RVV0.7, or TWO 8-lane
+    strips at VLEN=128). The region is terminated by
+    tcrv_rvv.typed_repack_gemv_loop_yield, which names the carried-out `acc_next`
+    vectors (numHalves entries). The lowering wraps the region in the OUTER
+    weight-column-GROUP loop (for x in nc/weight_interleave), seeds each per-strip
+    vector accumulator with vfmv_v_f(0.0f) per group, maps each carried-IN `acc`
+    block argument to a LOAD of its accumulator's emitc.variable lvalue at the top
+    of the block loop and each carried-OUT `acc_next` to an emitc.assign back at the
+    bottom (emitc.for has no iter_args, exactly the flat/super-block loop lowering
+    and the SCFToEmitC iter_args convention), and stores each final strip through
+    s + x*weight_interleave (+ strip*half_lanes) with a lane-wise vse32.
 
     Making the repacked block loop + the per-strip VECTOR accumulate a first-class
     typed body op (I5) means the emission is determined by op identity + the
@@ -9846,22 +9852,24 @@ def TypedRepackGemvLoopYieldOp
     [Terminator,
      HasParent<"::tianchenrv::tcrv::rvv::TypedRepackGemvLoopBodyOp">]> {
   let summary =
-      "terminator naming the carried-out per-strip f32 VECTOR accumulator of the "
+      "terminator naming the carried-out per-strip f32 VECTOR accumulators of the "
       "repacked GEVM block loop op";
   let description = [{
     Terminates the tcrv_rvv.typed_repack_gemv_loop_body region by naming the
-    carried-out per-strip f32 VECTOR accumulator `acc_next`
-    (!tcrv_rvv.vector<f32, "m2">). It makes the loop-carried dataflow explicit
-    (the SSA value carried into the next block iteration), so the lowering maps
-    `acc_next` to the emitc.assign back into the per-strip accumulator
-    emitc.variable lvalue with no implicit convention. The operand is required to
-    be the f32 VECTOR accumulator (a scalar f32 or an i32 lane accumulator is
-    rejected fail-closed -- this is the lane-wise VECTOR contrast against the flat
-    loop op's scalar yield). It carries no compute, dtype, memory, or route
-    semantics.
+    carried-out per-strip f32 VECTOR accumulators `acc_next` as a VARIADIC operand
+    group -- one !tcrv_rvv.vector<f32, "m2"> (mf2 core) or <f32, "m4"> (m1
+    whole-LMUL core) per disjoint strip (numHalves entries: ONE for the 16-lane
+    one-strip VLEN=256/RVV0.7 form, TWO for the two-8-lane-halves VLEN=128 form).
+    It makes the loop-carried dataflow explicit (the SSA values carried into the
+    next block iteration), so the lowering maps each `acc_next` to the emitc.assign
+    back into its per-strip accumulator emitc.variable lvalue with no implicit
+    convention. Every operand is required to be an f32 VECTOR accumulator (a scalar
+    f32 or an i32 lane accumulator is rejected fail-closed -- this is the lane-wise
+    VECTOR contrast against the flat loop op's scalar yield). It carries no compute,
+    dtype, memory, or route semantics.
   }];
 
-  let arguments = (ins AnyType:$acc_next);
+  let arguments = (ins Variadic<AnyType>:$acc_next);
 
   let assemblyFormat = "$acc_next attr-dict `:` type($acc_next)";
   let hasVerifier = 1;

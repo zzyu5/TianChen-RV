@@ -957,11 +957,12 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
              << coreLmul << "\"";
   }
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+  if (op->getNumOperands() != 4 || op->getNumResults() < 1)
     return emitOpError()
            << "requires the repacked weight base, the plain q8_0 activation "
               "base, one !tcrv_rvv.vl operand, one block_index induction "
-              "operand, and one i32 vector result";
+              "operand, and one or more per-strip i32 vector results (one per "
+              "disjoint strip -- numHalves total)";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -969,16 +970,23 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
     return emitOpError()
            << "requires the block_index operand to be index-typed (the nb block "
               "induction variable)";
-  // The combined sumi widens the i16 lo/hi accumulators one LMUL rung: i32m2 for
-  // the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7 whole-LMUL) core.
-  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
-          getResult().getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
-      !isGenericRVVSignedOrSignlessIntegerVectorType(
-          getResult().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
-    return emitOpError()
-           << "requires the result to be an i32 !tcrv_rvv.vector<i32, \"m2\"> "
-              "(the mf2 core) or <i32, \"m4\"> (the m1 core) -- the per-strip "
-              "16-lane combined sumi";
+  // Each per-strip combined sumi widens the i16 lo/hi accumulators one LMUL rung:
+  // i32m2 for the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7
+  // whole-LMUL) core. Every strip shares the ONE integer-core LMUL rung.
+  for (mlir::Value result : getResults()) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+      return emitOpError()
+             << "requires every per-strip result to be an i32 "
+                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "(the m1 core) -- the per-strip 16-lane combined sumi";
+    if (result.getType() != getResults().front().getType())
+      return emitOpError()
+             << "requires all per-strip results to share the ONE integer-core "
+                "LMUL rung (all i32m2 or all i32m4)";
+  }
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -10212,6 +10220,18 @@ static bool isF32M2VectorAccumulator(mlir::Type type) {
          vector.getLmul() == getRVVLMULM2();
 }
 
+// The q4_0 16x1-REPACKED GEVM per-strip f32 accumulator sits on ONE of two fold
+// LMUL rungs: f32m2 for the mf2 (RVV1.0 fractional) core, f32m4 for the m1
+// (RVV0.7 whole-LMUL) core. Both the loop-body region accumulators and the
+// dual-fp16 scale-fold brick's acc/acc_next range over this pair; the enclosing
+// loop op pins which rung (the core LMUL is the *how*, never the *what*).
+static bool isF32M2OrM4VectorAccumulator(mlir::Type type) {
+  auto vector = llvm::dyn_cast<VectorType>(type);
+  return vector && vector.getElementType().isF32() &&
+         (vector.getLmul() == getRVVLMULM2() ||
+          vector.getLmul() == getRVVLMULM4());
+}
+
 mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -10283,16 +10303,25 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
     return emitOpError()
            << "requires the consumed sumi to be an i32 !tcrv_rvv.vector<i32, "
               "\"m2\"> (the mf2 core) or <i32, \"m4\"> (the m1 core)";
-  // The loop-carried accumulator + folded-out result are per-strip f32 vectors
-  // (f32m2 the mf2 fold; the m1/f32m4 whole-LMUL fold is a later step).
-  if (!isF32M2VectorAccumulator(getAcc().getType()))
+  // The loop-carried accumulator + folded-out result are per-strip f32 vectors:
+  // f32m2 for the mf2 (RVV1.0 fractional) fold, f32m4 for the m1 (RVV0.7
+  // whole-LMUL) fold. Both share the ONE fold LMUL rung, and the consumed sumi
+  // must sit on that SAME rung (i32m2 <-> f32m2, i32m4 <-> f32m4).
+  if (!isF32M2OrM4VectorAccumulator(getAcc().getType()))
     return emitOpError()
            << "requires the loop-carried accumulator to be a per-strip f32 vector "
-              "(!tcrv_rvv.vector<f32, \"m2\">)";
-  if (!isF32M2VectorAccumulator(getAccNext().getType()))
+              "(!tcrv_rvv.vector<f32, \"m2\"> the mf2 fold or <f32, \"m4\"> the "
+              "m1 whole-LMUL fold)";
+  if (getAccNext().getType() != getAcc().getType())
     return emitOpError()
-           << "requires the folded-out accumulator to be a per-strip f32 vector "
-              "(!tcrv_rvv.vector<f32, \"m2\">)";
+           << "requires the folded-out accumulator to share the loop-carried "
+              "accumulator's f32 LMUL rung (both f32m2 or both f32m4)";
+  auto accVec = llvm::cast<VectorType>(getAcc().getType());
+  auto sumiVec = llvm::cast<VectorType>(getSumi().getType());
+  if (sumiVec.getLmul() != accVec.getLmul())
+    return emitOpError()
+           << "requires the consumed sumi to sit on the same LMUL rung as the "
+              "f32 accumulator (i32m2 with f32m2, i32m4 with f32m4)";
 
   auto withVL = verifyNestedDataflowOp(op);
   if (mlir::failed(withVL))
@@ -10666,24 +10695,37 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
            << "requires the column-count operand to be the runtime nc index "
               "value driving the weight-column-group loop";
 
-  // Region: exactly two entry args -- the block_index induction variable and the
-  // loop-carried per-strip f32 VECTOR accumulator -- terminated by the repack
-  // loop yield naming the carried-out vector (the lane-wise VECTOR contrast
-  // against the flat loop op's scalar accumulator).
+  // The disjoint-strip count: numHalves == weight_interleave / half_lanes (1 for
+  // the 16-lane one-strip VLEN=256/RVV0.7 form, 2 for the two-8-lane-halves
+  // VLEN=128 form). The region carries ONE accumulator per strip.
+  int64_t numHalves = getWeightInterleave() / half;
+
+  // Region: numHalves + 1 entry args -- the block_index induction variable
+  // FOLLOWED by the numHalves loop-carried per-strip f32 VECTOR accumulators --
+  // terminated by the repack loop yield naming the carried-out vectors (the
+  // lane-wise VECTOR contrast against the flat loop op's scalar accumulator).
   mlir::Block &block = getBody().front();
-  if (block.getNumArguments() != 2)
+  if (block.getNumArguments() != numHalves + 1)
     return emitOpError()
-           << "requires the region to carry exactly two entry arguments: the "
-              "block_index induction variable and the loop-carried per-strip f32 "
-              "vector accumulator";
+           << "requires the region to carry exactly numHalves + 1 ("
+           << (numHalves + 1)
+           << ") entry arguments: the block_index induction variable and the "
+              "numHalves loop-carried per-strip f32 vector accumulators";
   if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
     return emitOpError()
            << "requires the first region argument (block_index) to be "
               "index-typed (the nb block induction variable)";
-  if (!isF32M2VectorAccumulator(block.getArgument(1).getType()))
-    return emitOpError()
-           << "requires the second region argument (the loop-carried per-strip "
-              "accumulator) to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\">)";
+  for (int64_t h = 0; h < numHalves; ++h) {
+    if (!isF32M2OrM4VectorAccumulator(block.getArgument(1 + h).getType()))
+      return emitOpError()
+             << "requires each per-strip loop-carried accumulator region argument "
+                "to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\"> or "
+                "<f32, \"m4\">)";
+    if (block.getArgument(1 + h).getType() != block.getArgument(1).getType())
+      return emitOpError()
+             << "requires all per-strip accumulator region arguments to share "
+                "the ONE f32 LMUL rung (all f32m2 or all f32m4)";
+  }
 
   TypedRepackGemvLoopYieldOp yield =
       block.empty()
@@ -10693,21 +10735,30 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
     return emitOpError()
            << "requires the region to be terminated by "
               "tcrv_rvv.typed_repack_gemv_loop_yield (the carried-out per-strip "
-              "f32 vector accumulator)";
-  if (!isF32M2VectorAccumulator(yield.getAccNext().getType()))
+              "f32 vector accumulators)";
+  if (static_cast<int64_t>(yield.getAccNext().size()) != numHalves)
     return emitOpError()
-           << "requires the loop yield to carry a per-strip f32 vector "
-              "accumulator (!tcrv_rvv.vector<f32, \"m2\">)";
+           << "requires the loop yield to carry numHalves (" << numHalves
+           << ") per-strip f32 vector accumulators";
+  for (mlir::Value accNext : yield.getAccNext())
+    if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
+      return emitOpError()
+             << "requires each loop-yield accumulator to be a per-strip f32 "
+                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
 
   return mlir::success();
 }
 
 mlir::LogicalResult TypedRepackGemvLoopYieldOp::verify() {
-  if (!isF32M2VectorAccumulator(getAccNext().getType()))
+  if (getAccNext().empty())
     return emitOpError()
-           << "requires the carried-out accumulator to be a per-strip f32 vector "
-              "(!tcrv_rvv.vector<f32, \"m2\">, the lane-wise repacked GEVM "
-              "accumulator domain)";
+           << "requires at least one carried-out per-strip f32 vector accumulator";
+  for (mlir::Value accNext : getAccNext())
+    if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
+      return emitOpError()
+             << "requires every carried-out accumulator to be a per-strip f32 "
+                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
+                "lane-wise repacked GEVM accumulator domain)";
   return mlir::success();
 }
 

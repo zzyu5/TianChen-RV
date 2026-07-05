@@ -1506,20 +1506,27 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (milestone-3,
-  /// numHalves==1 arm): lower the region-carrying
-  /// tcrv_rvv.typed_repack_gemv_loop_body to the byte-exact one-strip form -- nb =
-  /// n / QK, nc_groups = nc / weight_interleave, the outer emitc.for weight-column-
-  /// group loop, the per-strip vfloat32m2 emitc.variable accumulator seeded per
-  /// group with vfmv_v_f(0.0f), the inner emitc.for block loop, and the per-strip
-  /// lane-wise vse32 store (NO horizontal reduction). The inner body is FULL-BODY
-  /// byte-exact: the integer CORE brick (tcrv_rvv.repack_lane_wise_q4_x_i8_dot ->
-  /// emitRepackQ4LaneWiseIntegerCore) FOLLOWED by the dual-fp16 scale FOLD brick
-  /// (tcrv_rvv.repack_dual_fp16_scale_fold -> emitRepackDualFp16ScaleFold, which
-  /// loads the accumulator, folds the integer sumi in, and assigns it back). The
-  /// carried-OUT accumulator is the fold result (the M2 stub is gone). Fail-closed
-  /// (I7) to the one-strip (half_lanes == weight_interleave) + mf2 (f32m2) form;
-  /// the numHalves==2 multi-accumulator + m1/f32m4 arms are later steps.
+  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (Phase B, full-body
+  /// byte-exact ALL arms): lower the region-carrying
+  /// tcrv_rvv.typed_repack_gemv_loop_body to the byte-exact repacked GEVM kernel on
+  /// EVERY resource arm -- the VLEN=256 fractional one-strip mf2 form
+  /// (numHalves==1, f32m2), the VLEN=128 two-8-lane-halves mf2 form (numHalves==2,
+  /// two f32m2), and the RVV0.7 whole-LMUL one-strip m1 form (numHalves==1, f32m4).
+  /// nb = n / QK, nc_groups = nc / weight_interleave, the outer emitc.for weight-
+  /// column-group loop, the numHalves per-strip vfloat32{m2,m4} emitc.variable
+  /// accumulators seeded per group with vfmv_v_f(0.0f), the inner emitc.for block
+  /// loop, and the per-strip lane-wise vse32 stores (NO horizontal reduction). The
+  /// inner body is FULL-BODY byte-exact: the integer CORE brick
+  /// (tcrv_rvv.repack_lane_wise_q4_x_i8_dot -> emitRepackQ4LaneWiseIntegerCore,
+  /// numHalves per-strip sumi) FOLLOWED by the numHalves dual-fp16 scale FOLD bricks
+  /// (tcrv_rvv.repack_dual_fp16_scale_fold -> ONE call to emitRepackDualFp16Scale
+  /// Fold over all strips, which loads each accumulator, folds its sumi in, and
+  /// assigns it back). The carried-OUT accumulators are the fold results. The
+  /// integer-core LMUL rung (l8/l16/l32) is derived from the loop op's optional
+  /// integer_core_lmul (mf2 default, m1 whole-LMUL); every brick is block_index-tied
+  /// (anti-bypass) and dataflow-tied fail-closed (I7). Byte-identical to the
+  /// monolithic emitRepackGemvQ4_0Q8_0 by construction (shared leaves + same
+  /// numHalves/half/l8/l16/l32/byte-offset facts) on every arm.
   mlir::LogicalResult emitTypedRepackGemvLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
