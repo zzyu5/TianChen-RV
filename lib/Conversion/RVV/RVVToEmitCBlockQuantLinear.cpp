@@ -6179,17 +6179,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                               mlir::ValueRange{addr}, opName, role,
                               llvm::StringRef("fcvt.s.h"));
       };
-      mlir::Value dX = fp16ReadAt(
-          blockBaseFor(brick1.getLhsScaleBase(), brick1.getBlockIndex(),
-                       static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
-                       "block_base_x"),
-          brick1.getLhsScaleByteOffset());
-      mlir::Value dY = fp16ReadAt(
-          blockBaseFor(brick1.getRhsScaleBase(), brick1.getBlockIndex(),
-                       static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
-                       "block_base_y"),
-          brick1.getRhsScaleByteOffset());
-
+      // item4 (fcvt.s.h reschedule): the two per-block fp16 scale reads (dX, dY)
+      // are DEFERRED to after the integer core, right before the fold -- matching
+      // the ggml factory placement. Only the fcvt READ moves; block_base_x/y stays
+      // here (memoized, shared with the integer-core loads) and the fold
+      // arithmetic/rounding order is untouched, so values are byte-identical
+      // (fold-oracle §1 preserved). Reads emitted just before the return.
       rewriter.create<emitc::VerbatimOp>(
           loc, localVariableComment("sumi", opName, role));
       auto sumiVar = rewriter.create<emitc::VariableOp>(
@@ -6298,6 +6293,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         if (mlir::failed(emitStrip(c, vl, /*carrySumi=*/true)))
           return mlir::failure();
       }
+      // item4 (fcvt.s.h reschedule): deferred per-block fp16 scale reads. The
+      // block_base_x/y arithmetic was emitted (and memoized) above, shared with
+      // the integer-core loads, so blockBaseFor here HITS the memo -- these two
+      // calls re-emit ONLY the fcvt.s.h reads, now placed AFTER the integer core /
+      // right before the fold. Values byte-identical; only fcvt position moves.
+      mlir::Value dX = fp16ReadAt(
+          blockBaseFor(brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                       static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                       "block_base_x"),
+          brick1.getLhsScaleByteOffset());
+      mlir::Value dY = fp16ReadAt(
+          blockBaseFor(brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                       static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                       "block_base_y"),
+          brick1.getRhsScaleByteOffset());
       return FlatBlockCore{sumiVar.getResult(), dX, dY, mlir::Value(),
                            mlir::Value()};
     };
@@ -6556,17 +6566,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                               mlir::ValueRange{addr}, opName, role,
                               llvm::StringRef("fcvt.s.h"));
       };
-      mlir::Value dX = fp16ReadAt(
-          blockBaseFor(brick1.getLhsScaleBase(), brick1.getBlockIndex(),
-                       static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
-                       "block_base_x"),
-          brick1.getLhsScaleByteOffset());
-      mlir::Value dY = fp16ReadAt(
-          blockBaseFor(brick1.getRhsScaleBase(), brick1.getBlockIndex(),
-                       static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
-                       "block_base_y"),
-          brick1.getRhsScaleByteOffset());
-
+      // item4 (fcvt.s.h reschedule): the two per-block fp16 scale reads (dX, dY)
+      // are DEFERRED to after the integer core, right before the fold -- matching
+      // the ggml factory placement (the scalar fp16->f32 conversion sits at the
+      // fold point, not early in the integer-core vector section). Only the fcvt
+      // READ moves: block_base_x/block_base_y arithmetic stays here (memoized and
+      // shared with the integer-core loads), and the fold arithmetic/rounding
+      // order is untouched, so the emitted VALUES are byte-identical (fold-oracle
+      // §1 preserved). The deferred reads are emitted just before the return.
       rewriter.create<emitc::VerbatimOp>(
           loc, localVariableComment("sumi", opName, role));
       auto sumiVar = rewriter.create<emitc::VariableOp>(
@@ -6672,6 +6679,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         if (mlir::failed(emitStrip(c, vl, /*carrySumi=*/true)))
           return mlir::failure();
       }
+      // item4 (fcvt.s.h reschedule): deferred per-block fp16 scale reads. The
+      // block_base_x/y arithmetic was already emitted (and memoized) above, shared
+      // with the integer-core loads, so blockBaseFor here HITS the memo -- these
+      // two calls re-emit ONLY the (float)*(const _Float16 *) fcvt.s.h reads, now
+      // placed AFTER the integer core / right before the fold (ggml factory
+      // placement). Values are byte-identical; only the fcvt code position moves.
+      mlir::Value dX = fp16ReadAt(
+          blockBaseFor(brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                       static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                       "block_base_x"),
+          brick1.getLhsScaleByteOffset());
+      mlir::Value dY = fp16ReadAt(
+          blockBaseFor(brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                       static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                       "block_base_y"),
+          brick1.getRhsScaleByteOffset());
       return FlatBlockCore{sumiVar.getResult(), dX, dY, mlir::Value(),
                            mlir::Value()};
     };
@@ -7227,36 +7250,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                                 mlir::ValueRange{addr}, opName, role,
                                 llvm::StringRef("fcvt.s.h"));
         };
-        mlir::Value dX = fp16ReadAt(
-            blockBaseFor(
-                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
-                "block_base_x"),
-            brick1.getLhsScaleByteOffset());
-        mlir::Value dY = fp16ReadAt(
-            blockBaseFor(
-                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
-                "block_base_y"),
-            brick1.getRhsScaleByteOffset());
-
-        // The MIN brick's m_x/s_y fp16 reads, emitted RIGHT AFTER dX/dY and BEFORE
-        // the qh halves (byte-exact to the q5_1 monolith read order
-        // dX,dY,mX,sY,qhLow16,qhHigh16). Off the SHARED bases (memo hits) at the
-        // MIN brick's OWN byte offsets -- anti-bypass: mutating the min brick's
-        // operands/offsets changes these emitted addresses.
-        mlir::Value mX = fp16ReadAt(
-            blockBaseFor(
-                minBrick.getLhsMinBase(), minBrick.getBlockIndex(),
-                static_cast<int64_t>(minBrick.getLhsBlockStride().value_or(0)),
-                "block_base_x"),
-            minBrick.getLhsMinByteOffset());
-        mlir::Value sY = fp16ReadAt(
-            blockBaseFor(
-                minBrick.getRhsSumBase(), minBrick.getBlockIndex(),
-                static_cast<int64_t>(minBrick.getRhsBlockStride().value_or(0)),
-                "block_base_y"),
-            minBrick.getRhsSumByteOffset());
+        // item4 (fcvt.s.h reschedule): brick 1's d_x/d_y and the MIN brick's
+        // m_x/s_y fp16->f32 reads are DEFERRED to after the integer core, right
+        // before the fold (ggml factory placement). Only the fcvt.s.h reads move;
+        // block_base_x/y (memoized, shared with the loads + the qh reads) and the
+        // fold arithmetic/rounding stay put, so the emitted VALUES are
+        // byte-identical (fold-oracle §1 preserved). The deferred reads are emitted
+        // just before emitFlatFold below.
 
         // The qh field's TWO aligned 16-bit halves, read AFTER m_x/s_y and BEFORE
         // the sumi decl. Off the SHARED weight base (memo hit) at the qh brick's
@@ -7406,6 +7406,36 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         rewriter.create<emitc::VerbatimOp>(
             loc, assignComment("sumi", opName, role));
         rewriter.create<emitc::AssignOp>(loc, sumiVar, extractVal);
+
+        // item4: deferred fp16 scale/min reads (fcvt.s.h now placed after the
+        // integer core / right before the fold). block_base_x/y were emitted and
+        // memoized above (shared with the loads + qh reads), so these blockBaseFor
+        // calls HIT the memo -- ONLY the four (float)*(const _Float16 *) reads are
+        // re-emitted here. Values byte-identical; only fcvt position moves.
+        mlir::Value dX = fp16ReadAt(
+            blockBaseFor(
+                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            brick1.getLhsScaleByteOffset());
+        mlir::Value dY = fp16ReadAt(
+            blockBaseFor(
+                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            brick1.getRhsScaleByteOffset());
+        mlir::Value mX = fp16ReadAt(
+            blockBaseFor(
+                minBrick.getLhsMinBase(), minBrick.getBlockIndex(),
+                static_cast<int64_t>(minBrick.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            minBrick.getLhsMinByteOffset());
+        mlir::Value sY = fp16ReadAt(
+            blockBaseFor(
+                minBrick.getRhsSumBase(), minBrick.getBlockIndex(),
+                static_cast<int64_t>(minBrick.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            minBrick.getRhsSumByteOffset());
 
         // brick 1 ((d_x*d_y)*sumi) + the MIN brick (m_x*s_y) + brick 3 (sumf +
         // term) fold COLLECTIVELY into the one fused emitc.expression
@@ -8104,37 +8134,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                                 mlir::ValueRange{addr}, opName, role,
                                 llvm::StringRef("fcvt.s.h"));
         };
-        mlir::Value dX = fp16ReadAt(
-            blockBaseFor(
-                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
-                "block_base_x"),
-            brick1.getLhsScaleByteOffset());
-        mlir::Value dY = fp16ReadAt(
-            blockBaseFor(
-                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
-                "block_base_y"),
-            brick1.getRhsScaleByteOffset());
-
-        // The MIN brick's m_x/s_y fp16 reads, emitted RIGHT AFTER brick 1's dX/dY
-        // and BEFORE the sumi decl (byte-exact to the monolith's dX,dY,mX,sY read
-        // order). Off the SHARED bases (memo hits) at the MIN brick's OWN byte
-        // offsets -- mutating the min brick's operands/offsets changes these
-        // emitted addresses -> changes the bytes (anti-bypass); the descriptor min
-        // offsets are NEVER read in this path.
-        mlir::Value mX = fp16ReadAt(
-            blockBaseFor(
-                minBrick.getLhsMinBase(), minBrick.getBlockIndex(),
-                static_cast<int64_t>(minBrick.getLhsBlockStride().value_or(0)),
-                "block_base_x"),
-            minBrick.getLhsMinByteOffset());
-        mlir::Value sY = fp16ReadAt(
-            blockBaseFor(
-                minBrick.getRhsSumBase(), minBrick.getBlockIndex(),
-                static_cast<int64_t>(minBrick.getRhsBlockStride().value_or(0)),
-                "block_base_y"),
-            minBrick.getRhsSumByteOffset());
+        // item4 (fcvt.s.h reschedule): brick 1's d_x/d_y and the MIN brick's
+        // m_x/s_y fp16->f32 reads are DEFERRED to after the integer core, right
+        // before the fold (ggml factory placement). Only the fcvt.s.h reads move;
+        // block_base_x/y (memoized, shared with the loads) and the fold
+        // arithmetic/rounding stay put, so the emitted VALUES are byte-identical
+        // (fold-oracle §1 preserved). The deferred reads are emitted just before
+        // emitFlatFold below.
 
         // The i32 sumi lvalue.
         rewriter.create<emitc::VerbatimOp>(
@@ -8256,6 +8262,36 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         rewriter.create<emitc::VerbatimOp>(
             loc, assignComment("sumi", opName, role));
         rewriter.create<emitc::AssignOp>(loc, sumiVar, extractVal);
+
+        // item4: deferred fp16 scale/min reads (fcvt.s.h now placed after the
+        // integer core / right before the fold). block_base_x/y were emitted and
+        // memoized above (shared with the loads), so these blockBaseFor calls HIT
+        // the memo -- ONLY the four (float)*(const _Float16 *) reads are re-emitted
+        // here. Values byte-identical; only fcvt position moves.
+        mlir::Value dX = fp16ReadAt(
+            blockBaseFor(
+                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            brick1.getLhsScaleByteOffset());
+        mlir::Value dY = fp16ReadAt(
+            blockBaseFor(
+                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            brick1.getRhsScaleByteOffset());
+        mlir::Value mX = fp16ReadAt(
+            blockBaseFor(
+                minBrick.getLhsMinBase(), minBrick.getBlockIndex(),
+                static_cast<int64_t>(minBrick.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            minBrick.getLhsMinByteOffset());
+        mlir::Value sY = fp16ReadAt(
+            blockBaseFor(
+                minBrick.getRhsSumBase(), minBrick.getBlockIndex(),
+                static_cast<int64_t>(minBrick.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            minBrick.getRhsSumByteOffset());
 
         // brick 1 ((d_x*d_y)*sumi) + the MIN brick (m_x*s_y) + brick 3 (sumf +
         // term) fold COLLECTIVELY into the one fused emitc.expression, fed the
@@ -8404,26 +8440,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                                 mlir::ValueRange{addr}, opName, role,
                                 llvm::StringRef("fcvt.s.h"));
         };
-        mlir::Value dX = fp16ReadAt(
-            blockBaseFor(
-                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
-                "block_base_x"),
-            brick1.getLhsScaleByteOffset());
-        mlir::Value dY = fp16ReadAt(
-            blockBaseFor(
-                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
-                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
-                "block_base_y"),
-            brick1.getRhsScaleByteOffset());
+        // item4 (fcvt.s.h reschedule): brick 1's d_x/d_y fp16->f32 reads are
+        // DEFERRED to after the integer core, right before the fold (ggml factory
+        // placement). Only the fcvt.s.h reads move; block_base_x/y (memoized,
+        // shared with the loads + the qh reads) and the fold arithmetic/rounding
+        // stay put, so the emitted VALUES are byte-identical (fold-oracle §1
+        // preserved). The deferred reads are emitted just before emitFlatFold below.
 
-        // The qh field's TWO aligned 16-bit halves, read RIGHT AFTER brick 1's
-        // dX/dY and BEFORE the sumi decl (byte-exact to the monolith's
-        // dX,dY,qhLow16,qhHigh16 order at emitFlatBlockCore:5987-6004). Off the
-        // SHARED weight base (memo hit) at the qh brick's OWN qh_byte_offset --
-        // mutating the brick's qh_base operand or qh_byte_offset attr changes these
-        // emitted addresses -> changes the bytes (anti-bypass); the descriptor qh
-        // offset is NEVER read in this path. NOT fp16ReadAt: the qh read is a raw
+        // The qh field's TWO aligned 16-bit halves, read BEFORE the sumi decl
+        // (byte-exact to the monolith's qhLow16,qhHigh16 read). Off the SHARED
+        // weight base (memo hit) at the qh brick's OWN qh_byte_offset -- mutating
+        // the brick's qh_base operand or qh_byte_offset attr changes these emitted
+        // addresses -> changes the bytes (anti-bypass); the descriptor qh offset is
+        // NEVER read in this path. NOT fp16ReadAt: the qh read is a raw
         // `(uint16_t)*(const uint16_t *)` call to a u32 (no fcvt hint).
         mlir::Type u32Type = emitc::OpaqueType::get(ctx, "uint32_t");
         llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
@@ -8571,6 +8600,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         rewriter.create<emitc::VerbatimOp>(
             loc, assignComment("sumi", opName, role));
         rewriter.create<emitc::AssignOp>(loc, sumiVar, extractVal);
+
+        // item4: deferred fp16 scale reads (fcvt.s.h now placed after the integer
+        // core / right before the fold). block_base_x/y were emitted and memoized
+        // above (shared with the loads + qh reads), so these blockBaseFor calls HIT
+        // the memo -- ONLY the two (float)*(const _Float16 *) reads are re-emitted
+        // here. Values byte-identical; only fcvt position moves.
+        mlir::Value dX = fp16ReadAt(
+            blockBaseFor(
+                brick1.getLhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getLhsBlockStride().value_or(0)),
+                "block_base_x"),
+            brick1.getLhsScaleByteOffset());
+        mlir::Value dY = fp16ReadAt(
+            blockBaseFor(
+                brick1.getRhsScaleBase(), brick1.getBlockIndex(),
+                static_cast<int64_t>(brick1.getRhsBlockStride().value_or(0)),
+                "block_base_y"),
+            brick1.getRhsScaleByteOffset());
 
         // brick 1 ((d_x*d_y)*(float)sumi, ScalesTimesSumi) + brick 3 (sumf + term)
         // fold COLLECTIVELY into the one fused emitc.expression, fed the

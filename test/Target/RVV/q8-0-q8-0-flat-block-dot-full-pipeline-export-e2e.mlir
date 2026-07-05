@@ -88,9 +88,6 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 
 // ===================== CORE EmitC integer core (plain int8) ==================
 // CORE: emitc.func @tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_rvv_q8_0_q8_0_block_dot
-// The two scalar fp16->fp32 block-scale reads.
-// CORE: call_opaque "(float)*(const _Float16 *)"
-// CORE: call_opaque "(float)*(const _Float16 *)"
 // The plain i8m2 x i8m2 widening product into i16m4 (the m2 default anchor; NO
 // vxor/vsll/vsra nibble decode, NO vwmacc high-half MAC).
 // CORE: call_opaque "__riscv_vle8_v_i8m2"
@@ -99,6 +96,11 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // CORE: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CORE-NOT: call_opaque "__riscv_vxor_vx_i8
 // CORE-NOT: call_opaque "__riscv_vwmacc_vv_i16
+// item4 (fcvt.s.h reschedule): the two scalar fp16->fp32 block-scale reads are
+// DEFERRED to after the integer core, right before the fold (ggml factory
+// placement). Values byte-identical; only the fcvt.s.h code position moved.
+// CORE: call_opaque "(float)*(const _Float16 *)"
+// CORE: call_opaque "(float)*(const _Float16 *)"
 // The q8_0 PINNED SeparatedLeftAssoc fold [testing/flat-block-dot-fp-fold-oracle.md
 // §1]: (float)sumi cast, then t=(float)sumi*d_x, then t=t*d_y, then sumf=sumf+t --
 // SEPARATE cast/mul/mul/add statements (NO d_x*d_y premultiply, NO fused

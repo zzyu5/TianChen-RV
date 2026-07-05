@@ -65,16 +65,10 @@ module {
 // CHECK: mul %[[IB]], %[[STRIDEY]]
 // CHECK: add %arg3, %{{.*}}
 
-// brick 1 (d_x/d_y) then the MIN brick reads m_x = fp16(xb + 2) and s_y =
-// fp16(yb + 2) BEFORE the integer core -- the byte-exact dX,dY,mX,sY order.
-// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
-// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"
-// CHECK: %[[MO:.*]] = literal "2" : !emitc.opaque<"size_t">
-// CHECK: %[[MXA:.*]] = add %{{.*}}, %[[MO]] : (!emitc.ptr<{{.*}}>, !emitc.opaque<"size_t">)
-// CHECK: %[[MX:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[MXA]])
-// CHECK: %[[SO:.*]] = literal "2" : !emitc.opaque<"size_t">
-// CHECK: %[[SYA:.*]] = add %{{.*}}, %[[SO]] : (!emitc.ptr<{{.*}}>, !emitc.opaque<"size_t">)
-// CHECK: %[[SY:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[SYA]])
+// item4 (fcvt.s.h reschedule): brick 1's d_x/d_y and the MIN brick's m_x/s_y fp16
+// reads are DEFERRED to after the integer core (right before the fold -- ggml
+// factory placement); their CHECKs now sit just before the fold expression below.
+// Values are byte-identical; only the scalar fp16->f32 conversions' position moved.
 
 // The UNSIGNED integer core: u8 weight load + unsigned-nibble decode (vand 0x0F /
 // vsrl 0x04 / reinterpret to i8), then the asymmetric vwmul + vwmacc product.
@@ -94,6 +88,18 @@ module {
 // CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
+
+// item4: the deferred brick 1 (d_x,d_y) + MIN brick (m_x,s_y) fp16 reads -- now
+// emitted AFTER the integer core, right before the fold expression. m_x at xb+2,
+// s_y at yb+2 (the min/sum byte offsets travel WITH their own fcvt reads).
+// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
+// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"
+// CHECK: %[[MO:.*]] = literal "2" : !emitc.opaque<"size_t">
+// CHECK: %[[MXA:.*]] = add %{{.*}}, %[[MO]] : (!emitc.ptr<{{.*}}>, !emitc.opaque<"size_t">)
+// CHECK: %[[MX:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[MXA]])
+// CHECK: %[[SO:.*]] = literal "2" : !emitc.opaque<"size_t">
+// CHECK: %[[SYA:.*]] = add %{{.*}}, %[[SO]] : (!emitc.ptr<{{.*}}>, !emitc.opaque<"size_t">)
+// CHECK: %[[SY:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[SYA]])
 
 // The ScalePlusMin fold, fused into ONE emitc.expression: (float)sumi;
 // scaleProduct = d_x*d_y; scaleTerm = scaleProduct*sumi; minTerm = m_x*s_y;

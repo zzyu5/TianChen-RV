@@ -100,9 +100,10 @@ module {
 // CHECK: %[[STRIDEY:.*]] = literal "34" : !emitc.opaque<"size_t">
 // CHECK: mul %[[IB]], %[[STRIDEY]]
 // CHECK: %[[YB:.*]] = add %{{.*}}, %{{.*}} : (!emitc.ptr<!emitc.opaque<"const uint8_t">>, !emitc.opaque<"size_t">)
-// The two per-block fp16->fp32 scale reads (d_x then d_y).
-// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[XB]])
-// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[YB]])
+// item4 (fcvt.s.h reschedule): the two per-block fp16->fp32 scale reads (d_x/d_y)
+// are DEFERRED to after the integer core (right before the fold -- ggml factory
+// placement); their CHECKs now sit just after the integer core below. Values are
+// byte-identical; only the scalar fp16->f32 conversions' code position moved.
 
 // The plain i8m2 x i8m2 widening-product / reduce integer core (NO nibble
 // decode) re-emitted byte-exact by the SHARED emitFlatBlockCore.
@@ -124,6 +125,12 @@ module {
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"(%[[PROD]]
 // CHECK: %[[RED:.*]] = call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // CHECK: assign %[[RED]] : !emitc.opaque<"int32_t"> to %[[SUMI]]
+
+// item4: the deferred per-block fp16->fp32 scale reads (d_x then d_y), now emitted
+// AFTER the integer core / right before the fold (ggml factory placement). They
+// still read off block_base_x/y (%[[XB]]/%[[YB]]), which stay at the loop top.
+// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[XB]])
+// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"(%[[YB]])
 
 // The PINNED SeparatedLeftAssoc fp32 fold [testing/flat-block-dot-fp-fold-oracle.md
 // §1]: sumi loaded, sumf loaded AFTER the core, then SEPARATE cast/mul/mul/add

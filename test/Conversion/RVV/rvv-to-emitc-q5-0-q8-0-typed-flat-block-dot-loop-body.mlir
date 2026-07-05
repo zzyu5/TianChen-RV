@@ -70,12 +70,13 @@ module {
 // CHECK: mul %[[IB]], %[[STRIDEY]]
 // CHECK: add %arg3, %{{.*}}
 
-// brick 1 reads d_x = fp16(xb) and d_y = fp16(yb).
-// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
-// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"
+// item4 (fcvt.s.h reschedule): brick 1's d_x/d_y fp16 reads are DEFERRED to after
+// the integer core (right before the fold -- ggml factory placement); their
+// CHECKs now sit just before the fold expression below. Values are byte-identical;
+// only the scalar fp16->f32 conversion's code position moved.
 
-// The qh field's TWO aligned 16-bit halves, read RIGHT AFTER dX/dY and BEFORE the
-// integer core (the byte-exact dX,dY,qhLow16,qhHigh16 order). qh low at xb+2, qh
+// The qh field's TWO aligned 16-bit halves, read BEFORE the (now-deferred) dX/dY
+// and BEFORE the integer core. qh low at xb+2, qh
 // high at xb+4, each a raw (uint16_t)*(const uint16_t *) read to a uint32_t -- NOT
 // an fp16 fcvt read.
 // CHECK: %[[QLO:.*]] = literal "2" : !emitc.opaque<"size_t">
@@ -122,6 +123,11 @@ module {
 // CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
 // CHECK: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CHECK: call_opaque "__riscv_vmv_x_s_i32m1_i32"
+
+// item4: the deferred brick 1 fp16 scale reads (d_x, d_y) -- now emitted AFTER the
+// integer core, right before the fold expression (ggml factory placement).
+// CHECK: %[[DX:.*]] = call_opaque "(float)*(const _Float16 *)"
+// CHECK: %[[DY:.*]] = call_opaque "(float)*(const _Float16 *)"
 
 // The ScalesTimesSumi fold, fused into ONE emitc.expression: scaleProduct =
 // d_x*d_y (scales FIRST as the LEFT operand -- DISTINCT from q8_0's sumi-first
