@@ -218,6 +218,26 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalesTimesSumiLoopChain (typed super-block SINGLE-accumulator no-min loop body)",
     },
+    # q2_K vec_dot: STRONG (the FOURTH K-quant super-block flipped). q2_K HAS a per-
+    # block min (like q4_K/q5_K) but its whole fold is a SINGLE per-super-block SCALAR
+    # `sumf += dall*isum - dmin*summs`, so its front door constructs the typed SUPER-
+    # BLOCK SCALAR-accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+    # fold_model "scalar_scale_min") out of just ONE decomposed brick: the q2_K INTEGER
+    # CORE (q2_k_q8_k_integer_core -- the 2-bit unpack + PLAIN uint4-nibble scale/min +
+    # per-sub-block scalar i32 dot producing the two scalar states isum + summs) -> a
+    # SINGLE `sumf` scalar yield. NOT the opaque emitQ2_KQ8_KBlockDot hand helper
+    # (retired same action as the flip); the scalar fold is emitter-inlined (no separate
+    # fold brick). The contraction+reduction is the fused per-sub-block vwmul+vwredsum
+    # INSIDE the integer core (see _FUSED_DOT_REDUCE_RE's integer_core token); NO opaque
+    # *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to q2_K's OWN
+    # export entry by fold_model + weight_block_stride 84.
+    {
+        "op": "vec_dot", "format": "q2_K", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q2-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarScaleMinLoopChain (typed super-block SCALAR-accumulator loop body)",
+    },
     # Negative control (weak descriptor-selected block-dot). iq4_nl is NOT in the front
     # door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1 now), so its front door
     # auto-constructs the MONOLITHIC
@@ -235,10 +255,14 @@ PATHS = [
 
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
 # Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
-# indent), optional `%result = ` prefix. This never matches attribute-name tokens
+# indent), optional `%result = ` prefix (a SINGLE result OR a comma-separated
+# multi-result list `%a, %b = `, as the q2_K super-block integer core produces the
+# two scalar states `%isum, %summs`). This never matches attribute-name tokens
 # (`tcrv_rvv.low_precision_resource.*`, `tcrv_rvv.gearbox.*`) or type tokens
 # (`!tcrv_rvv.vector`, `!tcrv_rvv.vl`), which never start a line in op position.
-_OP_RE = re.compile(r"^\s*(?:%[A-Za-z0-9_#]+\s*=\s*)?(tcrv_rvv\.[A-Za-z0-9_]+)\b")
+_OP_RE = re.compile(
+    r"^\s*(?:%[A-Za-z0-9_#]+(?:\s*,\s*%[A-Za-z0-9_#]+)*\s*=\s*)?"
+    r"(tcrv_rvv\.[A-Za-z0-9_]+)\b")
 _KIND_RE = re.compile(r'\bkind\s*=\s*"([^"]+)"')
 _WITHVL_TERMINATOR = re.compile(r"^(\s*)\}\s*:\s*!tcrv_rvv\.vl\s*$")
 # Defense-in-depth I4 guard. The REAL protection is _OP_RE (position-anchored, so
@@ -262,7 +286,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -271,9 +295,12 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # of the decomposed gate. The q6_K super-block integer core `q6_k_q8_k_aux32_partial`
 # is the same shape (a per-sub-block vwmacc accumulating the 16 int8-scaled products
 # into the running aux32 -- a fused dot-reduce), so `aux32_partial` joins this
-# whitelist. This is deliberately NARROW (a scale-only body has neither token; an
+# whitelist. The q2_K super-block integer core `q2_k_q8_k_integer_core` is likewise
+# a fused dot-reduce (a per-sub-block vwmul then vwredsum reducing the 16 products
+# into the scalar isuml, scaled into the running isum), so `integer_core` joins it
+# too. This is deliberately NARROW (a scale-only body has none of the tokens; an
 # opaque *_block_dot still trips the opaque gate), so the check stays discriminating.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial)")
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core)")
 
 
 def _leading_ws(line):
@@ -611,6 +638,33 @@ module {
 """
 
 
+# Super-block SCALAR-accumulator ground truth (q2_K milestone-2): q2_K HAS a per-
+# block min but its whole fold is a SINGLE per-super-block SCALAR, so the typed
+# super-block loop body (fold_model "scalar_scale_min") decomposes into just the
+# q2_K INTEGER CORE + a SINGLE scalar yield (the scalar fold is emitter-inlined --
+# no separate fold brick). The contraction+reduction is the FUSED per-sub-block
+# vwmul+vwredsum INSIDE `q2_k_q8_k_integer_core` -- NO separate standalone_reduce
+# and NO opaque *_block_dot op -- so the decomposed gate must derive constructed via
+# the fused dot-reduce path (the integer_core token).
+_GT_SUPERBLOCK_Q2K = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_scale_min"} {
+        ^bb0(%ib: index, %sumf: f32):
+          %isum, %summs = tcrv_rvv.q2_k_q8_k_integer_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_q2_k_q8_k_integer_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32, i32
+          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
@@ -699,6 +753,24 @@ def cmd_self_test(_args):
     assert superblock_q6k["decomposed"] is True, superblock_q6k
     assert superblock_q6k["derived_state"] == "constructed", superblock_q6k
 
+    # Super-block SCALAR-accumulator ground truth (q2_K milestone-2): the q2_K
+    # integer core `q2_k_q8_k_integer_core` satisfies BOTH the product AND reduce
+    # conjunct (the per-sub-block vwmul+vwredsum reduction is fused into it), the
+    # region carries no separate contraction or fold brick, and no opaque
+    # *_block_dot appears, so it derives constructed via the integer_core fused-
+    # reduce path.
+    superblock_q2k = derive(parse_realized_body(_GT_SUPERBLOCK_Q2K))
+    assert superblock_q2k["manifest"] == [
+        "tcrv_rvv.typed_super_block_block_dot_loop_body",
+        "tcrv_rvv.q2_k_q8_k_integer_core",
+        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+    ], superblock_q2k["manifest"]
+    assert superblock_q2k["has_opaque"] is False, superblock_q2k
+    assert superblock_q2k["has_product"] is True, superblock_q2k
+    assert superblock_q2k["has_reduce"] is True, superblock_q2k
+    assert superblock_q2k["decomposed"] is True, superblock_q2k
+    assert superblock_q2k["derived_state"] == "constructed", superblock_q2k
+
     # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
     assert strong["derived_state"] != scale["derived_state"]
@@ -706,10 +778,13 @@ def cmd_self_test(_args):
     assert superblock["derived_state"] != scale["derived_state"]
     assert superblock_q6k["derived_state"] != weak["derived_state"]
     assert superblock_q6k["derived_state"] != scale["derived_state"]
+    assert superblock_q2k["derived_state"] != weak["derived_state"]
+    assert superblock_q2k["derived_state"] != scale["derived_state"]
     print("self-test PASS: parser position-anchored, no mirror leak; "
           "strong(widening_product)=constructed / strong(x_i8_product)=constructed / "
           "strong(super-block scaled_dot fused reduce)=constructed / "
           "strong(super-block q6_K aux32_partial fused reduce)=constructed / "
+          "strong(super-block q2_K integer_core fused reduce)=constructed / "
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate)")
     return 0
 

@@ -1435,6 +1435,13 @@ enum class TypedFlatBlockDotLoopSelector {
   // no scalar MIN chain). The super-block resolver keys on the loop op's fold_model
   // to pick the single vs dual family, then disambiguates by weight stride (210).
   SuperBlockScalesTimesSumi,
+  // q2_K: the typed SUPER-BLOCK SCALAR-accumulator loop body (same op, fold_model
+  // "scalar_scale_min" -- the q2_K scalar fold `sumf += dall*isum - dmin*summs`,
+  // isum/summs being the SCALAR integer states of the q2_K integer core; NO 8-lane
+  // `sums` vector, NO deferred vector fold, NO post-loop horizontal add). The
+  // super-block resolver keys on the loop op's fold_model to pick this scalar
+  // family, then disambiguates by weight stride (block_q2_K 84).
+  SuperBlockScalarScaleMin,
 };
 
 // The per-op family table (the "small per-op table"): every monolithic block-dot
@@ -1563,7 +1570,14 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q2_K_q8_K_block_dot", "rvv_q2_K_q8_K_block_dot_from_vector_source",
        "per-sub-block-uint4-scale-i32-domain-scalar-fp32-fold-min",
        "ggml Q2_K x Q8_K super-block block-dot source front door failed: ", "q2-weight", "q8-act",
-       "", kQ2KFacts, {}, {}, {}, {}},
+       "", kQ2KFacts, {}, {}, {}, {},
+       // q2_K first flip: the typed super-block SCALAR-accumulator loop body
+       // (fold_model "scalar_scale_min" -- q2_K's positive+min fold is a single
+       // per-super-block scalar `sumf += dall*isum - dmin*summs`, not an 8-lane
+       // vector; NO deferred sums vector, NO post-loop horizontal add). The
+       // resolver disambiguates it from q4_K/q5_K (dual) / q6_K (single-vector) by
+       // fold_model, then by the loop op's weight_block_stride (84).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin},
       {tcrv::rvv::GgmlBlockDotQ3KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q3_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q3_K_q8_K_block_dot_source",
@@ -1757,17 +1771,21 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     // fold_model that KEYS the accumulator arity: "super_block_two_level_scale_min"
     // (q4_K/q5_K DUAL -- positive fold PLUS the MIN term) resolves to a
     // SuperBlockTwoLevelScaleMin export entry; "scales_times_sumi" (q6_K SINGLE --
-    // the no-min positive fold ONLY) resolves to a SuperBlockScalesTimesSumi entry.
-    // Within each family the selector alone is still ambiguous (q4_K and q5_K both
-    // dual), so DISAMBIGUATE by the loop op's OWN weight_block_stride (block_q4_K
-    // 144 / block_q5_K 176 / block_q6_K 210) so each resolves to its OWN export
-    // entry (kind / ABI roles / facts). The typed super-block path depends on NO
+    // the no-min positive fold ONLY) resolves to a SuperBlockScalesTimesSumi entry;
+    // "scalar_scale_min" (q2_K SCALAR -- the scalar `sumf += dall*isum - dmin*summs`
+    // fold) resolves to a SuperBlockScalarScaleMin entry. Within each family the
+    // selector alone is still ambiguous (q4_K and q5_K both dual), so DISAMBIGUATE
+    // by the loop op's OWN weight_block_stride (block_q4_K 144 / block_q5_K 176 /
+    // block_q6_K 210 / block_q2_K 84) so each resolves to its OWN export entry
+    // (kind / ABI roles / facts). The typed super-block path depends on NO
     // GgmlBlockDotQ*KQ8KOp existing.
     auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
     TypedFlatBlockDotLoopSelector wantSelector =
-        (foldModel && foldModel.getValue() == "scales_times_sumi")
-            ? TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi
-            : TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin;
+        TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin;
+    if (foldModel && foldModel.getValue() == "scales_times_sumi")
+      wantSelector = TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi;
+    else if (foldModel && foldModel.getValue() == "scalar_scale_min")
+      wantSelector = TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin;
     std::int64_t stride = 0;
     if (auto strideAttr =
             op->getAttrOfType<mlir::IntegerAttr>("weight_block_stride"))

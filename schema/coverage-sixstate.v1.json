@@ -65,8 +65,10 @@
     {
       "op": "vec_dot",
       "format": "q2_K",
-      "state": "dispatch-wired",
-      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_super_block_block_dot_loop_body+q2_k_q8_k_integer_core+typed_super_block_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed super-block block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalarScaleMinLoopChain (front door constructs tcrv_rvv.typed_super_block_block_dot_loop_body with fold_model=scalar_scale_min = the SCALAR-accumulator arity) -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalarScaleMinLoopBody (typed super-block SCALAR-accumulator lowering; reuses emitQ2_KSuperBlockIntegerCore for the 2-bit unpack + plain uint4-nibble scale/min + per-sub-block scalar i32 dot integer core + emitQ2_KScalarFold for the scalar fold). q2_K's whole fold is a single per-super-block scalar sumf += dall*isum - dmin*summs, so the realized body is just the q2_K integer core (q2_k_q8_k_integer_core) + a single sumf scalar yield; the scalar fold is emitter-inlined (no separate fold brick), the per-sub-block vwmul/vwredsum carries the contraction+reduction, NO opaque *_block_dot hand helper. Resolves to its OWN export entry by fold_model + weight_block_stride 84 (q4_K 144 / q5_K 176 / q6_K 210)",
+      "note": "byte-identical-to-monolith emit (modulo the source-op provenance token; the executable C / exported object is byte-identical, INCLUDING the 2-bit weight unpack + the PLAIN uint4-nibble scale/min + the 16x16 scalar dot + the scalar dual fold sumf += dall*isum - dmin*summs): the q2_K super-block block-dot is now constructed from typed pattern-library primitives (the q2_K integer core + the emitter-inlined scalar fold + the SINGLE sumf scalar accumulator), not the opaque emitQ2_KQ8_KBlockDot hand helper (retired same action as the flip). FOURTH K-quant super-block flipped dispatch-wired -> constructed; the net-new work over q4_K/q5_K/q6_K is the SCALAR-accumulator arity (the super-block loop op is now parameterized on accumulator arity three-state {dual-vector, single-vector, scalar}) + the net-new q2_K integer core brick (2-bit unpack + plain-nibble scale/min + 16x16 scalar dot). This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",

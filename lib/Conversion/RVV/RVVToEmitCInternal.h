@@ -487,12 +487,6 @@ private:
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
   static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The q2_K recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.q2_k_q8_k_block_dot (the Q2_K x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- the 2-bit weight unpack + the 4-bit
-  /// nibble scale/min extraction + the SCALAR fp32 fold + the q2_K min term).
-  static bool isQ2_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The q3_K recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.q3_k_q8_k_block_dot (the Q3_K x Q8_K super-block FULL block
   /// dot-product producing the fp32 *s -- q2_K's 2-bit qs unpack + the
@@ -1525,6 +1519,29 @@ private:
   /// by construction. Dispatched from emitTypedSuperBlockBlockDotLoopBody on the
   /// fold_model. This is the SOLE q6_K super-block lowering.
   mlir::LogicalResult emitTypedSuperBlockScalesTimesSumiLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
+  /// The M-FLAT q2_K super-block SCALAR-accumulator loop emitter (milestone-2,
+  /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// whose fold_model is "scalar_scale_min" (the q2_K path) to the byte-exact
+  /// skeleton the retired q2_K monolith emitQ2_KQ8_KBlockDot emitted -- the
+  /// function-scoped aux8[256] scratch, the `sumf` float emitc.variable SCALAR
+  /// accumulator seeded once OUTSIDE the loop (NO 8-lane `sums` vector, NO deferred
+  /// vector fold, NO post-loop horizontal add), nb = n / QK_K, the outer emitc.for
+  /// over nb, and (post-loop) the `*s` store. The in-loop body is emitted OP-BY-OP
+  /// from the region's q2_K integer-core brick OPERANDS: the shared q2_K integer
+  /// core (emitQ2_KSuperBlockIntegerCore: the 2-bit unpack + plain uint4-nibble
+  /// scale/min + per-sub-block scalar i32 dot producing the two SCALAR states isum
+  /// + summs) followed by the shared scalar fold (emitQ2_KScalarFold: sumf +=
+  /// dall*isum - dmin*summs, fp16 d@80 / dmin@82), the per-super-block base built
+  /// from the brick's (base, block_index) via a shared memo (anti-bypass),
+  /// byte-identical to the monolith by construction. Dispatched from
+  /// emitTypedSuperBlockBlockDotLoopBody on the fold_model. This is the SOLE q2_K
+  /// super-block lowering.
+  mlir::LogicalResult emitTypedSuperBlockScalarScaleMinLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
@@ -2685,48 +2702,81 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_q2_K_q8_K block kernel (the q2_K
-  /// COVERAGE rung) for one tcrv_rvv.q2_k_q8_k_block_dot op as fully STRUCTURED
-  /// emitc nodes (I5; no verbatim C-control-flow blob, no raw()). q2_K reuses the
-  /// super-block scaffolding + the scale+min structure of q4_K but is genuinely
-  /// SIMPLER in three respects, mirroring _generic (quants.c:514-564)
-  /// line-for-line so byte-exactness is by construction:
-  ///   int8_t aux8[256];  float sumf = 0.0f;                       // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*84;  const uint8_t *yb = vy + ib*292;
-  ///     // (A) 2-bit weight unpack: for each 32-byte qs chunk (k in 0..1) and
-  ///     //     each shift in {0,2,4,6}, aux8[128*k + 32*(shift/2) + l] =
-  ///     //     (qs[k*32+l] >> shift) & 3 (the 32 lanes l) -- u8m2 load + vsrl +
-  ///     //     vand + u8->i8 reinterpret + vse8. Sub-block s -> aux8[16s:16s+16].
-  ///     // (B) per-sub-block: scale = sc[s] & 0xF, min = sc[s] >> 4 (the SIMPLE
-  ///     //     4-bit nibbles, NO utmp/kmask bit-dance).
-  ///     int isum = 0; int summs = 0;
-  ///     for (size_t s = 0; s < 16; ++s) {
-  ///       int sc = (int)*(const uint8_t *)(xb + s);
-  ///       // isuml = Σ_{l=0..15} q8[16s+l] * aux8[16s+l]  (vector widen-reduce)
-  ///       int isuml = vmv_x_s(vwredsum(vwmul(q8v, av), seed0));
-  ///       isum  += (sc & 0xF) * isuml;
-  ///       summs += (int)bsums[s] * (sc >> 4);
-  ///     }
-  ///     // (C) the SCALAR fp32 fold, ONE C statement:
-  ///     float dy = *(const float *)(yb + 0);
-  ///     float dall = (float)*(const _Float16 *)(xb + 80) * dy;
-  ///     float dmin = (float)*(const _Float16 *)(xb + 82) * dy;
-  ///     sumf += dall * isum - dmin * summs;
-  ///   }
-  ///   *s = sumf;
-  /// The integer side is order-free (associative int add) so the per-sub-block
-  /// isuml is computed in the vector domain; the ONLY pinned order is the SCALAR
-  /// fp32 fold `sumf += dall*isum - dmin*summs` carried in super-block order
-  /// (distinct from q4_K's 8-lane deferred vector + post-loop horizontal sum --
-  /// q2_K's positive term is a single scalar isum, so NO sums vector exists). The
-  /// fold is ONE emitc.expression so the two products + the add + the subtract
-  /// render as ggml's single C statement (quants.c:561) and track the
-  /// contraction. The block-format facts are the op's typed attrs (I4 mirror).
-  mlir::LogicalResult emitQ2_KQ8_KBlockDot(
+  /// Shared context for the q2_K super-block SCALAR integer core + scalar fold
+  /// (the byte-exact anchor extracted from the retired monolith
+  /// emitQ2_KQ8_KBlockDot so the front-door-constructed typed super-block loop
+  /// lowers byte-identically). Carries the EmitC types + the q2_K block-format
+  /// facts the 2-bit unpack / plain-nibble scale-min / per-sub-block scalar dot /
+  /// scalar fold need. i32Type == i32ImmType == the "int" opaque (kept as separate
+  /// fields to mirror the monolith's local names). The fold facts (weight d @80 /
+  /// dmin @82 fp16 offsets, activation d @0) are q2_K constants carried here so a
+  /// caller with no separate fold brick (the loop form) reads them from the same
+  /// place the monolith did.
+  struct Q2_KIntegerCoreContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type i32Type;     // !emitc.opaque<"int">
+    mlir::Type i32ImmType;  // !emitc.opaque<"int"> (immediate operands)
+    mlir::Type floatType;   // !emitc.opaque<"float">
+    mlir::Type u8m2Type;
+    mlir::Type i8m2Type;
+    mlir::Type i8m1Type;
+    mlir::Type i16m2Type;
+    mlir::Type i32m1Type;
+    mlir::Type i8ElemType;
+    mlir::Type i8PtrType;
+    mlir::Type u8PtrType;
+    mlir::Type constU8Type;
+    mlir::Type constI16Type;
+    mlir::Type constI16PtrType;
+    mlir::Type weightPtrType;
+    mlir::Type activationPtrType;
+    llvm::StringRef fp16ReadCallee;
+    int64_t subBlock;             //  16
+    int64_t numSubBlocks;         //  16
+    int64_t qk;                   // 256
+    int64_t scalesOffset;         //   0
+    int64_t qsOffset;             //  16
+    int64_t q8Offset;             //   4
+    int64_t bsumsOffset;          // 260
+    int64_t weightDOffset;        //  80 (fp16 x.d)
+    int64_t weightDminOffset;     //  82 (fp16 x.dmin)
+    int64_t activationDOffset;    //   0 (fp32 y.d)
+  };
+
+  /// Emit ONE q2_K super-block's INTEGER CORE (the 2-bit weight unpack into the
+  /// element-ordered aux8[256] scratch, then the nested 16-sub-block loop applying
+  /// the PLAIN uint4-nibble per-sub-block scale/min in the i32 domain) at the
+  /// current insertion point (INSIDE an already-open super-block loop body), and
+  /// RETURN the two per-super-block SCALAR integer-state lvalues (isum, summs). It
+  /// mirrors _generic (quants.c:514-560) node-for-node: the 2-bit unpack carries
+  /// the entire qs->element permutation (the dot then reads aux8 contiguously), the
+  /// per-sub-block scale/min are the SIMPLE 4-bit nibbles of the direct scales[16]
+  /// bytes (NO utmp/kmask bit-dance), and the per-super-block isum/summs are RESET
+  /// to zero each super-block. This is the byte-exact anchor shared by the retired
+  /// monolith and the typed super-block SCALAR-accumulator loop lowering. Returns
+  /// the isum/summs lvalue VARIABLES (not loads) so the caller materializes the
+  /// fold's loads at its own statement position.
+  std::pair<mlir::TypedValue<emitc::LValueType>,
+            mlir::TypedValue<emitc::LValueType>>
+  emitQ2_KSuperBlockIntegerCore(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      const Q2_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base) const;
+
+  /// Emit the q2_K per-super-block SCALAR fp32 fold `sumf += dall*isum -
+  /// dmin*summs` (dy = *(const float *)(yb+0), dall = fp16(xb+80)*dy, dmin =
+  /// fp16(xb+82)*dy) as ONE emitc.expression, byte-identical to the retired
+  /// monolith. Reads the isum/summs integer states from their lvalues and updates
+  /// the carried `sumf` scalar accumulator lvalue in place. Shared by the retired
+  /// monolith and the typed SCALAR-accumulator loop lowering.
+  void emitQ2_KScalarFold(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q2_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::LValueType> sumfVar,
+      mlir::TypedValue<emitc::LValueType> isumVar,
+      mlir::TypedValue<emitc::LValueType> summsVar) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_tq2_0_q8_K block kernel (the TERNARY
   /// {-1,0,+1} TriLM coverage rung) for one tcrv_rvv.tq2_0_q8_k_block_dot op as

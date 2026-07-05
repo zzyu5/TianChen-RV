@@ -1113,6 +1113,127 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Typed SUPER-BLOCK SCALAR-accumulator block-dot loop-body construction
+// (M-FLAT q2_K milestone-2).
+//
+// The q2_K sibling of createTypedSuperBlockScalesTimesSumiLoopChain. q2_K HAS a
+// per-block min (like q4_K/q5_K) but its whole fold is a SINGLE per-super-block
+// SCALAR `sumf += dall*isum - dmin*summs` (isum/summs being the two SCALAR
+// integer states of the q2_K integer core), NOT an 8-lane deferred vector. So it
+// assembles the OUTER nb = n/QK_K loop as ONE region-carrying
+// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf`
+// SCALAR accumulator (region args (index, sumf:f32)), with just ONE in-loop brick
+// inside the region: the q2_K INTEGER CORE
+// (tcrv_rvv.q2_k_q8_k_integer_core: the 2-bit unpack + PLAIN uint4-nibble scale/
+// min + per-sub-block scalar i32 dot producing the two scalar states isum +
+// summs), then a SINGLE yield naming the `sumf` scalar. The scalar fold itself
+// (dall*isum - dmin*summs, fp16 d@80/dmin@82) has NO separate fold brick -- its
+// offsets are FIXED block_q2_K constants, so the SCALAR-accumulator lowering
+// emitter inlines it. It replaces the ONE monolith tcrv_rvv.q2_k_q8_k_block_dot
+// op. fold_model "scalar_scale_min" KEYS the scalar-accumulator arity (the loop
+// op verifier rejects an 8-lane `sums` vector region here). The brick's
+// per-super-block addressing keys off the loop induction variable (region arg 0),
+// so the emit is operand-driven (anti-bypass).
+//
+// The integer-core LMUL is NOT stamped (q2_K carries no shape knob -- its dot is
+// FIXED at e8m1/i16m2/i32m1 in the emitter, matching the untuned monolith), so
+// the untuned construction lowers byte-identically to the untuned monolith.
+void createTypedSuperBlockScalarScaleMinLoopChain(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed super-block scalar-accum chain: missing fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 256 (QK_K)
+  std::int64_t subBlock = factByName("sub_block");             //  16 (q2_K)
+  std::int64_t weightStride = factByName("weight_block_stride");        //  84
+  std::int64_t activationStride = factByName("activation_block_stride"); // 292
+  std::int64_t weightScalesOffset =
+      factByName("weight_scales_byte_offset");                 //   0
+  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");    //  16
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");              //   4
+  std::int64_t activationBsumsOffset =
+      factByName("activation_bsums_byte_offset");              // 260
+
+  mlir::MLIRContext *ctx = builder.getContext();
+  (void)ctx;
+  mlir::Type i32ScalarType = builder.getI32Type();
+  mlir::Type f32ScalarType = builder.getF32Type();
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute(
+      "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "scalar_scale_min" KEYS the SCALAR-accumulator arity (q2_K).
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("scalar_scale_min"));
+  // integer_core_lmul is LEFT OFF (q2_K carries no shape knob; the emitter's
+  // fixed e8m1/i16m2/i32m1 dot matches the untuned monolith byte-identically).
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value sbIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value sumf = body.addArgument(f32ScalarType, loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the q2_K INTEGER CORE (the 2-bit unpack + PLAIN uint4-nibble scale/min
+  // + per-sub-block scalar i32 dot). The LIVE operands are the weight base (%vx) +
+  // activation base (%vy) + n + vl + block_index; it produces the two SCALAR i32
+  // states isum + summs (NO output pointer -- q2_K's states are scalar registers,
+  // unlike q6_K's aux32[8] memory state). Per-super-block address vx + ib*84,
+  // vy + ib*292.
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::GgmlBlockDotQ2KQ8KIntegerCoreOp::getOperationName());
+    s.addOperands({weight, activation, n, vl, sbIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_q2_k_q8_k_integer_core"));
+    s.addAttribute(
+        "scale_model",
+        builder.getStringAttr("per-sub-block-uint4-scale-i32-domain-min"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("weight_scales_byte_offset",
+                   builder.getI64IntegerAttr(weightScalesOffset));
+    s.addAttribute("weight_qs_byte_offset",
+                   builder.getI64IntegerAttr(weightQsOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addAttribute("activation_bsums_byte_offset",
+                   builder.getI64IntegerAttr(activationBsumsOffset));
+    s.addTypes({i32ScalarType, i32ScalarType});
+    (void)builder.create(s);
+  }
+  // The SINGLE carried-out SCALAR accumulator (the `sumf` scalar ONLY -- no 8-lane
+  // `sums` vector, no second min-term operand).
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+    s.addOperands({sumf});
+    (void)builder.create(s);
+  }
+}
+
 // The ggml block dot-product op for this row: the bounded WHAT (kind, scale model,
 // block-format i64 facts, and any codebook/grid/ksigns DATA) is stamped from the
 // table row. Shape knobs are NOT stamped (the op lowers at the emitter default,
@@ -1445,6 +1566,14 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // q4_K/q5_K dual chain. Its stride-210 facts flow through entry.facts.
   const bool isQ6KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
+  // q2_K first flip: q2_K HAS a per-block min (like q4_K/q5_K) but its whole fold
+  // is a SINGLE per-super-block SCALAR `sumf += dall*isum - dmin*summs`, so it
+  // flips to the typed super-block SCALAR-accumulator loop chain (fold_model
+  // "scalar_scale_min" -- the q2_K integer core + the emitter-inlined scalar fold
+  // + a single `sumf` scalar yield), NOT the q4_K/q5_K dual nor the q6_K
+  // single-vector chain. Its stride-84 facts flow through entry.facts.
+  const bool isQ2KTypedSuperBlock =
+      entry.opName == tcrvrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
@@ -1522,6 +1651,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     createTypedSuperBlockScalesTimesSumiLoopChain(builder, loc, entry, weight,
                                                   activation, out, n,
                                                   setvl.getVl());
+  } else if (isQ2KTypedSuperBlock) {
+    // The auto-constructed typed SUPER-BLOCK SCALAR-accumulator loop chain (the
+    // q2_K integer core producing the two scalar states isum + summs + the single
+    // `sumf` scalar yield are op structure inside the region; the scalar fold
+    // `sumf += dall*isum - dmin*summs` is emitter-inlined -- no separate fold
+    // brick, no 8-lane sums vector, no post-loop horizontal add).
+    createTypedSuperBlockScalarScaleMinLoopChain(builder, loc, entry, weight,
+                                                 activation, out, n,
+                                                 setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).
