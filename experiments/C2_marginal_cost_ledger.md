@@ -29,17 +29,21 @@ flat 家族 flip 后【整体退役】monolith:commit `1185729a`,**Δhand-LOC �
 | **q4_K** | 0d68f2eb→81b61908→82589f30 | **3** | 建 super-block 双累加器 loop op + emitter + front-door **from scratch** + 6 fine brick | — (首个 super-block) | 8→9 | +935 建机器(scaffold+emit),flip-retire commit −237 | **HIGH** 建原语 |
 | **q5_K** | 386d3d4d | **1** | qh optional attr(1 个)+ emitter switch + 砖门格式化 {144,176} | super-block op + 全 6 砖 + fold + 8 CORE helper | 9→10 | **−374** | **LOW** ~免费参数复用 |
 | **q6_K** | a489e950→e0034acc | **2** | 单累加器 fold_model-键控 arity 泛化 loop op + no-min fold_model + 单累加器 emit + 新 front-door 链 | super-block op(泛化)+ aux32 core + q4_K fold 语义 | 10→11 | **+213**(retire −335 被新-arity +548 盖过) | **MEDIUM** 泛化新轴 |
-| q2_K | — | PENDING | 2-bit unpack 新;复用 q4_1 ScalePlusMin(有 min)| super-block op(双累加器)+ ? | 11→12 | — | (est LOW-MEDIUM) |
-| q3_K | — | PENDING | 6-bit 有符号 packed scale + hmask 符号翻(最难)| super-block op + ? | 12→13 | — | (est HIGH,复用近零) |
+| **q2_K** | 37e589f4→e96c113e | **2** | net-new q2_K 整数核(2-bit unpack + plain-nibble scale/min + 16×16 标量 dot)+ **第三累加器 arity(标量)** scalar_scale_min | super-block op(arity 泛化)+ 标量 fold 机制 | 11→12 | **+388** | **HIGH** 结构距离远(近 q4_K 首建;est 曾误判 LOW-MEDIUM) |
+| q3_K | — | PENDING | 6-bit 有符号 packed scale + hmask 符号翻(最难)| super-block op + q2_K 16×16 reduce 可摊销 | 12→13 | — | (est HIGH,复用近零) |
 
 ## 序列解读(C2 headline)
 
 **q4_K HIGH(建 super-block 原语)→ q5_K LOW(~免费参数:qh attr,−374)→ q6_K MEDIUM
-(泛化新轴:累加器 arity,+213)。**
+(泛化新轴:累加器 arity 单向量,+213)→ q2_K HIGH(净新整数核 + 第三 arity 标量,+388)。**
 
-规律:①建一个【新原语】贵(q4_K 3 里程碑从零);②用【参数】复用它 ~免费甚至净负
-(q5_K 只加 qh attr → −374);③沿【新轴泛化】原语(累加器 arity)有【实但有界】成本
-(q6_K +213),且该泛化随后【摊销】到共享该轴的后续格式。
+**规律 = 边际成本 ∝ 与已覆盖原语空间的【结构距离】(非单调递减):**
+①建一个【新原语】贵(q4_K 3 里程碑从零);②用【参数】复用它 ~免费甚至净负(q5_K 只加
+qh attr → −374,结构距离≈0);③沿【新轴泛化】原语(累加器 arity 向量)有【实但有界】
+成本(q6_K +213,复用整数核);④结构【真正远】的格式(q2_K:2-bit + plain-nibble +
+16×16 + 标量 fold,与已覆盖的 nibble/bit-dance/向量-fold 全不同轴)成本回到近首建
+(+388),因整数核 + 第三 arity 都真新。**这不是回退——是 C2 的完整刻画:复用便宜、
+泛化有界、结构远则贵;贵在【一次】,该格的 16×16 reduce + 2-bit 机制随后摊销到 q3_K。**
 
 原语 `typed_super_block_block_dot_loop_body` 现参数化于三轴:**stride(格式)/ qh 平面
 (q5_K 1-bit)/ 累加器 arity·fold 形态(q6_K 单/双)**。每个新格式要么复用某轴参数(便宜),
