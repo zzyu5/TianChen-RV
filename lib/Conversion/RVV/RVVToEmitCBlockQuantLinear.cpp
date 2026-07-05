@@ -6164,7 +6164,41 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
   };
 
+  // iq4_nl / FP4 codebook class (2nd primitive class): peek the region for the
+  // 16-entry codebook table broadcast + the codebook-gather integer core. When
+  // present, the codebook decl + broadcast are emitted at the SAME positions the
+  // monolithic emitFlatBlockDot uses (the decl BEFORE the sumf accumulator; the
+  // broadcast AFTER the block count, above the block loop), and the full-body
+  // dispatch below routes to the codebook branch. Null for every non-codebook
+  // fold (monotonic: their region carries no codebook brick), so those paths are
+  // structurally unchanged.
+  tcrvrvv::CodebookTableBroadcastOp peekCodebookTable;
+  loopBody.getBody().walk(
+      [&](tcrvrvv::CodebookTableBroadcastOp o) { peekCodebookTable = o; });
+  tcrvrvv::CodebookGatherXI8ProductOp peekCodebookGather;
+  loopBody.getBody().walk(
+      [&](tcrvrvv::CodebookGatherXI8ProductOp o) { peekCodebookGather = o; });
+
   rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // The 16-entry codebook (2nd primitive class) as a `static const int8_t
+  // <table_symbol>[N]` decl ONCE, BEFORE the accumulator -- byte-exact to
+  // emitFlatBlockDot:5434-5445. The decl renders the verified table-broadcast op's
+  // codebook attr entries; the broadcast register is loaded below the block count.
+  if (peekCodebookTable) {
+    std::string decl =
+        ("static const int8_t " + peekCodebookTable.getTableSymbol() + "[" +
+         std::to_string(peekCodebookTable.getCodebook().size()) + "] = {")
+            .str();
+    for (size_t i = 0; i < peekCodebookTable.getCodebook().size(); ++i) {
+      if (i)
+        decl += ", ";
+      decl +=
+          std::to_string(static_cast<int>(peekCodebookTable.getCodebook()[i]));
+    }
+    decl += "};";
+    rewriter.create<emitc::VerbatimOp>(loc, decl);
+  }
 
   // float sumf = 0.0f;  -- byte-exact to emitFlatBlockDot's sumf accumulator
   // decl (:5410-5417). The SSA loop-carried acc lowers to this mutable
@@ -6184,6 +6218,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   mlir::Value nb =
       rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
 
+  // The codebook table broadcast into a vector register ONCE (reused by every
+  // gather), AFTER the block count / above the block loop -- byte-exact to
+  // emitFlatBlockDot:5468-5478. codebookValues threads the broadcast register
+  // into the codebook branch's emit state. Null for the non-codebook folds (the
+  // gather branch is the only reader).
+  mlir::Value codebookValues;
+  if (peekCodebookTable) {
+    llvm::StringRef codebookCoreLmul = deriveBlockDotFacts(loopBody, "m1").coreLmul;
+    mlir::Type i8CoreType =
+        emitc::OpaqueType::get(ctx, ("vint8" + codebookCoreLmul + "_t").str());
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+    std::string tableLoadCallee =
+        riscvIntrinsicName("vle", 8, codebookCoreLmul, "i8");
+    codebookValues = emitOpaqueCallBuilt(
+        rewriter, loc, i8CoreType, tableLoadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value tableName = rewriter.create<emitc::LiteralOp>(
+              loc, i8PtrType, peekCodebookTable.getTableSymbol().str());
+          return {tableName,
+                  sizeLit(peekCodebookTable.getCodebook().size())};
+        },
+        llvm::StringRef("codebook_table_load"));
+  }
+
   // Peek the region format WITHOUT emitting: a full body carries brick 2
   // (the computed-scale dequant); the q4_0 (left_assoc) full body is the one the
   // schedule-parametrization step materializes across ALL legal knob combos.
@@ -6197,8 +6257,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // schedule-parameterized (ported from the q4_0 scaffold). q8_0's native anchor
   // is the whole-block plain-i8 m2 core (blockLen = qk, two i8 loads, direct
   // vwmul), so its cross product is {m2}×mbf{1,2,4}×strip{robust,elided}.
+  // The iq4_nl codebook body ALSO stamps fold_model "sumi_times_scales" (its fold
+  // is the SumiTimesScales `(float)sumi * (d_x*d_y)` tree, node-identical to
+  // q8_0's), so exclude it here by the codebook-gather region fact -- it takes the
+  // dedicated codebook branch in the full-body dispatch below (q8_0's whole-block
+  // plain-i8 schedule-param path carries no codebook brick, so it is unchanged).
   const bool isQ80ScheduleParam =
-      peekBrick2 && loopBody.getFoldModel() == "sumi_times_scales";
+      peekBrick2 && loopBody.getFoldModel() == "sumi_times_scales" &&
+      !peekCodebookGather;
 
   // M-FLAT P2c: the deferred-ordered fold_structure (vector-batched seed-ordered
   // vfredosum.vs cross-block fold) is currently materialized ONLY for the q8_0
@@ -7659,6 +7725,100 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // lvalue. The m_x*s_y mul is recomputed INSIDE the fused expression, so
         // the min brick's f32 result is gate-only.
         emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY, mX, sY);
+      } else if (peekCodebookGather) {
+        // ---- iq4_nl half-block asymmetric CODEBOOK-GATHER packed-i4 x i8 core
+        // (the 2nd primitive class). M1 constructed-WEAK byte-exact increment (NOT
+        // a flip): the region carries the codebook table broadcast + the
+        // codebook-gather product bricks (both certified by the [L-8] allowlist),
+        // and -- like the q4_0 (left_assoc) branch below -- the emit reuses the
+        // SHARED emitFlatBlockCore (which drives emitFlatIntegerCore's
+        // CodebookGatherNibble decode) + emitFlatFold that the monolithic iq4_nl
+        // mbf1/elided m1 path drives, so the per-block body is byte-identical to
+        // emitFlatBlockDot's ggml_iq4_nl_q8_0 instance. The codebook decl +
+        // broadcast were emitted above (at the monolith's positions);
+        // codebookValues threads the broadcast register into st. The operand-flow
+        // gate (I7 fail-closed) ties the emitted core to the region content.
+        // Lightweight region gate: the codebook-gather product's operands are the
+        // region's per-block loads (a u8 packed-i4 weight + two plain-i8 q8 halves
+        // off the ABI buffers) and its table operand is the region's broadcast; the
+        // product feeds the reduce -> lane0 extract -> brick 2's sumi.
+        auto weightLoad =
+            peekCodebookGather.getWeight().getDefiningOp<tcrvrvv::LoadOp>();
+        auto lowLoad =
+            peekCodebookGather.getActivationLow().getDefiningOp<tcrvrvv::LoadOp>();
+        auto highLoad =
+            peekCodebookGather.getActivationHigh().getDefiningOp<tcrvrvv::LoadOp>();
+        if (!peekCodebookTable || !weightLoad || !lowLoad || !highLoad ||
+            coreLoads.size() != 3 || !coreExtract ||
+            weightLoad.getBuffer() != loopBody.getWeightBase() ||
+            lowLoad.getBuffer() != loopBody.getActivationBase() ||
+            highLoad.getBuffer() != loopBody.getActivationBase() ||
+            !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
+            !highLoad.getQuantByteOffset())
+          return rewriter.notifyMatchFailure(
+              loopBody,
+              "full iq4_nl codebook flat block-dot body requires the region "
+              "integer core: a 16-entry codebook table broadcast, three per-block "
+              "loads (a u8 packed-i4 weight + two plain-i8 q8 halves off the ABI "
+              "buffers, each carrying a quant_byte_offset), an asymmetric "
+              "codebook-gather packed-i4 x i8 product, and a lane0 scalar extract");
+        if (peekCodebookGather.getTable() != peekCodebookTable.getResult())
+          return rewriter.notifyMatchFailure(
+              peekCodebookGather,
+              "iq4_nl codebook-gather product table operand must be the region's "
+              "codebook table broadcast result");
+        if (!coreReduce ||
+            coreReduce.getInput() != peekCodebookGather.getResult())
+          return rewriter.notifyMatchFailure(
+              coreReduce ? coreReduce.getOperation() : loopBody.getOperation(),
+              "iq4_nl integer-core reduce input must be the codebook-gather "
+              "product");
+        if (coreExtract.getInput() != coreReduce.getResult())
+          return rewriter.notifyMatchFailure(
+              coreExtract, "iq4_nl integer-core lane0 extract input must be the "
+                           "reduce");
+        if (brick2.getSumi() != coreExtract.getResult())
+          return rewriter.notifyMatchFailure(
+              brick2, "brick 2 sumi must be the codebook integer-core lane0 "
+                      "extract result");
+
+        // The iq4_nl descriptor (byte-exact to deriveFlatBlockDotDescriptor's
+        // ggml_iq4_nl_q8_0_block_dot): CodebookGatherNibble decode + SumiTimesScales
+        // fold, m1 anchor, half-block strip, fp16 weight scale. The Group-A geometry
+        // is sourced from the loop-body attrs (qk / strides) + the region loads'
+        // quant offsets; the codebook is sourced from the table broadcast op.
+        FlatBlockDotDescriptor descriptor;
+        descriptor.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
+        descriptor.foldModel = FlatFoldModel::SumiTimesScales;
+        descriptor.defaultCoreLmul = "m1";
+        descriptor.qk = qk;
+        descriptor.weightStride = loopBody.getWeightBlockStride();
+        descriptor.activationStride = loopBody.getActivationBlockStride();
+        descriptor.quantOffset =
+            static_cast<int64_t>(*weightLoad.getQuantByteOffset());
+        descriptor.activationQuantOffset =
+            static_cast<int64_t>(*lowLoad.getQuantByteOffset());
+        descriptor.highOffset =
+            static_cast<int64_t>(*highLoad.getQuantByteOffset()) -
+            descriptor.activationQuantOffset;
+        descriptor.blockLen = qk / 2;
+        descriptor.weightScaleSource = FlatWeightScaleSource::Fp16;
+        descriptor.hasCodebook = true;
+        descriptor.codebook = peekCodebookTable.getCodebook();
+        descriptor.codebookTableName = peekCodebookTable.getTableSymbol();
+
+        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
+            rewriter, descriptor, facts, weightBase, activationBase,
+            sumfVar.getResult(), codebookValues, sizeType, opName, role);
+
+        mlir::FailureOr<FlatBlockCore> core =
+            emitFlatBlockCore(rewriter, loc, st, blockLoop.getInductionVar(), 0,
+                              /*forceRobust=*/false);
+        if (mlir::failed(core))
+          return mlir::failure();
+        emitFlatFold(rewriter, loc, st, core->sumiVar, core->dX, core->dY,
+                     core->mX, core->sY);
       } else if (loopBody.getFoldModel() == "left_assoc") {
         // ---- q4_0 half-block asymmetric offset-binary packed-i4 x i8 core.
         // Lightweight region gate (I7 fail-closed): the region must carry the

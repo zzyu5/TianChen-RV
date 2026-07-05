@@ -5599,6 +5599,11 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // + its per-block qh 32-bit-field source brick
       tcrv::rvv::FiveBitOffsetBinaryXI8ProductOp,
       tcrv::rvv::BlockFiveBitQhSourceOp, tcrv::rvv::StandaloneReduceOp,
+      // iq4_nl / FP4 codebook class (2nd primitive class): the 16-entry non-linear
+      // int8 lookup-table broadcast brick + the asymmetric codebook-gather packed-i4
+      // x plain-i8 widening product brick (vrgather decode, NOT offset-binary)
+      tcrv::rvv::CodebookTableBroadcastOp,
+      tcrv::rvv::CodebookGatherXI8ProductOp,
       // step 2 scalar-lane extract bridge (integer core -> scalar fold)
       tcrv::rvv::TypedVectorLane0ToScalarExtractOp,
       // brick 2 (per-block computed-scale dequant term)
