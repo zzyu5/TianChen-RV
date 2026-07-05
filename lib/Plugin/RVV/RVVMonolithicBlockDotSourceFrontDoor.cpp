@@ -972,6 +972,147 @@ void createTypedSuperBlockBlockDotLoopChain(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Typed SUPER-BLOCK SINGLE-accumulator block-dot loop-body construction
+// (M-FLAT q6_K milestone-2).
+//
+// The q6_K sibling of createTypedSuperBlockBlockDotLoopChain. q6_K has NO
+// per-block min, so it assembles the OUTER nb = n/QK_K loop as ONE region-carrying
+// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE accumulator
+// (the `sums` 8-lane fp32 vector -- no `sumf` scalar), with just TWO in-loop
+// bricks inside the region: the q6_K INTEGER CORE
+// (tcrv_rvv.q6_k_q8_k_aux32_partial: the 2-bit qh + 8-bit signed scale unpack into
+// the per-super-block aux32[8]) followed by the REUSED no-min positive fold
+// (tcrv_rvv.q4_k_sums_fold_scale_d: sums += fp16(x.d) * y.d * (float)aux32, the
+// SAME positive fold q4_K/q5_K use, differing only in the d byte offset 208), then
+// a SINGLE yield naming the `sums` vector. It replaces the ONE monolith
+// tcrv_rvv.q6_k_q8_k_block_dot op. fold_model "scales_times_sumi" KEYS the
+// single-accumulator arity (the loop op verifier rejects a sumf-carrying yield
+// here). Each brick's per-super-block addressing keys off the loop induction
+// variable (region arg 0), so the emit is operand-driven (anti-bypass).
+//
+// The bricks' aux32/output SCRATCH operands are function-scoped scratch the loop
+// emitter DECLARES itself (int8_t aux8[256] / the aux32 accumulator vector); it
+// never reads these operand slots in the loop form (it walks only the LIVE
+// weight/activation bases + block_index). So the front door wires the vestigial
+// scratch slots to the existing weight ABI base (%vx) rather than minting
+// placeholder runtime_abi_values -- keeping the exported ggml vec_dot C signature
+// the exact 4-role n/s/vx/vy list (byte-identical to the monolith). The aux32 op
+// and fold brick verifiers relax their output/aux32 C-type check in the loop form
+// (block_index present) since the scratch is emitter-owned there. The
+// integer-core LMUL is left at the emitter default (mf2, no integer_core_lmul
+// stamp), so the untuned construction lowers byte-identically to the untuned
+// monolith.
+void createTypedSuperBlockScalesTimesSumiLoopChain(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed super-block single-accum chain: missing fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 256 (QK_K)
+  std::int64_t subBlock = factByName("sub_block");             //  16 (q6_K)
+  std::int64_t weightStride = factByName("weight_block_stride");        // 210
+  std::int64_t activationStride = factByName("activation_block_stride"); // 292
+  std::int64_t weightQhOffset = factByName("weight_qh_byte_offset");    // 128
+  std::int64_t weightScalesOffset =
+      factByName("weight_scales_byte_offset");                 // 192
+  std::int64_t weightDOffset = factByName("weight_d_byte_offset");      // 208
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");              //   4
+
+  mlir::MLIRContext *ctx = builder.getContext();
+  mlir::Type i32VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getI32Type(), "m1");
+  mlir::Type f32M2VecType =
+      tcrvrvv::VectorType::get(ctx, builder.getF32Type(), "m2");
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute(
+      "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "scales_times_sumi" KEYS the SINGLE-accumulator arity (no min).
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("scales_times_sumi"));
+  // integer_core_lmul is LEFT OFF (emitter default mf2) -- byte-identical to the
+  // untuned monolith export.
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value sbIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value sums = body.addArgument(f32M2VecType, loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the q6_K aux32 INTEGER CORE (the 2-bit qh + 8-bit signed scale unpack
+  // into the per-super-block aux32[8]). The LIVE operands are the weight base
+  // (%vx) + activation base (%vy) + block_index; the output int32_t* scratch slot
+  // is emitter-owned (vestigial) -> wired to %vx. Per-super-block address
+  // vx + ib*210, vy + ib*292.
+  {
+    mlir::OperationState s(loc,
+                           tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op::getOperationName());
+    s.addOperands({weight, activation, weight, n, vl, sbIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_q6_k_q8_k_aux32_partial"));
+    s.addAttribute("scale_model",
+                   builder.getStringAttr("per-sub-block-int8-scale-i32-domain"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("weight_qh_byte_offset",
+                   builder.getI64IntegerAttr(weightQhOffset));
+    s.addAttribute("weight_scales_byte_offset",
+                   builder.getI64IntegerAttr(weightScalesOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // BRICK: the REUSED no-min positive fold (sums += fp16(x.d) * y.d *
+  // (float)aux32) -- the 8-lane fp32 `sums` VECTOR chain, NO min term. The LIVE
+  // operands are the weight base (%vx, the fp16 d @208) + activation base (%vy,
+  // the fp32 y.d @0) + block_index; the aux32 scratch slot is emitter-owned
+  // (vestigial) -> wired to %vx. weight_d_byte_offset 208 = block_q6_K d offset;
+  // sub_block/num_sub_blocks carry the fold's fixed 8-lane facts (32/8), which the
+  // 8-lane fp fold does not read.
+  {
+    mlir::OperationState s(loc,
+                           tcrvrvv::Q4KSumsFoldScaleDOp::getOperationName());
+    s.addOperands({weight, weight, activation, vl, sbIndex});
+    s.addAttribute("kind", builder.getStringAttr("q4_k_sums_fold_scale_d"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(32));
+    s.addAttribute("num_sub_blocks", builder.getI64IntegerAttr(8));
+    s.addAttribute("weight_d_byte_offset",
+                   builder.getI64IntegerAttr(weightDOffset));
+    s.addTypes(i32VecType);
+    (void)builder.create(s);
+  }
+  // The SINGLE carried-out accumulator (the `sums` vector ONLY -- no sumf).
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+    s.addOperands({sums});
+    (void)builder.create(s);
+  }
+}
+
 // The ggml block dot-product op for this row: the bounded WHAT (kind, scale model,
 // block-format i64 facts, and any codebook/grid/ksigns DATA) is stamped from the
 // table row. Shape knobs are NOT stamped (the op lowers at the emitter default,
@@ -1298,6 +1439,12 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   const bool isQ5KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ5KQ8KOp::getOperationName();
   const bool isTypedSuperBlock = isQ4KTypedSuperBlock || isQ5KTypedSuperBlock;
+  // q6_K first flip: q6_K has NO per-block min, so it flips to the typed super-block
+  // SINGLE-accumulator loop chain (fold_model "scales_times_sumi" -- the aux32
+  // integer core + the no-min positive fold + a single `sums` yield), NOT the
+  // q4_K/q5_K dual chain. Its stride-210 facts flow through entry.facts.
+  const bool isQ6KTypedSuperBlock =
+      entry.opName == tcrvrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
   const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
@@ -1368,6 +1515,13 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // q5_K additionally stamps BRICK 1's qh offset from entry.facts).
     createTypedSuperBlockBlockDotLoopChain(builder, loc, entry, weight,
                                            activation, out, n, setvl.getVl());
+  } else if (isQ6KTypedSuperBlock) {
+    // The auto-constructed typed SUPER-BLOCK SINGLE-accumulator loop chain (the
+    // q6_K aux32 integer core + the reused no-min positive fold + the single `sums`
+    // yield are op structure inside the region -- no MIN term, no sumf scalar).
+    createTypedSuperBlockScalesTimesSumiLoopChain(builder, loc, entry, weight,
+                                                  activation, out, n,
+                                                  setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).

@@ -1425,12 +1425,16 @@ enum class TypedFlatBlockDotLoopSelector {
   ScalePlusMin,           // q4_1: fold_model == "scale_plus_min", no five-bit qh
   ScalePlusMinFiveBitQh,  // q5_1: fold_model == "scale_plus_min" + five-bit qh
   ScalesTimesSumi,        // q5_0: fold_model == "scales_times_sumi"
-  // q4_K: the typed SUPER-BLOCK dual-accumulator loop body
+  // q4_K/q5_K: the typed SUPER-BLOCK DUAL-accumulator loop body
   // (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
-  // "super_block_two_level_scale_min"). Reuses this selector field for the
-  // super-block route: q4_K is the first (and, so far, only) super-block flipped
-  // to a typed loop body, so a super-block loop body resolves to this entry.
+  // "super_block_two_level_scale_min" -- the `sums` positive fold PLUS the `sumf`
+  // MIN term). Both q4_K and q5_K resolve here, disambiguated by weight stride.
   SuperBlockTwoLevelScaleMin,
+  // q6_K: the typed SUPER-BLOCK SINGLE-accumulator loop body (same op, fold_model
+  // "scales_times_sumi" -- the no-min `sums += d*(float)aux32` positive fold ONLY,
+  // no scalar MIN chain). The super-block resolver keys on the loop op's fold_model
+  // to pick the single vs dual family, then disambiguates by weight stride (210).
+  SuperBlockScalesTimesSumi,
 };
 
 // The per-op family table (the "small per-op table"): every monolithic block-dot
@@ -1591,7 +1595,13 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q6_K_q8_K_block_dot", "rvv_q6_K_q8_K_block_dot_from_vector_source",
        "per-sub-block-int8-scale-i32-domain-deferred-fp32-fold",
        "ggml Q6_K x Q8_K super-block block-dot source front door failed: ", "q6-weight", "q8-act",
-       "", kQ6KFacts, {}, {}, {}, {}},
+       "", kQ6KFacts, {}, {}, {}, {},
+       // q6_K first flip: the typed super-block SINGLE-accumulator loop body
+       // (fold_model "scales_times_sumi" -- q6_K has NO per-block min, so the
+       // no-min positive fold + post-loop horizontal add is the whole fold). The
+       // resolver disambiguates it from q4_K/q5_K (dual) by fold_model, then by the
+       // loop op's weight_block_stride (210 vs q4_K 144 / q5_K 176).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
       {tcrv::rvv::GgmlBlockDotTQ10Q8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq1_0_q8_K_block_dot_source",
@@ -1743,21 +1753,27 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     return entry;
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
-    // The typed SUPER-BLOCK loop body carries the generic loop kind + fold_model
-    // "super_block_two_level_scale_min". Both q4_K and q5_K are flipped to this
-    // typed body and share that fold model (q5_K == q4_K + the qh 5th-bit plane),
-    // so the selector alone is ambiguous -- DISAMBIGUATE by the loop op's OWN
-    // weight_block_stride (block_q4_K 144 vs block_q5_K 176) so each resolves to
-    // its OWN export entry (kind / ABI roles / facts). The typed super-block path
-    // depends on NO GgmlBlockDotQ*KQ8KOp existing. (Future plain-nibble super-block
-    // flips sharing this fold add their own stride.)
+    // The typed SUPER-BLOCK loop body carries the generic loop kind + a
+    // fold_model that KEYS the accumulator arity: "super_block_two_level_scale_min"
+    // (q4_K/q5_K DUAL -- positive fold PLUS the MIN term) resolves to a
+    // SuperBlockTwoLevelScaleMin export entry; "scales_times_sumi" (q6_K SINGLE --
+    // the no-min positive fold ONLY) resolves to a SuperBlockScalesTimesSumi entry.
+    // Within each family the selector alone is still ambiguous (q4_K and q5_K both
+    // dual), so DISAMBIGUATE by the loop op's OWN weight_block_stride (block_q4_K
+    // 144 / block_q5_K 176 / block_q6_K 210) so each resolves to its OWN export
+    // entry (kind / ABI roles / facts). The typed super-block path depends on NO
+    // GgmlBlockDotQ*KQ8KOp existing.
+    auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
+    TypedFlatBlockDotLoopSelector wantSelector =
+        (foldModel && foldModel.getValue() == "scales_times_sumi")
+            ? TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi
+            : TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin;
     std::int64_t stride = 0;
     if (auto strideAttr =
             op->getAttrOfType<mlir::IntegerAttr>("weight_block_stride"))
       stride = strideAttr.getInt();
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
-      if (entry.typedFlatLoopSelector !=
-          TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin)
+      if (entry.typedFlatLoopSelector != wantSelector)
         continue;
       for (const MonolithicBlockDotI64Attr &fact : entry.facts)
         if (fact.name == "weight_block_stride" && fact.value == stride)

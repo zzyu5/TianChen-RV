@@ -4507,7 +4507,17 @@ mlir::LogicalResult GgmlBlockDotQ6KQ8KAux32Op::verify() {
            << "requires the activation base operand to bind a runtime ABI "
               "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
               "array)";
-  if (!outputBinding || outputBinding.getCType() != "int32_t *")
+  // M-FLAT q6_K milestone-2 loop form: the int32_t aux32[8] scratch is a
+  // function-scoped variable the super-block loop emitter DECLARES itself; in the
+  // loop form (block_index present) it never reads this output slot (the aux8/
+  // aux32 scratch is emitter-owned), so the slot is vestigial -- the front door
+  // wires it to the weight ABI base to keep the exported ggml C signature the
+  // exact 4-role n/s/vx/vy list. Only require its binding there; the standalone
+  // single-super-block K1 form still pins the exact 'int32_t *' scratch type.
+  if (!outputBinding)
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value";
+  if (!getBlockIndex() && outputBinding.getCType() != "int32_t *")
     return emitOpError()
            << "requires the output operand to bind a runtime ABI value of C "
               "type 'int32_t *' (the per-super-block aux32[8] integer-state "
@@ -5284,10 +5294,15 @@ mlir::LogicalResult Q4KSumsFoldScaleDOp::verify() {
     return emitOpError()
            << "requires num_sub_blocks == 8 (QK_K / 32) for the q4_K/q5_K "
               "positive-fold route";
-  if (getWeightDByteOffset() != 0)
+  // The fp16 weight super-block scale d byte offset the positive fold reads: 0
+  // for q4_K/q5_K (block_q4_K/q5_K d @0), 208 for q6_K (block_q6_K d @208 -- the
+  // no-min single-accumulator route REUSES this same positive fold, differing only
+  // in the d offset). Any other offset is rejected fail-closed (I7).
+  if (getWeightDByteOffset() != 0 && getWeightDByteOffset() != 208)
     return emitOpError()
-           << "requires weight_d_byte_offset == 0 (the block_q4_K/q5_K d fp16 "
-              "offset) for the q4_K/q5_K positive-fold route";
+           << "requires weight_d_byte_offset == 0 (block_q4_K/q5_K d fp16 @0) or "
+              "208 (block_q6_K d fp16 @208, the q6_K no-min positive-fold reuse) "
+              "for the shared positive-fold route";
 
   // M-FLAT q4_K milestone-2: OPTIONAL block_index toggles the per-super-block
   // loop form. Present => the fp16 weight scale d / fp32 activation d live at

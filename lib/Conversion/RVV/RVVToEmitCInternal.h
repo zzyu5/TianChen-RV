@@ -448,11 +448,6 @@ private:
   /// integer aux32 partial).
   static bool isQ6_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The K-quant K2 recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.q6_k_q8_k_block_dot (the Q6_K x Q8_K super-block FULL
-  /// block dot-product producing the fp32 *s).
-  static bool isQ6_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The Track B q4_K brick-1 recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.q4_k_nibble_unpack (one super-block's Region-A plain
   /// 4-bit nibble unpack into aux8[256], NO bit-dance / dot / fold).
@@ -1514,6 +1509,26 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The M-FLAT q6_K super-block SINGLE-accumulator loop emitter (milestone-2,
+  /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// whose fold_model is "scales_times_sumi" (the q6_K no-min path) to the
+  /// byte-exact skeleton the retired q6_K monolith emitQ6_KQ8_KBlockDot emitted --
+  /// the function-scoped aux8[256]/sums8[8] scratch, the `sums` vfloat32m2
+  /// emitc.variable SINGLE accumulator seeded once OUTSIDE the loop (NO sumf, NO
+  /// MIN chain), nb = n / QK_K, the outer emitc.for over nb, and (post-loop) the
+  /// sequential horizontal add (seeded from a fresh 0.0f literal) + `*s` store. The
+  /// in-loop body is emitted OP-BY-OP from the region bricks' OPERANDS: the q6_K
+  /// aux32 integer-core brick (reusing emitQ6_KSuperBlockAux32Core) + the reused
+  /// no-min positive-fold brick, each per-super-block base built from its (base,
+  /// block_index) via a shared memo (anti-bypass), byte-identical to the monolith
+  /// by construction. Dispatched from emitTypedSuperBlockBlockDotLoopBody on the
+  /// fold_model. This is the SOLE q6_K super-block lowering.
+  mlir::LogicalResult emitTypedSuperBlockScalesTimesSumiLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   /// The structured E8M0 -> fp32 HALF weight scale (the mxfp4 FP4-class scale
   /// source, FlatWeightScaleSource::E8M0): GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128),
@@ -2790,39 +2805,6 @@ private:
   /// The block-format facts (stride 54, qs @0, qh @48, d @52) are the op's typed
   /// attrs (I4 mirror).
   mlir::LogicalResult emitTQ1_0Q8_KBlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q6_K_q8_K block kernel (the K-quant K2
-  /// increment) for one tcrv_rvv.q6_k_q8_k_block_dot op as fully STRUCTURED
-  /// emitc nodes (I5; no verbatim C-control-flow blob). It reuses the SAME K1
-  /// super-block integer core (emitQ6_KSuperBlockAux32Core: the 6-bit unpack into
-  /// aux8[256] + the nested sub-block int8-scaled i32 accumulation, returning the
-  /// per-super-block aux32[8]) and adds the DEFERRED two-level fp32 fold + the
-  /// fp32 *s store, mirroring _generic (quants.c:813-852) so byte-exactness is by
-  /// construction:
-  ///   float sums[8];  vfloat32m2_t sumsv = vfmv_v_f_f32m2(0.0f, 8);  // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*210;  const uint8_t *yb = vy + ib*292;
-  ///     vint32m2_t aux32 = <K1 integer core>;          // RESET per super-block
-  ///     float d = (float)*(const _Float16 *)(xb+208) * *(const float *)(yb+0);
-  ///     vfloat32m2_t af = vfcvt_f_x_v_f32m2(aux32, 8); // (float)aux32[l], RNE
-  ///     vfloat32m2_t pr = vfmul_vf_f32m2(af, d, 8);    // SEPARATE mul (NOT fma)
-  ///     sumsv = vfadd_vv_f32m2(sumsv, pr, 8);          // SEPARATE add (NOT fma)
-  ///   }
-  ///   float sums8[8];  vse32_v_f32m2(sums8, sumsv, 8); // lane l -> sums8[l]
-  ///   float sumf = sums8[0]; sumf += sums8[1]; ...; sumf += sums8[7]; // l=0..7
-  ///   *s = sumf;
-  /// The fp32 byte-exactness pivots: the 8 lanes are INDEPENDENT (so vectorizing
-  /// the fold body is byte-safe), the d-multiply is a SEPARATE vfmul then a
-  /// SEPARATE vfadd (NEVER a fused vfmacc/vfmadd -- that diverges from _generic's
-  /// scalar mul/add under -ffp-contract=off, the INC-2a FMA class), and the final
-  /// cross-lane horizontal sum is SEQUENTIAL ascending l=0..7 via 8 scalar
-  /// emitc.add (NEVER a vector vfredusum -- fp add is non-associative). Lane l
-  /// <-> index l is preserved by the vse32 store and pinned by the K1 aux32[l]
-  /// <-> l ordering. The block-format facts are the op's typed attrs (I4 mirror).
-  mlir::LogicalResult emitQ6_KQ8_KBlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

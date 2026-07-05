@@ -9,10 +9,11 @@
 // recognizes the SHARED super-block monolithic route id and the target artifact
 // exports byte-identical to the CORE emit.
 //
-// WHY this is a distinct, load-bearing test (vs the CORE emit fixture
-// test/Conversion/RVV/rvv-to-emitc-q6-k-q8-k-block-dot.mlir): that fixture runs a
-// hand-authored kernel through --tcrv-rvv-lower-to-emitc DIRECTLY (the CORE
-// emit). THIS test drives the FULL tcrv-source-artifact-front-door-pipeline --
+// WHY this is a distinct, load-bearing test (vs the typed super-block CORE emit
+// fixture test/Conversion/RVV/rvv-to-emitc-q6-k-q8-k-typed-super-block-block-dot-
+// loop-body.mlir): that fixture runs a hand-authored typed-body kernel through
+// --tcrv-rvv-lower-to-emitc DIRECTLY (the CORE emit). THIS test drives the FULL
+// tcrv-source-artifact-front-door-pipeline --
 // which auto-constructs the body from a marked operator-identity source, ALSO
 // runs --tcrv-check-execution-plan-coherence with the built-in target-artifact
 // exporter registry -- and then exercises the real target-artifact OBJECT export.
@@ -35,11 +36,13 @@
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same
 // tryConvertModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
 // direct --tcrv-rvv-lower-to-emitc path uses), so the exported artifact's emit is
-// byte-identical to the CORE == emission-plans emit
-// (rvv-to-emitc-q6-k-q8-k-block-dot). The exported function symbol is the
-// kernel+variant handoff name. NO perf claim -- this is coverage/wiring maturity
-// (q6_K is NOT in any schedule autotuner; the op lowers at the emitter's default
-// mf2 integer-core anchor, the q6_K integer_core_lmul knob stays dormant).
+// byte-identical to the CORE == emission-plans emit (the typed super-block
+// SINGLE-accumulator lowering emitTypedSuperBlockScalesTimesSumiLoopBody, itself
+// byte-identical to the retired monolith emitQ6_KQ8_KBlockDot). The exported
+// function symbol is the kernel+variant handoff name. NO perf claim -- this is
+// coverage/wiring maturity (q6_K is NOT in any schedule autotuner; the loop lowers
+// at the emitter's default mf2 integer-core anchor, the integer_core_lmul knob
+// stays dormant).
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact;
 // the coherence half of this closure is exercised unconditionally by the PLAN run
@@ -69,8 +72,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q6_K_q8_K_block_dot_source
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the monolithic route id + object artifact kind.
+// q6_K FIRST FLIP: the front door now auto-constructs the typed SUPER-BLOCK
+// SINGLE-accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+// fold_model "scales_times_sumi") from the q6_K aux32 integer core + the reused
+// no-min positive fold, NOT an opaque tcrv_rvv.q6_k_q8_k_block_dot op (retired).
+// It still resolves to its OWN monolithic super-block export entry (by fold_model
+// + weight_block_stride 210), so the route id + ABI + object export are unchanged.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q6_K_q8_K_kernel
-// PLAN: tcrv_rvv.q6_k_q8_k_block_dot
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The honest monolithic-body route id (NOT the decomposed generic-typed-body

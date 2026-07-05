@@ -93,8 +93,10 @@
     {
       "op": "vec_dot",
       "format": "q6_K",
-      "state": "dispatch-wired",
-      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_super_block_block_dot_loop_body+q6_k_q8_k_aux32_partial+q4_k_sums_fold_scale_d+typed_super_block_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed super-block block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalesTimesSumiLoopChain (front door constructs tcrv_rvv.typed_super_block_block_dot_loop_body with fold_model=scales_times_sumi = the SINGLE-accumulator no-min arity) -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalesTimesSumiLoopBody (typed super-block SINGLE-accumulator lowering; reuses emitQ6_KSuperBlockAux32Core for the 2-bit qh + 8-bit signed scale integer core). q6_K has NO per-block min, so the realized body is just the q6_K aux32 integer core (q6_k_q8_k_aux32_partial) + the reused no-min positive fold (q4_k_sums_fold_scale_d, d@208) + a single sums yield; the per-sub-block vwmacc into aux32 carries the contraction+reduction, NO opaque *_block_dot hand helper. Resolves to its OWN export entry by fold_model + weight_block_stride 210 (q4_K 144 / q5_K 176)",
+      "note": "byte-identical-to-monolith emit (modulo the source-op provenance token; the executable C / exported object is byte-identical, INCLUDING the 2-bit qh decode + the 8-bit signed scale + NO min): the q6_K super-block block-dot is now constructed from typed pattern-library primitives (the q6_K aux32 integer core + the reused no-min positive fold + the SINGLE sums accumulator), not the opaque emitQ6_KQ8_KBlockDot hand helper (retired same action as the flip). THIRD K-quant super-block flipped dispatch-wired -> constructed; the net-new work over q4_K/q5_K is the single-accumulator (no-min) arity + reusing the q6_K aux32 core brick (the super-block loop op is now parameterized on accumulator arity, not a parallel new path). This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",
