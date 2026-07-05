@@ -277,17 +277,38 @@ PATHS = [
         "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv",
         "front_door_id": "RVVLowerQuantContraction lowerToRepackGemv (typed repack GEVM loop body region)",
     },
-    # Negative control (weak descriptor-selected block-dot). iq4_nl is NOT in the front
-    # door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1 now), so its front door
-    # auto-constructs the MONOLITHIC
-    # tcrv_rvv.iq4_nl_q8_0_block_dot op (kind "ggml_iq4_nl_q8_0_block_dot"), which
-    # is_opaque_hand_helper matches -> [L-8] derives NOT-strong (constructed-weak). This
-    # keeps the check proven discriminating (not vacuously true) now that q5_0 is strong.
+    # iq4_nl vec_dot: STRONG (the FIRST CODEBOOK-class flat vec_dot flipped, L3 M2).
+    # Its front door (isIq4Nl codebook branch in the typedFlatLoopPath gate) constructs
+    # the typed flat block-dot LOOP body (tcrv_rvv.typed_flat_block_dot_loop_body) whose
+    # decomposed integer core is the 2nd primitive class: the 16-entry non-linear int8
+    # codebook table broadcast (tcrv_rvv.codebook_table_broadcast) + the asymmetric
+    # codebook-gather packed-i4 x i8 product (tcrv_rvv.codebook_gather_x_i8_product, the
+    # vrgather kvalues decode -- matches _DOT_PRODUCT_RE's _x_i8_product token), plus
+    # standalone_reduce and a per-block fp16 scale dequant. NO opaque emitFlatBlockDot
+    # hand helper (the GgmlBlockDotIQ4NLQ80Op op + emitIQ4NLQ8_0BlockDot shim + verifier
+    # RETIRED same action as the flip), so [L-8] derives constructed (STRONG).
+    # update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
         "op": "vec_dot", "format": "iq4_nl", "engine": "",
-        "kind": "negative", "expected_state": "constructed-weak",
+        "kind": "strong", "expected_state": "constructed",
         "input": "iq4-nl-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
         "front_door": "--tcrv-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChain (typed flat block-dot loop body; codebook branch)",
+    },
+    # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
+    # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
+    # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
+    # iq4_nl now), so its front door auto-constructs the MONOLITHIC
+    # tcrv_rvv.mxfp4_q8_0_block_dot op (kind "ggml_mxfp4_q8_0_block_dot"), which
+    # is_opaque_hand_helper matches -> [L-8] derives NOT-strong (constructed-weak). mxfp4
+    # is a VALID (non-vacuous) discriminator: the SAME flat CODEBOOK class as iq4_nl,
+    # still constructed-weak (descriptor-selected emitFlatBlockDot hand helper, its own
+    # GgmlBlockDotMXFP4Q80Op op NOT retired), so the check stays proven discriminating.
+    {
+        "op": "vec_dot", "format": "mxfp4", "engine": "",
+        "kind": "negative", "expected_state": "constructed-weak",
+        "input": "mxfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door",
         "front_door_id": "emitFlatBlockDot (descriptor-selected hand helper)",
     },
 ]
@@ -549,7 +570,7 @@ def cmd_update_sixstate(_args):
               "MACHINE-CHECKED auto_readout derived by e5_strong_readout.py, which walks "
               "the actual realized tcrv_rvv.with_vl body op-identity (CORE oracle, not the "
               "low_precision_resource.* mirror) and applies [L-8] (manifest non-empty ∧ no "
-              "opaque *_block_dot hand helper). Reproduces the hand-label; an iq4_nl block-dot "
+              "opaque *_block_dot hand helper). Reproduces the hand-label; an mxfp4 block-dot "
               "negative control derives NOT-strong. Weak rows' auto_readout stays pending-E5 "
               "(later increment). State values are unchanged (zero flip)."
         )

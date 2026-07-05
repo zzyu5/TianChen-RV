@@ -1425,6 +1425,12 @@ enum class TypedFlatBlockDotLoopSelector {
   ScalePlusMin,           // q4_1: fold_model == "scale_plus_min", no five-bit qh
   ScalePlusMinFiveBitQh,  // q5_1: fold_model == "scale_plus_min" + five-bit qh
   ScalesTimesSumi,        // q5_0: fold_model == "scales_times_sumi"
+  // iq4_nl (CODEBOOK class): fold_model == "sumi_times_scales" (SHARED with q8_0's
+  // Q8Default) but the typed loop body carries a codebook_gather_x_i8_product brick,
+  // so it exports through its OWN 4-role n/s/vx/vy Flat entry (NOT q8_0/q4_0's 8-role
+  // strided entry -- the export ABI-arity gate rejects the 8-role q8_0 entry against
+  // the 4-role parameter list). The codebook-gather brick breaks the Q8Default tie.
+  Iq4NlCodebook,
   // q4_K/q5_K: the typed SUPER-BLOCK DUAL-accumulator loop body
   // (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
   // "super_block_two_level_scale_min" -- the `sums` positive fold PLUS the `sumf`
@@ -1658,7 +1664,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q8_0 x Q8_0 block-dot source front door failed: ", "q8-lhs", "q8-rhs",
        "", kQ80Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::Q8Default},
-      {tcrv::rvv::GgmlBlockDotIQ4NLQ80Op::getOperationName(),
+      {"tcrv_rvv.iq4_nl_q8_0_block_dot",
        MonolithicBlockDotRouteFamily::Flat, "ggml_iq4_nl_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_nl_q8_0_block_dot_source",
        "tcrv-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
@@ -1666,7 +1672,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq4_nl_q8_0_block_dot", "rvv_iq4_nl_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml IQ4_NL x Q8_0 codebook block-dot source front door failed: ", "iq4-weight", "q8-act",
-       "", kIQ4NLFacts, kIQ4NLCodebook, {}, {}, {}},
+       "", kIQ4NLFacts, kIQ4NLCodebook, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::Iq4NlCodebook},
       {"tcrv_rvv.q4_1_q8_1_block_dot",
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q4_1_q8_1_block_dot_source",
@@ -1815,6 +1822,15 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
     bool hasFiveBitQh = false;
     op->walk([&](tcrv::rvv::BlockFiveBitQhSourceOp) { hasFiveBitQh = true; });
+    // iq4_nl (CODEBOOK class) shares q8_0's "sumi_times_scales" Q8Default fold but
+    // carries a codebook-gather integer core, so it exports through its OWN 4-role
+    // Flat entry. A codebook_gather_x_i8_product brick in the loop body breaks the
+    // Q8Default tie to Iq4NlCodebook (q8_0/q4_0's plain/offset-binary cores carry no
+    // such brick, so their Q8Default resolution is byte-unchanged).
+    bool hasCodebookGather = false;
+    op->walk([&](tcrv::rvv::CodebookGatherXI8ProductOp) {
+      hasCodebookGather = true;
+    });
     TypedFlatBlockDotLoopSelector selector =
         (foldModel && foldModel.getValue() == "scale_plus_min")
             ? (hasFiveBitQh
@@ -1822,7 +1838,9 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
                    : TypedFlatBlockDotLoopSelector::ScalePlusMin)
             : (foldModel && foldModel.getValue() == "scales_times_sumi")
                   ? TypedFlatBlockDotLoopSelector::ScalesTimesSumi
-                  : TypedFlatBlockDotLoopSelector::Q8Default;
+                  : hasCodebookGather
+                        ? TypedFlatBlockDotLoopSelector::Iq4NlCodebook
+                        : TypedFlatBlockDotLoopSelector::Q8Default;
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
       if (entry.typedFlatLoopSelector == selector)
         return &entry;

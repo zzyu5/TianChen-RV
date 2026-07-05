@@ -26,64 +26,6 @@ namespace detail {
 // codebook) and mxfp4 / nvfp4 (FP4 micro-exponent). Split out of RVVToEmitC.cpp
 // as a pure code move; the emitted C is byte-identical.
 
-mlir::LogicalResult VariantToEmitCFunc::emitIQ4NLQ8_0BlockDot(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    // Thin shim: iq4_nl codebook_gather_nibble / half-block / SumiTimesScales
-    // (fp16 weight scale) instance of the descriptor-driven emitFlatBlockDot --
-    // the 2nd primitive class (Fork B codebook extension). Resolve the ABI
-    // operands + provenance, enforce the codebook I7 fail-closed anchor guard,
-    // derive the block-format descriptor (codebook + gather + fold from
-    // `kind`/attrs) + the scheduled BlockDotFacts, emit the shared body.
-    tcrvrvv::GgmlBlockDotIQ4NLQ80Op blockDot;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ4NLQ80Op>(op))
-        blockDot = bd;
-    }
-    if (!blockDot)
-      return rewriter.notifyMatchFailure(scope,
-                                         "block-dot body missing the op");
-
-    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
-    mlir::Value output = valueMap.lookup(blockDot.getOutput());
-    if (!weightBase || !activationBase || !output)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot ABI operand unmapped");
-
-    // I7 FAIL-CLOSED: an UN-scheduled (attr-less, no integer_core_lmul) codebook op
-    // must NOT lower. The codebook gather indexes a broadcast 16-entry table; the
-    // emitter's default m1 anchor has gather VLMAX < 16 below VLEN=128, so a high
-    // nibble index would silently read 0. The materialize-schedule pass at a sub-128
-    // tier leaves the op attr-less (no legal anchor exists -- the codebook class is
-    // Zvl128b-gated) AND stamps NO minimum_vlen, so the VERIFIER cannot tell it from
-    // the legal pre-schedule input. The lowering boundary CAN: every VLEN>=128 path
-    // stamps a legal m1/mf2 first (V implies VLEN >= 128), so an op that reaches the
-    // emitter WITHOUT an anchor can only be the unsafe sub-128 leftover. Refuse it.
-    if (!blockDot.getIntegerCoreLmul())
-      return rewriter.notifyMatchFailure(
-          blockDot,
-          "refusing to lower an UN-scheduled codebook op (no integer_core_lmul): "
-          "the codebook class is Zvl128b-gated and the emitter's default m1 anchor "
-          "cannot host the 16-entry gather below VLEN=128 (a nibble index >= VLMAX "
-          "silently reads 0); the gearbox must stamp a legal anchor first "
-          "(materialize-schedule on a VLEN>=128 target) -- fail-closed (I7)");
-
-    std::optional<FlatBlockDotDescriptor> descriptor =
-        deriveFlatBlockDotDescriptor(blockDot.getOperation());
-    if (!descriptor)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot kind not flat-codebook");
-    BlockDotFacts facts =
-        deriveBlockDotFacts(blockDot, descriptor->defaultCoreLmul);
-    return emitFlatBlockDot(rewriter, loc, weightBase, activationBase, output,
-                            blockDot.getResult(), avlArg, sizeType, valueMap,
-                            blockDot.getTCRVEmitCLowerableSourceOpName(),
-                            blockDot.getTCRVEmitCLowerableSourceRole(), facts,
-                            *descriptor);
-  }
-
 mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,

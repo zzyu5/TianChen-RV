@@ -385,10 +385,6 @@ private:
   /// key; the emitter owns the structured binary-sign-decode expansion.
   static bool isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
 
-  /// The Family-A CODEBOOK sibling recognizer: a with_vl scope whose ONLY compute
-  /// op is a single tcrv_rvv.iq4_nl_q8_0_block_dot.
-  static bool isIQ4NLQ8_0BlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The CODEBOOK SUPER-BLOCK recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.iq4_xs_q8_k_block_dot (the super-block variant of
   /// iq4_nl: iq4_nl's codebook gather + the q4_K-style super-block signed scale).
@@ -1616,56 +1612,6 @@ private:
                                 mlir::Location loc, mlir::Value xb,
                                 llvm::StringRef opName,
                                 llvm::StringRef role) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_iq4_nl_q8_0 block dot-product for one
-  /// tcrv_rvv.iq4_nl_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph). It is the
-  /// FAMILY-A CODEBOOK sibling of emitQ4_0Q8_0BlockDot, sharing its block-loop /
-  /// unroll / tail / scale-read / store scaffolding STRUCTURE and its block byte
-  /// shape (stride 18, nibbles at +2, the low/high nibble <-> q8[0..15]/q8[16..31]
-  /// split). The TWO kernel-specific facts are (a) the integer core's weight
-  /// decode is a 16-entry NON-LINEAR codebook GATHER -- the 4-bit nibble indexes
-  /// kvalues_iq4nl[16] via vrgather (ggml's exact RVV method) instead of the
-  /// q4_0 offset-binary `nibble - 8` arithmetic -- and (b) the fp32 fold is ggml's
-  /// iq4_nl order `sumf = sumf + (float)sumi * (d_x * d_y)` (scales-first, the
-  /// q8_0/q5_0 order; ggml's _generic is `d * (sumi1 + sumi2)` with `d = d_y*d_x`).
-  ///
-  ///   static const int8_t tcrv_iq4_nl_kvalues[16] = { ... };  // codebook decl
-  ///   float sumf = 0.0f;
-  ///   size_t nb = n / 32;
-  ///   vint8m1_t values = __riscv_vle8_v_i8m1(tcrv_iq4_nl_kvalues, 16); // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*18;            // emitc.mul + emitc.add
-  ///     const uint8_t *yb = vy + ib*34;
-  ///     float d_x = (float)*(const _Float16 *)(xb);
-  ///     float d_y = (float)*(const _Float16 *)(yb);
-  ///     int32_t sumi = 0;
-  ///     size_t vl = __riscv_vsetvl_e8m1(16);       // m1: whole half-block @>=128
-  ///     vuint8m1_t w   = __riscv_vle8_v_u8m1(xb + 2, vl);     // packed nibbles
-  ///     vint8m1_t  y0  = __riscv_vle8_v_i8m1(yb + 2, vl);     // q8[0..15]
-  ///     vint8m1_t  y1  = __riscv_vle8_v_i8m1(yb + 18, vl);    // q8[16..31]
-  ///     vuint8m1_t iL  = __riscv_vand_vx_u8m1(w, 0x0F, vl);   // low nibble idx
-  ///     vuint8m1_t iH  = __riscv_vsrl_vx_u8m1(w, 0x04, vl);   // high nibble idx
-  ///     vint8m1_t  v0  = __riscv_vrgather_vv_i8m1(values, iL, vl);  // codebook!
-  ///     vint8m1_t  v1  = __riscv_vrgather_vv_i8m1(values, iH, vl);
-  ///     vint16m2_t p   = __riscv_vwmul_vv_i16m2(v0, y0, vl);  // low product
-  ///     p              = __riscv_vwmacc_vv_i16m2(p, v1, y1, vl); // + high
-  ///     vint32m1_t red = __riscv_vwredsum_vs_i16m2_i32m1(p, seed, vl);
-  ///     sumi = __riscv_vmv_x_s_i32m1_i32(red);
-  ///     sumf = sumf + (float)sumi * (d_x * d_y);    // ggml iq4_nl order
-  ///   }
-  ///   *s = sumf;
-  /// The codebook GATHER pins the m1 anchor: vrgather's source/index/dest share one
-  /// vtype, so to index all 16 table entries the `values` register's VLMAX must be
-  /// >= 16; at VLEN=128 e8 m1 -> VLMAX=16 (the half-block), mf4 -> 4 (drops 12 of
-  /// 16). The verifier enforces m1 (the codebook class is inherently Zvl128b-gated).
-  /// The single-vsetvl_e8m1(16) half-block cover is byte-exact for ANY VLEN >= 128.
-  /// The "robust" strip form keeps an inner strip loop carrying sumi (so a VLEN<128
-  /// board would re-strip), but at m1 the half-block is one strip at VLEN>=128.
-  mlir::LogicalResult emitIQ4NLQ8_0BlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_iq4_xs_q8_K super-block dot-product for
   /// one tcrv_rvv.iq4_xs_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no

@@ -372,7 +372,7 @@ WideningChain deriveWideningChain(llvm::StringRef base);
 // anchor set per family); this handle adds NO decision / selection / cost logic.
 // The per-kernel `defaultCoreLmul` (mf4 / m2 / m1 ...) is the caller's, not a
 // choice made here. Templated on the op type because each block-dot family is a
-// distinct ODS op (GgmlBlockDotIQ4NLQ80Op, GgmlBlockDotMXFP4Q80Op, ...) that
+// distinct ODS op (GgmlBlockDotMXFP4Q80Op, GgmlBlockDotIQ4XSQ8KOp, ...) that
 // shares the same three stamped accessors.
 struct BlockDotFacts {
   llvm::StringRef coreLmul;

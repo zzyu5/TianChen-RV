@@ -404,6 +404,48 @@ mlir::Value createFiveBitOffsetBinaryXI8Product(
   return builder.create(state)->getResult(0);
 }
 
+// iq4_nl codebook table broadcast (the CODEBOOK class's prerequisite structure,
+// 2nd primitive class): the 16-entry non-linear int8 kvalues table materialized as
+// a structured const + broadcast-loaded ONCE into the i8 vreg the gather indexes.
+// Consumes NO SSA operands (the table is a compile-time constant); the codebook
+// array + the C symbol are the two structural attrs.
+mlir::Value createCodebookTableBroadcast(mlir::OpBuilder &builder,
+                                         mlir::Location loc,
+                                         llvm::ArrayRef<std::int8_t> codebook,
+                                         llvm::StringRef tableSymbol,
+                                         mlir::Type tableType) {
+  mlir::OperationState state(
+      loc, tcrvrvv::CodebookTableBroadcastOp::getOperationName());
+  state.addAttribute("codebook", builder.getDenseI8ArrayAttr(codebook));
+  state.addAttribute("table_symbol", builder.getStringAttr(tableSymbol));
+  state.addTypes(tableType);
+  return builder.create(state)->getResult(0);
+}
+
+// The iq4_nl asymmetric CODEBOOK-GATHER packed-i4 x plain-i8 integer core: ONE
+// UNSIGNED packed-i4 weight operand (each u8 packs two 4-bit table INDICES) + TWO
+// plain int8 activation operands (the q8 low half paired with the low nibbles, the
+// q8 high half with the high nibbles) + the broadcast codebook `table` operand ->
+// ONE widened i16 product. Unlike the q4_0 offset-binary / q4_1 unsigned-nibble
+// siblings, the 4-bit nibble is an INDEX vrgather-decoded through the 16-entry
+// kvalues table (NOT an arithmetic decode); it then feeds the SAME asymmetric
+// widening product tail (vwmul low + vwmacc high) -> i16m2 the offset-binary
+// sibling uses. The m1 rung (i4m1 idx -> gather -> i8m1 x i8m1 low/high -> i16m2)
+// is the only declared rung.
+mlir::Value createCodebookGatherXI8Product(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value weight,
+    mlir::Value activationLow, mlir::Value activationHigh, mlir::Value table,
+    mlir::Value vl, mlir::Type productType, llvm::StringRef productRelation) {
+  mlir::OperationState state(
+      loc, tcrvrvv::CodebookGatherXI8ProductOp::getOperationName());
+  state.addOperands({weight, activationLow, activationHigh, table, vl});
+  state.addAttribute(
+      "kind", builder.getStringAttr("signed_codebook_gather_x_i8_product"));
+  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
+  state.addTypes(productType);
+  return builder.create(state)->getResult(0);
+}
+
 mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
                                    mlir::Value input, mlir::Value accumulatorSeed,
                                    mlir::Value vl, mlir::Type resultType) {
@@ -614,9 +656,19 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // q5_0 (applyOffsetBias=false) lives entirely in the emit driver.
   const bool isQ51 =
       entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
+  // iq4_nl (CODEBOOK class, 2nd primitive class): shares the q4_1 HALF-block m1
+  // 3-load shape (a u8 packed-i4 weight + the two plain-i8 q8 halves), but the
+  // weight nibble is a codebook INDEX (vrgather through the 16-entry kvalues
+  // table) NOT an arithmetic decode, so its integer core is the two codebook
+  // bricks (codebook_table_broadcast + codebook_gather_x_i8_product) rather than a
+  // packed-i4 product. Its fold is SumiTimesScales (the else-default, node-identical
+  // to q8_0). It is NOT in isHalfBlock (that flag gates the offset-binary/unsigned
+  // packed-i4 product branch); its high-half activation offset is sourced the SAME
+  // way (activation_high_byte_offset).
+  const bool isIq4Nl = entry.opName == "tcrv_rvv.iq4_nl_q8_0_block_dot";
   const bool isHalfBlock = isQ40 || isQ41 || isQ50 || isQ51;
   std::int64_t activationHighOffset =
-      isHalfBlock ? factByName("activation_high_byte_offset") : 0;
+      (isHalfBlock || isIq4Nl) ? factByName("activation_high_byte_offset") : 0;
 
   mlir::OperationState loopState(
       loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
@@ -644,9 +696,14 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // at VLEN128. So the ONLY form that must fall back to the VLEN-robust re-strip is
   // q8_0 at m1; every currently-live path (q8_0-m2, half-block-m1) keeps "elided"
   // byte-for-byte.
+  // iq4_nl's codebook core is a half-block-length strip (qk/2 = 16 elements at
+  // e8m1, VLMAX 16 @VLEN128 = whole-strip-legal), so like the packed-i4 half-block
+  // formats it keeps "elided"; only q8_0's whole-block (blockLen = qk = 32) m1 core
+  // needs the VLEN-robust re-strip.
   loopState.addAttribute(
       "strip_elision",
-      builder.getStringAttr((!isHalfBlock && lmul == "m1") ? "robust" : "elided"));
+      builder.getStringAttr((!isHalfBlock && !isIq4Nl && lmul == "m1") ? "robust"
+                                                                       : "elided"));
   // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
   loopState.addRegion();
   auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
@@ -724,7 +781,30 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                        : quantByteOffset;
 
   mlir::Value prod;
-  if (isHalfBlock) {
+  if (isIq4Nl) {
+    // iq4_nl CODEBOOK integer core (2nd primitive class): the 16-entry non-linear
+    // int8 kvalues table broadcast ONCE + the u8 packed-i4 weight strip + the two
+    // plain-i8 q8 halves -> the asymmetric codebook-gather product. The weight and
+    // activation qs offsets COINCIDE (weight qs@2, activation qs@2, like q4_0/q4_1),
+    // so both use quantByteOffset; the high half sits at quant_off +
+    // activation_high_byte_offset. The nibble is a vrgather INDEX (NOT an arithmetic
+    // decode); the gathered i8 weight lanes feed the SAME widening product tail
+    // (i8m1 x i8m1x2 -> i16m2). fold_model is SumiTimesScales (the else-default).
+    mlir::Value table = createCodebookTableBroadcast(
+        builder, loc, entry.codebook, "tcrv_iq4_nl_kvalues", i8VecType);
+    mlir::Value wv =
+        createRVVBlockLoad(builder, loc, weight, vl, blockIndex, weightStride,
+                           quantByteOffset, ui8VecType);
+    mlir::Value avLow =
+        createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
+                           activationStride, quantByteOffset, i8VecType);
+    mlir::Value avHigh = createRVVBlockLoad(
+        builder, loc, activation, vl, blockIndex, activationStride,
+        quantByteOffset + activationHighOffset, i8VecType);
+    prod = createCodebookGatherXI8Product(
+        builder, loc, wv, avLow, avHigh, table, vl, i16VecType,
+        "codebook-gather-i8-x-i8x2-to-i16");
+  } else if (isHalfBlock) {
     // packed-i4 weight strip (base + ib*stride + quant_off). q4_1/q5_0 = u8 (the
     // nibble decode is UNSIGNED), q4_0 = signed i8.
     mlir::Value wv = createRVVBlockLoad(
@@ -1562,9 +1642,17 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
       entry.opName == "tcrv_rvv.q5_0_q8_0_block_dot";
   const bool isQ51TypedFlat =
       entry.opName == "tcrv_rvv.q5_1_q8_1_block_dot";
+  // iq4_nl (CODEBOOK class, 2nd primitive class): the 3rd flat DECODE axis flips to
+  // the typed flat loop path (its codebook branch constructs the codebook_table_
+  // broadcast + codebook_gather_x_i8_product bricks). Unlike the plain flat cores,
+  // its OUTER with_vl frame stays SEW32/m1 (the standalone_reduce codebook framing;
+  // the e8m1 codebook gather runs its own vsetvl INSIDE the region), so configSEW
+  // stays 32 for it (below).
+  const bool isIq4NlTypedFlat =
+      entry.opName == "tcrv_rvv.iq4_nl_q8_0_block_dot";
   const bool typedFlatLoopPath = isQ80TypedFlat || isQ40TypedFlat ||
                                  isQ41TypedFlat || isQ50TypedFlat ||
-                                 isQ51TypedFlat;
+                                 isQ51TypedFlat || isIq4NlTypedFlat;
   // GATED typed SUPER-BLOCK path (M-FLAT q4_K milestone-3): q4_K's front door
   // constructs the COMPLETE per-super-block TYPED DUAL-accumulator loop chain
   // (typed_super_block_block_dot_loop_body region) instead of the ONE monolith
@@ -1606,7 +1694,11 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // single-vector chain. Its stride-84 facts flow through entry.facts.
   const bool isQ2KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
-  const std::int64_t configSEW = typedFlatLoopPath ? 8 : 32;
+  // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
+  // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
+  // plain flat cores which frame the OUTER config at SEW8.
+  const std::int64_t configSEW =
+      (typedFlatLoopPath && !isIq4NlTypedFlat) ? 8 : 32;
   // The typed-flat integer-core LMUL schedule, the ONE source fed to BOTH the
   // setvl/with_vl config (configLMUL) AND the loop-body chain (integer_core_lmul
   // stamp / coreLmul-wideLmul / q8_0 product_relation), so the verifier-cross-pinned
@@ -1628,9 +1720,12 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     if (fact.name == "qk")
       typedFlatQk = fact.value;
   // The half-block packed-i4 core covers qk/2 elements per strip (the low OR high
-  // nibble half); q8_0's contiguous plain-i8 core covers the whole qk block.
+  // nibble half); q8_0's contiguous plain-i8 core covers the whole qk block. The
+  // iq4_nl codebook core is likewise a qk/2 half-block strip (its {m1} candidate is
+  // pinned by the 16-entry gather VLMAX fact, so this fill-LMUL query returns m1).
   const bool isTypedFlatHalfBlock = isQ40TypedFlat || isQ41TypedFlat ||
-                                    isQ50TypedFlat || isQ51TypedFlat;
+                                    isQ50TypedFlat || isQ51TypedFlat ||
+                                    isIq4NlTypedFlat;
   const std::int64_t typedFlatBlockLen =
       isTypedFlatHalfBlock ? (typedFlatQk / 2) : typedFlatQk;
   llvm::SmallVector<llvm::StringRef, 2> typedFlatLMULCandidates;

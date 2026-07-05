@@ -1,17 +1,18 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's/fold_model = "sumi_times_scales"/fold_model = "unsupported_fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
 
-// EMPIRICAL region-vs-monolith byte-diff (like the q4_0 repack Phase-B): the typed
-// tcrv_rvv.typed_flat_block_dot_loop_body codebook branch reuses the SAME shared
-// emitFlatBlockCore (-> emitFlatIntegerCore CodebookGatherNibble) + emitFlatFold
-// (SumiTimesScales) the monolithic emitFlatBlockDot ggml_iq4_nl_q8_0 mbf1/elided m1
-// instance drives, so the emitted KERNEL BODY is byte-identical BY CONSTRUCTION. The
-// only residues (func name, source-op provenance strings, SSA numbering) are
-// normalized by canon-iq4-nl-flat-emit.pl, so an empty `diff` proves the bodies
-// equal.
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | %S/Inputs/canon-iq4-nl-flat-emit.pl > %t.region
-// RUN: tcrv-opt %S/Inputs/iq4-nl-q8-0-monolith-flat.mlir --tcrv-rvv-lower-to-emitc | %S/Inputs/canon-iq4-nl-flat-emit.pl > %t.monolith
-// RUN: diff %t.region %t.monolith
+// M1 byte-exact evidence (HISTORICAL, EMPIRICAL): at milestone M1 (commit
+// 197a7a5b, BEFORE the monolith was retired) the typed
+// tcrv_rvv.typed_flat_block_dot_loop_body codebook branch was proven byte-identical
+// to the monolithic tcrv_rvv.iq4_nl_q8_0_block_dot emit by an EMPTY canonicalized
+// region-vs-monolith `diff` on a forced clean rebuild (like the q4_0 repack Phase-B).
+// The typed body reuses the SAME shared emitFlatBlockCore (-> emitFlatIntegerCore
+// CodebookGatherNibble) + emitFlatFold (SumiTimesScales) the monolith drove, so the
+// emitted KERNEL BODY is byte-identical BY CONSTRUCTION. At M2 the monolith op +
+// emitter were RETIRED (the typed body is now the SOLE representation, front-door
+// constructed), so the live diff can no longer parse the retired-op reference; the
+// M1 empirical proof stands as the byte-exactness record. The FileCheck below
+// asserts the codebook emit directly.
 
 // Anti-bypass / "byte-exact is contingent on the offset" divergence: rewiring the
 // codebook-gather product's HIGH q8 activation load quant offset (18 -> 20) genuinely
