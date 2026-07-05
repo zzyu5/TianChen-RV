@@ -9679,6 +9679,117 @@ def TypedSuperBlockBlockDotLoopYieldOp
   let hasVerifier = 1;
 }
 
+def TypedRepackGemvLoopBodyOp
+    : TCRVRVV_Op<"typed_repack_gemv_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV column-group-wrapped nb loop op for the q4_0 16x1-"
+      "REPACKED GEMV (per-strip lane-wise VECTOR f32 accumulator)";
+  let description = [{
+    Records the q4_0 16x1-REPACKED GEMV's inner contraction-BLOCK loop as ONE
+    typed region-carrying dataflow op -- the M-FLAT REPACK scaffold sibling of
+    tcrv_rvv.typed_flat_block_dot_loop_body and
+    tcrv_rvv.typed_super_block_block_dot_loop_body. It is the FIRST typed loop op
+    whose loop-carried accumulator is a per-strip LANE-WISE f32 VECTOR: the
+    repacked block-as-lane dot accumulates LANE-WISE via vwmacc, so the per-block
+    reduction wall is gone (NO cross-lane vredsum, NO horizontal fold, NO scalar
+    boundary) and the whole 16-lane strip is written STRAIGHT to s + x*16 with a
+    lane-wise vse32. This is a structure NEITHER the flat single-f32-scalar loop
+    op NOR the super-block dual/single accumulator loop op can express (both carry
+    a per-super-block SCALAR / horizontally-folded vector reduced to *s).
+
+    The op consumes FIVE runtime ABI value operands -- the repacked q4_0x16 weight
+    base pointer, the plain q8_0 activation base pointer, the fp32 output pointer,
+    the runtime contraction element count (n), and the runtime weight-column count
+    (nc) -- and owns one single-block region whose entry arguments are the
+    `block_index` induction variable (index) and the loop-carried per-strip f32
+    VECTOR accumulator `acc` (!tcrv_rvv.vector<f32, "m2">, the one-strip 16-lane
+    form). The region is terminated by tcrv_rvv.typed_repack_gemv_loop_yield,
+    which names the carried-out `acc_next` vector. The lowering wraps the region
+    in the OUTER weight-column-GROUP loop (for x in nc/weight_interleave), seeds
+    the per-strip vector accumulator with vfmv_v_f(0.0f) per group, maps the
+    carried-IN `acc` block argument to a LOAD of the accumulator's emitc.variable
+    lvalue at the top of the block loop and the carried-OUT `acc_next` to an
+    emitc.assign back at the bottom (emitc.for has no iter_args, exactly the
+    flat/super-block loop lowering and the SCFToEmitC iter_args convention), and
+    stores the final strip through s + x*weight_interleave with a lane-wise vse32.
+
+    Making the repacked block loop + the per-strip VECTOR accumulate a first-class
+    typed body op (I5) means the emission is determined by op identity + the
+    explicit scheduling facts, never inferred from candidate-mirror metadata,
+    route ids, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, or q8/q4 names. The bounded scheduling facts (qk, the repacked AoS
+    block strides / byte offsets, weight_interleave, the resource-aware half_lanes
+    strip width, the optional integer_core_lmul) are the SAME byte-exact shape
+    knobs the monolithic emitRepackGemvQ4_0Q8_0 reads (the *how* -- LMUL / strip
+    width -- never the *what*); fold_model "lane_wise_vector_scale" fixes the
+    per-strip fp32 fold tree (vfwmul/vfcvt/vfmacc). The op does NOT own dtype/route
+    authority; the per-block lane-wise integer product (the nibble decode + vwmacc
+    lo/hi + lo/hi combine) and the per-block dual-fp16 scale fold are separate
+    typed steps to be carried inside the region (later M-FLAT repack milestones).
+    This SCAFFOLD milestone pins the loop + per-strip VECTOR accumulator SKELETON
+    byte-exact to the monolithic one-strip repacked GEVM (the CORE integer product
+    + scale fold are a pure loop-carried stub, exactly as the flat loop scaffold
+    step 1 stubbed its fold). For the current bounded surface kind is limited to
+    "typed_repack_gemv_loop_body", fold_model to "lane_wise_vector_scale", and
+    scale_model to "dual-fp16-per-block-d_x.d_y".
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    StrAttr:$fold_model,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $activation_base `,` $output `,` $element_count `,`
+    $column_count attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($activation_base) `,` type($output) `,`
+    type($element_count) `,` type($column_count)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedRepackGemvLoopYieldOp
+    : TCRVRVV_Op<"typed_repack_gemv_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedRepackGemvLoopBodyOp">]> {
+  let summary =
+      "terminator naming the carried-out per-strip f32 VECTOR accumulator of the "
+      "repacked GEVM block loop op";
+  let description = [{
+    Terminates the tcrv_rvv.typed_repack_gemv_loop_body region by naming the
+    carried-out per-strip f32 VECTOR accumulator `acc_next`
+    (!tcrv_rvv.vector<f32, "m2">). It makes the loop-carried dataflow explicit
+    (the SSA value carried into the next block iteration), so the lowering maps
+    `acc_next` to the emitc.assign back into the per-strip accumulator
+    emitc.variable lvalue with no implicit convention. The operand is required to
+    be the f32 VECTOR accumulator (a scalar f32 or an i32 lane accumulator is
+    rejected fail-closed -- this is the lane-wise VECTOR contrast against the flat
+    loop op's scalar yield). It carries no compute, dtype, memory, or route
+    semantics.
+  }];
+
+  let arguments = (ins AnyType:$acc_next);
+
+  let assemblyFormat = "$acc_next attr-dict `:` type($acc_next)";
+  let hasVerifier = 1;
+}
+
 def TypedVectorLane0ToScalarExtractOp :
     TCRVRVV_Op<"typed_vector_lane0_to_scalar_extract",
     [TCRVEmitCLowerableOpInterface]> {

@@ -10395,6 +10395,142 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopYieldOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded surface (I7 fail-closed): the repack GEVM loop op owns the q4_0
+  // 16x1-repacked per-strip lane-wise fold tree; any other kind/fold_model/
+  // scale_model spelling is rejected fail-closed.
+  if (getKind() != "typed_repack_gemv_loop_body")
+    return emitOpError()
+           << "currently supports only kind \"typed_repack_gemv_loop_body\" for "
+              "the bounded q4_0 16x1-repacked GEVM block loop surface";
+  if (getFoldModel() != "lane_wise_vector_scale")
+    return emitOpError()
+           << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
+              "repacked GEVM per-strip vfwmul/vfcvt/vfmacc lane-wise fold tree); "
+              "the other repacked fold trees are later steps";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "currently supports only scale_model "
+              "\"dual-fp16-per-block-d_x.d_y\" (the per-block d_x*d_y dual-fp16 "
+              "repacked scale model)";
+
+  // Externally-defined ggml repacked block facts: QK and the AoS strides are
+  // positive byte counts the per-block address arithmetic depends on.
+  if (getQk() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count)";
+  if (getWeightBlockStride() <= 0)
+    return emitOpError()
+           << "requires weight_block_stride > 0 (the block_q4_0x16 repacked "
+              "weight block stride)";
+  if (getActivationBlockStride() <= 0)
+    return emitOpError()
+           << "requires activation_block_stride > 0 (the plain block_q8_0 "
+              "activation block stride)";
+  if (getWeightInterleave() <= 0)
+    return emitOpError()
+           << "requires weight_interleave > 0 (the block-as-lane interleave "
+              "width, 16 for block_q4_0x16)";
+  // Resource-aware strip width (I7): half_lanes must be in {8, 16} and divide the
+  // 16-way interleave, exactly as the monolithic repack GEVM op pins it.
+  int64_t half = getHalfLanes();
+  if ((half != 8 && half != 16) || getWeightInterleave() % half != 0)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} dividing weight_interleave (the "
+              "resource-aware e16m1 strip width); got "
+           << half;
+
+  // Bounded scheduling knob (the *how*, never the *what*): the integer-core
+  // widening-chain base LMUL {"mf2" (RVV1.0 fractional), "m1" (RVV0.7 whole)}.
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "mf2" && *coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "chain) or \"m1\" (the RVV0.7 whole-LMUL chain); got \""
+             << *coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires the five repacked-GEVM ABI operands (weight base, "
+              "activation base, output, element count, column count) and no "
+              "results (the lane-wise vector store is the sink)";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the block_q4_0x16 repacked weight byte "
+              "array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI value "
+              "of C type 'const uint8_t *' (the plain block_q8_0 activation byte "
+              "array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml *s destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be the runtime nc index "
+              "value driving the weight-column-group loop";
+
+  // Region: exactly two entry args -- the block_index induction variable and the
+  // loop-carried per-strip f32 VECTOR accumulator -- terminated by the repack
+  // loop yield naming the carried-out vector (the lane-wise VECTOR contrast
+  // against the flat loop op's scalar accumulator).
+  mlir::Block &block = getBody().front();
+  if (block.getNumArguments() != 2)
+    return emitOpError()
+           << "requires the region to carry exactly two entry arguments: the "
+              "block_index induction variable and the loop-carried per-strip f32 "
+              "vector accumulator";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the first region argument (block_index) to be "
+              "index-typed (the nb block induction variable)";
+  if (!isF32M2VectorAccumulator(block.getArgument(1).getType()))
+    return emitOpError()
+           << "requires the second region argument (the loop-carried per-strip "
+              "accumulator) to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\">)";
+
+  TypedRepackGemvLoopYieldOp yield =
+      block.empty()
+          ? TypedRepackGemvLoopYieldOp()
+          : llvm::dyn_cast<TypedRepackGemvLoopYieldOp>(&block.back());
+  if (!yield)
+    return emitOpError()
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_repack_gemv_loop_yield (the carried-out per-strip "
+              "f32 vector accumulator)";
+  if (!isF32M2VectorAccumulator(yield.getAccNext().getType()))
+    return emitOpError()
+           << "requires the loop yield to carry a per-strip f32 vector "
+              "accumulator (!tcrv_rvv.vector<f32, \"m2\">)";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedRepackGemvLoopYieldOp::verify() {
+  if (!isF32M2VectorAccumulator(getAccNext().getType()))
+    return emitOpError()
+           << "requires the carried-out accumulator to be a per-strip f32 vector "
+              "(!tcrv_rvv.vector<f32, \"m2\">, the lane-wise repacked GEVM "
+              "accumulator domain)";
+  return mlir::success();
+}
+
 mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
   mlir::Operation *op = getOperation();
 

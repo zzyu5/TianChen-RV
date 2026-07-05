@@ -376,6 +376,16 @@ private:
   /// loop, exactly like the monolithic emitQ4_KQ8_KBlockDot.
   static bool isTypedSuperBlockBlockDotLoopBody(tcrvrvv::WithVLOp scope);
 
+  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold recognizer (milestone-1): a
+  /// with_vl scope whose ONLY op is a single
+  /// tcrv_rvv.typed_repack_gemv_loop_body (the region-carrying nb contraction-
+  /// block loop with the per-strip LANE-WISE f32 VECTOR loop-carried accumulator,
+  /// wrapped by the emitter in the outer weight-column-group loop). Routed through
+  /// the block-dot table (NOT the elementwise path) so no outer AVL loop wraps it;
+  /// the op owns its own internal loop nest, exactly like the monolithic
+  /// emitRepackGemvQ4_0Q8_0.
+  static bool isTypedRepackGemvLoopBody(tcrvrvv::WithVLOp scope);
+
   /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
@@ -1492,6 +1502,24 @@ private:
   /// byte-identical to the monolith by construction (same helpers, same facts,
   /// same order). NO monolith retire, NO flip.
   mlir::LogicalResult emitTypedSuperBlockBlockDotLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (milestone-1):
+  /// lower the region-carrying tcrv_rvv.typed_repack_gemv_loop_body to the
+  /// byte-exact SKELETON the monolithic emitRepackGemvQ4_0Q8_0 emits for the
+  /// ONE-strip form -- nb = n / QK, nc_groups = nc / weight_interleave, the outer
+  /// emitc.for weight-column-group loop, the per-strip vfloat32m2 emitc.variable
+  /// accumulator seeded per group with vfmv_v_f(0.0f), the inner emitc.for block
+  /// loop mapping the carried-IN `acc` block argument to a LOAD at the top and the
+  /// carried-OUT `acc_next` to an emitc.assign at the bottom, and the per-strip
+  /// lane-wise vse32 store (NO horizontal reduction). Milestone-1 pins the loop +
+  /// per-strip VECTOR accumulator skeleton; the CORE lane-wise integer product +
+  /// dual-fp16 scale fold are a pure loop-carried stub (region yield == region arg
+  /// 1), deferred to later repack milestones. Fail-closed (I7) to the one-strip
+  /// (half_lanes == weight_interleave) + mf2 (f32m2) form.
+  mlir::LogicalResult emitTypedRepackGemvLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

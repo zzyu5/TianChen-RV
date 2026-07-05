@@ -1887,6 +1887,204 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     return mlir::success();
   }
 
+// M-FLAT REPACK scaffold milestone 1: the typed region-carrying sibling of the
+// monolithic emitRepackGemvQ4_0Q8_0. It lowers
+// tcrv_rvv.typed_repack_gemv_loop_body -- whose region carries the inner
+// contraction-block loop with the per-strip LANE-WISE f32 VECTOR loop-carried
+// accumulator -- to the byte-exact SKELETON the monolith emits for the ONE-strip
+// form (VLEN=256 fractional / RVV0.7 whole-LMUL): nb = n / QK, nc_groups = nc /
+// weight_interleave, the outer weight-column-group emitc.for, the per-strip
+// vfloat32m2 emitc.variable accumulator seeded per group with vfmv_v_f(0.0f), the
+// inner block emitc.for mapping the carried-IN `acc` block argument to a LOAD at
+// the top and the carried-OUT `acc_next` to an emitc.assign at the bottom, and the
+// per-strip lane-wise vse32 store (NO horizontal reduction -- the repacked
+// block-as-lane strip writes 16 columns straight to s + x*16). This milestone pins
+// the loop + per-strip VECTOR accumulator skeleton byte-exact; the CORE lane-wise
+// integer product (nibble decode + vwmacc lo/hi + lo/hi combine) and the dual-fp16
+// scale fold are a pure loop-carried stub (region yield == region arg 1), deferred
+// to later repack milestones -- exactly as the flat loop scaffold step 1 stubbed
+// its fold.
+mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+
+  tcrvrvv::TypedRepackGemvLoopBodyOp loopBody;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(op))
+      loopBody = lb;
+  }
+  if (!loopBody)
+    return rewriter.notifyMatchFailure(
+        scope, "typed repack GEVM loop body missing the op");
+
+  // ---- Region walk + region-driven gate (fail-closed, I7). The scaffold body
+  // carries the (block_index, per-strip vector acc) entry pair and a yield naming
+  // the carried-out vector; milestone-1 requires the yield to carry the loop-
+  // carried block argument itself (the CORE fold is a later step). This is the
+  // anti-bypass tie: the emit provably tracks the region's accumulator dataflow
+  // (the yield -> region arg 1 link), not merely the loop-op attrs. ----
+  mlir::Block &coreBlock = loopBody.getBody().front();
+  tcrvrvv::TypedRepackGemvLoopYieldOp yieldOp;
+  loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+    if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopYieldOp>(bodyOp))
+      yieldOp = o;
+  });
+  if (!yieldOp)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed repack GEVM loop body requires the loop yield");
+  if (coreBlock.getNumArguments() != 2)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed repack GEVM loop body region must carry the "
+                  "(block_index, per-strip vector acc) entry pair");
+  mlir::Value blockIndexArg = coreBlock.getArgument(0);
+  mlir::Value accArg = coreBlock.getArgument(1);
+  if (yieldOp.getAccNext() != accArg)
+    return rewriter.notifyMatchFailure(
+        yieldOp,
+        "milestone-1 repack GEVM loop yield must carry the loop-carried per-strip "
+        "vector accumulator (region arg 1); the region-driven CORE fold that "
+        "mutates the accumulator is a later step");
+  (void)blockIndexArg;
+
+  // ---- ABI operands (the same five the monolithic repack GEVM reads). Only the
+  // output + column count drive the milestone-1 skeleton; the weight/activation
+  // bases are looked up + non-null-checked here (they feed the deferred CORE) so
+  // the valueMap is well-formed and the ABI wiring is pinned. ----
+  mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+  mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+  mlir::Value output = valueMap.lookup(loopBody.getOutput());
+  mlir::Value columnCount = valueMap.lookup(loopBody.getColumnCount());
+  if (!weightBase || !activationBase || !output || !columnCount)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "repack GEVM loop ABI operand unmapped");
+  (void)weightBase;
+  (void)activationBase;
+
+  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+
+  int64_t qk = loopBody.getQk();
+  int64_t weightInterleave = loopBody.getWeightInterleave();
+  int64_t half = loopBody.getHalfLanes();
+  int64_t numHalves = weightInterleave / half;
+
+  // Milestone-1 emit-time surface gate (fail-closed, I7): only the ONE-strip form
+  // (numHalves == 1: VLEN=256 fractional or RVV0.7 whole-LMUL) is materialized.
+  // The two-8-lane-halves VLEN=128 form (numHalves == 2) needs a multi-accumulator
+  // region signature this single-vector scaffold region cannot express -- a later
+  // milestone.
+  if (numHalves != 1)
+    return rewriter.notifyMatchFailure(
+        loopBody, "the typed repack GEVM loop body currently materializes only "
+                  "the one-strip form (half_lanes == weight_interleave); the "
+                  "two-8-lane-halves VLEN=128 form is a later milestone");
+
+  // The integer-core LMUL anchor (the *how*): "mf2" default (RVV1.0 fractional
+  // chain, f32 fold at m2). Milestone-1 pins the f32 accumulator at the m2 form,
+  // matching the verifier's isF32M2VectorAccumulator; the RVV0.7 whole-LMUL "m1"
+  // (f32m4) accumulator is a later step.
+  llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+  if (coreLmul != "mf2")
+    return rewriter.notifyMatchFailure(
+        loopBody, "the typed repack GEVM loop body currently materializes only "
+                  "the mf2 (f32m2 accumulator) core; the RVV0.7 whole-LMUL m1 "
+                  "(f32m4) form is a later milestone");
+  llvm::StringRef l32 = "m2";
+  mlir::Type f32m2Type =
+      emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type floatPtrType = output.getType();
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto step = [&](llvm::StringRef s) {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // The active vl is the compile-time-constant one-strip width (16 e16m1 lanes at
+  // VLEN=256), exactly as the monolithic repack GEVM runs every intrinsic.
+  mlir::Value vl16 = sizeLit(half);
+
+  // size_t nb = n / QK;  (the contraction block count).
+  step("block_count");
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+  // size_t nc_groups = nc / 16;
+  step("col_group_count");
+  mlir::Value ncGroups = rewriter.create<emitc::DivOp>(
+      loc, sizeType, columnCount, sizeLit(weightInterleave));
+
+  // ===== Outer weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
+  auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                               sizeLit(1),
+                                               /*bodyBuilder=*/nullptr);
+  {
+    mlir::OpBuilder::InsertionGuard cg(rewriter);
+    rewriter.setInsertionPointToStart(colLoop.getBody());
+    mlir::Value x = colLoop.getInductionVar();
+
+    // vfloat32m2_t sumf = vfmv_v_f(0.0f, 16);  -- the ONE 16-lane f32 strip
+    // accumulator (byte-exact to the monolithic seedF32). The SSA loop-carried
+    // `acc` block argument lowers to this mutable emitc.variable lvalue.
+    std::string fmvCallee = riscvIntrinsicName("vfmv_v_f", 32, l32, "f32");
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(f32m2Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    mlir::Value seed = emitOpaqueCallBuilt(
+        rewriter, loc, f32m2Type, fmvCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zero =
+              rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f")
+                  .getResult();
+          return {zero, vl16};
+        });
+    rewriter.create<emitc::AssignOp>(loc, sumfVar, seed);
+
+    // ===== Inner contraction-BLOCK loop: for (l = 0; l < nb; ++l) =====
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard bg(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+
+      // The carried-IN `acc` block argument -> a LOAD of the sumf lvalue at the
+      // TOP of the block loop (emitc.for has no iter_args; the SSA-vector-acc <->
+      // emitc-variable mapping, no hacky bypass).
+      mlir::Value accIn =
+          rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar).getResult();
+      // Milestone-1: `acc_next` == `acc` (the region yield, gated above), so the
+      // carried-OUT value is the carried-IN accumulator -- the load-at-top /
+      // assign-at-bottom skeleton is byte-exact to the monolithic one-strip block
+      // loop; the region-driven CORE fold that mutates sumf between them is
+      // deferred to a later milestone.
+      rewriter.create<emitc::AssignOp>(loc, sumfVar, accIn);
+    }
+
+    // Per-strip lane-wise vector store vse32(s + x*16, sumf, 16) (NO horizontal
+    // reduction -- the repacked block-as-lane strip writes 16 columns straight to
+    // s + x*16). Byte-exact to the monolithic storeHalf(sumf, laneOff==0).
+    std::string vseCallee = riscvIntrinsicName("vse", 32, l32, "f32");
+    step("output_addr");
+    mlir::Value x16 = rewriter.create<emitc::MulOp>(
+        loc, sizeType, x, sizeLit(weightInterleave));
+    mlir::Value dst =
+        rewriter.create<emitc::AddOp>(loc, floatPtrType, output, x16);
+    mlir::Value sumfVal =
+        rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar).getResult();
+    emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                       mlir::ValueRange{dst, sumfVal, vl16}, opName, role);
+  }
+
+  return mlir::success();
+}
+
 // q5_0 16x1-REPACKED single-column GEMV (decode). q5_0 = q4_0 + the 5th high
 // bit. The weight side is block_q5_0x16 (16 interleaved rows across 16 lanes,
 // dot accumulates LANE-WISE via vwmacc, NO per-block vredsum): RAW nibbles at
