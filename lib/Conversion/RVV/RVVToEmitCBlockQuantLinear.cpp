@@ -1436,6 +1436,223 @@ mlir::LogicalResult VariantToEmitCFunc::emitPackQ4_0ToX16(
     return mlir::success();
   }
 
+// The shared q4_0 16x1-REPACKED per-block LANE-WISE integer CORE leaf. Factored
+// VERBATIM out of emitRepackGemvQ4_0Q8_0's block-loop body so the SAME node
+// sequence (seed i16 lo/hi per strip -> nibble-step vwmacc loop -> lo/hi vwadd
+// combine) is reachable both inline (the monolith) AND through the first-class
+// tcrv_rvv.repack_lane_wise_q4_x_i8_dot brick inside the typed
+// tcrv_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
+// Given the per-block bases bl/al (already advanced by block_index*stride) it
+// returns the per-strip i32 `sumi` values (numHalves entries); the dual-fp16
+// per-strip scale fold that consumes them is the caller's.
+llvm::SmallVector<mlir::Value>
+VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const RepackQ4IntegerCoreContext &cx, mlir::Value bl,
+    mlir::Value al) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  llvm::StringRef opName = cx.opName;
+  llvm::StringRef role = cx.role;
+  llvm::StringRef l8 = cx.l8;
+  llvm::StringRef l16 = cx.l16;
+  llvm::StringRef l32 = cx.l32;
+  mlir::Type sizeType = cx.sizeType;
+  mlir::Value vl8 = cx.vl8;
+  int64_t numHalves = cx.numHalves;
+  int64_t half = cx.half;
+  int64_t nibbleBytes = cx.nibbleBytes;
+  int64_t weightInterleave = cx.weightInterleave;
+  int64_t weightQuantOffset = cx.weightQuantOffset;
+  int64_t activationQuantOffset = cx.activationQuantOffset;
+  int64_t activationHighRow = cx.activationHighRow;
+
+  mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
+  mlir::Type i16m1Type =
+      emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
+  mlir::Type i32m2Type =
+      emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
+  mlir::Type i8mf2Type =
+      emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+  mlir::Type i8PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+  mlir::Type weightPtrType = bl.getType();
+  mlir::Type activationPtrType = al.getType();
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto step = [&](llvm::StringRef s) {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
+  };
+
+  // A typed i8 contiguous sub-load: __riscv_vle8_v_i8<l8>((int8_t*)ptr, vl).
+  std::string i8LoadCallee = riscvIntrinsicName("vle", 8, l8, "i8");
+  auto loadNibbles = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
+    mlir::Value full =
+        rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+    mlir::Value cast =
+        rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, i8LoadCallee,
+                          mlir::ValueRange{cast, vl8}, opName, role);
+  };
+  // The repacked nibbles already carry the ^0x88 offset-binary bias, so the
+  // decode is a plain sign-extension: b_lo = vsra(vsll(b,4),4); b_hi=vsra(b,4).
+  std::string sllCallee = ("__riscv_vsll_vx_i8" + l8).str();
+  std::string sraCallee = ("__riscv_vsra_vx_i8" + l8).str();
+  mlir::Value four = sizeLit(4);
+  auto decodeLo = [&](mlir::Value packed) -> mlir::Value {
+    mlir::Value shl =
+        emitOpaqueCall(rewriter, loc, i8mf2Type, sllCallee,
+                       mlir::ValueRange{packed, four, vl8}, opName, role);
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
+                          mlir::ValueRange{shl, four, vl8}, opName, role);
+  };
+  auto decodeHi = [&](mlir::Value packed) -> mlir::Value {
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
+                          mlir::ValueRange{packed, four, vl8}, opName, role);
+  };
+  // A scalar i8 read of the repacked activation quant byte a_ptr[l].qs[k]:
+  // *(const int8_t *)(ab + 2 + k).
+  llvm::StringRef i8ReadCallee = "*(const int8_t *)";
+  auto i8Read = [&](mlir::Value ab, mlir::Value byteOff) -> mlir::Value {
+    mlir::Value full =
+        rewriter.create<emitc::AddOp>(loc, activationPtrType, ab, byteOff);
+    mlir::Value cast =
+        rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
+    return emitOpaqueCall(rewriter, loc, i32Type, i8ReadCallee,
+                          mlir::ValueRange{cast}, opName, role,
+                          llvm::StringRef("act_quant_scalar"));
+  };
+  // vwmacc_vx widening multiply-accumulate: acc += scalar * vec (i8->i16).
+  std::string vwmaccCallee = ("__riscv_vwmacc_vx_i16" + l16).str();
+  auto vwmacc = [&](mlir::Value acc, mlir::Value scalar,
+                    mlir::Value vec) -> mlir::Value {
+    return emitOpaqueCall(rewriter, loc, i16m1Type, vwmaccCallee,
+                          mlir::ValueRange{acc, scalar, vec, vl8}, opName,
+                          role);
+  };
+
+  // vint16m1_t sumi_{a,b}_{lo,hi} = vmv_v_x(0, 8);
+  std::string mvCallee = riscvIntrinsicName("vmv_v_x", 16, l16, "i16");
+  auto seedI16 = [&]() -> mlir::Value {
+    return emitOpaqueCallBuilt(
+        rewriter, loc, i16m1Type, mvCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value zero =
+              rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
+                  .getResult();
+          return {zero, vl8};
+        });
+  };
+  // Per-strip i16 lo/hi accumulator lvalues, seeded lo then hi per strip:
+  // at num_halves=2 this is a_lo, a_hi, b_lo, b_hi (HEAD order, byte-id).
+  llvm::SmallVector<mlir::Value> sumiLoVar, sumiHiVar;
+  for (int64_t h = 0; h < numHalves; ++h) {
+    auto vlo = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(i16m1Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, vlo, seedI16());
+    sumiLoVar.push_back(vlo);
+    auto vhi = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(i16m1Type),
+        emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(loc, vhi, seedI16());
+    sumiHiVar.push_back(vhi);
+  }
+
+  // ===== Nibble-step loop: for (i = 0; i < 16; ++i) =====
+  auto nibLoop = rewriter.create<emitc::ForOp>(
+      loc, sizeLit(0), sizeLit(nibbleBytes), sizeLit(1),
+      /*bodyBuilder=*/nullptr);
+  {
+    mlir::OpBuilder::InsertionGuard ng(rewriter);
+    rewriter.setInsertionPointToStart(nibLoop.getBody());
+    mlir::Value i = nibLoop.getInductionVar();
+
+    // num_halves disjoint contiguous sub-loads, strip h at qs[i*16+h*half]:
+    // rows 0..7 at qs[i*16+0] and rows 8..15 at qs[i*16+8] (half=8, 2
+    // strips), or rows 0..15 at qs[i*16+0] (half=16, 1 strip). byte =
+    // 32 + i*16 (+ h*half). LOAD phase first (FileCheck pins both vle8
+    // before any decode); the h=0 offset is qsOff with NO AddOp (matches
+    // HEAD's wByteOffA), h>0 adds h*half (matches HEAD's wByteOffB).
+    step("weight_nibble_addr");
+    mlir::Value i16 = rewriter.create<emitc::MulOp>(
+        loc, sizeType, i, sizeLit(weightInterleave));
+    mlir::Value qsOff = rewriter.create<emitc::AddOp>(
+        loc, sizeType, sizeLit(weightQuantOffset), i16);
+    // Compute every strip's byte offset FIRST (HEAD computed wByteOffA =
+    // qsOff and wByteOffB = qsOff+8 before either vle8), then issue all
+    // loads -- preserves HEAD's exact node order at num_halves=2. The h=0
+    // offset is qsOff with NO AddOp (matches HEAD's wByteOffA).
+    llvm::SmallVector<mlir::Value> wByteOff;
+    for (int64_t h = 0; h < numHalves; ++h) {
+      if (h == 0)
+        wByteOff.push_back(qsOff);
+      else
+        wByteOff.push_back(rewriter.create<emitc::AddOp>(
+            loc, sizeType, qsOff, sizeLit(h * half)));
+    }
+    llvm::SmallVector<mlir::Value> packed;
+    for (int64_t h = 0; h < numHalves; ++h)
+      packed.push_back(loadNibbles(bl, wByteOff[h]));
+    // DECODE phase: per strip, lo then hi (plain sign-extension, NO vxor).
+    llvm::SmallVector<mlir::Value> bLo, bHi;
+    for (int64_t h = 0; h < numHalves; ++h) {
+      bLo.push_back(decodeLo(packed[h]));
+      bHi.push_back(decodeHi(packed[h]));
+    }
+
+    // Single activation column (SHARED across strips, read ONCE -- this is
+    // a GEMV, one column): low quant al.qs[i], high quant al.qs[16+i].
+    // byte = 2 + i (low), 2 + 16 + i (high).
+    step("act_quant_addr_lo");
+    mlir::Value loOff = rewriter.create<emitc::AddOp>(
+        loc, sizeType, sizeLit(activationQuantOffset), i);
+    mlir::Value aLo = i8Read(al, loOff);
+    step("act_quant_addr_hi");
+    mlir::Value hiBase = rewriter.create<emitc::AddOp>(
+        loc, sizeType, sizeLit(activationQuantOffset),
+        sizeLit(activationHighRow));
+    mlir::Value hiOff =
+        rewriter.create<emitc::AddOp>(loc, sizeType, hiBase, i);
+    mlir::Value aHi = i8Read(al, hiOff);
+
+    // ACCUMULATE phase: per strip, lane-wise vwmacc lo then hi. At half=8
+    // this is a_lo, a_hi, b_lo, b_hi (HEAD order, byte-identical).
+    for (int64_t h = 0; h < numHalves; ++h) {
+      // sumi_h_lo = vwmacc(sumi_h_lo, al.qs[i],    b_h_lo, vl);
+      mlir::Value curLo =
+          rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiLoVar[h])
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, sumiLoVar[h],
+                                       vwmacc(curLo, aLo, bLo[h]));
+      // sumi_h_hi = vwmacc(sumi_h_hi, al.qs[16+i], b_h_hi, vl);
+      mlir::Value curHi =
+          rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiHiVar[h])
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, sumiHiVar[h],
+                                       vwmacc(curHi, aHi, bHi[h]));
+    }
+  }
+
+  // const vint32m2_t sumi_a = vwadd_vv(sumi_a_lo, sumi_a_hi, 8);  and _b.
+  std::string vwaddCallee = ("__riscv_vwadd_vv_i32" + l32).str();
+  auto combine = [&](mlir::Value loVar, mlir::Value hiVar) -> mlir::Value {
+    mlir::Value lo =
+        rewriter.create<emitc::LoadOp>(loc, i16m1Type, loVar).getResult();
+    mlir::Value hi =
+        rewriter.create<emitc::LoadOp>(loc, i16m1Type, hiVar).getResult();
+    return emitOpaqueCall(rewriter, loc, i32m2Type, vwaddCallee,
+                          mlir::ValueRange{lo, hi, vl8}, opName, role);
+  };
+  // Per-strip lo/hi combine: at half=8 this is sumi_a then sumi_b (HEAD).
+  llvm::SmallVector<mlir::Value> sumi;
+  for (int64_t h = 0; h < numHalves; ++h)
+    sumi.push_back(combine(sumiLoVar[h], sumiHiVar[h]));
+  return sumi;
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -1477,21 +1694,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
     mlir::Type f32m2Type =
         emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
-    mlir::Type i16m1Type =
-        emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
-    mlir::Type i32m2Type =
-        emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
-    mlir::Type i8mf2Type =
-        emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+    // The integer-core i16 product / i32 combine / i8 nibble vector types + the
+    // const-int8 cast pointer are owned by the shared
+    // emitRepackQ4LaneWiseIntegerCore leaf (they no longer appear here).
     mlir::Type f16m1Type =
         emitc::OpaqueType::get(ctx, ("vfloat16" + l16 + "_t").str());
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
     mlir::Type floatPtrType = output.getType();
-    mlir::Type i8PtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
@@ -1548,52 +1760,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::Value ncGroups = rewriter.create<emitc::DivOp>(
         loc, sizeType, columnCount, sizeLit(weightInterleave));
 
-    // A typed i8 contiguous sub-load: __riscv_vle8_v_i8<l8>((int8_t*)ptr, vl).
-    std::string i8LoadCallee = riscvIntrinsicName("vle", 8, l8, "i8");
-    auto loadNibbles = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
-      mlir::Value full =
-          rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
-      mlir::Value cast =
-          rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
-      return emitOpaqueCall(rewriter, loc, i8mf2Type, i8LoadCallee,
-                            mlir::ValueRange{cast, vl8}, opName, role);
-    };
-    // The repacked nibbles already carry the ^0x88 offset-binary bias, so the
-    // decode is a plain sign-extension: b_lo = vsra(vsll(b,4),4); b_hi=vsra(b,4).
-    std::string sllCallee = ("__riscv_vsll_vx_i8" + l8).str();
-    std::string sraCallee = ("__riscv_vsra_vx_i8" + l8).str();
-    mlir::Value four = sizeLit(4);
-    auto decodeLo = [&](mlir::Value packed) -> mlir::Value {
-      mlir::Value shl =
-          emitOpaqueCall(rewriter, loc, i8mf2Type, sllCallee,
-                         mlir::ValueRange{packed, four, vl8}, opName, role);
-      return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
-                            mlir::ValueRange{shl, four, vl8}, opName, role);
-    };
-    auto decodeHi = [&](mlir::Value packed) -> mlir::Value {
-      return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
-                            mlir::ValueRange{packed, four, vl8}, opName, role);
-    };
-    // A scalar i8 read of the repacked activation quant byte a_ptr[l].qs[k]:
-    // *(const int8_t *)(ab + 2 + k).
-    llvm::StringRef i8ReadCallee = "*(const int8_t *)";
-    auto i8Read = [&](mlir::Value ab, mlir::Value byteOff) -> mlir::Value {
-      mlir::Value full =
-          rewriter.create<emitc::AddOp>(loc, activationPtrType, ab, byteOff);
-      mlir::Value cast =
-          rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
-      return emitOpaqueCall(rewriter, loc, i32Type, i8ReadCallee,
-                            mlir::ValueRange{cast}, opName, role,
-                            llvm::StringRef("act_quant_scalar"));
-    };
-    // vwmacc_vx widening multiply-accumulate: acc += scalar * vec (i8->i16).
-    std::string vwmaccCallee = ("__riscv_vwmacc_vx_i16" + l16).str();
-    auto vwmacc = [&](mlir::Value acc, mlir::Value scalar,
-                      mlir::Value vec) -> mlir::Value {
-      return emitOpaqueCall(rewriter, loc, i16m1Type, vwmaccCallee,
-                            mlir::ValueRange{acc, scalar, vec, vl8}, opName,
-                            role);
-    };
+    // The per-block lane-wise integer CORE primitives (the repacked vle8
+    // sub-load, the plain sign-extension nibble decode, the scalar q8_0 quant
+    // reads, the lane-wise vwmacc, and the lo/hi vwadd combine) are owned by the
+    // shared emitRepackQ4LaneWiseIntegerCore leaf, called per contraction block
+    // below.
 
     // The plain q8_0 activation base is set ONCE (vy) and indexed a[l] -- it is
     // reused across every weight column group x (NO per-group advance, unlike
@@ -1666,124 +1837,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
         mlir::Value al = rewriter.create<emitc::AddOp>(
             loc, activationPtrType, aBase, alOff);
 
-        // vint16m1_t sumi_{a,b}_{lo,hi} = vmv_v_x(0, 8);
-        std::string mvCallee = riscvIntrinsicName("vmv_v_x", 16, l16, "i16");
-        auto seedI16 = [&]() -> mlir::Value {
-          return emitOpaqueCallBuilt(
-              rewriter, loc, i16m1Type, mvCallee, opName, role,
-              [&](mlir::OpBuilder &b,
-                  mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-                mlir::Value zero =
-                    rewriter.create<emitc::LiteralOp>(loc, i32Type, "0")
-                        .getResult();
-                return {zero, vl8};
-              });
-        };
-        // Per-strip i16 lo/hi accumulator lvalues, seeded lo then hi per strip:
-        // at num_halves=2 this is a_lo, a_hi, b_lo, b_hi (HEAD order, byte-id).
-        llvm::SmallVector<mlir::Value> sumiLoVar, sumiHiVar;
-        for (int64_t h = 0; h < numHalves; ++h) {
-          auto vlo = rewriter.create<emitc::VariableOp>(
-              loc, emitc::LValueType::get(i16m1Type),
-              emitc::OpaqueAttr::get(ctx, ""));
-          rewriter.create<emitc::AssignOp>(loc, vlo, seedI16());
-          sumiLoVar.push_back(vlo);
-          auto vhi = rewriter.create<emitc::VariableOp>(
-              loc, emitc::LValueType::get(i16m1Type),
-              emitc::OpaqueAttr::get(ctx, ""));
-          rewriter.create<emitc::AssignOp>(loc, vhi, seedI16());
-          sumiHiVar.push_back(vhi);
-        }
-
-        // ===== Nibble-step loop: for (i = 0; i < 16; ++i) =====
-        auto nibLoop = rewriter.create<emitc::ForOp>(
-            loc, sizeLit(0), sizeLit(nibbleBytes), sizeLit(1),
-            /*bodyBuilder=*/nullptr);
-        {
-          mlir::OpBuilder::InsertionGuard ng(rewriter);
-          rewriter.setInsertionPointToStart(nibLoop.getBody());
-          mlir::Value i = nibLoop.getInductionVar();
-
-          // num_halves disjoint contiguous sub-loads, strip h at qs[i*16+h*half]:
-          // rows 0..7 at qs[i*16+0] and rows 8..15 at qs[i*16+8] (half=8, 2
-          // strips), or rows 0..15 at qs[i*16+0] (half=16, 1 strip). byte =
-          // 32 + i*16 (+ h*half). LOAD phase first (FileCheck pins both vle8
-          // before any decode); the h=0 offset is qsOff with NO AddOp (matches
-          // HEAD's wByteOffA), h>0 adds h*half (matches HEAD's wByteOffB).
-          step("weight_nibble_addr");
-          mlir::Value i16 = rewriter.create<emitc::MulOp>(
-              loc, sizeType, i, sizeLit(weightInterleave));
-          mlir::Value qsOff = rewriter.create<emitc::AddOp>(
-              loc, sizeType, sizeLit(weightQuantOffset), i16);
-          // Compute every strip's byte offset FIRST (HEAD computed wByteOffA =
-          // qsOff and wByteOffB = qsOff+8 before either vle8), then issue all
-          // loads -- preserves HEAD's exact node order at num_halves=2. The h=0
-          // offset is qsOff with NO AddOp (matches HEAD's wByteOffA).
-          llvm::SmallVector<mlir::Value> wByteOff;
-          for (int64_t h = 0; h < numHalves; ++h) {
-            if (h == 0)
-              wByteOff.push_back(qsOff);
-            else
-              wByteOff.push_back(rewriter.create<emitc::AddOp>(
-                  loc, sizeType, qsOff, sizeLit(h * half)));
-          }
-          llvm::SmallVector<mlir::Value> packed;
-          for (int64_t h = 0; h < numHalves; ++h)
-            packed.push_back(loadNibbles(bl, wByteOff[h]));
-          // DECODE phase: per strip, lo then hi (plain sign-extension, NO vxor).
-          llvm::SmallVector<mlir::Value> bLo, bHi;
-          for (int64_t h = 0; h < numHalves; ++h) {
-            bLo.push_back(decodeLo(packed[h]));
-            bHi.push_back(decodeHi(packed[h]));
-          }
-
-          // Single activation column (SHARED across strips, read ONCE -- this is
-          // a GEMV, one column): low quant al.qs[i], high quant al.qs[16+i].
-          // byte = 2 + i (low), 2 + 16 + i (high).
-          step("act_quant_addr_lo");
-          mlir::Value loOff = rewriter.create<emitc::AddOp>(
-              loc, sizeType, sizeLit(activationQuantOffset), i);
-          mlir::Value aLo = i8Read(al, loOff);
-          step("act_quant_addr_hi");
-          mlir::Value hiBase = rewriter.create<emitc::AddOp>(
-              loc, sizeType, sizeLit(activationQuantOffset),
-              sizeLit(activationHighRow));
-          mlir::Value hiOff =
-              rewriter.create<emitc::AddOp>(loc, sizeType, hiBase, i);
-          mlir::Value aHi = i8Read(al, hiOff);
-
-          // ACCUMULATE phase: per strip, lane-wise vwmacc lo then hi. At half=8
-          // this is a_lo, a_hi, b_lo, b_hi (HEAD order, byte-identical).
-          for (int64_t h = 0; h < numHalves; ++h) {
-            // sumi_h_lo = vwmacc(sumi_h_lo, al.qs[i],    b_h_lo, vl);
-            mlir::Value curLo =
-                rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiLoVar[h])
-                    .getResult();
-            rewriter.create<emitc::AssignOp>(loc, sumiLoVar[h],
-                                             vwmacc(curLo, aLo, bLo[h]));
-            // sumi_h_hi = vwmacc(sumi_h_hi, al.qs[16+i], b_h_hi, vl);
-            mlir::Value curHi =
-                rewriter.create<emitc::LoadOp>(loc, i16m1Type, sumiHiVar[h])
-                    .getResult();
-            rewriter.create<emitc::AssignOp>(loc, sumiHiVar[h],
-                                             vwmacc(curHi, aHi, bHi[h]));
-          }
-        }
-
-        // const vint32m2_t sumi_a = vwadd_vv(sumi_a_lo, sumi_a_hi, 8);  and _b.
-        std::string vwaddCallee = ("__riscv_vwadd_vv_i32" + l32).str();
-        auto combine = [&](mlir::Value loVar, mlir::Value hiVar) -> mlir::Value {
-          mlir::Value lo =
-              rewriter.create<emitc::LoadOp>(loc, i16m1Type, loVar).getResult();
-          mlir::Value hi =
-              rewriter.create<emitc::LoadOp>(loc, i16m1Type, hiVar).getResult();
-          return emitOpaqueCall(rewriter, loc, i32m2Type, vwaddCallee,
-                                mlir::ValueRange{lo, hi, vl8}, opName, role);
-        };
-        // Per-strip lo/hi combine: at half=8 this is sumi_a then sumi_b (HEAD).
-        llvm::SmallVector<mlir::Value> sumi;
-        for (int64_t h = 0; h < numHalves; ++h)
-          sumi.push_back(combine(sumiLoVar[h], sumiHiVar[h]));
+        // The per-block lane-wise integer CORE: seed i16 lo/hi per strip -> the
+        // nibble-step vwmacc loop -> the lo/hi vwadd combine, factored into the
+        // shared emitRepackQ4LaneWiseIntegerCore leaf so the monolith and the
+        // typed tcrv_rvv.typed_repack_gemv_loop_body region's
+        // tcrv_rvv.repack_lane_wise_q4_x_i8_dot brick emit byte-identical C.
+        // Returns the per-strip i32 sumi the dual-fp16 scale fold consumes below.
+        RepackQ4IntegerCoreContext coreCx{
+            opName, role, l8, l16, l32, numHalves, half, nibbleBytes,
+            weightInterleave, weightQuantOffset, activationQuantOffset,
+            activationHighRow, vl8, sizeType};
+        llvm::SmallVector<mlir::Value> sumi =
+            emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
         // vfloat16m1_t b_d_h = vle16(&bl.d[h*half], vl);  one scale strip each.
         std::string f16LoadCallee = riscvIntrinsicName("vle", 16, l16, "f16");
@@ -1919,17 +1984,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed repack GEVM loop body missing the op");
 
-  // ---- Region walk + region-driven gate (fail-closed, I7). The scaffold body
-  // carries the (block_index, per-strip vector acc) entry pair and a yield naming
-  // the carried-out vector; milestone-1 requires the yield to carry the loop-
-  // carried block argument itself (the CORE fold is a later step). This is the
-  // anti-bypass tie: the emit provably tracks the region's accumulator dataflow
-  // (the yield -> region arg 1 link), not merely the loop-op attrs. ----
+  // ---- Region walk + region-driven gate (fail-closed, I7). The M2 body carries
+  // the (block_index, per-strip vector acc) entry pair, the integer-core brick
+  // tcrv_rvv.repack_lane_wise_q4_x_i8_dot, and a yield naming the carried-out
+  // vector; the yield still carries the loop-carried block argument itself (the
+  // per-strip dual-fp16 scale FOLD that consumes the brick's sumi is M3). This is
+  // the anti-bypass tie: the emit provably tracks the region's brick + accumulator
+  // dataflow (the brick's block_index/base operands + the yield -> region arg 1
+  // link), not merely the loop-op attrs. ----
   mlir::Block &coreBlock = loopBody.getBody().front();
   tcrvrvv::TypedRepackGemvLoopYieldOp yieldOp;
+  tcrvrvv::RepackLaneWiseQ4Q8DotOp coreBrick;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
     if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopYieldOp>(bodyOp))
       yieldOp = o;
+    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackLaneWiseQ4Q8DotOp>(bodyOp))
+      coreBrick = o;
   });
   if (!yieldOp)
     return rewriter.notifyMatchFailure(
@@ -1943,15 +2013,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   if (yieldOp.getAccNext() != accArg)
     return rewriter.notifyMatchFailure(
         yieldOp,
-        "milestone-1 repack GEVM loop yield must carry the loop-carried per-strip "
-        "vector accumulator (region arg 1); the region-driven CORE fold that "
-        "mutates the accumulator is a later step");
-  (void)blockIndexArg;
+        "M2 repack GEVM loop yield must carry the loop-carried per-strip vector "
+        "accumulator (region arg 1); the region-driven CORE scale fold that "
+        "mutates the accumulator is a later step (M3)");
+  // The M2 integer CORE brick + its block_index-tied anti-bypass gate: the brick
+  // must name the loop induction variable (region arg 0) as its block_index and
+  // the loop-body's own weight/activation ABI buffers as its bases, so the emit
+  // provably addresses `base + block_index*stride (+ byte_offset)`, never the
+  // loop-invariant block 0 or a foreign buffer (fail-closed otherwise -- rewiring
+  // the brick's block_index/base operand changes the emit).
+  if (!coreBrick)
+    return rewriter.notifyMatchFailure(
+        loopBody, "M2 repack GEVM loop body requires the region integer CORE "
+                  "brick tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block "
+                  "lane-wise nibble dot); the dual-fp16 scale fold is M3");
+  if (coreBrick.getBlockIndex() != blockIndexArg)
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack lane-wise dot brick's block_index must be the loop "
+                   "induction variable (region arg 0)");
+  if (coreBrick.getWeightBase() != loopBody.getWeightBase() ||
+      coreBrick.getActivationBase() != loopBody.getActivationBase())
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack lane-wise dot brick's weight/activation bases must "
+                   "be the loop-body's own repacked-weight / q8_0-activation ABI "
+                   "buffers");
 
-  // ---- ABI operands (the same five the monolithic repack GEVM reads). Only the
-  // output + column count drive the milestone-1 skeleton; the weight/activation
-  // bases are looked up + non-null-checked here (they feed the deferred CORE) so
-  // the valueMap is well-formed and the ABI wiring is pinned. ----
+  // ---- ABI operands (the same five the monolithic repack GEVM reads). ----
   mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
   mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
   mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -1959,8 +2046,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   if (!weightBase || !activationBase || !output || !columnCount)
     return rewriter.notifyMatchFailure(loopBody,
                                        "repack GEVM loop ABI operand unmapped");
-  (void)weightBase;
-  (void)activationBase;
 
   llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
@@ -1969,6 +2054,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   int64_t weightInterleave = loopBody.getWeightInterleave();
   int64_t half = loopBody.getHalfLanes();
   int64_t numHalves = weightInterleave / half;
+  // The per-block strides drive the base advance (loop shape); the within-block
+  // byte offsets driving the integer core come from the BRICK (the anti-bypass
+  // surface), the SAME division of labor as the flat/super-block loop bodies.
+  int64_t weightStride = loopBody.getWeightBlockStride();
+  int64_t activationStride = loopBody.getActivationBlockStride();
+  int64_t weightQuantOffset = coreBrick.getWeightQuantByteOffset();
+  int64_t activationQuantOffset = coreBrick.getActivationQuantByteOffset();
+  int64_t nibbleBytes = qk / 2;
 
   // Milestone-1 emit-time surface gate (fail-closed, I7): only the ONE-strip form
   // (numHalves == 1: VLEN=256 fractional or RVV0.7 whole-LMUL) is materialized.
@@ -1991,11 +2084,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
         loopBody, "the typed repack GEVM loop body currently materializes only "
                   "the mf2 (f32m2 accumulator) core; the RVV0.7 whole-LMUL m1 "
                   "(f32m4) form is a later milestone");
+  // The three element-width rungs of the mf2 integer-core widening chain
+  // (i8mf2 -> i16m1 -> i32m2), passed to the shared integer-CORE leaf.
+  llvm::StringRef l8 = "mf2";
+  llvm::StringRef l16 = "m1";
   llvm::StringRef l32 = "m2";
   mlir::Type f32m2Type =
       emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
   mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
   mlir::Type floatPtrType = output.getType();
+  mlir::Type weightPtrType = weightBase.getType();
+  mlir::Type activationPtrType = activationBase.getType();
 
   auto sizeLit = [&](int64_t v) -> mlir::Value {
     return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -2028,6 +2127,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     rewriter.setInsertionPointToStart(colLoop.getBody());
     mlir::Value x = colLoop.getInductionVar();
 
+    // const uint8_t *b = vx + x*nb*288;  (the q4_0x16 column group base).
+    // Byte-exact to the monolithic bGroup; the per-block base advances off it.
+    step("weight_group_base");
+    mlir::Value bGroupBlocks =
+        rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+    mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+        loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+    mlir::Value bGroup = rewriter.create<emitc::AddOp>(
+        loc, weightPtrType, weightBase, bGroupOff);
+
     // vfloat32m2_t sumf = vfmv_v_f(0.0f, 16);  -- the ONE 16-lane f32 strip
     // accumulator (byte-exact to the monolithic seedF32). The SSA loop-carried
     // `acc` block argument lowers to this mutable emitc.variable lvalue.
@@ -2053,17 +2162,49 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     {
       mlir::OpBuilder::InsertionGuard bg(rewriter);
       rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value l = blockLoop.getInductionVar();
 
-      // The carried-IN `acc` block argument -> a LOAD of the sumf lvalue at the
-      // TOP of the block loop (emitc.for has no iter_args; the SSA-vector-acc <->
-      // emitc-variable mapping, no hacky bypass).
+      // const uint8_t *bl = b + l*288;   const uint8_t *al = a + l*34;  The
+      // per-block bases advance off the loop induction variable `l` (== the
+      // brick's gated block_index) by the loop-op strides -- the block_index-tied
+      // anti-bypass addressing, byte-exact to the monolithic bl/al.
+      step("weight_block_base");
+      mlir::Value blOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, l, sizeLit(weightStride));
+      mlir::Value bl =
+          rewriter.create<emitc::AddOp>(loc, weightPtrType, bGroup, blOff);
+      step("act_block_base");
+      mlir::Value alOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, l, sizeLit(activationStride));
+      mlir::Value al = rewriter.create<emitc::AddOp>(loc, activationPtrType,
+                                                     activationBase, alOff);
+
+      // ===== The region integer CORE (M2): the tcrv_rvv.repack_lane_wise_q4_x_i8
+      // _dot brick lowers to the SHARED emitRepackQ4LaneWiseIntegerCore leaf (seed
+      // i16 lo/hi -> nibble-step vwmacc loop -> lo/hi vwadd combine), byte-exact
+      // to the monolithic emitRepackGemvQ4_0Q8_0's integer part. The within-block
+      // byte offsets are sourced from the BRICK (the anti-bypass surface -- a
+      // rewired offset changes the emitted addresses). =====
+      RepackQ4IntegerCoreContext coreCx{
+          opName, role, l8, l16, l32, numHalves, half, nibbleBytes,
+          weightInterleave, weightQuantOffset, activationQuantOffset,
+          nibbleBytes, vl16, sizeType};
+      llvm::SmallVector<mlir::Value> sumi =
+          emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
+      // M2 stub: the per-strip dual-fp16 scale FOLD that folds sumi into the f32
+      // accumulator (vle16 weight scale / _Float16 act scale / vfwmul / vfcvt /
+      // vfmacc) is deferred to M3, so the brick's sumi is computed but not yet
+      // consumed -- exactly as the flat/super-block scaffolds staged their folds.
+      (void)sumi;
+
+      // The carried-IN `acc` block argument -> a LOAD of the sumf lvalue (emitc.for
+      // has no iter_args; the SSA-vector-acc <-> emitc-variable mapping). M2:
+      // `acc_next` == `acc` (the gated yield), so the carried-OUT value is the
+      // carried-IN accumulator -- the load / assign stub sits where the M3 scale
+      // fold (which loads sumf, vfmacc's it, and assigns it back) will land, right
+      // AFTER the integer core.
       mlir::Value accIn =
           rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar).getResult();
-      // Milestone-1: `acc_next` == `acc` (the region yield, gated above), so the
-      // carried-OUT value is the carried-IN accumulator -- the load-at-top /
-      // assign-at-bottom skeleton is byte-exact to the monolithic one-strip block
-      // loop; the region-driven CORE fold that mutates sumf between them is
-      // deferred to a later milestone.
       rewriter.create<emitc::AssignOp>(loc, sumfVar, accIn);
     }
 

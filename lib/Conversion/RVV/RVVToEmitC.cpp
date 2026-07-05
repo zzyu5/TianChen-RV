@@ -5642,13 +5642,19 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,
+      // M-FLAT REPACK (q4_0 16x1 GEVM): the per-block lane-wise nibble-dot
+      // integer-core brick (seed i16 lo/hi + nibble-step vwmacc + lo/hi vwadd
+      // combine) carried inside the repack GEVM loop body region
+      tcrv::rvv::RepackLaneWiseQ4Q8DotOp,
       // the loop ops themselves + their terminators (forward-compatible): the
-      // flat single-accumulator loop op and the q4_K DUAL-accumulator super-block
-      // loop op
+      // flat single-accumulator loop op, the q4_K DUAL-accumulator super-block
+      // loop op, and the q4_0 16x1-repacked GEVM per-strip vector-accumulator loop
       tcrv::rvv::TypedFlatBlockDotLoopBodyOp,
       tcrv::rvv::TypedFlatBlockDotLoopYieldOp,
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp,
-      tcrv::rvv::TypedSuperBlockBlockDotLoopYieldOp>(op);
+      tcrv::rvv::TypedSuperBlockBlockDotLoopYieldOp,
+      tcrv::rvv::TypedRepackGemvLoopBodyOp,
+      tcrv::rvv::TypedRepackGemvLoopYieldOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

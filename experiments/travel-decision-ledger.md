@@ -34,5 +34,8 @@ q4_0 repack→constructed 是**真多里程碑**(repack GEVM 结构 ≠ 两个�
 ### D4 — L2③ 后接 M2（续 repack 构造，非切 L3）
 **判定**:standing-order 优先级 L2(repack、喂 L1)> L3(rolling coverage);M2 续 M1 的 typed_repack op(同文件、承接结构)。故 L2③ 后接 **M2**(parallel L1 seal——local 构造 vs 板 seal 不相交、无 ninja 撞)、L3 IQ 仍串后。规则②关键路径(repack 是主线)。
 
+### F3 — L2③-M2 整数 CORE 进 region（诚实增量，C_construct 停 13）
+新 operand-driven 砖 `repack_lane_wise_q4_x_i8_dot`(建模 super-block Q4KScaledDotOp);monolith 整数 CORE 抽共享 leaf `emitRepackQ4LaneWiseIntegerCore`、monolith+region 都调(byte-identical,monolith lit 444/444)。反绕闸三门 fail-closed + operand-driven 正向(verify 自跑 mutation:offset 32→99/2→77 传进 emit 地址字面量)。零回归 444/444、forced clean rebuild(clean 322 文件)。六态停 dispatch-wired、C_construct 13。+607/−238。scaffold_note "M1+M2 LANDED"。**M3(flip)剩**:fold 进 region + 泛化 VLEN128 numHalves==2 多累加器 + RVV0.7 f32m4 + full-body byte-exact + 退役 monolith + **repack front-door 构造(非 test-authored=constructed 关键 bar)** + flip → C_construct 13→14 + E5 强路由。
+
 ## 返程问题包（park 项，累积）
 （暂空）

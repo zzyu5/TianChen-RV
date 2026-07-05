@@ -9679,6 +9679,83 @@ def TypedSuperBlockBlockDotLoopYieldOp
   let hasVerifier = 1;
 }
 
+def RepackLaneWiseQ4Q8DotOp
+    : TCRVRVV_Op<"repack_lane_wise_q4_x_i8_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_0 16x1-REPACKED per-block LANE-WISE nibble dot "
+      "(vwmacc lo/hi + lo/hi vwadd combine) integer-core op";
+  let description = [{
+    Records ONE repacked contraction-BLOCK's q4_0 16x1-REPACKED per-block
+    LANE-WISE integer dot -- the integer CORE of the ggml
+    `ggml_gemv_q4_0_16x1_q8_0` per-column-group inner loop -- as ONE bounded
+    generic plugin-local typed RVV dataflow step. It is the M-FLAT REPACK
+    scaffold's BRICK sibling of the flat
+    tcrv_rvv.packed_i4_offset_binary_x_i8_product (which is a single-shot
+    whole-half-block product + vwredsum) and the super-block
+    tcrv_rvv.q4_k_scaled_dot (which is a per-sub-block scaled aux32 MAC): the
+    repacked block-as-lane dot accumulates LANE-WISE via a NIBBLE-STEP inner loop
+    of vwmacc (NO cross-lane vredsum, NO horizontal fold), a structure NEITHER
+    product brick can express.
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemv_loop_body region and
+    consumes the repacked q4_0x16 weight base pointer, the plain q8_0 activation
+    base pointer, the active !tcrv_rvv.vl token, and the loop's `block_index`
+    induction variable (region argument 0). It produces ONE i32 !tcrv_rvv.vector
+    result -- the per-strip 16-lane combined `sumi` (the lo/hi vwadd_vv result) --
+    which the dual-fp16 per-strip scale FOLD (a later repack milestone) consumes.
+
+    The block-as-lane integer core STRUCTURE is first-class in the typed body: the
+    emission mirrors emitRepackGemvQ4_0Q8_0's integer part LINE-FOR-LINE (shared
+    VERBATIM through the SAME leaf), so byte-exactness is by construction. Per
+    strip the i16 lo/hi accumulators are seeded (vmv_v_x), then a nibble-step loop
+    of qk/2 iterations does one disjoint repacked sub-load
+    (vle8 at `block_base + weight_quant_byte_offset + i*weight_interleave`), the
+    plain sign-extension nibble decode (vsll/vsra low, vsra high -- the repacked
+    nibbles carry the ^0x88 offset-binary bias already so there is NO vxor), the
+    two SCALAR activation quant reads (the single q8_0 column at
+    `act_base + activation_quant_byte_offset + i` low / `+ nibbleBytes + i` high),
+    and the two lane-wise vwmacc.vx (low against the low quant, high against the
+    high quant) into the i16 lo/hi accumulators; then the ONE lo/hi combine
+    vwadd_vv into the i32 result. The integer add is associative/order-free so the
+    per-lane accumulation is byte-exact.
+
+    The `block_index` operand is the ANTI-BYPASS tie: it MUST be the loop induction
+    variable (region argument 0), so the per-block base is `base + block_index*
+    stride (+ byte_offset)` -- the emit provably addresses block ib, not the
+    loop-invariant block 0 (fail-closed otherwise, exactly the flat/super-block
+    per-block-source anti-bypass). The `weight_quant_byte_offset` /
+    `activation_quant_byte_offset` locate the repacked nibble bytes and the q8_0
+    quant bytes WITHIN their blocks (32 / 2 for block_q4_0x16 / block_q8_0); the
+    per-block strides + qk + weight_interleave + the resource-aware strip width are
+    the enclosing loop op's block-format facts. The bounded surface kind is limited
+    to "repack_lane_wise_q4_x_i8_dot". The optional `integer_core_lmul` is the
+    bounded resource knob selecting the widening-chain base LMUL ("mf2" default RVV
+    1.0 fractional; "m1" the RVV0.7 whole-LMUL chain) -- the *how*, never the
+    *what*. Route ids, helper names, ABI strings, artifact names, status fields,
+    exact intrinsic spellings, operand mirror strings, and q8/q4 names must not
+    infer or choose this repacked lane-wise dot's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    Index:$block_index,
+    StrAttr:$kind,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $vl `block` $block_index `:` "
+    "type($block_index) attr-dict `:` type($weight_base) `,` "
+    "type($activation_base) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def TypedRepackGemvLoopBodyOp
     : TCRVRVV_Op<"typed_repack_gemv_loop_body",
     [SingleBlock, TCRVEmitCLowerableOpInterface]> {

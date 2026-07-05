@@ -1524,6 +1524,48 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// The bounded per-block context the shared q4_0 16x1-REPACKED lane-wise
+  /// integer CORE leaf reads. opName/role are the source-op provenance; l8/l16/l32
+  /// are the three element-width rungs of the i8 -> i16 -> i32 widening chain
+  /// (mf2 -> m1 -> m2 default, or m1 -> m2 -> m4 whole-LMUL); numHalves is the
+  /// disjoint-strip count (16/half_lanes); half is the e16m1 strip width;
+  /// nibbleBytes is qk/2; weightInterleave is the 16-way block-as-lane width;
+  /// weightQuantOffset / activationQuantOffset locate the repacked nibbles / the
+  /// q8_0 quants within their blocks; activationHighRow is the high-half quant row
+  /// (== nibbleBytes); vl8 is the compile-time-constant strip-width literal.
+  struct RepackQ4IntegerCoreContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    llvm::StringRef l8;
+    llvm::StringRef l16;
+    llvm::StringRef l32;
+    int64_t numHalves;
+    int64_t half;
+    int64_t nibbleBytes;
+    int64_t weightInterleave;
+    int64_t weightQuantOffset;
+    int64_t activationQuantOffset;
+    int64_t activationHighRow;
+    mlir::Value vl8;
+    mlir::Type sizeType;
+  };
+
+  /// The shared q4_0 16x1-REPACKED per-block LANE-WISE integer CORE leaf: given
+  /// the per-block weight base `bl` and activation base `al` (already advanced by
+  /// block_index*stride), it seeds the per-strip i16 lo/hi accumulators, runs the
+  /// nibble-step vwmacc loop (one disjoint repacked vle8 sub-load + plain
+  /// sign-extension decode + two scalar q8_0 quant reads + lane-wise vwmacc lo/hi
+  /// per strip), then combines lo/hi with a vwadd_vv into the per-strip i32 `sumi`
+  /// values it returns (numHalves entries). Factored VERBATIM out of the monolith
+  /// emitRepackGemvQ4_0Q8_0 so the monolith AND the typed
+  /// tcrv_rvv.typed_repack_gemv_loop_body region emit byte-identical integer-core
+  /// C (the dual-fp16 per-strip scale fold that consumes the sumi is the caller's,
+  /// deferred in the typed loop scaffold). Emits at the current insertion point.
+  llvm::SmallVector<mlir::Value> emitRepackQ4LaneWiseIntegerCore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const RepackQ4IntegerCoreContext &cx, mlir::Value bl,
+      mlir::Value al) const;
+
   /// The M-FLAT q6_K super-block SINGLE-accumulator loop emitter (milestone-2,
   /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
   /// whose fold_model is "scales_times_sumi" (the q6_K no-min path) to the

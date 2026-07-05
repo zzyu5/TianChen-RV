@@ -908,6 +908,91 @@ mlir::LogicalResult PackedI4OffsetBinaryXI8ProductOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // within-block byte offsets the per-block lane-wise nibble dot needs, and the
+  // OPTIONAL integer_core_lmul resource anchor. The per-block strides, qk, the
+  // interleave, and the resource-aware strip width are the enclosing loop op's
+  // facts. A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_lane_wise_q4_x_i8_dot keeps SEW/LMUL/policy "
+                "on setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded repacked lane-wise dot attributes "
+                "'kind', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "repack_lane_wise_q4_x_i8_dot")
+    return emitOpError()
+           << "currently supports only kind \"repack_lane_wise_q4_x_i8_dot\" for "
+              "the bounded q4_0 16x1-repacked per-block lane-wise nibble-dot "
+              "integer-core typed surface";
+
+  // Bounded resource knob (the *how*, never the *what*): the integer-core
+  // widening-chain base LMUL {"mf2" RVV1.0 fractional, "m1" RVV0.7 whole-LMUL}.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "chain) or \"m1\" (the RVV0.7 whole-LMUL chain); got \""
+             << coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires the repacked weight base, the plain q8_0 activation "
+              "base, one !tcrv_rvv.vl operand, one block_index induction "
+              "operand, and one i32 vector result";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  // The combined sumi widens the i16 lo/hi accumulators one LMUL rung: i32m2 for
+  // the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7 whole-LMUL) core.
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getResult().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+    return emitOpError()
+           << "requires the result to be an i32 !tcrv_rvv.vector<i32, \"m2\"> "
+              "(the mf2 core) or <i32, \"m4\"> (the m1 core) -- the per-strip "
+              "16-lane combined sumi";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked lane-wise nibble-dot integer core";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult UnsignedNibbleXI8ProductOp::verify() {
   mlir::Operation *op = getOperation();
 
