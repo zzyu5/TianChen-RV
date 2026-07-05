@@ -209,78 +209,188 @@ private:
     return lowerToBlockDot(op, selection);
   }
 
-  // STAGE C1 bridge: realize a repack-SELECTED, capability-afforded request as
-  // the real tcrv_rvv.repack_gemv_q4_0_q8_0 op. It reconstructs the block_q4_0x16
-  // x16 facts (stride 288, interleave 16, weight quant offset 32, activation
-  // stride 34 / offset 2) the verifier pins, derives the resource-aware
-  // half_lanes from the capability VLEN, and stamps the DECLARED OUTPUT CONTRACT
-  // tcrv_rvv.weight_layout_contract = "x16". The op carries the SAME SSA weight
-  // pointer the abstract op carried (the IR cannot tell a plain base from an x16
-  // base; both are const uint8_t *) -- the contract is the bridge's ASSERTION
-  // that some later layer (C3-C4) hands it x16 bytes. On RVV0.7.1 the whole-LMUL
-  // core anchor (integer_core_lmul = "m1") with its mandatory ONE 16-lane strip
-  // (half_lanes = 16) is pinned, mirroring MaterializeRVVRepackStripWidth; on
-  // RVV1.0 integer_core_lmul is left unset (the fractional mf2 default).
+  // STAGE C1 bridge (M-FLAT REPACK, region form): realize a repack-SELECTED,
+  // capability-afforded request as the typed tcrv_rvv.typed_repack_gemv_loop_body
+  // REGION -- the same construction the flat/super-block front doors do, now for
+  // the q4_0 16x1-repacked GEVM. The region is the SOLE representation of the
+  // repacked GEVM (the monolithic tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired):
+  // the compiler CONSTRUCTS the inner contraction-block loop out of the two
+  // decomposed typed bricks -- the per-block lane-wise integer CORE
+  // (tcrv_rvv.repack_lane_wise_q4_x_i8_dot, producing numHalves per-strip sumi) +
+  // the per-strip dual-fp16 scale FOLD (tcrv_rvv.repack_dual_fp16_scale_fold, one
+  // per strip) -- around a per-strip LANE-WISE f32 VECTOR loop-carried
+  // accumulator, exactly like the hand-authored region tests, but reachable now
+  // from a REAL quant_contraction request (not test-authored).
+  //
+  // It reconstructs the block_q4_0x16 x16 facts (stride 288, interleave 16,
+  // weight quant offset 32, activation stride 34 / offset 2) the verifier pins,
+  // derives the resource-aware half_lanes from the capability VLEN, and stamps
+  // the DECLARED OUTPUT CONTRACT tcrv_rvv.weight_layout_contract = "x16". The op
+  // carries the SAME SSA weight pointer the abstract op carried (the IR cannot
+  // tell a plain base from an x16 base; both are const uint8_t *) -- the contract
+  // is the bridge's ASSERTION that some later layer (C3-C4) hands it x16 bytes.
+  // On RVV0.7.1 the whole-LMUL core anchor (integer_core_lmul = "m1") with its
+  // mandatory ONE 16-lane strip (half_lanes = 16, numHalves 1, f32m4 accumulator)
+  // is pinned; on RVV1.0 integer_core_lmul is left unset (the fractional mf2
+  // default: half_lanes 8 -> two 8-lane strips at VLEN128, f32m2 accumulators).
   //
   // SAFETY (NOT a latent miscompile): the emitted kernel reads x16 weights but
   // the abstract op carries PLAIN weights, so this emit is correct ONLY when the
   // contract is honored. The abstract GgmlQuantContractionOp has NO real producer
   // (it is authored ONLY in lit fixtures; there is no rewriter.create of it in
-  // any real pass), so this repack op is reachable ONLY via lit, NEVER in the
-  // real llama.cpp pipeline. The bridge ASSERTS the layout; the system (C3-C4)
-  // must make it true. This is NOT yet e2e-correct on plain weights.
+  // any real pass), so this region is reachable ONLY via lit, NEVER in the real
+  // llama.cpp pipeline. The bridge ASSERTS the layout; the system (C3-C4) must
+  // make it true. This is NOT yet e2e-correct on plain weights.
   mlir::LogicalResult
   lowerToRepackGemv(tcrvrvv::GgmlQuantContractionOp op,
                     const pluginrvv::ContractionSelection &selection,
                     std::int64_t halfLanes, bool isRVV0p7) {
     mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
 
     // On RVV0.7.1 the repack core is the WHOLE-LMUL chain (i8m1 -> i16m2 ->
     // i32m4 -> f32m4): no fractional LMUL, so the 16-block-as-lane group is ONE
-    // 16-lane strip -- the verifier pins integer_core_lmul == "m1" <=> half_lanes
-    // == 16. RVV1.0 leaves integer_core_lmul unset (the fractional mf2 default).
+    // 16-lane strip (half_lanes 16, integer_core_lmul "m1", f32m4 accumulator).
+    // RVV1.0 leaves integer_core_lmul unset (the fractional mf2 default), with the
+    // capability-derived strip width (8 @VLEN128 -> two strips, 16 @VLEN256 ->
+    // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
+    // count, and the region carries ONE per-strip vector accumulator per strip.
     std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
+    // The per-strip accumulator + per-strip integer sumi share the ONE LMUL rung:
+    // f32m4/i32m4 for the m1 whole-LMUL chain, f32m2/i32m2 for the mf2 fractional
+    // chain (the emitter derives l32 the same way).
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
     mlir::StringAttr integerCoreLmul =
-        isRVV0p7 ? builder.getStringAttr("m1") : mlir::StringAttr();
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
 
-    auto repack = builder.create<tcrvrvv::GgmlRepackGemvQ40Q80Op>(
-        op.getLoc(), op.getResult().getType(),
-        /*weight_base=*/op.getWeightBase(),
-        /*activation_base=*/op.getActivationBase(),
-        /*output=*/op.getOutput(),
-        /*element_count=*/op.getElementCount(),
-        // The repack-GEMV INTERNALIZES the N loop, so it consumes the runtime
-        // column count nc the abstract op ALWAYS carries (column_count) -- the
-        // exact reason stage A always carries nc.
-        /*column_count=*/op.getColumnCount(),
-        /*vl=*/op.getVl(),
-        /*kind=*/llvm::StringRef("ggml_repack_gemv_q4_0_q8_0"),
-        /*scale_model=*/op.getScaleModel(),
-        /*qk=*/static_cast<uint64_t>(op.getQk()),
-        // The block_q4_0x16 x16 ABI facts the verifier pins (NOT the abstract
-        // op's plain stride-18 facts -- this op reads the REPACKED layout the
-        // contract declares).
-        /*weight_block_stride=*/static_cast<uint64_t>(288),
-        /*activation_block_stride=*/
-        static_cast<uint64_t>(op.getActivationBlockStride()),
-        /*weight_quant_byte_offset=*/static_cast<uint64_t>(32),
-        /*activation_quant_byte_offset=*/
-        static_cast<uint64_t>(op.getQuantByteOffset()),
-        /*weight_interleave=*/static_cast<uint64_t>(kWeightInterleave),
-        /*half_lanes=*/static_cast<uint64_t>(emittedHalfLanes),
-        /*integer_core_lmul=*/integerCoreLmul);
+    std::int64_t weightQuantByteOffset = 32;
+    std::int64_t activationQuantByteOffset =
+        static_cast<std::int64_t>(op.getQuantByteOffset());
+
+    // The region-carrying loop op: FIVE ABI operands (weight base, activation
+    // base, output, element count n, column count nc), NO vl operand and NO
+    // result (the per-strip lane-wise vector store is the sink; the region bricks
+    // reference the enclosing setvl VL freely). The repack-GEVM INTERNALIZES the N
+    // loop, so it consumes the runtime column count nc the abstract op ALWAYS
+    // carries (column_count) -- the exact reason stage A always carries nc.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemvLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(),
+                           op.getColumnCount()});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
+    loopState.addAttribute("scale_model",
+                           builder.getStringAttr(op.getScaleModel()));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    // The block_q4_0x16 x16 ABI facts the verifier pins (NOT the abstract op's
+    // plain stride-18 facts -- this region reads the REPACKED layout the contract
+    // declares).
+    loopState.addAttribute("weight_block_stride", builder.getI64IntegerAttr(288));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(op.getActivationBlockStride()));
+    loopState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    loopState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("lane_wise_vector_scale"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(
+        builder.create(loopState));
 
     // The in-compiler decision audit (the same INERT provenance triple the
-    // block-dot branch stamps) PLUS the stage-C1 DECLARED OUTPUT CONTRACT. The
-    // materialization is "realized": the bridge has lowered the selection to a
-    // real repack op (the x16 WEIGHT materialization is the system's, but the
-    // in-IR realization of the kernel is done here, no longer deferred).
-    repack->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    repack->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    repack->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
-    repack->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+    // block-dot branch stamps) PLUS the stage-C1 DECLARED OUTPUT CONTRACT. These
+    // are discardable, emitter-inert, dialect-namespaced provenance attrs.
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    op.getResult().replaceAllUsesWith(repack.getResult());
+    // Region entry args: block_index (index) FOLLOWED by numHalves loop-carried
+    // per-strip f32 VECTOR accumulators.
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // Integer CORE brick: ONE tcrv_rvv.repack_lane_wise_q4_x_i8_dot producing the
+    // numHalves per-strip i32 sumi (a variadic result group). block_index-tied
+    // (anti-bypass) and named off the loop-body's OWN weight/activation ABI bases.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackLaneWiseQ4Q8DotOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
+    coreState.addAttribute(
+        "kind", builder.getStringAttr("repack_lane_wise_q4_x_i8_dot"));
+    coreState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    coreState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      coreState.addTypes(i32ResType);
+    mlir::Operation *core = builder.create(coreState);
+
+    // numHalves dual-fp16 scale FOLD bricks (one per strip): each consumes the
+    // integer brick's strip-h sumi + the strip-h carried accumulator and produces
+    // the strip-h folded-out accumulator (the yield's acc_next). Every strip
+    // shares the ONE within-block fp16 scale byte offset (weight @0, activation
+    // @0 -- the shared fold leaf applies the per-strip stride*half*2).
+    llvm::SmallVector<mlir::Value> accNext;
+    for (std::int64_t h = 0; h < numHalves; ++h) {
+      mlir::OperationState foldState(
+          loc, tcrvrvv::RepackDualFp16ScaleFoldOp::getOperationName());
+      foldState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                             core->getResult(h), accArgs[h], vl, blockIndex});
+      foldState.addAttribute(
+          "kind", builder.getStringAttr("repack_dual_fp16_scale_fold"));
+      foldState.addAttribute("weight_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      foldState.addAttribute("activation_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      if (integerCoreLmul)
+        foldState.addAttribute("integer_core_lmul", integerCoreLmul);
+      foldState.addTypes(f32AccType);
+      accNext.push_back(builder.create(foldState)->getResult(0));
+    }
+
+    // Terminate the region: the loop yield names the numHalves carried-out
+    // per-strip f32 vector accumulators.
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemvLoopYieldOp::getOperationName());
+    yieldState.addOperands(accNext);
+    (void)builder.create(yieldState);
+
+    // The region op is result-less; the abstract op's result must be dead (the
+    // repacked lane-wise GEVM writes through the output pointer, not an SSA vector
+    // -- fail-closed if some producer ever wired the result live).
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "repack-GEVM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "GEVM sinks through the output pointer, not an SSA vector)";
     op.erase();
     return mlir::success();
   }

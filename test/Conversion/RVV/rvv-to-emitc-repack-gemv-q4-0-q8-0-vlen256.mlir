@@ -1,22 +1,23 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc | FileCheck %s
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-repack-strip-width=march=rv64gcv_zvl256b --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=ONESTRIP
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=ONESTRIP
 
-// The N3-reframed PRIZE seam: a compiler-automatic SELECTION in llama's q4_0
-// repack hot path. The SAME typed tcrv_rvv.repack_gemv_q4_0_q8_0 op (authored
-// half_lanes=8) is re-stamped to half_lanes=16 by
-// --tcrv-rvv-materialize-repack-strip-width=march=rv64gcv_zvl256b, deriving the
-// guaranteed minimum VLEN (256) -> e16m1 strip width 16 through the SAME
-// plugin-local capability authority (deriveMinimumVLEN). The emitter then tiles
-// the 16-block-as-lane group into ONE 16-lane strip instead of two disjoint
-// 8-lane halves -- divergence by construction from a single capability fact.
+// The VLEN=256 fractional one-strip (mf2, numHalves==1, f32m2 accumulator) arm of
+// the q4_0 16x1-repacked GEVM, now carried by the typed
+// tcrv_rvv.typed_repack_gemv_loop_body region (the monolithic
+// tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired). At VLEN=256 an e16m1 vector holds
+// 16 i16 lanes, so the 16-block-as-lane group is tiled into ONE 16-lane strip
+// (half_lanes=16, numHalves==1) rather than the two disjoint 8-lane halves the
+// VLEN=128 form uses -- the region carries ONE per-strip f32m2 accumulator, ONE
+// integer-core brick producing ONE i32m2 sumi, ONE dual-fp16 scale-FOLD brick, and
+// a yield naming the single carried-out vector. This is the region arm the front
+// door does NOT auto-select (the selector keeps block-dot at the K1-VLEN256 decode
+// cell), so it is authored directly here to pin the emitter's one-strip mf2 form.
 //
-// This is BYTE-SAFE only because the repack is 16-way interleaved (block_q4_0x16:
-// 256 qs[] bytes = 16 blocks-as-lanes, byte i = block(i%16) offset(i/16)), so the
-// one 16-lane strip at VLEN=256 reads byte-identical repacked data to the two
-// 8-lane halves at VLEN=128. The companion test
-// rvv-to-emitc-repack-gemv-q4-0-q8-0.mlir pins the VLEN=128 (two-halves) arm; the
-// verifier accept(16)/reject(12) cases live in the Dialect repack-gemv dataflow
-// test.
+// BYTE-SAFE only because the repack is 16-way interleaved (block_q4_0x16: 256 qs[]
+// bytes = 16 blocks-as-lanes, byte i = block(i%16) offset(i/16)), so the one
+// 16-lane strip reads byte-identical repacked data to the two 8-lane halves at
+// VLEN=128 (the vlen128-full-body companion pins the two-halves arm). Numerical
+// bit-exact-vs-ggml is pending-hardware (ssh rvv).
 
 module {
   tcrv.exec.kernel @ggml_repack_gemv_q4_0_q8_0_kernel {
@@ -29,13 +30,18 @@ module {
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_q4_0_q8_0, sew = 32 : i64, source_kernel = "ggml_repack_gemv_q4_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemv_q4_0_q8_0 %vx, %vy, %s, %n, %nc, %vl {kind = "ggml_repack_gemv_q4_0_q8_0", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">):
+          %sumi = tcrv_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+          %an0 = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc0, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %an0 : !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0 %
+// CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_q4_0_q8_0_kernel_ggml_repack_gemv_q4_0_q8_0(
 // The active vl is the 16-lane e16m1 strip width (VLEN=256), NOT 8.

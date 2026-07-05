@@ -7,20 +7,21 @@
 // tcrv_rvv.quant_contraction op (q4_0 / decode) is AUTO-LOWERED by
 // --tcrv-rvv-lower-quant-contraction at rv64gcv: the in-compiler selection picks
 // REPACK (deriveMinimumVLEN(rv64gcv)=128 => the q4_0-vlen128-decode keep) and the
-// C1 bridge realizes the real tcrv_rvv.repack_gemv_q4_0_q8_0 op (carrying the
-// block_q4_0x16 x16 facts 288/16/32, half_lanes=8 => mf2, NO integer_core_lmul,
-// PLUS the 4 emitter-INERT audit attrs contraction_algorithm/path_materialization/
-// path_selection_reason/weight_layout_contract). --tcrv-rvv-lower-to-emitc then
-// lowers it to the mf2/half_lanes=8 two-8-lane-halves repack-GEMV kernel.
+// C1 bridge CONSTRUCTS the typed tcrv_rvv.typed_repack_gemv_loop_body region (the
+// monolithic tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired) carrying the
+// block_q4_0x16 x16 facts 288/16/32, half_lanes=8 => mf2, numHalves==2, NO
+// integer_core_lmul, PLUS the 4 emitter-INERT audit attrs contraction_algorithm/
+// path_materialization/path_selection_reason/weight_layout_contract. The region's
+// two decomposed inner bricks (the per-block lane-wise integer CORE + the two
+// per-strip dual-fp16 scale FOLDs) are constructed in-region. --tcrv-rvv-lower-to-
+// emitc then lowers it to the mf2/half_lanes=8 two-8-lane-halves repack-GEMV kernel.
 //
-// THIS proves the COMPILER now AUTO-SELECTS the repack (previously hand-chosen by
-// authoring the concrete repack op directly in the input IR) and auto-emits the
-// repack kernel SHAPE. The companion EMIT-IDENTITY byte-diff (this auto-selected
-// emit vs the DIRECT repack-op emit carrying the SAME x16 facts but WITHOUT the
-// audit attrs) is byte-identical -- proving the audit attrs are emitter-inert AND
-// the auto-selected path emits EXACTLY the kernel hand-authoring the repack op
-// produces. That byte-diff is run as a host harness step in
-// option2-M1-emit-identity-FINDING.md (kernelA.cpp vs kernelB.cpp, same sha256).
+// THIS proves the COMPILER now AUTO-SELECTS + CONSTRUCTS the repack region
+// (previously hand-chosen by authoring the concrete repack op directly in the
+// input IR) and auto-emits the repack kernel SHAPE. The region emit is byte-exact
+// to the pre-retirement monolithic emit (EMPIRICALLY proven at Phase B), so the
+// audit attrs are emitter-inert AND the auto-selected path emits EXACTLY the same
+// kernel bytes.
 //
 // SCOPE: EMIT-IDENTITY ONLY. This is the SUPPORTED RVV1.0 mf2 form, NOT the
 // dropped RVV0.7 (xtheadvector / whole-LMUL m1) regime. NO perf/e2e claim -- the

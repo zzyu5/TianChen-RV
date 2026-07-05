@@ -339,8 +339,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_0Q8_0Gemm},
         {&isRepackGemmQ4_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemmQ4_0Q8_0},
-        {&isRepackGemvQ4_0Q8_0Body,
-         &VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0},
+        // NOTE: the q4_0 16x1-repacked GEVM's monolithic op
+        // (tcrv_rvv.repack_gemv_q4_0_q8_0) is RETIRED; the repack front door now
+        // constructs the typed tcrv_rvv.typed_repack_gemv_loop_body region, lowered
+        // below by isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody.
         {&isRepackGemvQ5_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0},
         {&isPackQ4_0ToX16Body,
@@ -1137,20 +1139,6 @@ bool VariantToEmitCFunc::isRepackGemmQ4_0Q8_0Body(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawGemm;
-  }
-
-bool VariantToEmitCFunc::isRepackGemvQ4_0Q8_0Body(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ40Q80Op>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
   }
 
 bool VariantToEmitCFunc::isRepackGemvQ5_0Q8_0Body(tcrvrvv::WithVLOp scope) {

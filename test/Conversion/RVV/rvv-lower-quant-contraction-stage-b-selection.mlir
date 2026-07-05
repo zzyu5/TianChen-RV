@@ -10,9 +10,10 @@
 // THE C1 CHANGE (was Option (i): byte-identical block-dot on every path): the
 // abstract op carries PLAIN stride-18 weights; the concrete repack target needs
 // pre-interleaved block_q4_0x16 weights (stride 288) that are a stage-C/system
-// materialization. C1 LOWERS the repack-SELECTED cell to the REAL
-// tcrv_rvv.repack_gemv_q4_0_q8_0 op carrying the x16 facts (288/16/32, half_lanes)
-// AND the DECLARED OUTPUT CONTRACT tcrv_rvv.weight_layout_contract = "x16" -- the
+// materialization. C1 CONSTRUCTS the repack-SELECTED cell as the typed
+// tcrv_rvv.typed_repack_gemv_loop_body REGION (the monolithic
+// tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired) carrying the x16 facts (288/16/32,
+// half_lanes) AND the DECLARED OUTPUT CONTRACT tcrv_rvv.weight_layout_contract = "x16" -- the
 // ASSERTION the weight bytes are block_q4_0x16 (which some later layer, C3-C4,
 // must make true). The BlockDot-SELECTED (decline) branch is UNCHANGED + emits
 // the byte-identical block-dot body (proven by rvv-to-emitc-quant-contraction-
@@ -68,13 +69,18 @@ module {
 // (Per-tier prose lives in the RUN-line block above so it cannot be mistaken for
 // a CHECK directive.)
 
-// (VLEN128 tier) the repack-SELECTED cell is REALIZED as the real repack-GEMV op
-// (C1), carrying the block_q4_0x16 x16 facts the verifier pins (288/16/32,
-// half_lanes 8 at VLEN128) AND the DECLARED OUTPUT CONTRACT weight_layout_contract
-// = "x16". NO block-dot op, NO leftover abstract op.
+// (VLEN128 tier) the repack-SELECTED cell is REALIZED as the typed
+// tcrv_rvv.typed_repack_gemv_loop_body REGION (C1, the SOLE representation now the
+// monolithic tcrv_rvv.repack_gemv_q4_0_q8_0 op is retired), carrying the
+// block_q4_0x16 x16 facts the verifier pins (288/16/32, half_lanes 8 at VLEN128)
+// AND the DECLARED OUTPUT CONTRACT weight_layout_contract = "x16", with the two
+// decomposed inner bricks (the per-block lane-wise integer CORE + the numHalves==2
+// per-strip dual-fp16 scale FOLDs) + the loop yield constructed in-region. NO
+// block-dot op, NO monolithic repack op, NO leftover abstract op.
 // VLEN128-NOT: tcrv_rvv.quant_contraction
 // VLEN128-NOT: tcrv_rvv.q4_0_q8_0_block_dot
-// VLEN128: tcrv_rvv.repack_gemv_q4_0_q8_0
+// VLEN128-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0
+// VLEN128: tcrv_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 8 : i64
 // VLEN128-SAME: tcrv_rvv.contraction_algorithm = "repack"
 // VLEN128-SAME: tcrv_rvv.path_materialization = "realized"
@@ -83,6 +89,13 @@ module {
 // VLEN128-SAME: weight_block_stride = 288 : i64
 // VLEN128-SAME: weight_interleave = 16 : i64
 // VLEN128-SAME: weight_quant_byte_offset = 32 : i64
+// The decomposed inner region bricks are CONSTRUCTED (not test-authored): the
+// per-block lane-wise integer CORE, the TWO per-strip dual-fp16 scale FOLDs (one
+// per 8-lane strip at half_lanes 8), and the loop yield.
+// VLEN128: tcrv_rvv.repack_lane_wise_q4_x_i8_dot
+// VLEN128: tcrv_rvv.repack_dual_fp16_scale_fold
+// VLEN128: tcrv_rvv.repack_dual_fp16_scale_fold
+// VLEN128: tcrv_rvv.typed_repack_gemv_loop_yield
 
 // VLEN256-NOT: tcrv_rvv.quant_contraction
 // VLEN256-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0

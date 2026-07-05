@@ -1,35 +1,27 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// EMPIRICAL region-vs-monolith byte-diff (the RVV0.7 whole-LMUL one-strip arm,
-// numHalves==1, integer_core_lmul="m1", f32m4 accumulator). The typed
-// tcrv_rvv.typed_repack_gemv_loop_body region emit and the monolithic
-// emitRepackGemvQ4_0Q8_0 emit for the SAME case are canonicalized (func name +
-// source-op provenance + SSA names + the monolith's trailing unused-result token
-// normalized away -- see Inputs/canon-repack-gemv-emit.pl) and diffed BYTE-FOR-
-// BYTE; an empty diff PROVES the two whole-LMUL kernel bodies are identical.
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.region
-// RUN: tcrv-opt %S/Inputs/repack-gemv-q4-0-q8-0-monolith-rvv07.mlir --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.mono
-// RUN: diff %t.region %t.mono
-
 // Anti-bypass / "byte-exact is contingent on the offset" divergence: rewiring the
 // dual-fp16 FOLD brick's weight_scale_byte_offset to a NON-ZERO value genuinely
 // changes the emitted scale address (the fold's within-block offset is SOURCED
 // from the brick, not silently hardcoded to 0), so the offset!=0 emit is NO LONGER
-// byte-identical to the monolith (which reads the scale at offset 0).
-// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.off4
-// RUN: not diff %t.off4 %t.mono
+// byte-identical to the offset-0 emit.
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc > %t.off0
+// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc > %t.off4
+// RUN: not diff %t.off0 %t.off4
 
-// M-FLAT REPACK loop-scaffold Phase B -- the FULL-BODY RVV0.7 whole-LMUL arm of
-// tcrv_rvv.typed_repack_gemv_loop_body. The pre-ratification RVV0.7.1 generation
-// (XuanTie xtheadvector) has NO fractional LMUL, so integer_core_lmul="m1" shifts
-// the whole widening chain up one notch (i8m1 -> i16m2 -> i32m4 -> f32m4, f16
-// scale m2) as ONE 16-lane strip (half_lanes=16, numHalves==1). The region carries
-// TWO entry args (block_index + ONE f32m4 accumulator), ONE integer-core brick
-// producing ONE i32m4 sumi, ONE dual-fp16 scale-FOLD brick, and a yield naming the
-// carried-out f32m4 vector. The lowering derives l8/l16/l32 = m1/m2/m4 from the
-// loop op's integer_core_lmul and drives the CORE + FOLD from the SHARED leaves --
-// byte-identical to the monolithic emitRepackGemvQ4_0Q8_0's m1 arm (the empirical
-// byte-diff above PROVES it). Numerical bit-exact-vs-ggml is pending-hardware.
+// M-FLAT REPACK loop-scaffold -- the FULL-BODY RVV0.7 whole-LMUL arm of
+// tcrv_rvv.typed_repack_gemv_loop_body, the SOLE representation of the q4_0
+// 16x1-repacked GEVM (the monolithic emitRepackGemvQ4_0Q8_0 is retired; the
+// region-vs-monolith byte-exactness was EMPIRICALLY proven at Phase B before
+// retirement). The pre-ratification RVV0.7.1 generation (XuanTie xtheadvector) has
+// NO fractional LMUL, so integer_core_lmul="m1" shifts the whole widening chain up
+// one notch (i8m1 -> i16m2 -> i32m4 -> f32m4, f16 scale m2) as ONE 16-lane strip
+// (half_lanes=16, numHalves==1). The region carries TWO entry args (block_index +
+// ONE f32m4 accumulator), ONE integer-core brick producing ONE i32m4 sumi, ONE
+// dual-fp16 scale-FOLD brick, and a yield naming the carried-out f32m4 vector. The
+// lowering derives l8/l16/l32 = m1/m2/m4 from the loop op's integer_core_lmul and
+// drives the CORE + FOLD from the SHARED leaves; the CHECK below pins the full
+// whole-LMUL node sequence. Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
   tcrv.exec.kernel @rvv_repack_gemv_kernel {

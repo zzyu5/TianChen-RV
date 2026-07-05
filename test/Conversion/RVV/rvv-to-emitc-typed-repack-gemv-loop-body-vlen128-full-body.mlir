@@ -1,36 +1,29 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// EMPIRICAL region-vs-monolith byte-diff (the VLEN=128 two-8-lane-halves arm,
-// numHalves==2). The typed tcrv_rvv.typed_repack_gemv_loop_body region emit and
-// the monolithic emitRepackGemvQ4_0Q8_0 emit for the SAME case are canonicalized
-// (func name + source-op provenance + SSA names + the monolith's trailing
-// unused-result token normalized away -- see Inputs/canon-repack-gemv-emit.pl) and
-// diffed BYTE-FOR-BYTE; an empty diff PROVES the two kernel bodies are identical.
-// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.region
-// RUN: tcrv-opt %S/Inputs/repack-gemv-q4-0-q8-0-monolith-vlen128.mlir --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.mono
-// RUN: diff %t.region %t.mono
-
 // Anti-bypass / "byte-exact is contingent on the offset" divergence: rewiring the
 // per-strip dual-fp16 FOLD bricks' weight_scale_byte_offset to a NON-ZERO value
 // genuinely changes the emitted scale addresses (the fold's within-block offset is
 // SOURCED from the brick, not silently hardcoded to 0), so the offset!=0 emit is
-// NO LONGER byte-identical to the monolith (which reads the scale at offset 0).
-// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc | perl %S/Inputs/canon-repack-gemv-emit.pl > %t.off4
-// RUN: not diff %t.off4 %t.mono
+// NO LONGER byte-identical to the offset-0 emit.
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc > %t.off0
+// RUN: sed 's/weight_scale_byte_offset = 0 : i64/weight_scale_byte_offset = 4 : i64/' %s | tcrv-opt --tcrv-rvv-lower-to-emitc > %t.off4
+// RUN: not diff %t.off0 %t.off4
 
-// M-FLAT REPACK loop-scaffold Phase B -- the FULL-BODY numHalves==2 (VLEN=128
-// two-8-lane-halves) arm of tcrv_rvv.typed_repack_gemv_loop_body. The region now
-// carries numHalves+1 == 3 entry args (block_index + TWO per-strip f32m2
-// accumulators), ONE integer-core brick producing TWO per-strip i32m2 sumi (a
-// VARIADIC result group), TWO dual-fp16 scale-FOLD bricks (one per strip), and a
-// yield naming BOTH carried-out vectors. The lowering GATES the emit on the core
-// brick's block_index-tied anti-bypass, on EACH fold brick's block_index + base +
+// M-FLAT REPACK loop-scaffold -- the FULL-BODY numHalves==2 (VLEN=128
+// two-8-lane-halves) arm of tcrv_rvv.typed_repack_gemv_loop_body, the SOLE
+// representation of the q4_0 16x1-repacked GEVM (the monolithic
+// emitRepackGemvQ4_0Q8_0 is retired; the region-vs-monolith byte-exactness was
+// EMPIRICALLY proven at Phase B before retirement). The region carries
+// numHalves+1 == 3 entry args (block_index + TWO per-strip f32m2 accumulators),
+// ONE integer-core brick producing TWO per-strip i32m2 sumi (a VARIADIC result
+// group), TWO dual-fp16 scale-FOLD bricks (one per strip), and a yield naming BOTH
+// carried-out vectors. The lowering GATES the emit on the core brick's
+// block_index-tied anti-bypass, on EACH fold brick's block_index + base +
 // sumi(result h) + acc(region arg 1+h) dataflow tie, and on the yield naming both
 // folds' acc_next, then drives the CORE + FOLD from the SHARED
-// emitRepackQ4LaneWiseIntegerCore / emitRepackDualFp16ScaleFold leaves -- so the
-// two-strip body is byte-identical to the monolithic emitRepackGemvQ4_0Q8_0's
-// half_lanes=8 form (the empirical byte-diff above PROVES it, not by-construction
-// hand-waving). Numerical bit-exact-vs-ggml is pending-hardware (ssh rvv).
+// emitRepackQ4LaneWiseIntegerCore / emitRepackDualFp16ScaleFold leaves. The
+// half_lanes=8 two-strip body's CHECK below pins the full node sequence.
+// Numerical bit-exact-vs-ggml is pending-hardware (ssh rvv).
 
 module {
   tcrv.exec.kernel @rvv_repack_gemv_kernel {
