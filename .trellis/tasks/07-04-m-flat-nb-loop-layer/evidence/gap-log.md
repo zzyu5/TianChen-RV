@@ -236,3 +236,28 @@ LMUL)交付 **k1 VLEN256 +2.5% 公平赢** —— **第一个过 preflight 四�
 emitter-gap 会输 → board-conditional,不外推成 universal。证据 = 本会话 k1 VLEN256 公平板测
 (clang-20 + 板全能力 zfh march,过 board_ab.sh preflight 四门;raw 板数据 pending-file 归档,
 lineage = k1 SpacemiT-X60 VLEN256,原 stale step-3 锚见 T3_B fc1dd132)。
+
+---
+
+## GAP-1 / 2a-vsetvli-MACHINE-NEUTRAL — 诊断修正(2026-07-05)
+
+**命名.** skeleton-closure 2a 前提 = objdump 对账 ours vs factory 的 vsetvli(诊断记
+19→≤7)→ 修共享 emitter 骨架减 vsetvli → 关 −8.3% q8_0 税。
+
+**拆法+复测(证伪前提).** 修 emit-层显式 `__riscv_vsetvl`(F1 跳 pre-loop scope setvl
+全 10 typed 格 + F2 q6_K super-block coalesce)后:**机器 .text 前后 byte-IDENTICAL**
+——clang-20 `-O2 -march=rv64gcv` 的 VSETVLI-insertion pass 自己重推最优放置、无视 C 里
+显式 setvl(删的是 clang 已 DCE 的死码)。**emit-层 vsetvli 删除【机器中性】、零 perf
+收益。** 原诊断的 "19 vsetvli" 是 deferred(死)变体;shipped per-block 是 6 vs factory
+5(delta 1、clang 插的)。arith 链 + 机器码逐条不变 = byte-exact vs oracle 保持。
+**F1+F2 已 revert(无收益改动不留树上 = 正面纪律)。**
+
+**归因.** −8.3% q8_0 税不在可删的 emit-vsetvli、在【C-结构差】(我们 emitc→C vs ggml
+手写 C、主要 fcvt.s.h 放置)——clang 编成略不同机器码。refine P2c 框架:不是显式 setvl
+过度约束 clang(clang 无视它)、是 machine-gen-C-vs-hand-written-C gap。指令级 emit golf
+已两次 null(P2c deferred + 2a vsetvli)。
+
+**关闭动作.** item4 fcvt.s.h reschedule 单杆(真杠杆:挪到 fold 段像 factory、byte-exact
+vs oracle 保持):税关(≥半)→ q8_0 走八门首个 Win-B;税不动 → 结构税升格 layer-4 已测量
+刻画(量化 x%)、q8_0 永久 parity-at-floor、指令级永久关闭。之后无条件 2c K-quant 弱带。
+diagnosis: 07-03-m-flat-s5a1-perblock-load/research/skeleton-vsetvli-diagnosis-2a.md。
