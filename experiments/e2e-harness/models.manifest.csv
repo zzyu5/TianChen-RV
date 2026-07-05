@@ -1,0 +1,8 @@
+# Pinned model manifest for the T6 e2e phase-split harness.
+# A model row is only usable when status=on-board (present + fingerprinted on the
+# target). q8_0 is DECLARED with a build recipe but not yet materialized on the
+# board (status=recipe-pending) -- see NOTES. sha256_16 = first 16 hex of the
+# gguf sha256 (full hash re-derived + logged per run into results/*/phase_split_raw.txt).
+model_id,arch,params,quant,gguf_basename,size_bytes,sha256_16,board,board_path,status,source_recipe
+tinyllama-1.1b,llama,1.10B,q4_0,tinyllama-q4_0.gguf,637699456,da3087fb14aede55,rvv-openeuler-vlen128,/home/ubuntu/tcrv-llamacpp/models/tinyllama-q4_0.gguf,on-board,"convert_hf_to_gguf.py TinyLlama-1.1B-Chat-v1.0 --outtype f16 | llama-quantize <f16> <out> q4_0"
+tinyllama-1.1b,llama,1.10B,q8_0,tinyllama-q8_0.gguf,,,rvv-openeuler-vlen128,/home/ubuntu/tcrv-llamacpp/models/tinyllama-q8_0.gguf,recipe-pending,"llama-quantize tinyllama-f16.gguf tinyllama-q8_0.gguf q8_0  (materialize on board before use)"

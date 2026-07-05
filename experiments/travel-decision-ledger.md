@@ -16,5 +16,16 @@
 **判定**：源文件集不相交是并行【必要非充分】条件——子代理共享主树 `build/`，并发 `ninja` 撞 build-lock（ninja 单进程锁，第二个报 busy）+ ODS `.cpp.inc` 每次重生（见 [[build-incremental-unreliable]]）。故【本地 build 型构造线并发上限=1】。安全拓扑：**L1(harness，主要跑硬件、本地 build 前置一次) 全程并行 + 构造线(L2prep→L2③ repack→L3 IQ)串行**（一次一个本地 build）。L2③/L3 共享 ODS/six-state/e5 本就要串（D1），叠加 ninja-lock 只强化。
 **规则**：①红线无②关键路径（避免 build 竞态毁构造）③可逆。此刻不派 L3——L2③/L3 正当串行等 L2 prep 完，非闲置违规（STOP-永不闲置 针对【线撞墙】，非【正当串行等待】）。
 
+### D3 — 对手图核正 + 目标 ggml 版本（自决，非 park）
+**事件**：L2 fact-fix 发现【侦察的"事实错"本身反了】。侦察说"K-quant 无 riscv vec_dot、q4_K@128=scalar_fallback";我亲读 `arch/riscv/quants.c`(6596 行,2026-06-15)证：q2_K/q3_K/q4_K/q6_K 各有 VLEN-特化 inline-asm vec_dot，q4_0/q8_0 intrinsic，仅 q5_K plain-intrinsics 无分派。**roster 无一格 scalar——全手调对手。** selector 原 `ggmlHandTunedVLENNativeExists(Q4_K,128)==true` 其实对。已修至地面真值(commit ee9be42a)+ 更正 memory [[repack-campaign-terrain]]。
+**决策(自决,规则③可逆+关键路径)**：目标 ggml = **当前树**(板上跑的、诚实基线),非更旧 generic-K-quant 版。理由:[L-7] BASELINE=真 ggml factory;板跑当前树;beat 更旧 generic 是弱/不诚实 claim。**不 park**(可读文件解、非用户独有决策)。**战略含义**:VLEN128 Win-B=repack-vs-手调-block-dot(更强 claim、非弱带易赢);q4_0 STALE 5.68× 若重测 holds=vs-手调 强赢。战略不变、opponent 刻画更准。
+**FYI 入返程**:对手全手调=Win 门槛更高、但赢的 paper claim 更强。
+
+## 关键发现（findings，入返程 checkpoint）
+
+### F1 — L1 T6 harness 建成 + q4_0@128 bring-up 基线（重大正面，status=bring-up 非 sealed）
+harness(`experiments/e2e-harness/`)端到端跑通:preflight 4/4、prefill/decode 分相 llama-bench 原生、paired A/B 同会话、greedy-token 正确性门 GREEN(未 claim bit-exact vs ggml)。**注入机制=板上双构建树 A(tcrv-llamacpp 编译器发射 repack)vs B(upstream 出厂 block-dot),同 gcc-15.2.0/rv64gcv-O3/REPACK=ON、唯一差补丁=干净对称。** q4_0@128(rvv/VLEN128,tinyllama,固频 2.6GHz):**prefill pp128(GEMM) 4.99× DIFFERENCE [4.98,4.99] floor 0.02%**、decode tg32(GEVM) 1.55× DIFFERENCE。STALE 5.68× 重测 clean≈5×，**验证 repack 战役核心命题(VLEN128 prefill ~5× e2e vs ggml block-dot)**。
+**advisory(未 sealed)**:①march=rv64gcv 漏板 zfh/zvfh/zb*——gate-2 objdump 证两侧对称无 fp16-libcall(非残废对手、P2c 混淆缺席),但 sealed 需全能力 march 重建;②decode 内存受限+共享 64c 板压力敏感(轻载 2.0×→重载 1.55×)、封须多快照。**Win 措辞未出(八门未过、bring-up 态)。** 消费者:①repack e2e 就绪已产数 ②gate④ 半接(需 Amdahl 传导会计)③T6 cell 结构就绪(bring-up 态不污染 sealed 模板)。
+
 ## 返程问题包（park 项，累积）
 （暂空）

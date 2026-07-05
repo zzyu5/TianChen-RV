@@ -1,0 +1,15 @@
+
+Authorized users only. All activities may be monitored and reported.
+== e2e PREFLIGHT (fail-closed 4-gate; 实验总纲v1 §1 第9/10条) ==
+A_BUILD=/home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv
+B_BUILD=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv
+A: cc=/opt/tcrv-toolchains/gcc-15.2.0/bin/gcc flags='-march=rv64gcv -mabi=lp64d' build=Release
+B: cc=/opt/tcrv-toolchains/gcc-15.2.0/bin/gcc flags='-march=rv64gcv -mabi=lp64d' build=Release
+PREFLIGHT(3) same-compiler: OK (gcc (GCC) 15.2.0; flags='-march=rv64gcv -mabi=lp64d'; type=Release)
+PREFLIGHT(1) march-complete: ADVISORY -- 'march=rv64gcv' omits board ext(s): zfh zvfhmin zvfh zba zbb zbs
+   (downgraded to advisory: gate-2 libcall scan is the decisive anti-confound
+    check per §1 第9条 动因; a SEALED T6 cell still requires a full-march rebuild.)
+PREFLIGHT(2) libcall-free: OK (A scanned 4 objs, B scanned 4 objs; no __extendhfsf2-class libcall)
+   => march-incomplete but libcall-clean: the confound §1第9条 guards against is empirically ABSENT.
+PREFLIGHT(4) fingerprint<->T-cell: OK (board VLEN=128 == target 128)
+== e2e PREFLIGHT PASS (4/4 gates green; gate1 advisory) ==
