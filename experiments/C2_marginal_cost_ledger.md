@@ -30,12 +30,21 @@ flat 家族 flip 后【整体退役】monolith:commit `1185729a`,**Δhand-LOC �
 | **q5_K** | 386d3d4d | **1** | qh optional attr(1 个)+ emitter switch + 砖门格式化 {144,176} | super-block op + 全 6 砖 + fold + 8 CORE helper | 9→10 | **−374** | **LOW** ~免费参数复用 |
 | **q6_K** | a489e950→e0034acc | **2** | 单累加器 fold_model-键控 arity 泛化 loop op + no-min fold_model + 单累加器 emit + 新 front-door 链 | super-block op(泛化)+ aux32 core + q4_K fold 语义 | 10→11 | **+213**(retire −335 被新-arity +548 盖过) | **MEDIUM** 泛化新轴 |
 | **q2_K** | 37e589f4→e96c113e | **2** | net-new q2_K 整数核(2-bit unpack + plain-nibble scale/min + 16×16 标量 dot)+ **第三累加器 arity(标量)** scalar_scale_min | super-block op(arity 泛化)+ 标量 fold 机制 | 11→12 | **+388** | **HIGH** 结构距离远(近 q4_K 首建;est 曾误判 LOW-MEDIUM) |
-| q3_K | — | PENDING | 6-bit 有符号 packed scale + hmask 符号翻(最难)| super-block op + q2_K 16×16 reduce 可摊销 | 12→13 | — | (est HIGH,复用近零) |
+| **q3_K** | afa03ce1 | **1** | net-new q3_K decode brick(3-bit hmask 条件减 + 6-bit signed packed scale)| **q6_K 单向量 arity + no-min fold + emit 路全部** + 16×16 | 12→13 | **+16** | **LOW** 结构已被 q6_K 覆盖(表面难=hmask,但结构=symmetric no-min 同 q6_K;est 曾误判 HIGH) |
 
 ## 序列解读(C2 headline)
 
+**K-quant sprint 完成(C_construct 8→13,5 超块全 constructed):**
 **q4_K HIGH(建 super-block 原语)→ q5_K LOW(~免费参数:qh attr,−374)→ q6_K MEDIUM
-(泛化新轴:累加器 arity 单向量,+213)→ q2_K HIGH(净新整数核 + 第三 arity 标量,+388)。**
+(泛化新轴:累加器 arity 单向量,+213)→ q2_K HIGH(净新整数核 + 第三 arity 标量,+388)
+→ q3_K LOW(复用 q6_K arity,只加 hmask decode brick,+16)。**
+
+**★★ 最锐利的 C2 发现:边际成本 ∝ 结构距离,【非表面复杂度】。** q3_K 表面上最难
+(hmask 符号翻、家族里唯一未拆的最粗 monolith),实测【最便宜】(+16,K-quant 最小边际)
+——因其【结构】(symmetric no-min、单向量)已被 q6_K 覆盖,hmask 差异只是局部小 decode
+brick。反之 q2_K 表面不起眼但结构真远(2-bit + plain-nibble + 标量 fold,需第三 arity)
+→ 最贵(+388)。**"最难看的格式最便宜、不起眼的格式最贵"精确证伪"成本∝表面难度",
+证实"成本∝到已覆盖原语空间的结构距离"。** 这是 C2 的干净可引用刻画。
 
 **规律 = 边际成本 ∝ 与已覆盖原语空间的【结构距离】(非单调递减):**
 ①建一个【新原语】贵(q4_K 3 里程碑从零);②用【参数】复用它 ~免费甚至净负(q5_K 只加
