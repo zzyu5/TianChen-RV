@@ -3,26 +3,34 @@
 // RUN: sed 's/fold_model = "lane_wise_vector_scale"/fold_model = "unsupported_fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLD
 // RUN: sed 's/half_lanes = 16 : i64/half_lanes = 12 : i64/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADHALF
 // RUN: sed 's/repack_lane_wise_q4_x_i8_dot %vx/repack_lane_wise_q4_x_i8_dot %vy/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADBASE
+// RUN: sed 's/repack_dual_fp16_scale_fold %vx/repack_dual_fp16_scale_fold %vy/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADFOLDBASE
 
-// M-FLAT REPACK loop-scaffold milestone 2/N -- the q4_0 16x1-REPACKED GEVM's
-// per-block LANE-WISE integer CORE is now carried IN-REGION. The region-carrying
-// tcrv_rvv.typed_repack_gemv_loop_body holds the integer-core BRICK
-// tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block seed i16 lo/hi -> nibble-
-// step vwmacc loop -> lo/hi vwadd combine, addressed off the block_index
-// induction variable). The lowering recognizes the brick REGION-DRIVEN, GATES the
-// emit on the brick's block_index-tied anti-bypass (block_index == region arg 0,
-// bases == the loop-body's own ABI buffers), then drives the integer core from
-// the SHARED emitRepackQ4LaneWiseIntegerCore leaf -- BYTE-EXACT to the monolithic
-// emitRepackGemvQ4_0Q8_0's integer part (vle8 / plain sign-extension decode /
-// scalar q8 quant reads / lane-wise vwmacc lo+hi / lo/hi vwadd combine). The
-// milestone still stubs the dual-fp16 per-strip scale FOLD that consumes the
-// brick's sumi (region yield == region arg 1); full-body byte-exactness + the
-// VLEN=128 two-halves generalization + monolith retirement are M3.
+// M-FLAT REPACK loop-scaffold milestone 3 (numHalves==1 arm) -- the q4_0 16x1-
+// REPACKED GEVM's per-block LANE-WISE integer CORE *and* its dual-fp16 per-strip
+// scale FOLD are now BOTH carried IN-REGION (the M2 loop-carried fold stub is
+// gone). The region-carrying tcrv_rvv.typed_repack_gemv_loop_body holds the
+// integer-core BRICK tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block seed
+// i16 lo/hi -> nibble-step vwmacc loop -> lo/hi vwadd combine) FOLLOWED BY the
+// scale-fold BRICK tcrv_rvv.repack_dual_fp16_scale_fold (per-strip vle16 weight
+// scale -> ONE _Float16 activation scale -> vfwmul/vfcvt/vfmacc into the f32
+// accumulator), both addressed off the block_index induction variable. The
+// lowering GATES the emit on BOTH bricks' block_index-tied anti-bypass (block_index
+// == region arg 0, bases == the loop-body's own ABI buffers) PLUS the fold's
+// dataflow tie (fold consumes the integer brick's sumi + the loop-carried acc,
+// yield names the fold's acc_next), then drives the CORE + FOLD from the SHARED
+// emitRepackQ4LaneWiseIntegerCore / emitRepackDualFp16ScaleFold leaves -- BYTE-
+// EXACT to the monolithic emitRepackGemvQ4_0Q8_0 (vle8 / sign-extension decode /
+// scalar q8 quant reads / lane-wise vwmacc lo+hi / lo/hi vwadd combine / vle16
+// weight scale / _Float16 act scale / vfwmul / vfcvt / vfmacc). This is the FULL-
+// BODY byte-exact numHalves==1 arm; the VLEN=128 two-halves (numHalves==2) multi-
+// accumulator generalization + monolith retirement + front-door construction are
+// later steps.
 //
 // This is an emit-consistency ("CORE == emission-plans") lit that locks the loop-
 // nest + per-strip VECTOR accumulator skeleton AND the region-driven integer core
-// byte-exact to the monolithic emitRepackGemvQ4_0Q8_0 one-strip (VLEN=256 / RVV0.7)
-// form. Numerical bit-exact-vs-ggml is pending-hardware (ssh rvv), not tested here.
+// + scale fold byte-exact to the monolithic emitRepackGemvQ4_0Q8_0 one-strip
+// (VLEN=256 / RVV0.7) form. Numerical bit-exact-vs-ggml is pending-hardware (ssh
+// rvv), not tested here.
 
 module {
   tcrv.exec.kernel @rvv_typed_repack_gemv_loop_body_kernel {
@@ -37,12 +45,14 @@ module {
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_typed_repack_gemv_loop_body, sew = 32 : i64, source_kernel = "rvv_typed_repack_gemv_loop_body_kernel", status = "selected-lowering-boundary"} {
         tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 16 : i64, fold_model = "lane_wise_vector_scale"} {
         ^bb0(%block_index: index, %acc: !tcrv_rvv.vector<f32, "m2">):
-          // M2 region body: the block_index-tied integer CORE brick (per-block
-          // lane-wise nibble dot -> per-strip i32 sumi), then the loop-yield still
-          // names the carried-IN acc (the dual-fp16 scale FOLD that consumes sumi
-          // is deferred to M3).
+          // M3 region body: the block_index-tied integer CORE brick (per-block
+          // lane-wise nibble dot -> per-strip i32 sumi), THEN the dual-fp16 per-
+          // strip scale FOLD brick that consumes the integer brick's sumi AND the
+          // loop-carried acc and produces the folded-out acc_next the yield names
+          // (the M2 loop-carried stub is gone -- the fold now mutates the acc).
           %sumi = tcrv_rvv.repack_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %block_index : index {kind = "repack_lane_wise_q4_x_i8_dot", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
-          tcrv_rvv.typed_repack_gemv_loop_yield %acc : !tcrv_rvv.vector<f32, "m2">
+          %acc_next = tcrv_rvv.repack_dual_fp16_scale_fold %vx, %vy, %sumi, %acc, %vl block %block_index : index {kind = "repack_dual_fp16_scale_fold", weight_scale_byte_offset = 0 : i64, activation_scale_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc_next : !tcrv_rvv.vector<f32, "m2">
         } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
@@ -91,10 +101,17 @@ module {
 // NO offset-binary xor (the repacked nibbles carry the ^0x88 bias already).
 // CHECK-NOT: call_opaque "__riscv_vxor_vx_i8
 
-// The loop-carried acc load / assign stub sits right AFTER the integer core (where
-// the M3 dual-fp16 scale fold that mutates sumf will land); acc_next == acc (M2).
+// ===== The region dual-fp16 scale FOLD (M3, byte-exact to the monolith's fold),
+// sitting right AFTER the integer core: per-strip vle16 weight scale -> ONE
+// _Float16 activation scale -> vfwmul (d = d_x*d_y) -> vfcvt (sumi -> f32) ->
+// load acc -> vfmacc -> assign back. The carried-OUT acc IS the fold result. =====
+// CHECK: call_opaque "__riscv_vle16_v_f16m1"
+// CHECK: call_opaque "*(const _Float16 *)"
+// CHECK: call_opaque "__riscv_vfwmul_vf_f32m2"
+// CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m2"
 // CHECK: %[[ACCIN:.*]] = load %[[SUMF]] : <!emitc.opaque<"vfloat32m2_t">>
-// CHECK: assign %[[ACCIN]] : !emitc.opaque<"vfloat32m2_t"> to %[[SUMF]] : <!emitc.opaque<"vfloat32m2_t">>
+// CHECK: %[[ACCNEXT:.*]] = call_opaque "__riscv_vfmacc_vv_f32m2"(%[[ACCIN]],
+// CHECK: assign %[[ACCNEXT]] : !emitc.opaque<"vfloat32m2_t"> to %[[SUMF]] : <!emitc.opaque<"vfloat32m2_t">>
 
 // The per-strip lane-wise vector store (NO horizontal reduction): the final strip
 // loaded from sumf and written straight through s + x*16 with vse32.
@@ -104,10 +121,12 @@ module {
 
 // The bounded surface is fail-closed on the loop kind, the fold_model fact, and
 // the resource-aware strip width (I7). The per-strip f32 VECTOR loop-carried
-// accumulator dtype is enforced by the verifier; the integer-core brick's
-// block_index-tied anti-bypass is exercised by the positive path + the BADBASE
-// negative (rewiring the brick's weight base to a foreign buffer fails closed).
+// accumulator dtype is enforced by the verifier; BOTH bricks' block_index-tied
+// anti-bypass is exercised by the positive path + the BADBASE negative (rewiring
+// the integer brick's weight base) and the BADFOLDBASE negative (rewiring the
+// fold brick's weight base to a foreign buffer fails closed).
 // BADKIND: currently supports only kind "typed_repack_gemv_loop_body"
 // BADFOLD: currently supports only fold_model "lane_wise_vector_scale"
 // BADHALF: requires half_lanes in {8, 16} dividing weight_interleave
 // BADBASE: failed to legalize operation 'tcrv.exec.variant'
+// BADFOLDBASE: failed to legalize operation 'tcrv.exec.variant'

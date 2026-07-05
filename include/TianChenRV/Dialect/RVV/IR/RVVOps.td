@@ -9867,6 +9867,82 @@ def TypedRepackGemvLoopYieldOp
   let hasVerifier = 1;
 }
 
+def RepackDualFp16ScaleFoldOp
+    : TCRVRVV_Op<"repack_dual_fp16_scale_fold",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_0 16x1-REPACKED per-block per-strip dual-fp16 scale "
+      "FOLD (vle16 weight scale / _Float16 act scale / vfwmul / vfcvt / vfmacc) "
+      "op consuming the lane-wise integer sumi";
+  let description = [{
+    Records ONE repacked contraction-BLOCK's q4_0 16x1-REPACKED per-strip
+    dual-fp16 scale FOLD -- the second half of the ggml `ggml_gemv_q4_0_16x1_q8_0`
+    per-column-group inner loop, the step that folds the lane-wise integer dot
+    result into the running per-strip f32 accumulator -- as ONE bounded generic
+    plugin-local typed RVV dataflow step. It is the FOLD sibling of the integer
+    CORE brick tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the two together are the
+    complete per-block repacked GEVM inner body): the integer brick produces the
+    per-strip i32 `sumi`, this brick consumes it plus the loop-carried per-strip
+    f32 accumulator `acc` and produces the folded-out `acc_next`.
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemv_loop_body region and
+    consumes the repacked q4_0x16 weight base pointer (for the per-block per-strip
+    fp16 weight scale vle16), the plain q8_0 activation base pointer (for the
+    single per-block _Float16 activation scale), the integer brick's per-strip i32
+    `sumi`, the loop-carried per-strip f32 accumulator `acc`, the active
+    !tcrv_rvv.vl token, and the loop's `block_index` induction variable (region
+    argument 0). It produces ONE f32 !tcrv_rvv.vector result -- the folded-out
+    per-strip accumulator `acc_next` the loop yield names.
+
+    The per-strip fold STRUCTURE is first-class in the typed body: the emission
+    mirrors emitRepackGemvQ4_0Q8_0's scale-fold part LINE-FOR-LINE (shared VERBATIM
+    through the SAME leaf), so byte-exactness is by construction. Per strip the
+    per-block fp16 weight scale is loaded (vle16 at `block_base +
+    weight_scale_byte_offset (+ strip*half*2)`), the single per-block activation
+    scale is read once (`*(const _Float16 *)(act_base + activation_scale_byte_
+    offset)`, broadcast across strips), then d = vfwmul(weight_scale, act_scale)
+    widens the dual-fp16 product to f32, the integer sumi is converted with
+    vfcvt_f_x_v, and acc_next = vfmacc(acc, sumi_f, d) folds it in.
+
+    The `block_index` operand is the ANTI-BYPASS tie: it MUST be the loop induction
+    variable (region argument 0), so the per-block scale base is `base +
+    block_index*stride (+ byte_offset)` -- the emit provably addresses block ib,
+    not the loop-invariant block 0 (fail-closed otherwise, exactly the integer
+    brick's per-block-source anti-bypass). The `weight_scale_byte_offset` /
+    `activation_scale_byte_offset` locate the fp16 scale bytes WITHIN their blocks
+    (0 / 0 for block_q4_0x16 / block_q8_0: the scale `d` field leads each block);
+    the per-block strides + the resource-aware strip width are the enclosing loop
+    op's block-format facts. The bounded surface kind is limited to
+    "repack_dual_fp16_scale_fold". The optional `integer_core_lmul` is the bounded
+    resource knob selecting the widening-chain base LMUL ("mf2" default RVV1.0
+    fractional f32m2 fold; "m1" the RVV0.7 whole-LMUL f32m4 fold) -- the *how*,
+    never the *what*. Route ids, helper names, ABI strings, artifact names, status
+    fields, exact intrinsic spellings, operand mirror strings, and q8/q4 names must
+    not infer or choose this repacked per-strip fold's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$sumi,
+    AnyType:$acc,
+    AnyType:$vl,
+    Index:$block_index,
+    StrAttr:$kind,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$activation_scale_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$acc_next);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $sumi `,` $acc `,` $vl `block` "
+    "$block_index `:` type($block_index) attr-dict `:` type($weight_base) `,` "
+    "type($activation_base) `,` type($sumi) `,` type($acc) `,` type($vl) `->` "
+    "type($acc_next)";
+  let hasVerifier = 1;
+}
+
 def TypedVectorLane0ToScalarExtractOp :
     TCRVRVV_Op<"typed_vector_lane0_to_scalar_extract",
     [TCRVEmitCLowerableOpInterface]> {

@@ -1506,19 +1506,20 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (milestone-1):
-  /// lower the region-carrying tcrv_rvv.typed_repack_gemv_loop_body to the
-  /// byte-exact SKELETON the monolithic emitRepackGemvQ4_0Q8_0 emits for the
-  /// ONE-strip form -- nb = n / QK, nc_groups = nc / weight_interleave, the outer
-  /// emitc.for weight-column-group loop, the per-strip vfloat32m2 emitc.variable
-  /// accumulator seeded per group with vfmv_v_f(0.0f), the inner emitc.for block
-  /// loop mapping the carried-IN `acc` block argument to a LOAD at the top and the
-  /// carried-OUT `acc_next` to an emitc.assign at the bottom, and the per-strip
-  /// lane-wise vse32 store (NO horizontal reduction). Milestone-1 pins the loop +
-  /// per-strip VECTOR accumulator skeleton; the CORE lane-wise integer product +
-  /// dual-fp16 scale fold are a pure loop-carried stub (region yield == region arg
-  /// 1), deferred to later repack milestones. Fail-closed (I7) to the one-strip
-  /// (half_lanes == weight_interleave) + mf2 (f32m2) form.
+  /// The M-FLAT q4_0 16x1-REPACKED GEVM loop-scaffold emitter (milestone-3,
+  /// numHalves==1 arm): lower the region-carrying
+  /// tcrv_rvv.typed_repack_gemv_loop_body to the byte-exact one-strip form -- nb =
+  /// n / QK, nc_groups = nc / weight_interleave, the outer emitc.for weight-column-
+  /// group loop, the per-strip vfloat32m2 emitc.variable accumulator seeded per
+  /// group with vfmv_v_f(0.0f), the inner emitc.for block loop, and the per-strip
+  /// lane-wise vse32 store (NO horizontal reduction). The inner body is FULL-BODY
+  /// byte-exact: the integer CORE brick (tcrv_rvv.repack_lane_wise_q4_x_i8_dot ->
+  /// emitRepackQ4LaneWiseIntegerCore) FOLLOWED by the dual-fp16 scale FOLD brick
+  /// (tcrv_rvv.repack_dual_fp16_scale_fold -> emitRepackDualFp16ScaleFold, which
+  /// loads the accumulator, folds the integer sumi in, and assigns it back). The
+  /// carried-OUT accumulator is the fold result (the M2 stub is gone). Fail-closed
+  /// (I7) to the one-strip (half_lanes == weight_interleave) + mf2 (f32m2) form;
+  /// the numHalves==2 multi-accumulator + m1/f32m4 arms are later steps.
   mlir::LogicalResult emitTypedRepackGemvLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -1565,6 +1566,45 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       const RepackQ4IntegerCoreContext &cx, mlir::Value bl,
       mlir::Value al) const;
+
+  /// The bounded per-block context the shared q4_0 16x1-REPACKED per-strip
+  /// dual-fp16 scale FOLD leaf reads. opName/role are the source-op provenance;
+  /// l16/l32 are the f16 scale / f32 fold LMUL rungs of the widening chain
+  /// (m1 -> m2 for the mf2 core, m2 -> m4 for the m1 whole-LMUL core); numHalves
+  /// is the disjoint-strip count (16/half_lanes); half is the e16m1 strip width;
+  /// weightScaleByteOffset / activationScaleByteOffset locate the fp16 scale bytes
+  /// within their blocks (0 / 0 -- the `d` field leads each block); vl8 is the
+  /// compile-time-constant strip-width literal.
+  struct RepackDualFp16ScaleFoldContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    llvm::StringRef l16;
+    llvm::StringRef l32;
+    int64_t numHalves;
+    int64_t half;
+    int64_t weightScaleByteOffset;
+    int64_t activationScaleByteOffset;
+    mlir::Value vl8;
+    mlir::Type sizeType;
+  };
+
+  /// The shared q4_0 16x1-REPACKED per-block per-strip dual-fp16 scale FOLD leaf:
+  /// given the per-block weight base `bl` and activation base `al` (already
+  /// advanced by block_index*stride), the per-strip i32 `sumi` values from the
+  /// integer core, and the per-strip f32 accumulator lvalues `sumfVar`, it loads
+  /// the per-strip fp16 weight scales (vle16), reads the single per-block _Float16
+  /// activation scale once, then per strip widens d = vfwmul(weight_scale,
+  /// act_scale), converts the sumi with vfcvt_f_x_v, and folds acc = vfmacc(acc,
+  /// sumi_f, d) back into `sumfVar[h]`. Factored VERBATIM out of the monolith
+  /// emitRepackGemvQ4_0Q8_0 so the monolith AND the typed
+  /// tcrv_rvv.typed_repack_gemv_loop_body region's
+  /// tcrv_rvv.repack_dual_fp16_scale_fold brick emit byte-identical scale-fold C.
+  /// Emits at the current insertion point.
+  void emitRepackDualFp16ScaleFold(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const RepackDualFp16ScaleFoldContext &cx, mlir::Value bl, mlir::Value al,
+      llvm::ArrayRef<mlir::Value> sumi,
+      llvm::ArrayRef<mlir::Value> sumfVar) const;
 
   /// The M-FLAT q6_K super-block SINGLE-accumulator loop emitter (milestone-2,
   /// W-D): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body

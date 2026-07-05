@@ -1653,6 +1653,113 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
   return sumi;
 }
 
+// The shared q4_0 16x1-REPACKED per-block per-strip dual-fp16 scale FOLD leaf.
+// Factored VERBATIM out of emitRepackGemvQ4_0Q8_0's block-loop scale-fold tail so
+// the SAME node sequence (per-strip vle16 weight scale -> ONE _Float16 activation
+// scale -> per-strip vfwmul/vfcvt/vfmacc into the f32 accumulator) is reachable
+// both inline (the monolith) AND through the first-class
+// tcrv_rvv.repack_dual_fp16_scale_fold brick inside the typed
+// tcrv_rvv.typed_repack_gemv_loop_body region -- byte-identity by construction.
+// Given the per-block bases bl/al (already advanced by block_index*stride), the
+// per-strip i32 `sumi` from the integer core, and the per-strip f32 accumulator
+// lvalues `sumfVar`, it folds sumi into each accumulator in place.
+void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    const RepackDualFp16ScaleFoldContext &cx, mlir::Value bl, mlir::Value al,
+    llvm::ArrayRef<mlir::Value> sumi,
+    llvm::ArrayRef<mlir::Value> sumfVar) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  llvm::StringRef opName = cx.opName;
+  llvm::StringRef role = cx.role;
+  llvm::StringRef l16 = cx.l16;
+  llvm::StringRef l32 = cx.l32;
+  mlir::Type sizeType = cx.sizeType;
+  mlir::Value vl8 = cx.vl8;
+  int64_t numHalves = cx.numHalves;
+  int64_t half = cx.half;
+  int64_t weightScaleOffset = cx.weightScaleByteOffset;
+  int64_t activationScaleOffset = cx.activationScaleByteOffset;
+
+  mlir::Type f32m2Type =
+      emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
+  mlir::Type f16m1Type =
+      emitc::OpaqueType::get(ctx, ("vfloat16" + l16 + "_t").str());
+  mlir::Type f16ScalarType = emitc::OpaqueType::get(ctx, "_Float16");
+  mlir::Type f16PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
+  mlir::Type weightPtrType = bl.getType();
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto step = [&](llvm::StringRef s) {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
+  };
+
+  // vfloat16<l16>_t b_d_h = vle16(&bl.d[h*half], vl); one scale strip each. The
+  // per-strip byte offset folds the block-leading scale byte offset (0) with the
+  // strip lane offset h*half*2 into ONE literal -- byte-exact to HEAD's
+  // AddOp-free h==0 first strip.
+  std::string f16LoadCallee = riscvIntrinsicName("vle", 16, l16, "f16");
+  auto loadScales = [&](int64_t laneOff) -> mlir::Value {
+    step("weight_scale_addr");
+    int64_t totalOff = weightScaleOffset + laneOff * 2;
+    mlir::Value dFull = bl;
+    if (totalOff != 0)
+      dFull = rewriter.create<emitc::AddOp>(loc, weightPtrType, bl,
+                                            sizeLit(totalOff));
+    mlir::Value dCast =
+        rewriter.create<emitc::CastOp>(loc, f16PtrType, dFull).getResult();
+    return emitOpaqueCall(rewriter, loc, f16m1Type, f16LoadCallee,
+                          mlir::ValueRange{dCast, vl8}, opName, role);
+  };
+  llvm::SmallVector<mlir::Value> bD;
+  for (int64_t h = 0; h < numHalves; ++h)
+    bD.push_back(loadScales(h * half));
+
+  // The single activation scale *(const _Float16 *)&al.d (NO float cast),
+  // broadcast into both halves' vfwmul. The block-leading scale byte offset (0)
+  // is AddOp-free, byte-exact to HEAD's direct al cast.
+  llvm::StringRef f16ReadCallee = "*(const _Float16 *)";
+  mlir::Value aD = emitOpaqueCallBuilt(
+      rewriter, loc, f16ScalarType, f16ReadCallee, opName, role,
+      [&](mlir::OpBuilder &b,
+          mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+        mlir::Value aBase = al;
+        if (activationScaleOffset != 0)
+          aBase = rewriter.create<emitc::AddOp>(loc, al.getType(), al,
+                                                sizeLit(activationScaleOffset));
+        mlir::Value aDCast =
+            rewriter.create<emitc::CastOp>(loc, f16PtrType, aBase).getResult();
+        return {aDCast};
+      },
+      llvm::StringRef("act_scale_scalar"));
+
+  // d_h = vfwmul_vf(b_d_h, aD, vl);
+  // sumf_h = vfmacc_vv(sumf_h, vfcvt_f_x_v(sumi_h, vl), d_h, vl);
+  std::string vfwmulCallee = ("__riscv_vfwmul_vf_f32" + l32).str();
+  std::string vfcvtCallee = riscvIntrinsicName("vfcvt_f_x_v", 32, l32, "f32");
+  std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
+  auto fold = [&](mlir::Value bDStrip, mlir::Value sumiStrip,
+                  mlir::Value sumfVarStrip) {
+    mlir::Value dC =
+        emitOpaqueCall(rewriter, loc, f32m2Type, vfwmulCallee,
+                       mlir::ValueRange{bDStrip, aD, vl8}, opName, role);
+    mlir::Value sumiF =
+        emitOpaqueCall(rewriter, loc, f32m2Type, vfcvtCallee,
+                       mlir::ValueRange{sumiStrip, vl8}, opName, role);
+    mlir::Value curF =
+        rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVarStrip)
+            .getResult();
+    mlir::Value nextF =
+        emitOpaqueCall(rewriter, loc, f32m2Type, vfmaccCallee,
+                       mlir::ValueRange{curF, sumiF, dC, vl8}, opName, role);
+    rewriter.create<emitc::AssignOp>(loc, sumfVarStrip, nextF);
+  };
+  for (int64_t h = 0; h < numHalves; ++h)
+    fold(bD[h], sumi[h], sumfVar[h]);
+}
+
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -1697,15 +1804,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     // The integer-core i16 product / i32 combine / i8 nibble vector types + the
     // const-int8 cast pointer are owned by the shared
-    // emitRepackQ4LaneWiseIntegerCore leaf (they no longer appear here).
-    mlir::Type f16m1Type =
-        emitc::OpaqueType::get(ctx, ("vfloat16" + l16 + "_t").str());
+    // emitRepackQ4LaneWiseIntegerCore leaf; the fp16 scale vector / const-_Float16
+    // cast pointer are owned by the shared emitRepackDualFp16ScaleFold leaf (they
+    // no longer appear here).
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
     mlir::Type floatPtrType = output.getType();
-    mlir::Type f16PtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
     // The 16x1 repacked GEMV block-format structural facts (I4 mirror, pinned by
     // the verifier): QK=32, block_q4_0x16 weight stride 288, block_q8_0
@@ -1850,63 +1955,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
         llvm::SmallVector<mlir::Value> sumi =
             emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
-        // vfloat16m1_t b_d_h = vle16(&bl.d[h*half], vl);  one scale strip each.
-        std::string f16LoadCallee = riscvIntrinsicName("vle", 16, l16, "f16");
-        auto loadScales = [&](int64_t laneOff) -> mlir::Value {
-          step("weight_scale_addr");
-          mlir::Value dFull = bl;
-          if (laneOff != 0)
-            dFull = rewriter.create<emitc::AddOp>(loc, weightPtrType, bl,
-                                                  sizeLit(laneOff * 2));
-          mlir::Value dCast =
-              rewriter.create<emitc::CastOp>(loc, f16PtrType, dFull).getResult();
-          return emitOpaqueCall(rewriter, loc, f16m1Type, f16LoadCallee,
-                                mlir::ValueRange{dCast, vl8}, opName, role);
-        };
-        llvm::SmallVector<mlir::Value> bD;
-        for (int64_t h = 0; h < numHalves; ++h)
-          bD.push_back(loadScales(h * half));
-
-        // The single activation scale *(const _Float16 *)&al.d (NO float cast),
-        // broadcast into both halves' vfwmul.
-        mlir::Type f16ScalarType = emitc::OpaqueType::get(ctx, "_Float16");
-        llvm::StringRef f16ReadCallee = "*(const _Float16 *)";
-        mlir::Value aD = emitOpaqueCallBuilt(
-            rewriter, loc, f16ScalarType, f16ReadCallee, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              mlir::Value aDCast =
-                  rewriter.create<emitc::CastOp>(loc, f16PtrType, al)
-                      .getResult();
-              return {aDCast};
-            },
-            llvm::StringRef("act_scale_scalar"));
-
-        // d_{a,b} = vfwmul_vf(b_d_{a,b}, aD, 8);
-        // sumf_{a,b} = vfmacc_vv(sumf_{a,b}, vfcvt_f_x_v(sumi_{a,b},8), d, 8);
-        std::string vfwmulCallee = ("__riscv_vfwmul_vf_f32" + l32).str();
-        std::string vfcvtCallee =
-            riscvIntrinsicName("vfcvt_f_x_v", 32, l32, "f32");
-        std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
-        auto fold = [&](mlir::Value bD, mlir::Value sumi,
-                        mlir::Value sumfVar) {
-          mlir::Value dC =
-              emitOpaqueCall(rewriter, loc, f32m2Type, vfwmulCallee,
-                             mlir::ValueRange{bD, aD, vl8}, opName, role);
-          mlir::Value sumiF =
-              emitOpaqueCall(rewriter, loc, f32m2Type, vfcvtCallee,
-                             mlir::ValueRange{sumi, vl8}, opName, role);
-          mlir::Value curF =
-              rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar)
-                  .getResult();
-          mlir::Value nextF =
-              emitOpaqueCall(rewriter, loc, f32m2Type, vfmaccCallee,
-                             mlir::ValueRange{curF, sumiF, dC, vl8}, opName,
-                             role);
-          rewriter.create<emitc::AssignOp>(loc, sumfVar, nextF);
-        };
-        for (int64_t h = 0; h < numHalves; ++h)
-          fold(bD[h], sumi[h], sumfVar[h]);
+        // The per-block per-strip dual-fp16 scale FOLD: per-strip vle16 weight
+        // scale -> ONE _Float16 activation scale -> per-strip vfwmul/vfcvt/vfmacc
+        // into the f32 accumulators, factored into the shared
+        // emitRepackDualFp16ScaleFold leaf so the monolith and the typed
+        // tcrv_rvv.typed_repack_gemv_loop_body region's
+        // tcrv_rvv.repack_dual_fp16_scale_fold brick emit byte-identical C. The
+        // scale `d` field leads each block (weight/activation scale byte offset 0).
+        RepackDualFp16ScaleFoldContext foldCx{
+            opName, role, l16, l32, numHalves, half,
+            /*weightScaleByteOffset=*/0, /*activationScaleByteOffset=*/0,
+            vl8, sizeType};
+        emitRepackDualFp16ScaleFold(rewriter, loc, foldCx, bl, al, sumi,
+                                    sumfVar);
       }
 
       // Per-strip store vse32(s + x*16 + h*half, sumf_h, vl): at half=8 this is
@@ -1952,23 +2013,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_0Q8_0(
     return mlir::success();
   }
 
-// M-FLAT REPACK scaffold milestone 1: the typed region-carrying sibling of the
-// monolithic emitRepackGemvQ4_0Q8_0. It lowers
+// M-FLAT REPACK scaffold milestone 3 (numHalves==1 arm): the typed region-carrying
+// sibling of the monolithic emitRepackGemvQ4_0Q8_0. It lowers
 // tcrv_rvv.typed_repack_gemv_loop_body -- whose region carries the inner
 // contraction-block loop with the per-strip LANE-WISE f32 VECTOR loop-carried
-// accumulator -- to the byte-exact SKELETON the monolith emits for the ONE-strip
-// form (VLEN=256 fractional / RVV0.7 whole-LMUL): nb = n / QK, nc_groups = nc /
-// weight_interleave, the outer weight-column-group emitc.for, the per-strip
-// vfloat32m2 emitc.variable accumulator seeded per group with vfmv_v_f(0.0f), the
-// inner block emitc.for mapping the carried-IN `acc` block argument to a LOAD at
-// the top and the carried-OUT `acc_next` to an emitc.assign at the bottom, and the
-// per-strip lane-wise vse32 store (NO horizontal reduction -- the repacked
-// block-as-lane strip writes 16 columns straight to s + x*16). This milestone pins
-// the loop + per-strip VECTOR accumulator skeleton byte-exact; the CORE lane-wise
-// integer product (nibble decode + vwmacc lo/hi + lo/hi combine) and the dual-fp16
-// scale fold are a pure loop-carried stub (region yield == region arg 1), deferred
-// to later repack milestones -- exactly as the flat loop scaffold step 1 stubbed
-// its fold.
+// accumulator -- to the byte-exact one-strip form (VLEN=256 fractional / RVV0.7
+// whole-LMUL): nb = n / QK, nc_groups = nc / weight_interleave, the outer
+// weight-column-group emitc.for, the per-strip vfloat32m2 emitc.variable
+// accumulator seeded per group with vfmv_v_f(0.0f), the inner block emitc.for, and
+// the per-strip lane-wise vse32 store (NO horizontal reduction -- the repacked
+// block-as-lane strip writes 16 columns straight to s + x*16). The inner body is
+// now FULL-BODY byte-exact: the integer CORE brick
+// (tcrv_rvv.repack_lane_wise_q4_x_i8_dot -> the SHARED emitRepackQ4LaneWiseInteger
+// Core leaf) is FOLLOWED by the dual-fp16 scale FOLD brick
+// (tcrv_rvv.repack_dual_fp16_scale_fold -> the SHARED emitRepackDualFp16ScaleFold
+// leaf), which loads the accumulator, folds the integer sumi in (vle16 weight scale
+// / _Float16 act scale / vfwmul / vfcvt / vfmacc), and assigns it back -- so the
+// carried-OUT accumulator is the fold result (the M2 loop-carried stub is gone).
+// Both leaves are shared VERBATIM with the monolith so byte-exactness is by
+// construction. The VLEN=128 two-halves (numHalves==2) multi-accumulator arm + the
+// RVV0.7 whole-LMUL f32m4 arm + monolith retirement are later steps.
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -1995,11 +2059,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   mlir::Block &coreBlock = loopBody.getBody().front();
   tcrvrvv::TypedRepackGemvLoopYieldOp yieldOp;
   tcrvrvv::RepackLaneWiseQ4Q8DotOp coreBrick;
+  tcrvrvv::RepackDualFp16ScaleFoldOp foldBrick;
   loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
     if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemvLoopYieldOp>(bodyOp))
       yieldOp = o;
     else if (auto o = llvm::dyn_cast<tcrvrvv::RepackLaneWiseQ4Q8DotOp>(bodyOp))
       coreBrick = o;
+    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackDualFp16ScaleFoldOp>(bodyOp))
+      foldBrick = o;
   });
   if (!yieldOp)
     return rewriter.notifyMatchFailure(
@@ -2010,13 +2077,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
                   "(block_index, per-strip vector acc) entry pair");
   mlir::Value blockIndexArg = coreBlock.getArgument(0);
   mlir::Value accArg = coreBlock.getArgument(1);
-  if (yieldOp.getAccNext() != accArg)
-    return rewriter.notifyMatchFailure(
-        yieldOp,
-        "M2 repack GEVM loop yield must carry the loop-carried per-strip vector "
-        "accumulator (region arg 1); the region-driven CORE scale fold that "
-        "mutates the accumulator is a later step (M3)");
-  // The M2 integer CORE brick + its block_index-tied anti-bypass gate: the brick
+  // The M3 integer CORE brick + its block_index-tied anti-bypass gate: the brick
   // must name the loop induction variable (region arg 0) as its block_index and
   // the loop-body's own weight/activation ABI buffers as its bases, so the emit
   // provably addresses `base + block_index*stride (+ byte_offset)`, never the
@@ -2024,9 +2085,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // the brick's block_index/base operand changes the emit).
   if (!coreBrick)
     return rewriter.notifyMatchFailure(
-        loopBody, "M2 repack GEVM loop body requires the region integer CORE "
+        loopBody, "M3 repack GEVM loop body requires the region integer CORE "
                   "brick tcrv_rvv.repack_lane_wise_q4_x_i8_dot (the per-block "
-                  "lane-wise nibble dot); the dual-fp16 scale fold is M3");
+                  "lane-wise nibble dot)");
   if (coreBrick.getBlockIndex() != blockIndexArg)
     return rewriter.notifyMatchFailure(
         coreBrick, "the repack lane-wise dot brick's block_index must be the loop "
@@ -2037,6 +2098,40 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
         coreBrick, "the repack lane-wise dot brick's weight/activation bases must "
                    "be the loop-body's own repacked-weight / q8_0-activation ABI "
                    "buffers");
+  // The M3 dual-fp16 scale FOLD brick + its dataflow-tie gate: the fold must
+  // consume the integer brick's per-strip sumi (result) AND the loop-carried
+  // per-strip acc (region arg 1), be addressed off the SAME block_index + ABI
+  // buffers (anti-bypass), and produce the acc_next the yield names -- so the
+  // emit provably tracks the integer-core -> fold -> carried-out accumulator
+  // dataflow, not merely the loop-op attrs (fail-closed otherwise).
+  if (!foldBrick)
+    return rewriter.notifyMatchFailure(
+        loopBody, "M3 repack GEVM loop body requires the region dual-fp16 scale "
+                  "FOLD brick tcrv_rvv.repack_dual_fp16_scale_fold (the per-strip "
+                  "vfwmul/vfcvt/vfmacc that folds the integer sumi into acc)");
+  if (foldBrick.getBlockIndex() != blockIndexArg)
+    return rewriter.notifyMatchFailure(
+        foldBrick, "the repack scale-fold brick's block_index must be the loop "
+                   "induction variable (region arg 0)");
+  if (foldBrick.getWeightBase() != loopBody.getWeightBase() ||
+      foldBrick.getActivationBase() != loopBody.getActivationBase())
+    return rewriter.notifyMatchFailure(
+        foldBrick, "the repack scale-fold brick's weight/activation bases must "
+                   "be the loop-body's own repacked-weight / q8_0-activation ABI "
+                   "buffers");
+  if (foldBrick.getSumi() != coreBrick.getResult())
+    return rewriter.notifyMatchFailure(
+        foldBrick, "the repack scale-fold brick must consume the integer CORE "
+                   "brick's per-strip sumi (its result)");
+  if (foldBrick.getAcc() != accArg)
+    return rewriter.notifyMatchFailure(
+        foldBrick, "the repack scale-fold brick must consume the loop-carried "
+                   "per-strip accumulator (region arg 1)");
+  if (yieldOp.getAccNext() != foldBrick.getAccNext())
+    return rewriter.notifyMatchFailure(
+        yieldOp,
+        "M3 repack GEVM loop yield must carry the scale-fold brick's folded-out "
+        "per-strip accumulator (acc_next); the fold now mutates the accumulator");
 
   // ---- ABI operands (the same five the monolithic repack GEVM reads). ----
   mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
@@ -2191,21 +2286,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           nibbleBytes, vl16, sizeType};
       llvm::SmallVector<mlir::Value> sumi =
           emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
-      // M2 stub: the per-strip dual-fp16 scale FOLD that folds sumi into the f32
-      // accumulator (vle16 weight scale / _Float16 act scale / vfwmul / vfcvt /
-      // vfmacc) is deferred to M3, so the brick's sumi is computed but not yet
-      // consumed -- exactly as the flat/super-block scaffolds staged their folds.
-      (void)sumi;
 
-      // The carried-IN `acc` block argument -> a LOAD of the sumf lvalue (emitc.for
-      // has no iter_args; the SSA-vector-acc <-> emitc-variable mapping). M2:
-      // `acc_next` == `acc` (the gated yield), so the carried-OUT value is the
-      // carried-IN accumulator -- the load / assign stub sits where the M3 scale
-      // fold (which loads sumf, vfmacc's it, and assigns it back) will land, right
-      // AFTER the integer core.
-      mlir::Value accIn =
-          rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar).getResult();
-      rewriter.create<emitc::AssignOp>(loc, sumfVar, accIn);
+      // ===== The region dual-fp16 scale FOLD (M3): the
+      // tcrv_rvv.repack_dual_fp16_scale_fold brick lowers to the SHARED
+      // emitRepackDualFp16ScaleFold leaf (per-strip vle16 weight scale -> ONE
+      // _Float16 act scale -> per-strip vfwmul/vfcvt/vfmacc into the f32
+      // accumulator), byte-exact to the monolithic emitRepackGemvQ4_0Q8_0's fold
+      // part. The within-block scale byte offsets are sourced from the FOLD BRICK
+      // (the anti-bypass surface -- a rewired offset changes the emitted scale
+      // addresses). The leaf loads sumf, folds, and assigns it back, so the
+      // carried-OUT accumulator is the fold result (the yield's acc_next) --
+      // replacing the M2 loop-carried load/assign stub. =====
+      llvm::SmallVector<mlir::Value> sumfVars{sumfVar.getResult()};
+      RepackDualFp16ScaleFoldContext foldCx{
+          opName, role, l16, l32, numHalves, half,
+          static_cast<int64_t>(foldBrick.getWeightScaleByteOffset()),
+          static_cast<int64_t>(foldBrick.getActivationScaleByteOffset()), vl16,
+          sizeType};
+      emitRepackDualFp16ScaleFold(rewriter, loc, foldCx, bl, al, sumi, sumfVars);
     }
 
     // Per-strip lane-wise vector store vse32(s + x*16, sumf, 16) (NO horizontal

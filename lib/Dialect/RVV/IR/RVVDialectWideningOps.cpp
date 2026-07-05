@@ -10212,6 +10212,101 @@ static bool isF32M2VectorAccumulator(mlir::Type type) {
          vector.getLmul() == getRVVLMULM2();
 }
 
+mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // within-block fp16 scale byte offsets the per-strip dual-fp16 fold needs, and
+  // the OPTIONAL integer_core_lmul resource anchor. The per-block strides, qk, the
+  // interleave, and the resource-aware strip width are the enclosing loop op's
+  // facts. A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "weight_scale_byte_offset" ||
+           name == "activation_scale_byte_offset" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_dual_fp16_scale_fold keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding control-plane "
+                "IR, and rejects deleted local element_count metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded repacked per-strip scale-fold "
+                "attributes 'kind', 'weight_scale_byte_offset', "
+                "'activation_scale_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "repack_dual_fp16_scale_fold")
+    return emitOpError()
+           << "currently supports only kind \"repack_dual_fp16_scale_fold\" for "
+              "the bounded q4_0 16x1-repacked per-block per-strip dual-fp16 scale "
+              "fold typed surface";
+
+  // Bounded resource knob (the *how*, never the *what*): the widening-chain base
+  // LMUL {"mf2" RVV1.0 fractional f32m2 fold, "m1" RVV0.7 whole-LMUL f32m4 fold}.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "f32m2 fold) or \"m1\" (the RVV0.7 whole-LMUL f32m4 fold); got \""
+             << coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires the repacked weight base, the plain q8_0 activation base, "
+              "the per-strip i32 sumi, the loop-carried per-strip f32 "
+              "accumulator, one !tcrv_rvv.vl operand, and one block_index "
+              "induction operand, producing one folded-out per-strip f32 vector "
+              "accumulator";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  // The consumed sumi is the integer brick's per-strip combined result: i32m2 for
+  // the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7 whole-LMUL) core.
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+    return emitOpError()
+           << "requires the consumed sumi to be an i32 !tcrv_rvv.vector<i32, "
+              "\"m2\"> (the mf2 core) or <i32, \"m4\"> (the m1 core)";
+  // The loop-carried accumulator + folded-out result are per-strip f32 vectors
+  // (f32m2 the mf2 fold; the m1/f32m4 whole-LMUL fold is a later step).
+  if (!isF32M2VectorAccumulator(getAcc().getType()))
+    return emitOpError()
+           << "requires the loop-carried accumulator to be a per-strip f32 vector "
+              "(!tcrv_rvv.vector<f32, \"m2\">)";
+  if (!isF32M2VectorAccumulator(getAccNext().getType()))
+    return emitOpError()
+           << "requires the folded-out accumulator to be a per-strip f32 vector "
+              "(!tcrv_rvv.vector<f32, \"m2\">)";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked per-strip dual-fp16 scale fold";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
