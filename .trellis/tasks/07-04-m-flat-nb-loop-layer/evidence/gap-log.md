@@ -261,3 +261,41 @@ lineage = k1 SpacemiT-X60 VLEN256,原 stale step-3 锚见 T3_B fc1dd132)。
 vs oracle 保持):税关(≥半)→ q8_0 走八门首个 Win-B;税不动 → 结构税升格 layer-4 已测量
 刻画(量化 x%)、q8_0 永久 parity-at-floor、指令级永久关闭。之后无条件 2c K-quant 弱带。
 diagnosis: 07-03-m-flat-s5a1-perblock-load/research/skeleton-vsetvli-diagnosis-2a.md。
+
+---
+
+## GAP-1 / q8_0-item4 — emitter-调度税 CLOSED(2026-07-05,commit e7449feb)
+
+**命名.** finale 的 −8.3% q8_0 emitter-调度税(our-m2 vs factory-m2 同 LMUL,k1 VLEN256)。
+
+**拆法+复测.** item4=fp16-scale fcvt.s.h 从整数核前挪到 fold 段(像 factory,+80/−80
+pure reschedule,byte-exact vs §1 oracle)。硬件二值(k1+rvv,preflight 4/4 双板,
+confound-clean,paired):**税 CLOSED 决定性**——item4 恢复 12.67%(≫4.15% 半门),
+our-m2 4096→3617ns,从慢 factory 8.3% 翻成【快 4.37%】;rvv/VLEN128 本无税 parity。
+★item4 真机器改动(objdump 双板 fcvt 真移位,clang -O2 不抹平,非 2a vsetvli null;
+gate2 双侧 0 libcall)。
+
+**归因.** ★★+11% fill DISSOLVES:finale 的"+11% m1-over-m2 fill"是 fcvt 税打 m2 更重、
+非 fill;item4 修 m2 后 m1(3621)≈m2(3617)。真结果=q8_0 +4.37% vs factory,k1/VLEN256,
+双 LMUL,board+clang-bound,VLEN128 parity=第一个真 kernel 赢候选(措辞绑板)。指令级
+golf 修正:vsetvli 被 clang 抹平(null)、fcvt-放置(C-结构)clang 尊重(赢)。KERNEL micro,
+e2e 待/大概率 wash,不 claim 完整八门。
+
+## GAP-1 / q5_K-aux8-roundtrip — 缺模式(2026-07-05,→ P3 register-resident 关闭中)
+
+**命名.** 2c q5_K 超越测量(workflow wodc5u06c,board-split:k1/VLEN256 +2.7~4.8% 赢 /
+rvv/VLEN128 −15~17.5% 输;bit-exact 双板 256/256,★比 factory 更忠于 ggml scalar——
+factory 55/256 粗折叠 vs 我方 256/256)。对手=最软 K-quant(板上 objdump 确认 plain
+intrinsics 无 vlNNN)。
+
+**拆法(triage=缺模式).** objdump 双板机制分解:★赢杠杆=deferred-reduce(vredsum
+0 vs factory 9),★逆风=aux8[256] scratch round-trip(vse8 8 vs factory register-resident
+0)。符号随微架构翻转(k1 弱核+宽 vredsum→省>aux8→赢;rvv 快核→aux8 8-store+256B 回读
+>省→输)。非 winc-null(对手 register-resident 无 round-trip 可消、vredsum 0 vs 9 硬证);
+非 VLEN-adaptive-fill(q5_K 无 lmul 旋钮、两侧欠填 VLEN256)。
+
+**关闭动作(→ P3).** register-resident decode(消 8×vse8 round-trip)——construction 从
+mirror _generic 继承的 aux8[256] 缺模式;shared across 全 5 super-block K-quant。预期翻正
+rvv + 放大 k1 → q5_K 双板 Win-B。执行:机器层预检(objdump vse8 8→0 + no-spill 寄存器压力)
+先行 → 共享重构 5 格 byte-exact → 双板重测。**这将是 GAP-1 台账首个"定位→拆除→翻正"完整闭环。**
+q5_K 本轮 board-split 结果 = bank(bit-exact + 忠实性 + 瓶颈定位)。research: experiments/ondevice-q5_K/。
