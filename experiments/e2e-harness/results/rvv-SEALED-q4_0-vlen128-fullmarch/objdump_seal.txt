@@ -1,0 +1,39 @@
+############ MECHANISM SEAL ############
+A repack.o=/home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/riscv/repack.cpp.o
+A so=/home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so
+B repack.o=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/riscv/repack.cpp.o
+B so=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/libggml-cpu.so
+
+== A-side symbols matching tcrv/repack/gemm/gemv ==
+0000000000002fd4 T ggml_gemm_q4_0_16x1_q8_0
+0000000000002c2e T ggml_gemm_q4_0_8x8_q8_0
+0000000000000ab0 T ggml_gemv_q4_0_16x1_q8_0
+0000000000000900 T ggml_gemv_q4_0_8x8_q8_0
+0000000000000000 T tcrv_emitc_ggml_repack_gemm_q4_0_q8_0_kernel_ggml_repack_gemm_q4_0_q8_0
+0000000000000236 T tcrv_emitc_ggml_repack_gemv_q4_0_q8_0_kernel_ggml_repack_gemv_q4_0_q8_0
+
+== A: repack GEMM/GEMV disasm histogram (OUR mechanism: packed weight, streamed) ==
+   (disasm lines captured: 207 -> /tmp/tcrv_l1seal/results/A_repack_disasm.txt)
+   vsetvli/vsetivli : 14
+   unit-stride load vle*  : 0
+   strided load  vlse*    : 0
+   indexed load  vlux/vlox: 0
+   whole-reg load vl*re*  : 0
+   store   vse*/vsse*     : 0
+   int mul-acc vmacc/vmadd: 0
+   widening vw* (mul/add) : 0
+   fp mul-acc vf*macc     : 0
+   total insns            : 195
+
+== B: vec_dot_q4_0_q8_0 block-dot disasm histogram (STOCK mechanism: per-block dot) ==
+   (disasm lines captured: 0 -> /tmp/tcrv_l1seal/results/B_blockdot_disasm.txt)
+
+== A also carries vec_dot_q4_0_q8_0? (block-dot present but bypassed at VLEN128) ==
+   (none)
+
+############ SYMMETRY: fp16 softfloat libcall scan (both trees) ############
+-- A tree --
+scanned=15 libcall_hit=0
+-- B tree --
+scanned=15 libcall_hit=0
+############ objdump_seal DONE ############

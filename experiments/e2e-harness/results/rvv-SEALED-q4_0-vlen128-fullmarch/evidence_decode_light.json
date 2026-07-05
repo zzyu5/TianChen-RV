@@ -1,0 +1,23 @@
+{
+  "board": "rvv-vlen128-fullmarch",
+  "model": "tinyllama-q4_0",
+  "quant": "q4_0",
+  "phases": {
+    "decode": {
+      "ours_median_tps": 3.133,
+      "stock_median_tps": 2.003,
+      "ratio_ours_over_stock": 1.5645,
+      "ci95": [
+        1.5475,
+        1.5715
+      ],
+      "iqr_pct_ours": 1.218,
+      "iqr_pct_stock": 0.615,
+      "between_pass_floor_pct": 0.737,
+      "n_ours": 8,
+      "n_stock": 8,
+      "verdict": "DIFFERENCE"
+    }
+  },
+  "dvfs_span_pct": 0.0
+}

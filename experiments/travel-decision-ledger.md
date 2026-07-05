@@ -37,5 +37,11 @@ q4_0 repack→constructed 是**真多里程碑**(repack GEVM 结构 ≠ 两个�
 ### F3 — L2③-M2 整数 CORE 进 region（诚实增量，C_construct 停 13）
 新 operand-driven 砖 `repack_lane_wise_q4_x_i8_dot`(建模 super-block Q4KScaledDotOp);monolith 整数 CORE 抽共享 leaf `emitRepackQ4LaneWiseIntegerCore`、monolith+region 都调(byte-identical,monolith lit 444/444)。反绕闸三门 fail-closed + operand-driven 正向(verify 自跑 mutation:offset 32→99/2→77 传进 emit 地址字面量)。零回归 444/444、forced clean rebuild(clean 322 文件)。六态停 dispatch-wired、C_construct 13。+607/−238。scaffold_note "M1+M2 LANDED"。**M3(flip)剩**:fold 进 region + 泛化 VLEN128 numHalves==2 多累加器 + RVV0.7 f32m4 + full-body byte-exact + 退役 monolith + **repack front-door 构造(非 test-authored=constructed 关键 bar)** + flip → C_construct 13→14 + E5 强路由。
 
+### F4 — L1 seal:q4_0@128 prefill SEALED 5.08×（★机制=routing+locality 非 codegen）
+全能力 march(rv64gcv_zfh_zvfh_zb*... = /proc/cpuinfo 全 codegen 扩,readelf 对象级双树 byte-identical)、preflight 4/4 **gate-1 advisory CLOSED**、fp16 libcall 0/0 双树(混淆缺席第三证)、DVFS 0.00% 锁频、correctness greedy-token GREEN。**prefill pp128 5.077× [CI 5.039,5.111] DIFFERENCE**(verify 独立重跑 5.15× 复现;stock 未随全 ISA 提速=真赢非残废对手;★live 重测击败 static≠runtime 顾虑)。**decode range 1.50–1.56×**(3 压力快照,honest range 非单点)。
+**★★机制修正(verify 权威,self-report 误标已纠)**:赢=**capability-keyed dispatch/ROUTING + memory locality,非 codegen 优越**。tiled `ggml_gemm_q4_0_8x8` prefill 核**双树 byte-identical(upstream 码)**→非我方-vs-ggml codegen 胜;赢是【我方编译器 ROUTE q4_0 到 repack@VLEN128,stock 留 block-dot(repack VLEN-gated/TODO)】+ repack 内存局部性。**decode GEVM(q4_0_16x1)是我方编译器发射**;prefill tiled GEMM 是 ggml 的、被我方 path-selection 路由。**诚实 claim="我方 path-selection engages repack 得 5×",非"更快 repack 核"=option-2 path-selection novelty([[option2-path-selection-real-pass]])。** 归因基=ENGAGED 运行时诊断+5×gap+static objdump;**perf PMU 0 样本(RISC-V PMU paranoid=2)→ sampled 热点 profile 是剩余升级。**
+**sealed=单板 rvv/VLEN128 prefill;非完整 Win-B(措辞未出"Win")。剩 8 门**:(a)k1/VLEN256 dual-board(q4_0 应 parity=VLEN-flip 故事)(b)micro↔e2e Amdahl 传导(gate④)(c)prefill M-shape sweep + q8_0 T6 首批(d)PMU sampled 归因升级。
+**板状态(返程 FYI)**:A/B 双树重建到全能力 march(seal artifact);板 ggml CMakeLists MARCH_STR override,备份 .bak-l1seal(一 cp 可还原)。
+
 ## 返程问题包（park 项，累积）
 （暂空）

@@ -1,0 +1,10 @@
+== e2e PREFLIGHT (fail-closed 4-gate; 实验总纲v1 §1 第9/10条) ==
+A_BUILD=/home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv
+B_BUILD=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv
+A: cc=/opt/tcrv-toolchains/gcc-15.2.0/bin/gcc flags='-march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause -mabi=lp64d' build=Release
+B: cc=/opt/tcrv-toolchains/gcc-15.2.0/bin/gcc flags='-march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause -mabi=lp64d' build=Release
+PREFLIGHT(3) same-compiler: OK (gcc (GCC) 15.2.0; flags='-march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause -mabi=lp64d'; type=Release)
+PREFLIGHT(1) march-complete: OK (march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause covers board critical exts)
+PREFLIGHT(2) libcall-free: OK (A scanned 4 objs, B scanned 4 objs; no __extendhfsf2-class libcall)
+PREFLIGHT(4) fingerprint<->T-cell: OK (board VLEN=128 == target 128)
+== e2e PREFLIGHT PASS (4/4 gates green) ==

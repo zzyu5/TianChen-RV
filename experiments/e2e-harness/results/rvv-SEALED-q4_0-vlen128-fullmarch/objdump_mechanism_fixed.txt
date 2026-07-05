@@ -1,0 +1,17 @@
+############ MECHANISM SEAL v2 (--disassemble=SYM) ############
+A OURS  repack GEMM 8x8   (repack.cpp.o)       insns=     vsetvl=36  vle=4    vlse=0   vlux/gather=0   vse=0   vmacc/madd=0    vwmul/vw*=20  
+A OURS  repack GEMM 16x1  (repack.cpp.o)       insns=     vsetvl=7   vle=2    vlse=0   vlux/gather=0   vse=0   vmacc/madd=0    vwmul/vw*=12  
+A OURS  repack GEMV 8x8   (repack.cpp.o)       insns=     vsetvl=19  vle=4    vlse=0   vlux/gather=0   vse=0   vmacc/madd=0    vwmul/vw*=5   
+B STOCK block-dot vec_dot (quants.c.o)         insns=     vsetvl=4   vle=3    vlse=0   vlux/gather=0   vse=0   vmacc/madd=0    vwmul/vw*=3   
+
+distinct vector ACCUMULATOR regs (vmv1r.v/vmv.v.i targets) = register tiling width:
+  A GEMM 8x8 : v5 
+  B block-dot: v7 
+
+total insns per function body (loop-body size):
+   GEMM_8x8: 262 insns
+   GEMM_16x1: 200 insns
+   GEMV_8x8: 125 insns
+   blockdot: 40 insns
+
+SYMMETRY (fp16 softfloat libcall scan, both trees, full march): A scanned=15 hit=0 ; B scanned=15 hit=0 (from stage-4)
