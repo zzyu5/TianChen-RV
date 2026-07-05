@@ -5616,6 +5616,15 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // scalar-accumulator body's integer brick (the byte-exact scalar fold
       // sumf += dall*isum - dmin*summs is a later step)
       tcrv::rvv::GgmlBlockDotQ2KQ8KIntegerCoreOp,
+      // iq1_s milestone-1 (first super-block GRID/codebook body): the iq1_s
+      // scalar super-block TERNARY-grid INTEGER core (decode_model=lookup -- the
+      // 11-bit grid index build from qs+qh, the vluxei16 ternary-grid gather, the
+      // signed widening grid dot, the qh-encoded per-sub-block scale, the
+      // delta-bsum sum, producing the two SCALAR states sumi + sumi1); it is the
+      // scalar-accumulator body's grid brick under fold_model "scalar_delta_grid"
+      // (the byte-exact scalar fold sumf += d*(sumi + IQ1S_DELTA*sumi1) is a
+      // later step, milestone-2)
+      tcrv::rvv::GgmlBlockDotIQ1SQ8KGridCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

@@ -6123,6 +6123,172 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotIQ1SQ8KGridCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // qh-scaled ternary-grid-codebook delta-bsum integer-core scale model, and the
+  // iq1_s super-block-format structural facts the integer core reads (the 32
+  // uint8 grid-index bytes qs @2, the uint16 qh[8] plane @34 carrying the
+  // grid-high-3-bit fields + the 3-bit scale @12..14 + the delta sign @15, the
+  // q8_K qs @4, and the int16 q8_K per-sub-block sums bsums @260). The fp16
+  // weight d @0 and the fp32 activation d @0 are the milestone-2 fold's, NOT the
+  // integer core's. iq1_s carries NO scales[] array (the scale lives in qh bits
+  // 12..14) and NO sign plane (the ternary grid is itself signed). Anything else
+  // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
+  // name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "sub_block" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_qs_byte_offset" || name == "weight_qh_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "activation_bsums_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.iq1_s_q8_k_grid_core keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded TERNARY-grid super-block "
+                "integer-core attributes 'kind', 'scale_model', 'qk', "
+                "'sub_block', 'weight_block_stride', 'activation_block_stride', "
+                "'weight_qs_byte_offset', 'weight_qh_byte_offset', "
+                "'activation_quant_byte_offset', and "
+                "'activation_bsums_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_iq1_s_q8_k_grid_core")
+    return emitOpError()
+           << "currently supports only kind \"ggml_iq1_s_q8_k_grid_core\" "
+              "for the bounded ggml IQ1_S x Q8_K super-block TERNARY-grid scalar "
+              "integer-core typed surface";
+  if (getScaleModel() !=
+      "per-sub-block-qh-scale-ternary-grid-codebook-delta-bsum-int-domain")
+    return emitOpError()
+           << "requires scale_model "
+              "\"per-sub-block-qh-scale-ternary-grid-codebook-delta-bsum-int-"
+              "domain\" for the ggml IQ1_S x Q8_K super-block TERNARY-grid "
+              "scalar integer-core route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 8 sub-blocks of 32 elements, block_iq1_s stride 50 (d@0|qs[32]@2|qh[8]@34),
+  // block_q8_K stride 292 (d@0|qs@4|bsums@260). The integer core reads qs (the
+  // grid-index bytes), qh (the grid-high bits + scale + delta sign), the q8_K
+  // quants, and bsums (the delta integer sum); pin them so a malformed typed body
+  // cannot lower under the integer-core emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ1_S x "
+                            "Q8_K super-block TERNARY-grid scalar integer-core "
+                            "route";
+  if (getSubBlock() != 32)
+    return emitOpError()
+           << "requires sub_block == 32 (32-element sub-block boundary) for the "
+              "ggml IQ1_S x Q8_K super-block TERNARY-grid scalar integer-core "
+              "route";
+  if (getWeightBlockStride() != 50)
+    return emitOpError()
+           << "requires weight_block_stride == 50 (sizeof block_iq1_s) for the "
+              "ggml IQ1_S x Q8_K super-block TERNARY-grid scalar integer-core "
+              "route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml IQ1_S x Q8_K super-block TERNARY-grid scalar "
+              "integer-core route";
+  if (getWeightQsByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 2 (the 32 uint8 grid-index qs "
+              "bytes follow the fp16 d) for the ggml IQ1_S x Q8_K super-block "
+              "TERNARY-grid scalar integer-core route";
+  if (getWeightQhByteOffset() != 34)
+    return emitOpError()
+           << "requires weight_qh_byte_offset == 34 (the uint16 qh[8] plane "
+              "follows the 32-byte qs; it carries the grid-high-3-bit fields, "
+              "the 3-bit scale @12..14, and the delta sign @15) for the ggml "
+              "IQ1_S x Q8_K super-block TERNARY-grid scalar integer-core route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml IQ1_S x Q8_K super-block TERNARY-grid scalar "
+              "integer-core route";
+  if (getActivationBsumsByteOffset() != 260)
+    return emitOpError()
+           << "requires activation_bsums_byte_offset == 260 (the int16 "
+              "per-sub-block sums bsums follow d+qs[256]; the load-bearing fact "
+              "of the delta term) for the ggml IQ1_S x Q8_K super-block "
+              "TERNARY-grid scalar integer-core route";
+
+  // M-FLAT iq1_s milestone-1: the OPTIONAL loop-form `block_index` operand adds a
+  // 5th operand (the per-super-block induction variable). Absent = the standalone
+  // 4-operand single-super-block form; present = the loop form. block_index is
+  // ODS-typed Index, so no extra type check is needed here. The op produces TWO
+  // scalar i32 results (sumi, sumi1) -- NO output pointer (the scalar states are
+  // SSA results, not an aux32 memory state).
+  unsigned expectedOperands = getBlockIndex() ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 2)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, an OPTIONAL `block_index` induction operand, and two "
+              "scalar i32 results (sumi, sumi1)";
+
+  // The weight/activation bases address the AoS byte arrays as const uint8_t *,
+  // and the element count carries n. iq1_s's integer core has NO output pointer
+  // (sumi/sumi1 are scalar SSA results, not an aux32 memory state).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_iq1_s byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // The two scalar integer-core results are ggml's `int sumi` (the qh-scaled
+  // ternary-grid positive dot) and `int sumi1` (the iq1_s delta integer sum),
+  // both scalar i32.
+  if (!getSumi().getType().isInteger(32))
+    return emitOpError()
+           << "requires the first result (sumi, the qh-scaled ternary-grid "
+              "positive integer dot) to be scalar i32";
+  if (!getSumi1().getType().isInteger(32))
+    return emitOpError()
+           << "requires the second result (sumi1, the iq1_s delta integer sum) "
+              "to be scalar i32";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml IQ1_S x Q8_K super-block TERNARY-grid "
+              "scalar integer core";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -9932,15 +10098,18 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
   // fold_model cannot reach this branch (the StrAttr is required by ODS).
   if (getFoldModel() != "super_block_two_level_scale_min" &&
       getFoldModel() != "scales_times_sumi" &&
-      getFoldModel() != "scalar_scale_min")
+      getFoldModel() != "scalar_scale_min" &&
+      getFoldModel() != "scalar_delta_grid")
     return emitOpError()
            << "currently supports only fold_model "
               "\"super_block_two_level_scale_min\" (the q4_K/q5_K two-level DUAL "
               "`sums += d*(float)aux32` positive fold PLUS the "
               "`sumf -= dmin*Σ(mins*bsums)` MIN term), \"scales_times_sumi\" "
               "(the q6_K no-min SINGLE-VECTOR `sums += d*(float)aux32` positive "
-              "fold ONLY), or \"scalar_scale_min\" (the q2_K SCALAR "
-              "`sumf += dall*isum - dmin*summs` fold); the other super-block "
+              "fold ONLY), \"scalar_scale_min\" (the q2_K SCALAR "
+              "`sumf += dall*isum - dmin*summs` fold), or \"scalar_delta_grid\" "
+              "(the iq1_s SCALAR `sumf += d*((float)sumi + IQ1S_DELTA*"
+              "(float)sumi1)` ternary-grid delta fold); the other super-block "
               "fold trees are later steps";
 
   // Externally-defined ggml super-block facts: QK_K and the AoS super-block
@@ -10093,6 +10262,62 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     if (yield.getSumfNext())
       return emitOpError()
              << "the scalar-accumulator q2_K fold_model \"scalar_scale_min\" "
+                "must NOT carry a second `sumf_next` operand in the yield (the "
+                "scalar path carries a single f32 accumulator; a dual yield here "
+                "is rejected)";
+    return mlir::success();
+  }
+
+  // W-A (iq1_s milestone-1): fold_model KEYS the accumulator arity. The iq1_s
+  // "scalar_delta_grid" path carries a SCALAR accumulator arity-IDENTICAL to
+  // q2_K's "scalar_scale_min": exactly TWO region entry arguments (the
+  // super_block_index induction variable + the loop-carried `sumf` SCALAR f32
+  // accumulator) and a yield naming the `sumf` scalar ALONE. The STRUCTURAL
+  // contrast with q2_K is the fold ARITHMETIC (iq1_s's `sumf += d*((float)sumi +
+  // IQ1S_DELTA*(float)sumi1)` ternary-grid delta fold, keyed for the milestone-2
+  // emitter) and the in-region brick (the ternary-grid integer core
+  // tcrv_rvv.iq1_s_q8_k_grid_core, decode_model=lookup, vs q2_K's arithmetic
+  // integer core); the accumulator arity is the same single f32 scalar, so the
+  // region/yield contract mirrors the scalar path. An 8-lane vector first
+  // accumulator, or a second (`sumf_next`) yield operand under this scalar fold,
+  // is rejected fail-closed. The q4_K/q5_K dual, q6_K single-vector, and q2_K
+  // scalar paths are unchanged (additive; zero regression).
+  if (getFoldModel() == "scalar_delta_grid") {
+    mlir::Block &block = getBody().front();
+    if (block.getNumArguments() != 2)
+      return emitOpError()
+             << "requires the region to carry exactly two entry arguments for "
+                "the scalar-accumulator iq1_s fold_model \"scalar_delta_grid\": "
+                "the super_block_index induction variable and the loop-carried "
+                "`sumf` SCALAR f32 accumulator (an 8-lane vector `sums` "
+                "accumulator is rejected under the scalar fold)";
+    if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+      return emitOpError()
+             << "requires the first region argument (super_block_index) to be "
+                "index-typed (the nb super-block induction variable)";
+    if (!block.getArgument(1).getType().isF32())
+      return emitOpError()
+             << "requires the second region argument (the loop-carried `sumf` "
+                "accumulator) to be scalar f32 (the iq1_s scalar ternary-grid "
+                "delta fold; an 8-lane vector `sums` accumulator is rejected "
+                "under \"scalar_delta_grid\")";
+    TypedSuperBlockBlockDotLoopYieldOp yield =
+        block.empty()
+            ? TypedSuperBlockBlockDotLoopYieldOp()
+            : llvm::dyn_cast<TypedSuperBlockBlockDotLoopYieldOp>(&block.back());
+    if (!yield)
+      return emitOpError()
+             << "requires the region to be terminated by "
+                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "carried-out `sumf` scalar accumulator)";
+    if (!yield.getSumsNext().getType().isF32())
+      return emitOpError()
+             << "requires the loop yield to carry the scalar f32 `sumf` "
+                "accumulator as its (single) first operand under the scalar "
+                "fold_model \"scalar_delta_grid\" (an 8-lane vector is rejected)";
+    if (yield.getSumfNext())
+      return emitOpError()
+             << "the scalar-accumulator iq1_s fold_model \"scalar_delta_grid\" "
                 "must NOT carry a second `sumf_next` operand in the yield (the "
                 "scalar path carries a single f32 accumulator; a dual yield here "
                 "is rejected)";

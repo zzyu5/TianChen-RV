@@ -7018,6 +7018,105 @@ def GgmlBlockDotQ2KQ8KIntegerCoreOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotIQ1SQ8KGridCoreOp
+    : TCRVRVV_Op<"iq1_s_q8_k_grid_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ1_S x Q8_K super-block TERNARY-grid SCALAR "
+      "integer-core op (sumi + sumi1, the milestone-1 iq1_s grid brick)";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_iq1_s_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    iq1_s first-super-block (M-FLAT) milestone-1 TERNARY-grid brick, the grid /
+    super-block-flavor sibling of the q2_K scalar integer core
+    (tcrv_rvv.q2_k_q8_k_integer_core). It is the FIRST super-block typed body that
+    decodes with a codebook GRID GATHER (decode_model=lookup) instead of an
+    arithmetic bit-unpack: it reproduces ggml's per-super-block SCALAR integer
+    state EXACTLY as `_generic` computes it right BEFORE the fp32 `d` multiply,
+    byte-exact (i32 equality):
+    - `sumi`  = Σ_{ib=0..7} ls[ib] * (Σ_{l=0..3, j=0..7} q8[j] * grid[j]), the
+      per-sub-block qh-scaled POSITIVE ternary-grid dot. Each sub-block's 4 grid
+      indices are `idx = qs[ib*4+l] | (((qh[ib] >> 3*l) & 7) << 8)` (an 11-bit
+      index in [0,2047]); each indexes the 2048-entry TERNARY iq1s_grid (8 packed
+      signed {-1,0,+1} int8 grid bytes per uint64 entry); the per-sub-block scale
+      is `ls = 2*((qh[ib] >> 12) & 7) + 1`; and
+    - `sumi1` = Σ_{ib=0..7} ls[ib] * delta[ib] * (bsums[2*ib] + bsums[2*ib+1]),
+      the iq1_s DELTA integer sum (the q8_K per-sub-block int16 sums bsums @260,
+      times the per-sub-block scale ls and the sign `delta = 1 - 2*((qh[ib] >>
+      15) & 1)`).
+    Both are produced as SCALAR i32 SSA results (ggml's `int sumi` / `int sumi1`
+    locals), NOT an 8-lane vector -- the STRUCTURAL contrast with q6_K's 8-lane
+    `aux32` vector core, and the arity-match with the q2_K scalar core (two scalar
+    states). The DEFERRED fp32 SCALAR fold (`d = fp16(x.d @0) * y.d @0`, `sumf +=
+    d * ((float)sumi + IQ1S_DELTA*(float)sumi1)`, IQ1S_DELTA=0.125f) is
+    DELIBERATELY OUT OF SCOPE here -- that is the milestone-2 increment. This
+    milestone-1 op isolates the genuinely-new iq1_s machinery (the 11-bit
+    grid-index build from qs+qh, the vluxei16 ternary-grid gather, the signed
+    widening grid dot, the qh-encoded per-sub-block scale, the delta-bsum min-like
+    sum) from the fp32 fold.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes the iq1_s weight
+    base pointer (vx), the q8_K activation base pointer (vy), the runtime element
+    count (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index`
+    induction operand. It produces TWO scalar i32 SSA results (sumi, sumi1). It
+    carries NO output pointer -- like the q2_K scalar core, iq1_s's sumi/sumi1 are
+    scalar registers, NOT an aux32 memory state.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block
+    strides (50 bytes for block_iq1_s, 292 bytes for block_q8_K), the iq1_s
+    payload byte offsets (the 32 uint8 grid-index bytes qs @2, the uint16 qh[8]
+    plane @34 carrying the grid-high-3-bit fields + the 3-bit scale @12..14 + the
+    delta sign @15) and the q8_K payload byte offsets (qs @4, the int16
+    per-sub-block sums bsums @260) -- are carried as typed integer/string
+    attributes (I4 mirror only). The bounded surface kind is limited to
+    "ggml_iq1_s_q8_k_grid_core" and scale_model to
+    "per-sub-block-qh-scale-ternary-grid-codebook-delta-bsum-int-domain". The
+    FIXED 2048-entry iq1s_grid TERNARY codebook is a byte-exact constant of the
+    iq1_s FORMAT (like the q2_K scale/qs byte offsets); it is emitted at
+    milestone-2 keyed by the brick op identity, NOT carried in the IR here. Route
+    ids, helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/iq1 names, and common EmitC/export code
+    must not infer or choose the ternary-grid super-block dot-product semantics.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT iq1_s milestone-1): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region whose fold_model is
+    "scalar_delta_grid": the iq1_s weight strip and the q8_K activation strip are
+    read at `weight_base + block_index*50` and `activation_base + block_index*292`.
+    When ABSENT the op keeps the standalone single-super-block form. milestone-1
+    builds ONLY the ODS + verifier (the honest target IR parses + verifies +
+    clears the [L-8] allowlist); the byte-exact grid-gather emit is milestone-2.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_bsums_byte_offset
+  );
+  let results = (outs AnyType:$sumi, AnyType:$sumi1);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($sumi) `,` type($sumi1)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ3KQ8KOp
     : TCRVRVV_Op<"q3_k_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
