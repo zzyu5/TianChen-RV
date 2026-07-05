@@ -77,8 +77,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q3_K_q8_K_block_dot_source
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
+// The front door now auto-constructs the CONSTRUCTED typed SINGLE-accumulator loop
+// body (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
+// "scales_times_sumi" -- the q3_K aux32 integer core + the reused no-min positive
+// fold), NOT an opaque tcrv_rvv.q3_k_q8_k_block_dot op (retired same action as the
+// flip). It resolves to q3_K's OWN export entry (kind / route id / target) by
+// fold_model + weight_block_stride 110, so the export plan below is unchanged.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q3_K_q8_K_kernel
-// PLAN: tcrv_rvv.q3_k_q8_k_block_dot
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

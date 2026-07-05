@@ -399,8 +399,6 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_KHorizontalFold},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
-        {&isQ3_KQ8_KBlockDotBody,
-         &VariantToEmitCFunc::emitQ3_KQ8_KBlockDot},
         {&isTQ2_0Q8_KBlockDotBody,
          &VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot},
         {&isTQ1_0Q8_KBlockDotBody,
@@ -1560,19 +1558,6 @@ bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
     return sawBlockDot;
   }
 
-bool VariantToEmitCFunc::isQ3_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotQ3KQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
 
 bool VariantToEmitCFunc::isTQ2_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
@@ -5627,6 +5612,11 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // is the single-accumulator body's integer brick (paired with the reused
       // q4_K Q4KSumsFoldScaleDOp for the no-min positive fold)
       tcrv::rvv::GgmlBlockDotQ6KQ8KAux32Op,
+      // q3_K first flip: the q3_K no-min super-block INTEGER core (the 2-bit +
+      // SUBTRACTIVE-hmask unpack + SIGNED 6-bit scale dance + per-sub-block i32
+      // aux32 dot); the q3_K sibling of the q6_K aux32 brick, driving the SAME
+      // single-accumulator no-min body (paired with the reused positive fold)
+      tcrv::rvv::GgmlBlockDotQ3KQ8KAux32Op,
       // W-C' (q2_K milestone-1): the q2_K scalar super-block INTEGER core (the
       // 2-bit unpack + plain uint4-nibble scale/min + per-sub-block scalar i32
       // dot producing the two SCALAR states isum + summs); it is the

@@ -73,8 +73,10 @@
     {
       "op": "vec_dot",
       "format": "q3_K",
-      "state": "dispatch-wired",
-      "anchor": "MonolithicBlockDotRouteFamily::SuperBlock (RVVMonolithicBlockDotFamily.h)"
+      "state": "constructed",
+      "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_super_block_block_dot_loop_body+q3_k_q8_k_aux32_partial+q4_k_sums_fold_scale_d+typed_super_block_block_dot_loop_yield; opaque_helper=false",
+      "anchor": "typed super-block block-dot loop chain: RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalesTimesSumiLoopChain (front door constructs tcrv_rvv.typed_super_block_block_dot_loop_body with fold_model=scales_times_sumi = the SINGLE-accumulator no-min arity; keys the q3_K aux32 brick off entry.opName) -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalesTimesSumiLoopBody (typed super-block SINGLE-accumulator lowering; recognizes the q3_K aux32 brick and calls emitQ3_KSuperBlockAux32Core for the 2-bit + SUBTRACTIVE-hmask decode + SIGNED 6-bit scale dance integer core, then REUSES q6_K's no-min positive fold + horizontal). q3_K is SYMMETRIC (NO per-block min), so the realized body is just the q3_K aux32 integer core (q3_k_q8_k_aux32_partial) + the reused no-min positive fold (q4_k_sums_fold_scale_d, d@108) + a single sums yield; the per-sub-block vwmacc into aux32 carries the contraction+reduction, NO opaque *_block_dot hand helper. Resolves to its OWN export entry by fold_model + weight_block_stride 110 (q6_K 210 / q4_K 144 / q5_K 176)",
+      "note": "byte-identical-to-monolith emit (modulo the source-op provenance token; the executable C / exported object is byte-identical, VERIFIED empty diff, INCLUDING the 2-bit + SUBTRACTIVE-hmask predicated decrement `a = (low2 | (hbit<<2)) - 4`, the SIGNED 6-bit scale bias `scale_j = scales[j]-32`, and the 16x16 dot): the q3_K super-block block-dot is now constructed from typed pattern-library primitives (the net-new q3_K aux32 integer core + the REUSED q6_K no-min positive fold + the SINGLE sums accumulator), not the opaque emitQ3_KQ8_KBlockDot hand helper (retired same action as the flip). FIFTH and LAST K-quant super-block flipped dispatch-wired -> constructed; the net-new work over q6_K is ONLY the q3_K decode brick (hmask predicated decrement + signed 6-bit scale dance) -- it REUSES q6_K's single-vector arity + no-min fold (no new fold_model, no new arity). This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "vec_dot",

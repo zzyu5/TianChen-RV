@@ -487,14 +487,6 @@ private:
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
   static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The q3_K recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.q3_k_q8_k_block_dot (the Q3_K x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- q2_K's 2-bit qs unpack + the
-  /// SUBTRACTIVE hmask high-bit injection (q5_K's plane, -4 when unset -> signed
-  /// [-4,3]) + the q3_K SIGNED 6-bit scale dance + q6_K's NO-min deferred fp32
-  /// fold).
-  static bool isQ3_KQ8_KBlockDotBody(tcrvrvv::WithVLOp scope);
-
   /// The tq2_0 recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.tq2_0_q8_k_block_dot (the TQ2_0 x Q8_K super-block FULL block
   /// dot-product producing the fp32 *s -- q2_K's 2-bit weight unpack with the
@@ -2162,6 +2154,53 @@ private:
       const Q6_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
       mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base) const;
 
+  /// Shared context for the q3_K super-block integer core (the q3_K sibling of
+  /// Q6_KIntegerCoreContext). It carries the block-format FACTS + the ABI pointer
+  /// types the 2-bit/subtractive-hmask unpack + the signed 6-bit scale dance + the
+  /// per-sub-block i32 dot read; the EmitC vector/pointer TYPES and the widening
+  /// chain (deriveWideningChain(coreLmul)) are derived INSIDE the core helper (from
+  /// the MLIRContext + coreLmul), so the caller supplies only the mf2/m1 knob.
+  struct Q3_KIntegerCoreContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type weightPtrType;
+    mlir::Type activationPtrType;
+    int64_t subBlock;
+    int64_t hmaskOffset;
+    int64_t qsOffset;
+    int64_t scalesOffset;
+    int64_t q8Offset;
+    int64_t numSubBlocks;
+    int64_t half;
+    // The optional integer_core_lmul knob (default "mf2" == today's emit: TWO
+    // 8-lane halves per 16-element sub-block). "m1" runs ONE 16-lane strip per
+    // sub-block, folded back to the canonical 8 BEFORE returning (VLEN-agnostic
+    // vslidedown by literal element offset 8 + vadd + vget(.,0)). The subtractive
+    // hmask unpack + the signed 6-bit scale dance are LMUL-free at every knob.
+    llvm::StringRef coreLmul;
+  };
+
+  /// Emit ONE super-block's q3_K integer core (the 2-bit + SUBTRACTIVE-hmask unpack
+  /// into the element-ordered aux8[256] scratch, SIGNED [-4,3]; the q3_K-OWN SIGNED
+  /// 6-bit scale bit-dance staged through the caller-supplied uint32_t utmp[4]
+  /// scratch; then the nested sub-block loop applying the per-sub-block signed
+  /// `scales[js]-32` scale in the i32 domain) at the current insertion point
+  /// (INSIDE an already-open super-block loop body), and RETURN the per-super-block
+  /// aux32[8] integer-state vector (canonical 8-lane vint32m2 lvalue). Extracted
+  /// VERBATIM from the retired emitQ3_KQ8_KBlockDot monolith so the emitted C is
+  /// byte-identical by construction. The deferred no-min fp32 fold is DELIBERATELY
+  /// out of scope (it is the reused q6_K positive fold the single-vector lowering
+  /// applies). Mirrors emitQ6_KSuperBlockAux32Core (different unpack -- hmask
+  /// predicated decrement, not q6_K's ql+qh -- and a SIGNED 6-bit scale, not q6_K's
+  /// direct int8), so at mf2 (the only knob the aux32 op stamps) it returns the
+  /// 8-lane aux32Var directly (no fold-back tokens), byte-identical to the monolith.
+  mlir::TypedValue<emitc::LValueType> emitQ3_KSuperBlockAux32Core(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const Q3_KIntegerCoreContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::ArrayType> aux8Array, mlir::Value aux8Base,
+      mlir::TypedValue<emitc::ArrayType> utmpArray) const;
+
   /// Emit the COMPLETE ggml ggml_vec_dot_q1_0_q8_0 block dot-product for one
   /// tcrv_rvv.q1_0_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
   /// verbatim C-control-flow blob -- every value is a node in the IR graph). It
@@ -2855,49 +2894,6 @@ private:
   /// The block-format facts (stride 54, qs @0, qh @48, d @52) are the op's typed
   /// attrs (I4 mirror).
   mlir::LogicalResult emitTQ1_0Q8_KBlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the COMPLETE ggml ggml_vec_dot_q3_K_q8_K block kernel (the q3_K
-  /// COVERAGE rung, the LAST common K-quant) for one tcrv_rvv.q3_k_q8_k_block_dot
-  /// op as fully STRUCTURED emitc nodes (I5; no verbatim C-control-flow blob, no
-  /// raw()). q3_K COMPOSES mechanisms already in hand, mirroring _generic
-  /// (quants.c:566-643) line-for-line so byte-exactness is by construction:
-  ///   int8_t aux8[256];  int8_t sc16[16];                          // scratch
-  ///   float sums8[8];  vfloat32m2_t sums = vfmv_v_f_f32m2(0.0f, 8); // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*110;  const uint8_t *yb = vy + ib*292;
-  ///     // (A) 2-bit + SUBTRACTIVE-hmask unpack into aux8[256] (signed [-4,3]):
-  ///     //     for each 32-byte qs chunk (chunk 0..1) and each shift in {0,2,4,6}
-  ///     //     (shiftIdx 0..3), with bit position p = 4*chunk + shiftIdx:
-  ///     //       aux8[128*chunk + 32*shiftIdx + l] =
-  ///     //         (((qs>>shift)&3) | (((hm[l]>>p)&1)<<2)) - 4
-  ///     //     -- u8m2 load qs + vsrl/vand for low 2 bits; vsrl/vand/vsll of the
-  ///     //     SAME hmask plane (loaded once per chunk) for the high bit, OR-ed
-  ///     //     in (vor); u8->i8 reinterpret; vsub 4; vse8. hm is NEVER advanced.
-  ///     // (B) the SIGNED 6-bit scale dance: read scales[12] as 3 u32 words,
-  ///     //     q3_K shuffle (kmask1=0x03030303, kmask2=0x0f0f0f0f) into 16 bytes
-  ///     //     read as SIGNED int8; scale_j = (int)sc16[j] - 32.
-  ///     vint32m2_t aux32 = 0;                          // RESET per super-block
-  ///     for (size_t js = 0; js < 16; ++js) {           // q6_K-style sub-loop
-  ///       int scale = (int)sc16[js] - 32;
-  ///       // two 8-halves: vwmul i8xi8->i16, vwmacc.vx aux32 += scale*i16
-  ///     }
-  ///     // (C) the NO-min deferred fp32 fold (q6_K's, identical):
-  ///     float d = (float)*(const _Float16 *)(xb+108) * *(const float *)(yb+0);
-  ///     vfloat32m2_t af = vfcvt_f_x_v_f32m2(aux32, 8); // (float)aux32[l], RNE
-  ///     vfloat32m2_t pr = vfmul_vf_f32m2(af, d, 8);    // SEPARATE mul (NOT fma)
-  ///     sums = vfadd_vv_f32m2(sums, pr, 8);            // SEPARATE add (NOT fma)
-  ///   }
-  ///   float sums8[8];  vse32_v_f32m2(sums8, sums, 8);  // lane l -> sums8[l]
-  ///   float sumf = 0.0f; sumf += sums8[0]; ...; sumf += sums8[7]; // l=0..7
-  ///   *s = sumf;
-  /// The integer side is order-free; the pinned order is the q6_K NO-min fold
-  /// (SEPARATE vfmul/vfadd, NEVER fma; SEQUENTIAL ascending horizontal sum, NEVER
-  /// a vfredusum). There is NO min term and NO dmin (q3_K is symmetric, like
-  /// q6_K). The block-format facts are the op's typed attrs (I4 mirror).
-  mlir::LogicalResult emitQ3_KQ8_KBlockDot(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

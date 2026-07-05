@@ -1586,7 +1586,13 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q3_K_q8_K_block_dot", "rvv_q3_K_q8_K_block_dot_from_vector_source",
        "per-sub-block-int6-signed-scale-i32-domain-deferred-fp32-fold",
        "ggml Q3_K x Q8_K super-block block-dot source front door failed: ", "q3-weight", "q8-act",
-       "", kQ3KFacts, {}, {}, {}, {}},
+       "", kQ3KFacts, {}, {}, {}, {},
+       // q3_K first flip: q3_K is SYMMETRIC (NO min), so it SHARES the SuperBlock
+       // single-accumulator no-min scales_times_sumi typed loop body with q6_K (the
+       // fold is identical -- q3_K's integer-core brick is the ONLY difference). The
+       // resolver disambiguates q3_K (stride 110) vs q6_K (stride 210) by the loop
+       // op's weight_block_stride so each exports its own entry.
+       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
       {tcrv::rvv::GgmlBlockDotQ5KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q5_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_K_q8_K_block_dot_source",

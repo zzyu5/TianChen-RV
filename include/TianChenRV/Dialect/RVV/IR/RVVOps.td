@@ -5970,6 +5970,86 @@ def GgmlBlockDotQ6KQ8KAux32Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ3KQ8KAux32Op
+    : TCRVRVV_Op<"q3_k_q8_k_aux32_partial",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q3_K x Q8_K super-block INTEGER aux32 partial op";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_q3_K_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    q3_K sibling of tcrv_rvv.q6_k_q8_k_aux32_partial. It reproduces q3_K's
+    per-super-block INTEGER state `aux32[8]` EXACTLY as `_generic` computes it right
+    BEFORE the fp32 `d`-multiply, byte-exact (i32 equality). The deferred no-min
+    fp32 two-level fold (the per-super-block fp16-`d` x fp32-`d` multiply into
+    `sums[8]` + the sequential horizontal sum into `*s`) is DELIBERATELY OUT OF
+    SCOPE here -- it is the REUSED q6_K no-min positive fold (q4_k_sums_fold_scale_d,
+    d@108). This op isolates the q3_K-specific integer machinery from that fold:
+    - the 2-bit + SUBTRACTIVE-hmask unpack into the element-ordered int8_t aux8[256]
+      (`a = (low2 | (hbit<<2)) - 4`, the SAME 32-byte hmask plane across all 8
+      groups, SIGNED [-4,3]);
+    - the q3_K-OWN SIGNED 6-bit scale bit-dance (kmask1=0x03030303 /
+      kmask2=0x0f0f0f0f -> the 16 6-bit scales read as SIGNED int8, `scale_j =
+      scales[j] - 32`), staged through a caller-supplied uint32_t utmp[4] scratch;
+    - the nested sub-block loop applying the per-sub-block signed scale in the i32
+      domain (vwmul i8xi8 -> i16 -> vwmacc.vx i32 += (scales[js]-32) x i16) into the
+      carried 8-lane aux32 accumulator.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes the q3_K weight
+    base pointer (vx), the q8_K activation base pointer (vy), the i32 aux32 output
+    pointer, the runtime element count (n), the active !tcrv_rvv.vl token, plus an
+    OPTIONAL `block_index` induction operand (the loop form). It produces ONE i32
+    LMUL m1 !tcrv_rvv.vector token.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256, 16 sub-blocks of 16 elements, the AoS block strides
+    (110 bytes for block_q3_K, 292 bytes for block_q8_K), the q3_K payload byte
+    offsets (hmask @0, qs @32, scales @96) and the q8_K payload byte offset (qs @4)
+    -- are carried as typed integer/string attributes (I4 mirror only). The bounded
+    surface kind is limited to "ggml_q3_k_q8_k_aux32_partial" and scale_model to
+    "per-sub-block-int6-signed-scale-i32-domain". Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/q3 names, and common EmitC/export code must not infer or choose
+    super-block dot-product semantics.
+
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand
+    toggles the per-super-block-source form. When present it is the induction
+    variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the q3_K weight strip and
+    the q8_K activation strip are read at `weight_base + block_index*
+    weight_block_stride` and `activation_base + block_index*
+    activation_block_stride`. When ABSENT the op keeps the single-super-block
+    standalone form.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_hmask_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ6KQ8KOp
     : TCRVRVV_Op<"q6_k_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {

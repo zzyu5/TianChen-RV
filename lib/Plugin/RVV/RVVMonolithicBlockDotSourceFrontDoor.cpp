@@ -1014,15 +1014,26 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
     llvm_unreachable("typed super-block single-accum chain: missing fact");
   };
   std::int64_t qk = factByName("qk");                          // 256 (QK_K)
-  std::int64_t subBlock = factByName("sub_block");             //  16 (q6_K)
-  std::int64_t weightStride = factByName("weight_block_stride");        // 210
+  std::int64_t subBlock = factByName("sub_block");             //  16 (q6_K/q3_K)
+  std::int64_t weightStride = factByName("weight_block_stride");        // 210/110
   std::int64_t activationStride = factByName("activation_block_stride"); // 292
-  std::int64_t weightQhOffset = factByName("weight_qh_byte_offset");    // 128
   std::int64_t weightScalesOffset =
-      factByName("weight_scales_byte_offset");                 // 192
-  std::int64_t weightDOffset = factByName("weight_d_byte_offset");      // 208
+      factByName("weight_scales_byte_offset");                 // 192/96
+  std::int64_t weightDOffset = factByName("weight_d_byte_offset");      // 208/108
   std::int64_t activationQuantOffset =
       factByName("activation_quant_byte_offset");              //   4
+  // q6_K and q3_K share this SINGLE-accumulator no-min chain (fold_model
+  // "scales_times_sumi"); the ONLY difference is the integer-core BRICK and its
+  // weight sub-plane offsets. q6_K reads the qh 5th/6th-bit plane @128; q3_K reads
+  // the hmask high-bit plane @0 + the 2-bit qs plane @32. The reused positive fold
+  // + single `sums` yield are IDENTICAL.
+  const bool isQ3K =
+      entry.opName == tcrvrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
+  std::int64_t weightQhOffset = isQ3K ? 0 : factByName("weight_qh_byte_offset");
+  std::int64_t weightHmaskOffset =
+      isQ3K ? factByName("weight_hmask_byte_offset") : 0;      //   0
+  std::int64_t weightQsOffset =
+      isQ3K ? factByName("weight_qs_byte_offset") : 0;         //  32
 
   mlir::MLIRContext *ctx = builder.getContext();
   mlir::Type i32VecType =
@@ -1056,27 +1067,40 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   mlir::OpBuilder::InsertionGuard bodyGuard(builder);
   builder.setInsertionPointToStart(&body);
 
-  // BRICK: the q6_K aux32 INTEGER CORE (the 2-bit qh + 8-bit signed scale unpack
-  // into the per-super-block aux32[8]). The LIVE operands are the weight base
-  // (%vx) + activation base (%vy) + block_index; the output int32_t* scratch slot
-  // is emitter-owned (vestigial) -> wired to %vx. Per-super-block address
-  // vx + ib*210, vy + ib*292.
+  // BRICK: the aux32 INTEGER CORE (the per-super-block aux32[8] integer state).
+  // The LIVE operands are the weight base (%vx) + activation base (%vy) +
+  // block_index; the output int32_t* scratch slot is emitter-owned (vestigial) ->
+  // wired to %vx. Per-super-block address vx + ib*stride, vy + ib*292.
+  // q6_K: the 2-bit qh + 8-bit signed scale unpack. q3_K: the 2-bit +
+  // SUBTRACTIVE-hmask unpack + the SIGNED 6-bit scale dance (its OWN brick op).
   {
-    mlir::OperationState s(loc,
-                           tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op::getOperationName());
+    mlir::OperationState s(
+        loc, isQ3K ? tcrvrvv::GgmlBlockDotQ3KQ8KAux32Op::getOperationName()
+                   : tcrvrvv::GgmlBlockDotQ6KQ8KAux32Op::getOperationName());
     s.addOperands({weight, activation, weight, n, vl, sbIndex});
     s.addAttribute("kind",
-                   builder.getStringAttr("ggml_q6_k_q8_k_aux32_partial"));
-    s.addAttribute("scale_model",
-                   builder.getStringAttr("per-sub-block-int8-scale-i32-domain"));
+                   builder.getStringAttr(isQ3K ? "ggml_q3_k_q8_k_aux32_partial"
+                                               : "ggml_q6_k_q8_k_aux32_partial"));
+    s.addAttribute(
+        "scale_model",
+        builder.getStringAttr(isQ3K
+                                  ? "per-sub-block-int6-signed-scale-i32-domain"
+                                  : "per-sub-block-int8-scale-i32-domain"));
     s.addAttribute("qk", builder.getI64IntegerAttr(qk));
     s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
     s.addAttribute("weight_block_stride",
                    builder.getI64IntegerAttr(weightStride));
     s.addAttribute("activation_block_stride",
                    builder.getI64IntegerAttr(activationStride));
-    s.addAttribute("weight_qh_byte_offset",
-                   builder.getI64IntegerAttr(weightQhOffset));
+    if (isQ3K) {
+      s.addAttribute("weight_hmask_byte_offset",
+                     builder.getI64IntegerAttr(weightHmaskOffset));
+      s.addAttribute("weight_qs_byte_offset",
+                     builder.getI64IntegerAttr(weightQsOffset));
+    } else {
+      s.addAttribute("weight_qh_byte_offset",
+                     builder.getI64IntegerAttr(weightQhOffset));
+    }
     s.addAttribute("weight_scales_byte_offset",
                    builder.getI64IntegerAttr(weightScalesOffset));
     s.addAttribute("activation_quant_byte_offset",
@@ -1086,11 +1110,11 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   }
   // BRICK: the REUSED no-min positive fold (sums += fp16(x.d) * y.d *
   // (float)aux32) -- the 8-lane fp32 `sums` VECTOR chain, NO min term. The LIVE
-  // operands are the weight base (%vx, the fp16 d @208) + activation base (%vy,
-  // the fp32 y.d @0) + block_index; the aux32 scratch slot is emitter-owned
-  // (vestigial) -> wired to %vx. weight_d_byte_offset 208 = block_q6_K d offset;
-  // sub_block/num_sub_blocks carry the fold's fixed 8-lane facts (32/8), which the
-  // 8-lane fp fold does not read.
+  // operands are the weight base (%vx, the fp16 d) + activation base (%vy, the
+  // fp32 y.d @0) + block_index; the aux32 scratch slot is emitter-owned
+  // (vestigial) -> wired to %vx. weight_d_byte_offset flows from entry.facts
+  // (block_q6_K d @208 / block_q3_K d @108); sub_block/num_sub_blocks carry the
+  // fold's fixed 8-lane facts (32/8), which the 8-lane fp fold does not read.
   {
     mlir::OperationState s(loc,
                            tcrvrvv::Q4KSumsFoldScaleDOp::getOperationName());
@@ -1566,6 +1590,14 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // q4_K/q5_K dual chain. Its stride-210 facts flow through entry.facts.
   const bool isQ6KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ6KQ8KOp::getOperationName();
+  // q3_K first flip: q3_K is SYMMETRIC (NO per-block min), so it flips to the SAME
+  // typed super-block SINGLE-accumulator loop chain as q6_K (fold_model
+  // "scales_times_sumi" -- the q3_K aux32 integer core + the reused no-min positive
+  // fold + a single `sums` yield). The chain builder disambiguates q3_K (stride
+  // 110, hmask/qs planes) from q6_K (stride 210, qh plane) by entry.opName; its
+  // stride-110 facts flow through entry.facts.
+  const bool isQ3KTypedSuperBlock =
+      entry.opName == tcrvrvv::GgmlBlockDotQ3KQ8KOp::getOperationName();
   // q2_K first flip: q2_K HAS a per-block min (like q4_K/q5_K) but its whole fold
   // is a SINGLE per-super-block SCALAR `sumf += dall*isum - dmin*summs`, so it
   // flips to the typed super-block SCALAR-accumulator loop chain (fold_model
@@ -1644,10 +1676,12 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // q5_K additionally stamps BRICK 1's qh offset from entry.facts).
     createTypedSuperBlockBlockDotLoopChain(builder, loc, entry, weight,
                                            activation, out, n, setvl.getVl());
-  } else if (isQ6KTypedSuperBlock) {
+  } else if (isQ6KTypedSuperBlock || isQ3KTypedSuperBlock) {
     // The auto-constructed typed SUPER-BLOCK SINGLE-accumulator loop chain (the
-    // q6_K aux32 integer core + the reused no-min positive fold + the single `sums`
-    // yield are op structure inside the region -- no MIN term, no sumf scalar).
+    // q6_K/q3_K aux32 integer core + the reused no-min positive fold + the single
+    // `sums` yield are op structure inside the region -- no MIN term, no sumf
+    // scalar). The chain builder keys the q3_K vs q6_K integer-core brick off
+    // entry.opName; both are SYMMETRIC no-min super-blocks sharing the fold.
     createTypedSuperBlockScalesTimesSumiLoopChain(builder, loc, entry, weight,
                                                   activation, out, n,
                                                   setvl.getVl());

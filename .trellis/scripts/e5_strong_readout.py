@@ -218,6 +218,25 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalesTimesSumiLoopChain (typed super-block SINGLE-accumulator no-min loop body)",
     },
+    # q3_K vec_dot: STRONG (the FIFTH and LAST K-quant super-block flipped). q3_K is
+    # SYMMETRIC (NO per-block min), so it SHARES q6_K's typed SUPER-BLOCK SINGLE-
+    # accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
+    # "scales_times_sumi") out of just TWO decomposed bricks: the q3_K aux32 INTEGER
+    # CORE (q3_k_q8_k_aux32_partial -- the 2-bit + SUBTRACTIVE-hmask decode + SIGNED
+    # 6-bit scale dance + per-sub-block signed-scaled vwmacc into aux32) -> the REUSED
+    # no-min positive fold (q4_k_sums_fold_scale_d, d@108) -> a SINGLE `sums` yield.
+    # NOT the opaque emitQ3_KQ8_KBlockDot hand helper (retired same action as the flip).
+    # The contraction+reduction is the fused per-sub-block integer-MAC INSIDE the aux32
+    # core (vwmacc into aux32 -- see _FUSED_DOT_REDUCE_RE's aux32_partial token); NO
+    # opaque *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to q3_K's
+    # OWN export entry by fold_model + weight_block_stride 110.
+    {
+        "op": "vec_dot", "format": "q3_K", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q3-k-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalesTimesSumiLoopChain (typed super-block SINGLE-accumulator no-min loop body; q3_K aux32 brick keyed off entry.opName)",
+    },
     # q2_K vec_dot: STRONG (the FOURTH K-quant super-block flipped). q2_K HAS a per-
     # block min (like q4_K/q5_K) but its whole fold is a SINGLE per-super-block SCALAR
     # `sumf += dall*isum - dmin*summs`, so its front door constructs the typed SUPER-
@@ -638,6 +657,33 @@ module {
 """
 
 
+# Super-block SINGLE-accumulator ground truth (q3_K milestone): q3_K is SYMMETRIC
+# (NO per-block min), so it SHARES q6_K's typed super-block loop body (fold_model
+# "scales_times_sumi") -- the q3_K aux32 INTEGER CORE + the reused no-min positive
+# fold + a SINGLE yield. The contraction+reduction is the FUSED per-sub-block
+# integer-MAC INSIDE `q3_k_q8_k_aux32_partial` (vwmacc into aux32) -- NO separate
+# standalone_reduce and NO opaque *_block_dot op -- so the decomposed gate must
+# derive constructed via the fused dot-reduce path (the aux32_partial token).
+_GT_SUPERBLOCK_Q3K = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scales_times_sumi"} {
+        ^bb0(%ib: index, %sums: !tcrv_rvv.vector<f32, "m2">):
+          %c1 = tcrv_rvv.q3_k_q8_k_aux32_partial %vx, %vy, %vx, %n, %vl block %ib : index {kind = "ggml_q3_k_q8_k_aux32_partial"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          %b6 = tcrv_rvv.q4_k_sums_fold_scale_d %vx, %vx, %vy, %vl block %ib : index {kind = "q4_k_sums_fold_scale_d"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+          tcrv_rvv.typed_super_block_block_dot_loop_yield %sums : !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 # Super-block SCALAR-accumulator ground truth (q2_K milestone-2): q2_K HAS a per-
 # block min but its whole fold is a SINGLE per-super-block SCALAR, so the typed
 # super-block loop body (fold_model "scalar_scale_min") decomposes into just the
@@ -753,6 +799,25 @@ def cmd_self_test(_args):
     assert superblock_q6k["decomposed"] is True, superblock_q6k
     assert superblock_q6k["derived_state"] == "constructed", superblock_q6k
 
+    # Super-block SINGLE-accumulator ground truth (q3_K milestone): q3_K shares
+    # q6_K's no-min single-accumulator body; the q3_K aux32 integer core
+    # `q3_k_q8_k_aux32_partial` satisfies BOTH the product AND reduce conjunct (the
+    # per-sub-block vwmacc reduction is fused into it), the reused positive fold
+    # carries no separate contraction, and no opaque *_block_dot appears, so it
+    # derives constructed via the aux32_partial fused-reduce path.
+    superblock_q3k = derive(parse_realized_body(_GT_SUPERBLOCK_Q3K))
+    assert superblock_q3k["manifest"] == [
+        "tcrv_rvv.typed_super_block_block_dot_loop_body",
+        "tcrv_rvv.q3_k_q8_k_aux32_partial",
+        "tcrv_rvv.q4_k_sums_fold_scale_d",
+        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+    ], superblock_q3k["manifest"]
+    assert superblock_q3k["has_opaque"] is False, superblock_q3k
+    assert superblock_q3k["has_product"] is True, superblock_q3k
+    assert superblock_q3k["has_reduce"] is True, superblock_q3k
+    assert superblock_q3k["decomposed"] is True, superblock_q3k
+    assert superblock_q3k["derived_state"] == "constructed", superblock_q3k
+
     # Super-block SCALAR-accumulator ground truth (q2_K milestone-2): the q2_K
     # integer core `q2_k_q8_k_integer_core` satisfies BOTH the product AND reduce
     # conjunct (the per-sub-block vwmul+vwredsum reduction is fused into it), the
@@ -778,12 +843,15 @@ def cmd_self_test(_args):
     assert superblock["derived_state"] != scale["derived_state"]
     assert superblock_q6k["derived_state"] != weak["derived_state"]
     assert superblock_q6k["derived_state"] != scale["derived_state"]
+    assert superblock_q3k["derived_state"] != weak["derived_state"]
+    assert superblock_q3k["derived_state"] != scale["derived_state"]
     assert superblock_q2k["derived_state"] != weak["derived_state"]
     assert superblock_q2k["derived_state"] != scale["derived_state"]
     print("self-test PASS: parser position-anchored, no mirror leak; "
           "strong(widening_product)=constructed / strong(x_i8_product)=constructed / "
           "strong(super-block scaled_dot fused reduce)=constructed / "
           "strong(super-block q6_K aux32_partial fused reduce)=constructed / "
+          "strong(super-block q3_K aux32_partial fused reduce)=constructed / "
           "strong(super-block q2_K integer_core fused reduce)=constructed / "
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate)")
     return 0
