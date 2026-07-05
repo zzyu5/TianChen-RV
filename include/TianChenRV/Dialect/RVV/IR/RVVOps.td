@@ -7083,6 +7083,95 @@ def GgmlBlockDotQ2KQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ2KQ8KIntegerCoreOp
+    : TCRVRVV_Op<"q2_k_q8_k_integer_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q2_K x Q8_K super-block SCALAR integer-core op "
+      "(isum + summs, the milestone-1 q2_K brick)";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_q2_K_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    q2_K first-super-block (M-FLAT) milestone-1 integer brick. It reproduces
+    ggml's per-super-block SCALAR integer state EXACTLY as `_generic` computes it
+    right BEFORE the fp32 `d`/`dmin` multiply, byte-exact (i32 equality):
+    - `isum` = Σ_{s=0..15} (sc[s] & 0xF) * (Σ_{l in sub-block s} q8[l]*aux8[l]),
+      the per-sub-block uint4-nibble-scaled POSITIVE integer dot (the 2-bit
+      weights `(qs >> shift) & 3` unpacked to aux8 in [0,3], the q8_K
+      activations, and the 16 direct `scales[16]` LOW nibbles as the
+      per-sub-block scales); and
+    - `summs` = Σ_{s=0..15} bsums[s] * (sc[s] >> 4), the q2_K MIN integer sum (the
+      int16 q8_K per-sub-block sums bsums @260, sign-extended, times the
+      per-sub-block min HIGH nibbles).
+    Both are produced as SCALAR i32 SSA results (ggml's `int isum` / `int summs`
+    locals), NOT an 8-lane vector -- this is the STRUCTURAL contrast with q6_K's
+    8-lane `aux32` vector core: q2_K's positive fold is a single per-super-block
+    scalar (`sumf += dall*isum - dmin*summs`), so its integer core collapses to
+    two scalars. The DEFERRED fp32 SCALAR fold (`dall = fp16(x.d @80)*y.d`,
+    `dmin = fp16(x.dmin @82)*y.d`, `sumf += dall*isum - dmin*summs`) is
+    DELIBERATELY OUT OF SCOPE here -- that is the milestone-2 increment. This
+    milestone-1 op isolates the genuinely-new q2_K machinery (the 2-bit unpack,
+    the PLAIN-nibble scale/min extraction with NO 6-bit utmp/kmask bit-dance, the
+    per-sub-block scaled scalar dot, the scalar min sum) from the fp32 fold.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes the q2_K weight
+    base pointer (vx), the q8_K activation base pointer (vy), the runtime element
+    count (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index`
+    induction operand. It produces TWO scalar i32 SSA results (isum, summs). It
+    carries NO output pointer -- unlike q6_K's aux32[8] memory state, q2_K's isum/
+    summs are scalar registers.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body.
+    The structural facts -- QK_K=256, 16 sub-blocks of 16 elements, the AoS block
+    strides (84 bytes for block_q2_K, 292 bytes for block_q8_K), the q2_K payload
+    byte offsets (the 16 packed 4-bit-scale/4-bit-min bytes `scales` @0, the 64
+    packed 2-bit-weight bytes qs @16) and the q8_K payload byte offsets (qs @4,
+    the int16 per-sub-block sums bsums @260) -- are carried as typed
+    integer/string attributes (I4 mirror only). The bounded surface kind is
+    limited to "ggml_q2_k_q8_k_integer_core" and scale_model to
+    "per-sub-block-uint4-scale-i32-domain-min". Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/q2 names, and common EmitC/export code must not infer or
+    choose super-block dot-product semantics.
+
+    LOOP-CAPABLE per-super-block-source form (M-FLAT q2_K milestone-1): the
+    OPTIONAL `block_index` operand toggles the per-super-block-source form. When
+    present it is the induction variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region: the q2_K weight strip
+    and the q8_K activation strip are read at `weight_base + block_index*84` and
+    `activation_base + block_index*292`. When ABSENT the op keeps the standalone
+    single-super-block form. milestone-1 builds ONLY the ODS + verifier (the
+    honest target IR parses + verifies + clears the [L-8] allowlist); the
+    byte-exact emit is milestone-2.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$activation_bsums_byte_offset
+  );
+  let results = (outs AnyType:$isum, AnyType:$summs);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($isum) `,` type($summs)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ3KQ8KOp
     : TCRVRVV_Op<"q3_k_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
@@ -9426,12 +9515,18 @@ def TypedSuperBlockBlockDotLoopBodyOp
     never the *what*). fold_model fixes the ARITHMETIC fold tree
     (region-invariant) AND KEYS the accumulator ARITY: for the current bounded
     surface kind is limited to "typed_super_block_block_dot_loop_body" and
-    fold_model to one of two -- "super_block_two_level_scale_min" (q4_K/q5_K)
+    fold_model to one of three -- "super_block_two_level_scale_min" (q4_K/q5_K)
     selects the DUAL accumulator (region (index, sums, sumf) + dual yield);
-    "scales_times_sumi" (q6_K) selects a SINGLE accumulator (the no-min `sums +=
-    d*(float)aux32` positive fold ONLY, NO scalar MIN chain, so the region carries
-    just (index, sums) and the yield names the `sums` vector alone, and the
-    post-loop horizontal add collapses `sums` straight into `*s`).
+    "scales_times_sumi" (q6_K) selects a SINGLE-VECTOR accumulator (the no-min
+    `sums += d*(float)aux32` positive fold ONLY, NO scalar MIN chain, so the
+    region carries just (index, sums) and the yield names the `sums` vector alone,
+    and the post-loop horizontal add collapses `sums` straight into `*s`);
+    "scalar_scale_min" (q2_K) selects a SCALAR accumulator (the q2_K positive fold
+    is a single per-super-block scalar `dall*isum`, not a deferred 8-lane vector,
+    so the region carries just (index, sumf:f32) and the yield names the `sumf`
+    scalar alone -- there is NO `sums` vector; the fold is
+    `sumf += dall*isum - dmin*summs`, isum/summs being the SCALAR integer states of
+    the q2_K integer-core brick).
     "super_block_two_level_scale_min" is (the q4_K/q5_K two-level `sums += d*aux32`
     positive fold PLUS the `sumf -= dmin*Σ(mins*bsums)` MIN term). The op does NOT
     own dtype/route authority; the per-super-block nibble unpack, the 6-bit
@@ -9468,25 +9563,32 @@ def TypedSuperBlockBlockDotLoopYieldOp
     [Terminator,
      HasParent<"::tianchenrv::tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp">]> {
   let summary =
-      "terminator naming the carried-out super-block accumulator(s): the `sums` "
-      "vector always, plus the OPTIONAL `sumf` scalar (present = dual q4_K/q5_K, "
-      "absent = single-accumulator no-min q6_K)";
+      "terminator naming the carried-out super-block accumulator(s): the first "
+      "accumulator (8-lane fp32 `sums` vector for q4_K/q5_K/q6_K, OR a scalar "
+      "`sumf` f32 for q2_K) always, plus the OPTIONAL `sumf` scalar second operand "
+      "(present = dual q4_K/q5_K, absent = single-accumulator q6_K/q2_K)";
   let description = [{
     Terminates the tcrv_rvv.typed_super_block_block_dot_loop_body region by naming
-    the carried-out accumulator(s). The `sums_next` 8-lane fp32 VECTOR accumulator
-    (!tcrv_rvv.vector<f32, "m2">, the deferred positive-fold chain) is ALWAYS
-    present. The `sumf_next` scalar fp32 accumulator (f32, the MIN-term chain) is
-    OPTIONAL and its presence is keyed by the parent loop op's fold_model:
+    the carried-out accumulator(s). The FIRST carried-out operand (`sums_next`) is
+    ALWAYS present; its type is keyed by the parent loop op's fold_model: the
+    8-lane fp32 VECTOR accumulator (!tcrv_rvv.vector<f32, "m2">, the deferred
+    positive-fold chain) for the q4_K/q5_K/q6_K vector folds, OR a SCALAR fp32
+    accumulator (f32, the q2_K scalar `sumf` chain) for the q2_K scalar fold. The
+    `sumf_next` scalar fp32 accumulator (f32, the MIN-term chain) is the OPTIONAL
+    SECOND operand and its presence is keyed by fold_model:
     "super_block_two_level_scale_min" (q4_K/q5_K) carries BOTH (the DUAL yield);
-    "scales_times_sumi" (q6_K no-min) carries the `sums` vector ONLY (the SINGLE
-    yield -- the no-min fold has no scalar MIN chain). The lowering maps each
-    carried-out value to the emitc.assign back into its emitc.variable lvalue with
-    no implicit convention. The first operand is required to be the 8-lane fp32
-    vector accumulator; when present the second is required to be scalar f32 (a
-    swapped pair is rejected fail-closed). The fold_model-keyed arity match (a
-    dual yield under the single fold, or a single yield under the dual fold) is
-    enforced by the parent loop body verifier. It carries no compute, dtype,
-    memory, or route semantics.
+    "scales_times_sumi" (q6_K no-min) carries the `sums` VECTOR ONLY (the SINGLE
+    yield -- the no-min fold has no scalar MIN chain); "scalar_scale_min" (q2_K)
+    carries the `sumf` SCALAR ONLY (the SINGLE yield -- q2_K's whole fold is one
+    scalar accumulator, so there is no separate MIN-term operand). The lowering
+    maps each carried-out value to the emitc.assign back into its emitc.variable
+    lvalue with no implicit convention. The first operand is required to be either
+    the 8-lane fp32 vector accumulator OR a scalar f32; when present the second is
+    required to be scalar f32 (a swapped vector-second pair is rejected
+    fail-closed). The fold_model-keyed arity match (which fold carries which
+    first-operand shape and whether a second sumf operand is allowed) is enforced
+    by the parent loop body verifier. It carries no compute, dtype, memory, or
+    route semantics.
   }];
 
   let arguments = (ins AnyType:$sums_next, Optional<AnyType>:$sumf_next);

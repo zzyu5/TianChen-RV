@@ -5643,6 +5643,12 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // is the single-accumulator body's integer brick (paired with the reused
       // q4_K Q4KSumsFoldScaleDOp for the no-min positive fold)
       tcrv::rvv::GgmlBlockDotQ6KQ8KAux32Op,
+      // W-C' (q2_K milestone-1): the q2_K scalar super-block INTEGER core (the
+      // 2-bit unpack + plain uint4-nibble scale/min + per-sub-block scalar i32
+      // dot producing the two SCALAR states isum + summs); it is the
+      // scalar-accumulator body's integer brick (the byte-exact scalar fold
+      // sumf += dall*isum - dmin*summs is a later step)
+      tcrv::rvv::GgmlBlockDotQ2KQ8KIntegerCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

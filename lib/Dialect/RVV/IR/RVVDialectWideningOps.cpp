@@ -6142,6 +6142,161 @@ mlir::LogicalResult GgmlBlockDotQ2KQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlBlockDotQ2KQ8KIntegerCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // uint4-nibble scale+min integer-core scale model, and the q2_K
+  // super-block-format structural facts the integer core reads (the 16 packed
+  // 4-bit-scale/4-bit-min `scales` @0, the 64 packed 2-bit-weight qs @16, the
+  // q8_K qs @4, and the int16 q8_K per-sub-block sums bsums @260). The fp16
+  // weight d @80 / dmin @82 and the fp32 activation d @0 are the milestone-2
+  // fold's, NOT the integer core's. Anything else -- a forbidden local
+  // element_count/SEW/LMUL/policy attr, or an unexpected name -- is rejected
+  // fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "sub_block" || name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_scales_byte_offset" ||
+           name == "weight_qs_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "activation_bsums_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q2_k_q8_k_integer_core keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded super-block integer-core attributes "
+                "'kind', 'scale_model', 'qk', 'sub_block', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'weight_scales_byte_offset', 'weight_qs_byte_offset', "
+                "'activation_quant_byte_offset', and "
+                "'activation_bsums_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q2_k_q8_k_integer_core")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q2_k_q8_k_integer_core\" "
+              "for the bounded ggml Q2_K x Q8_K super-block scalar integer-core "
+              "typed surface";
+  if (getScaleModel() != "per-sub-block-uint4-scale-i32-domain-min")
+    return emitOpError()
+           << "requires scale_model "
+              "\"per-sub-block-uint4-scale-i32-domain-min\" for the ggml Q2_K x "
+              "Q8_K super-block scalar integer-core route";
+  // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
+  // 16 sub-blocks of 16 elements, block_q2_K stride 84 (scales@0|qs@16|d@80|
+  // dmin@82), block_q8_K stride 292 (d@0|qs@4|bsums@260). The integer core reads
+  // scales (the 4-bit scale/min nibbles), qs (2-bit weights), the q8_K quants,
+  // and bsums (the min integer sum); pin them so a malformed typed body cannot
+  // lower under the integer-core emission.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml Q2_K x "
+                            "Q8_K super-block scalar integer-core route";
+  if (getSubBlock() != 16)
+    return emitOpError()
+           << "requires sub_block == 16 (16-element sub-block scale boundary) "
+              "for the ggml Q2_K x Q8_K super-block scalar integer-core route";
+  if (getWeightBlockStride() != 84)
+    return emitOpError()
+           << "requires weight_block_stride == 84 (sizeof block_q2_K) for the "
+              "ggml Q2_K x Q8_K super-block scalar integer-core route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
+              "the ggml Q2_K x Q8_K super-block scalar integer-core route";
+  if (getWeightScalesByteOffset() != 0)
+    return emitOpError()
+           << "requires weight_scales_byte_offset == 0 (the 16 packed "
+              "4-bit-scale/4-bit-min bytes lead block_q2_K) for the ggml Q2_K x "
+              "Q8_K super-block scalar integer-core route";
+  if (getWeightQsByteOffset() != 16)
+    return emitOpError()
+           << "requires weight_qs_byte_offset == 16 (the 64 packed 2-bit-weight "
+              "qs bytes follow scales[16]) for the ggml Q2_K x Q8_K super-block "
+              "scalar integer-core route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
+              "d) for the ggml Q2_K x Q8_K super-block scalar integer-core route";
+  if (getActivationBsumsByteOffset() != 260)
+    return emitOpError()
+           << "requires activation_bsums_byte_offset == 260 (the int16 "
+              "per-sub-block sums bsums follow d+qs[256]) for the ggml Q2_K x "
+              "Q8_K super-block scalar integer-core route";
+
+  // M-FLAT q2_K milestone-1: the OPTIONAL loop-form `block_index` operand adds a
+  // 5th operand (the per-super-block induction variable). Absent = the standalone
+  // 4-operand single-super-block form; present = the loop form. block_index is
+  // ODS-typed Index, so no extra type check is needed here. The op produces TWO
+  // scalar i32 results (isum, summs) -- NO output pointer (the scalar states are
+  // SSA results, not an aux32 memory state).
+  unsigned expectedOperands = getBlockIndex() ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 2)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, an OPTIONAL `block_index` induction operand, and two "
+              "scalar i32 results (isum, summs)";
+
+  // The weight/activation bases address the AoS byte arrays as const uint8_t *,
+  // and the element count carries n. q2_K's integer core has NO output pointer
+  // (isum/summs are scalar SSA results, not an aux32 memory state).
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q2_K byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
+              "array)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // The two scalar integer-core results are ggml's `int isum` (the uint4-scaled
+  // positive dot) and `int summs` (the min integer sum), both scalar i32.
+  if (!getIsum().getType().isInteger(32))
+    return emitOpError()
+           << "requires the first result (isum, the uint4-nibble-scaled positive "
+              "integer dot) to be scalar i32";
+  if (!getSumms().getType().isInteger(32))
+    return emitOpError()
+           << "requires the second result (summs, the q2_K min integer sum) to "
+              "be scalar i32";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q2_K x Q8_K super-block scalar integer "
+              "core";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -9834,14 +9989,17 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
   // MIN chain). Any other spelling is rejected fail-closed (I7); a missing/empty
   // fold_model cannot reach this branch (the StrAttr is required by ODS).
   if (getFoldModel() != "super_block_two_level_scale_min" &&
-      getFoldModel() != "scales_times_sumi")
+      getFoldModel() != "scales_times_sumi" &&
+      getFoldModel() != "scalar_scale_min")
     return emitOpError()
            << "currently supports only fold_model "
               "\"super_block_two_level_scale_min\" (the q4_K/q5_K two-level DUAL "
               "`sums += d*(float)aux32` positive fold PLUS the "
-              "`sumf -= dmin*Σ(mins*bsums)` MIN term) or \"scales_times_sumi\" "
-              "(the q6_K no-min SINGLE `sums += d*(float)aux32` positive fold "
-              "ONLY); the other super-block fold trees are later steps";
+              "`sumf -= dmin*Σ(mins*bsums)` MIN term), \"scales_times_sumi\" "
+              "(the q6_K no-min SINGLE-VECTOR `sums += d*(float)aux32` positive "
+              "fold ONLY), or \"scalar_scale_min\" (the q2_K SCALAR "
+              "`sumf += dall*isum - dmin*summs` fold); the other super-block "
+              "fold trees are later steps";
 
   // Externally-defined ggml super-block facts: QK_K and the AoS super-block
   // strides are positive byte counts the per-super-block address arithmetic
@@ -9948,6 +10106,57 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
     return mlir::success();
   }
 
+  // W-A (q2_K milestone-1): fold_model KEYS the accumulator arity. The q2_K
+  // "scalar_scale_min" path carries a SCALAR accumulator: exactly TWO region
+  // entry arguments (the super_block_index induction variable + the loop-carried
+  // `sumf` SCALAR f32 accumulator) and a yield naming the `sumf` scalar ALONE (no
+  // 8-lane `sums` vector -- q2_K's positive fold is the single per-super-block
+  // scalar `dall*isum`, NOT a deferred 8-lane vector, so there is no vector
+  // accumulator). An 8-lane vector first accumulator, or a second (`sumf_next`)
+  // yield operand under this scalar fold, is rejected fail-closed. The q4_K/q5_K
+  // dual and q6_K single-vector paths are unchanged.
+  if (getFoldModel() == "scalar_scale_min") {
+    mlir::Block &block = getBody().front();
+    if (block.getNumArguments() != 2)
+      return emitOpError()
+             << "requires the region to carry exactly two entry arguments for "
+                "the scalar-accumulator q2_K fold_model \"scalar_scale_min\": "
+                "the super_block_index induction variable and the loop-carried "
+                "`sumf` SCALAR f32 accumulator (an 8-lane vector `sums` "
+                "accumulator is rejected under the scalar fold)";
+    if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+      return emitOpError()
+             << "requires the first region argument (super_block_index) to be "
+                "index-typed (the nb super-block induction variable)";
+    if (!block.getArgument(1).getType().isF32())
+      return emitOpError()
+             << "requires the second region argument (the loop-carried `sumf` "
+                "accumulator) to be scalar f32 (the q2_K scalar positive+min "
+                "fold; an 8-lane vector `sums` accumulator is rejected under "
+                "\"scalar_scale_min\")";
+    TypedSuperBlockBlockDotLoopYieldOp yield =
+        block.empty()
+            ? TypedSuperBlockBlockDotLoopYieldOp()
+            : llvm::dyn_cast<TypedSuperBlockBlockDotLoopYieldOp>(&block.back());
+    if (!yield)
+      return emitOpError()
+             << "requires the region to be terminated by "
+                "tcrv_rvv.typed_super_block_block_dot_loop_yield (the single "
+                "carried-out `sumf` scalar accumulator)";
+    if (!yield.getSumsNext().getType().isF32())
+      return emitOpError()
+             << "requires the loop yield to carry the scalar f32 `sumf` "
+                "accumulator as its (single) first operand under the scalar "
+                "fold_model \"scalar_scale_min\" (an 8-lane vector is rejected)";
+    if (yield.getSumfNext())
+      return emitOpError()
+             << "the scalar-accumulator q2_K fold_model \"scalar_scale_min\" "
+                "must NOT carry a second `sumf_next` operand in the yield (the "
+                "scalar path carries a single f32 accumulator; a dual yield here "
+                "is rejected)";
+    return mlir::success();
+  }
+
   // Region structure: exactly THREE entry arguments -- the super_block_index
   // induction variable (index), the loop-carried `sums` 8-lane fp32 vector
   // accumulator, and the loop-carried `sumf` scalar f32 accumulator -- terminated
@@ -10006,16 +10215,22 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
 }
 
 mlir::LogicalResult TypedSuperBlockBlockDotLoopYieldOp::verify() {
-  // Structural fail-closed (I7): the first carried-out operand is ALWAYS the
-  // 8-lane fp32 vector `sums` chain. The second `sumf` scalar operand is OPTIONAL
-  // (present = the q4_K/q5_K dual MIN-term chain; absent = the q6_K no-min single
-  // path); when present it must be scalar f32. A swapped pair is rejected by the
-  // `sums`-vector check. The fold_model-keyed arity match (which fold may carry
-  // sumf and which may not) is enforced by the parent loop body verifier.
-  if (!isF32M2VectorAccumulator(getSumsNext().getType()))
+  // Structural fail-closed (I7): the first carried-out operand is EITHER the
+  // 8-lane fp32 vector `sums` chain (q4_K/q5_K/q6_K) OR a scalar f32 `sumf` chain
+  // (q2_K's scalar fold). The second `sumf` scalar operand is OPTIONAL (present =
+  // the q4_K/q5_K dual MIN-term chain; absent = the q6_K/q2_K single path); when
+  // present it must be scalar f32 (so a q4_K/q5_K swapped vector-second pair is
+  // rejected by this check). The fold_model-keyed arity match (which fold carries
+  // which first-operand shape and whether a second sumf operand is allowed) is
+  // enforced by the parent loop body verifier, which runs BEFORE this nested
+  // yield verifier.
+  mlir::Type sumsNextTy = getSumsNext().getType();
+  if (!isF32M2VectorAccumulator(sumsNextTy) && !sumsNextTy.isF32())
     return emitOpError()
-           << "requires the first carried-out accumulator to be an 8-lane fp32 "
-              "vector `sums` accumulator (!tcrv_rvv.vector<f32, \"m2\">)";
+           << "requires the first carried-out accumulator to be either an "
+              "8-lane fp32 vector `sums` accumulator (!tcrv_rvv.vector<f32, "
+              "\"m2\">, the q4_K/q5_K/q6_K positive-fold chain) or a scalar f32 "
+              "`sumf` accumulator (the q2_K scalar fold chain)";
   if (getSumfNext() && !getSumfNext().getType().isF32())
     return emitOpError()
            << "requires the second carried-out accumulator, when present, to be "
