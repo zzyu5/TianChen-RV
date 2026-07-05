@@ -299,3 +299,34 @@ mirror _generic 继承的 aux8[256] 缺模式;shared across 全 5 super-block K-
 rvv + 放大 k1 → q5_K 双板 Win-B。执行:机器层预检(objdump vse8 8→0 + no-spill 寄存器压力)
 先行 → 共享重构 5 格 byte-exact → 双板重测。**这将是 GAP-1 台账首个"定位→拆除→翻正"完整闭环。**
 q5_K 本轮 board-split 结果 = bank(bit-exact + 忠实性 + 瓶颈定位)。research: experiments/ondevice-q5_K/。
+
+---
+
+## GAP-1 / q5_K-P3-register-resident FALSIFIED — 诊断修正(2026-07-05)
+
+**命名.** GAP-1/q5_K-aux8-roundtrip 关闭动作 = P3 register-resident decode(消 aux8[256]),
+预期翻正 rvv −15%。用户裁 Option 1;机器层预检 GREEN(vse8 8→0、spills 6→0、insns
+513→232、byte-exact scalar-mirror)。
+
+**拆法+复测(证伪前提).** 共享重构 q4/q5(regA per-quarter 内联 decode)→ 硬件双板重测
+(preflight 4/4、★on-device bit-exact 256/256 双板[register-resident 首次上机 bit-exact]、
+confound-clean、paired):**register-resident 不但没翻正 rvv、反而双板大回归**——rvv
+0.851→0.383(2.2× 更慢)、k1 1.027→0.664(+2.7% 赢翻成 −34% 输)。factory byte-flat、
+全 delta 在我方。★**根因 objdump 归因 = decode-width 降级(m2→mf2)**:aux8 形态 decode
+WIDE(e8m2 vl=32/64)+ 廉价 L1 aux8 round-trip;register-resident regA 把 decode 融进每
+MAC strip 在 NARROW e8mf2 vl=8 → decode 工作量 ×4(rvv)~×8(k1 半 datapath 空),宽度罚
+>> 消掉的 aux8 store。**★aux8 store 从来不是瓶颈——2c triage 归因错(是 decode-width、
+非 aux8)。** "232-insn/0-spill/0-vse8" 预检 headline = 静态计数假象、不 transduce(每指令
+只 8 lane)。
+
+**归因/教训.** ★静态 objdump 预检绿(vse8/spill 消、insns 腰斩)但【运行时】双板 2.2×
+回归——**静态计数 ≠ 运行时**,唯硬件重测(+ width 归因)抓到。预检-先行 + 硬件-验证纪律
+又一次救命(item4 抓 machine-neutral、此次抓 static-count-red-herring)。**P3
+register-resident-narrow 死路已 revert(无收益反回归不留树上=正面纪律)。**
+
+**关闭动作(修正).** 真瓶颈 = decode-width(非 aux8)。salvage 路(若追):WIDE
+register-resident decode(e8m2/m4 bulk unpack 留寄存器 + slide/gather 进 strips、保 wide),
+非 narrow vl=8 fused;更复杂、不确定。OR 接受 q5_K board-split(2c:k1 赢/rvv 输,bit-exact +
+比 factory 更忠 ggml scalar 成立)+ decode-width 刻画入账(layer-4)。perf 轴累计:P2c null /
+2a null / item4 赢(+4.37% q8_0 VLEN256)/ 2c board-split / P3 regression——指令级 emit
+golf 多 null,item4 是 C-结构级例外。用户重裁。
