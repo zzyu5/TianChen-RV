@@ -6,7 +6,9 @@
 // packs FOUR int8 values, an indexed vle8(4) over grid_table + idx*4, NOT a
 // vrgather), the qh 9th-bit plane (a SINGLE bit mask 256), and the EXPLICIT per-group
 // signs read from a dedicated signs[QK_K/8] memory region. The front door's OWN
-// auto-constructed monolithic super-block GRID-codebook body now flows through the
+// auto-constructed typed super-block SCALAR-accumulator GRID loop body (fold_model
+// "scalar_delta_grid", the iq3_s GRID-of-4 explicit-signs grid-core brick -- the flip
+// retired the monolith op) now flows through the
 // COMPLETE tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
 // --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
 // through tcrv-translate --tcrv-export-target-artifact.
@@ -36,7 +38,7 @@
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
 
-// FULL pipeline: front door auto-constructs the monolithic super-block GRID-codebook
+// FULL pipeline: front door auto-constructs the typed super-block GRID grid-core loop
 // block-dot body, the tcrv-source-artifact-front-door-pipeline materializes the
 // emission plan AND passes --tcrv-check-execution-plan-coherence (the super-block
 // monolithic route id is a registered target-artifact export route).
@@ -75,7 +77,13 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_s_q8_K_block_dot_sourc
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_iq3_s_q8_K_kernel
-// PLAN: tcrv_rvv.iq3_s_q8_k_block_dot
+// iq3_s FLIP (C_construct 22->23, EXPLICIT-SIGNS variant): the front door now constructs
+// the typed super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid",
+// stride 110) with the iq3_s GRID-of-4 explicit-signs grid-core brick, NOT the retired
+// monolith op. The export still resolves through the SAME super-block monolithic route
+// family (kind/ABI/facts) by the selector + weight_block_stride 110, so the emission-plan
+// metadata is byte-unchanged.
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

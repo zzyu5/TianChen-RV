@@ -422,12 +422,11 @@ private:
   // lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs (dispatched from
   // emitTypedSuperBlockScalarDeltaGridLoopBody on the iq3_xxs grid-core brick identity).
 
-  /// The GRID-codebook sibling recognizer: a with_vl scope whose ONLY compute op is
-  /// a single tcrv_rvv.iq3_s_q8_k_block_dot (a member of the deep IQ tail; a
-  /// re-composition of the 512-entry grid-of-4 (iq3_xxs), the qh 9th-bit plane
-  /// (iq2_s), the EXPLICIT signs read from memory (iq2_s), and the explicit
-  /// per-sub-block 4-bit scales (iq2_s)).
-  static bool isIQ3SQ8KBlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: the monolith recognizer isIQ3SQ8KBlockDotBody was RETIRED at the iq3_s
+  // flip (C_construct 22->23): the front door now constructs the typed super-block
+  // SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride 110),
+  // lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s (dispatched from
+  // emitTypedSuperBlockScalarDeltaGridLoopBody on the iq3_s grid-core brick identity).
 
   // NOTE: the monolith IQ1_M recognizer isIQ1MQ8KBlockDotBody was RETIRED at the
   // iq1_m flip (L3): the front door now constructs the typed super-block
@@ -1942,50 +1941,101 @@ private:
       const IQ3XXSGridBodyContext &cx, mlir::Value xb, mlir::Value yb,
       mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_iq3_s_q8_K super-block dot-product for one
-  /// tcrv_rvv.iq3_s_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no raw()).
-  /// It is a direct RE-COMPOSITION of three already-built mechanisms, mirroring
-  /// _generic (quants.c:1043-1097):
-  ///   static const uint32_t tcrv_iq3s_grid[512] = { ... };   // 512-entry GRID-of-4
-  ///   static const uint8_t  tcrv_iq3s_kmask[8]  = {1,2,4,8,16,32,64,128};
-  ///   float sumf = 0.0f;  size_t nb = n / 256;
-  ///   vuint8m1_t kmaskLo = vle8(kmask,4);  vuint8m1_t kmaskHi = vle8(kmask+4,4);
-  ///   const int8_t *grid_i8 = (const int8_t *)tcrv_iq3s_grid;
-  ///   for (size_t ibl = 0; ibl < nb; ++ibl) {
-  ///     const uint8_t *xb = vx + ibl*110;  const uint8_t *yb = vy + ibl*292;
-  ///     float d = (float)*(const _Float16 *)(xb) * *(const float *)(yb);
-  ///     const uint8_t *qs = xb+2; const uint8_t *qh = xb+66;
-  ///     const uint8_t *sgn = xb+74; const uint8_t *sc = xb+106;
-  ///     const int8_t *q8 = yb+4;  int32_t bsum = 0;
-  ///     for (ib32 = 0..7) {                                 // FLAT unrolled
-  ///       int ls = ib32 even ? 2*(sc[ib32/2] & 0xf)+1 : 2*(sc[ib32/2] >> 4)+1;
-  ///       int qhb = qh[ib32];  int32_t sumi = 0;
-  ///       for (l = 0..3) {
-  ///         int signs = sgn[ib32*4 + l];                    // EXPLICIT, from memory
-  ///         int idx1 = qs[8*ib32+2l+0] | ((qhb << (8-2l)) & 256);  // grid-of-4 pass A
-  ///         int idx2 = qs[8*ib32+2l+1] | ((qhb << (7-2l)) & 256);  // grid-of-4 pass B
-  ///         pass(idx1, q8[0..3], kmaskLo); pass(idx2, q8[4..7], kmaskHi); q8 += 8;
-  ///       }
-  ///       bsum += sumi * ls;
-  ///     }
-  ///     sumf = sumf + d * (float)bsum;                      // ONE emitc.expression
-  ///   }
-  ///   *s = sumf;                                            // NO trailing factor
-  /// Each grid-of-4 pass: vle8(4) over grid_i8 + idx*4, the SIGN-plane apply (broadcast
-  /// signs / vand kmaskLo|kmaskHi / vmsne / vmerge with vneg grid), the signed widening
-  /// product vwmul_i16m2, and the chained vwredsum into sumi (order-free integer add).
-  /// The grid lookup is an indexed vle8(4) over a pointer (grid_i8 + idx*4); no
-  /// vrgather, no m1 table anchor. The per-super-block fp32 fold is invoked in STRICT
-  /// ascending order so fp non-associativity is byte-exact across all -ffp-contract
-  /// modes. This emitter is iq3_xxs's body (the grid-of-4 two-pass structure) with the
-  /// index assembly (qh injection), the sign source (explicit memory), and the scale
-  /// source (explicit two-nibble scales[]) swapped to iq2_s's mechanism -- a
-  /// self-contained parallel, NOT a shared-helper refactor (siblings stay
-  /// byte-identical / the change is additive).
-  mlir::LogicalResult emitIQ3SQ8KBlockDot(
+  /// The iq3_s super-block SCALAR-accumulator GRID-of-4 EXPLICIT-SIGNS loop emitter (the
+  /// flip lowering, iq3_xxs grid SIBLING): the iq3_s branch of the fold_model
+  /// "scalar_delta_grid" path (dispatched by emitTypedSuperBlockScalarDeltaGridLoopBody
+  /// when the region carries an iq3_s grid-core brick). It emits the wrapper -- the
+  /// `static const uint32_t tcrv_iq3s_grid[512]` GRID-of-4 decl (keyed off the grid-core
+  /// brick op identity from the canonical kIQ3SGrid), the inline `tcrv_iq3s_kmask[8]`
+  /// decl (iq3_s has NO ksigns plane -- the signs are an explicit memory region), the
+  /// `sumf` float SCALAR accumulator seeded once OUTSIDE the loop, nb = n / QK_K, the
+  /// ONCE 8-lane kmask load + the (const int32_t *) grid32 view, the outer emitc.for over
+  /// nb, the per-super-block base built from the brick's (base, block_index) via a shared
+  /// memo (anti-bypass), and the trailing `*s = sumf` store (NO 1/4 or 1/8 factor --
+  /// iq3_s applies none) -- delegating the in-loop per-super-block body to the shared
+  /// emitIQ3SSuperBlockGridBody anchor (the fp16*fp32 d fold, the explicit two-nibble
+  /// scale ls, the qh 9th-bit inject, the explicit per-sub-block signs read, the
+  /// two-index-per-group vluxei16_v_i32m1 grid-of-4 gather + signed widening dot + bsum
+  /// fold, then sumf += d*(float)bsum). Byte-identical to the retired monolith
+  /// emitIQ3SQ8KBlockDot by construction (same decls, same body helper, same facts, same
+  /// order) modulo the source-op provenance token + func name.
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
+  // NOTE: the monolith emitIQ3SQ8KBlockDot emitter was RETIRED at the iq3_s flip
+  // (C_construct 22->23): the front door now constructs the typed super-block
+  // SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride 110),
+  // lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s, which reuses the SHARED
+  // byte-exact anchors below (emitIQ3SCanonicalGridTableDecl +
+  // emitIQ3SSuperBlockGridBody).
+
+  /// The bounded per-super-block byte-exact facts the iq3_s GRID-of-4 body helper reads
+  /// (the I4 mirror off the grid-core brick). The emitc element/pointer types are
+  /// re-derived inside the helper from the MLIRContext (uniqued -> the SAME Type
+  /// instances), so this struct carries only the provenance, the size type, the two
+  /// buffer pointer types, the iq3_s format byte offsets/sub-block shape, and the two
+  /// per-loop-invariant SSA values the sub-block gather reads: the `grid32` (const
+  /// int32_t *) view of tcrv_iq3s_grid and the 8-lane `kmask` vuint8m1_t. iq3_s has NO
+  /// ksigns plane -- unlike iq3_xxs it reads EXPLICIT signs (offset 74), a qh-bit plane
+  /// (offset 66), and explicit two-nibble scales (offset 106).
+  struct IQ3SGridBodyContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type weightPtrType;
+    mlir::Type activationPtrType;
+    int64_t weightDOffset;        //   0 (fp16 x.d)
+    int64_t qsOffset;             //   2 (64 uint8 grid-index bytes)
+    int64_t qhOffset;             //  66 (8 qh-bit plane bytes)
+    int64_t signsOffset;          //  74 (32 EXPLICIT sign bytes)
+    int64_t scalesOffset;         // 106 (4 packed-4-bit scale bytes)
+    int64_t activationDOffset;    //   0 (fp32 y.d)
+    int64_t q8Offset;             //   4 (q8_K quants)
+    int64_t subBlock;             //  32
+    int64_t numSubBlocks;         //   8
+    int64_t numGroups;            //   4 (sign groups per sub-block)
+    int64_t indicesPerSubBlock;   //   8 (grid index bytes per sub-block)
+    int64_t signsPerSubBlock;     //   4 (explicit sign bytes per sub-block)
+    mlir::Value grid32;           // the (const int32_t *) view of tcrv_iq3s_grid
+    mlir::Value kmask;            // the 8-lane vuint8m1_t {1,2,4,8,16,32,64,128}
+  };
+
+  /// Emit the fixed 512-entry iq3_s GRID-of-4 codebook as ONE `static const uint32_t
+  /// tcrv_iq3s_grid[512] = { ... };` verbatim decl (ggml's exact hex literals rendered
+  /// `0x%08xU`). The byte-exact SHARED anchor kept across the iq3_s flip: the retired
+  /// monolith emitIQ3SQ8KBlockDot passed its carried grid attr; the typed grid loop
+  /// lowering (the sole live caller) passes the canonical kIQ3SGrid so the emitted decl
+  /// is byte-identical.
+  void emitIQ3SGridTableDecl(mlir::ConversionPatternRewriter &rewriter,
+                             mlir::Location loc,
+                             llvm::ArrayRef<int32_t> grid) const;
+
+  /// Emit the iq3_s grid decl from the CANONICAL kIQ3SGrid constant (the grid-core brick
+  /// carries no grid in the IR -- the emitter keys the fixed codebook off the brick op
+  /// identity). Byte-identical to the monolith decl whose grid attr is populated from the
+  /// same kIQ3SGrid.
+  void emitIQ3SCanonicalGridTableDecl(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
+
+  /// Emit ONE iq3_s super-block's GRID-of-4 body at the current insertion point (INSIDE
+  /// an already-open super-block loop whose per-super-block bases xb/yb are provided): the
+  /// per-super-block `d = fp16(x.d)*y.d` fold scale, the qs/qh/sgn/sc/q8 base setup, the
+  /// `int32_t bsum = 0`, the flat 8-sub-block decode (the explicit two-nibble scale ls,
+  /// the qh byte, the 4 sign groups each reading the EXPLICIT sign byte + two qh-injected
+  /// grid indices, the vluxei16_v_i32m1 grid-of-4 gather, the signed widening product +
+  /// ONE vwredsum per group, then `bsum += sumi*ls`), and the per-super-block fp32 fold
+  /// `sumf += d*(float)bsum` folded into the carried `sumf` lvalue. The trailing
+  /// `*s = sumf` (NO factor) stays in the wrapper (OUT of this body). This is the
+  /// byte-exact anchor kept across the iq3_s flip: the retired monolith
+  /// emitIQ3SQ8KBlockDot's inline body was code-moved here (now the sole caller is the
+  /// typed super-block SCALAR-accumulator grid loop lowering) -- same nodes, same order.
+  void emitIQ3SSuperBlockGridBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const IQ3SGridBodyContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   /// The iq2_xs super-block SCALAR-accumulator per-half-scale GRID loop emitter (the flip
   /// lowering, iq2_xxs grid SIBLING, SIGN-PLANE signs64 variant, PER-HALF explicit scale):

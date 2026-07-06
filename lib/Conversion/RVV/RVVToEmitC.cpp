@@ -383,8 +383,12 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // body (fold_model "scalar_delta_grid", stride 98), lowered by
         // isTypedSuperBlockBlockDotLoopBody -> emitTypedSuperBlockBlockDotLoopBody ->
         // emitTypedSuperBlockScalarDeltaGridLoopBodyIq3xxs.
-        {&isIQ3SQ8KBlockDotBody,
-         &VariantToEmitCFunc::emitIQ3SQ8KBlockDot},
+        // NOTE: the monolith iq3_s kernel {isIQ3SQ8KBlockDotBody,
+        // emitIQ3SQ8KBlockDot} was RETIRED at the iq3_s flip (C_construct 22->23): the
+        // front door now constructs the typed super-block SCALAR-accumulator GRID loop
+        // body (fold_model "scalar_delta_grid", stride 110), lowered by
+        // isTypedSuperBlockBlockDotLoopBody -> emitTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s.
         {&isMXFP4Q8_0BlockDotBody,
          &VariantToEmitCFunc::emitMXFP4Q8_0BlockDot},
         {&isNVFP4Q8_0BlockDotBody,
@@ -1342,19 +1346,12 @@ bool VariantToEmitCFunc::isIQ4XSQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
 // the SHARED byte-exact anchors emitIQ3XXSCanonicalGridTableDecl +
 // emitIQ3XXSCanonicalKsignsTableDecl + emitIQ3XXSSuperBlockGridBody.
 
-bool VariantToEmitCFunc::isIQ3SQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotIQ3SQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: the monolith recognizer isIQ3SQ8KBlockDotBody + emitter emitIQ3SQ8KBlockDot
+// were RETIRED at the iq3_s flip (C_construct 22->23): the front door now constructs the
+// typed super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid",
+// stride 110), lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s, which reuses
+// the SHARED byte-exact anchors emitIQ3SCanonicalGridTableDecl +
+// emitIQ3SSuperBlockGridBody.
 
 // NOTE: the monolith recognizer isIQ1MQ8KBlockDotBody + emitter emitIQ1MQ8KBlockDot
 // were RETIRED at the iq1_m flip (L3): the front door now constructs the typed
@@ -5626,6 +5623,17 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs by weight_block_stride 82; NO gearbox -- fixed
       // 16-lane per-half shape)
       tcrv::rvv::GgmlBlockDotIQ2SQ8KGridCoreOp,
+      // iq3_s (iq3_xxs grid sibling, EXPLICIT-SIGNS variant, qh 9th-bit inject, explicit
+      // two-nibble scale): the iq3_s scalar super-block GRID-of-4 INTEGER core
+      // (decode_model=lookup -- the 512-entry uint32 iq3s_grid gathered via
+      // vluxei16_v_i32m1 indexed by the qh-9th-bit-injected index `qs[l] |
+      // ((qh<<(8-2l))&256)`, the EXPLICIT per-sub-block sign bytes read from the signs
+      // region at offset 74 folded via the inline kmask {1<<j}, the EXPLICIT per-sub-block
+      // two-nibble scales[4], producing the ONE SCALAR state bsum); it is the
+      // scalar-accumulator body's grid brick under fold_model "scalar_delta_grid"
+      // (disambiguated from iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs/iq2_s by weight_block_stride
+      // 110; NO gearbox -- fixed grid-of-4 shape, NO ksigns plane)
+      tcrv::rvv::GgmlBlockDotIQ3SQ8KGridCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

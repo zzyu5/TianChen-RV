@@ -650,6 +650,40 @@ void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
   rewriter.create<emitc::VerbatimOp>(loc, decl);
 }
 
+// The fixed 512-entry iq3_s GRID-of-4 codebook as ONE `static const uint32_t
+// tcrv_iq3s_grid[512]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
+// byte-exact SHARED anchor kept across the iq3_s flip: the retired monolith
+// emitIQ3SQ8KBlockDot rendered its carried grid attr with this SAME format; the typed
+// grid loop lowering (the sole live caller) passes the canonical kIQ3SGrid so the
+// emitted decl is byte-identical. iq3_s is the iq3_xxs GRID-of-4 sibling with a LARGER
+// (512-entry, 9-bit-index) table -- otherwise the same uint32-packed-4-int8 grid.
+void VariantToEmitCFunc::emitIQ3SGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    llvm::ArrayRef<int32_t> grid) const {
+  std::string decl = "static const uint32_t tcrv_iq3s_grid[512] = {";
+  for (size_t i = 0; i < grid.size(); ++i) {
+    if (i)
+      decl += ", ";
+    char buf[24];
+    std::snprintf(buf, sizeof(buf), "0x%08xU",
+                  static_cast<unsigned>(static_cast<uint32_t>(grid[i])));
+    decl += buf;
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
+// The iq3_s grid-core brick carries NO grid in the IR -- the emitter keys the fixed
+// GRID-of-4 codebook off the brick op identity. Emit the decl from the CANONICAL
+// kIQ3SGrid constant (the SAME array the monolith's grid attr was populated from), so
+// the typed grid loop's decl is byte-identical to the retired monolith's grid decl.
+void VariantToEmitCFunc::emitIQ3SCanonicalGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &grid = tianchenrv::plugin::rvv::kIQ3SGrid;
+  emitIQ3SGridTableDecl(rewriter, loc,
+                        llvm::ArrayRef<int32_t>(grid.data(), grid.size()));
+}
+
 // The fixed 256-entry iq2_xxs GRID-of-8 codebook as ONE `static const int64_t
 // tcrv_iq2xxs_grid[256]` verbatim decl (ggml's exact uint64 literals rendered
 // `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every

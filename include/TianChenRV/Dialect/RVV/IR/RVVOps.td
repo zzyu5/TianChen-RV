@@ -8098,118 +8098,80 @@ def GgmlBlockDotIQ2SQ8KGridCoreOp
 // per-super-block body was extracted into the byte-exact shared anchor
 // emitIQ3XXSSuperBlockGridBody (the sole live caller is the constructed loop lowering).
 
-def GgmlBlockDotIQ3SQ8KOp
-    : TCRVRVV_Op<"iq3_s_q8_k_block_dot",
+def GgmlBlockDotIQ3SQ8KGridCoreOp
+    : TCRVRVV_Op<"iq3_s_q8_k_grid_core",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
-      "generic typed RVV ggml IQ3_S x Q8_K GRID-codebook super-block dot-product op";
+      "generic typed RVV ggml IQ3_S x Q8_K super-block GRID-of-4 SCALAR "
+      "integer-core op (bsum, the iq3_s explicit-signs grid brick, iq3_xxs sibling)";
   let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_iq3_s_q8_K` super-block dot-product as
-    ONE bounded generic plugin-local typed RVV dataflow step -- a member of the DEEP
-    IQ tail and a direct RE-COMPOSITION of pieces already built by the GRID-codebook
-    siblings. iq3_s does NOT introduce a brand-new mechanism; it COMBINES three
-    mechanisms verbatim:
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_iq3_s_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    iq3_s GRID-of-4 brick, the i32-grid EXPLICIT-SIGNS sibling of the iq3_xxs GRID-of-4
+    core (tcrv_rvv.iq3_xxs_q8_k_grid_core). It decodes with a codebook GRID GATHER
+    (decode_model=lookup) like iq3_xxs, over the 512-entry `iq3s_grid[512]` uint32
+    GRID-of-4 (each entry FOUR int8 values) via a `vluxei16_v_i32m1` indexed gather, but
+    with THREE mechanisms swapped from iq3_xxs to iq2_s: the grid INDEX carries a qh
+    9th-bit inject (a SINGLE bit, mask 256 = bit 8, the two passes taking shifts 8-2l and
+    7-2l), the per-lane SIGN is read from an EXPLICIT per-sub-block signs region (at
+    weight offset 74, NO ksigns plane), and the per-sub-block scale is the EXPLICIT
+    two-nibble scales[] (at weight offset 106). It reproduces ggml's per-super-block
+    SCALAR integer state EXACTLY as `_generic` computes `bsum` right BEFORE the fp32 `d`
+    multiply, byte-exact (i32 equality):
+    - `bsum` = Σ_{ib=0..7} ls[ib] * (Σ_{l=0..3} Σ_{lane} q8[lane] * signed_grid[lane]),
+      the per-sub-block 4-bit-scaled grid/sign dot. Each sub-block reads its scale byte
+      `sc = scales[ib/2]`; the per-sub-block scale is `ls = 2*(sc & 0xf)+1` (even ib) or
+      `2*(sc >> 4)+1` (odd ib); the qh byte `qh[ib]`; each of the 4 sign groups l=0..3
+      reads the EXPLICIT sign byte `signs = sgn[ib*4 + l]` and the two grid INDICES
+      `idx1 = qs[8*ib+2l+0] | ((qh[ib] << (8-2l)) & 256)`, `idx2 = qs[8*ib+2l+1] |
+      ((qh[ib] << (7-2l)) & 256)` (an 8-lane vluxei16 gather over the i32 grid; lanes
+      0..3 = grid1/kmask{1,2,4,8}/q8[0..3], lanes 4..7 = grid2/kmask{16,32,64,128}/
+      q8[4..7]), applies the per-lane sign via vmerge(grid, vneg(grid), mask) and
+      accumulates the signed widening product `vwmul` + `vwredsum`.
+    The result is produced as ONE SCALAR i32 SSA result (ggml's per-super-block `int
+    bsum`), NOT an 8-lane vector -- the arity-cousin of the iq3_xxs scalar grid core. The
+    DEFERRED fp32 SCALAR fold (`d = fp16(x.d @0) * y.d @0`, `sumf += d * (float)bsum`,
+    then the trailing `*s = sumf` -- iq3_s applies NO trailing factor) is DELIBERATELY
+    OUT OF SCOPE here -- it is emitter-inlined by the scalar-delta-grid lowering. This
+    op isolates the genuinely-new iq3_s machinery (the qh 9th-bit inject, the explicit
+    per-sub-block signs region, the explicit two-nibble scales) from the fp32 fold.
 
-      (a) the iq3 GRID-of-4 codebook (from iq3_xxs): each grid entry is FOUR int8
-          values (`iq3s_grid[512]`, a uint32 table), so the per-index decode is 4
-          values (the grid lookup loads 4 bytes per index: `grid_i8 + idx*4` then
-          vle8(4)), and an 8-element sign group is assembled from TWO grid indices --
-          grid1 (lanes 0..3, kmask{1,2,4,8}) and grid2 (lanes 4..7, kmask{16,32,64,
-          128}) -- exactly iq3_xxs's two-4-lane-pass grid-of-4. The ONLY GRID delta vs
-          iq3_xxs is the table SIZE: 512 entries (the 9-bit index), not 256.
+    The op is nested directly under tcrv_rvv.with_vl and consumes the iq3_s weight base
+    pointer (vx), the q8_K activation base pointer (vy), the runtime element count (n),
+    the active !tcrv_rvv.vl token, and an OPTIONAL `block_index` induction operand. It
+    produces ONE scalar i32 SSA result (bsum). It carries NO output pointer -- like the
+    iq3_xxs scalar grid core, iq3_s's bsum is a scalar register.
 
-      (b) the qh 9th-bit plane (from iq2_s): the grid index is assembled from a single
-          qs index byte plus ONE high bit injected from a per-sub-block qh byte. Unlike
-          iq2_s's 2-bit `& 0x300` plane, iq3_s injects a SINGLE bit (mask 256 = bit 8)
-          and the two grid indices of a group take DIFFERENT shifts -- grid1 idx =
-          `qs[2l+0] | ((qh[ib32] << (8-2*l)) & 256)`, grid2 idx = `qs[2l+1] | ((qh[ib32]
-          << (7-2*l)) & 256)`. So the qh byte contributes bit 8 of each of the 8 grid
-          indices in a sub-block.
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block strides (110
+    bytes for block_iq3_s = {fp16 d; uint8 qs[64]; uint8 qh[8]; uint8 signs[32]; uint8
+    scales[4]}, 292 bytes for block_q8_K), the iq3_s payload byte offsets (the fp16 d @0,
+    the 64 uint8 grid-index bytes qs @2, the 8 qh bytes @66, the 32 signs bytes @74, the
+    4 scales bytes @106) and the q8_K payload byte offsets (fp32 d @0, int8 qs @4) -- are
+    carried as typed integer/string attributes (I4 mirror only). The FIXED 512-entry
+    iq3s_grid GRID-of-4 codebook is a byte-exact constant of the iq3_s FORMAT; it is
+    emitted keyed by the brick op identity, NOT carried in the IR here (unlike iq3_xxs
+    there is NO ksigns plane -- the signs are an explicit memory region). The bounded
+    surface kind is limited to "ggml_iq3_s_q8_k_grid_core" and scale_model to
+    "per-sub-block-explicit-scale-grid-of-4-codebook-qh-plane-explicit-signs-int-domain".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/iq3 names, and common EmitC/export code must
+    not infer or choose the grid-of-4 super-block dot-product semantics.
 
-      (c) the EXPLICIT signs read from memory (from iq2_s): the per-group sign byte is
-          read DIRECTLY from a dedicated `signs[QK_K/8]` region (a SEPARATE 32-byte
-          array at byte offset 74, NOT inside qs, and NOT a `ksigns_iq2xs[128]` lookup).
-          `signs[ib32*4 + l]` is the raw sign byte for group l; bit j (via the SAME
-          kmask `{1<<j}`) selects the per-lane sign. There is NO ksigns plane.
-
-    The EXPLICIT per-sub-block 4-bit scales are REUSED from iq2_s: ggml packs two 4-bit
-    scales per byte of `scales[QK_K/64]` (4 bytes), `sc = scales[ib32/2]`, `ls1 =
-    2*(sc & 0xf) + 1` for even sub-blocks, `ls2 = 2*(sc >> 4) + 1` for odd sub-blocks.
-    In the FLAT 8-sub-block emission each sub-block sb reads `scales[sb/2]` and selects
-    the low nibble (sb even) or high nibble (sb odd). It REUSES the q6_K-style
-    super-block structure (the q8_K activation, the integer `bsum` accumulation, the
-    per-super-block fp32 fold). The trailing factor is `*s = sumf` (NO 1/8 or 1/4
-    factor -- iq3_s applies none).
-
-    Block format (ggml-common.h): block_iq3_s = { ggml_half d; uint8_t qs[QK_K/4];
-    uint8_t qh[QK_K/32]; uint8_t signs[QK_K/8]; uint8_t scales[QK_K/64] } (= {fp16 d;
-    uint8_t qs[64]; uint8_t qh[8]; uint8_t signs[32]; uint8_t scales[4]}, stride 110 =
-    2 + 64 + 8 + 32 + 4). The qs[64] array holds 64 grid index bytes (@2, one per the 8
-    grid indices of each of the 8 sub-blocks); qh[8] @66 (one byte per sub-block);
-    signs[32] @74 (4 sign bytes per sub-block); scales[4] @106 (two 4-bit scales per
-    byte). The q8_K activation is unchanged (stride 292, fp32 d @0, int8 qs @4).
-    QK_K=256, 8 sub-blocks of 32 elements (ib32=0..7).
-
-    (1) Per super-block d = (float)*(const _Float16 *)(xb) * *(const float *)(yb)
-        (the fp16 weight scale times the fp32 q8_K scale, ONE mul), computed once.
-        int32_t bsum = 0 reset per super-block.
-
-    (2) For each of the 8 sub-blocks (a FLAT unrolled loop over ib32=0..7), read the
-        scale byte `sc = scales[ib32/2]` and select `ls = ib32 even ? 2*(sc & 0xf)+1 :
-        2*(sc >> 4)+1`, the qh byte `qh[ib32]`, and `sumi = 0`. For each of the 4
-        groups l=0..3: the explicit sign byte `signs = sgn[ib32*4 + l]` (read DIRECTLY
-        from the signs region at xb+74), the two grid INDICES idx1 = `qs[8*ib32 + 2*l +
-        0] | ((qh[ib32] << (8-2*l)) & 256)`, idx2 = `qs[8*ib32 + 2*l + 1] | ((qh[ib32]
-        << (7-2*l)) & 256)`. The 4 grid int8 values of each index `grid1 = (const int8_t
-        *)(iq3s_grid + idx1)`, `grid2 = (const int8_t *)(iq3s_grid + idx2)` (an indexed
-        pointer-arith lookup `grid_table_i8 + idx*4`, NOT a vrgather -- the 2048-byte
-        table cannot broadcast into a vreg) are decoded as TWO 4-lane passes: pass A
-        (grid1 vs q8[0..3], kmask{1,2,4,8}) and pass B (grid2 vs q8[4..7], kmask{16,32,
-        64,128}). Each pass: broadcast `signs`, `vand` with the kmask vector, `vmsne 0`
-        -> mask, `vmerge(grid, vneg(grid), mask)` applies the per-lane sign, then
-        `vwmul(grid_signed, q8)` -> i16, `vwredsum` accumulates (seed = the running sumi
-        i32m1, integer add is order-free) into the chained i32 reduction; q8 advances 8
-        each group. After the 4 groups `bsum += sumi * ls`.
-
-    (3) The per-super-block fp32 fold `sumf = sumf + d * (float)bsum` is ONE
-        emitc.expression (the SAME FMA `_generic` does under -ffp-contract on/default;
-        the `(float)bsum` cast is explicit) invoked in STRICT ascending super-block
-        order so fp non-associativity is byte-exact across all four -ffp-contract
-        modes. The final `*s = sumf` (iq3_s applies NO trailing factor) is a SEPARATE
-        statement OUTSIDE the accumulate expression.
-
-    The grid lookup is an indexed vle8(4) over a pointer (`grid_table + idx*4`), the
-    operative vector width is 4 (one grid-of-4 entry), so there is NO vrgather
-    table-index legality fact and the integer core does NOT pin an m1 table anchor. The
-    grid table is a STRUCTURAL fact (I4 mirror) carried as a typed array attribute and
-    emitted as a structured `static const uint32_t[512]` decl (rendering ggml's exact
-    uint32 literals, read via a `(const int8_t *)` cast -- every entry < 0x80000000 so
-    a positive int32 carries the value losslessly, and every grid byte <= 15 < 128 so
-    the signed int8 read yields the identical value as ggml's uint8 read); the signs
-    are a memory region (no table); kmask is the inline const {1<<j}. They are consumed
-    STRUCTURALLY into the realized body (decls + indexed loads + the vle8 grid load),
-    NOT an arithmetic decode, NOT a string plan read. The op identity is the dispatch
-    key. Route ids, helper names, ABI strings, artifact names, status fields, exact
-    intrinsic spellings, operand mirror strings, q8/iq3 names, and common EmitC/export
-    code must not infer or choose super-block dot-product semantics.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the iq3_s weight base pointer (vx), the q8_K activation base
-    pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime element
-    count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
-    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
-
-    iq3_s emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
-    Zvl128b => VLEN>=128, the validated target). No resource shape knobs this cut; the
-    op carries only the structural facts.
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand toggles
+    the per-super-block-source form. When present it is the induction variable (region
+    argument 0) of an enclosing tcrv_rvv.typed_super_block_block_dot_loop_body region
+    whose fold_model is "scalar_delta_grid": the iq3_s weight strip and the q8_K
+    activation strip are read at `weight_base + block_index*110` and `activation_base +
+    block_index*292`. When ABSENT the op keeps the standalone single-super-block form.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$activation_base,
-    AnyType:$output,
     AnyType:$element_count,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     I64Attr:$qk,
@@ -8222,17 +8184,25 @@ def GgmlBlockDotIQ3SQ8KOp
     I64Attr:$weight_signs_byte_offset,
     I64Attr:$weight_scales_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    DenseI32ArrayAttr:$grid
+    I64Attr:$activation_quant_byte_offset
   );
-  let results = (outs AnyType:$result);
+  let results = (outs AnyType:$bsum);
 
   let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($bsum)";
   let hasVerifier = 1;
 }
+
+// NOTE: def GgmlBlockDotIQ3SQ8KOp (the monolith iq3_s block-dot op) was RETIRED at the
+// iq3_s flip (C_construct 22->23): the front door now constructs the typed super-block
+// SCALAR-accumulator GRID loop body (tcrv_rvv.typed_super_block_block_dot_loop_body with
+// fold_model "scalar_delta_grid", stride 110) carrying the iq3_s GRID-of-4 explicit-signs
+// grid-core brick (GgmlBlockDotIQ3SQ8KGridCoreOp) instead. The retired monolith emitter's
+// per-super-block body was extracted into the byte-exact shared anchor
+// emitIQ3SSuperBlockGridBody (the sole live caller is the constructed loop lowering).
 
 // NOTE: def GgmlBlockDotIQ1MQ8KOp (the monolith iq1_m block-dot op) was RETIRED at
 // the iq1_m flip (L3): the front door constructs the typed super-block loop body

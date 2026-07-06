@@ -1758,7 +1758,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // selector for export resolution). The third GRID/codebook member reuses the
        // whole iq1_s scaffold and only adds a variant integer-core brick.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {tcrv::rvv::GgmlBlockDotIQ3SQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq3_s_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_s_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
@@ -1766,7 +1766,21 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq3_s_q8_K_block_dot", "rvv_iq3_s_q8_K_block_dot_from_vector_source",
        "per-sub-block-int4-explicit-scales-grid-of-4-codebook-qh-plane-explicit-signs-int-domain",
        "ggml IQ3_S x Q8_K super-block GRID-codebook block-dot source front door failed: ", "iq3s-weight", "q8k-act",
-       "", kIQ3SFacts, {}, {}, kIQ3SGrid, {}},
+       "", kIQ3SFacts, {}, {}, kIQ3SGrid, {},
+       // iq3_s flip (C_construct 22->23, EXPLICIT-SIGNS variant): the typed super-block
+       // SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid" -- iq3_s's fold
+       // is a single per-super-block scalar `sumf += d*(float)bsum` with NO trailing factor,
+       // bsum being the scalar state of the iq3_s GRID-of-4 explicit-signs integer core).
+       // Shares iq1_s's selector; the resolver disambiguates iq3_s from
+       // iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs/iq2_s (all scalar_delta_grid) by the loop op's
+       // OWN weight_block_stride (block_iq3_s 110 vs iq1_s 50 / iq1_m 56 / iq3_xxs 98 /
+       // iq2_xxs 66 / iq2_xs 74 / iq2_s 82; q3_K is also stride 110 but resolves through a
+       // DIFFERENT selector SuperBlockScalesTimesSumi). The monolith op
+       // tcrv_rvv.iq3_s_q8_k_block_dot is RETIRED (this opName is now a dead string -- no op
+       // carries it; the row is reached by the marker for construction and by this selector
+       // for export resolution). The SEVENTH GRID/codebook member reuses the whole iq1_s
+       // scaffold and only adds a variant integer-core brick (NO gearbox, NO ksigns plane).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotQ2KQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q2_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q2_K_q8_K_block_dot_source",
