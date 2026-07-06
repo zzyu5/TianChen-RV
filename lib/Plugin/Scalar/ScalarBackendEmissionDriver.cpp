@@ -552,6 +552,253 @@ public:
   }
 };
 
+/// Lowers a selected `tcrv_scalar.dequantize_row_q4_0` boundary into a standalone
+/// top-level, pure-scalar EmitC function that IS the ggml q4_0 dequantize_row:
+///   #include <stdint.h>
+///   extern "C" void tcrv_emitc_<kernel>_<variant>(
+///       int n, float *y, const uint8_t *vx) {
+///     size_t nb = (size_t)n / 32;
+///     for (size_t ib = 0; ib < nb; ib += 1) {
+///       const uint8_t *xb = vx + ib*18;
+///       float d = (float)*(const _Float16 *)(xb + 0);
+///       const uint8_t *qs = xb + 2;
+///       size_t yb = ib * 32;
+///       for (size_t j = 0; j < 16; j += 1) {
+///         const uint8_t q = qs[j];
+///         int x0 = ((int)q & 15) - 8;
+///         int x1 = ((int)q >> 4) - 8;
+///         y[yb + j]      = (float)x0 * d;
+///         y[yb + j + 16] = (float)x1 * d;
+///       }
+///     }
+///   }
+/// The exported function name is derived from source_kernel + selected_variant,
+/// and the block-format facts (qk, stride, byte offsets) drive the emitted loop
+/// bounds and address arithmetic, so the emission is operand-driven. The nibble
+/// decode is pure integer arithmetic -- NO XOR-popcount, NO __riscv_ intrinsics,
+/// NO vector machinery.
+class ScalarDequantizeRowQ4ToEmitCFunc final
+    : public mlir::OpConversionPattern<tcrv::scalar::DequantizeRowQ4Op> {
+public:
+  using mlir::OpConversionPattern<
+      tcrv::scalar::DequantizeRowQ4Op>::OpConversionPattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(tcrv::scalar::DequantizeRowQ4Op dequant, OpAdaptor /*adaptor*/,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::Location loc = dequant.getLoc();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+
+    auto variant =
+        dequant->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    auto sourceKernel =
+        dequant->getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!variant || !sourceKernel)
+      return rewriter.notifyMatchFailure(
+          dequant, "dequantize_row_q4_0 requires selected_variant and "
+                   "source_kernel attributes");
+
+    auto lowerable =
+        llvm::dyn_cast<tcrvemitc::TCRVEmitCLowerableOpInterface>(
+            dequant.getOperation());
+    if (!lowerable)
+      return rewriter.notifyMatchFailure(
+          dequant,
+          "dequantize_row_q4_0 must implement TCRVEmitCLowerableOpInterface");
+    llvm::StringRef opName = lowerable.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = lowerable.getTCRVEmitCLowerableSourceRole();
+
+    // The block-format structural facts come straight off the typed attrs (I4).
+    int64_t qk = dequant.getQk();                              // 32
+    int64_t weightStride = dequant.getWeightBlockStride();     // 18
+    int64_t weightDOffset = dequant.getWeightDByteOffset();    //  0
+    int64_t weightQuantOffset = dequant.getWeightQuantByteOffset(); // 2
+    // q4_0 packs two 4-bit weights per byte: the low nibble expands into the
+    // first half of the block, the high nibble into the second half.
+    int64_t half = qk / 2; // 16 packed weight bytes / output half width
+
+    std::string functionName =
+        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+
+    auto module = dequant->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return rewriter.notifyMatchFailure(dequant, "op has no module");
+
+    mlir::Type sizeType = emitc::OpaqueType::get(ctx, "size_t");
+    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type constU8PtrType = emitc::PointerType::get(constU8Type);
+    mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    // #include <stdint.h> at module start.
+    {
+      mlir::OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
+                                        /*is_standard_include=*/true);
+    }
+
+    mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+    rewriter.setInsertionPointToEnd(module.getBody());
+
+    // extern "C" void <name>(int n, float *y, const uint8_t *vx).
+    mlir::FunctionType functionType =
+        rewriter.getFunctionType({intType, floatPtrType, constU8PtrType}, {});
+    llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
+    funcAttrs.push_back(rewriter.getNamedAttr(
+        "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+    auto func = rewriter.create<emitc::FuncOp>(loc, functionName, functionType,
+                                               funcAttrs);
+    mlir::Block *entry = func.addEntryBlock();
+    rewriter.setInsertionPointToStart(entry);
+
+    mlir::Value nArg = entry->getArgument(0);
+    auto yArg = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+        entry->getArgument(1));
+    mlir::Value vxArg = entry->getArgument(2);
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+    auto intLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
+    };
+    auto step = [&](llvm::StringRef s) {
+      rewriter.create<emitc::VerbatimOp>(loc, kernelStepComment(opName, role, s));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, routeSourceComment(opName, role, "TCRVEmitCLowerableOpInterface"));
+
+    // size_t nb = (size_t)n / qk;
+    step("block_count");
+    mlir::Value nSize =
+        rewriter.create<emitc::CastOp>(loc, sizeType, nArg).getResult();
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, nSize, sizeLit(qk))
+            .getResult();
+
+    // for (size_t ib = 0; ib < nb; ib += 1) { ... }
+    step("block_loop");
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value ib = blockLoop.getInductionVar();
+
+      // const uint8_t *xb = vx + ib*weightStride;
+      mlir::Value xoff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(weightStride))
+              .getResult();
+      mlir::Value xb =
+          rewriter.create<emitc::AddOp>(loc, vxArg.getType(), vxArg, xoff)
+              .getResult();
+
+      // float d = (float)*(const _Float16 *)(xb + weightDOffset);
+      step("block_scale");
+      mlir::Value dAddr = xb;
+      if (weightDOffset != 0)
+        dAddr = rewriter
+                    .create<emitc::AddOp>(loc, vxArg.getType(), xb,
+                                          sizeLit(weightDOffset))
+                    .getResult();
+      mlir::Value d =
+          rewriter
+              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                           fp16ReadCallee,
+                                           mlir::ValueRange{dAddr})
+              .getResult(0);
+
+      // const uint8_t *qs = xb + weightQuantOffset;
+      mlir::Value qsBase = xb;
+      if (weightQuantOffset != 0)
+        qsBase = rewriter
+                     .create<emitc::AddOp>(loc, vxArg.getType(), xb,
+                                           sizeLit(weightQuantOffset))
+                     .getResult();
+      auto qs = llvm::cast<mlir::TypedValue<emitc::PointerType>>(qsBase);
+
+      // size_t yb = ib * qk;  (the block's base index in the float output row).
+      mlir::Value yb =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk))
+              .getResult();
+
+      // for (size_t j = 0; j < qk/2; j += 1)
+      step("nibble_loop");
+      auto jLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(half),
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+      {
+        mlir::OpBuilder::InsertionGuard jg(rewriter);
+        rewriter.setInsertionPointToStart(jLoop.getBody());
+        mlir::Value j = jLoop.getInductionVar();
+
+        step("nibble_decode");
+        // const uint8_t q = qs[j];  int qi = (int)q;
+        mlir::Value qsElem =
+            rewriter.create<emitc::SubscriptOp>(loc, qs, j).getResult();
+        mlir::Value qByte =
+            rewriter.create<emitc::LoadOp>(loc, constU8Type, qsElem).getResult();
+        mlir::Value qInt =
+            rewriter.create<emitc::CastOp>(loc, intType, qByte).getResult();
+
+        // int x0 = (qi & 15) - 8;   (low nibble, zero-centered to [-8, 7]).
+        mlir::Value lo =
+            rewriter.create<emitc::BitwiseAndOp>(loc, intType, qInt, intLit(15))
+                .getResult();
+        mlir::Value x0 =
+            rewriter.create<emitc::SubOp>(loc, intType, lo, intLit(8))
+                .getResult();
+
+        // int x1 = (qi >> 4) - 8;   (high nibble).
+        mlir::Value hi =
+            rewriter
+                .create<emitc::BitwiseRightShiftOp>(loc, intType, qInt,
+                                                    intLit(4))
+                .getResult();
+        mlir::Value x1 =
+            rewriter.create<emitc::SubOp>(loc, intType, hi, intLit(8))
+                .getResult();
+
+        // y[yb + j] = (float)x0 * d;  (low nibble scatters to the first half).
+        step("scatter_low");
+        mlir::Value o0 =
+            rewriter.create<emitc::AddOp>(loc, sizeType, yb, j).getResult();
+        mlir::Value x0f =
+            rewriter.create<emitc::CastOp>(loc, floatType, x0).getResult();
+        mlir::Value p0 =
+            rewriter.create<emitc::MulOp>(loc, floatType, x0f, d).getResult();
+        emitc::SubscriptOp out0 =
+            rewriter.create<emitc::SubscriptOp>(loc, yArg, o0);
+        rewriter.create<emitc::AssignOp>(loc, out0.getResult(), p0);
+
+        // y[yb + j + qk/2] = (float)x1 * d;  (high nibble -> the second half).
+        step("scatter_high");
+        mlir::Value o1 =
+            rewriter.create<emitc::AddOp>(loc, sizeType, o0, sizeLit(half))
+                .getResult();
+        mlir::Value x1f =
+            rewriter.create<emitc::CastOp>(loc, floatType, x1).getResult();
+        mlir::Value p1 =
+            rewriter.create<emitc::MulOp>(loc, floatType, x1f, d).getResult();
+        emitc::SubscriptOp out1 =
+            rewriter.create<emitc::SubscriptOp>(loc, yArg, o1);
+        rewriter.create<emitc::AssignOp>(loc, out1.getResult(), p1);
+      }
+    }
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(dequant);
+    return mlir::success();
+  }
+};
+
 class ScalarBackendEmissionDriver final
     : public tcrvemitc::TypedBackendEmissionDriver {
 public:
@@ -565,7 +812,8 @@ public:
 
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
     target.addIllegalOp<tcrv::scalar::ComputeSkeletonOp,
-                        tcrv::scalar::TernaryQ2Q8BlockDotOp>();
+                        tcrv::scalar::TernaryQ2Q8BlockDotOp,
+                        tcrv::scalar::DequantizeRowQ4Op>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -573,8 +821,9 @@ public:
   populateLoweringPatterns(mlir::TypeConverter &typeConverter,
                            mlir::RewritePatternSet &patterns) const override {
     patterns.add<ScalarComputeSkeletonToEmitCFunc,
-                 ScalarTernaryQ2Q8BlockDotToEmitCFunc>(typeConverter,
-                                                       patterns.getContext());
+                 ScalarTernaryQ2Q8BlockDotToEmitCFunc,
+                 ScalarDequantizeRowQ4ToEmitCFunc>(typeConverter,
+                                                   patterns.getContext());
   }
 
   llvm::LogicalResult postConversionCleanup(mlir::ModuleOp module) const override;

@@ -404,6 +404,33 @@ bool TargetCapabilitySet::satisfiesIDTransitively(
   return computeImpliedClosure(descriptor).count(id) != 0;
 }
 
+bool TargetCapabilitySet::impliedClosureAvoidsNamespace(
+    const CapabilityDescriptor &seed, llvm::StringRef namespacePrefix) const {
+  // An empty namespace prefix would match every id, degenerating the check; a
+  // family with any implied capability at all would then read as non-independent,
+  // so treat it as "avoids" (nothing meaningful to intersect against).
+  if (namespacePrefix.empty())
+    return true;
+
+  llvm::StringSet<> closure = computeImpliedClosure(seed);
+  for (const auto &entry : closure) {
+    llvm::StringRef id = entry.getKey();
+    // Same namespace test classifyRVVSatisfaction applies one-hop: exact match
+    // or a dotted-namespace descendant. Guard against a bare-prefix false
+    // positive ("rvvish") by requiring the '.' separator for the prefix case.
+    if (id == namespacePrefix ||
+        (id.starts_with(namespacePrefix) &&
+         id.drop_front(namespacePrefix.size()).starts_with(".")))
+      return false;
+  }
+  return true;
+}
+
+bool TargetCapabilitySet::impliedClosureAvoidsRVVNamespace(
+    const CapabilityDescriptor &seed) const {
+  return impliedClosureAvoidsNamespace(seed, "rvv");
+}
+
 void TargetCapabilitySet::collectProvidersByID(
     llvm::StringRef id,
     llvm::SmallVectorImpl<const CapabilityDescriptor *> &out) const {

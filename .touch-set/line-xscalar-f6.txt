@@ -1,0 +1,26 @@
+# line: line-xscalar-f6 — DECLARE the path globs this line may write (one per line).
+# Keep DISJOINT from every other concurrently-active line. Shared files
+# (ODS / verifier / emitter) must be serialized, not co-owned. Glob syntax:
+# see .touch-set/README.md. This file is TRACKED — commit it on the line.
+#
+# Scope: Scalar extension family + F-6 independence acceptance.
+
+# Scalar family: dialect, plugin, target.
+include/TianChenRV/Dialect/Scalar/
+lib/Dialect/Scalar/
+include/TianChenRV/Plugin/Scalar/
+lib/Plugin/Scalar/
+include/TianChenRV/Target/Scalar/
+lib/Target/Scalar/
+test/Target/Scalar/
+
+# Capability model closure ∩ rvv.* helper (F-6 core primitive).
+include/TianChenRV/Support/CapabilityModel.h
+lib/Support/CapabilityModel.cpp
+
+# F-6 independence machine checks (plugin boundary reconciliation + selection/emittable).
+test/Plugin/ScalarExtensionPluginTest.cpp
+test/Transforms/VariantSelection/
+
+# This line's own touch-set declaration.
+.touch-set/line-xscalar-f6.txt
