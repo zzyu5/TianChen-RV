@@ -7117,6 +7117,102 @@ def GgmlBlockDotIQ1SQ8KGridCoreOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotIQ1MQ8KGridCoreOp
+    : TCRVRVV_Op<"iq1_m_q8_k_grid_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ1_M x Q8_K super-block TERNARY-grid SCALAR "
+      "integer-core op (sumi1 + sumi2, the iq1_m grid brick, iq1_s sibling)";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_iq1_m_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    iq1_m TERNARY-grid brick, the packed-scale / half-scale / per-group-delta sibling
+    of the iq1_s grid core (tcrv_rvv.iq1_s_q8_k_grid_core). It decodes with the SAME
+    codebook GRID GATHER (decode_model=lookup, the SAME 2048-entry TERNARY iq1s_grid) as
+    iq1_s but reproduces ggml's per-super-block SCALAR integer state for iq1_m EXACTLY
+    as `_generic` computes it right BEFORE the fp32 `d` multiply, byte-exact
+    (i32 equality):
+    - `sumi1` = Σ_{ib=0..7} (sum1[0]*ls1 + sum1[1]*ls2), the qh-index grid dot,
+      where sum1[h] = Σ_{group∈half h, j} q8[j] * grid[j] (each of the 4 grid indices
+      is `idx = qs[ib*4+l] | (((uint16)qh[ib*2 + l/2] << (8-4*(l%2))) & 0x700)`, an
+      11-bit index into the 2048-entry TERNARY iq1s_grid), and the TWO per-sub-block
+      half scales are `ls1 = 2*((sc[ib/2]>>(6*(ib%2)+0))&7)+1` (groups 0..1) and
+      `ls2 = 2*((sc[ib/2]>>(6*(ib%2)+3))&7)+1` (groups 2..3); and
+    - `sumi2` = Σ_{ib=0..7} (sum2[0]*ls1 + sum2[1]*ls2), the iq1_m DELTA integer sum,
+      where sum2[h] = Σ_{group∈half h} delta[l] * (Σ q8[j]) with FOUR independent
+      per-group signs `delta[l] = 1 - 2*((qh[ib*2 + l/2] >> (l%2 ? 7 : 3)) & 1)`. The
+      four independent signs make the q8 bsums UNUSABLE, so each group reduces a FRESH
+      Σq8 from the SAME loaded q8 vector (iq1_m reads NO bsums region).
+    Both are produced as SCALAR i32 SSA results (ggml's `int sumi1` / `int sumi2`
+    locals), NOT an 8-lane vector -- the arity-match with the iq1_s scalar grid core
+    (two scalar states). The DEFERRED fp32 SCALAR fold (the packed iq1m_scale fp16
+    RECONSTRUCT `scale.u16 = (sc[0]>>12)|((sc[1]>>8)&0xf0)|((sc[2]>>4)&0xf00)|
+    (sc[3]&0xf000)` read as _Float16, `d = scale * y.d @0`, `sumf += d * ((float)sumi1
+    + IQ1M_DELTA*(float)sumi2)`, IQ1M_DELTA=0.125f) is DELIBERATELY OUT OF SCOPE here
+    -- it is emitter-inlined by the scalar-delta-grid lowering. This op isolates the
+    genuinely-new iq1_m machinery (the packed-scale half split, the per-half grid dot,
+    the per-group four-sign delta) from the fp32 fold.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes the iq1_m weight
+    base pointer (vx), the q8_K activation base pointer (vy), the runtime element
+    count (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index` induction
+    operand. It produces TWO scalar i32 SSA results (sumi1, sumi2). It carries NO
+    output pointer -- like the iq1_s scalar grid core, iq1_m's sumi1/sumi2 are scalar
+    registers, NOT an aux32 memory state.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block strides
+    (56 bytes for block_iq1_m -- NO fp16 d field -- and 292 bytes for block_q8_K), the
+    iq1_m payload byte offsets (the 32 uint8 grid-index bytes qs @0, the 16 uint8
+    qh[QK_K/16] plane @32 carrying the grid-high-3-bit fields + the 4 per-group delta
+    signs, the 4 uint16 packed scales[] words @48 carrying the packed fp16 d nibbles +
+    the per-sub-block 3-bit half scales) and the q8_K payload byte offsets (qs @4) --
+    are carried as typed integer/string attributes (I4 mirror only). iq1_m reads NO
+    bsums. The bounded surface kind is limited to "ggml_iq1_m_q8_k_grid_core" and
+    scale_model to "packed-iq1m-scale-per-half-scale-ternary-grid-codebook-per-group-
+    delta-int-domain". The FIXED 2048-entry iq1s_grid TERNARY codebook is a byte-exact
+    constant of the iq1_m FORMAT; it is emitted keyed by the brick op identity, NOT
+    carried in the IR here. Route ids, helper names, ABI strings, artifact names,
+    status fields, exact intrinsic spellings, operand mirror strings, q8/iq1 names, and
+    common EmitC/export code must not infer or choose the ternary-grid super-block
+    dot-product semantics.
+
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand
+    toggles the per-super-block-source form. When present it is the induction variable
+    (region argument 0) of an enclosing tcrv_rvv.typed_super_block_block_dot_loop_body
+    region whose fold_model is "scalar_delta_grid": the iq1_m weight strip and the
+    q8_K activation strip are read at `weight_base + block_index*56` and
+    `activation_base + block_index*292`. When ABSENT the op keeps the standalone
+    single-super-block form.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$weight_scales_byte_offset,
+    I64Attr:$activation_quant_byte_offset
+  );
+  let results = (outs AnyType:$sumi1, AnyType:$sumi2);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($sumi1) `,` type($sumi2)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ3KQ8KOp
     : TCRVRVV_Op<"q3_k_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
@@ -8228,104 +8324,9 @@ def GgmlBlockDotIQ3SQ8KOp
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotIQ1MQ8KOp
-    : TCRVRVV_Op<"iq1_m_q8_k_block_dot",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml IQ1_M x Q8_K TERNARY-grid super-block dot-product op";
-  let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_iq1_m_q8_K` super-block dot-product as
-    ONE bounded generic plugin-local typed RVV dataflow step -- the LAST common ggml
-    dot kernel (its sibling iq1_s is already covered; after iq1_m EVERY ggml_vec_dot_*
-    is covered). It REUSES the iq1_s TERNARY-grid codebook lookup (the SAME 2048-entry
-    `iq1s_grid` table, byte-viewed as `const int8_t *` so the 0xff bytes read as -1 --
-    NO sign plane, NO kmask, NO vmsne/vand/vneg/vmerge) and the per-block DELTA
-    mechanism (the IQ1M_DELTA = 0.125 bias), but introduces three GENUINELY NEW pieces
-    vs iq1_s:
-
-      (a) NO fp16 `d` field in the weight block. The super-block scale d is
-          RECONSTRUCTED from a packed `iq1m_scale_t` union spread across the FOUR
-          uint16 `scales[]` words: the 16 fp16 bits are reassembled as
-          `scale.u16 = (sc[0]>>12) | ((sc[1]>>8)&0x00f0) | ((sc[2]>>4)&0x0f00) |
-          (sc[3]&0xf000)` and then READ AS `_Float16` (a bit reinterpret, NOT a
-          numeric conversion -- mirroring ggml's union). On little-endian this is
-          byte-identical to ggml. The per-sub-block 3-bit scales live in the SAME
-          scales[] words' low bits: `ls1 = 2*((sc[ib/2]>>(6*(ib%2)+0))&7)+1`,
-          `ls2 = 2*((sc[ib/2]>>(6*(ib%2)+3))&7)+1` (a TWO-half scale split per
-          sub-block, ls1 for groups 0..1, ls2 for groups 2..3).
-
-      (b) the qh plane is `uint8 qh[QK_K/16]` (16 bytes, TWO per sub-block) rather than
-          iq1_s's uint16 qh[8]. The 11-bit grid index for group l is `idx = qs[l] |
-          (((uint16_t)qh[l/2] << (8 - 4*(l%2))) & 0x700)` (the index-high 3 bits come
-          from bits 0..2 of qh[l/2] for even l, bits 4..6 for odd l).
-
-      (c) the DELTA is per HALF-sub-block group (8 elements), with FOUR independent
-          signs per sub-block: `delta[0]=qh[0]&0x08`, `delta[1]=qh[0]&0x80`,
-          `delta[2]=qh[1]&0x08`, `delta[3]=qh[1]&0x80` (sign per group l from qh[l/2]
-          bit 3 for even l, bit 7 for odd l). Because the four signs are INDEPENDENT
-          the delta term CANNOT be folded through the q8 `bsums` (the 16-element sums)
-          like iq1_s did; instead each group computes a FRESH `lsum2 = Σ q8[j]` (8
-          elements) reduced separately, scalar-multiplied by `delta[l]`, accumulated
-          into `sum2[l/2]`. So iq1_m reads NO bsums region; the second accumulator is
-          built from a parallel `vwredsum` of the SAME q8 vector already loaded for the
-          grid dot.
-
-    The integer fold mirrors iq1_s: per super-block `sumi1 += sum1[0]*ls1 +
-    sum1[1]*ls2` (the grid dot, sum1[h] = Σ_group∈h Σ grid·q8) and `sumi2 +=
-    sum2[0]*ls1 + sum2[1]*ls2` (the delta term, sum2[h] = Σ_group∈h delta·Σq8). The
-    per-super-block fp32 fold `sumf += d * ((float)sumi1 + IQ1M_DELTA*(float)sumi2)`
-    is ONE emitc.expression (the 0.125 applied EXACTLY ONCE to (float)sumi2 inside the
-    fold), and `*s = sumf` (NO trailing factor).
-
-    Block format (ggml-common.h): block_iq1_m = { uint8_t qs[QK_K/8]; uint8_t
-    qh[QK_K/16]; uint8_t scales[QK_K/32] } = {qs[32]@0; qh[16]@32; scales[8]@48},
-    stride 56 (= 32+16+8, NO fp16 d field). The q8_K activation is unchanged (stride
-    292, fp32 d @0, int8 qs @4); iq1_m reads NO bsums. QK_K=256, 8 sub-blocks of 32
-    elements (ib=0..7).
-
-    The grid is the SAME structural fact (I4 mirror) as iq1_s -- a typed array attr
-    emitted as a structured `static const uint64_t[2048]` decl, read via a `(const
-    int8_t *)` byte cast (the ternary 0xff bytes read as -1, byte-identical to ggml).
-    Consumed STRUCTURALLY (decls + indexed loads + the vle8 grid load), NOT an
-    arithmetic decode, NOT a string plan read. The op identity is the dispatch key.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the iq1_m weight base pointer (vx), the q8_K activation base
-    pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime element count
-    (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
-    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
-
-    iq1_m emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
-    Zvl128b => VLEN>=128, the validated target). No resource shape knobs this cut.
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$sub_block,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_qs_byte_offset,
-    I64Attr:$weight_qh_byte_offset,
-    I64Attr:$weight_scales_byte_offset,
-    I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    DenseI64ArrayAttr:$grid
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
+// NOTE: def GgmlBlockDotIQ1MQ8KOp (the monolith iq1_m block-dot op) was RETIRED at
+// the iq1_m flip (L3): the front door constructs the typed super-block loop body
+// carrying the iq1_m grid-core brick (GgmlBlockDotIQ1MQ8KGridCoreOp) instead.
 
 def GgmlVecScaleF32Op
     : TCRVRVV_Op<"ggml_vec_scale_f32",

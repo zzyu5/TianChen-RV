@@ -1,9 +1,13 @@
 // FULL production-export CLOSURE for the iq1_m (ggml IQ1_M x Q8_K 1.75-bit TERNARY
 // super-block grid-CODEBOOK block-dot) front door -- the coverage payoff that CLOSES
 // the literal block-dot zoo: the FINAL iq* super-block grid-codebook member (its
-// sibling iq1_s is the only other 1.75-bit ternary variant). The front door's OWN
-// auto-constructed monolithic super-block-codebook body now flows through the
-// COMPLETE tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
+// sibling iq1_s is the only other 1.75-bit ternary variant). iq1_m FLIP (L3): the
+// front door's OWN auto-constructed typed SUPER-BLOCK SCALAR-accumulator GRID loop
+// body (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model "scalar_delta_grid"
+// -- the iq1_m ternary-grid integer core + the emitter-inlined scalar delta fold + a
+// single `sumf` scalar yield; NOT an opaque tcrv_rvv.iq1_m_q8_k_block_dot op, RETIRED
+// the same action as the flip) now flows through the COMPLETE
+// tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
 // --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
 // through tcrv-translate --tcrv-export-target-artifact.
 //
@@ -70,8 +74,15 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq1_m_q8_K_block_dot_sourc
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
+// iq1_m FLIP (L3): the front door now auto-constructs the typed SUPER-BLOCK
+// SCALAR-accumulator GRID loop body (tcrv_rvv.typed_super_block_block_dot_loop_body,
+// fold_model "scalar_delta_grid") from the iq1_m ternary-grid integer core (the iq1_s
+// sibling) + the emitter-inlined scalar delta fold, NOT an opaque
+// tcrv_rvv.iq1_m_q8_k_block_dot op (retired). It still resolves to its OWN monolithic
+// super-block export entry (by fold_model + weight_block_stride 56), so the route id +
+// ABI + object export are unchanged.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_iq1_m_q8_K_kernel
-// PLAN: tcrv_rvv.iq1_m_q8_k_block_dot
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

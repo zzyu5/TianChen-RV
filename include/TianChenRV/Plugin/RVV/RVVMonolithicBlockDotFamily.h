@@ -1534,7 +1534,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // no op carries it; the row is reached by the marker for construction and by
        // this selector for export resolution).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {tcrv::rvv::GgmlBlockDotIQ1MQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq1_m_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_m_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door",
@@ -1542,7 +1542,18 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq1_m_q8_K_block_dot", "rvv_iq1_m_q8_K_block_dot_from_vector_source",
        "packed-iq1m-scale-per-half-scale-ternary-grid-codebook-per-group-delta-int-domain",
        "ggml IQ1_M x Q8_K TERNARY-grid super-block codebook block-dot source front door failed: ", "iq1m-weight", "q8k-act",
-       "", kIQ1MFacts, {}, kIQ1MGrid, {}, {}},
+       "", kIQ1MFacts, {}, kIQ1MGrid, {}, {},
+       // iq1_m flip (L3): the typed super-block SCALAR-accumulator GRID loop body
+       // (fold_model "scalar_delta_grid" -- iq1_m's fold is the SAME single
+       // per-super-block scalar `sumf += d*((float)sumi1 + IQ1M_DELTA*(float)sumi2)`
+       // as iq1_s, so it shares iq1_s's selector). The resolver disambiguates iq1_m
+       // from iq1_s (both scalar_delta_grid) by the loop op's OWN weight_block_stride
+       // (block_iq1_m 56 vs block_iq1_s 50). The monolith op tcrv_rvv.iq1_m_q8_k_block_dot
+       // is RETIRED (this opName is now a dead string -- no op carries it; the row is
+       // reached by the marker for construction and by this selector for export
+       // resolution). The C2 marginal-cost payoff: the SECOND GRID/codebook member
+       // reuses the whole iq1_s scaffold and only adds a variant integer-core brick.
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotIQ2XXSQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xxs_q8_K_block_dot_source",

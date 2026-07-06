@@ -375,8 +375,6 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot},
         {&isIQ3SQ8KBlockDotBody,
          &VariantToEmitCFunc::emitIQ3SQ8KBlockDot},
-        {&isIQ1MQ8KBlockDotBody,
-         &VariantToEmitCFunc::emitIQ1MQ8KBlockDot},
         {&isMXFP4Q8_0BlockDotBody,
          &VariantToEmitCFunc::emitMXFP4Q8_0BlockDot},
         {&isNVFP4Q8_0BlockDotBody,
@@ -1376,19 +1374,11 @@ bool VariantToEmitCFunc::isIQ3SQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
     return sawBlockDot;
   }
 
-bool VariantToEmitCFunc::isIQ1MQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotIQ1MQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: the monolith recognizer isIQ1MQ8KBlockDotBody + emitter emitIQ1MQ8KBlockDot
+// were RETIRED at the iq1_m flip (L3): the front door now constructs the typed
+// super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid",
+// stride 56), lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq1M, which reuses
+// the SHARED byte-exact anchors emitIQ1MCanonicalGridTableDecl + emitIQ1MSuperBlockGridBody.
 
 bool VariantToEmitCFunc::isMXFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
@@ -5609,6 +5599,14 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // (the byte-exact scalar fold sumf += d*(sumi + IQ1S_DELTA*sumi1) is a
       // later step, milestone-2)
       tcrv::rvv::GgmlBlockDotIQ1SQ8KGridCoreOp,
+      // iq1_m (iq1_s sibling): the iq1_m scalar super-block TERNARY-grid INTEGER
+      // core (decode_model=lookup -- the SAME 2048-entry iq1s_grid, the packed
+      // iq1m_scale fp16 reconstruct, the half-split per-half vluxei16 grid dot with
+      // two half scales ls1/ls2, the per-group four-sign delta via a fresh Σq8,
+      // producing the two SCALAR states sumi1 + sumi2); it is the scalar-accumulator
+      // body's grid brick under fold_model "scalar_delta_grid" (disambiguated from
+      // iq1_s by weight_block_stride 56 vs 50)
+      tcrv::rvv::GgmlBlockDotIQ1MQ8KGridCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,
