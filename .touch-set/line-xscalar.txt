@@ -1,0 +1,11 @@
+# line: line-xscalar — X-SCALAR family #3: real ternary 2-bit vec_dot scalar kernel.
+# F-3 containment: this line writes ONLY the Scalar extension family + docs.
+# DISJOINT from every RVV/IME/other line (shared ODS/verifier/emitter untouched).
+include/TianChenRV/Dialect/Scalar/
+include/TianChenRV/Plugin/Scalar/
+include/TianChenRV/Target/Scalar/
+lib/Plugin/Scalar/
+lib/Target/Scalar/
+test/Target/Scalar/
+docs/
+.touch-set/line-xscalar.txt
