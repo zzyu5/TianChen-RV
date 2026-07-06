@@ -1210,6 +1210,81 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// The bounded per-block context the shared q4_0 16x1-REPACKED GEMM lane-wise
+  /// integer CORE leaf reads. opName/role are the source-op provenance; l8/l16/l32
+  /// are the three element-width rungs of the i8 -> i16 -> i32 widening chain
+  /// (mf2 -> m1 -> m2 default, or m1 -> m2 -> m4 whole-LMUL); nibbleBytes is qk/2;
+  /// weightInterleave is the 16-way block-as-lane width; weightQuantOffset /
+  /// activationQuantOffset locate the repacked nibbles / the q8_0x4 quants within
+  /// their blocks; activationInterleave is the 4-way activation-column interleave;
+  /// activationHighRow is the high-half quant row (activationInterleave*nibbleBytes
+  /// == 64); vl8 is the compile-time-constant strip-width literal. Unlike the GEVM
+  /// integer core (which loops numHalves strips over a single activation column)
+  /// this GEMM core reads ONE strip (a runtime `roff` value) across the [cLo,cHi)
+  /// interleaved activation columns.
+  struct RepackGemmQ4IntegerCoreContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    llvm::StringRef l8;
+    llvm::StringRef l16;
+    llvm::StringRef l32;
+    int64_t nibbleBytes;
+    int64_t weightInterleave;
+    int64_t weightQuantOffset;
+    int64_t activationQuantOffset;
+    int64_t activationInterleave;
+    int64_t activationHighRow;
+    mlir::Value vl8;
+    mlir::Type sizeType;
+  };
+
+  /// The shared q4_0 16x1-REPACKED GEMM per-block LANE-WISE integer CORE leaf:
+  /// given the per-block weight base `bl` and activation base `al` (already
+  /// advanced by block_index*stride), the runtime strip row offset `roff`
+  /// (h*half), and the half-open activation-column range [cLo, cHi), it seeds the
+  /// per-column i16 lo/hi accumulators, runs the nibble-step loop (one disjoint
+  /// repacked vle8 sub-load at qs[i*16 + roff] + plain sign-extension decode + the
+  /// per-column scalar q8_0x4 quant reads + lane-wise vwmacc lo/hi), then combines
+  /// lo/hi with a vwadd_vv into the per-column i32 `sumi` values it returns
+  /// (indexed by absolute column c, a vector of size activationInterleave filled at
+  /// [cLo,cHi)). Factored VERBATIM out of the monolith emitRepackGemmQ4_0Q8_0 so
+  /// the monolith AND the typed tcrv_rvv.typed_repack_gemm_loop_body region (a
+  /// later milestone) emit byte-identical integer-core C. Emits at the current
+  /// insertion point.
+  llvm::SmallVector<mlir::Value> emitRepackGemmQ4LaneWiseIntegerCore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const RepackGemmQ4IntegerCoreContext &cx, mlir::Value bl, mlir::Value al,
+      mlir::Value roff, int64_t cLo, int64_t cHi) const;
+
+  /// The bounded per-block context the shared q4_0 16x1-REPACKED GEMM per-column
+  /// dual-fp16 scale FOLD leaf reads. opName/role are the source-op provenance;
+  /// l16/l32 are the f16 scale / f32 fold LMUL rungs; vl8 is the strip-width
+  /// literal.
+  struct RepackGemmDualFp16ScaleFoldContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    llvm::StringRef l16;
+    llvm::StringRef l32;
+    mlir::Value vl8;
+    mlir::Type sizeType;
+  };
+
+  /// The shared q4_0 16x1-REPACKED GEMM per-block per-column dual-fp16 scale FOLD
+  /// leaf: given the per-block bases `bl`/`al`, the runtime strip row offset
+  /// `roff`, the per-column i32 `sumi` from the integer core, the per-column f32
+  /// accumulator lvalues `sumfVar`, and the column range [cLo,cHi), it loads the
+  /// per-strip fp16 weight scales once (vle16 at &bl.d[roff]), then per column
+  /// reads the single _Float16 activation scale (*(const _Float16 *)&al.d[c]),
+  /// widens d = vfwmul(weight_scale, act_scale), converts the column sumi with
+  /// vfcvt_f_x_v, and folds acc = vfmacc(acc, sumi_f, d) back into `sumfVar[c]`.
+  /// Factored VERBATIM out of the monolith emitRepackGemmQ4_0Q8_0. Emits at the
+  /// current insertion point.
+  void emitRepackGemmDualFp16ScaleFold(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const RepackGemmDualFp16ScaleFoldContext &cx, mlir::Value bl,
+      mlir::Value al, mlir::Value roff, llvm::ArrayRef<mlir::Value> sumi32,
+      llvm::ArrayRef<mlir::Value> sumfVar, int64_t cLo, int64_t cHi) const;
+
   /// The q5_0 block-as-lane sibling of the q4_0 16x1-REPACKED GEVM: q5_0 is q4_0 plus
   /// the 5th high bit. The weight side is block_q5_0x16 (16 interleaved rows, RAW
   /// nibbles at +32, a 64-byte TRANSPOSED bit-packed qh region at +288 carrying
