@@ -174,6 +174,11 @@ e2e cell — rvv/VLEN128 q4_0 repack generation-vs-routing 分相 + constructed-
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_aggregate.txt` — redeploy median+IQR+CI
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence_redeploy.json` — redeploy prefill 5.530×/decode 1.950×(cross-session confound)
 
+visibility 包 — T0/T7/T2 CI 自动产出(线E,2026-07-06,生成器在 tools/visibility/):
+- `experiments/visibility/T0-sixstate.md` — T0 六态普查(gen_sixstate_table.py 幂等产出,C_construct 19/93)
+- `experiments/visibility/T7-burndown.md` — T7 燃减双曲线(gen_burndown_curve.py,16 FLIP 3→19 + 手写LOC 拆分)
+- `experiments/visibility/T2-ledger-anchor.md` — T2 ledger 2484 锚复算(recompute_ledger_anchor.sh)
+
 ### CLASS 3 — 被引用工件(T3_step3 q8_0 m1/m2 双板证据 bundle)
 
 被 `T3_A` / `T3_B` q8_0 行 + docs 引用的 raw / emitc / seal:
