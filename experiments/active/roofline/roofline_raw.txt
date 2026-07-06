@@ -1,0 +1,32 @@
+# roofline_probe.sh raw board output — session 2026-07-07-lineA-batch1 (HEAD anchor d1a26e4a)
+# Probes: tools/e2e-harness/board/{membw_probe.c, int8_peak_probe.c} via roofline_probe.sh.
+# Both boards restored (tmp probe dirs removed; no persistent board state modified — probes ran in /tmp).
+
+============================== rvv (VLEN128, cores 8-11, clang-17, march rv64gcv) ==============================
+compiler=clang version 17.0.6 ( 17.0.6-16.oe2403)
+governor=performance   cur_khz=2600000  max_khz=2600000
+SELFCHECK int8_peak vwmacc_in_binary=0 (stale-binutils decode artifact; see rate confirmation below)
+-- (A) READ BANDWIDTH --
+single_core[core 8]: MEMBW_GBs=4.996 bytes=10737418240 secs=2.1492
+aggregate[4 cores concurrent]: core8=1.313 core9=1.308 core10=1.308 core11=1.308  => AGG_READ_GBs=5.237
+-- (B) PEAK INT8 COMPUTE --
+single_core[core 8]: INT8PEAK GMACs=41.535 GOPS=83.071 vl=16 nacc=8 iters=400000000 secs=1.2327
+   rate = 400e6*8 / 1.2327 = 2.596 Gvwmacc/s = 0.999 vwmacc/CYCLE @2.6GHz  (== single-issue physical peak; loop ran)
+ROOFLINE read_single_GBs=4.996 read_agg4c_GBs=5.237 int8_peak_1c_GMACs=41.535 int8_peak_1c_GOPS=83.071
+
+============================== k1 (VLEN256, cores 0-3, clang-18, march rv64gcv) ================================
+compiler=Bianbu clang version 18.1.8 (11bb4)
+governor=performance   cur_khz=1600000  max_khz=1600000
+SELFCHECK int8_peak vwmacc_in_binary=0 (stale-binutils decode artifact; see rate confirmation below)
+-- (A) READ BANDWIDTH --
+single_core[core 0]: MEMBW_GBs=3.602 bytes=10737418240 secs=2.9810
+aggregate[4 cores concurrent]: core0=1.062 core1=1.066 core2=1.066 core3=1.066  => AGG_READ_GBs=4.260
+-- (B) PEAK INT8 COMPUTE --
+single_core[core 0]: INT8PEAK GMACs=25.510 GOPS=51.019 vl=32 nacc=8 iters=400000000 secs=4.0142
+   rate = 400e6*8 / 4.0142 = 0.797 Gvwmacc/s = 0.498 vwmacc/CYCLE @1.6GHz  (VLEN256 m1->m2 widen = 2-cycle; loop ran)
+ROOFLINE read_single_GBs=3.602 read_agg4c_GBs=4.260 int8_peak_1c_GMACs=25.510 int8_peak_1c_GOPS=51.019
+
+============================== derived ==============================
+ridge (int8_peak_GOPS / read_agg4c_GBs):  rvv = 83.071/5.237 = 15.86 ops/byte ; k1 = 51.019/4.260 = 11.98 ops/byte
+q4_0 GEVM decode intensity ~1-2 op/byte << ridge on BOTH => decode BANDWIDTH-BOUND (physics) on both boards.
+CROSS-CHECK: rvv read_agg4c 5.237 == sealed cell's 5.23 GB/s (bandwidth_analysis.txt) => board-stable ceiling.

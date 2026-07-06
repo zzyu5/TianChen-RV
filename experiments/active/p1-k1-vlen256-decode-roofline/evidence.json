@@ -1,0 +1,38 @@
+{
+  "board": "k1-spacemit-x60-vlen256/clang-18-rv64gcv",
+  "model": "tinyllama-q4_0.gguf",
+  "quant": "q4_0",
+  "phases": {
+    "prefill": {
+      "ours_median_tps": 24.687,
+      "stock_median_tps": 24.633,
+      "ratio_ours_over_stock": 1.0022,
+      "ci95": [
+        1.0014,
+        1.003
+      ],
+      "iqr_pct_ours": 0.07,
+      "iqr_pct_stock": 0.118,
+      "between_pass_floor_pct": 0.118,
+      "n_ours": 10,
+      "n_stock": 10,
+      "verdict": "PARITY"
+    },
+    "decode": {
+      "ours_median_tps": 5.67,
+      "stock_median_tps": 6.639,
+      "ratio_ours_over_stock": 0.8541,
+      "ci95": [
+        0.8533,
+        0.8552
+      ],
+      "iqr_pct_ours": 0.126,
+      "iqr_pct_stock": 0.112,
+      "between_pass_floor_pct": 0.126,
+      "n_ours": 10,
+      "n_stock": 10,
+      "verdict": "DIFFERENCE"
+    }
+  },
+  "dvfs_span_pct": 0.0
+}

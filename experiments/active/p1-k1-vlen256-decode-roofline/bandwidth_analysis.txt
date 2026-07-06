@@ -1,0 +1,51 @@
+# P1 决议 — k1 / VLEN256 q4_0 GEVM decode, roofline-resolved (增补一① bandwidth-bound gate)
+# board: k1 SpacemiT-X60 VLEN256, 2026-07-07, cores 0-3 / 4 threads, freq 1.6GHz LOCKED (DVFS span 0.00%).
+# session: 2026-07-07-lineA-batch1  | HEAD anchor d1a26e4a | model tinyllama-1.1B q4_0 (sha256 da3087fb14aede55)
+# A (ours)  = /data/k1build         (compiler-emitted constructed q4_0 REPACK GEVM decode kernel; lineage =
+#                                     sealed cell experiments/sealed/repack/k1-vlen256-q4_0-flip, SAME deployed
+#                                     build; this batch re-measured paired N=10, it did NOT re-export/redeploy
+#                                     from pinned HEAD — a from-HEAD re-export is a separate heavier step).
+# B (stock) = /data/k1build-stock   (upstream ggml block-dot; LD_LIBRARY_PATH wrapper over the same llama-bench).
+
+## Fresh paired decode (llama-bench tg32, REPS=5 x PASSES=2 = n=10, interleaved ours/stock/ours/stock)
+  ours  median = 5.67 t/s  (IQR 0.13%, n=10)
+  stock median = 6.64 t/s  (IQR 0.11%, n=10)
+  A/B ratio (ours/stock) = 0.8541x   95% CI [0.8533, 0.8552]   between-pass floor 0.13%
+  VERDICT (statistical) = DIFFERENCE (|delta| 17.1% >> 2x-eff-floor 0.25%; CI excludes 1.0)
+  -> reproduces the sealed 0.857x reversal (this session's tighter IQR = no co-tenant; CI even cleaner).
+
+## Roofline anchor (this batch, k1 cores 0-3, SAME 4-core set as decode)
+  read ceiling (4-core aggregate, membw_probe.c)  = 4.260 GB/s   (single-core 3.602 GB/s)
+  int8 peak (int8_peak_probe.c, 1 core)           = 51.0 GOPS
+  ridge point = 51.0 / 4.260 = 12.0 ops/byte
+  q4_0 GEVM decode arithmetic intensity ~1-2 op/byte  <<  ridge 12  =>  DECODE IS BANDWIDTH-BOUND (physics).
+
+## Bandwidth-achievement (decode streams ~all transformer+output weights/token; embedding indexed not streamed)
+  bytes/token (tinyllama-1.1B q4_0, structural estimate; model_size 0.636 GB minus ~0.04 GB embedding) = 0.582 GB
+    ours  achieved read BW = 5.67 * 0.582 = 3.30 GB/s  ->  77.5% of the 4.260 GB/s 4-core ceiling  (UNDER wall)
+    stock achieved read BW = 6.64 * 0.582 = 3.86 GB/s  ->  90.7% of ceiling                        (AT wall)
+  sensitivity (estimate robustness): the RATIO is invariant (bytes/token cancels); across bytes/token in
+  [0.50, 0.582] stock = 78-91% and ours = 66-78%, i.e. stock always sits materially closer to the wall.
+  at the best structural estimate (0.582) it is textbook: stock AT the wall (>=85%), ours UNDER (<85%).
+
+## JUDGMENT (增补一① three-tier: parity-at-floor / GAP / confound)
+  = GAP  (我方未吃满、对手吃满).  NOT parity-at-floor物理满分 (that requires BOTH sides >=85%; ours 77.5% is under).
+                                 NOT confound (freq 0.00% span, paired same-session, IQR 0.13%, CI excludes 1.0,
+                                 identical binaries/model/cores; the anti-confound discipline is fully green).
+  => P1 UNPARKED as a REAL DIFFERENCE (真差), physically located: on the WIDE board our emitted q4_0 REPACK
+     GEVM leaves ~13% of the DRAM read bandwidth UNCLAIMED that stock's block-dot claims. This is the exact
+     VLEN-flip MIRROR of the VLEN128 result (sealed rvv cell: OURS saturates ~100% / STOCK ~53% -> ours WINS
+     decode 1.91x). Mechanism hypothesis (consistent with campaign memory "repack Win-A always mf2 / VLEN128-
+     tuned" + "kernel wins don't transplant"): the repack GEVM's packed-weight streaming layout is tuned for
+     VLEN128 (mf2); at VLEN256 it under-fills / under-streams, so stock block-dot -- which at 256-bit vectors
+     has the width to reach the wall -- wins. The 0.854x is a kernel bandwidth-utilization gap, not a measurement
+     artifact and not a shared-ceiling wash.
+
+## CAVEAT (do not over-claim)
+  * membw ceiling is a SCALAR 4-way-unrolled read proxy. Both sides (stock 3.86, ours 3.30 GB/s) sit BELOW the
+    4.26 scalar ceiling, so the ceiling is a valid upper reference here (neither side exceeds it). A vector-load
+    ceiling could be marginally higher; it would lower both achievement %s proportionally but not change the GAP
+    ordering (stock closer to wall than ours).
+  * KERNEL/e2e phase = e2e decode (real llama-bench tg32). This is a decode-phase e2e result, correctness sealed
+    in the k1-flip cell (greedy-token gate); this batch re-ran perf only on the identical deployed binaries.
+  * NOT a [PERF-1] beat (this is a LOSS/GAP on this board); recorded honestly as a real difference per 落表.

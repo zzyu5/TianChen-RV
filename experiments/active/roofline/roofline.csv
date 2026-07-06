@@ -1,0 +1,24 @@
+# Roofline calibration -- the two PHYSICAL ceilings every decode/prefill parity
+# judgment is measured against (增补一①: bandwidth-bound decode parity 的物理参照).
+#   read_agg4c_GBs = sustained READ bandwidth of the SAME 4-core set the e2e decode
+#                    uses (shared DRAM channel ceiling; membw_probe.c, single-thread
+#                    scalar 4-way-unrolled reads on a 256 MiB >>LLC array, 4 copies
+#                    pinned+concurrent, GB/s summed).
+#   int8_peak_1c_* = register-resident sustained vwmacc.vv throughput (int8_peak_probe.c,
+#                    8 independent widening-MAC chains, zero memory traffic) = achievable
+#                    (not paper) int8 vector-compute peak, single core.
+#   ridge_ops_per_byte = int8_peak_GOPS / read_agg4c_GBs  (roofline knee: intensity above
+#                    => compute-bound; below => bandwidth-bound). q4_0 GEVM decode intensity
+#                    ~1-2 op/byte << ridge on BOTH boards => decode is BANDWIDTH-BOUND (physics).
+# SELF-CHECK CAVEAT: objdump on both boards' stock binutils did NOT decode the vwmacc mnemonic
+#   (vwmacc_in_binary=0) -> the folding self-check is INCONCLUSIVE by disassembly. BUT the measured
+#   issue rate is exactly the single-issue physical peak (rvv 1.00 vwmacc/cycle @2.6GHz; k1 0.50
+#   vwmacc/cycle @1.6GHz, VLEN256 m1->m2 widening = 2-cycle), which is only reachable if the loop
+#   truly ran vector MACs (a folded/DCE'd loop could not sustain exactly 1/cycle for 1.2s). Rate =
+#   physical confirmation the probe is real; disassembly self-check flagged stale-binutils only.
+board,board_fp,vlen,freq_ghz,cores,read_single_GBs,read_agg4c_GBs,int8_peak_1c_GMACs,int8_peak_1c_GOPS,vwmacc_per_cycle,ridge_ops_per_byte,compiler,march,probe_provenance,session,snapshot,status
+rvv,rvv-openEuler24.03-VLEN128-64c-clang17.0.6-glibc2.38-gov=perf-2.6GHz,128,2.6,8-11,4.996,5.237,41.535,83.071,1.00,15.86,clang-17.0.6,rv64gcv,tools/e2e-harness/board/{membw_probe.c+int8_peak_probe.c+roofline_probe.sh},2026-07-07-lineA-batch1,d1a26e4a,measured
+k1,k1-SpacemiT-X60-VLEN256-8c-clang18.1.8-Bianbu-glibc2.39-gov=perf-1.6GHz,256,1.6,0-3,3.602,4.260,25.510,51.019,0.50,11.98,clang-18.1.8,rv64gcv,tools/e2e-harness/board/{membw_probe.c+int8_peak_probe.c+roofline_probe.sh},2026-07-07-lineA-batch1,d1a26e4a,measured
+# CROSS-CHECK: rvv read_agg4c 5.237 GB/s reproduces the sealed q4_0-gemm cell's independently-measured
+# 5.23 GB/s 4-core ceiling (experiments/sealed/repack/rvv-vlen128-q4_0-gemm-constructed-sealed/
+# bandwidth_analysis.txt) to 3 sig figs -> the membw ceiling is board-stable and self-consistent.
