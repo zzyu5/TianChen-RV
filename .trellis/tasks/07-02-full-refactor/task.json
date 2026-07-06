@@ -21,8 +21,7 @@
   "children": [
     "07-07-line-A-board",
     "07-07-line-C-coverage",
-    "07-07-line-D-evidence",
-    "07-07-fix-negattr-positivity-gate"
+    "07-07-line-D-evidence"
   ],
   "parent": null,
   "relatedFiles": [],
