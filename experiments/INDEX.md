@@ -9,7 +9,7 @@
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
-| active | `result-tables` | active | cross-cutting result tables | 6 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
+| active | `result-tables` | active | cross-cutting result tables | 7 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
 | active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
 | active | `visibility` | active | visibility | 3 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
