@@ -74,7 +74,12 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_xxs_q8_K_block_dot_sou
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_iq3_xxs_q8_K_kernel
-// PLAN: tcrv_rvv.iq3_xxs_q8_k_block_dot
+// iq3_xxs FLIP (L3 coverage): the front door now constructs the typed super-block
+// SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride 98) with
+// the iq3_xxs GRID-of-4 grid-core brick, NOT the retired monolith op. The export still
+// resolves through the SAME super-block monolithic route family (kind/ABI/facts) by the
+// selector + weight_block_stride 98, so the emission-plan metadata is byte-unchanged.
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

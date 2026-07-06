@@ -1696,7 +1696,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "per-half-int4-explicit-scales-grid-codebook-qh-plane-explicit-signs-int-domain",
        "ggml IQ2_S x Q8_K super-block grid-codebook block-dot source front door failed: ", "iq2s-weight", "q8k-act",
        "", kIQ2SFacts, {}, kIQ2SGrid, {}, {}},
-      {tcrv::rvv::GgmlBlockDotIQ3XXSQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq3_xxs_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_xxs_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
@@ -1704,7 +1704,19 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq3_xxs_q8_K_block_dot", "rvv_iq3_xxs_q8_K_block_dot_from_vector_source",
        "per-group-int4-grid-of-4-codebook-scale-int-domain",
        "ggml IQ3_XXS x Q8_K super-block grid-codebook block-dot source front door failed: ", "iq3xxs-weight", "q8k-act",
-       "", kIQ3XXSFacts, {}, {}, kIQ3XXSGrid, kIQ3XXSKsigns},
+       "", kIQ3XXSFacts, {}, {}, kIQ3XXSGrid, kIQ3XXSKsigns,
+       // iq3_xxs flip (L3 coverage): the typed super-block SCALAR-accumulator GRID loop
+       // body (fold_model "scalar_delta_grid" -- iq3_xxs's fold is a single
+       // per-super-block scalar `sumf += d*(float)bsum` with the trailing `*s =
+       // 0.25f*sumf`, bsum being the scalar state of the iq3_xxs GRID-of-4 integer
+       // core). Shares iq1_s's selector; the resolver disambiguates iq3_xxs from
+       // iq1_s/iq1_m (all scalar_delta_grid) by the loop op's OWN weight_block_stride
+       // (block_iq3_xxs 98 vs block_iq1_s 50 / block_iq1_m 56). The monolith op
+       // tcrv_rvv.iq3_xxs_q8_k_block_dot is RETIRED (this opName is now a dead string --
+       // no op carries it; the row is reached by the marker for construction and by this
+       // selector for export resolution). The third GRID/codebook member reuses the
+       // whole iq1_s scaffold and only adds a variant integer-core brick.
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotIQ3SQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_s_q8_K_block_dot_source",

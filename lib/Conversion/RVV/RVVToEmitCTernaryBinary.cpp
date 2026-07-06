@@ -599,6 +599,57 @@ void VariantToEmitCFunc::emitIQ1MCanonicalGridTableDecl(
                         llvm::ArrayRef<int64_t>(grid.data(), grid.size()));
 }
 
+// The fixed 256-entry iq3_xxs GRID-of-4 codebook as ONE `static const uint32_t
+// tcrv_iq3xxs_grid[256]` verbatim decl (ggml's exact hex literals, `0x%08xU`). The
+// byte-exact SHARED anchor kept across the iq3_xxs flip: the retired monolith
+// emitIQ3XXSQ8KBlockDot rendered its carried grid attr with this SAME format; the typed
+// grid loop lowering (the sole live caller) passes the canonical kIQ3XXSGrid so the
+// emitted decl is byte-identical.
+void VariantToEmitCFunc::emitIQ3XXSGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    llvm::ArrayRef<int32_t> grid) const {
+  std::string decl = "static const uint32_t tcrv_iq3xxs_grid[256] = {";
+  for (size_t i = 0; i < grid.size(); ++i) {
+    if (i)
+      decl += ", ";
+    char buf[24];
+    std::snprintf(buf, sizeof(buf), "0x%08xU",
+                  static_cast<unsigned>(static_cast<uint32_t>(grid[i])));
+    decl += buf;
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
+// The iq3_xxs grid-core brick carries NO grid in the IR -- the emitter keys the fixed
+// GRID-of-4 codebook off the brick op identity. Emit the decl from the CANONICAL
+// kIQ3XXSGrid constant (the SAME array the monolith's grid attr was populated from), so
+// the typed grid loop's decl is byte-identical to the retired monolith's grid decl.
+void VariantToEmitCFunc::emitIQ3XXSCanonicalGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &grid = tianchenrv::plugin::rvv::kIQ3XXSGrid;
+  emitIQ3XXSGridTableDecl(rewriter, loc,
+                          llvm::ArrayRef<int32_t>(grid.data(), grid.size()));
+}
+
+// The fixed 128-entry ksigns_iq2xs SIGN plane as ONE `static const uint8_t
+// tcrv_iq3xxs_ksigns[128]` verbatim decl (values reach 255, carried as i32 in the
+// canonical kIQ3XXSKsigns, masked & 0xff). The byte-exact SHARED anchor kept across the
+// iq3_xxs flip: the retired monolith rendered its carried ksigns attr identically; the
+// typed grid loop lowering passes kIQ3XXSKsigns so the decl is byte-identical.
+void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &ksigns = tianchenrv::plugin::rvv::kIQ3XXSKsigns;
+  std::string decl = "static const uint8_t tcrv_iq3xxs_ksigns[128] = {";
+  for (size_t i = 0; i < ksigns.size(); ++i) {
+    if (i)
+      decl += ", ";
+    decl += std::to_string(static_cast<int>(ksigns[i]) & 0xff);
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
 // Emit ONE iq1_m super-block's TERNARY-grid body (the packed iq1m_scale fp16
 // reconstruct + the fp32 d fold scale, the qs/qh/sc/q8 bases, the two SCALAR i32
 // accumulators sumi1/sumi2, the flat 8-sub-block per-half vluxei16 grid gather +
