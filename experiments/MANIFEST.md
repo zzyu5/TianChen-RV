@@ -127,6 +127,38 @@ on-device cell — q8_0 flat block-dot 双板 bit-exact + micro(tracked):
 - `experiments/ondevice-q8_0/host_rvv/target_profile.txt`
 - `experiments/ondevice-q8_0/kernel_q8_0_q8_0_flat_block_dot.o`
 
+silicon-validation-batch-1 cell — 4 constructed 格 emit-golden→silicon_validated(board rvv/VLEN128, no-FMA 左结合 ggml scalar oracle, 2026-07-06):
+- `experiments/silicon-validation-batch-1/evidence.json` — 批级汇总(4 格 verdict + falsifier 控制)
+- `experiments/silicon-validation-batch-1/NOTES.md` — 方法 + q4_0-repack FMA 分相诚实说明
+- `experiments/silicon-validation-batch-1/target_profile.txt` — board + clang + oracle + host tool 指纹
+- `experiments/silicon-validation-batch-1/run_silicon_batch.sh` — 复现 orchestrator(export→board build→run)
+- `experiments/silicon-validation-batch-1/bd_verify_driver.c` — block-dot bit-exact 驱动(iq4_nl/iq1_s/iq1_m)
+- `experiments/silicon-validation-batch-1/q4_0_repack_verify_driver.c` — q4_0 repack GEVM 驱动(no-FMA scalar + f64 ref)
+- `experiments/silicon-validation-batch-1/kernels/iq4_nl.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-1/kernels/iq1_s.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-1/kernels/iq1_m.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-1/kernels/q4_0_repack.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-1/results/iq4_nl/run_rvv.txt` — 板 raw(256/256 ×3 seeds)
+- `experiments/silicon-validation-batch-1/results/iq4_nl/evidence.json` — iq4_nl BIT_EXACT ULP=0
+- `experiments/silicon-validation-batch-1/results/iq1_s/run_rvv.txt` — 板 raw
+- `experiments/silicon-validation-batch-1/results/iq1_s/evidence.json` — iq1_s BIT_EXACT ULP=0
+- `experiments/silicon-validation-batch-1/results/iq1_m/run_rvv.txt` — 板 raw
+- `experiments/silicon-validation-batch-1/results/iq1_m/evidence.json` — iq1_m BIT_EXACT ULP=0
+- `experiments/silicon-validation-batch-1/results/q4_0_repack/run_rvv.txt` — 板 raw(FMA-fold bounded-ULP ×3 seeds)
+- `experiments/silicon-validation-batch-1/results/q4_0_repack/evidence.json` — q4_0-repack FMA_FOLD_BOUNDED_ULP + f64 accuracy
+
+e2e cell — rvv/VLEN128 q4_0 repack generation-vs-routing 分相 + constructed-GEVM 重部署(2026-07-06):
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence.json` — 批级汇总(gen-vs-routing + sealed + decode 问答 + confound)
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/NOTES.md` — 方法 + 分相 + confound 诚实说明
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/target_profile.txt` — board/model/toolchain/A-B 指纹
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/phase_split_raw.txt` — baseline(monolith GEVM)板 raw
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/aggregate_baseline.txt` — baseline median+IQR+CI
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence_baseline.json` — baseline prefill 5.045×/decode 1.564×
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_correctness.txt` — constructed GEVM in-situ 贪心一致 GREEN
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_phase_split_raw.txt` — redeploy(constructed GEVM)板 raw
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_aggregate.txt` — redeploy median+IQR+CI
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence_redeploy.json` — redeploy prefill 5.530×/decode 1.950×(cross-session confound)
+
 ### CLASS 3 — 被引用工件(T3_step3 q8_0 m1/m2 双板证据 bundle)
 
 被 `T3_A` / `T3_B` q8_0 行 + docs 引用的 raw / emitc / seal:

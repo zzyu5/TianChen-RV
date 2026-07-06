@@ -1,0 +1,31 @@
+{
+  "format": "iq4_nl_q8_0",
+  "kernel_class": "flat block-dot (CODEBOOK-GATHER, 2nd primitive class)",
+  "maturity_transition": "emit-golden -> silicon_validated",
+  "board_id": "rvv-openeuler-vlen128",
+  "board_vlen_bits": 128,
+  "clang": "17.0.6 (openEuler)",
+  "compile_march": "rv64gcv_zfh_zvfh_zicbop_zihintpause",
+  "compile_flags": "-O2 -mabi=lp64d -ffp-contract=off",
+  "kernel_under_test": {
+    "symbol": "tcrv_emitc_ggml_vec_dot_iq4_nl_q8_0_kernel_rvv_iq4_nl_q8_0_block_dot",
+    "abi": "(size_t n, float* s, const uint8_t* vx, const uint8_t* vy, const int32_t* zero_seed)",
+    "source": "kernels/iq4_nl.kernel.c (sha256_16=e38696de82aa181c)",
+    "export_route": "front-door materialize-iq4-nl-q8-0-block-dot-source-front-door -> --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp",
+    "vector_core": "vle8 + vrgather(codebook) + vwmul + vwmacc + vwredsum; scalar sumf accumulate (non-FMA)",
+    "block_strides": {"x_iq4_nl": 18, "y_q8_0": 34, "block_elems": 32}
+  },
+  "oracle": {
+    "reference": "ggml_vec_dot_iq4_nl_q8_0_generic (board ggml-cpu/quants.c)",
+    "fold": "no-FMA left-assoc scalar: sumf += (fp16(y.d)*fp16(x.d)) * (sumi1+sumi2)",
+    "board_ggml_commit": "f3e182816421c648188b5eab269853bf1531d950",
+    "identical_bytes_to_kernel": true
+  },
+  "method": "N independent random VALID iq4_nl x q8_0 block streams; same raw bytes to kernel + oracle; bit-for-bit compare of s[0]",
+  "result": {
+    "verdict": "BIT_EXACT",
+    "worst_ulp": 0,
+    "trials": "256/256 x 3 seeds (n=4096 x2, n=8192 x1)",
+    "runs": "results/iq4_nl/run_rvv.txt"
+  }
+}

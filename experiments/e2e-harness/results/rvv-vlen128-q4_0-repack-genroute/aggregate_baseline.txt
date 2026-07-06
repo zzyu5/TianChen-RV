@@ -1,0 +1,14 @@
+=== e2e phase-split aggregate  board=rvv-openeuler-vlen128 model=tinyllama-1.1b quant=q4_0 ===
+freq_khz: min=2600000 max=2600000 span=0.00%  (DVFS guard; >2% span => INVALIDATE run)
+
+[prefill]  ours median=19.69 t/s (IQR%=0.26, n=10)   stock median=3.90 t/s (IQR%=0.01, n=5)
+  A/B ratio (ours/stock) = 5.0451x   95% CI [5.0408, 5.0557]
+  |delta|=404.51%   between-pass floor=0.23%   within-IQR=0.26%   2x-eff-floor=0.52%
+  VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+
+[decode]  ours median=3.13 t/s (IQR%=1.05, n=10)   stock median=2.00 t/s (IQR%=0.27, n=5)
+  A/B ratio (ours/stock) = 1.5639x   95% CI [1.5538, 1.5746]
+  |delta|=56.39%   between-pass floor=1.05%   within-IQR=1.05%   2x-eff-floor=2.11%
+  VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+
+wrote experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence_baseline.json

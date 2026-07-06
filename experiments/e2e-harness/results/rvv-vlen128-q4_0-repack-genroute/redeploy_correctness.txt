@@ -1,0 +1,20 @@
+
+=== CORRECTNESS GATE (ours=constructed GEVM vs stock, proper -st) ===
+== e2e CORRECTNESS GATE (greedy-token consistency + logits sanity) ==
+model=tcrv-llamacpp/models/tinyllama-q4_0.gguf  ntok=24  A=tcrv-llamacpp/build-gcc15-rv64gcv/bin/llama-cli  B=llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/llama-cli
+-- prompt[1]: 'The capital of France is'
+   A: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   B: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   VERDICT: GREEDY-TOKEN-CONSISTENT (A==B)
+-- prompt[2]: 'Once upon a time'
+   A: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   B: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   VERDICT: GREEDY-TOKEN-CONSISTENT (A==B)
+-- prompt[3]: 'Q: What is 2 + 2? A:'
+   A: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   B: build      : b1-f3e1828 model      : tinyllama-q4_0.gguf modalities : text available commands: /exit or Ctrl+C     stop or exit /regen      
+   VERDICT: GREEDY-TOKEN-CONSISTENT (A==B)
+== LOGITS SANITY ==
+   OK: no NaN/Inf in generation logs (finite logits)
+== CORRECTNESS SUMMARY: consistent=3  failed=0 ==
+CORRECTNESS_GATE: GREEN

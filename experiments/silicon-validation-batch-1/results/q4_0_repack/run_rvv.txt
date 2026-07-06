@@ -1,0 +1,15 @@
+FMT=q4_0_repack_gemv K=4096 nrows=32 trials=64 cmps=2048
+  vs_noFMA_scalar_ggml: bitexact=772/2048 worst_ulp=1284 worst_rel=2.098e-04
+  mean_ulp_vs_f64: kernel=7.479  ggml_scalar=8.718  (lower=more accurate)
+  WORST t=49 row=5 kernel=-66.4397812 ggml=-66.4495773 f64=-66.434948
+VERDICT=FMA_FOLD_BOUNDED_ULP
+FMT=q4_0_repack_gemv K=2048 nrows=16 trials=128 cmps=2048
+  vs_noFMA_scalar_ggml: bitexact=920/2048 worst_ulp=624 worst_rel=5.942e-05
+  mean_ulp_vs_f64: kernel=3.744  ggml_scalar=3.819  (lower=more accurate)
+  WORST t=43 row=14 kernel=69.1903992 ggml=69.1951599 f64=69.1928985
+VERDICT=FMA_FOLD_BOUNDED_ULP
+FMT=q4_0_repack_gemv K=4096 nrows=16 trials=128 cmps=2048
+  vs_noFMA_scalar_ggml: bitexact=796/2048 worst_ulp=400 worst_rel=8.332e-04
+  mean_ulp_vs_f64: kernel=11.768  ggml_scalar=11.557  (lower=more accurate)
+  WORST t=37 row=10 kernel=-30.014801 ggml=-30.015564 f64=-30.0398299
+VERDICT=FMA_FOLD_BOUNDED_ULP

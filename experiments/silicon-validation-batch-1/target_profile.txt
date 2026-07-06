@@ -1,0 +1,45 @@
+# silicon-validation-batch-1 — environment fingerprint (board + host toolchain)
+# Batch: promote the 4 front-door-CONSTRUCTED formats (iq4_nl, iq1_s, iq1_m,
+# q4_0-repack-GEVM) from emit-golden to silicon_validated.
+# Session: on-board (ssh rvv), 2026-07-06.
+
+## board (kernel-under-test execution + oracle compilation)
+board_id            = rvv-openeuler-vlen128
+board_uname         = Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb  2 22:50:01 CST 2026 riscv64
+board_isa_head      = rv64imafdcv_zicbom_zicboz_..._zfh_zfhmin_zvfh_zvfhmin (Zfh/Zvfh PRESENT)
+board_vlen          = 128 bits (VLENB=16, __riscv_vlenb() probed on-board)
+board_cores         = 64
+board_clang         = clang version 17.0.6 (17.0.6-16.oe2403), target riscv64-openEuler-linux-gnu
+compile_march       = rv64gcv_zfh_zvfh_zicbop_zihintpause  (kernel + oracle + driver)
+compile_flags       = -O2 -mabi=lp64d -ffp-contract=off   (no-FMA; no fast-math; no reassociation)
+link                = clang++ -Wl,--gc-sections -lm
+
+## oracle (pinned no-FMA left-associative ggml scalar reference)
+oracle_source       = /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c  (ggml_vec_dot_<fmt>_generic)
+board_ggml_commit   = f3e182816421c648188b5eab269853bf1531d950
+quants_c_sha256_16  = ac93fdaa58385f78
+oracle_fp16_path    = GGML_CPU_FP16_TO_FP32 == inline _Float16 fcvt.s.h (no lookup table; matches kernel fcvt exactly)
+oracle_build_note   = recompiled here at -ffp-contract=off so the sumf reduction stays
+                      scalar / left-assoc / non-FMA (the pinned oracle), NOT the board's
+                      pre-built ggml-cpu object (which is arch-optimized + may contract).
+
+## host (front-door construction + export to C)
+repo_head           = 539d4ecaef240e0759571ce9fb8031085db251f4
+repo_branch         = refactor/full-refactor-m1
+tcrv_opt_sha256_16  = 080bc79919a79b44
+tcrv_translate_sha256_16 = 908d3d9a642cfe82
+mlir_translate      = Ubuntu LLVM version 20.1.8  (--mlir-to-cpp, EmitC -> C)
+
+## export route per format (front-door REAL construction path, not test-authored)
+#   iq4_nl : tcrv-opt <mlir> --tcrv-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+#   iq1_s  : tcrv-opt <mlir> --tcrv-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door  --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+#   iq1_m  : tcrv-opt <mlir> --tcrv-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door  --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+#   q4_0-repack : tcrv-opt <mlir> --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp
+# source MLIRs = test/Target/RVV/{iq4-nl,iq1-s,iq1-m}-...-full-pipeline-export-e2e.mlir
+#                test/Target/RVV/q4-0-q8-0-repack-gemv-full-pipeline-export-e2e.mlir
+
+## kernel-under-test source fingerprints (exported C, kernels/*.kernel.c)
+kernel_iq4_nl_sha256_16      = e38696de82aa181c
+kernel_iq1_s_sha256_16       = 2388688f949e1215
+kernel_iq1_m_sha256_16       = 343698734b3f8d58
+kernel_q4_0_repack_sha256_16 = be96da28d9546407

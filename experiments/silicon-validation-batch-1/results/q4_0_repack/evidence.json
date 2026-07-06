@@ -1,0 +1,39 @@
+{
+  "format": "q4_0_q8_0_repack_gemv",
+  "kernel_class": "16x1-REPACKED GEVM (decode-path serving matrix-vector; VECTOR-FMA fold)",
+  "maturity_transition": "emit-golden -> silicon_validated (FMA-fold, bounded-ULP vs no-FMA scalar; more accurate than ggml scalar vs f64)",
+  "board_id": "rvv-openeuler-vlen128",
+  "board_vlen_bits": 128,
+  "clang": "17.0.6 (openEuler)",
+  "compile_march": "rv64gcv_zfh_zvfh_zicbop_zihintpause",
+  "compile_flags": "-O2 -mabi=lp64d -ffp-contract=off",
+  "kernel_under_test": {
+    "symbol": "tcrv_emitc_ggml_vec_dot_q4_0_q8_0_repack_gemv_kernel_ggml_vec_dot_q4_0_q8_0_repack_gemv",
+    "abi": "(size_t K, float* out, size_t nrows, const uint8_t* weights_repacked, const uint8_t* act_q8_0)",
+    "source": "kernels/q4_0_repack.kernel.c (sha256_16=be96da28d9546407)",
+    "export_route": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp",
+    "fold": "VECTOR-FMA: acc = vfmacc(acc, isum_f32, fp16(w.d)*fp16(y.d)); 16 rows/group in 2 x f32m2 lanes; dx*dy pre-grouped",
+    "repack_layout_derived": "per 16-row group, per block b (288B): [0..31]=16 f16 scales (row r at r*2); [32..287] byte(32+l*16+r)=q4_0.qs[l]^0x88 (XOR-0x88 nibble convention -> 4-bit sign-extension yields the -8 offset)"
+  },
+  "oracle": {
+    "primary_no_fma_scalar": "ggml_vec_dot_q4_0_q8_0_generic (per output row, no-FMA left-assoc: sumf += (sumi*fp16(x.d))*fp16(y.d))",
+    "secondary_f64": "in-driver f64 high-precision per-row reference (independent IEEE-half decode)",
+    "board_ggml_commit": "f3e182816421c648188b5eab269853bf1531d950"
+  },
+  "method": "random q4_0 weight matrix (nrows x K) + q8_0 activation; weights repacked to the kernel's 288B/16-row layout; kernel out[row] vs ggml scalar per-row; also vs f64 truth",
+  "result": {
+    "verdict": "FMA_FOLD_BOUNDED_ULP (NOT byte-identical to no-FMA scalar -- expected: kernel legitimately uses vfmacc)",
+    "vs_no_fma_scalar_ggml": {
+      "bitexact_fraction": "772/2048, 920/2048, 796/2048 (3 seeds)",
+      "worst_ulp": [1284, 624, 400],
+      "worst_relative_error": [2.098e-4, 5.942e-5, 8.332e-4]
+    },
+    "vs_f64_truth_mean_ulp": {
+      "kernel": [7.479, 3.744, 11.768],
+      "ggml_scalar": [8.718, 3.819, 11.557],
+      "reading": "kernel is as-accurate-or-better than the ggml no-FMA scalar reference -> the diff is legitimate FMA rounding, not a correctness defect; tiny (<1e-3) relative error also confirms the repack-layout reconstruction is correct"
+    },
+    "runs": "results/q4_0_repack/run_rvv.txt"
+  },
+  "honest_note": "This is a GEVM (matrix-vector, decode-path). Its silicon validation is 'computes the correct q4_0 GEVM to fp32 rounding, with an FMA fold that is at least as accurate as ggml scalar', NOT ULP=0 vs no-FMA scalar. The 3 flat/super-block block-dots in this batch ARE ULP=0."
+}

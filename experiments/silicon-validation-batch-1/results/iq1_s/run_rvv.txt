@@ -1,0 +1,6 @@
+FMT=iq1_s n=4096 trials=256 bitexact=256/256 worst_ulp=0
+VERDICT=BIT_EXACT
+FMT=iq1_s n=4096 trials=256 bitexact=256/256 worst_ulp=0
+VERDICT=BIT_EXACT
+FMT=iq1_s n=8192 trials=256 bitexact=256/256 worst_ulp=0
+VERDICT=BIT_EXACT

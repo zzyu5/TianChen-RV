@@ -1,0 +1,47 @@
+# q4_0 repack generation-vs-routing e2e — environment fingerprint
+# Session: on-board ssh rvv, 2026-07-06 (step-2 of B+step-2).
+
+## board
+board_id      = rvv-openeuler-vlen128
+uname         = Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb  2 22:50:01 CST 2026 riscv64
+isa           = rv64imafdcv_...(zfh zvfh present)
+vlen          = 128 bits
+nproc         = 64  pinned_cores = 8-11
+governor      = performance   cpu_max_khz = 2600000 (freq locked; DVFS span 0.00% during run)
+libc          = glibc 2.38
+
+## model (pinned)
+model         = tinyllama-1.1b q4_0  (tcrv-llamacpp/models/tinyllama-q4_0.gguf)
+model_sha256_16 = da3087fb14aede55
+size          = 637699456 bytes
+
+## A/B injection (compile-time twin build trees; NOT LD_PRELOAD)
+A (ours)      = /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv
+                repack.cpp ENGAGES tcrv_emitc_ggml_repack_gemm/gemv_q4_0_q8_0 at VLEN128
+B (stock)     = /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv
+                VLEN128 refuses CPU_REPACK buffer -> vec_dot_q4_0_q8_0 block-dot fallback
+toolchain     = gcc-15.2.0 (/opt/tcrv-toolchains), both trees SAME compiler + flags
+compile_flags = -march=rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_... -mabi=lp64d -O3 -DNDEBUG -DGGML_USE_CPU_REPACK
+board_ggml_commit = f3e182816421c648188b5eab269853bf1531d950
+
+## sealed protocol (experiments/e2e-harness)
+harness       = board/phase_split_ab.sh + aggregate_e2e.py
+discipline    = paired A/B interleaved same session; taskset core-pin; per-call freq capture (DVFS guard >2% span=invalidate);
+                2 passes -> between-pass T-N floor; -r REPS -o json -> per-rep median + IQR + bootstrap 95% CI ratio
+config        = PP=128 TG=32 REPS=5 PASSES=2
+metric        = tokens/s, higher=faster; ratio = median(ours)/median(stock)
+correctness   = greedy-token consistency vs stock + logits sanity (NEVER bit-exact vs ggml at e2e)
+
+## march-completeness honest note
+gate-1 (full-march) is ADVISORY here: both trees use the SAME (near-full) march and
+gate-2 objdump confirms both ggml-cpu targets are fp16-libcall-clean (symmetric, not a
+P2c crippled-opponent). Directional evidence; a SEALED T6 cell would rebuild at fully
+board-complete march. This cell is bring-up + generation-vs-routing surfacing.
+
+## kernel provenance (see NOTES.md)
+decode GEVM   = front-door-CONSTRUCTED typed_repack_gemv_loop_body (redeployed this session;
+                silicon bit-exact in silicon-validation-batch-1). Baseline A tree shipped the
+                numerically-equivalent monolith emit.
+prefill GEMM  = compiler-EMITTED from a HAND-AUTHORED tcrv_rvv.repack_gemm_q4_0_q8_0 op
+                (NO front-door path-selection; lower-quant-contraction is GEVM-only) = routing-side,
+                remaining surgical step to make it generation-side.

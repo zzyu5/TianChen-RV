@@ -1,0 +1,31 @@
+{
+  "format": "iq1_s_q8_K",
+  "kernel_class": "super-block block-dot (TERNARY 2048-entry grid + DELTA-bsum, scalar-accumulator)",
+  "maturity_transition": "emit-golden -> silicon_validated",
+  "board_id": "rvv-openeuler-vlen128",
+  "board_vlen_bits": 128,
+  "clang": "17.0.6 (openEuler)",
+  "compile_march": "rv64gcv_zfh_zvfh_zicbop_zihintpause",
+  "compile_flags": "-O2 -mabi=lp64d -ffp-contract=off",
+  "kernel_under_test": {
+    "symbol": "tcrv_emitc_ggml_vec_dot_iq1_s_q8_K_kernel_rvv_iq1_s_q8_K_block_dot",
+    "abi": "(size_t n, float* s, const uint8_t* vx, const uint8_t* vy)",
+    "source": "kernels/iq1_s.kernel.c (sha256_16=2388688f949e1215; embeds tcrv_iq1s_grid[2048])",
+    "export_route": "front-door materialize-iq1-s-q8-k-block-dot-source-front-door -> --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp",
+    "block_strides": {"x_iq1_s": 50, "y_q8_K": 292, "super_block_elems": 256}
+  },
+  "oracle": {
+    "reference": "ggml_vec_dot_iq1_s_q8_K_generic (board ggml-cpu/quants.c)",
+    "fold": "no-FMA left-assoc scalar: sumf += fp16(x.d)*y.d * (sumi + 0.125*sumi1); 11-bit grid index build + q8_K bsums",
+    "board_ggml_commit": "f3e182816421c648188b5eab269853bf1531d950",
+    "identical_bytes_to_kernel": true,
+    "y_bsums_consistency": "q8_K bsums computed as exact group-of-16 sums of qs (as ggml requires)"
+  },
+  "method": "N independent random VALID iq1_s x q8_K super-block streams (qs+qh full-range, all bit patterns valid); same raw bytes to kernel + oracle; bit-for-bit compare of s[0]",
+  "result": {
+    "verdict": "BIT_EXACT",
+    "worst_ulp": 0,
+    "trials": "256/256 x 3 seeds (n=4096 x2, n=8192 x1)",
+    "runs": "results/iq1_s/run_rvv.txt"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "board": "rvv-openeuler-vlen128",
+  "model": "tinyllama-1.1b",
+  "quant": "q4_0",
+  "phases": {
+    "prefill": {
+      "ours_median_tps": 19.693,
+      "stock_median_tps": 3.903,
+      "ratio_ours_over_stock": 5.0451,
+      "ci95": [
+        5.0408,
+        5.0557
+      ],
+      "iqr_pct_ours": 0.258,
+      "iqr_pct_stock": 0.005,
+      "between_pass_floor_pct": 0.233,
+      "n_ours": 10,
+      "n_stock": 5,
+      "verdict": "DIFFERENCE"
+    },
+    "decode": {
+      "ours_median_tps": 3.13,
+      "stock_median_tps": 2.001,
+      "ratio_ours_over_stock": 1.5639,
+      "ci95": [
+        1.5538,
+        1.5746
+      ],
+      "iqr_pct_ours": 1.05,
+      "iqr_pct_stock": 0.272,
+      "between_pass_floor_pct": 1.054,
+      "n_ours": 10,
+      "n_stock": 5,
+      "verdict": "DIFFERENCE"
+    }
+  },
+  "dvfs_span_pct": 0.0
+}

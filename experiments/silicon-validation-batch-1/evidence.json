@@ -1,0 +1,24 @@
+{
+  "batch": "silicon-validation-batch-1",
+  "purpose": "Discharge the silicon-validation debt (=4 formats) by promoting the front-door-CONSTRUCTED formats from emit-golden to silicon_validated on real RVV hardware, vs the pinned no-FMA left-assoc ggml scalar oracle.",
+  "session": "on-board ssh rvv, 2026-07-06",
+  "board_id": "rvv-openeuler-vlen128",
+  "board_vlen_bits": 128,
+  "oracle_discipline": "ggml_vec_dot_<fmt>_generic recompiled at -ffp-contract=off (pinned no-FMA left-assoc scalar); identical raw block bytes fed to kernel-under-test and oracle (no quantizer in the loop); comparator = ordered-int ULP (bit-exact <=> 0).",
+  "falsifier_control": "the SAME comparator + build harness yields ULP=0 256/256 for the 3 scalar-fold block-dots yet non-zero ULP for the FMA-fold q4_0 repack GEVM -> the comparator provably discriminates (not comparing a computation to itself); the 3 block-dots exercise three structurally distinct decoders (codebook-gather / ternary-grid+bsum / packed-scale grid).",
+  "formats": [
+    {"format": "iq4_nl_q8_0",           "class": "flat block-dot (codebook)",         "verdict": "BIT_EXACT",              "worst_ulp": 0,   "N": "256/256 x3 seeds", "silicon_validated": true},
+    {"format": "iq1_s_q8_K",            "class": "super-block (ternary grid+bsum)",   "verdict": "BIT_EXACT",              "worst_ulp": 0,   "N": "256/256 x3 seeds", "silicon_validated": true},
+    {"format": "iq1_m_q8_K",            "class": "super-block (packed-scale grid)",   "verdict": "BIT_EXACT",              "worst_ulp": 0,   "N": "256/256 x3 seeds", "silicon_validated": true},
+    {"format": "q4_0_q8_0_repack_gemv", "class": "16x1-repack GEVM (vector FMA)",     "verdict": "FMA_FOLD_BOUNDED_ULP",   "worst_ulp": [1284,624,400], "worst_rel": [2.1e-4,5.9e-5,8.3e-4], "vs_f64": "kernel as-accurate-or-better than ggml scalar", "silicon_validated": "yes (FMA-fold, correct to fp32 rounding); NOT ULP=0 vs no-FMA scalar by construction"}
+  ],
+  "maturity_result": "3 of 4 formats silicon_validated at ULP=0 256/256 (bit-exact vs no-FMA scalar); 1 (q4_0 repack GEVM) silicon_validated as a legitimate FMA-fold GEVM (bounded <1e-3 relative error, more accurate than ggml scalar vs f64 truth).",
+  "artifacts": {
+    "profile": "target_profile.txt",
+    "block_dot_driver": "bd_verify_driver.c",
+    "repack_driver": "q4_0_repack_verify_driver.c",
+    "orchestrator": "run_silicon_batch.sh",
+    "kernels": "kernels/{iq4_nl,iq1_s,iq1_m,q4_0_repack}.kernel.c",
+    "per_format": "results/<fmt>/{run_rvv.txt,evidence.json}"
+  }
+}

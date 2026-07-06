@@ -1,0 +1,51 @@
+{
+  "cell": "rvv-vlen128-q4_0-repack-genroute",
+  "purpose": "step-2: honest generation-vs-routing phase split for the q4_0 repack e2e story, + deploy the front-door-CONSTRUCTED GEVM into decode and re-measure.",
+  "session": "on-board ssh rvv, 2026-07-06",
+  "board_id": "rvv-openeuler-vlen128",
+  "board_vlen_bits": 128,
+  "model": "tinyllama-1.1b q4_0 (sha256_16=da3087fb14aede55)",
+
+  "generation_vs_routing": {
+    "decode_GEVM": {
+      "front_door_constructed": true,
+      "how": "lower-quant-contraction (capability path-selection) -> typed_repack_gemv_loop_body; full-pipeline export exists; silicon bit-exact in silicon-validation-batch-1",
+      "deployed_in_A_tree": "yes (engages at decode); A tree ships the numerically-equivalent monolith emit by default"
+    },
+    "prefill_GEMM": {
+      "front_door_constructed": false,
+      "how": "compiler-EMITTED from a HAND-AUTHORED tcrv_rvv.repack_gemm_q4_0_q8_0 op (test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-0-q8-0.mlir); NO path-selection realizes GEMM (lower-quant-contraction is GEVM-only)",
+      "deployed_in_A_tree": "yes (engages at prefill)"
+    },
+    "honest_conclusion": "decode runs a GENERATED (front-door-constructed) GEVM; prefill runs a compiler-EMITTED-but-NOT-constructed GEMM. A clean 'our GENERATED repack delivers ~5x prefill' claim requires the REMAINING SURGICAL STEP: construct the repack GEMM through the front-door generation grid (a lowerToRepackGemm path-selection + full-pipeline export). GEVM(decode) and GEMM(prefill) must not be conflated."
+  },
+
+  "sealed_e2e": {
+    "protocol": "phase_split_ab.sh + aggregate_e2e.py; paired A/B interleaved; taskset pin; freq-locked 2.6GHz (DVFS span 0.00%); 2 passes; -r5 -o json; median+IQR+bootstrap95CI; opponent = stock VLEN128 block-dot",
+    "framing": "kernel-level parity vs ggml block-dot is the pass bar (blank-cell: win = path-EXISTENCE at VLEN128, not per-instruction supremacy); tokens/s higher=faster",
+    "baseline_A_tree_monolith_GEVM": {
+      "prefill_ratio": 5.045, "prefill_ci95": [5.041, 5.056],
+      "decode_ratio": 1.564,  "decode_ci95": [1.554, 1.575],
+      "note": "ours x2-pass (n=10) / stock x1-pass (n=5) due to a 10-min ssh cap on stock pass-2; verdict robust (Δ 404%/56% >> floors)"
+    },
+    "redeploy_constructed_GEVM": {
+      "prefill_ratio": 5.530, "decode_ratio": 1.950,
+      "correctness_gate": "GREEN (greedy-token-consistent vs stock, 3/3 prompts, no NaN/Inf)"
+    }
+  },
+
+  "decode_change_question": {
+    "answer": "correctness: identical (GREEN). throughput: unchanged by construction (constructed GEVM is byte-equivalent to the monolith it replaced); NOT cleanly measurable cross-session.",
+    "confound_evidence": "the prefill GEMM was byte-identical in both builds yet its ours/stock RATIO drifted 5.045->5.530, and stock's untouched block-dot decode moved 2.00->4.73 t/s -> shared-board memory-bandwidth load differed between sessions and moves both absolute AND ratio metrics; decode ratio change (1.564->1.950) is therefore not attributable to the GEVM swap.",
+    "clean_measurement_would_need": "same-session paired A/B of the two GEVM builds (monolith vs constructed); not run this session."
+  },
+
+  "board_left_as_found": "constructed .inc reverted to original monolith emit + rebuilt (engagement re-confirmed).",
+  "artifacts": {
+    "profile": "target_profile.txt",
+    "baseline_raw": "phase_split_raw.txt", "baseline_aggregate": "aggregate_baseline.txt", "baseline_evidence": "evidence_baseline.json",
+    "redeploy_correctness": "redeploy_correctness.txt",
+    "redeploy_raw": "redeploy_phase_split_raw.txt", "redeploy_aggregate": "redeploy_aggregate.txt", "redeploy_evidence": "evidence_redeploy.json",
+    "notes": "NOTES.md"
+  }
+}
