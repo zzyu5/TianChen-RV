@@ -369,14 +369,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         {&isIQ4XSQ8KBlockDotBody,
          &VariantToEmitCFunc::emitIQ4XSQ8KBlockDot},
         // NOTE: the monolith iq2_xxs kernel {isIQ2XXSQ8KBlockDotBody,
-        // emitIQ2XXSQ8KBlockDot} AND the monolith iq2_xs kernel {isIQ2XSQ8KBlockDotBody,
-        // emitIQ2XSQ8KBlockDot} were RETIRED at their flips (L3 coverage): the front door
+        // emitIQ2XXSQ8KBlockDot}, the monolith iq2_xs kernel {isIQ2XSQ8KBlockDotBody,
+        // emitIQ2XSQ8KBlockDot} AND the monolith iq2_s kernel {isIQ2SQ8KBlockDotBody,
+        // emitIQ2SQ8KBlockDot} were RETIRED at their flips (L3 coverage): the front door
         // now constructs the typed super-block SCALAR-accumulator GRID loop body
-        // (fold_model "scalar_delta_grid", stride 66 for iq2_xxs / 74 for iq2_xs), lowered
-        // by isTypedSuperBlockBlockDotLoopBody -> emitTypedSuperBlockBlockDotLoopBody ->
-        // emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs / ...Iq2xs.
-        {&isIQ2SQ8KBlockDotBody,
-         &VariantToEmitCFunc::emitIQ2SQ8KBlockDot},
+        // (fold_model "scalar_delta_grid", stride 66 for iq2_xxs / 74 for iq2_xs / 82 for
+        // iq2_s), lowered by isTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs / ...Iq2xs / ...Iq2s.
         // NOTE: the monolith iq3_xxs kernel {isIQ3XXSQ8KBlockDotBody,
         // emitIQ3XXSQ8KBlockDot} was RETIRED at the iq3_xxs flip (L3 coverage): the
         // front door now constructs the typed super-block SCALAR-accumulator GRID loop
@@ -1328,19 +1328,12 @@ bool VariantToEmitCFunc::isIQ4XSQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
 // byte-exact anchors emitIQ2XSCanonicalGridTableDecl + emitIQ2XSCanonicalSigns64TableDecl +
 // emitIQ2XSSuperBlockGridBody.
 
-bool VariantToEmitCFunc::isIQ2SQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotIQ2SQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: the monolith recognizer isIQ2SQ8KBlockDotBody + emitter emitIQ2SQ8KBlockDot
+// were RETIRED at the iq2_s flip (L3 coverage): the front door now constructs the typed
+// super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride
+// 82), lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s, which reuses the SHARED
+// byte-exact anchors emitIQ2SCanonicalGridTableDecl + emitIQ2SCanonicalSigns256TableDecl +
+// emitIQ2SSuperBlockGridBody.
 
 // NOTE: the monolith recognizer isIQ3XXSQ8KBlockDotBody + emitter emitIQ3XXSQ8KBlockDot
 // were RETIRED at the iq3_xxs flip (L3 coverage): the front door now constructs the
@@ -5622,6 +5615,17 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // iq1_s/iq1_m/iq3_xxs/iq2_xxs by weight_block_stride 74; NO gearbox -- fixed 16-lane
       // per-half shape)
       tcrv::rvv::GgmlBlockDotIQ2XSQ8KGridCoreOp,
+      // iq2_s (iq2_xs grid sibling, SIGN-PLANE explicit-signs variant, PER-HALF explicit
+      // scale): the iq2_s scalar super-block per-half-scale GRID INTEGER core
+      // (decode_model=lookup -- the 1024-entry uint64 iq2s_grid gathered via
+      // vluxei16_v_i64m1 indexed by `qs[l] | ((qh<<(8-2l))&0x300)`, the SECOND vluxei16
+      // gather over the UNIVERSAL signs256 explicit-sign-byte plane keyed by the raw sign
+      // byte, the EXPLICIT per-sub-block 4-bit scales[8] two-half split ls1/ls2, producing
+      // the ONE SCALAR state bsum); it is the scalar-accumulator body's grid brick under
+      // fold_model "scalar_delta_grid" (disambiguated from
+      // iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs by weight_block_stride 82; NO gearbox -- fixed
+      // 16-lane per-half shape)
+      tcrv::rvv::GgmlBlockDotIQ2SQ8KGridCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

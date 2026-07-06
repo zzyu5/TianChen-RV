@@ -409,12 +409,12 @@ private:
   // anchors emitIQ2XSCanonicalGridTableDecl + emitIQ2XSCanonicalSigns64TableDecl +
   // emitIQ2XSSuperBlockGridBody.
 
-  /// The GRID-codebook sibling recognizer: a with_vl scope whose ONLY compute op is
-  /// a single tcrv_rvv.iq2_s_q8_k_block_dot (the THIRD member of the deep IQ tail:
-  /// the 1024-entry packed uint64 grid codebook + 10-bit index from a single qs byte
-  /// plus 2 qh-plane bits + EXPLICIT signs read directly from a sign-byte region +
-  /// explicit per-sub-block 4-bit scales[]).
-  static bool isIQ2SQ8KBlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: the monolith recognizer isIQ2SQ8KBlockDotBody was RETIRED at the iq2_s flip
+  // (L3 coverage): the front door now constructs the typed super-block SCALAR-accumulator
+  // GRID loop body (fold_model "scalar_delta_grid", stride 82), lowered by
+  // emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s, which reuses the SHARED byte-exact
+  // anchors emitIQ2SCanonicalGridTableDecl + emitIQ2SCanonicalSigns256TableDecl +
+  // emitIQ2SSuperBlockGridBody.
 
   // NOTE: the monolith recognizer isIQ3XXSQ8KBlockDotBody was RETIRED at the iq3_xxs
   // flip (L3 coverage): the front door now constructs the typed super-block
@@ -2072,61 +2072,97 @@ private:
       const IQ2XSGridBodyContext &cx, mlir::Value xb, mlir::Value yb,
       mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_iq2_s_q8_K super-block dot-product for one
-  /// tcrv_rvv.iq2_s_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no raw()).
-  /// It is the THIRD member of the deep IQ tail and the SIBLING of
-  /// emitIQ2XSQ8KBlockDot -- it REUSES the GRID + sign mechanism (indexed
-  /// packed-uint64 GRID lookup, the kmask sign-bit plane + broadcast/vand/vmsne/vneg/
-  /// vmerge per-lane sign apply, the signed widening product + chained vwredsum, the
-  /// integer bsum fold, the explicit per-sub-block scales[] two-half split, the
-  /// per-super-block fp32 fold, the 0.125f factor) with THREE structural deltas vs
-  /// iq2_xs, mirroring _generic (quants.c:947-997):
-  ///   static const int64_t tcrv_iq2s_grid[1024] = { ... };  // 1024-entry GRID
-  ///   static const uint8_t tcrv_iq2s_kmask[8] = {1,2,4,8,16,32,64,128};
-  ///   float sumf = 0.0f;  size_t nb = n / 256;
-  ///   vuint8m1_t kmask = __riscv_vle8_v_u8m1(tcrv_iq2s_kmask, 8);   // ONCE
-  ///   const int8_t *grid_i8 = (const int8_t *)tcrv_iq2s_grid;
-  ///   for (size_t ibl = 0; ibl < nb; ibl += 1) {
-  ///     const uint8_t *xb = vx + ibl*82;  const uint8_t *yb = vy + ibl*292;
-  ///     float d = (float)*(const _Float16 *)(xb) * *(const float *)(yb);
-  ///     const uint8_t *qs = xb + 2;   const uint8_t *sgn = xb + 34;   // signs=qs+32
-  ///     const uint8_t *qh = xb + 66;  const uint8_t *sc = xb + 74;
-  ///     const int8_t *q8 = yb + 4;    int32_t bsum = 0;
-  ///     for (size_t ib32 = 0; ib32 < 8; ++ib32) {        // FLAT unrolled
-  ///       int ls1 = 2*(sc[ib32] & 0xf) + 1;  int ls2 = 2*(sc[ib32] >> 4) + 1;
-  ///       int qhb = qh[ib32];   // DELTA(b): the per-sub-block qh-bit plane byte
-  ///       // half h=0: groups l=0,1 with ls1; half h=1: groups l=2,3 with ls2.
-  ///       for (h = 0..1) {
-  ///         int32_t sumi = 0;  (chained i32m1 reduction seed)
-  ///         for (l = 2*h .. 2*h+1) {  // each group of 8 elements
-  ///           // DELTA(a)+(b): idx = qs[ib32*4 + l] | ((qhb << (8-2*l)) & 0x300):
-  ///           int idx = qs[ib32*4 + l] | ((qhb << (8 - 2*l)) & 0x300);  // 10-bit
-  ///           // DELTA(c): signs read DIRECTLY from the explicit sign region:
-  ///           int signs = sgn[ib32*4 + l];  // NO ksigns lookup
-  ///           vsetvl_e8m1(8); grid = vle8_i8m1(grid_i8 + idx*8); q8v = vle8_i8m1(q8);
-  ///           m = vmsne(vand(vmv(signs), kmask), 0);          // sign-bit mask
-  ///           g = vmerge(grid, vneg(grid), m);                // apply signs
-  ///           p = vwmul_i16m2(g, q8v);  sumi = vwredsum(p, sumi);  q8 += 8;
-  ///         }
-  ///         bsum += sumi * (h ? ls2 : ls1);    // explicit two-scale split
-  ///       }
-  ///     }
-  ///     sumf = sumf + d * (float)bsum;                     // ONE emitc.expression
-  ///   }
-  ///   *s = 0.125f * sumf;                                  // SEPARATE statement
-  /// q8 advances 8 each group CONTINUOUSLY across the half boundary. The grid lookup
-  /// is an indexed vle8(8) over a pointer (grid_i8 + idx*8); no vrgather table-index
-  /// legality fact, no m1 table anchor. The integer chained vwredsum reduction is
-  /// order-free; the per-super-block fp32 fold is invoked in STRICT ascending order so
-  /// fp non-associativity is byte-exact across all -ffp-contract modes; the trailing
-  /// 0.125f multiply stays OUT of the accumulate expression. The qs index byte
-  /// (`qs[ib32*4+l]`, a single byte) and the qh-bit injection (`(qhb<<(8-2*l))&0x300`)
-  /// give the 10-bit grid index; the sign byte is read DIRECTLY from the sign region
-  /// at qs+32 (iq2_s has NO ksigns plane).
-  mlir::LogicalResult emitIQ2SQ8KBlockDot(
+  /// The iq2_s super-block SCALAR-accumulator per-half-scale GRID loop emitter (the flip
+  /// lowering, iq2_xs grid SIBLING, SIGN-PLANE explicit-signs variant, PER-HALF explicit
+  /// scale): the iq2_s branch of the fold_model "scalar_delta_grid" path (dispatched by
+  /// emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq2_s grid-core
+  /// brick). It emits the wrapper -- the `static const int64_t tcrv_iq2s_grid[1024]` decl
+  /// (from the canonical kIQ2SGrid), the UNIVERSAL `static const int8_t
+  /// tcrv_iq2s_signs256[2048]` sign plane, the `sumf` float SCALAR accumulator seeded
+  /// once OUTSIDE the loop, nb = n / QK_K, the ONCE (const int64_t *) grid64 + signs256
+  /// views, the outer emitc.for over nb, the per-super-block base built from the brick's
+  /// (base, block_index) via a shared memo (anti-bypass), and the trailing
+  /// `*s = 0.125f*sumf` store -- delegating the in-loop per-super-block body to the shared
+  /// emitIQ2SSuperBlockGridBody anchor (the fp16*fp32 d fold, the per-sub-block explicit
+  /// 4-bit scale ls1/ls2, the qh-plane byte, the two-half 16-lane decode + the TWO
+  /// vluxei16_v_i64m1 grid64/signs256 gathers + the vmul-onto-grid sign fold + signed
+  /// widening dot + bsum fold, then sumf += d*(float)bsum). Like iq2_xs there is NO gearbox
+  /// (fixed 16-lane per-half shape). Byte-identical to the retired monolith
+  /// emitIQ2SQ8KBlockDot by construction (same decls, same body helper, same facts, same
+  /// order) modulo the source-op provenance token + func name.
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq2s(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
+  /// The bounded per-super-block byte-exact facts the iq2_s per-half-scale GRID body helper
+  /// reads (the I4 mirror off the grid-core brick). The emitc element/pointer types are
+  /// re-derived inside the helper from the MLIRContext (uniqued -> the SAME Type instances),
+  /// so this struct carries only the provenance, the size type, the two buffer pointer
+  /// types, the iq2_s format byte offsets/sub-block shape, and the two per-loop-invariant
+  /// SSA views the sub-block gathers read: the `gridName` (const int64_t *) view of
+  /// tcrv_iq2s_grid and the `signs256` (const int64_t *) view of tcrv_iq2s_signs256 (the
+  /// UNIVERSAL explicit-sign-byte plane). Like iq2_xs there is NO coreLmul (fixed 16-lane
+  /// per-half shape); iq2_s ADDS the signsOffset (the explicit sign-byte region at qs+32)
+  /// and the qhOffset (the qh-bit plane) over iq2_xs.
+  struct IQ2SGridBodyContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type weightPtrType;
+    mlir::Type activationPtrType;
+    int64_t weightDOffset;        //   0 (fp16 x.d)
+    int64_t qsOffset;             //   2 (32 uint8 grid index bytes)
+    int64_t signsOffset;          //  34 (32 uint8 EXPLICIT sign bytes = qs+QK_K/8)
+    int64_t qhOffset;             //  66 (8 uint8 qh-bit plane bytes)
+    int64_t scalesOffset;         //  74 (explicit 4-bit scales[8])
+    int64_t activationDOffset;    //   0 (fp32 y.d)
+    int64_t q8Offset;             //   4 (q8_K quants)
+    int64_t subBlock;             //  32
+    int64_t numSubBlocks;         //   8
+    int64_t groupsPerSub;         //   4 (grid groups per sub-block, l=0..3)
+    int64_t numGroupsPerHalf;     //   2 (grid/sign groups per 16-lane half)
+    mlir::Value gridName;         // the (const int64_t *) view of tcrv_iq2s_grid
+    mlir::Value signs256;         // the (const int64_t *) view of tcrv_iq2s_signs256
+  };
+
+  /// Emit the fixed 1024-entry iq2_s GRID codebook as ONE `static const int64_t
+  /// tcrv_iq2s_grid[1024] = { ... };` verbatim decl (ggml's exact uint64 hex literals
+  /// rendered `0x%016llxULL`), from the CANONICAL kIQ2SGrid constant (the grid-core brick
+  /// carries no grid in the IR -- the emitter keys the fixed codebook off the brick op
+  /// identity). Byte-identical to the retired monolith decl.
+  void emitIQ2SCanonicalGridTableDecl(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
+
+  /// Emit the UNIVERSAL signs256 SIGN plane as ONE `static const int8_t
+  /// tcrv_iq2s_signs256[2048] = { ... };` verbatim decl -- every 8-bit sign byte value v
+  /// EXPANDED to per-lane +-1 (byte b of value v is `(v & (1<<b)) ? -1 : +1`). iq2_s has
+  /// NO ksigns selector: its signs are EXPLICIT bytes read straight from the sign region,
+  /// so the gather is indexed by the raw 8-bit sign byte DIRECTLY (0..255). This IS the
+  /// definitional bit-to-sign expansion the old scalar fold computed via
+  /// vmv/vand/vmsne/vneg/vmerge; the retired monolith emitted the SAME universal table, so
+  /// the decl is byte-identical (NO op-attr dependency -- the table is universal).
+  void emitIQ2SCanonicalSigns256TableDecl(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const;
+
+  /// Emit ONE iq2_s super-block's per-half-scale GRID body at the current insertion point
+  /// (INSIDE an already-open super-block loop whose per-super-block bases xb/yb are
+  /// provided): the per-super-block `d = fp16(x.d)*y.d` fold scale, the qs/sgn/qh/sc/q8
+  /// base setup, the `int32_t bsum = 0`, the flat 8-sub-block decode (the explicit scale
+  /// byte -> ls1/ls2, the qh-plane byte, the two-half 16-lane decode: the 2 grid indices
+  /// `qs[l] | ((qhb<<(8-2*l))&0x300)` + 2 explicit sign bytes packed as u16 byte-offsets,
+  /// the TWO vluxei16_v_i64m1 grid64/signs256 gathers + reinterpret i8m1 + the
+  /// vmul_vv_i8m1 sign-onto-grid fold + vwmul_i16m2 + ONE vwredsum per half, then
+  /// `bsum += sumi*ls`), and the per-super-block fp32 fold `sumf += d*(float)bsum` folded
+  /// into the carried `sumf` lvalue. The trailing `*s = 0.125f*sumf` stays in the wrapper
+  /// (OUT of this body). This is the byte-exact anchor kept across the iq2_s flip: the
+  /// retired monolith emitIQ2SQ8KBlockDot's inline body was code-moved here (now the sole
+  /// caller is the typed super-block SCALAR grid loop lowering) -- same nodes, same order.
+  void emitIQ2SSuperBlockGridBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const IQ2SGridBodyContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   // NOTE: the monolith emitIQ1SQ8KBlockDot emitter was RETIRED at L3 iq1_s M3 (the
   // flip): the front door now constructs the typed super-block SCALAR-accumulator

@@ -1,0 +1,15 @@
+# line: line-C-iq2s — iq2_s vec_dot CONSTRUCTED flip (C_construct 21->22).
+# RVV coverage set ONLY (disjoint from any other concurrent line). Shared
+# ODS/verifier/emitter files are serialized (this is the sole active writer).
+include/TianChenRV/Dialect/RVV/IR/RVVOps.td
+include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h
+lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp
+lib/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.cpp
+lib/Conversion/RVV/RVVToEmitC.cpp
+lib/Conversion/RVV/RVVToEmitCInternal.h
+lib/Conversion/RVV/RVVToEmitCKQuant.cpp
+lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp
+lib/Conversion/RVV/RVVToEmitCGridCodebook.cpp
+schema/coverage-sixstate.v1.json
+.trellis/scripts/e5_strong_readout.py
+test/
