@@ -1863,6 +1863,10 @@ monolithicBlockDotFamilyForRouteID(llvm::StringRef routeID) {
                      MonolithicBlockDotRouteFamily::RepackGemv)
                      .routeID)
     return MonolithicBlockDotRouteFamily::RepackGemv;
+  if (routeID == plugin::rvv::getMonolithicBlockDotFamilyConstants(
+                     MonolithicBlockDotRouteFamily::RepackGemm)
+                     .routeID)
+    return MonolithicBlockDotRouteFamily::RepackGemm;
   return makeRVVTargetRouteError(
       llvm::Twine("candidate route id '") + routeID +
       "' is not a monolithic ggml block-dot route id");
@@ -2147,6 +2151,10 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
                                  8>
       kRepackGemvEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
           plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv);
+  static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
+                                 8>
+      kRepackGemmEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
+          plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm);
   const plugin::rvv::MonolithicBlockDotFamilyConstants &fc =
       plugin::rvv::getMonolithicBlockDotFamilyConstants(family);
 
@@ -2182,6 +2190,15 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
         "RVV monolithic ggml repacked-GEVM materialized EmitC candidate";
     evidence = &kRepackGemvEvidence;
     break;
+  case plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm:
+    routeDescription =
+        "RVV monolithic ggml repacked block-as-lane GEMM (prefill) materialized "
+        "EmitC target artifact bridge (single plugin-owned typed body lowering "
+        "directly through the common RVV->EmitC DialectConversion)";
+    objectDescription = "RVV monolithic ggml repacked-GEMM (prefill) materialized "
+                        "EmitC candidate";
+    evidence = &kRepackGemmEvidence;
+    break;
   }
 
   ConstructionTemplateArtifactAdapterConfig config =
@@ -2193,10 +2210,11 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
   config.headerRouteID = fc.headerRouteID;
   config.metadataEvidence = *evidence;
   config.selectedObjectDescription = objectDescription;
-  // The repacked-GEVM emits Zvfh fp16 vector loads (vle16_v_f16m1) for its
-  // dual-fp16 scale fold, so it packages under rv64gcv_zvfh; the block-dot
+  // The repacked GEVM/GEMM emit Zvfh fp16 vector loads (vle16_v_f16m1) for their
+  // dual-fp16 scale fold, so they package under rv64gcv_zvfh; the block-dot
   // families stay on the baseline rv64gcv packager (byte-identical).
-  if (family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv)
+  if (family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv ||
+      family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm)
     config.objectPackagerFn = compileRVVGeneratedSourceToObjectZvfh;
   return config;
 }
@@ -2226,6 +2244,15 @@ exportRVVMonolithicRepackGemvTargetArtifact(mlir::ModuleOp module,
       module, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv));
+}
+
+llvm::Error
+exportRVVMonolithicRepackGemmTargetArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportConstructionTemplateObjectArtifact(
+      module, os,
+      getRVVMonolithicBlockDotArtifactAdapterConfig(
+          plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm));
 }
 
 // Register one bare peer OBJECT exporter for a monolithic block-dot route family.
@@ -2283,6 +2310,17 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
   if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
           registry, plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv,
           exportRVVMonolithicRepackGemvTargetArtifact))
+    return error;
+
+  // The option-2 quant_contraction BRIDGE repacked-GEMM (prefill) peer OBJECT
+  // route: the q4_0 16x1-repacked block-as-lane GEMM the front door constructs as
+  // the typed tcrv_rvv.typed_repack_gemm_loop_body region flows through the SAME
+  // monolithic emission-plan + object-export mechanism as the GEVM / block-dots, on
+  // its own RepackGemm route id. Registered as a bare object exporter like its
+  // siblings; idempotent-guarded.
+  if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
+          registry, plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm,
+          exportRVVMonolithicRepackGemmTargetArtifact))
     return error;
 
   return llvm::Error::success();

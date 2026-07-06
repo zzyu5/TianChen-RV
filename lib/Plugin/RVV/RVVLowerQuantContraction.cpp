@@ -509,8 +509,10 @@ private:
         st.addTypes(builder.getIndexType());
         return builder.create(st)->getResult(0);
       };
-      // The role spellings the supported runtime-ABI role set accepts (the SAME
-      // roles the hand-authored repack_gemm_q4_0_q8_0 fixture binds nr / bs to).
+      // The role spellings the supported runtime-ABI role set accepts. nr binds
+      // source-byte-stride, bs binds output-stride: the object-export ABI arity gate
+      // (RVVTargetSupportBundle.cpp) expects exactly this ordered role set for the
+      // RepackGemm route family (monolithicRepackGemmABI7).
       rowCount = makeAbi("nr", "source-byte-stride", "nr");
       outputRowStride = makeAbi("bs", "output-stride", "bs");
     }

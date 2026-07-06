@@ -119,26 +119,17 @@ public:
       return;
 
     module.walk([&](mlir::Operation *op) {
-      if (auto gemm = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ40Q80Op>(op)) {
-        if (isRVV0p7) {
-          gemm.setIntegerCoreLmul("m1");
-          gemm.setHalfLanes(gemm.getWeightInterleave());
-          return;
-        }
-        std::int64_t width =
-            deriveRepackHalfLanes(vlenBits, gemm.getWeightInterleave());
-        if (width > 0)
-          gemm.setHalfLanes(width);
-        return;
-      }
-      // NOTE: the q4_0 16x1-repacked GEVM's monolithic op
-      // (tcrv_rvv.repack_gemv_q4_0_q8_0) is RETIRED. Its resource-aware strip
-      // width / whole-LMUL anchor is now derived + stamped at CONSTRUCTION time by
-      // the repack front door (RVVLowerQuantContraction.cpp lowerToRepackGemv),
-      // directly on the typed tcrv_rvv.typed_repack_gemv_loop_body region -- the
-      // region STRUCTURE (numHalves accumulators / fold bricks) is baked to
-      // half_lanes, so it cannot be re-stamped post-hoc here. The q4_0 GEMM + the
-      // q4_1/q8_0 GEVMs below still carry their monolithic ops and participate.
+      // NOTE: the q4_0 16x1-repacked GEMM's monolithic op
+      // (tcrv_rvv.repack_gemm_q4_0_q8_0) is RETIRED, as is the GEVM's
+      // (tcrv_rvv.repack_gemv_q4_0_q8_0). Their resource-aware strip width /
+      // whole-LMUL anchor is now derived + stamped at CONSTRUCTION time by the
+      // repack front door (RVVLowerQuantContraction.cpp lowerToRepackGemm /
+      // lowerToRepackGemv), directly on the typed
+      // tcrv_rvv.typed_repack_gemm_loop_body / typed_repack_gemv_loop_body region --
+      // the region STRUCTURE (numHalves accumulators / per-column fold bricks) is
+      // baked to half_lanes, so it cannot be re-stamped post-hoc here. The
+      // q4_1/q8_0 GEVMs + the q4_1/q4_K GEMMs below still carry their monolithic ops
+      // and participate.
       // The FAMILY-B q4_1 repacked GEMV diverges on the SAME resource-aware strip
       // width axis (the block-as-lane layout is byte-identical in shape to q4_0's
       // 16-way interleave), so it participates in the same capability-driven

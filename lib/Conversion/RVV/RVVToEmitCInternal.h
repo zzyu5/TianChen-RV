@@ -306,11 +306,6 @@ private:
   /// dispatch key; the emitter owns the structured row x column-strip expansion.
   static bool isQ4_0Q8_0GemmBody(tcrvrvv::WithVLOp scope);
 
-  /// The 16x1-REPACKED full-GEMM recognizer: a with_vl scope whose ONLY compute
-  /// op is a single tcrv_rvv.repack_gemm_q4_0_q8_0. The op identity is the
-  /// dispatch key; the emitter owns the structured block-as-lane expansion.
-  static bool isRepackGemmQ4_0Q8_0Body(tcrvrvv::WithVLOp scope);
-
   /// The q5_0 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl
   /// scope whose ONLY compute op is a single tcrv_rvv.repack_gemv_q5_0_q8_0. The
   /// op identity is the dispatch key; the emitter owns the block-as-lane
@@ -1173,53 +1168,6 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml q4_0 16x1-REPACKED GEMM hot kernel (the validated
-  /// vlen128-q4_0-16x1 ggml_gemm_q4_0_16x1_q8_0 path) for one
-  /// tcrv_rvv.repack_gemm_q4_0_q8_0 op as fully STRUCTURED emitc nodes (I5; ZERO
-  /// raw() strings -- every value is a node in the IR graph). It is the
-  /// BLOCK-AS-LANE sibling of emitQ4_0Q8_0Gemm: the repacked block_q4_0x16
-  /// weight lays the 16 interleaved rows of a group across 16 vector lanes, so
-  /// the dot accumulates LANE-WISE via vwmacc (NO cross-lane vredsum wall). At
-  /// VLEN=128 an e16m1 vector holds 8 i16 lanes, so each 16-block group is
-  /// processed as two disjoint contiguous halves of 8 lanes. The repacked
-  /// nibbles already carry the offset-binary ^0x88 bias, so the decode is a
-  /// plain vsll/vsra sign-extension (NO in-kernel vxor). The shape mirrors the
-  /// validated kernel exactly (no tail; ragged edges go to _generic at
-  /// dispatch):
-  ///   for (size_t y = 0; y < nr/4; ++y) {
-  ///     const block_q8_0x4 *a = (vy) + y*nb;
-  ///     for (size_t x = 0; x < nc/16; ++x) {
-  ///       const block_q4_0x16 *b = (vx) + x*nb;
-  ///       for (size_t half = 0; half < 2; ++half) {  // rows 0..7, 8..15
-  ///         size_t roff = half*8;
-  ///         vfloat32m2_t sumf_{0..3} = vfmv_v_f(0,8);
-  ///         for (size_t l = 0; l < nb; ++l) {
-  ///           vint16m1_t sumi_{0..3}_{lo,hi} = vmv_v_x(0,8);
-  ///           for (size_t i = 0; i < 16; ++i) {
-  ///             b_packed = vle8(&b[l].qs[i*16+roff], 8);
-  ///             b_lo = vsra(vsll(b_packed,4),4);  b_hi = vsra(b_packed,4);
-  ///             sumi_c_lo = vwmacc_vx(sumi_c_lo, a[l].qs[i*4+c],    b_lo, 8);
-  ///             sumi_c_hi = vwmacc_vx(sumi_c_hi, a[l].qs[64+i*4+c], b_hi, 8);
-  ///           }
-  ///           sumi_c = vwadd_vv(sumi_c_lo, sumi_c_hi, 8);
-  ///           b_d = vle16(&b[l].d[roff], 8);
-  ///           d_c = vfwmul_vf(b_d, *(_Float16*)&a[l].d[c], 8);
-  ///           sumf_c = vfmacc_vv(sumf_c, vfcvt_f_x_v(sumi_c,8), d_c, 8);
-  ///         }
-  ///         vse32(s + (y*4+c)*bs + x*16 + roff, sumf_c, 8);
-  ///       }
-  ///     }
-  ///   }
-  /// Each output is byte-exact vs ggml_gemm_q4_0_16x1_q8_0_generic (the patch is
-  /// already byte-exact vs _generic; structural fidelity to its node sequence is
-  /// the byte-exactness proof). All intrinsics are emitc.call_opaque nodes; the
-  /// scale fold feeds the raw _Float16 a[l].d[c] into vfwmul_vf (NO float cast,
-  /// unlike the per-block dot's fp16Read).
-  mlir::LogicalResult emitRepackGemmQ4_0Q8_0(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
   /// The bounded per-block context the shared q4_0 16x1-REPACKED GEMM lane-wise
   /// integer CORE leaf reads. opName/role are the source-op provenance; l8/l16/l32
   /// are the three element-width rungs of the i8 -> i16 -> i32 widening chain
@@ -1555,7 +1503,8 @@ private:
   /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold emitter: lower the
   /// region-carrying tcrv_rvv.typed_repack_gemm_loop_body to the byte-exact
   /// repacked GEMM kernel by wrapping the region's inner contraction-block loop in
-  /// the SAME four outer loops the monolithic emitRepackGemmQ4_0Q8_0 emits -- the
+  /// the SAME four outer loops the now-retired monolithic emitRepackGemmQ4_0Q8_0
+  /// emitted -- the
   /// activation-ROW-group (M-tiling) loop over nr/activation_interleave, the
   /// weight-column-group loop over nc/weight_interleave, the RUNTIME strip loop
   /// over numHalves (roff = h*half_lanes), and the compile-time column-PASS loop
@@ -1566,7 +1515,8 @@ private:
   /// leaves emitRepackGemmQ4LaneWiseIntegerCore (the ONE-strip N-column integer
   /// core, producing columnsPerPass per-column sumi) + emitRepackGemmDualFp16Scale
   /// Fold (the per-column scale fold) from the region's CORE + FOLD bricks, so the
-  /// whole kernel body is byte-identical to emitRepackGemmQ4_0Q8_0 by construction
+  /// whole kernel body is byte-identical to the retired emitRepackGemmQ4_0Q8_0 by
+  /// construction (EMPIRICALLY proven at M2 before retirement)
   /// on every arm (RVV1.0 mf2 columnsPerPass=4 one pass; RVV0.7 m1 columnsPerPass=1
   /// four passes). Every brick is block_index + strip_row_offset tied (anti-bypass)
   /// and dataflow-tied fail-closed (I7).

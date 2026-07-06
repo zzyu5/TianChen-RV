@@ -60,7 +60,21 @@ namespace tianchenrv::plugin::rvv {
 // block-dot families, so it shares this whole monolithic emission-plan +
 // object-export mechanism, but it is a GEVM (writes through the output pointer,
 // internalizes the N loop), NOT a block-dot -- hence its own honest route family.
-enum class MonolithicBlockDotRouteFamily { SuperBlock, Flat, RepackGemv };
+// RepackGemm is the option-2 BRIDGE route's PREFILL sibling: the q4_0 16x1-repacked
+// block-as-lane GEMM (block_q4_0x16 weights x block_q8_0x4 interleaved activations)
+// the front door CONSTRUCTS as the typed tcrv_rvv.typed_repack_gemm_loop_body region
+// when m_regime == "prefill" -- a SINGLE plugin-owned typed body that lowers DIRECTLY
+// through the RVV->EmitC DialectConversion exactly like the GEVM, sharing this whole
+// monolithic emission-plan + object-export mechanism, but it internalizes the FULL
+// M-tiling nest (row-group x column-group x runtime-strip x column-pass), so it
+// carries the 7-role GEMM ABI (nr, bs, n, s, nc, vx, vy) -- its own honest route
+// family.
+enum class MonolithicBlockDotRouteFamily {
+  SuperBlock,
+  Flat,
+  RepackGemv,
+  RepackGemm
+};
 
 // Family-INVARIANT constants -- identical for the super-block AND flat monolithic
 // block-dot routes (they describe the shared EmitC-lowerable typed-body mechanism
@@ -121,6 +135,13 @@ getMonolithicBlockDotFamilyConstants(MonolithicBlockDotRouteFamily family) {
       "rvv-ggml-repack-gemv-monolithic-typed-body",
       "rvv_ggml_repack_gemv_kind",
       "rvv_ggml_repack_gemv_scale_model"};
+  static const MonolithicBlockDotFamilyConstants kRepackGemm{
+      "rvv-ggml-repack-gemm-monolithic-emitc-route-family",
+      "rvv-ggml-repack-gemm-monolithic-emitc-route-family.header",
+      "rvv-ggml-repack-gemm-callable-c-abi.v1",
+      "rvv-ggml-repack-gemm-monolithic-typed-body",
+      "rvv_ggml_repack_gemm_kind",
+      "rvv_ggml_repack_gemm_scale_model"};
   switch (family) {
   case MonolithicBlockDotRouteFamily::SuperBlock:
     return kSuperBlock;
@@ -128,6 +149,8 @@ getMonolithicBlockDotFamilyConstants(MonolithicBlockDotRouteFamily family) {
     return kFlat;
   case MonolithicBlockDotRouteFamily::RepackGemv:
     return kRepackGemv;
+  case MonolithicBlockDotRouteFamily::RepackGemm:
+    return kRepackGemm;
   }
   return kFlat;
 }
@@ -158,6 +181,15 @@ getMonolithicBlockDotPlanDescription(MonolithicBlockDotRouteFamily family) {
       "scale fold, and the lane-wise f32 vector accumulator are first-class op "
       "structure), then uses the MLIR EmitC C/C++ emitter before RISC-V object "
       "packaging";
+  static const llvm::StringRef kRepackGemm =
+      "RVV selected monolithic ggml repacked (block_q4_0x16 16x1-interleaved) "
+      "block-as-lane GEMM (prefill) typed body materializes a verified EmitC "
+      "module through the common RVV->EmitC lowering (the M-tiling "
+      "row/column/runtime-strip/column-pass nest, the one-strip N-column repacked "
+      "lane-wise integer product core, the per-column dual-fp16 scale fold, and the "
+      "per-column per-strip lane-wise f32 vector accumulators are first-class op "
+      "structure), then uses the MLIR EmitC C/C++ emitter before RISC-V object "
+      "packaging";
   switch (family) {
   case MonolithicBlockDotRouteFamily::SuperBlock:
     return kSuperBlock;
@@ -165,6 +197,8 @@ getMonolithicBlockDotPlanDescription(MonolithicBlockDotRouteFamily family) {
     return kFlat;
   case MonolithicBlockDotRouteFamily::RepackGemv:
     return kRepackGemv;
+  case MonolithicBlockDotRouteFamily::RepackGemm:
+    return kRepackGemm;
   }
   return kFlat;
 }
@@ -215,6 +249,35 @@ inline llvm::ArrayRef<MonolithicBlockDotABIRole> monolithicRepackGemvABI5() {
       {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
       {"s", support::RuntimeABIParameterRole::OutputBuffer},
       {"bs", support::RuntimeABIParameterRole::OutputStride},
+      {"vx", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"vy", support::RuntimeABIParameterRole::RHSInputBuffer}};
+  return kRoles;
+}
+
+// The 7-role repacked-GEMM (prefill) ABI the q4_0 16x1-repack GEMM exports. The
+// GEMM internalizes the FULL M-tiling nest, so it needs two runtime ABI values the
+// abstract quant_contraction op does NOT carry -- the activation-row count (nr) and
+// the fp32 output row stride (bs) -- which the option-2 BRIDGE front door
+// (RVVLowerQuantContraction.cpp lowerToRepackGemm) MATERIALIZES at the variant scope
+// AHEAD of the abstract op's own runtime ABI values. The exported C signature
+// therefore mirrors that materialized-then-declared order: the two materialized
+// values (nr source-byte-stride, bs output-stride) FIRST, then the abstract op's
+// declared quad (n runtime-element-count, s output-buffer, nc destination-byte-stride
+// carrying the runtime weight-column count, vx lhs weight, vy rhs activation). The
+// two size_t counts nr/nc repurpose the two byte-stride INDEX roles (nr
+// source-byte-stride, nc destination-byte-stride) -- both are bounded runtime index
+// (size_t) roles, so a size_t count is legal there, and they stay DISTINCT from bs
+// (output-stride) so the coherence duplicate-role check passes (all 7 roles distinct).
+// This is the collected walk order of RVVExtensionPlugin.cpp
+// collectMonolithicBlockDotRuntimeABIParameters over the post-bridge variant; the
+// target-side ABI arity+role+cName gate pins it exactly.
+inline llvm::ArrayRef<MonolithicBlockDotABIRole> monolithicRepackGemmABI7() {
+  static const MonolithicBlockDotABIRole kRoles[] = {
+      {"nr", support::RuntimeABIParameterRole::SourceByteStride},
+      {"bs", support::RuntimeABIParameterRole::OutputStride},
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+      {"s", support::RuntimeABIParameterRole::OutputBuffer},
+      {"nc", support::RuntimeABIParameterRole::DestinationByteStride},
       {"vx", support::RuntimeABIParameterRole::LHSInputBuffer},
       {"vy", support::RuntimeABIParameterRole::RHSInputBuffer}};
   return kRoles;
@@ -1851,6 +1914,41 @@ inline const MonolithicBlockDotOpEntry &repackGemvMonolithicEntry() {
   return kEntry;
 }
 
+// The q4_0 16x1-repacked GEMM (prefill) monolithic entry -- the PREFILL sibling of
+// repackGemvMonolithicEntry. Like the GEVM entry it is a standalone singleton (NOT a
+// row of monolithicBlockDotOpTable): the repacked GEMM is CONSTRUCTED by the option-2
+// quant_contraction BRIDGE (RVVLowerQuantContraction.cpp lowerToRepackGemm on
+// m_regime == "prefill"), NOT a source front door, so a construction-table row would
+// register a dead source-front-door pass for it. It is recognized plugin-side by the
+// typed_repack_gemm loop op name (resolveSelectedMonolithicBlockDotBodyEntry) and
+// target-side by its export kind (findMonolithicBlockDotOpEntryByKind). Only the
+// export-relevant fields (route family, kind, 7-role GEMM ABI, pinned scale_model)
+// carry values; the construction DATA fields are empty.
+inline const MonolithicBlockDotOpEntry &repackGemmMonolithicEntry() {
+  static const MonolithicBlockDotOpEntry kEntry{
+      /*opName*/ "tcrv_rvv.repack_gemm_q4_0_q8_0", // retired monolith name; dead
+      /*routeFamily*/ MonolithicBlockDotRouteFamily::RepackGemm,
+      /*kind*/ "rvv_q4_0_q8_0_repack_gemm",
+      /*abiRoles*/ &monolithicRepackGemmABI7,
+      /*markerValue*/ "",
+      /*passArgument*/ "",
+      /*dispatchPolicy*/ "",
+      /*variantSymbol*/ "",
+      /*kernelDefault*/ "",
+      /*scaleModel*/ "dual-fp16-per-block-d_x.d_y",
+      /*failPrefix*/ "",
+      /*weightPurpose*/ "",
+      /*activationPurpose*/ "",
+      /*integerCoreLmul*/ "",
+      /*facts*/ {},
+      /*codebook*/ {},
+      /*gridI64*/ {},
+      /*gridI32*/ {},
+      /*ksigns*/ {},
+      /*typedFlatLoopSelector*/ TypedFlatBlockDotLoopSelector::None};
+  return kEntry;
+}
+
 // The op-identity lookup (plugin side: from the recognized body op).
 inline const MonolithicBlockDotOpEntry *
 findMonolithicBlockDotOpEntry(mlir::Operation *op) {
@@ -1872,11 +1970,13 @@ findMonolithicBlockDotOpEntryByKind(llvm::StringRef kind) {
   for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
     if (entry.kind == kind)
       return &entry;
-  // The repacked-GEVM entry lives outside the construction table (see
-  // repackGemvMonolithicEntry); resolve its export kind here so the target-side
-  // ABI/route lookup round-trips.
+  // The repacked-GEVM / repacked-GEMM entries live outside the construction table
+  // (see repackGemvMonolithicEntry / repackGemmMonolithicEntry); resolve their export
+  // kind here so the target-side ABI/route lookup round-trips.
   if (kind == repackGemvMonolithicEntry().kind)
     return &repackGemvMonolithicEntry();
+  if (kind == repackGemmMonolithicEntry().kind)
+    return &repackGemmMonolithicEntry();
   return nullptr;
 }
 
@@ -1911,6 +2011,14 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedRepackGemvLoopBodyOp::getOperationName())
     return &repackGemvMonolithicEntry();
+  // The option-2 quant_contraction BRIDGE repacked-GEMM (prefill) body: a single
+  // typed tcrv_rvv.typed_repack_gemm_loop_body region that lowers directly through
+  // the RVV->EmitC DialectConversion, so it shares the monolithic emission-plan +
+  // object-export mechanism through its own RepackGemm route family. There is one
+  // repacked GEMM (q4_0), so the op name alone resolves it -- no selector needed.
+  if (op->getName().getStringRef() ==
+      tcrv::rvv::TypedRepackGemmLoopBodyOp::getOperationName())
+    return &repackGemmMonolithicEntry();
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
     // The typed SUPER-BLOCK loop body carries the generic loop kind + a

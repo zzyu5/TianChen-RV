@@ -271,11 +271,35 @@ PATHS = [
     # (STRONG) via the repack_lane_wise_q4_x_i8_dot product+fused-reduce token.
     # update-sixstate machine-reads the REAL constructor output (no hand .mlir).
     {
-        "op": "gemm_tile", "format": "q4_0", "engine": "rvv",
+        "op": "gemm_tile", "format": "q4_0", "engine": "rvv", "regime": "decode",
         "kind": "strong", "expected_state": "constructed",
         "input": "q4-0-q8-0-repack-gemv-full-pipeline-export-e2e.mlir",
         "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv",
         "front_door_id": "RVVLowerQuantContraction lowerToRepackGemv (typed repack GEVM loop body region)",
+    },
+    # q4_0 REPACK GEMM (gemm_tile/q4_0/rvv, regime=prefill): STRONG. The PREFILL
+    # sibling of the decode GEVM -- a DISTINCT six-state cell on the m_regime axis
+    # (regime=prefill vs the GEVM's regime=decode). Same option-2 quant_contraction
+    # BRIDGE front door (--tcrv-rvv-lower-quant-contraction; VLEN128 => Zvl128b =>
+    # repack SELECTED), but because the input quant_contraction carries
+    # m_regime="prefill" the bridge dispatches to lowerToRepackGemm, which CONSTRUCTS
+    # the typed tcrv_rvv.typed_repack_gemm_loop_body REGION (the monolithic
+    # tcrv_rvv.repack_gemm_q4_0_q8_0 op is retired) out of the two decomposed inner
+    # GEMM bricks: the ONE-strip N-column integer CORE
+    # (repack_gemm_lane_wise_q4_x_i8_dot, producing the columnsPerPass per-column sumi
+    # via a nibble-step lane-wise vwmacc lo/hi dot-reduce -- a FUSED lane-wise
+    # dot-reduce, NO separate standalone_reduce) + the columnsPerPass per-column
+    # dual-fp16 scale FOLDs (repack_gemm_dual_fp16_scale_fold), around the per-column
+    # per-strip LANE-WISE f32 VECTOR accumulators. NO opaque *_block_dot hand helper,
+    # so [L-8] derives constructed (STRONG) via the repack_gemm_lane_wise_q4_x_i8_dot
+    # product+fused-reduce token. update-sixstate machine-reads the REAL constructor
+    # output (no hand .mlir).
+    {
+        "op": "gemm_tile", "format": "q4_0", "engine": "rvv", "regime": "prefill",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q4-0-q8-0-repack-gemm-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv",
+        "front_door_id": "RVVLowerQuantContraction lowerToRepackGemm (typed repack GEMM prefill loop body region)",
     },
     # iq4_nl vec_dot: STRONG (the FIRST CODEBOOK-class flat vec_dot flipped, L3 M2).
     # Its front door (isIq4Nl codebook branch in the typedFlatLoopPath gate) constructs
@@ -399,7 +423,13 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # dot-product primitive (a nibble-step vwmacc lane-wise accumulate + lo/hi combine),
 # so its token joins the whitelist. NOTE: it ends `_x_i8_dot` (a lane-wise DOT), NOT
 # `_x_i8_product`, so the flat `_x_i8_product` alternative does NOT match it -- the
-# explicit `repack_lane_wise_q4_x_i8_dot` token is required. The iq1_s super-block
+# explicit `repack_lane_wise_q4_x_i8_dot` token is required. The q4_0 16x1-REPACKED
+# GEMM (prefill) sibling `repack_gemm_lane_wise_q4_x_i8_dot` is the SAME shape (a
+# per-block lane-wise vwmacc lo/hi dot-reduce, but ONE runtime strip x N interleaved
+# activation columns instead of numHalves strips x 1 column), a real fused dot-reduce
+# primitive; its distinct mnemonic (`repack_gemm_lane_wise...`, NOT `repack_lane_wise
+# ...`) means the GEVM token does not cover it, so the explicit
+# `repack_gemm_lane_wise_q4_x_i8_dot` token joins the whitelist too. The iq1_s super-block
 # TERNARY-grid integer core `iq1_s_q8_k_grid_core` is ALSO a real dot-product
 # primitive (a per-sub-block vluxei16 ternary-grid gather + signed vwmul + vwredsum
 # reducing the grid dot into the scalar sumi, plus the delta-bsum scalar state -- a
@@ -408,7 +438,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # purpose: `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -433,7 +463,7 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # joins this whitelist too. This is
 # deliberately NARROW (a scale-only body has none of the tokens; an opaque
 # *_block_dot still trips the opaque gate), so the check stays discriminating.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot)")
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 
 def _leading_ws(line):
@@ -559,6 +589,7 @@ def check_path(entry):
     result["op"] = entry["op"]
     result["format"] = entry["format"]
     result["engine"] = entry["engine"]
+    result["regime"] = entry.get("regime", "")
     result["kind"] = entry["kind"]
     result["expected_state"] = entry["expected_state"]
     result["front_door_id"] = entry["front_door_id"]
@@ -604,11 +635,13 @@ def cmd_update_sixstate(_args):
     if not all_pass:
         print("\nrefusing to update schema: machine-check did not fully pass", file=sys.stderr)
         return 1
-    by_key = {(r["op"], r["format"], r["engine"]): r for r in results if r["kind"] == "strong"}
+    by_key = {(r["op"], r["format"], r["engine"], r.get("regime", "")): r
+              for r in results if r["kind"] == "strong"}
     doc = json.loads(SIXSTATE_JSON.read_text())
     updated = 0
     for row in doc["states"]:
-        key = (row.get("op"), row.get("format"), row.get("engine", ""))
+        key = (row.get("op"), row.get("format"), row.get("engine", ""),
+               row.get("regime", ""))
         if key in by_key and row.get("auto_readout") == "pending-E5":
             r = by_key[key]
             # ZERO FLIP: state is unchanged; only auto_readout is written.
@@ -914,6 +947,41 @@ module {
 """
 
 
+# Repack GEMM (prefill) ground truth (q4_0 16x1-repacked, the GEMM-finale M3 flip):
+# the PREFILL sibling of the decode GEVM. The typed tcrv_rvv.typed_repack_gemm_loop_body
+# region decomposes into the ONE-strip N-column integer CORE brick + the columnsPerPass
+# per-column dual-fp16 scale FOLD bricks + the loop yield. This GT is the VLEN=128
+# columnsPerPass==4 form: the CORE brick prints its 4 per-column sumi in the printer's
+# GROUPED multi-result `%sumi:4 = ...` syntax, and there are FOUR per-column folds. The
+# CORE brick's contraction+reduction is FUSED (its nibble-step vwmacc accumulates
+# LANE-WISE into the per-column i16 lo/hi accumulators -- NO separate standalone_reduce,
+# and the per-column dual-fp16 scale FOLD is a scale multiply, not a reduce), so the
+# decomposed gate must derive constructed via the repack_gemm_lane_wise_q4_x_i8_dot
+# product+fused-reduce token. The region carries the (block_index, strip_row_offset,
+# columnsPerPass per-column vector acc) entry args.
+_GT_REPACK_GEMM = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", fold_model = "lane_wise_vector_scale"} {
+        ^bb0(%ib: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
+          %sumi:4 = tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot %vx, %vy, %vl block %ib strip %roff : index, index {kind = "repack_gemm_lane_wise_q4_x_i8_dot"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          %an0 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#0, %acc0, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          %an1 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#1, %acc1, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          %an2 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#2, %acc2, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          %an3 = tcrv_rvv.repack_gemm_dual_fp16_scale_fold %vx, %vy, %sumi#3, %acc3, %vl block %ib strip %roff : index, index {kind = "repack_gemm_dual_fp16_scale_fold"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m2">
+          tcrv_rvv.typed_repack_gemm_loop_yield %an0, %an1, %an2, %an3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
@@ -1097,11 +1165,38 @@ def cmd_self_test(_args):
     assert repack["decomposed"] is True, repack
     assert repack["derived_state"] == "constructed", repack
 
+    # Repack GEMM (prefill) ground truth (q4_0 16x1-repacked, GEMM-finale M3 flip):
+    # the PREFILL sibling of the GEVM. The region decomposes into the one-strip
+    # N-column integer CORE brick + the columnsPerPass per-column scale FOLD bricks +
+    # the yield. The CORE brick `repack_gemm_lane_wise_q4_x_i8_dot` satisfies BOTH the
+    # product AND reduce conjunct (its nibble-step vwmacc is a FUSED lane-wise
+    # dot-reduce), the per-column scale FOLDs carry no separate contraction, and no
+    # opaque *_block_dot appears, so it derives constructed. This exercises the GROUPED
+    # multi-result parse (`%sumi:4 = ...` for the columnsPerPass==4 VLEN128 core brick)
+    # and the distinct GEMM core mnemonic (NOT the GEVM's `repack_lane_wise...`).
+    repack_gemm = derive(parse_realized_body(_GT_REPACK_GEMM))
+    assert repack_gemm["manifest"] == [
+        "tcrv_rvv.typed_repack_gemm_loop_body",
+        "tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot",
+        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
+        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
+        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
+        "tcrv_rvv.repack_gemm_dual_fp16_scale_fold",
+        "tcrv_rvv.typed_repack_gemm_loop_yield",
+    ], repack_gemm["manifest"]
+    assert repack_gemm["has_opaque"] is False, repack_gemm
+    assert repack_gemm["has_product"] is True, repack_gemm
+    assert repack_gemm["has_reduce"] is True, repack_gemm
+    assert repack_gemm["decomposed"] is True, repack_gemm
+    assert repack_gemm["derived_state"] == "constructed", repack_gemm
+
     # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
     assert strong["derived_state"] != scale["derived_state"]
     assert repack["derived_state"] != weak["derived_state"]
     assert repack["derived_state"] != scale["derived_state"]
+    assert repack_gemm["derived_state"] != weak["derived_state"]
+    assert repack_gemm["derived_state"] != scale["derived_state"]
     assert superblock["derived_state"] != weak["derived_state"]
     assert superblock["derived_state"] != scale["derived_state"]
     assert superblock_q6k["derived_state"] != weak["derived_state"]
@@ -1123,6 +1218,7 @@ def cmd_self_test(_args):
           "strong(super-block iq1_s grid_core fused reduce)=constructed / "
           "strong(super-block iq1_m grid_core fused reduce)=constructed / "
           "strong(repack GEVM lane-wise dot fused reduce, grouped %r:2 parse)=constructed / "
+          "strong(repack GEMM prefill lane-wise dot fused reduce, grouped %r:4 parse)=constructed / "
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate)")
     return 0
 

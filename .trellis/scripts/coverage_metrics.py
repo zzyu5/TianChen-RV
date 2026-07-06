@@ -65,13 +65,20 @@ def compute_hash(obj) -> str:
 
 # --- keys ------------------------------------------------------------------
 def kernel_key(entry):
-    """Join key for a roster kernel or a six-state row: (op, format, engine).
+    """Join key for a roster kernel or a six-state row: (op, format, engine, regime).
 
     engine is part of identity only where present (gemm_tile rvv vs ime); other
     ops carry engine == "". (op, format) alone disambiguates vec_dot/q4_0 from
     product_reduce/q4_0_nibble because op AND format differ.
+
+    regime is part of identity only where present (gemm_tile/q4_0/rvv splits into
+    the DECODE GEVM cell and the PREFILL GEMM cell -- two distinct repack routes
+    constructed by lowerToRepackGemv / lowerToRepackGemm on the m_regime axis); all
+    other keys carry regime == "" so they are byte-unchanged. The roster row and its
+    six-state row must agree on regime to join.
     """
-    return (entry["op"], entry["format"], entry.get("engine", ""))
+    return (entry["op"], entry["format"], entry.get("engine", ""),
+            entry.get("regime", ""))
 
 
 # --- core metric computation (PURE: no git, no files) ----------------------
