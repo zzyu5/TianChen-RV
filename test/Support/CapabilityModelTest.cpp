@@ -608,6 +608,133 @@ module {
                  "than a generic property"))
     return result;
 
+  // Transitive `implies` closure. The one-hop CapabilityDescriptor::satisfiesID
+  // cannot see past a descriptor's own direct implies list, so multi-hop
+  // resolution (A implies B, B implies C => A satisfies C) is the
+  // TargetCapabilitySet-level closure primitive. Each helper builds an
+  // implies-only relations attr.
+  auto impliesOnly = [&](llvm::StringRef impliedID) {
+    return CapabilityRelationsAttr::get(
+        &context, /*provides=*/{},
+        /*implies=*/{mlir::StringAttr::get(&context, impliedID)},
+        /*conflicts=*/{});
+  };
+
+  // chain.a --implies--> chain.b --implies--> chain.deep, where chain.deep has
+  // NO descriptor of its own (a closure leaf reachable only transitively from A).
+  TargetCapabilitySet closureCapabilities;
+  if (int result = expectSuccess(
+          closureCapabilities.tryAddCapability(CapabilityDescriptor(
+              "chain_a", "chain.a", "profile", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("chain.b"))),
+          "add chain head A (implies chain.b)"))
+    return result;
+  if (int result = expectSuccess(
+          closureCapabilities.tryAddCapability(CapabilityDescriptor(
+              "chain_b", "chain.b", "profile", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("chain.deep"))),
+          "add chain middle B (implies chain.deep)"))
+    return result;
+  const CapabilityDescriptor *chainA =
+      closureCapabilities.lookupByID("chain.a");
+  if (int result = expect(static_cast<bool>(chainA), "chain head A present"))
+    return result;
+  if (int result =
+          expect(!chainA->satisfiesID("chain.deep"),
+                 "one-hop satisfiesID does NOT reach a 2-hop implied id"))
+    return result;
+  if (int result = expect(
+          closureCapabilities.satisfiesIDTransitively(*chainA, "chain.deep"),
+          "satisfiesIDTransitively reaches the 2-hop implied id"))
+    return result;
+  if (int result = expect(
+          closureCapabilities.satisfiesIDTransitively(*chainA, "chain.b"),
+          "satisfiesIDTransitively still resolves the 1-hop implied id"))
+    return result;
+  auto chainClosure = closureCapabilities.computeImpliedClosure(*chainA);
+  if (int result =
+          expect(chainClosure.size() == 2 && chainClosure.count("chain.b") &&
+                     chainClosure.count("chain.deep"),
+                 "implied closure of A is exactly {chain.b, chain.deep}"))
+    return result;
+  const CapabilityDescriptor *deepProvider =
+      closureCapabilities.lookupProviderByID("chain.deep");
+  if (int result = expect(deepProvider &&
+                              closureCapabilities.satisfiesIDTransitively(
+                                  *deepProvider, "chain.deep"),
+                          "provider lookup resolves the transitively-implied id"))
+    return result;
+
+  // Cycle safety: A implies B, B implies A must terminate.
+  TargetCapabilitySet cyclicCapabilities;
+  if (int result = expectSuccess(
+          cyclicCapabilities.tryAddCapability(CapabilityDescriptor(
+              "cycle_a", "cycle.a", "profile", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("cycle.b"))),
+          "add cyclic A (implies cycle.b)"))
+    return result;
+  if (int result = expectSuccess(
+          cyclicCapabilities.tryAddCapability(CapabilityDescriptor(
+              "cycle_b", "cycle.b", "profile", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("cycle.a"))),
+          "add cyclic B (implies cycle.a)"))
+    return result;
+  const CapabilityDescriptor *cycleA =
+      cyclicCapabilities.lookupByID("cycle.a");
+  if (int result = expect(static_cast<bool>(cycleA), "cyclic A present"))
+    return result;
+  auto cycleClosure = cyclicCapabilities.computeImpliedClosure(*cycleA);
+  if (int result =
+          expect(cycleClosure.size() == 2 && cycleClosure.count("cycle.a") &&
+                     cycleClosure.count("cycle.b"),
+                 "cyclic implied closure terminates at {cycle.a, cycle.b}"))
+    return result;
+
+  // Zvfh instance fixture: mirror the RVV probe profile's real fp16-vector chain
+  //   rvv.zvfh --implies--> rvv.zvfhmin --implies--> rvv.zve32f
+  // and assert the closure resolves rvv.zvfh |= rvv.zve32f THROUGH the
+  // intermediate rvv.zvfhmin descriptor (rvv.zve32f is a closure leaf).
+  TargetCapabilitySet zvfhCapabilities;
+  if (int result = expectSuccess(
+          zvfhCapabilities.tryAddCapability(CapabilityDescriptor(
+              "rvv_zvfh", "rvv.zvfh", "isa-vector-fp16", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvv.zvfhmin"))),
+          "add rvv.zvfh (implies rvv.zvfhmin)"))
+    return result;
+  if (int result = expectSuccess(
+          zvfhCapabilities.tryAddCapability(CapabilityDescriptor(
+              "rvv_zvfhmin", "rvv.zvfhmin", "isa-vector-fp16", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvv.zve32f"))),
+          "add rvv.zvfhmin (implies rvv.zve32f)"))
+    return result;
+  const CapabilityDescriptor *zvfh = zvfhCapabilities.lookupByID("rvv.zvfh");
+  if (int result = expect(static_cast<bool>(zvfh), "rvv.zvfh present"))
+    return result;
+  if (int result = expect(!zvfh->satisfiesID("rvv.zve32f"),
+                          "one-hop satisfiesID does NOT reach rvv.zve32f from "
+                          "rvv.zvfh"))
+    return result;
+  if (int result = expect(
+          zvfhCapabilities.satisfiesIDTransitively(*zvfh, "rvv.zve32f"),
+          "rvv.zvfh transitively satisfies rvv.zve32f through rvv.zvfhmin"))
+    return result;
+  auto zvfhClosure = zvfhCapabilities.computeImpliedClosure(*zvfh);
+  if (int result =
+          expect(zvfhClosure.size() == 2 && zvfhClosure.count("rvv.zvfhmin") &&
+                     zvfhClosure.count("rvv.zve32f"),
+                 "rvv.zvfh implied closure is {rvv.zvfhmin, rvv.zve32f}"))
+    return result;
+  if (int result = expect(
+          zvfhCapabilities.isCapabilityAvailableByID("rvv.zve32f"),
+          "transitively-implied rvv.zve32f is available by relation"))
+    return result;
+
   llvm::outs() << "capability model smoke test passed\n";
   return 0;
 }

@@ -350,16 +350,58 @@ TargetCapabilitySet::lookupProviderByID(llvm::StringRef id) const {
     return exact;
 
   for (const CapabilityDescriptor &capability : capabilities) {
-    if (capability.satisfiesID(id) && capability.isAvailable())
+    if (satisfiesIDTransitively(capability, id) && capability.isAvailable())
       return &capability;
   }
 
   for (const CapabilityDescriptor &capability : capabilities) {
-    if (capability.satisfiesID(id))
+    if (satisfiesIDTransitively(capability, id))
       return &capability;
   }
 
   return nullptr;
+}
+
+llvm::StringSet<>
+TargetCapabilitySet::computeImpliedClosure(
+    const CapabilityDescriptor &seed) const {
+  // Worklist BFS over `implies` edges. Each entry is trimmed to replicate the
+  // relationListContains query-time normalization, so closure membership matches
+  // one-hop `impliesID` resolution exactly. Intermediate ids are resolved to a
+  // provider descriptor by EXACT id (`lookupByID`, never the now-transitive
+  // provider query) so the walk cannot recurse into itself; ids with no matching
+  // descriptor are leaves. The `closure` set doubles as the visited set, so a
+  // cycle (A implies B, B implies A) expands each node once and terminates.
+  llvm::StringSet<> closure;
+  llvm::SmallVector<llvm::StringRef, 8> worklist;
+
+  auto enqueueImplies = [&](const CapabilityDescriptor &descriptor) {
+    for (mlir::StringAttr entry : descriptor.getImpliedIDs()) {
+      if (!entry)
+        continue;
+      llvm::StringRef implied = entry.getValue().trim();
+      if (!implied.empty())
+        worklist.push_back(implied);
+    }
+  };
+
+  enqueueImplies(seed);
+  while (!worklist.empty()) {
+    llvm::StringRef current = worklist.pop_back_val();
+    if (!closure.insert(current).second)
+      continue; // already expanded
+    if (const CapabilityDescriptor *provider = lookupByID(current))
+      enqueueImplies(*provider);
+  }
+
+  return closure;
+}
+
+bool TargetCapabilitySet::satisfiesIDTransitively(
+    const CapabilityDescriptor &descriptor, llvm::StringRef id) const {
+  if (descriptor.satisfiesID(id))
+    return true;
+  return computeImpliedClosure(descriptor).count(id) != 0;
 }
 
 void TargetCapabilitySet::collectProvidersByID(
@@ -371,7 +413,7 @@ void TargetCapabilitySet::collectProvidersByID(
   }
 
   for (const CapabilityDescriptor &capability : capabilities) {
-    if (capability.satisfiesID(id))
+    if (satisfiesIDTransitively(capability, id))
       out.push_back(&capability);
   }
 }
@@ -430,7 +472,7 @@ void TargetCapabilitySet::collectAvailableConflictsForCapability(
       llvm::StringRef conflictID = conflictEntry.getValue().trim();
       if (conflictID.empty())
         continue;
-      if (requiredCapability.satisfiesID(conflictID))
+      if (satisfiesIDTransitively(requiredCapability, conflictID))
         appendConflict(candidate, candidate, conflictID);
     }
   }
@@ -463,7 +505,7 @@ bool TargetCapabilitySet::isCapabilityAvailableByID(llvm::StringRef id) const {
     return exact->isAvailable();
 
   for (const CapabilityDescriptor &capability : capabilities) {
-    if (capability.satisfiesID(id) && capability.isAvailable())
+    if (satisfiesIDTransitively(capability, id) && capability.isAvailable())
       return true;
   }
 

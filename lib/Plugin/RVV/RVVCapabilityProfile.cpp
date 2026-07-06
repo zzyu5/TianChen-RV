@@ -48,6 +48,18 @@ constexpr llvm::StringLiteral kRVVSelectedMABICapabilityID(
     "rvv.toolchain.mabi");
 constexpr llvm::StringLiteral kRVVSelectedMABICapabilitySymbol(
     "rvv_toolchain_mabi");
+// Zvfh fp16-vector capability chain. These form a real multi-hop `implies`
+// chain in the RVV capability set: rvv.zvfh implies rvv.zvfhmin, and
+// rvv.zvfhmin implies rvv.zve32f. The transitive closure resolves
+// rvv.zvfh |= rvv.zve32f THROUGH the rvv.zvfhmin descriptor (the closure's live
+// fixture). Only added when the probed ISA evidence genuinely names the token
+// (never fabricated on a board that lacks it -- core-invariants I5).
+constexpr llvm::StringLiteral kRVVZvfhCapabilityID("rvv.zvfh");
+constexpr llvm::StringLiteral kRVVZvfhCapabilitySymbol("rvv_zvfh");
+constexpr llvm::StringLiteral kRVVZvfhMinCapabilityID("rvv.zvfhmin");
+constexpr llvm::StringLiteral kRVVZvfhMinCapabilitySymbol("rvv_zvfhmin");
+constexpr llvm::StringLiteral kRVVZve32fCapabilityID("rvv.zve32f");
+constexpr llvm::StringLiteral kRVVZvfhCapabilityKind("isa-vector-fp16");
 constexpr llvm::StringLiteral kAvailableStatus("available");
 
 using CapabilityProperties = std::map<std::string, std::string>;
@@ -105,6 +117,26 @@ void validateFactString(llvm::StringRef name, llvm::StringRef value,
                          .str());
 }
 
+// True when `token` appears in `text` as a full extension token (bounded by a
+// non-alphanumeric separator or a string boundary), so "zvfh" matches
+// rv64gcv_zvfh but NOT the leading "zvfh" inside "zvfhmin". `text` is expected
+// lowercased; `token` must be a lowercase literal.
+bool containsIsaToken(llvm::StringRef text, llvm::StringRef token) {
+  std::size_t pos = text.find(token);
+  while (pos != llvm::StringRef::npos) {
+    std::size_t end = pos + token.size();
+    bool leftBoundary =
+        pos == 0 || !std::isalnum(static_cast<unsigned char>(text[pos - 1]));
+    bool rightBoundary =
+        end == text.size() ||
+        !std::isalnum(static_cast<unsigned char>(text[end]));
+    if (leftBoundary && rightBoundary)
+      return true;
+    pos = text.find(token, pos + 1);
+  }
+  return false;
+}
+
 bool hasRVVVectorHint(llvm::StringRef hints) {
   std::string lower = hints.lower();
   llvm::StringRef normalized(lower);
@@ -145,16 +177,20 @@ llvm::Error addAvailableCapability(mlir::MLIRContext &context,
                                    llvm::StringRef symbolName,
                                    llvm::StringRef id, llvm::StringRef kind,
                                    CapabilityProperties properties = {},
-                                   llvm::ArrayRef<std::string> providedIDs =
-                                       {}) {
+                                   llvm::ArrayRef<std::string> providedIDs = {},
+                                   llvm::ArrayRef<std::string> impliedIDs = {}) {
   tcrv::exec::CapabilityRelationsAttr relations;
-  if (!providedIDs.empty()) {
+  if (!providedIDs.empty() || !impliedIDs.empty()) {
     llvm::SmallVector<mlir::StringAttr, 4> provides;
     provides.reserve(providedIDs.size());
     for (const std::string &providedID : providedIDs)
       provides.push_back(mlir::StringAttr::get(&context, providedID));
+    llvm::SmallVector<mlir::StringAttr, 4> implies;
+    implies.reserve(impliedIDs.size());
+    for (const std::string &impliedID : impliedIDs)
+      implies.push_back(mlir::StringAttr::get(&context, impliedID));
     relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
-                                                         /*implies=*/{},
+                                                         implies,
                                                          /*conflicts=*/{});
   }
   return capabilities.tryAddCapability(support::CapabilityDescriptor(
@@ -487,6 +523,36 @@ buildRVVTargetCapabilitiesFromProbeFacts(
       context, capabilities, getRVVPreferredCapabilitySymbol(),
       getRVVCapabilityID(), getRVVCapabilityKind(), std::move(rvvProperties)))
     return std::move(error);
+
+  // Zvfh fp16-vector capability chain, advertised strictly from probed ISA
+  // evidence. rvv.zvfhmin is added whenever the target names Zvfhmin (or the
+  // full Zvfh superset, which subsumes it); rvv.zvfh is added only when the full
+  // Zvfh token is named. Together they form a real multi-hop `implies` graph --
+  // rvv.zvfh implies rvv.zvfhmin, rvv.zvfhmin implies rvv.zve32f -- that the
+  // transitive closure walks descriptor-to-descriptor (rvv.zvfh |= rvv.zve32f).
+  // These are never fabricated on a board lacking the extension (I5): the token
+  // boundary check keeps the "zvfh" prefix of "zvfhmin" from minting full Zvfh.
+  std::string isaEvidence =
+      (llvm::StringRef(facts.selectedMarch).lower() + " " +
+       llvm::StringRef(facts.isaVectorHints).lower());
+  llvm::StringRef isaEvidenceRef(isaEvidence);
+  bool hasZvfhFull = containsIsaToken(isaEvidenceRef, "zvfh");
+  bool hasZvfhMin = hasZvfhFull || containsIsaToken(isaEvidenceRef, "zvfhmin");
+  if (hasZvfhMin) {
+    if (llvm::Error error = addAvailableCapability(
+            context, capabilities, kRVVZvfhMinCapabilitySymbol,
+            kRVVZvfhMinCapabilityID, kRVVZvfhCapabilityKind, /*properties=*/{},
+            /*providedIDs=*/{}, {kRVVZve32fCapabilityID.str()}))
+      return std::move(error);
+  }
+  if (hasZvfhFull) {
+    if (llvm::Error error = addAvailableCapability(
+            context, capabilities, kRVVZvfhCapabilitySymbol,
+            kRVVZvfhCapabilityID, kRVVZvfhCapabilityKind, /*properties=*/{},
+            /*providedIDs=*/{}, {kRVVZvfhMinCapabilityID.str()}))
+      return std::move(error);
+  }
+
   if (llvm::Error error = addAvailableCapability(
           context, capabilities, getRVVHartCountCapabilitySymbol(),
           getRVVHartCountCapabilityID(), "uarch",

@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 
 #include <cstddef>
@@ -102,6 +103,28 @@ public:
   lookupBySymbolName(llvm::StringRef symbolName) const;
   const CapabilityDescriptor *lookupByID(llvm::StringRef id) const;
   const CapabilityDescriptor *lookupProviderByID(llvm::StringRef id) const;
+
+  // Transitive closure of the `implies` relation reachable from `seed`. Starting
+  // from `seed`'s directly implied ids, each implied id is trimmed (relation
+  // query-time parity), resolved to its provider descriptor by EXACT id, and
+  // that provider's implied ids are followed in turn, to a fixpoint. The result
+  // is the set of every id reachable via one-or-more `implies` hops; it excludes
+  // `seed`'s own id and its `provides` ids (only `implies` edges are walked).
+  // Cycles terminate via the visited set. This is the single primitive that
+  // makes `implies` transitive: a single `CapabilityDescriptor` only knows its
+  // own one-hop relation lists, so multi-hop resolution must live at the set
+  // level where implied ids can be resolved to their provider descriptors.
+  llvm::StringSet<>
+  computeImpliedClosure(const CapabilityDescriptor &seed) const;
+
+  // Whether `descriptor` satisfies `id` accounting for transitive `implies`:
+  // true when it satisfies `id` directly (exact id / provides / one-hop implies)
+  // OR `id` lies in `descriptor`'s transitive implies closure. This is the
+  // set-level counterpart to the one-hop CapabilityDescriptor::satisfiesID; the
+  // set-level provider/availability queries below resolve through it.
+  bool satisfiesIDTransitively(const CapabilityDescriptor &descriptor,
+                               llvm::StringRef id) const;
+
   void collectProvidersByID(
       llvm::StringRef id,
       llvm::SmallVectorImpl<const CapabilityDescriptor *> &out) const;
