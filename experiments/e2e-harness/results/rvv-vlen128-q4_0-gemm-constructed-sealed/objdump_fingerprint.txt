@@ -1,0 +1,27 @@
+# STEP 2 mechanism seal — CONSTRUCTED q4_0 REPACK GEMM (prefill) is what runs (not vendor/hand-op)
+# board: rvv VLEN128, 2026-07-06. A-tree = tcrv-llamacpp/build-gcc15-rv64gcv (constructed .inc redeployed)
+
+## (1) RUNTIME BANNER (decisive engage proof — fires with real dims at execution)
+TCRV CONSTRUCTED GEMM(front-door be66c917 typed_repack_gemm_loop_body) ENGAGED n=2048 nr=32 nc=128 bs=2048
+TCRV EMITTED GEMM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nr=32 nc=128 nb=64
+TCRV EMITTED GEVM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nc=352 nb=64
+
+## (2) SYMBOL TABLE (nm -C, A repack.cpp.o)
+tcrv_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_...   (CONSTRUCTED body, route_source_op=typed_repack_gemm_loop_body)  present=1
+tcrv_emitc_ggml_repack_gemm_q4_0_q8_0_kernel_...        (deployed symbol via reversible ABI shim)
+tcrv_emitc_ggml_repack_gemv_q4_0_q8_0_kernel_...        (decode GEVM)
+
+## (3) RVV INSTRUCTION FINGERPRINT (A repack.cpp.o)
+# NB: the board's bare `objdump` and default `llvm-objdump` do NOT decode these RVV/zvfh
+# encodings (they print raw bytes -> a FALSE zero histogram). Correct invocation:
+#   llvm-objdump -d --mattr=+m,+a,+f,+d,+c,+v,+zve32f,+zve64d,+zvfh,+zvfhmin,+zfh,+zfhmin,+zba,+zbb,+zbs,+zbc
+# mattr-decoded histogram (packed-weight streamed integer-MAC + fp16-vector scale fold = the repack mechanism):
+    vwmacc.vx     512     (int16 widening multiply-accumulate: nibble x q8 lanes)
+    vle8.v        242     (contiguous packed-weight nibble loads)
+    vfcvt.f.x.v   118     (int32 -> f32 convert of the per-strip partial sums)
+    vse32.v        56     (streamed f32 output store)
+    vfmacc.vv      31     (f32 scale-fold accumulate)
+    vfwmul.vf      21     (fp16 -> f32 widening scale multiply  <= Zvfh)
+    vle16.v        21     (fp16 vector scale load               <= Zvfh)
+# This is the memory-locality repack mechanism (packed weight, contiguous vector streaming),
+# NOT ggml's per-block block-dot and NOT a vendor/hand kernel. Consistent with F23's fingerprint.

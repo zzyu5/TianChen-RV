@@ -1,0 +1,9 @@
+# iq3_xxs constructed super-block grid vec_dot vs no-FMA left-assoc ggml scalar oracle
+# board rvv VLEN128, clang-17 -ffp-contract=off -march=rv64gcv_zfh_zvfh_zicbop_zihintpause, 2026-07-06
+# ./bd23_verify iq3_xxs 4096 256 <seed>
+FMT=iq3_xxs n=4096 trials=256 bitexact=256/256 worst_ulp=0   seed=0x1234567
+VERDICT=BIT_EXACT
+FMT=iq3_xxs n=4096 trials=256 bitexact=256/256 worst_ulp=0   seed=0xABCDEF01
+VERDICT=BIT_EXACT
+FMT=iq3_xxs n=4096 trials=256 bitexact=256/256 worst_ulp=0   seed=0x55AA55AA
+VERDICT=BIT_EXACT

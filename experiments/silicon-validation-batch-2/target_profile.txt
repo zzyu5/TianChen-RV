@@ -1,0 +1,13 @@
+# silicon-validation-batch-2 target fingerprint (ssh rvv, 2026-07-06)
+board_label   = rvv-openeuler-vlen128
+uname         = Linux 6.12.66-0.0.0.0.riscv64 riscv64
+isa           = rv64imafdcv_...zfh_zfhmin_...zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin...
+VLEN          = 128
+nproc         = 64
+compiler      = clang version 17.0.6 (17.0.6-16.oe2403)
+kernel_march  = rv64gcv_zfh_zvfh_zicbop_zihintpause
+kernel_flags  = -O2 -mabi=lp64d -ffp-contract=off  (no-FMA reduction stays scalar/left-assoc for the oracle)
+oracle_source = /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c  (ggml_vec_dot_iq{2,3}_xxs_q8_K_generic)
+export_tools  = host tcrv-opt (build/bin) + mlir-translate (llvm-20)
+co_tenant     = another agent's SPEC CPU2006 401.bzip2 active (irrelevant to a bit-exact ULP test)
+date          = 2026-07-06

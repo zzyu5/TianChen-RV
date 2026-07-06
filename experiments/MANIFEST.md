@@ -162,6 +162,16 @@ silicon-validation-gemm cell — constructed q4_0 REPACK GEMM(PREFILL,M>1)硅验
 - `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/run_rvv.txt` — 板 raw(4 shapes,FMA-fold bounded-ULP)
 - `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/evidence.json` — GEMM FMA_FOLD_BOUNDED_ULP verdict + 4-shape f64 accuracy substantiation
 
+silicon-validation-batch-2 cell — iq3_xxs + iq2_xxs constructed super-block-grid vec_dot 硅验,flip silicon debt 2→0(board rvv/VLEN128, no-FMA 左结合 ggml scalar oracle, 2026-07-06;D-board step 4):
+- `experiments/silicon-validation-batch-2/NOTES.md` — 方法 + BIT_EXACT(scalar fold, ULP=0)+ falsifier
+- `experiments/silicon-validation-batch-2/target_profile.txt` — board + clang-17 + oracle + host tool 指纹
+- `experiments/silicon-validation-batch-2/kernels/iq3_xxs.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-2/kernels/iq2_xxs.kernel.c` — front-door 导出 kernel-under-test(C)
+- `experiments/silicon-validation-batch-2/results/iq3_xxs/run_rvv.txt` — 板 raw(256/256 ×3 seeds)
+- `experiments/silicon-validation-batch-2/results/iq3_xxs/evidence.json` — iq3_xxs BIT_EXACT ULP=0
+- `experiments/silicon-validation-batch-2/results/iq2_xxs/run_rvv.txt` — 板 raw(256/256 ×3 seeds)
+- `experiments/silicon-validation-batch-2/results/iq2_xxs/evidence.json` — iq2_xxs BIT_EXACT ULP=0
+
 e2e cell — rvv/VLEN128 q4_0 repack generation-vs-routing 分相 + constructed-GEVM 重部署(2026-07-06):
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence.json` — 批级汇总(gen-vs-routing + sealed + decode 问答 + confound)
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/NOTES.md` — 方法 + 分相 + confound 诚实说明
@@ -173,6 +183,17 @@ e2e cell — rvv/VLEN128 q4_0 repack generation-vs-routing 分相 + constructed-
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_phase_split_raw.txt` — redeploy(constructed GEVM)板 raw
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/redeploy_aggregate.txt` — redeploy median+IQR+CI
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence_redeploy.json` — redeploy prefill 5.530×/decode 1.950×(cross-session confound)
+
+e2e cell — rvv/VLEN128 q4_0 REPACK GEMM prefill 5.9× SEALED + decode P1(D-board return finale,2026-07-06;完成 F23 中断的 "generated 5×" 句 + 复原;supersedes 上方 gitignore 的 gemm-constructed-redeploy interim):
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/NOTES.md` — 头条叙事 + 挣句 + decode 诚实 + confound
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/target_profile.txt` — board/model/toolchain/A-B + co-tenant 指纹
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/restore_verify.txt` — step0 干净基线复原 + preflight 4/4 + greedy 3/3
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/noisefloor_raw.txt` — step1 monolith baseline 板 raw(PASSES=2）
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/noisefloor_evidence.json` — step1 floor + monolith 5.86×/1.92×
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/constructed_raw.txt` — step2 constructed GEMM 板 raw（paired PASSES=2）
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/constructed_evidence.json` — step2 prefill 5.92×/decode 1.91× + CI + verdict
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/objdump_fingerprint.txt` — step2 机制封印（banner + mattr-decoded RVV fingerprint）
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/bandwidth_analysis.txt` — step3 decode bandwidth-achievement + washed 判定
 
 visibility 包 — T0/T7/T2 CI 自动产出(线E,2026-07-06,生成器在 tools/visibility/):
 - `experiments/visibility/T0-sixstate.md` — T0 六态普查(gen_sixstate_table.py 幂等产出,C_construct 19/93)

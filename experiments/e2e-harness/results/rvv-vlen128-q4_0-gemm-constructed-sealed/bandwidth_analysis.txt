@@ -1,0 +1,41 @@
+# STEP 3 — same-session paired DECODE + bandwidth-achievement analysis (P1)
+# board: rvv VLEN128, 2026-07-06, cores 8-11 / 4 threads, co-tenant SPEC bzip2 active.
+# Decode kernel is the emitted GEVM (tcrv_emitted_repack_gemv.inc) — IDENTICAL in the
+# monolith and constructed builds (only the prefill GEMM .inc differs), so the decode
+# numbers below hold for both; taken from the same paired sessions as the prefill 5.9x.
+
+## Measured decode throughput (paired, interleaved, PASSES=2 REPS=5)
+  ours (emitted GEVM)  = 9.02 t/s   (constructed run; monolith run 9.03 — consistent)
+  stock (block-dot)    = 4.72 t/s   (4.71 monolith)
+  ratio ours/stock     = 1.91x      95% CI [1.90, 1.92]   between-pass floor 0.75%   => DIFFERENCE (CI excl 1.0)
+
+## Memory-bandwidth ceiling (membw_probe.c, sustained scalar READ, same 4 cores, same board state)
+  single core (core 8)            = 5.01 GB/s
+  4-core aggregate (8,9,10,11)    = 5.23 GB/s   (per-core collapses 5.01 -> 1.31 when all 4 run
+                                                 => a SHARED memory channel saturating at ~5.2 GB/s)
+  NB: measured UNDER the same SPEC co-tenant as the decode run (apples-to-apples for THIS board state;
+      an idle board would raise both the ceiling and the decode t/s, but the ratio is protected).
+
+## Bandwidth-achievement (decode streams ~all transformer+output weights/token)
+  bytes/token (tinyllama-1.1B q4_0, structural estimate, embedding indexed not streamed) = 0.582 GB
+    ours  achieved read BW = 9.02 * 0.582 = 5.25 GB/s  ->  ~100% of the 5.23 GB/s 4-core ceiling  (SATURATED)
+    stock achieved read BW = 4.72 * 0.582 = 2.75 GB/s  ->  ~53%  of ceiling                        (UNDER the wall)
+  (bytes/token is a structural estimate; even at a conservative 0.5 GB/token the split is
+   ours ~86% / stock ~45% -- the qualitative conclusion is robust to the estimate.)
+
+## JUDGMENT (per the P1 gate: compute both achievements FIRST, then judge washed?)
+  NOT the "both sides hug peak => washed" case. The two sides sit at OPPOSITE regimes:
+    * OURS is AT the memory-bandwidth wall (~100% achievement). The repack GEVM streams the
+      packed weights contiguously (vle8/vle16, no per-block dequant scratch) and pulls the full
+      ~5.2 GB/s the 4-core channel can deliver.
+    * STOCK is at ~53% of the ceiling -- it is COMPUTE-bound (per-block dequant + dot), leaving
+      ~half the memory bandwidth unused.
+  => The 1.91x decode win is REAL (a memory-behavior win: we convert stock's wasted dequant
+     cycles into saturated weight streaming), NOT washed by a shared ceiling both sides hit.
+
+## HONEST CAVEAT (do not over-claim)
+  Because our decode is bandwidth-SATURATED (~100%), it is CEILING-BOUNDED: ~9 t/s is the memory
+  wall for this model on this 4-core set -- no kernel change can push decode past it. The win is
+  "we reach the wall; stock is stuck below it on dequant compute", not "we are unboundedly faster".
+  This is consistent with the campaign finding that transducing e2e wins are the memory-behavior
+  ones (q4_0 GEVM locality), and that decode is memory-bound (here: our side proven at the wall).

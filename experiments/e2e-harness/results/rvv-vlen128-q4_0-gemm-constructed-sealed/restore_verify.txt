@@ -1,0 +1,48 @@
+# STEP 0 — restore-verify (hard gate) — D-board return 2026-07-06
+# Requirement: confirm a CLEAN baseline (A = our-compiler routing, B = stock,
+# greedy-consistency GREEN) BEFORE any measurement; do not measure on a polluted board.
+
+## Found state (F23 interim, as expected)
+A-tree prefill was STILL the finale-deployed CONSTRUCTED GEMM; the monolith .inc
+restore was pending. Evidence (live banner probe, A/bin/llama-bench -p32 -n8):
+    TCRV CONSTRUCTED GEMM(front-door be66c917 typed_repack_gemm_loop_body) ENGAGED n=2048 nr=32 nc=128 bs=2048
+    TCRV EMITTED GEMM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nr=32 nc=128 nb=64
+    TCRV EMITTED GEVM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nc=352 nb=64
+A-tree artifacts: tcrv_emitted_repack_gemm.inc = CONSTRUCTED (sha 777a1a59, be66c917,
+route_source_op=typed_repack_gemm_loop_body, ABI-shim tail) + preserved backup
+tcrv_emitted_repack_gemm.inc.orig-gemm-redeploy = MONOLITH emit (sha d0369438,
+route_source_op=repack_gemm_q4_0_q8_0, the pre-F21 route). => polluted / interim.
+
+## Restore action (reversible; board build tree only)
+1. preserved constructed .inc -> tcrv_emitted_repack_gemm.inc.constructed-be66c917 (for step 2 redeploy)
+2. restored MONOLITH emit  (cp .orig-gemm-redeploy -> tcrv_emitted_repack_gemm.inc; touch to defeat
+   the cp-preserved mtime so ninja recompiles) and targeted rebuild (llama-bench + llama-cli only,
+   skips a hung ui-assets HuggingFace fetch at ninja target 90/96).
+   repack.cpp.o recompiled 42976->41264 B; libggml-cpu.so + bins relinked.
+
+## Clean-baseline verification — ALL GREEN
+banner (monolith engaged, NO constructed banner):
+    TCRV EMITTED GEMM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nr=32 nc=128 nb=64
+    TCRV EMITTED GEVM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nc=352 nb=64
+symbols: tcrv_emitc_ggml_repack_gemm_q4_0_q8_0_kernel... @0x0 (monolith body, no ABI shim)
+         tcrv_emitc_ggml_repack_gemv_q4_0_q8_0_kernel... (decode GEVM)
+         (constructed body symbol tcrv_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel ABSENT)
+
+STRICT preflight (ALLOW_MARCH_INCOMPLETE=0), 4/4 gates GREEN:
+  (3) same-compiler   : gcc 15.2.0, identical flags/build-type A==B
+  (1) march-complete  : rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause covers board critical exts
+  (2) libcall-free    : A scanned 4 objs, B scanned 4 objs, no __extendhfsf2-class fp16 softfloat libcall
+  (4) fingerprint     : board VLEN=128 == target 128
+
+GREEDY-CONSISTENCY gate (A monolith vs B stock, temp=0, 3 prompts, threads=16):
+  prompt[1] 'The capital of France is'  -> GREEDY-TOKEN-CONSISTENT (A==B)
+  prompt[2] 'Once upon a time'          -> GREEDY-TOKEN-CONSISTENT (A==B)
+  prompt[3] 'Q: What is 2 + 2? A:'      -> GREEDY-TOKEN-CONSISTENT (A==B)
+  LOGITS SANITY: no NaN/Inf (finite)   ==> CORRECTNESS_GATE: GREEN (consistent=3 failed=0)
+
+VERDICT: clean baseline CONFIRMED (A = our-compiler-routing monolith emit, B = stock,
+greedy-consistency GREEN, preflight 4/4). Cleared to measure.
+
+# objdump note: the board's bare objdump / default llvm-objdump do NOT decode the RVV
+# vwmacc.vx / vfwmul.vf / vle16.v(f16) ops (render as raw bytes -> false zeros). The real
+# RVV fingerprint requires  llvm-objdump -d --mattr=+v,+zvfh,+zve64d,...  (see objdump_fingerprint.txt).

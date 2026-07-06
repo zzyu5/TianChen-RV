@@ -1,0 +1,38 @@
+# board identity fingerprint — D-board return session 2026-07-06 (ssh rvv)
+# (this cell = sealed q4_0 REPACK GEMM prefill 5x + decode GEVM, steps 0-3 of the D-board packing list)
+
+board_label      = rvv-openeuler-vlen128
+host             = ssh rvv (localhost.localdomain)
+uname            = Linux 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb 2 22:50:01 CST 2026 riscv64
+isa              = rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+VLEN             = 128 (confirmed: preflight gate-4 + emitted-kernel engage banner)
+nproc            = 64   pinned_cores = 8-11   threads = 4
+governor         = performance   cpu_max_khz = 2600000 (2.6 GHz)   DVFS span across run = 0.00%
+libc             = glibc 2.38
+
+# build/kernel toolchain (A + B trees, symmetric)
+kernel_cc        = gcc (GCC) 15.2.0  (/opt/tcrv-toolchains/gcc-15.2.0)
+kernel_march     = rv64gcv_zfh_zfhmin_zvfh_zvfhmin_zfa_zba_zbb_zbc_zbs_zicbom_zicboz_zicbop_zicond_zawrs_zihintpause
+build_type       = Release   (full-capability march, non-advisory preflight gate-1 GREEN, libcall-free gate-2 GREEN)
+# silicon-validation / objdump toolchain
+silicon_cc       = clang 17.0.6 (openEuler)  -march=rv64gcv_zfh_zvfh_zicbop_zihintpause -ffp-contract=off
+disasm           = llvm-objdump 17.0.6  (--mattr=+v,+zvfh,... required to decode RVV/zvfh ops;
+                   the board's bare GNU objdump/llvm-objdump default do NOT decode vwmacc/vfwmul/etc.)
+
+# A/B trees
+A_ours           = /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv        (patched ggml -> TCRV compiler-EMITTED q4_0 repack kernel, engages @ VLEN128)
+B_stock          = /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv  (unpatched upstream, ggml block-dot)
+both git         = f3e1828
+
+# model
+model            = tinyllama-q4_0.gguf   size = 637699456 B (~608 MiB)   sha256(16) = da3087fb14aede55
+
+# CO-TENANT (honest confound note)
+co_tenant        = another agent's SPEC CPU2006 401.bzip2 (ref) run active on the board THROUGHOUT
+                   this session (3x bzip2_base worker, affinity 0-63, unpinned, ~1 core @ 100%).
+                   NOT interfered with (not our job). On a 64-core board the scheduler keeps it off
+                   the pinned cores 8-11; residual = a small shared-memory-bandwidth perturbation,
+                   captured in the T-N noise floor (~2.5% prefill / ~2.0% decode between-pass).
+                   The paired A/B interleaved-same-session protocol cancels common-mode drift, so
+                   the RATIO is protected; absolute t/s is depressed vs an idle board.
+date             = 2026-07-06

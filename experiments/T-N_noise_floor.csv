@@ -9,3 +9,16 @@ rvv,q8_0-vecdot-micro-fixed/factory,3506.0ns,3506.2ns,0.006,between-run(min-of-7
 # 与 T3_A/T3_B 同一 contaminated 指纹;方法学(repeat-repeat 方差地板)本身有效,但绝对
 # ns / 据此判定的 T3 parity 幅度不可引用。须按新工具链政策(clang-20 + 板全能力 march;
 # 实验总纲v1 §1 第9/10条)随 T3 重测(Phase 1)。原数据行保留不删。
+# ===== D-board return 2026-07-06 (HEAD 5c010b2b) — rvv VLEN128 q4_0 e2e, MEASURED =====
+# floor = between-run repeat-repeat (pass1-median vs pass2-median), same median-of-5-reps statistic
+# as the sealed T3-style A/B ratio (self-consistent gate). Board fp: rvv-openeuler VLEN128,
+# full-capability march (gcc-15.2.0), performance governor locked 2.6GHz (DVFS span 0%), pinned
+# cores 8-11 / 4 threads. CONFOUND: another agent's SPEC CPU2006 401.bzip2 co-tenant active
+# throughout -> the ~2.5% ours-side floor is contention-inflated (stock side 0.15-0.27% = slow+steady).
+# Cell: experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-sealed/
+rvv,q4_0-e2e-prefill-pp128/ours-monolith-emit(clean-baseline),31.0772t/s,30.3108t/s,2.50,between-run(pass1v2;pinned8-11;4thr;2.6GHz-0%span;SPEC-cotenant),vlen128-fullmarch-2.6GHz-cotenant,5c010b2b,measured
+rvv,q4_0-e2e-prefill-pp128/stock-blockdot,5.2393t/s,5.2316t/s,0.15,between-run(pass1v2;pinned8-11;4thr;2.6GHz-0%span;SPEC-cotenant),vlen128-fullmarch-2.6GHz-cotenant,5c010b2b,measured
+rvv,q4_0-e2e-decode-tg32/ours-emitted-gevm,9.1221t/s,8.9407t/s,2.01,between-run(pass1v2;pinned8-11;4thr;2.6GHz-0%span;SPEC-cotenant),vlen128-fullmarch-2.6GHz-cotenant,5c010b2b,measured
+rvv,q4_0-e2e-decode-tg32/stock-blockdot,4.7244t/s,4.7116t/s,0.27,between-run(pass1v2;pinned8-11;4thr;2.6GHz-0%span;SPEC-cotenant),vlen128-fullmarch-2.6GHz-cotenant,5c010b2b,measured
+# constructed-GEMM sealed run reproduced a tighter floor (prefill 0.25% / decode 0.75%, co-tenant
+# 3->2 bzip2), consistent; the 2.5% above is the conservative (higher-contention) floor for judging.
