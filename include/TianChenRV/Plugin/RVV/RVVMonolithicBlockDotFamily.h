@@ -1858,7 +1858,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // resolver disambiguates it from q4_K/q5_K (dual) by fold_model, then by the
        // loop op's weight_block_stride (210 vs q4_K 144 / q5_K 176).
        TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
-      {tcrv::rvv::GgmlBlockDotTQ10Q8KOp::getOperationName(),
+      {"tcrv_rvv.tq1_0_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq1_0_q8_K_block_dot_source",
        "tcrv-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
@@ -1866,7 +1866,21 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_tq1_0_q8_K_block_dot", "rvv_tq1_0_q8_K_block_dot_from_vector_source",
        "ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold",
        "ggml TQ1_0 x Q8_K super-block ternary block-dot source front door failed: ", "tq1-weight", "q8-act",
-       "", kTQ10Facts, {}, {}, {}, {}},
+       "", kTQ10Facts, {}, {}, {}, {},
+       // tq1_0 flip (C_construct 25->26, the SECOND TQ-family member): the typed super-block
+       // SCALAR-accumulator loop body (fold_model "scalar_delta_grid" -- tq1_0's fold is a
+       // single per-super-block scalar `sumf += (float)sumi * d`, d = fp16(x.d @52) * y.d @0,
+       // sumi being the scalar state of the tq1_0 BASE-3 ternary integer core). Shares
+       // tq2_0's selector; the emitter dispatches by the DISTINCT tq1_0 ternary-core brick
+       // identity (arithmetic BASE-3 decode, NO grid/signs gather). tq1_0's
+       // weight_block_stride 54 is UNIQUE among scalar_delta_grid bricks (tq2_0/iq2_xxs are
+       // 66), so it resolves by stride with NO tie-breaker. The monolith op
+       // tcrv_rvv.tq1_0_q8_k_block_dot is RETIRED (this opName is now a dead string -- no op
+       // carries it; the row is reached by the marker for construction and by this selector
+       // for export resolution). The SECOND TQ member REUSES the whole tq2_0 ternary scaffold
+       // at C2 marginal cost and only adds a variant integer-core brick (base-3 unpack) that
+       // PRESERVES tq1_0's Win-A integer_core_lmul m2/m1 gearbox (kernel key "tq1_0").
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"tcrv_rvv.tq2_0_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq2_0_q8_K_block_dot_source",

@@ -554,6 +554,35 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq20 (typed super-block SCALAR-accumulator TERNARY loop body; FIRST TQ-family member, arithmetic 2-bit ternary core, Win-A m2/m1 gearbox preserved)",
     },
+    # tq1_0 vec_dot: STRONG (the SECOND TQ-family member flipped, C_construct 25->26 -- the
+    # base-3-packed sibling of tq2_0, REUSING the tq2_0 ternary scaffold at C2 marginal cost).
+    # tq1_0 is the BASE-3 TERNARY ({-1,0,+1}) TriLM K-quant: the SAME single per-super-block
+    # SCALAR fold arity (fold_model "scalar_delta_grid"), so its front door
+    # (createTypedSuperBlockScalarDeltaGridLoopChainTq10) REUSES the WHOLE tq2_0 ternary scaffold
+    # and constructs the typed SUPER-BLOCK SCALAR-accumulator loop body out of just ONE
+    # decomposed brick: the DISTINCT tq1_0 BASE-3 TERNARY INTEGER CORE (tq1_0_q8_k_ternary_core
+    # -- the qs main/tail + qh base-3 trit unpack `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)
+    # >>8; xi-1` into an element-ordered aux8[256] + the flat-256 widened i8*i8 dot vle8 i8 x q8
+    # i8 -> vwmul i16 -> vwredsum i32 producing the per-super-block scalar sumi --
+    # decode_model=arithmetic, NO grid/codebook gather, NO 2-bit field shift). Its fold is a
+    # single per-super-block scalar `sumf += (float)sumi * d` (d = fp16(x.d @52) * y.d @0, NO
+    # trailing factor), emitter-inlined. NOT the opaque emitTQ1_0Q8_KBlockDot hand helper (the
+    # GgmlBlockDotTQ10Q8KOp op + emitter + verifier + monolith conversion+dataflow tests RETIRED
+    # same action as the flip). The contraction+reduction is the base-3 unpack + the flat-256
+    # vwmul + vwredsum INSIDE the ternary core (see _FUSED_DOT_REDUCE_RE's ternary_core token);
+    # NO opaque *_block_dot op, so [L-8] derives constructed (STRONG). tq1_0's weight_block_stride
+    # 54 is UNIQUE among the scalar_delta_grid bricks (tq2_0/iq2_xxs are 66), so it resolves to
+    # its OWN export entry by stride with NO tie-breaker (cheaper than tq2_0). Like tq2_0 the
+    # ternary-core brick PRESERVES tq1_0's Win-A integer_core_lmul m2/m1 gearbox (kernel key
+    # "tq1_0"), so tq1_0 IS in the schedule autotuner and HAS a VLEN128(m2)-vs-VLEN256(m1)
+    # byte-flip. It REUSES the tq2_0 ternary scaffold at C2 marginal cost (the second TQ cell).
+    {
+        "op": "vec_dot", "format": "tq1_0", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "tq1-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq10 (typed super-block SCALAR-accumulator BASE-3 TERNARY loop body; SECOND TQ-family member, arithmetic base-3 ternary core reusing the tq2_0 scaffold, Win-A m2/m1 gearbox preserved)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/

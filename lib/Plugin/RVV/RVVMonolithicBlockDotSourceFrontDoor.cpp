@@ -2081,6 +2081,125 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
   }
 }
 
+// The tq1_0 sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the SECOND TQ-family
+// member (C_construct 25->26), the base-3-packed sibling of tq2_0. tq1_0 is the BASE-3
+// TERNARY ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block
+// SCALAR accumulator arity as tq2_0/iq1_s (fold_model "scalar_delta_grid", single `sumf`
+// scalar, emitter-inlined fold), REUSING the WHOLE tq2_0 ternary scaffold at C2 marginal cost
+// (the SAME loop op tcrv_rvv.typed_super_block_block_dot_loop_body, the SAME single-yield
+// contract, the SAME selector SuperBlockScalarDeltaGrid, the SAME emitter dispatch). The ONLY
+// marginal cost is a DISTINCT in-loop brick -- the tq1_0 BASE-3 TERNARY integer core
+// (tcrv_rvv.tq1_0_q8_k_ternary_core) -- because tq1_0's decode is base-3 (the `q =
+// (uint8_t)(byte*pow3[l]); xi = ((uint16_t)q*3)>>8; xi-1` power-of-three trit unpack over the
+// qs+qh weight arrays, NOT tq2_0's `(qs>>shift)&3` 2-bit field). Its whole fold is a single
+// per-super-block scalar `sumf += (float)sumi * d` with `d = fp16(x.d @52) * y.d @0` and NO
+// trailing factor, so the whole per-super-block body is emitter-inlined keyed off the
+// ternary-core brick identity. It resolves to its OWN export entry by fold_model +
+// weight_block_stride 54 (UNIQUE among the scalar_delta_grid bricks -- tq2_0/iq2_xxs are 66),
+// so NO stride tie-breaker is needed. Like tq2_0 the brick PRESERVES tq1_0's Win-A
+// integer_core_lmul m2/m1 gearbox (kernel key "tq1_0", left attr-less at construction = the
+// default m2 anchor). The brick's per-super-block addressing keys off the loop induction
+// variable (region arg 0), so the emit is operand-driven (anti-bypass).
+void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable(
+        "typed super-block scalar-delta-grid tq1_0 chain: missing fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 256 (QK_K)
+  std::int64_t weightStride = factByName("weight_block_stride");        //  54
+  std::int64_t activationStride = factByName("activation_block_stride"); // 292
+  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");    //   0
+  std::int64_t weightQhOffset = factByName("weight_qh_byte_offset");    //  48
+  std::int64_t weightDOffset = factByName("weight_d_byte_offset");      //  52
+  std::int64_t activationDOffset =
+      factByName("activation_d_byte_offset");                   //   0
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");               //   4
+
+  mlir::Type i32ScalarType = builder.getI32Type();
+  mlir::Type f32ScalarType = builder.getF32Type();
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute(
+      "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "scalar_delta_grid" KEYS the SCALAR-accumulator arity + the emitter dispatch;
+  // the emitter disambiguates tq1_0 from the iq* / tq2_0 siblings by the in-region base-3
+  // ternary-core brick op TYPE (and tq1_0's stride 54 is UNIQUE among these bricks).
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("scalar_delta_grid"));
+  // integer_core_lmul is LEFT OFF here (attr-less construction = the default m2 anchor, the
+  // byte-exact CORE target); tq1_0's Win-A gearbox lives on the ternary-core brick below and
+  // is refined m2->m1 at VLEN>=256 by the separate schedule pass.
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value sbIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value sumf = body.addArgument(f32ScalarType, loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the tq1_0 BASE-3 TERNARY INTEGER CORE (the three base-3 unpack regions -- qs main
+  // + qs tail + qh -- each `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)>>8; xi-1` decoded
+  // into an element-ordered aux8[256], then the flat-256 widened i8*i8 dot into the
+  // per-super-block scalar sumi). The LIVE operands are the weight base (%vx) + activation
+  // base (%vy) + n + vl + block_index; it produces ONE scalar i32 SSA result (the
+  // per-super-block sumi placeholder -- the emitter re-emits the whole body including the
+  // fold). Per-super-block address vx + ib*54, vy + ib*292. Left attr-less so the gearbox is
+  // free to stamp integer_core_lmul m2/m1 from the VLEN capability fact.
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp::getOperationName());
+    s.addOperands({weight, activation, n, vl, sbIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_tq1_0_q8_k_ternary_core"));
+    s.addAttribute(
+        "scale_model",
+        builder.getStringAttr("ternary-base3-single-fp16-scale-i32-domain"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("weight_qs_byte_offset",
+                   builder.getI64IntegerAttr(weightQsOffset));
+    s.addAttribute("weight_qh_byte_offset",
+                   builder.getI64IntegerAttr(weightQhOffset));
+    s.addAttribute("weight_d_byte_offset",
+                   builder.getI64IntegerAttr(weightDOffset));
+    s.addAttribute("activation_d_byte_offset",
+                   builder.getI64IntegerAttr(activationDOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addTypes({i32ScalarType});
+    (void)builder.create(s);
+  }
+  // The SINGLE carried-out SCALAR accumulator (the `sumf` scalar ONLY -- no 8-lane `sums`
+  // vector; the scalar fold `sumf += (float)sumi * d` is emitter-inlined, and tq1_0 applies
+  // NO trailing factor). IDENTICAL to tq2_0/iq1_s's yield -- the shared scaffold.
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+    s.addOperands({sumf});
+    (void)builder.create(s);
+  }
+}
+
 // The iq2_xxs sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the L3 coverage
 // payoff (SIGN-PLANE signs64 variant). iq2_xxs is another iq1_s grid sibling -- a
 // super-block GRID/codebook quant whose whole fold is the SAME SINGLE per-super-block
@@ -2926,6 +3045,20 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // (no op type reference).
   const bool isTq20TypedSuperBlock =
       entry.opName == "tcrv_rvv.tq2_0_q8_k_block_dot";
+  // tq1_0 flip (C_construct 25->26, the SECOND TQ-family member): tq1_0 is the BASE-3
+  // TERNARY ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block
+  // SCALAR accumulator arity (fold_model "scalar_delta_grid"), REUSING the whole tq2_0
+  // ternary scaffold at C2 marginal cost; the only marginal cost is the DISTINCT tq1_0 BASE-3
+  // TERNARY integer-core brick (the qs+qh base-3 trit unpack into aux8[256] + the flat-256
+  // widened dot producing the ONE scalar state sumi -- NO grid/codebook gather). It flips to
+  // the typed super-block SCALAR-accumulator loop chain, resolving to its OWN export entry by
+  // the marker pass name (its weight_block_stride 54 is UNIQUE among the scalar_delta_grid
+  // bricks, so no stride tie-breaker is needed). Like tq2_0 the brick PRESERVES tq1_0's Win-A
+  // integer_core_lmul m2/m1 gearbox (kernel key "tq1_0"). The monolith op
+  // tcrv_rvv.tq1_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
+  // (no op type reference).
+  const bool isTq10TypedSuperBlock =
+      entry.opName == "tcrv_rvv.tq1_0_q8_k_block_dot";
   // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
   // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
   // plain flat cores which frame the OUTER config at SEW8.
@@ -3136,6 +3269,20 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // Win-A m2/m1 gearbox (kernel key "tq2_0"). Resolves to tq2_0's OWN export entry by the
     // marker pass (SHARES stride 66 with iq2_xxs, disambiguated by the brick op type).
     createTypedSuperBlockScalarDeltaGridLoopChainTq20(builder, loc, entry, weight,
+                                                      activation, out, n,
+                                                      setvl.getVl());
+  } else if (isTq10TypedSuperBlock) {
+    // The auto-constructed typed SUPER-BLOCK SCALAR-accumulator loop chain, tq1_0 variant
+    // (the SECOND TQ-family member): the SAME scaffold as tq2_0/iq1_s (fold_model
+    // "scalar_delta_grid", single `sumf` scalar yield, emitter-inlined fold) with the DISTINCT
+    // tq1_0 BASE-3 TERNARY integer-core brick (the qs+qh base-3 trit unpack -- `q=(uint8_t)
+    // (byte*pow3[l]); xi=((uint16_t)q*3)>>8; xi-1` -- into aux8[256] + the flat-256 widened dot
+    // producing the ONE scalar state sumi, then the emitter-inlined scalar fold
+    // `sumf += (float)sumi * d`, NO trailing factor). C_construct payoff -- REUSES the whole
+    // tq2_0 ternary scaffold at C2 marginal cost and only adds a base-3 variant integer-core
+    // brick that PRESERVES tq1_0's Win-A m2/m1 gearbox (kernel key "tq1_0"). Resolves to tq1_0's
+    // OWN export entry by the marker pass (stride 54 is UNIQUE, no tie-breaker needed).
+    createTypedSuperBlockScalarDeltaGridLoopChainTq10(builder, loc, entry, weight,
                                                       activation, out, n,
                                                       setvl.getVl());
   } else {

@@ -4157,6 +4157,25 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
         return emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
             rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
     }
+    // tq1_0 (the SECOND TQ-family member, ARITHMETIC BASE-3 ternary decode): a tq1_0 BASE-3
+    // ternary integer-core brick routes to the tq1_0 emitter (the qs main/tail + qh base-3
+    // trit unpack -- `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)>>8; xi-1` -- into an
+    // element-ordered aux8[256], then the flat-256 widened i8*i8 dot -- vle8 i8 x q8 i8 ->
+    // vwmul i16 -> vwredsum i32 -- into the per-super-block scalar sumi, then the
+    // emitter-inlined scalar fold `sumf += (float)sumi * d`, d = fp16(x.d @52) * y.d @0, NO
+    // trailing factor); otherwise the iq1_s path proceeds. tq1_0's weight_block_stride 54 is
+    // UNIQUE, and this DISTINCT base-3 brick op TYPE disambiguates it. Carries the Win-A m2/m1
+    // gearbox on the brick's integer_core_lmul. REUSES the tq2_0 ternary scaffold at C2
+    // marginal cost, differing ONLY in the base-3 unpack.
+    {
+      bool hasTq10Core = false;
+      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotTQ10Q8KTernaryCoreOp) {
+        hasTq10Core = true;
+      });
+      if (hasTq10Core)
+        return emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
+            rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
+    }
     // ---- Region walk (identify, no emit): the iq1_s grid-core brick + yield. ----
     tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
     tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;

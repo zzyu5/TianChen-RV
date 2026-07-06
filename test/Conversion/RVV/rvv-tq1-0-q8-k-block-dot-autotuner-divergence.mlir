@@ -1,15 +1,22 @@
-// The tq1_0 Win-A proof: the COMPILER SELECTS the ggml TQ1_0 x Q8_K integer-DOT
-// anchor (the base-3 unpack is fixed), and the selection DIVERGES by capability
-// from the SAME attr-less input -- via the UNIFIED schedule autotuner (the SAME
-// walk-all pass that auto-discovers every TunableScheduleOpInterface op).
+// The tq1_0 Win-A proof (PRESERVED across the tq1_0 flip): the COMPILER SELECTS the
+// ggml TQ1_0 x Q8_K integer-DOT anchor (the base-3 unpack is fixed), and the
+// selection DIVERGES by capability from the SAME attr-less input -- via the UNIFIED
+// schedule autotuner (the SAME walk-all pass that auto-discovers every
+// TunableScheduleOpInterface op, NO per-tq1_0 pass). The monolith op was RETIRED at
+// the flip; the Win-A gearbox moved verbatim onto the CONSTRUCTED
+// tcrv_rvv.tq1_0_q8_k_ternary_core brick (SAME kernel key "tq1_0"), so the autotuner
+// stamps the SAME m2->m1 selection onto the brick with NO registry change. This test
+// now drives the CONSTRUCTED typed super-block SCALAR-accumulator BASE-3 TERNARY loop
+// body (fold_model "scalar_delta_grid"), not the retired monolith op. It REUSES the
+// tq2_0 ternary scaffold at C2 marginal cost, differing ONLY in the base-3 unpack.
 //
-// The kernel below carries NO integer_core_lmul knob -- the compiler must compute
-// it. tq1_0's base-3 trit unpack (section A) lands an element-ordered aux8[256];
-// the integer dot (section B) is a flat 256-element aux8 x q8 contraction (single
-// fp16 scale, NO per-sub-block scale), so it widens to 32-lane strips. The single
-// vsetvl_e8<anchor>(32) cover is correct ONLY at the whole-LMUL anchor whose i8
-// strip VLMAX spans 32 at the derived minimum VLEN. WHICH anchor that is MOVES
-// with VLEN:
+// The ternary-core brick below carries NO integer_core_lmul knob -- the compiler must
+// compute it. tq1_0's base-3 trit unpack (section A) lands an element-ordered
+// aux8[256]; the integer dot (section B) is a flat 256-element aux8 x q8 contraction
+// (single fp16 scale, NO per-sub-block scale), so it widens to 32-lane strips. The
+// single vsetvl_e8<anchor>(32) cover is correct ONLY at the whole-LMUL anchor whose i8
+// strip VLMAX spans 32 at the derived minimum VLEN. WHICH anchor that is MOVES with
+// VLEN:
 //
 //   * at VLEN 128: only m2 spans it (e8m1 VLMAX 16 < 32) -> integer_core_lmul "m2"
 //     (dot widens i16m4).
@@ -22,7 +29,8 @@
 // is a separate larger emit), so this is an honest below-parity LOSS reduction.
 
 // First, the DECISION-LEVEL proof: the unified autotuner stamps DIFFERENT anchors
-// onto the SAME attr-less op purely by the VLEN capability fact (no lowering).
+// onto the SAME attr-less ternary-core brick purely by the VLEN capability fact (no
+// lowering).
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
 //
@@ -42,7 +50,11 @@ module {
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_tq1_0_q8_K, sew = 32 : i64, source_kernel = "ggml_vec_dot_tq1_0_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.tq1_0_q8_k_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_tq1_0_q8_k_block_dot", scale_model = "ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 48 : i64, weight_d_byte_offset = 52 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
+        ^bb0(%super_block_index: index, %sumf: f32):
+          %sumi = tcrv_rvv.tq1_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq1_0_q8_k_ternary_core", scale_model = "ternary-base3-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 54 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_qh_byte_offset = 48 : i64, weight_d_byte_offset = 52 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
+          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
   }
@@ -50,17 +62,18 @@ module {
 
 // ================= STAMPED ANCHOR (the SELECTION decision) ==================
 // rv64gcv (VLEN128): the compiler SELECTED m2 (the ONLY anchor whose e8 VLMAX 32
-// spans the 32-lane dot strip at VLEN128) + the SEMANTIC minimum_vlen = 128.
-// STAMP-VLEN128: tcrv_rvv.tq1_0_q8_k_block_dot
+// spans the 32-lane dot strip at VLEN128) + the SEMANTIC minimum_vlen = 128. The
+// gearbox now stamps the CONSTRUCTED brick.
+// STAMP-VLEN128: tcrv_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
 // STAMP-VLEN128-SAME: tcrv_rvv.tq1_0_schedule.has_zvl128b = true
 // STAMP-VLEN128-SAME: tcrv_rvv.tq1_0_schedule.producer = "rvv-tq1-0-autotuner"
 //
-// rv64gcv_zvl256b (VLEN256): the SAME op FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
+// rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
 // reaches 32, spans the strip in ONE vsetvl, and the lighter footprint breaks the
 // tie to m1. minimum_vlen = 256 is stamped.
-// STAMP-VLEN256: tcrv_rvv.tq1_0_q8_k_block_dot
+// STAMP-VLEN256: tcrv_rvv.tq1_0_q8_k_ternary_core
 // STAMP-VLEN256-SAME: integer_core_lmul = "m1"
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 

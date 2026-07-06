@@ -424,8 +424,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // lowered by isTypedSuperBlockBlockDotLoopBody ->
         // emitTypedSuperBlockBlockDotLoopBody ->
         // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20.
-        {&isTQ1_0Q8_KBlockDotBody,
-         &VariantToEmitCFunc::emitTQ1_0Q8_KBlockDot},
+        // NOTE: the monolith tq1_0 kernel {isTQ1_0Q8_KBlockDotBody,
+        // emitTQ1_0Q8_KBlockDot} was RETIRED at the tq1_0 flip (C_construct 25->26,
+        // the SECOND TQ-family member): the front door now constructs the typed
+        // super-block SCALAR-accumulator BASE-3 TERNARY loop body (fold_model
+        // "scalar_delta_grid", stride 54) carrying the tq1_0 base-3 ternary-core
+        // brick, lowered by isTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10.
     };
     for (const BlockDotKernel &kernel : kBlockDotKernels) {
       if (kernel.recognize(scope)) {
@@ -1512,19 +1518,10 @@ bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
 // is recognized by isTypedSuperBlockBlockDotLoopBody + resolved via
 // emitTypedSuperBlockScalarDeltaGridLoopBody -> emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20.
 
-bool VariantToEmitCFunc::isTQ1_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotTQ10Q8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: isTQ1_0Q8_KBlockDotBody (the monolith tq1_0 recognizer) was RETIRED at the
+// tq1_0 flip (C_construct 25->26). The constructed typed super-block BASE-3 ternary loop
+// body is recognized by isTypedSuperBlockBlockDotLoopBody + resolved via
+// emitTypedSuperBlockScalarDeltaGridLoopBody -> emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10.
 
 bool VariantToEmitCFunc::isGgmlVecScaleF32Body(tcrvrvv::WithVLOp scope) {
     bool sawScale = false;
@@ -5652,6 +5649,17 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // the DISTINCT brick op type disambiguates; carries the Win-A integer_core_lmul
       // m2/m1 gearbox, kernel key "tq2_0")
       tcrv::rvv::GgmlBlockDotTQ20Q8KTernaryCoreOp,
+      // tq1_0 (the SECOND TQ-family member, ARITHMETIC BASE-3 ternary decode): the tq1_0
+      // BASE-3 TERNARY super-block INTEGER core (decode_model=arithmetic -- the qs main/tail
+      // + qh base-3 trit unpack `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)>>8; xi-1` into
+      // an element-ordered aux8[256], then the flat-256 widened i8*i8 dot -- vle8 i8 x q8 i8
+      // -> vwmul i16 -> vwredsum i32 -- producing the ONE SCALAR state sumi; NO grid/codebook
+      // gather); it is the scalar-accumulator body's ternary brick under fold_model
+      // "scalar_delta_grid" (its weight_block_stride 54 is UNIQUE, so it dispatches by stride;
+      // the DISTINCT base-3 brick op type also disambiguates; carries the Win-A
+      // integer_core_lmul m2/m1 gearbox, kernel key "tq1_0"). REUSES the tq2_0 ternary
+      // scaffold at C2 marginal cost.
+      tcrv::rvv::GgmlBlockDotTQ10Q8KTernaryCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

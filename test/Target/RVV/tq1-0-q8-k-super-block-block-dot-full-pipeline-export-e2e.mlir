@@ -74,7 +74,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_tq1_0_q8_K_block_dot_sourc
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_tq1_0_q8_K_kernel
-// PLAN: tcrv_rvv.tq1_0_q8_k_block_dot
+// tq1_0 FLIP (C_construct 25->26, the SECOND TQ-family member): the front door now
+// constructs the typed super-block SCALAR-accumulator BASE-3 TERNARY loop body (fold_model
+// "scalar_delta_grid", stride 54) with the tq1_0 BASE-3 ternary integer-core brick, NOT the
+// retired monolith op. It REUSES the tq2_0 ternary scaffold at C2 marginal cost. The export
+// still resolves through the SAME super-block monolithic route family (kind/ABI/facts) by the
+// selector, so the emission-plan metadata is byte-unchanged and the CORE EmitC is
+// byte-identical to the retired monolith modulo the source-op provenance token.
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

@@ -493,13 +493,12 @@ private:
   // body (fold_model "scalar_delta_grid", stride 66) carrying the tq2_0 ternary-core
   // brick, lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 (declared above).
 
-  /// The tq1_0 recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.tq1_0_q8_k_block_dot (the TQ1_0 x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- the base-3 trit unpack of the qs[48]
-  /// and qh[4] weight arrays into an element-ordered aux8[256], then a single
-  /// per-super-block integer accumulator + the single-fp16-scale SCALAR fp32
-  /// fold; NO scales, NO min).
-  static bool isTQ1_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: isTQ1_0Q8_KBlockDotBody + emitTQ1_0Q8_KBlockDot (the monolith tq1_0
+  // recognizer + emitter) were RETIRED at the tq1_0 flip (C_construct 25->26). The
+  // front door now constructs the typed super-block SCALAR-accumulator TERNARY loop
+  // body (fold_model "scalar_delta_grid", stride 54) carrying the tq1_0 BASE-3
+  // ternary-core brick, lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10
+  // (declared below).
 
   /// The forward-pass F1 recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.ggml_vec_scale_f32 (the f32 in-place elementwise scale
@@ -1817,6 +1816,21 @@ private:
   // per-super-block addresses from the ternary-core brick's operands. Carries the
   // Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq2_0").
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
+  // tq1_0 (the SECOND TQ-family member, C_construct 25->26): the typed super-block
+  // SCALAR-accumulator BASE-3 TERNARY loop body lowering (fold_model "scalar_delta_grid",
+  // stride 54), dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody on the tq1_0
+  // ternary-core brick identity. It is the byte-exact code-move of the retired monolith
+  // emitTQ1_0Q8_KBlockDot per-super-block body (the base-3 qs+qh trit unpack into aux8[256]
+  // + the flat-256 integer dot + the single-scale scalar fp32 fold), re-parameterized to
+  // source the per-super-block addresses from the ternary-core brick's operands. REUSES the
+  // whole tq2_0 ternary scaffold at C2 marginal cost, differing ONLY in the base-3 unpack.
+  // Carries the Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq1_0").
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
@@ -3190,48 +3204,16 @@ private:
   // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 (declared above), the sole live caller,
   // re-parameterized to source the addresses from the ternary-core brick's operands.
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_tq1_0_q8_K block kernel (the BASE-3
-  /// TriLM coverage rung -- the LAST of the 24 ggml dot kernels) for one
-  /// tcrv_rvv.tq1_0_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-control-flow blob, no raw()). tq1_0 is the base-3-PACKED sibling
-  /// of tq2_0: instead of a 2-bit field shift it recovers each trit by a
-  /// power-of-three multiply + the uint8 wrap (5 trits per qs byte, 4 per qh
-  /// byte). It reuses tq2_0's dot + fold + store VERBATIM (a single i32 `sumi`
-  /// over the super-block, then `sumf += (float)sum * (fp16(x.d) * y.d)`); only
-  /// the unpack differs. It mirrors _generic (quants.c:430-480) line-for-line so
-  /// byte-exactness is by construction:
-  ///   float sumf = 0.0f;                                        // ONCE
-  ///   const uint8_t pow3[6] = {1,3,9,27,81,243};
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*54;  const uint8_t *yb = vy + ib*292;
-  ///     // (A) the BASE-3 trit unpack into aux8[256] (in q8 index order):
-  ///     //  - main (j=0): l 0..4 over qs[0..31] -> aux8[l*32 + m] (32 lanes)
-  ///     //  - tail (j=32): l 0..4 over qs[32..47] -> aux8[160 + l*16 + m] (16)
-  ///     //  - qh:          l 0..3 over qh[0..3]  -> aux8[240 + l*4 + j] (4)
-  ///     // each trit: q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)>>8; xi-1.
-  ///     // The 8-bit `vmul.vx` is the mandatory uint8 wrap; the widening `*3`
-  ///     // + `>>8` reads the high base-3 digit; `vadd.vx -1` is the ternary
-  ///     // bias. aux8[i] pairs contiguously with q8[i].
-  ///     int sumi = 0;
-  ///     for (size_t s = 0; s < 16; ++s)                         // 16x16 elems
-  ///       sumi += vmv_x_s(vwredsum(vwmul(q8[16s..], aux8[16s..]), seed0));
-  ///     // (B) the single-scale SCALAR fp32 fold, ONE C statement:
-  ///     float d = (float)*(const _Float16 *)(xb+52) * *(const float *)(yb+0);
-  ///     sumf += (float)sumi * d;
-  ///   }
-  ///   *s = sumf;
-  /// The pow3 multiply must NOT be fused into the widening multiply (that skips
-  /// the mod-256 wrap and is wrong for byte*pow3 >= 256). pow3[l] is emitted as
-  /// a per-l literal. The integer side is order-free (associative int add); the
-  /// ONLY pinned order is the SCALAR fp32 fold, with `d = fp16(x.d) * y.d` as
-  /// its OWN product so the association matches _generic (quants.c:476). The
-  /// fold is ONE emitc.expression so it renders as ggml's single C statement.
-  /// The block-format facts (stride 54, qs @0, qh @48, d @52) are the op's typed
-  /// attrs (I4 mirror).
-  mlir::LogicalResult emitTQ1_0Q8_KBlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+  // NOTE: emitTQ1_0Q8_KBlockDot (the monolith tq1_0 emitter) was RETIRED at the tq1_0
+  // flip (C_construct 25->26). Its per-super-block body -- the BASE-3 trit unpack (the
+  // qs main/tail + qh regions each `q=(uint8_t)(byte*pow3[l]); xi=((uint16_t)q*3)>>8;
+  // xi-1` decoded into aux8[256]) + the flat-256 widened integer dot (vle8 i8 x q8 i8 ->
+  // vwmul i16 -> vwredsum i32 into the scalar sumi) + the single-scale SCALAR fp32 fold
+  // `sumf += (float)sumi * d` (d = fp16(x.d @52) * y.d @0) -- was code-moved byte-exactly
+  // into emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10 (declared above), the sole live
+  // caller, re-parameterized to source the addresses from the ternary-core brick's
+  // operands. It REUSES the whole tq2_0 ternary scaffold at C2 marginal cost, differing
+  // ONLY in the base-3 unpack.
 
   /// Value-level emission of the ggml offset-binary asymmetric i4xi8
   /// decode/product chain, factored so BOTH the standalone
