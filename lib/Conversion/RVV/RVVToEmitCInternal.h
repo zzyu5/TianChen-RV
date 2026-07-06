@@ -390,10 +390,12 @@ private:
   /// key; the emitter owns the structured binary-sign-decode expansion.
   static bool isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
 
-  /// The CODEBOOK SUPER-BLOCK recognizer: a with_vl scope whose ONLY compute op
-  /// is a single tcrv_rvv.iq4_xs_q8_k_block_dot (the super-block variant of
-  /// iq4_nl: iq4_nl's codebook gather + the q4_K-style super-block signed scale).
-  static bool isIQ4XSQ8KBlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: the monolith recognizer isIQ4XSQ8KBlockDotBody was RETIRED at the iq4_xs
+  // flip (C_construct 23->24): the front door now constructs the typed super-block
+  // SCALAR-accumulator loop body (fold_model "scalar_delta_grid", stride 136),
+  // lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs (dispatched from
+  // emitTypedSuperBlockScalarDeltaGridLoopBody on the iq4_xs codebook-core brick
+  // identity). iq4_xs is the SUPER-BLOCK CODEBOOK sibling of the flat iq4_nl codebook.
 
   // NOTE: the monolith recognizer isIQ2XXSQ8KBlockDotBody was RETIRED at the iq2_xxs
   // flip (L3 coverage): the front door now constructs the typed super-block
@@ -1791,13 +1793,21 @@ private:
   ///   *s = sumf;
   /// The codebook gather pins the m1 anchor (VLMAX >= 16). The fold is invoked in
   /// STRICT ascending (super-block, sub-block) order so fp non-associativity is
-  /// byte-exact across all -ffp-contract modes. A SEPARATE emitter from
-  /// emitIQ4NLQ8_0BlockDot (the inner codebook logic is COPIED, not factored, so
-  /// iq4_nl's emitted bytes stay byte-identical -- additive).
-  mlir::LogicalResult emitIQ4XSQ8KBlockDot(
+  /// byte-exact across all -ffp-contract modes. It reuses iq4_nl's codebook inner
+  /// core (COPIED, not factored). At the iq4_xs flip (C_construct 23->24) the monolith
+  /// emitIQ4XSQ8KBlockDot emitter was RETIRED with the monolith op def + verifier +
+  /// recognizer; the front door now constructs the typed super-block SCALAR-accumulator
+  /// loop body (fold_model "scalar_delta_grid", stride 136) carrying the iq4_xs
+  /// codebook-core brick, and this emitter is the byte-exact code-move of the retired
+  /// monolith's body (re-parameterized to source the per-super-block addresses from the
+  /// codebook-core brick's operands). It is the iq4_xs branch of
+  /// emitTypedSuperBlockScalarDeltaGridLoopBody, dispatched on the codebook-core brick
+  /// identity.
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
   // NOTE: the monolith emitIQ2XXSQ8KBlockDot emitter was RETIRED at the iq2_xxs flip
   // (L3 coverage): the front door now constructs the typed super-block

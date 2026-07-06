@@ -366,8 +366,13 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitTypedRepackGemvLoopBody},
         {&isTypedRepackGemmLoopBody,
          &VariantToEmitCFunc::emitTypedRepackGemmLoopBody},
-        {&isIQ4XSQ8KBlockDotBody,
-         &VariantToEmitCFunc::emitIQ4XSQ8KBlockDot},
+        // NOTE: the monolith iq4_xs kernel {isIQ4XSQ8KBlockDotBody,
+        // emitIQ4XSQ8KBlockDot} was RETIRED at the iq4_xs flip (C_construct 23->24):
+        // the front door now constructs the typed super-block SCALAR-accumulator loop
+        // body (fold_model "scalar_delta_grid", stride 136) carrying the iq4_xs
+        // codebook-core brick, lowered by isTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs.
         // NOTE: the monolith iq2_xxs kernel {isIQ2XXSQ8KBlockDotBody,
         // emitIQ2XXSQ8KBlockDot}, the monolith iq2_xs kernel {isIQ2XSQ8KBlockDotBody,
         // emitIQ2XSQ8KBlockDot} AND the monolith iq2_s kernel {isIQ2SQ8KBlockDotBody,
@@ -1304,19 +1309,15 @@ bool VariantToEmitCFunc::isQ1_0Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
     return sawBlockDot;
   }
 
-bool VariantToEmitCFunc::isIQ4XSQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotIQ4XSQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: the monolith recognizer isIQ4XSQ8KBlockDotBody + emitter emitIQ4XSQ8KBlockDot
+// were RETIRED at the iq4_xs flip (C_construct 23->24): the front door now constructs the
+// typed super-block SCALAR-accumulator loop body (fold_model "scalar_delta_grid", stride
+// 136) carrying the iq4_xs codebook-core brick, lowered by
+// emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs (the byte-exact code-move of the retired
+// monolith body, dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody on the iq4_xs
+// codebook-core brick identity). iq4_xs is the SUPER-BLOCK CODEBOOK sibling of the flat
+// iq4_nl codebook (it REUSES iq4_nl's 16-entry vrgather codebook gather as its per-sub-block
+// integer core, wrapped in the q4_K-style super-block signed 6-bit scale machinery).
 
 // NOTE: the monolith recognizer isIQ2XXSQ8KBlockDotBody + emitter emitIQ2XXSQ8KBlockDot
 // were RETIRED at the iq2_xxs flip (L3 coverage): the front door now constructs the
@@ -5634,6 +5635,16 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // (disambiguated from iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs/iq2_s by weight_block_stride
       // 110; NO gearbox -- fixed grid-of-4 shape, NO ksigns plane)
       tcrv::rvv::GgmlBlockDotIQ3SQ8KGridCoreOp,
+      // iq4_xs (flat iq4_nl CODEBOOK sibling, SUPER-BLOCK rung): the iq4_xs scalar
+      // super-block CODEBOOK INTEGER core (decode_model=lookup -- REUSES iq4_nl's
+      // 16-entry non-linear int8 codebook gathered via vrgather_vv_i8m1, the per-sub-block
+      // SIGNED 6-bit scale from scales_l[4]+scales_h biased -32 applied in the FLOAT
+      // domain, producing the 8 per-sub-block sumi that fold into the scalar sumf); it is
+      // the scalar-accumulator body's codebook brick under fold_model "scalar_delta_grid"
+      // (disambiguated from the grid siblings by weight_block_stride 136; NO gearbox --
+      // the codebook gather pins m1). UNLIKE the grid siblings the fold runs per-sub-block
+      // in float, but the single-scalar accumulator arity is identical.
+      tcrv::rvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

@@ -4120,6 +4120,25 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
         return emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s(
             rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
     }
+    // iq4_xs (flat iq4_nl CODEBOOK sibling, SUPER-BLOCK rung): an iq4_xs codebook-core
+    // brick routes to the iq4_xs emitter (the 16-entry non-linear int8 tcrv_iq4_xs_kvalues
+    // codebook broadcast + per-sub-block vand/vsrl nibble split + vrgather_vv_i8m1 gather +
+    // asymmetric vwmul/vwmacc widening product + seed-0 vwredsum, wrapped in the q4_K-style
+    // super-block SIGNED 6-bit scale bit-dance ls = ((scales_l>>...)&0xf)|(((scales_h>>...)
+    // &0x3)<<4) biased -32, folded PER-SUB-BLOCK in float `sumf += (d4d8*(ls-32))*sumi`
+    // with NO trailing factor); otherwise the iq1_s path proceeds. NO gearbox -- the
+    // codebook gather pins m1. UNLIKE the grid siblings the fold runs per-sub-block in
+    // float, but the single-scalar accumulator arity (fold_model "scalar_delta_grid") is
+    // identical, and the whole body is emitter-inlined keyed off the codebook-core brick.
+    {
+      bool hasIq4xsCore = false;
+      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp) {
+        hasIq4xsCore = true;
+      });
+      if (hasIq4xsCore)
+        return emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
+            rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
+    }
     // ---- Region walk (identify, no emit): the iq1_s grid-core brick + yield. ----
     tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
     tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;

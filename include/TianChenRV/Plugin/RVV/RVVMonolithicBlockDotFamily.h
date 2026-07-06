@@ -1621,7 +1621,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q4_K x Q8_K super-block block-dot source front door failed: ", "q4-weight", "q8-act",
        "", kQ4KFacts, {}, {}, {}, {},
        TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
-      {tcrv::rvv::GgmlBlockDotIQ4XSQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq4_xs_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_xs_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
@@ -1629,7 +1629,24 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq4_xs_q8_K_block_dot", "rvv_iq4_xs_q8_K_block_dot_from_vector_source",
        "per-sub-block-int6-signed-codebook-scale-float-domain",
        "ggml IQ4_XS x Q8_K super-block codebook block-dot source front door failed: ", "iq4xs-weight", "q8k-act",
-       "", kIQ4XSFacts, kIQ4XSCodebook, {}, {}, {}},
+       "", kIQ4XSFacts, kIQ4XSCodebook, {}, {}, {},
+       // iq4_xs flip (C_construct 23->24): the typed super-block SCALAR-accumulator loop
+       // body (fold_model "scalar_delta_grid" -- iq4_xs's fold is the SAME single
+       // per-super-block scalar `sumf` accumulator arity as iq1_s/iq3_s, but UNLIKE the
+       // grid siblings it runs PER-SUB-BLOCK in float `sumf += (d4d8*(ls-32))*sumi` with NO
+       // trailing factor; the per-super-block body -- the iq4_xs CODEBOOK integer core
+       // (iq4_nl's 16-entry vrgather codebook gather) + the q4_K-style signed 6-bit scale
+       // dance -- is emitter-inlined keyed off the codebook-core brick identity). Shares
+       // iq1_s's selector; the resolver disambiguates iq4_xs from
+       // iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs/iq2_s/iq3_s (all scalar_delta_grid) by the loop
+       // op's OWN weight_block_stride (block_iq4_xs 136 vs iq1_s 50 / iq1_m 56 / iq3_xxs 98
+       // / iq2_xxs 66 / iq2_xs 74 / iq2_s 82 / iq3_s 110). The monolith op
+       // tcrv_rvv.iq4_xs_q8_k_block_dot is RETIRED (this opName is now a dead string -- no
+       // op carries it; the row is reached by the marker for construction and by this
+       // selector for export resolution). The FIRST super-block CODEBOOK member (vs the
+       // grid siblings) reuses the whole iq1_s scaffold and only adds a variant codebook
+       // integer-core brick (NO gearbox -- the codebook gather pins m1).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"tcrv_rvv.iq1_s_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_s_q8_K_block_dot_source",

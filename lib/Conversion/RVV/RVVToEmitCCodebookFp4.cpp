@@ -26,28 +26,77 @@ namespace detail {
 // codebook) and mxfp4 / nvfp4 (FP4 micro-exponent). Split out of RVVToEmitC.cpp
 // as a pure code move; the emitted C is byte-identical.
 
-mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
+// The iq4_xs branch of the fold_model "scalar_delta_grid" path (dispatched from
+// emitTypedSuperBlockScalarDeltaGridLoopBody when the region carries an iq4_xs
+// CODEBOOK-core brick). iq4_xs is the SUPER-BLOCK CODEBOOK sibling of the flat iq4_nl
+// codebook: it REUSES iq4_nl's 16-entry non-linear int8 CODEBOOK gather (the SAME
+// vrgather_vv_i8m1 decode) as the per-sub-block integer core, wrapped in the q4_K-style
+// super-block SIGNED 6-bit scale machinery (per-sub-block scale from scales_l[4] +
+// scales_h, biased -32, applied in the FLOAT domain -- NO integer aux32). Its whole fold
+// is the SINGLE per-super-block SCALAR `sumf` accumulator arity (fold_model
+// "scalar_delta_grid" -- the SAME single-scalar arity as iq1_s/iq3_s), but UNLIKE the grid
+// siblings the fold runs PER-SUB-BLOCK in float (`sumf += (d4d8*(ls-32)) * (float)sumi`, 8
+// separate fp folds per super-block, NO trailing factor), emitter-inlined here keyed off
+// the codebook-core brick identity. This is a code MOVE of the retired monolith
+// emitIQ4XSQ8KBlockDot body re-parameterized to source the per-super-block addresses from
+// the codebook-core brick's (base, block_index) OPERANDS (anti-bypass W4), so the emitted C
+// is byte-identical to the retired monolith modulo the source-op provenance token.
+mlir::LogicalResult
+VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotIQ4XSQ8KOp blockDot;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ4XSQ8KOp>(op))
-        blockDot = bd;
-    }
-    if (!blockDot)
-      return rewriter.notifyMatchFailure(scope,
-                                         "iq4_xs block-dot body missing the op");
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    (void)scope;
+    // ---- Region walk (identify, no emit): the iq4_xs codebook-core brick + yield. ----
+    tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp coreOp;
+    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o =
+              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp>(bodyOp))
+        coreOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                       bodyOp))
+        yieldOp = o;
+    });
 
-    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
-    mlir::Value output = valueMap.lookup(blockDot.getOutput());
+    // ---- Region-driven gate (fail-closed, I7): the byte-exact SCALAR-accumulator
+    // CODEBOOK body requires the iq4_xs codebook-core brick + the SINGLE scalar yield,
+    // the (index, sumf scalar) entry-arg pair, and the brick's block_index tied to the
+    // loop induction variable (region arg 0) -- the anti-bypass tie. ----
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    if (!coreOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "iq4_xs super-block scalar-accumulator codebook body requires "
+                    "the iq4_xs codebook integer-core brick + the single scalar "
+                    "yield");
+    if (coreBlock.getNumArguments() != 2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "iq4_xs super-block scalar-accumulator codebook body region "
+                    "must carry exactly the (super_block_index, sumf) pair");
+    mlir::Value sbIndex = coreBlock.getArgument(0);
+    mlir::Value sumfArg = coreBlock.getArgument(1);
+    if (yieldOp.getSumsNext() != sumfArg || yieldOp.getSumfNext())
+      return rewriter.notifyMatchFailure(
+          yieldOp, "iq4_xs super-block scalar yield must carry the loop-carried "
+                   "sumf scalar ALONE (no second operand under the scalar fold)");
+    if (coreOp.getBlockIndex() != sbIndex)
+      return rewriter.notifyMatchFailure(
+          loopBody, "the iq4_xs super-block codebook-core brick's block_index must "
+                    "be the loop induction variable (region arg 0) so the emit "
+                    "addresses base + ib*stride, not super-block-0");
+
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
     if (!weightBase || !activationBase || !output)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "iq4_xs block-dot ABI operand unmapped");
+      return rewriter.notifyMatchFailure(
+          loopBody, "iq4_xs super-block scalar-accumulator codebook ABI operand "
+                    "unmapped");
 
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -68,17 +117,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     mlir::Type i16WideType = emitc::OpaqueType::get(ctx, i16WideTypeName);
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
 
-    // The block-format structural facts come straight off the typed attrs (I4).
-    int64_t qk = blockDot.getQk();                                  // 256
-    int64_t subBlock = blockDot.getSubBlock();                      //  32
-    int64_t weightStride = blockDot.getWeightBlockStride();         // 136
-    int64_t activationStride = blockDot.getActivationBlockStride(); // 292
-    int64_t weightDOffset = blockDot.getWeightDByteOffset();        //   0
-    int64_t scalesHOffset = blockDot.getWeightScalesHByteOffset();  //   2
-    int64_t scalesLOffset = blockDot.getWeightScalesLByteOffset();  //   4
-    int64_t qsOffset = blockDot.getWeightQsByteOffset();            //   8
-    int64_t activationDOffset = blockDot.getActivationDByteOffset();//   0
-    int64_t q8Offset = blockDot.getActivationQuantByteOffset();     //   4
+    // The block-format structural facts. The strides + qk come off the LOOP OP (the
+    // byte-exact schedule shape knobs); the per-region byte offsets + the sub-block
+    // shape + the 16-entry codebook come off the iq4_xs codebook-core BRICK that owns
+    // them (I4 mirror).
+    int64_t qk = loopBody.getQk();                                  // 256
+    int64_t subBlock = coreOp.getSubBlock();                        //  32
+    int64_t weightStride = loopBody.getWeightBlockStride();         // 136
+    int64_t activationStride = loopBody.getActivationBlockStride(); // 292
+    int64_t weightDOffset = coreOp.getWeightDByteOffset();          //   0
+    int64_t scalesHOffset = coreOp.getWeightScalesHByteOffset();    //   2
+    int64_t scalesLOffset = coreOp.getWeightScalesLByteOffset();    //   4
+    int64_t qsOffset = coreOp.getWeightQsByteOffset();              //   8
+    int64_t activationDOffset = coreOp.getActivationDByteOffset();  //   0
+    int64_t q8Offset = coreOp.getActivationQuantByteOffset();       //   4
     int64_t numSubBlocks = qk / subBlock;                           //   8
     int64_t halfBlock = subBlock / 2; // 16 nibble bytes / q8 half lanes per sub-block
 
@@ -107,7 +159,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     // `static const int8_t[16]` decl ONCE, then broadcast-load via vle8 ONCE above
     // the super-block loop (the decl renders the verified attr entries; the table
     // register is reused by every gather).
-    llvm::ArrayRef<int8_t> codebook = blockDot.getCodebook();
+    llvm::ArrayRef<int8_t> codebook = coreOp.getCodebook();
     {
       std::string decl = "static const int8_t tcrv_iq4_xs_kvalues[16] = {";
       for (size_t i = 0; i < codebook.size(); ++i) {
@@ -147,16 +199,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
           return {tableName, sizeLit(codebook.size())};
         },
         llvm::StringRef("codebook_table_load"));
-
-    // Per-super-block base address arithmetic: xb = vx + ibl*136; yb = vy + ibl*292.
-    auto blockBaseValue = [&](mlir::Value ibl, mlir::Value base,
-                              mlir::Type ptrType, int64_t stride,
-                              const char *step) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
-      mlir::Value off =
-          rewriter.create<emitc::MulOp>(loc, sizeType, ibl, sizeLit(stride));
-      return rewriter.create<emitc::AddOp>(loc, ptrType, base, off);
-    };
 
     // The codebook decode + asymmetric product + reduce for ONE sub-block (the
     // 16-nibble-byte half-block), seeded 0, returning the scalar sumi. This is
@@ -255,10 +297,35 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
       rewriter.setInsertionPointToStart(blockLoop.getBody());
       mlir::Value ibl = blockLoop.getInductionVar();
 
-      mlir::Value xb = blockBaseValue(ibl, weightBase, weightPtrType,
-                                      weightStride, "super_block_base_x");
-      mlir::Value yb = blockBaseValue(ibl, activationBase, activationPtrType,
-                                      activationStride, "super_block_base_y");
+      // W-E: per-super-block base = base + ib*stride, built from the codebook-core
+      // brick's (base operand, block_index operand) through a per-iteration memo.
+      // Correct wiring collapses to exactly TWO emitted bases -- xb (super_block_base_x)
+      // and yb (super_block_base_y) -- byte-identical to the monolith's blockBaseValue.
+      // A CHANGED brick base operand keys a DIFFERENT memo entry (anti-bypass).
+      llvm::DenseMap<std::pair<mlir::Value, mlir::Value>, mlir::Value>
+          blockBaseMemo;
+      auto blockBaseFor = [&](mlir::Value bufferSSA, mlir::Value blockIndexSSA,
+                              int64_t stride, const char *step) -> mlir::Value {
+        std::pair<mlir::Value, mlir::Value> key(bufferSSA, blockIndexSSA);
+        auto it = blockBaseMemo.find(key);
+        if (it != blockBaseMemo.end())
+          return it->second;
+        mlir::Value emittedBase = valueMap.lookup(bufferSSA);
+        rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+        mlir::Value off =
+            rewriter.create<emitc::MulOp>(loc, sizeType, ibl, sizeLit(stride));
+        mlir::Value base = rewriter.create<emitc::AddOp>(
+            loc, emittedBase.getType(), emittedBase, off);
+        blockBaseMemo[key] = base;
+        return base;
+      };
+
+      mlir::Value xb =
+          blockBaseFor(coreOp.getWeightBase(), coreOp.getBlockIndex(),
+                       weightStride, "super_block_base_x");
+      mlir::Value yb =
+          blockBaseFor(coreOp.getActivationBase(), coreOp.getBlockIndex(),
+                       activationStride, "super_block_base_y");
 
       // d4d8 = (float)*(const _Float16 *)(xb + 0) * *(const float *)(yb + 0);
       // (the fp16 weight super-block scale times the fp32 q8_K activation scale,
@@ -455,8 +522,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     auto outPointer =
         llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
     if (!outPointer)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "iq4_xs block-dot output not a pointer");
+      return rewriter.notifyMatchFailure(
+          loopBody,
+          "iq4_xs super-block scalar-accumulator codebook output not a pointer");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "store_s"));
     mlir::Value outIndex =
@@ -466,8 +534,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitIQ4XSQ8KBlockDot(
     mlir::Value sumfFinal =
         rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
-
-    valueMap[blockDot.getResult()] = sumfFinal;
     return mlir::success();
   }
 

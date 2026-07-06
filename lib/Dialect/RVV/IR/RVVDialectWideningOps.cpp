@@ -6985,17 +6985,18 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
+mlir::LogicalResult GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
   // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
-  // signed-6-bit-scale FLOAT-domain (NO min) scale model, the super-block-format
-  // structural facts (the fp16 weight scale d @0, scales_h @2, scales_l[4] @4,
-  // qs[128] @8, the fp32 activation scale d @0, qs @4), and the 16-entry
-  // non-linear int8 CODEBOOK (the SAME kvalues_iq4nl[16] as iq4_nl, a structural
-  // fact like the strides/offsets). iq4_xs is SYMMETRIC -- there is NO min term,
-  // NO dmin, NO bsums. Anything else -- a forbidden local element_count/SEW/LMUL/
-  // policy attr, or an unexpected name -- is rejected fail-closed (I7).
+  // signed-6-bit-scale codebook-gather FLOAT-domain (NO min) scale model, the
+  // iq4_xs super-block-format structural facts the integer core reads (the fp16
+  // weight scale d @0, scales_h @2, scales_l[4] @4, qs[128] @8, the q8_K fp32 d @0,
+  // qs @4), and the 16-entry non-linear int8 CODEBOOK (the SAME kvalues_iq4nl[16]
+  // as iq4_nl, a structural fact like the strides/offsets). iq4_xs is SYMMETRIC --
+  // there is NO min term, NO dmin, NO bsums. Anything else -- a forbidden local
+  // element_count/SEW/LMUL/policy attr, or an unexpected name -- is rejected
+  // fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "sub_block" || name == "weight_block_stride" ||
@@ -7012,14 +7013,14 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.iq4_xs_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; tcrv_rvv.iq4_xs_q8_k_codebook_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedBlockDotAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded super-block dot-product attributes "
-                "'kind', 'scale_model', 'qk', 'sub_block', "
+             << "only accepts the bounded super-block codebook integer-core "
+                "attributes 'kind', 'scale_model', 'qk', 'sub_block', "
                 "'weight_block_stride', 'activation_block_stride', "
                 "'weight_d_byte_offset', 'weight_scales_h_byte_offset', "
                 "'weight_scales_l_byte_offset', 'weight_qs_byte_offset', "
@@ -7028,68 +7029,71 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (getKind() != "ggml_iq4_xs_q8_k_block_dot")
+  if (getKind() != "ggml_iq4_xs_q8_k_codebook_core")
     return emitOpError()
-           << "currently supports only kind \"ggml_iq4_xs_q8_k_block_dot\" for "
-              "the bounded ggml IQ4_XS x Q8_K super-block full block dot-product "
-              "typed surface";
+           << "currently supports only kind \"ggml_iq4_xs_q8_k_codebook_core\" "
+              "for the bounded ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer-core typed surface";
   if (getScaleModel() !=
-      "per-sub-block-int6-signed-codebook-scale-float-domain")
+      "per-sub-block-signed-6bit-scale-codebook-gather-float-domain")
     return emitOpError()
            << "requires scale_model "
-              "\"per-sub-block-int6-signed-codebook-scale-float-domain\" for the "
-              "ggml IQ4_XS x Q8_K super-block full block dot-product route";
+              "\"per-sub-block-signed-6bit-scale-codebook-gather-float-domain\" "
+              "for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer-core route";
   // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
   // 8 sub-blocks of 32 elements, block_iq4_xs stride 136 (d@0|scales_h@2|
   // scales_l[4]@4|qs[128]@8), block_q8_K stride 292 (d@0|qs@4|bsums@260 unused).
-  // Pin them so a malformed typed body cannot lower under the super-block dot
+  // Pin them so a malformed typed body cannot lower under the integer-core
   // emission.
   if (getQk() != 256)
     return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ4_XS x "
-                            "Q8_K super-block full block dot-product route";
+                            "Q8_K super-block CODEBOOK scalar integer-core route";
   if (getSubBlock() != 32)
     return emitOpError()
            << "requires sub_block == 32 (32-element sub-block scale boundary) "
-              "for the ggml IQ4_XS x Q8_K super-block full block dot-product "
-              "route";
+              "for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer-core route";
   if (getWeightBlockStride() != 136)
     return emitOpError()
            << "requires weight_block_stride == 136 (sizeof block_iq4_xs) for "
-              "the ggml IQ4_XS x Q8_K super-block full block dot-product route";
+              "the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar integer-core "
+              "route";
   if (getActivationBlockStride() != 292)
     return emitOpError()
            << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
-              "the ggml IQ4_XS x Q8_K super-block full block dot-product route";
+              "the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar integer-core "
+              "route";
   if (getWeightDByteOffset() != 0)
     return emitOpError()
            << "requires weight_d_byte_offset == 0 (the fp16 super-block scale d "
-              "leads block_iq4_xs) for the ggml IQ4_XS x Q8_K super-block full "
-              "block dot-product route";
+              "leads block_iq4_xs) for the ggml IQ4_XS x Q8_K super-block "
+              "CODEBOOK scalar integer-core route";
   if (getWeightScalesHByteOffset() != 2)
     return emitOpError()
            << "requires weight_scales_h_byte_offset == 2 (the uint16 scales_h "
-              "follows d) for the ggml IQ4_XS x Q8_K super-block full block "
-              "dot-product route";
+              "follows d) for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer-core route";
   if (getWeightScalesLByteOffset() != 4)
     return emitOpError()
            << "requires weight_scales_l_byte_offset == 4 (the 4 scales_l bytes "
-              "follow d+scales_h) for the ggml IQ4_XS x Q8_K super-block full "
-              "block dot-product route";
+              "follow d+scales_h) for the ggml IQ4_XS x Q8_K super-block "
+              "CODEBOOK scalar integer-core route";
   if (getWeightQsByteOffset() != 8)
     return emitOpError()
            << "requires weight_qs_byte_offset == 8 (the 128 packed nibble bytes "
               "follow d+scales_h+scales_l[4]) for the ggml IQ4_XS x Q8_K "
-              "super-block full block dot-product route";
+              "super-block CODEBOOK scalar integer-core route";
   if (getActivationDByteOffset() != 0)
     return emitOpError()
            << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
-              "leads the block) for the ggml IQ4_XS x Q8_K super-block full "
-              "block dot-product route";
+              "leads the block) for the ggml IQ4_XS x Q8_K super-block CODEBOOK "
+              "scalar integer-core route";
   if (getActivationQuantByteOffset() != 4)
     return emitOpError()
            << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
-              "d) for the ggml IQ4_XS x Q8_K super-block full block dot-product "
-              "route";
+              "d) for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer-core route";
 
   // The codebook is the load-bearing structural fact of the codebook class: it
   // MUST carry EXACTLY 16 int8 entries (one per nibble index [0,15], the SAME
@@ -7105,22 +7109,25 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
               "with iq4_nl); got "
            << getCodebook().size();
 
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+  // The OPTIONAL loop-form `block_index` operand adds a 5th operand (the
+  // per-super-block induction variable). Absent = the standalone 4-operand
+  // single-super-block form; present = the loop form. The op produces ONE scalar
+  // i32 result (an UNUSED structural placeholder mirroring the sibling grid-core
+  // bricks' scalar-state arity) -- NO output pointer (iq4_xs's per-super-block
+  // contribution is a running fp32 fold with no single scalar state, wholly
+  // emitter-inlined).
+  unsigned expectedOperands = getBlockIndex() ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, an OPTIONAL `block_index` induction operand, and one "
+              "scalar i32 result (the unused per-super-block placeholder)";
 
-  // The three buffer operands and the element count are runtime ABI values; the
-  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
-  // output is a float * (the fp32 *s dot-product destination), and the element
-  // count carries n.
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp activationBinding =
       getActivationBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
   if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
     return emitOpError()
            << "requires the weight base operand to bind a runtime ABI value of "
@@ -7130,20 +7137,15 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
            << "requires the activation base operand to bind a runtime ABI "
               "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
               "array)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the fp32 *s dot-product destination)";
   if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
     return emitOpError()
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  if (!isGenericRVVVectorI32M1(getResult().getType()))
+  if (!getPartial().getType().isInteger(32))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
-              "\"m1\"> for the ggml IQ4_XS x Q8_K super-block full block "
-              "dot-product route";
+           << "requires the result (the unused per-super-block placeholder) to "
+              "be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -7156,11 +7158,15 @@ mlir::LogicalResult GgmlBlockDotIQ4XSQ8KOp::verify() {
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml IQ4_XS x Q8_K super-block full block "
-              "dot-product";
+              "metadata for the ggml IQ4_XS x Q8_K super-block CODEBOOK scalar "
+              "integer core";
 
   return mlir::success();
 }
+
+// NOTE: GgmlBlockDotIQ4XSQ8KOp::verify was RETIRED at the iq4_xs flip (C_construct
+// 23->24) with the monolith op def; the iq4_xs codebook-core brick verifier
+// (GgmlBlockDotIQ4XSQ8KCodebookCoreOp::verify, above) is the live bounded-surface gate.
 
 mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
   mlir::Operation *op = getOperation();

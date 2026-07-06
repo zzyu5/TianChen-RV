@@ -7714,103 +7714,84 @@ def GgmlBlockDotTQ10Q8KOp
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotIQ4XSQ8KOp
-    : TCRVRVV_Op<"iq4_xs_q8_k_block_dot",
+def GgmlBlockDotIQ4XSQ8KCodebookCoreOp
+    : TCRVRVV_Op<"iq4_xs_q8_k_codebook_core",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
-      "generic typed RVV ggml IQ4_XS x Q8_K super-block FULL block dot-product op";
+      "generic typed RVV ggml IQ4_XS x Q8_K super-block CODEBOOK SCALAR "
+      "integer-core op (the iq4_xs codebook brick, flat iq4_nl codebook sibling)";
   let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_iq4_xs_q8_K` super-block dot-product as
-    ONE bounded generic plugin-local typed RVV dataflow step -- the CODEBOOK class's
-    SUPER-BLOCK rung: iq4_xs is the super-block variant of iq4_nl, REUSING iq4_nl's
-    16-entry non-linear int8 CODEBOOK (the SAME `kvalues_iq4nl[16]` vrgather lookup)
-    while wrapping it in the q4_K-style super-block 6-bit scale machinery and the
-    q8_K activation. It COMPOSES two mechanisms already in hand:
-    - iq4_nl's codebook-gather integer core (the 4-bit nibble does NOT decode to a
-      linear value but INDEXES the 16-entry non-linear int8 codebook via
-      `vrgather_vv_i8m1`, the SAME table broadcast into a vreg ONCE above the block
-      loop), AND
-    - the q4_K/q6_K super-block structure (QK_K=256, 8 sub-blocks of 32 elements,
-      the q8_K activation with its leading fp32 scale).
-    The ONE genuinely-new super-block piece -- the iq4_xs scale -- is a per-sub-block
-    SIGNED 6-bit scale extracted from `scales_l[4]` + `scales_h` (the q4_K-style
-    cross-byte bit dance) biased by -32, applied in the FLOAT domain (NOT q6_K's
-    integer aux32 domain): `ls_j = scale_j - 32`, then per sub-block `d1 = d4d8 *
-    (float)ls_j` and `sumf += d1 * (float)sumi_j`. There is NO min term (symmetric,
-    like q6_K).
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_iq4_xs_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    iq4_xs CODEBOOK brick, the SUPER-BLOCK rung of the flat iq4_nl codebook
+    (tcrv_rvv.iq4_nl_q8_0_block_dot). It decodes with the SAME 16-entry non-linear int8
+    CODEBOOK GATHER (decode_model=lookup) iq4_nl uses -- the `kvalues_iq4nl[16]` table
+    broadcast into an i8m1 vreg ONCE, each 4-bit nibble split into the two UNSIGNED index
+    lanes (vand 0x0F / vsrl 0x04) and mapped through the table by `vrgather_vv_i8m1` (NOT
+    an arithmetic nibble-8 decode) -- but wraps it in the q4_K-style super-block SIGNED
+    6-bit scale machinery and the q8_K activation. It reproduces ggml's per-super-block
+    fp32 contribution EXACTLY as `_generic` computes it, byte-exact:
+    - for each of the 8 sub-blocks j=0..7, the SIGNED 6-bit scale `ls_j` is extracted by
+      the q4_K-style cross-byte bit dance in its CLOSED form `ls_j = ((scales_l[j/2] >>
+      (4*(j%2))) & 0xf) | (((scales_h >> (2*j)) & 0x3) << 4)` (scalar STRUCTURED emitc
+      bitwise ops), then the per-sub-block float scale `d1 = d4d8 * (float)(ls_j - 32)` is
+      a SEPARATE op (the `(ls-32)` round + the d4d8 multiply stay separate from the sumi
+      multiply so NO FMA fuses them), where `d4d8 = fp16(x.d @0) * y.d @0` is computed
+      ONCE per super-block; the per-sub-block integer dot `sumi_j` REUSES iq4_nl's
+      codebook-gather core VERBATIM (one `vsetvl_e8m1(16)` over the 16 nibble bytes at
+      `qs + j*16`, the two vrgather-decoded index lanes fed to the asymmetric `vwmul` low
+      <-> q8[j*32+0..15] + `vwmacc` high <-> q8[j*32+16..31] -> `vwredsum` -> i32); and
+      `sumf += d1 * (float)sumi_j` is ONE emitc.expression, invoked in STRICT ascending
+      (super-block, sub-block) order. There is NO min term (symmetric, like q6_K) and NO
+      trailing factor. iq4_xs's fold runs PER-SUB-BLOCK in float (8 separate fp folds per
+      super-block), so UNLIKE the grid siblings there is no single integer `bsum` scalar
+      state; the fold is DELIBERATELY OUT OF SCOPE of this op's result -- it is
+      emitter-inlined by the scalar-delta-grid lowering keyed off this brick's identity.
 
-    (1) The super-block scale d4d8 = GGML_FP16_TO_FP32(x.d) * y.d is computed ONCE
-        per super-block (the fp16 weight scale at byte 0 via the `(float)*(const
-        _Float16 *)` seam, times the fp32 q8_K activation scale at byte 0, a plain
-        float load), reproducing `_generic`'s `d4d8`.
-
-    (2) For each of the 8 sub-blocks (a FLAT loop over j=0..7, mirroring ggml's
-        ib+=2 pair loop but unrolled to a single sub-block step), the SIGNED 6-bit
-        scale `ls_j` is extracted by the q4_K-style cross-byte bit dance in its
-        CLOSED form (byte-exact equal to `_generic`'s progressive `h>>=4`):
-        `ls_j = ((scales_l[j/2] >> (4*(j%2))) & 0xf) | (((scales_h >> (2*j)) & 0x3)
-        << 4)`, all scalar STRUCTURED emitc bitwise ops (shift/and/or), then the
-        per-sub-block float scale `d1 = d4d8 * (float)(ls_j - 32)` is computed as a
-        SEPARATE op (mirroring `_generic`'s named `d1`/`d2` statements -- the
-        `(ls-32)` round and the d4d8 multiply stay separate from the sumi multiply
-        so NO FMA fuses them under `-ffp-contract`).
-
-    (3) The per-sub-block integer dot `sumi_j` REUSES iq4_nl's codebook-gather core
-        VERBATIM (seeded 0 per sub-block): one `vsetvl_e8m1(16)` over the 16 nibble
-        bytes at `qs + j*16`, split into the two UNSIGNED index lanes (`vand 0x0F`
-        low / `vsrl 0x04` high), GATHER each through the broadcast codebook table
-        (`vrgather_vv_i8m1`), feed the SAME asymmetric signed widening product
-        against the plain-i8 q8_K halves (`vwmul` low <-> q8[j*32 + 0..15], `vwmacc`
-        + high <-> q8[j*32 + 16..31]) -> `vwredsum` -> i32 `sumi`. iq4_nl's `sumi`
-        already equals `_generic`'s `sumi1 + sumi2` (the reduction combines the low
-        and high halves; integer add is order-free).
-
-    (4) The per-sub-block fold `sumf = sumf + d1 * (float)sumi` is ONE
-        emitc.expression so the compiler fuses the SAME FMA `_generic` does under
-        `-ffp-contract=on/default`, and is invoked in STRICT ascending sub-block
-        order (j=0..7 inside ascending super-block ibl) so fp non-associativity is
-        byte-exact across all four `-ffp-contract` modes. `*s = sumf`.
-
-    The CODEBOOK GATHER is inherently a Zvl128b legality fact (the broadcast
-    `values` register's VLMAX must be >= 16 to index all 16 table entries), so the
-    integer core pins the m1 anchor (vsetvl_e8m1(16) caps the active vl at 16 when
-    VLMAX >= 16, the elided strip form correct for ANY VLEN >= 128). The verifier
-    rejects a non-m1 anchor fail-closed (I7). A board with VLEN < 128 cannot legally
-    host the codebook gather; that is an N1 capability-legality divergence.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the iq4_xs weight base pointer (vx), the q8_K activation base
-    pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime element
-    count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
-    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
+    The op is nested directly under tcrv_rvv.with_vl and consumes the iq4_xs weight base
+    pointer (vx), the q8_K activation base pointer (vy), the runtime element count (n),
+    the active !tcrv_rvv.vl token, and an OPTIONAL `block_index` induction operand. It
+    produces ONE scalar i32 SSA result (a structural placeholder mirroring the sibling
+    grid-core bricks' scalar-state arity; iq4_xs's actual per-super-block contribution is
+    a running fp32 fold with no single scalar state, so this result is UNUSED -- the whole
+    per-super-block body is emitter-inlined). It carries NO output pointer.
 
     The block-quantized super-block STRUCTURE is first-class in the typed body. The
-    structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block strides
-    (136 bytes for block_iq4_xs, 292 bytes for block_q8_K), the iq4_xs payload byte
-    offsets (the fp16 super-block scale d @0, scales_h @2, scales_l[4] @4, qs[128]
-    @8) and the q8_K payload byte offsets (the fp32 activation scale d @0, qs @4),
-    the dual scale model, and the 16-entry non-linear int8 CODEBOOK itself -- are
-    carried as typed integer/string/array attributes (I4 mirror only). The codebook
-    is a `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8 entries (the SAME table as
-    iq4_nl); it is a STRUCTURAL FACT consumed structurally into the realized body
-    (emitted as a `static const int8_t[16]` decl + the `vle8` table load), NOT an
-    arithmetic decode, NOT a string plan read. The op identity is the dispatch key.
-    Route ids, helper names, ABI strings, artifact names, status fields, exact
-    intrinsic spellings, operand mirror strings, q8/iq4 names, and common
-    EmitC/export code must not infer or choose super-block dot-product semantics.
+    structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block strides (136
+    bytes for block_iq4_xs = {fp16 d; uint16 scales_h; uint8 scales_l[4]; uint8 qs[128]},
+    292 bytes for block_q8_K), the iq4_xs payload byte offsets (the fp16 super-block scale
+    d @0, scales_h @2, scales_l[4] @4, qs[128] @8) and the q8_K payload byte offsets (the
+    fp32 activation scale d @0, qs @4) -- are carried as typed integer/string attributes
+    (I4 mirror only). The 16-entry non-linear int8 CODEBOOK is a `DenseI8ArrayAttr:$codebook`
+    of EXACTLY 16 int8 entries (the SAME table as iq4_nl); it is a STRUCTURAL FACT consumed
+    structurally into the realized body (emitted as a `static const int8_t[16]` decl + the
+    `vle8` table load), NOT an arithmetic decode, NOT a string plan read. The bounded
+    surface kind is limited to "ggml_iq4_xs_q8_k_codebook_core" and scale_model to
+    "per-sub-block-signed-6bit-scale-codebook-gather-float-domain". Route ids, helper names,
+    ABI strings, artifact names, status fields, exact intrinsic spellings, operand mirror
+    strings, q8/iq4 names, and common EmitC/export code must not infer or choose the
+    super-block codebook dot-product semantics.
 
-    iq4_xs emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
-    Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip loop
-    (the zve32x/zve64x re-strip is a capability item, not built here). No resource
-    shape knobs yet; this op carries only the structural facts.
+    The CODEBOOK GATHER is inherently a Zvl128b legality fact (the broadcast `values`
+    register's VLMAX must be >= 16 to index all 16 table entries), so the integer core pins
+    the m1 anchor; it carries NO integer_core_lmul shape knob (iq4_xs is NOT in any schedule
+    autotuner). A board with VLEN < 128 cannot legally host the codebook gather; that is an
+    N1 capability-legality divergence.
+
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand toggles
+    the per-super-block-source form. When present it is the induction variable (region
+    argument 0) of an enclosing tcrv_rvv.typed_super_block_block_dot_loop_body region
+    whose fold_model is "scalar_delta_grid": the iq4_xs weight strip and the q8_K
+    activation strip are read at `weight_base + block_index*136` and `activation_base +
+    block_index*292`. When ABSENT the op keeps the standalone single-super-block form.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$activation_base,
-    AnyType:$output,
     AnyType:$element_count,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     I64Attr:$qk,
@@ -7825,14 +7806,23 @@ def GgmlBlockDotIQ4XSQ8KOp
     I64Attr:$activation_quant_byte_offset,
     DenseI8ArrayAttr:$codebook
   );
-  let results = (outs AnyType:$result);
+  let results = (outs AnyType:$partial);
 
   let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($partial)";
   let hasVerifier = 1;
 }
+
+// NOTE: def GgmlBlockDotIQ4XSQ8KOp (the monolith iq4_xs block-dot op) was RETIRED at the
+// iq4_xs flip (C_construct 23->24): the front door now constructs the typed super-block
+// SCALAR-accumulator loop body (tcrv_rvv.typed_super_block_block_dot_loop_body with
+// fold_model "scalar_delta_grid", stride 136) carrying the iq4_xs CODEBOOK-core brick
+// (GgmlBlockDotIQ4XSQ8KCodebookCoreOp) instead. The retired monolith emitter's
+// per-super-block body was code-moved into the byte-exact
+// emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs lowering (the sole live caller).
 
 // NOTE: def GgmlBlockDotIQ2XXSQ8KOp (the monolith iq2_xxs block-dot op) was RETIRED at
 // the iq2_xxs flip (L3 coverage): the front door now constructs the typed super-block

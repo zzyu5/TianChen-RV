@@ -494,6 +494,36 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq3s (typed super-block SCALAR-accumulator GRID-of-4 loop body; iq3_xxs grid sibling, explicit-signs variant, no gearbox, no ksigns plane)",
     },
+    # iq4_xs vec_dot: STRONG (the FIRST super-block CODEBOOK-class vec_dot flipped,
+    # C_construct 23->24 -- another marginal-cost payoff, CODEBOOK vs the grid siblings).
+    # iq4_xs is the SUPER-BLOCK rung of the flat iq4_nl codebook: the SAME single
+    # per-super-block SCALAR fold arity (fold_model "scalar_delta_grid"), so its front door
+    # (createTypedSuperBlockScalarDeltaGridLoopChainIq4xs) REUSES the WHOLE iq1_s
+    # scalar-delta-grid scaffold and constructs the typed SUPER-BLOCK SCALAR-accumulator loop
+    # body out of just ONE decomposed brick: the DISTINCT iq4_xs CODEBOOK INTEGER CORE
+    # (iq4_xs_q8_k_codebook_core -- REUSES iq4_nl's 16-entry non-linear int8 codebook gathered
+    # via vrgather_vv_i8m1, the per-sub-block SIGNED 6-bit scale from scales_l[4]+scales_h
+    # biased -32 applied in the FLOAT domain, the asymmetric vwmul/vwmacc widening product +
+    # seed-0 vwredsum producing the per-sub-block sumi). UNLIKE the grid siblings iq4_xs's
+    # fold runs PER-SUB-BLOCK in float `sumf += (d4d8*(ls-32))*sumi` (8 fp folds per
+    # super-block, NO trailing factor) rather than a single `sumf += d*bsum`, but the
+    # single-scalar accumulator arity is identical and the whole body is emitter-inlined. NOT
+    # the opaque emitIQ4XSQ8KBlockDot hand helper (the GgmlBlockDotIQ4XSQ8KOp op + emitter +
+    # verifier + monolith conversion+dataflow tests RETIRED same action as the flip). The
+    # contraction+reduction is the fused per-sub-block vrgather codebook gather + vwmul/vwmacc
+    # + vwredsum INSIDE the codebook core (see _FUSED_DOT_REDUCE_RE's codebook_core token); NO
+    # opaque *_block_dot op, so [L-8] derives constructed (STRONG). Resolves to iq4_xs's OWN
+    # export entry by fold_model + weight_block_stride 136 (vs iq1_s 50 / iq1_m 56 / iq3_xxs
+    # 98 / iq2_xxs 66 / iq2_xs 74 / iq2_s 82 / iq3_s 110). The codebook-core brick carries NO
+    # integer_core_lmul gearbox (the codebook gather pins m1), so iq4_xs is NOT in any
+    # schedule autotuner and has NO VLEN128-vs-VLEN256 byte-flip.
+    {
+        "op": "vec_dot", "format": "iq4_xs", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "iq4-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq4xs (typed super-block SCALAR-accumulator CODEBOOK loop body; flat iq4_nl codebook sibling, super-block rung, per-sub-block float fold, no gearbox)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
@@ -565,7 +595,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # purpose: `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -589,8 +619,14 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # delta fold that follows is a scale/add, not a reduce), so its `grid_core` token
 # joins this whitelist too. This is
 # deliberately NARROW (a scale-only body has none of the tokens; an opaque
-# *_block_dot still trips the opaque gate), so the check stays discriminating.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+# *_block_dot still trips the opaque gate), so the check stays discriminating. The
+# iq4_xs super-block CODEBOOK integer core `iq4_xs_q8_k_codebook_core` is likewise a
+# fused dot-reduce (its per-sub-block vand/vsrl nibble split + vrgather_vv_i8m1 codebook
+# gather + asymmetric vwmul/vwmacc widening product + seed-0 vwredsum reduces the 32
+# products into the scalar sumi, which the per-sub-block float scale fold consumes --
+# NO separate standalone_reduce, the fold that follows is a scale/add, not a reduce), so
+# its `codebook_core` token joins this whitelist too.
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 
 def _leading_ws(line):
