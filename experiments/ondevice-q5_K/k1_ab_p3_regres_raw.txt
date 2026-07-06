@@ -1,0 +1,207 @@
+== ENV FINGERPRINT ==
+uname=Linux bianbu 6.6.63 #2.2.7.2 SMP PREEMPT Fri Aug 15 12:32:44 UTC 2025 riscv64 riscv64 riscv64 GNU/Linux
+clang=/usr/bin/clang-18  Bianbu clang version 18.1.8 (11bb4)
+march=rv64gcv_zba_zbb_zbc_zbs_zfh_zvfh  flags=-O2 -march=rv64gcv_zba_zbb_zbc_zbs_zfh_zvfh -mabi=lp64d -ffp-contract=off --rtlib=compiler-rt
+nproc=8  pinned_core=4
+governor=performance
+cpu_max_khz=1600000
+libc=glibc 2.39
+isa=isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintpause_zihpm_zfh_zfhmin_zca_zcd_zba_zbb_zbc_zbs_zkt_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_zvkt_sscofpmf_sstc_svinval_svnapot_svpbmt_ime
+== COMPILE ==
+k_ours.o OK
+k_factory.o OK
+driver.o OK
+driver_ours OK
+driver_factory OK
+== PREFLIGHT (fail-closed 4-gate) ==
+PREFLIGHT(1) march-complete: OK (rv64gcv_zba_zbb_zbc_zbs_zfh_zvfh covers board critical exts)
+PREFLIGHT(2) libcall-free: OK (ours & factory 均无 __extendhfsf2 类软浮点 libcall)
+PREFLIGHT(3) same-compiler: OK (both sides = Bianbu clang version 18.1.8 (11bb4); flags='-O2 -march=rv64gcv_zba_zbb_zbc_zbs_zfh_zvfh -mabi=lp64d -ffp-contract=off --rtlib=compiler-rt')
+PREFLIGHT(4) fingerprint<->T-cell: OK (board VLEN=256 == target 256)
+== PREFLIGHT PASS (4/4 gates green) ==
+== OBJDUMP SEAL ours (q5K_regres) ==
+       0:      	addi	sp, sp, -0xd0
+       2:      	sd	ra, 0xc8(sp)
+       4:      	sd	s0, 0xc0(sp)
+       6:      	sd	s1, 0xb8(sp)
+       8:      	sd	s2, 0xb0(sp)
+       a:      	sd	s3, 0xa8(sp)
+       c:      	sd	s4, 0xa0(sp)
+       e:      	sd	s5, 0x98(sp)
+      10:      	sd	s6, 0x90(sp)
+      12:      	sd	s7, 0x88(sp)
+      14:      	sd	s8, 0x80(sp)
+      16:      	sd	s9, 0x78(sp)
+      18:      	sd	s10, 0x70(sp)
+      1a:      	sd	s11, 0x68(sp)
+      1c:      	sd	a2, 0x30(sp)
+      1e:      	sd	a1, 0x8(sp)
+      20:      	srli	a0, a0, 0x8
+      22:      	vsetivli	zero, 0x8, e32, m2, ta, ma
+      26:      	vmv.v.i	v8, 0x0
+      2a:      	sd	a0, 0x28(sp)
+      2c:      	beqz	a0, 0x2c <tcrv_emitc_ggml_vec_dot_q5_K_q8_K_kernel_rvv_q5_K_q8_K_block_dot+0x2c>
+      30:      	li	t4, 0x0
+      32:      	lui	a0, 0x3f3f4
+      36:      	addiw	a0, a0, -0xc1
+      3a:      	sd	a0, 0x20(sp)
+      3c:      	lui	a0, 0x30303
+      40:      	addiw	a0, a0, 0x30
+      44:      	sd	a0, 0x18(sp)
+      46:      	lui	a0, 0xf0f1
+      4a:      	addiw	a0, a0, -0xf1
+      4e:      	sd	a0, 0x10(sp)
+      50:      	vmv.v.i	v10, 0x0
+      54:      	fmv.w.x	fa5, zero
+      58:      	vsetivli	zero, 0x8, e8, mf2, ta, ma
+      5c:      	addi	t6, sp, 0x58
+      60:      	li	s5, 0x100
+      64:      	mv	ra, a3
+      66:      	li	t1, 0x0
+      68:      	li	s0, 0x0
+      6a:      	li	a6, 0x0
+      6c:      	li	a0, 0x0
+      6e:      	li	a1, 0xb0
+      72:      	mul	t5, t4, a1
+      76:      	ld	a1, 0x30(sp)
+      78:      	add	t5, t5, a1
+      7a:      	li	a1, 0x124
+      7e:      	mul	s6, t4, a1
+      82:      	lwu	s4, 0x8(t5)
+      86:      	mv	t3, a3
+      88:      	add	s6, s6, a3
+      8a:      	lw	a4, 0xc(t5)
+      8e:      	lw	a7, 0x4(t5)
+      92:      	srli	a5, s4, 0x2
+      96:      	ld	a3, 0x18(sp)
+      98:      	and	a5, a5, a3
+      9a:      	srli	a1, a4, 0x4
+      9e:      	ld	s1, 0x10(sp)
+      a0:      	and	a1, a1, s1
+      a2:      	or	s3, a1, a5
+      a6:      	ld	a2, 0x20(sp)
+== OBJDUMP SEAL factory ==
+       0:      	addi	sp, sp, -0x70
+       2:      	sd	ra, 0x68(sp)
+       4:      	sd	s0, 0x60(sp)
+       6:      	sd	s1, 0x58(sp)
+       8:      	sd	s2, 0x50(sp)
+       a:      	sd	s3, 0x48(sp)
+       c:      	sd	s4, 0x40(sp)
+       e:      	sd	s5, 0x38(sp)
+      10:      	sd	s6, 0x30(sp)
+      12:      	sd	s7, 0x28(sp)
+      14:      	sd	s8, 0x20(sp)
+      16:      	sd	s9, 0x18(sp)
+      18:      	andi	a4, a0, 0xff
+      1c:      	bnez	a4, 0x1c <tcrv_emitc_ggml_vec_dot_q5_K_q8_K_kernel_rvv_q5_K_q8_K_block_dot+0x1c>
+      20:      	sraiw	a0, a0, 0x8
+      24:      	blez	a0, 0x24 <tcrv_emitc_ggml_vec_dot_q5_K_q8_K_kernel_rvv_q5_K_q8_K_block_dot+0x24>
+      28:      	li	s7, 0x0
+      2a:      	addi	a6, sp, 0x10
+      2e:      	lui	a4, 0x3f3f4
+      32:      	addiw	a7, a4, -0xc1
+      36:      	lui	a4, 0x30303
+      3a:      	addi	t3, a4, 0x30
+      3e:      	lui	a4, 0xf0f1
+      42:      	addi	t6, a4, -0xf1
+      46:      	vsetivli	zero, 0x1, e32, m1, ta, ma
+      4a:      	vmv.s.x	v8, zero
+      4e:      	li	a4, 0x124
+      52:      	mul	t0, a0, a4
+      56:      	fmv.w.x	fa5, zero
+      5a:      	li	t1, 0x4
+      5c:      	li	t2, 0x20
+      60:      	li	s3, 0x10
+      62:      	li	t4, 0x40
+      66:      	li	t5, -0x80
+      6a:      	fmv.s	fa4, fa5
+      6e:      	addi	s2, a2, 0x30
+      72:      	addi	s4, a2, 0x10
+      76:      	add	s9, a3, s7
+      7a:      	flh	fa1, 0x2(a2)
+      7e:      	flw	fa3, 0x0(s9)
+      82:      	addi	s5, s9, 0x4
+      86:      	flh	fa2, 0x0(a2)
+      8a:      	fcvt.s.h	fa1, fa1
+      8e:      	fmul.s	fa1, fa3, fa1
+      92:      	addi	a4, s9, 0x104
+      96:      	vsetivli	zero, 0x8, e16, m1, ta, ma
+      9a:      	vlse16.v	v9, (a4), t1
+      9e:      	lh	a4, 0xe(a2)
+      a2:      	lhu	s0, 0xc(a2)
+      a6:      	addi	s1, s9, 0x106
+      aa:      	vlse16.v	v10, (s1), t1
+      ae:      	slli	a4, a4, 0x10
+      b0:      	or	a4, a4, s0
+      b2:      	sw	a4, 0x10(sp)
+      b4:      	lhu	s6, 0x6(a2)
+      b8:      	lhu	a4, 0x4(a2)
+      bc:      	lhu	s0, 0x8(a2)
+      c0:      	lhu	s1, 0xa(a2)
+      c4:      	slli	a5, s6, 0x10
+      c8:      	or	a4, a4, a5
+== CORRECTNESS ours ==
+VLEN(bits)=256  vlenb=32  VLMAX_e8m2=64  march=rv64gcv_zba_zbb_zbc_zbs_zfh_zvfh  driver_has_rvv_intrinsics=1
+[GATE] exact-match vs GENERIC q5_K oracle : 256/256   worst ULP=0
+[diag] exact-match vs FACTORY-fold oracle : 55/256
+VERDICT (generic q5_K gate): BIT-EXACT
+property: 4/4 passed
+mutation caught (oracle discriminates): YES
+== CORRECTNESS factory ==
+[GATE] exact-match vs GENERIC q5_K oracle : 55/256   worst ULP=130
+[diag] exact-match vs FACTORY-fold oracle : 256/256
+VERDICT (generic q5_K gate): NOT bit-exact
+property: 3/4 passed
+mutation caught (oracle discriminates): YES
+== ABPASS 1 ==
+AB pass=1 round=1 side=ours    kernel_ns=9666.0 freq_khz=1600000
+AB pass=1 round=1 side=factory kernel_ns=6417.6 freq_khz=1600000
+AB pass=1 round=2 side=ours    kernel_ns=9668.7 freq_khz=1600000
+AB pass=1 round=2 side=factory kernel_ns=6419.5 freq_khz=1600000
+AB pass=1 round=3 side=ours    kernel_ns=9666.6 freq_khz=1600000
+AB pass=1 round=3 side=factory kernel_ns=6418.1 freq_khz=1600000
+AB pass=1 round=4 side=ours    kernel_ns=9665.0 freq_khz=1600000
+AB pass=1 round=4 side=factory kernel_ns=6418.5 freq_khz=1600000
+AB pass=1 round=5 side=ours    kernel_ns=9666.5 freq_khz=1600000
+AB pass=1 round=5 side=factory kernel_ns=6416.8 freq_khz=1600000
+AB pass=1 round=6 side=ours    kernel_ns=9665.7 freq_khz=1600000
+AB pass=1 round=6 side=factory kernel_ns=6418.3 freq_khz=1600000
+AB pass=1 round=7 side=ours    kernel_ns=9668.9 freq_khz=1600000
+AB pass=1 round=7 side=factory kernel_ns=6417.2 freq_khz=1600000
+AB pass=1 round=8 side=ours    kernel_ns=9666.8 freq_khz=1600000
+AB pass=1 round=8 side=factory kernel_ns=6417.4 freq_khz=1600000
+AB pass=1 round=9 side=ours    kernel_ns=9666.4 freq_khz=1600000
+AB pass=1 round=9 side=factory kernel_ns=6418.0 freq_khz=1600000
+AB pass=1 round=10 side=ours    kernel_ns=9666.4 freq_khz=1600000
+AB pass=1 round=10 side=factory kernel_ns=6417.5 freq_khz=1600000
+AB pass=1 round=11 side=ours    kernel_ns=9664.7 freq_khz=1600000
+AB pass=1 round=11 side=factory kernel_ns=6417.9 freq_khz=1600000
+AB pass=1 round=12 side=ours    kernel_ns=9664.3 freq_khz=1600000
+AB pass=1 round=12 side=factory kernel_ns=6417.3 freq_khz=1600000
+== ABPASS 2 ==
+AB pass=2 round=1 side=ours    kernel_ns=9666.0 freq_khz=1600000
+AB pass=2 round=1 side=factory kernel_ns=6420.0 freq_khz=1600000
+AB pass=2 round=2 side=ours    kernel_ns=9666.8 freq_khz=1600000
+AB pass=2 round=2 side=factory kernel_ns=6427.3 freq_khz=1600000
+AB pass=2 round=3 side=ours    kernel_ns=9665.1 freq_khz=1600000
+AB pass=2 round=3 side=factory kernel_ns=6418.0 freq_khz=1600000
+AB pass=2 round=4 side=ours    kernel_ns=9668.6 freq_khz=1600000
+AB pass=2 round=4 side=factory kernel_ns=6419.5 freq_khz=1600000
+AB pass=2 round=5 side=ours    kernel_ns=9667.3 freq_khz=1600000
+AB pass=2 round=5 side=factory kernel_ns=6417.5 freq_khz=1600000
+AB pass=2 round=6 side=ours    kernel_ns=9665.7 freq_khz=1600000
+AB pass=2 round=6 side=factory kernel_ns=6418.7 freq_khz=1600000
+AB pass=2 round=7 side=ours    kernel_ns=9664.1 freq_khz=1600000
+AB pass=2 round=7 side=factory kernel_ns=6417.0 freq_khz=1600000
+AB pass=2 round=8 side=ours    kernel_ns=9666.5 freq_khz=1600000
+AB pass=2 round=8 side=factory kernel_ns=6420.3 freq_khz=1600000
+AB pass=2 round=9 side=ours    kernel_ns=9665.7 freq_khz=1600000
+AB pass=2 round=9 side=factory kernel_ns=6418.6 freq_khz=1600000
+AB pass=2 round=10 side=ours    kernel_ns=9667.1 freq_khz=1600000
+AB pass=2 round=10 side=factory kernel_ns=6417.5 freq_khz=1600000
+AB pass=2 round=11 side=ours    kernel_ns=9666.8 freq_khz=1600000
+AB pass=2 round=11 side=factory kernel_ns=6419.3 freq_khz=1600000
+AB pass=2 round=12 side=ours    kernel_ns=9663.8 freq_khz=1600000
+AB pass=2 round=12 side=factory kernel_ns=6417.8 freq_khz=1600000
+== DONE ==

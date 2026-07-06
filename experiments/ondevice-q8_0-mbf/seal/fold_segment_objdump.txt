@@ -1,0 +1,4 @@
+      82: d00577d3     	fcvt.s.w	fa5, a0
+      86: 10f477d3     	fmul.s	fa5, fs0, fa5
+      8a: 10a7f7d3     	fmul.s	fa5, fa5, fa0
+      8e: 00f4f4d3     	fadd.s	fs1, fs1, fa5

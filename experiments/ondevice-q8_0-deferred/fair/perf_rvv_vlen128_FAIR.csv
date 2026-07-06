@@ -1,0 +1,17 @@
+# FAIR re-test of q8_0 deferred(A) vs per-block(B) vs factory(C) -- fp16-march confound eliminated.
+# rvv board VLEN128 (vlenb=16), openEuler kernel 6.12.66, 64c, governor=performance, taskset -c 8, 2.6GHz fixed.
+# Board ISA HAS zfh+zfhmin+zvfh+zvfhmin => hardware scalar fcvt.s.h AND vector fp16 both available.
+# kernel .o = clang-20 cross -O2 -mabi=lp64d -ffp-contract=off; driver = clang-17 on-board -march=rv64gcv (fp16=integer, march-neutral, only TIMES the kernel .o).
+# n=4096 (128 blocks), verify=256, perf_iters=100000, driver internal best-of-7, 11 outer rounds -> median (IQR% shown), fixed-freq pinned.
+# kernel, march, median_ns, min_ns, IQR_pct, bitexact_vs_pinned_§1, scalar_fp16_lowering
+A_deferred,       rv64gcv_zfh_zvfhmin, 1085.4, 1085.2, 0.009, 256/256_ULP0, VECTOR vlse16+vfwcvt (hot loop); 0 libcall
+B_perblock_zfh,   rv64gcv_zfh_zvfhmin, 1009.8, 1009.6, 0.010, 256/256_ULP0, hardware fcvt.s.h x2; 0 libcall
+B_perblock_nozfh, rv64gcv_zvfhmin,     1853.1, 1853.0, 0.003, 256/256_ULP0, __extendhfsf2 libcall x2 (CONFOUNDED)
+C_factory_zfh,    rv64gcv_zfh_zvfhmin,  880.7,  880.6, 0.011, 120/256(matches_premul_diag), hardware fcvt.s.h x2; 0 libcall
+C_factory_nozfh,  rv64gcv_zvfhmin,     1792.7, 1792.5, 0.033, 120/256(matches_premul_diag), __extendhfsf2 libcall x2 (CONFOUNDED)
+#
+# LIBCALL PENALTY (same-session no-zfh vs zfh): B 1853.1/1009.8=1.835x (+843ns); C 1792.7/880.7=2.036x (+912ns). ~3.3-3.6 ns per libcall over 256 scalar fp16 conversions/dot.
+# FAIR ratios (all clang-20, all zfh, -ffp-contract=off): A/C=1.232 (deferred 23% SLOWER than factory); A/B=1.075; B/C=1.147.
+# ADJUDICATION: original A/C=0.592 (apparent 1.69x deferred "win") was 100% fp16-libcall confound on C (C 1848->880.7 fair, 2.1x). Fair -> deferred LOSES to factory 1.23x. Real structural (A vector-fp16 vs C hardware-scalar-fp16) = 23% LOSS, ZERO win.
+# STEP-3 reconcile: clang-17 same-session B/C=0.998 reproduces step-3 parity(0.981); clang-20 B/C=1.147. Diff = COMPILER (clang-17->clang-20 ~4x codegen + ordering flip), not the kernel. Deferred A=1093 was clang-20, never on step-3's clang-17 baseline.
+# CAVEAT: KERNEL microbench single-board VLEN128 only. NOT Win-B ([PERF-1] 8 gates unmet). Not committed.
