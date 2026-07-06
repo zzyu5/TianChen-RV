@@ -34,7 +34,10 @@ using tianchenrv::plugin::VariantLoweringBoundaryRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::support::CapabilityAvailability;
+using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::CapabilityRelationsAttr;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -755,6 +758,198 @@ module {
   return 0;
 }
 
+// [F-6] independent-family acceptance ([core-invariants] [F-6], [L-2]
+// independent-attached). Two machine-checked conjuncts:
+//   (1) the scalar family's capability-predicate transitive `implies` closure
+//       ∩ {rvv, rvv.*} = ∅ (built on the new
+//       TargetCapabilitySet::impliedClosureAvoidsRVVNamespace helper), with a
+//       non-vacuous negative control proving the helper fires when the closure
+//       DOES reach the rvv.* namespace directly or transitively; and
+//   (2) a vector-absent instance (only scalar.fallback, no rvv) whose scalar
+//       variant is only_feasible AND is actually selected -- FallbackOnly with
+//       the scalar variant as the chosen selectedVariant, not a dead metadata
+//       shell that never wins selection.
+//
+// Reconciliation with the plugin's 3 fail-closed emission segments and the
+// out-of-scope emission unit test (runMaterializationSelectionAndEmissionTest):
+// those lock Unsupported for the descriptorless *metadata* variant, which is
+// correct -- the conservative fallback envelope has no body to emit. The
+// selected variant is proved non-dead-shell by the sibling emittable machine
+// check test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir,
+// where the SAME vector-absent family carries a typed body and the
+// --tcrv-scalar-emitc-to-cpp route lowers it to real pure-scalar C.
+int runFamilyIndependenceAcceptanceTest(mlir::MLIRContext &context) {
+  auto impliesOnly = [&](llvm::StringRef impliedID) {
+    return CapabilityRelationsAttr::get(
+        &context, /*provides=*/{},
+        /*implies=*/{mlir::StringAttr::get(&context, impliedID)},
+        /*conflicts=*/{});
+  };
+
+  // --- conjunct (1): closure ∩ rvv.* = ∅ for the scalar fallback family. ---
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  func.func @high_level_placeholder() {
+    return
+  }
+
+  tcrv.exec.kernel @only_feasible_scalar attributes {} {
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
+      status = "available"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse F-6 vector-absent scalar module");
+
+  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
+  KernelOp kernel = findKernel(*module, "only_feasible_scalar");
+  if (int result = expect(highLevelOp && kernel,
+                          "F-6 vector-absent scalar module has anchors"))
+    return result;
+
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  const CapabilityDescriptor *scalarFallback = capabilities.lookupByID(
+      tianchenrv::plugin::scalar::getScalarFallbackCapabilityID());
+  if (int result = expect(scalarFallback,
+                          "F-6 kernel exposes the scalar.fallback capability"))
+    return result;
+  if (int result =
+          expect(capabilities.impliedClosureAvoidsRVVNamespace(*scalarFallback),
+                 "F-6 conjunct 1: scalar.fallback implies-closure ∩ rvv.* = ∅"))
+    return result;
+
+  // Non-vacuous negative controls: the helper MUST report non-independence when
+  // the transitive implies closure reaches the rvv.* namespace, directly or
+  // through an intermediate hop, and MUST NOT trip on a bare-prefix lookalike.
+  TargetCapabilitySet directRVV;
+  if (int result = expectSuccess(
+          directRVV.tryAddCapability(CapabilityDescriptor(
+              "fake_scalar_direct", "scalar.fallback.direct", "fallback",
+              "available", CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvv"))),
+          "add direct-rvv negative-control capability"))
+    return result;
+  const CapabilityDescriptor *directSeed =
+      directRVV.lookupByID("scalar.fallback.direct");
+  if (int result = expect(
+          directSeed &&
+              !directRVV.impliedClosureAvoidsRVVNamespace(*directSeed),
+          "F-6 negative control: implies rvv (exact) is NOT independent"))
+    return result;
+
+  TargetCapabilitySet dottedRVV;
+  if (int result = expectSuccess(
+          dottedRVV.tryAddCapability(CapabilityDescriptor(
+              "fake_scalar_dotted", "scalar.fallback.dotted", "fallback",
+              "available", CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvv.zvfh"))),
+          "add dotted-rvv negative-control capability"))
+    return result;
+  const CapabilityDescriptor *dottedSeed =
+      dottedRVV.lookupByID("scalar.fallback.dotted");
+  if (int result = expect(
+          dottedSeed &&
+              !dottedRVV.impliedClosureAvoidsRVVNamespace(*dottedSeed),
+          "F-6 negative control: implies rvv.zvfh is NOT independent"))
+    return result;
+
+  // Transitive reach: seed implies mid, mid implies rvv.zve32f (a closure leaf).
+  TargetCapabilitySet transitiveRVV;
+  if (int result = expectSuccess(
+          transitiveRVV.tryAddCapability(CapabilityDescriptor(
+              "fake_scalar_transitive", "scalar.fallback.transitive", "fallback",
+              "available", CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("bridge.mid"))),
+          "add transitive-rvv seed capability"))
+    return result;
+  if (int result = expectSuccess(
+          transitiveRVV.tryAddCapability(CapabilityDescriptor(
+              "bridge_mid", "bridge.mid", "profile", "available",
+              CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvv.zve32f"))),
+          "add transitive-rvv bridge capability"))
+    return result;
+  const CapabilityDescriptor *transitiveSeed =
+      transitiveRVV.lookupByID("scalar.fallback.transitive");
+  if (int result =
+          expect(transitiveSeed &&
+                     !transitiveRVV.impliedClosureAvoidsRVVNamespace(
+                         *transitiveSeed),
+                 "F-6 negative control: transitive reach to rvv.zve32f is NOT "
+                 "independent"))
+    return result;
+
+  // Bare-prefix guard: "rvvish" is not in the rvv.* namespace; must stay
+  // independent so the intersection test is a true namespace test, not substring.
+  TargetCapabilitySet lookalikeRVV;
+  if (int result = expectSuccess(
+          lookalikeRVV.tryAddCapability(CapabilityDescriptor(
+              "fake_scalar_lookalike", "scalar.fallback.lookalike", "fallback",
+              "available", CapabilityAvailability::Available, /*properties=*/{},
+              impliesOnly("rvvish"))),
+          "add bare-prefix lookalike capability"))
+    return result;
+  const CapabilityDescriptor *lookalikeSeed =
+      lookalikeRVV.lookupByID("scalar.fallback.lookalike");
+  if (int result = expect(
+          lookalikeSeed &&
+              lookalikeRVV.impliedClosureAvoidsRVVNamespace(*lookalikeSeed),
+          "F-6 guard: 'rvvish' is outside the rvv.* namespace (independent)"))
+    return result;
+
+  // --- conjunct (2): the scalar variant is only_feasible AND truly selected. ---
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
+                            registry),
+                        "register scalar fallback plugin for F-6 selection"))
+    return result;
+
+  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
+                                 capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize scalar fallback variant for F-6"))
+    return result;
+  if (int result = expect(materializedVariants.size() == 1,
+                          "F-6 vector-absent instance materializes exactly one "
+                          "scalar variant"))
+    return result;
+  VariantOp scalarVariant = materializedVariants.front();
+
+  llvm::Expected<VariantSelectionPlan> planOrError =
+      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                         registry);
+  if (!planOrError)
+    return fail("F-6 scalar selection planning failed: " +
+                llvm::toString(planOrError.takeError()));
+  VariantSelectionPlan selectionPlan = std::move(*planOrError);
+  if (int result = expect(
+          selectionPlan.kind == VariantSelectionKind::FallbackOnly &&
+              selectionPlan.selectedVariant == scalarVariant &&
+              selectionPlan.fallback == scalarVariant,
+          "F-6 conjunct 2: the only-feasible scalar variant is actually "
+          "selected (not a dead shell)"))
+    return result;
+  if (int result =
+          expect(scalarVariant.getSymName() ==
+                     tianchenrv::plugin::scalar::
+                         getScalarFallbackFirstSliceVariantName(),
+                 "F-6 selected variant is the canonical scalar fallback slice"))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -785,6 +980,8 @@ int main() {
           runRVVDeclineKeepsScalarFallbackEnvelopeBoundarylessTest(context))
     return result;
   if (int result = runLegalityRejectionTest(context))
+    return result;
+  if (int result = runFamilyIndependenceAcceptanceTest(context))
     return result;
 
   llvm::outs() << "scalar fallback extension plugin smoke test passed\n";

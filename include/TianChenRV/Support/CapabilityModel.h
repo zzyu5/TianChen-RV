@@ -125,6 +125,25 @@ public:
   bool satisfiesIDTransitively(const CapabilityDescriptor &descriptor,
                                llvm::StringRef id) const;
 
+  // [F-6] independent-family primitive: does no id in `namespacePrefix`'s
+  // capability namespace appear anywhere in `seed`'s transitive `implies`
+  // closure? An id is IN the namespace when it equals `namespacePrefix` exactly
+  // OR starts with `namespacePrefix` + "." (so "rvv" matches "rvv" and
+  // "rvv.zvfh" but not "rvvish"). Built directly on computeImpliedClosure and
+  // the same prefix test classifyRVVSatisfaction uses one-hop, lifted to the
+  // full closure so it is the machine-checkable core of the "closure ∩ family
+  // namespace = ∅" independence criterion. Returns true iff the intersection is
+  // empty.
+  bool impliedClosureAvoidsNamespace(const CapabilityDescriptor &seed,
+                                     llvm::StringRef namespacePrefix) const;
+
+  // [F-6] convenience specialization for the RVV family namespace: returns true
+  // iff `seed`'s transitive implies closure ∩ {rvv, rvv.*} = ∅. A `true` result
+  // is one of the two machine-checked conjuncts an `independent`-attached family
+  // ([L-2]) must satisfy (the other being an actually-selected vector-absent
+  // instance).
+  bool impliedClosureAvoidsRVVNamespace(const CapabilityDescriptor &seed) const;
+
   void collectProvidersByID(
       llvm::StringRef id,
       llvm::SmallVectorImpl<const CapabilityDescriptor *> &out) const;
