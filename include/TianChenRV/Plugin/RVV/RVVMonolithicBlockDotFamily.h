@@ -1714,7 +1714,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // iq1_s scaffold and only adds a variant integer-core brick (NO gearbox -- fixed
        // 16-lane per-half shape, unlike iq2_xxs's m2/m1).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {tcrv::rvv::GgmlBlockDotIQ2SQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq2_s_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_s_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq2-s-q8-k-block-dot-source-front-door",
@@ -1722,7 +1722,21 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq2_s_q8_K_block_dot", "rvv_iq2_s_q8_K_block_dot_from_vector_source",
        "per-half-int4-explicit-scales-grid-codebook-qh-plane-explicit-signs-int-domain",
        "ggml IQ2_S x Q8_K super-block grid-codebook block-dot source front door failed: ", "iq2s-weight", "q8k-act",
-       "", kIQ2SFacts, {}, kIQ2SGrid, {}, {}},
+       "", kIQ2SFacts, {}, kIQ2SGrid, {}, {},
+       // iq2_s flip (L3 coverage, SIGN-PLANE explicit-signs variant, PER-HALF explicit
+       // scale): the typed super-block SCALAR-accumulator GRID loop body (fold_model
+       // "scalar_delta_grid" -- iq2_s's fold is a single per-super-block scalar `sumf +=
+       // d*(float)bsum` with the trailing `*s = 0.125f*sumf`, bsum being the scalar state
+       // of the iq2_s per-half-explicit-scale GRID integer core). Shares iq1_s's selector;
+       // the resolver disambiguates iq2_s from iq1_s/iq1_m/iq3_xxs/iq2_xxs/iq2_xs (all
+       // scalar_delta_grid) by the loop op's OWN weight_block_stride (block_iq2_s 82 vs
+       // iq1_s 50 / iq1_m 56 / iq3_xxs 98 / iq2_xxs 66 / iq2_xs 74). The monolith op
+       // tcrv_rvv.iq2_s_q8_k_block_dot is RETIRED (this opName is now a dead string -- no
+       // op carries it; the row is reached by the marker for construction and by this
+       // selector for export resolution). The SIXTH GRID/codebook member reuses the whole
+       // iq1_s scaffold and only adds a variant integer-core brick (NO gearbox -- fixed
+       // 16-lane per-half shape, like iq2_xs; unlike iq2_xxs's m2/m1).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"tcrv_rvv.iq3_xxs_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_xxs_q8_K_block_dot_source",

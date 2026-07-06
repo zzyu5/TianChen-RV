@@ -747,6 +747,53 @@ void VariantToEmitCFunc::emitIQ2XSCanonicalSigns64TableDecl(
   rewriter.create<emitc::VerbatimOp>(loc, decl);
 }
 
+// The fixed 1024-entry iq2_s GRID codebook as ONE `static const int64_t
+// tcrv_iq2s_grid[1024]` verbatim decl (ggml's exact uint64 hex literals rendered
+// `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every
+// grid byte is <= 0x2b < 128 so reading it as int8 yields the identical numeric value as
+// ggml's uint8 read). The byte-exact SHARED anchor kept across the iq2_s flip: the retired
+// monolith rendered its carried grid attr identically; the typed grid loop lowering passes
+// the canonical kIQ2SGrid so the decl is byte-identical.
+void VariantToEmitCFunc::emitIQ2SCanonicalGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &grid = tianchenrv::plugin::rvv::kIQ2SGrid;
+  std::string decl = "static const int64_t tcrv_iq2s_grid[1024] = {";
+  for (size_t i = 0; i < grid.size(); ++i) {
+    if (i)
+      decl += ", ";
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%016llxULL",
+                  static_cast<unsigned long long>(
+                      static_cast<uint64_t>(grid[i])));
+    decl += buf;
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
+// The UNIVERSAL signs256 SIGN plane as ONE `static const int8_t
+// tcrv_iq2s_signs256[2048]` verbatim decl (256 sign-byte values * 8 +-1 bytes). iq2_s has
+// NO ksigns selector plane -- its signs are EXPLICIT bytes read straight from the sign
+// region at qs+32, so the gather is indexed by the raw 8-bit sign byte DIRECTLY (0..255):
+// byte b of sign byte v is `(v & (1<<b)) ? -1 : +1`, exactly the per-lane sign the old
+// scalar fold computed via vmv/vand/vmsne/vneg/vmerge, so gathering signs256[v] reproduces
+// it byte-exact. The byte-exact SHARED anchor kept across the iq2_s flip: the retired
+// monolith emitted the SAME universal table inline (NO op-attr dependency -- the table is
+// universal), so the decl is byte-identical.
+void VariantToEmitCFunc::emitIQ2SCanonicalSigns256TableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  std::string decl = "static const int8_t tcrv_iq2s_signs256[2048] = {";
+  for (int v = 0; v < 256; ++v) {
+    for (int b = 0; b < 8; ++b) {
+      if (v || b)
+        decl += ", ";
+      decl += ((v >> b) & 1) ? "-1" : "1";
+    }
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
 // Emit ONE iq1_m super-block's TERNARY-grid body (the packed iq1m_scale fp16
 // reconstruct + the fp32 d fold scale, the qs/qh/sc/q8 bases, the two SCALAR i32
 // accumulators sumi1/sumi2, the flat 8-sub-block per-half vluxei16 grid gather +

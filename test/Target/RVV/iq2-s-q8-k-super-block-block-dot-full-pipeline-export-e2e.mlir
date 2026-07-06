@@ -31,6 +31,17 @@
 // pins m1 in the emitter, so the op lowers at its m1 integer-core anchor -- there is NO
 // VLEN128-vs-VLEN256 byte-flip for iq2_s.
 //
+// iq2_s FLIP (L3 coverage, SIGN-PLANE explicit-signs, PER-HALF explicit scale, the LAST iq2
+// variant): the front door no longer constructs the retired monolith op -- it constructs the
+// typed super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride
+// 82) with the iq2_s per-half-scale grid-core brick (tcrv_rvv.iq2_s_q8_k_grid_core). The
+// export still resolves through the SAME super-block monolithic route family (kind/ABI/facts)
+// by the selector + weight_block_stride 82, so the emission-plan metadata + the exported
+// object are byte-unchanged, and the CORE EmitC is byte-identical to the retired monolith
+// modulo the source-op provenance token. Like iq2_xs the brick carries NO gearbox (fixed
+// 16-lane per-half shape, not in any autotuner) -- the per-half body is i64m1 gather + i8m1
+// view + i16m2 widen at all VLEN.
+//
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
 
@@ -72,7 +83,13 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq2_s_q8_K_block_dot_sourc
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_iq2_s_q8_K_kernel
-// PLAN: tcrv_rvv.iq2_s_q8_k_block_dot
+// iq2_s FLIP (L3 coverage, SIGN-PLANE explicit-signs, PER-HALF explicit scale): the front
+// door now constructs the typed super-block SCALAR-accumulator GRID loop body (fold_model
+// "scalar_delta_grid", stride 82) with the iq2_s per-half-scale grid-core brick
+// (tcrv_rvv.iq2_s_q8_k_grid_core), NOT the retired monolith op. The export still resolves
+// through the SAME super-block monolithic route family (kind/ABI/facts) by the selector +
+// weight_block_stride 82, so the emission-plan metadata is byte-unchanged.
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
