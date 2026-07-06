@@ -50,10 +50,17 @@
 
 namespace tianchenrv::plugin::rvv {
 
-// The two monolithic ggml block-dot route families. K-quants (q4_K) are genuine
-// super-blocks (QK_K == 256, 8 sub-blocks, per-sub-block scale/min bit-dance);
-// flat block-dots (q4_0, iq4_nl) are single 32-element AoS blocks.
-enum class MonolithicBlockDotRouteFamily { SuperBlock, Flat };
+// The monolithic ggml route families. K-quants (q4_K) are genuine super-blocks
+// (QK_K == 256, 8 sub-blocks, per-sub-block scale/min bit-dance); flat block-dots
+// (q4_0, iq4_nl) are single 32-element AoS blocks. RepackGemv is the option-2
+// quant_contraction BRIDGE route: the q4_0 16x1-repacked (block_q4_0x16
+// interleaved) GEVM the front door CONSTRUCTS as the typed
+// tcrv_rvv.typed_repack_gemv_loop_body region -- a SINGLE plugin-owned typed body
+// that lowers DIRECTLY through the RVV->EmitC DialectConversion exactly like the
+// block-dot families, so it shares this whole monolithic emission-plan +
+// object-export mechanism, but it is a GEVM (writes through the output pointer,
+// internalizes the N loop), NOT a block-dot -- hence its own honest route family.
+enum class MonolithicBlockDotRouteFamily { SuperBlock, Flat, RepackGemv };
 
 // Family-INVARIANT constants -- identical for the super-block AND flat monolithic
 // block-dot routes (they describe the shared EmitC-lowerable typed-body mechanism
@@ -107,8 +114,22 @@ getMonolithicBlockDotFamilyConstants(MonolithicBlockDotRouteFamily family) {
       "rvv-ggml-flat-monolithic-typed-body",
       "rvv_ggml_flat_block_dot_kind",
       "rvv_ggml_flat_scale_model"};
-  return family == MonolithicBlockDotRouteFamily::SuperBlock ? kSuperBlock
-                                                             : kFlat;
+  static const MonolithicBlockDotFamilyConstants kRepackGemv{
+      "rvv-ggml-repack-gemv-monolithic-emitc-route-family",
+      "rvv-ggml-repack-gemv-monolithic-emitc-route-family.header",
+      "rvv-ggml-repack-gemv-callable-c-abi.v1",
+      "rvv-ggml-repack-gemv-monolithic-typed-body",
+      "rvv_ggml_repack_gemv_kind",
+      "rvv_ggml_repack_gemv_scale_model"};
+  switch (family) {
+  case MonolithicBlockDotRouteFamily::SuperBlock:
+    return kSuperBlock;
+  case MonolithicBlockDotRouteFamily::Flat:
+    return kFlat;
+  case MonolithicBlockDotRouteFamily::RepackGemv:
+    return kRepackGemv;
+  }
+  return kFlat;
 }
 
 // The long human-readable plan description (NOT rendered in the coherence
@@ -129,8 +150,23 @@ getMonolithicBlockDotPlanDescription(MonolithicBlockDotRouteFamily family) {
       "(the AoS block loop, the per-block fp16 scale model, the integer decode/"
       "product core, and the fp32 fold are first-class op structure), then uses "
       "the MLIR EmitC C/C++ emitter before RISC-V object packaging";
-  return family == MonolithicBlockDotRouteFamily::SuperBlock ? kSuperBlock
-                                                             : kFlat;
+  static const llvm::StringRef kRepackGemv =
+      "RVV selected monolithic ggml repacked (block_q4_0x16 16x1-interleaved) "
+      "GEVM typed body materializes a verified EmitC module through the common "
+      "RVV->EmitC DialectConversion (the per-strip disjoint-half repacked "
+      "sub-loads, the lane-wise integer product core, the per-strip dual-fp16 "
+      "scale fold, and the lane-wise f32 vector accumulator are first-class op "
+      "structure), then uses the MLIR EmitC C/C++ emitter before RISC-V object "
+      "packaging";
+  switch (family) {
+  case MonolithicBlockDotRouteFamily::SuperBlock:
+    return kSuperBlock;
+  case MonolithicBlockDotRouteFamily::Flat:
+    return kFlat;
+  case MonolithicBlockDotRouteFamily::RepackGemv:
+    return kRepackGemv;
+  }
+  return kFlat;
 }
 
 // One expected ordered runtime-ABI parameter (c parameter name + role) of a
@@ -165,6 +201,22 @@ monolithicBlockDotABI8Strided() {
       {"vy", support::RuntimeABIParameterRole::RHSInputBuffer},
       {"by", support::RuntimeABIParameterRole::RHSInputStride},
       {"nrc", support::RuntimeABIParameterRole::RHSScalarValue}};
+  return kRoles;
+}
+
+// The 5-role repacked-GEVM ABI (n, s, bs, vx, vy) the q4_0 16x1-repack GEVM
+// exports. The typed_repack_gemv_loop_body consumes weight base (vx), activation
+// base (vy), output (s), element count (n), and column count (bs -- carried as the
+// output-stride-role runtime value); the exported C signature mirrors that GEVM
+// prototype (NOT a block-dot's n/s/vx/vy, and NOT q4_0 block-dot's 8-role strided
+// vec_dot).
+inline llvm::ArrayRef<MonolithicBlockDotABIRole> monolithicRepackGemvABI5() {
+  static const MonolithicBlockDotABIRole kRoles[] = {
+      {"n", support::RuntimeABIParameterRole::RuntimeElementCount},
+      {"s", support::RuntimeABIParameterRole::OutputBuffer},
+      {"bs", support::RuntimeABIParameterRole::OutputStride},
+      {"vx", support::RuntimeABIParameterRole::LHSInputBuffer},
+      {"vy", support::RuntimeABIParameterRole::RHSInputBuffer}};
   return kRoles;
 }
 
@@ -1762,6 +1814,43 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
   return kTable;
 }
 
+// The q4_0 16x1-repacked GEVM monolithic entry. It is deliberately NOT a row of
+// monolithicBlockDotOpTable(): that table is iterated to register a
+// source-front-door construction pass PER ROW, but the repacked GEVM is
+// CONSTRUCTED by the option-2 quant_contraction BRIDGE
+// (RVVLowerQuantContraction.cpp lowerToRepackGemv), NOT a source front door, so a
+// table row would register a dead/misleading block-dot source-front-door pass for
+// it. Instead it is a standalone singleton: recognized on the plugin side by the
+// typed_repack loop op name (resolveSelectedMonolithicBlockDotBodyEntry) and on the
+// target side by its export kind (findMonolithicBlockDotOpEntryByKind). The
+// construction DATA fields are empty (no source front door consumes them); only
+// the export-relevant fields (route family, kind, ABI, pinned scale_model) carry
+// values.
+inline const MonolithicBlockDotOpEntry &repackGemvMonolithicEntry() {
+  static const MonolithicBlockDotOpEntry kEntry{
+      /*opName*/ "tcrv_rvv.repack_gemv_q4_0_q8_0", // retired monolith name; dead
+      /*routeFamily*/ MonolithicBlockDotRouteFamily::RepackGemv,
+      /*kind*/ "rvv_q4_0_q8_0_repack_gemv",
+      /*abiRoles*/ &monolithicRepackGemvABI5,
+      /*markerValue*/ "",
+      /*passArgument*/ "",
+      /*dispatchPolicy*/ "",
+      /*variantSymbol*/ "",
+      /*kernelDefault*/ "",
+      /*scaleModel*/ "dual-fp16-per-block-d_x.d_y",
+      /*failPrefix*/ "",
+      /*weightPurpose*/ "",
+      /*activationPurpose*/ "",
+      /*integerCoreLmul*/ "",
+      /*facts*/ {},
+      /*codebook*/ {},
+      /*gridI64*/ {},
+      /*gridI32*/ {},
+      /*ksigns*/ {},
+      /*typedFlatLoopSelector*/ TypedFlatBlockDotLoopSelector::None};
+  return kEntry;
+}
+
 // The op-identity lookup (plugin side: from the recognized body op).
 inline const MonolithicBlockDotOpEntry *
 findMonolithicBlockDotOpEntry(mlir::Operation *op) {
@@ -1783,6 +1872,11 @@ findMonolithicBlockDotOpEntryByKind(llvm::StringRef kind) {
   for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
     if (entry.kind == kind)
       return &entry;
+  // The repacked-GEVM entry lives outside the construction table (see
+  // repackGemvMonolithicEntry); resolve its export kind here so the target-side
+  // ABI/route lookup round-trips.
+  if (kind == repackGemvMonolithicEntry().kind)
+    return &repackGemvMonolithicEntry();
   return nullptr;
 }
 
@@ -1809,6 +1903,14 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     return nullptr;
   if (const MonolithicBlockDotOpEntry *entry = findMonolithicBlockDotOpEntry(op))
     return entry;
+  // The option-2 quant_contraction BRIDGE repacked-GEVM body: a single typed
+  // tcrv_rvv.typed_repack_gemv_loop_body region that lowers directly through the
+  // RVV->EmitC DialectConversion, so it shares the monolithic emission-plan +
+  // object-export mechanism through its own RepackGemv route family. There is one
+  // repacked GEVM (q4_0), so the op name alone resolves it -- no selector needed.
+  if (op->getName().getStringRef() ==
+      tcrv::rvv::TypedRepackGemvLoopBodyOp::getOperationName())
+    return &repackGemvMonolithicEntry();
   if (op->getName().getStringRef() ==
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
     // The typed SUPER-BLOCK loop body carries the generic loop kind + a

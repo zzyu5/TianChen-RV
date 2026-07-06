@@ -493,12 +493,15 @@ llvm::Error buildMonolithicBlockDotEmissionPlan(
   llvm::StringRef bodyName = blockDot->getName().getStringRef();
   if (bodyName == tcrv::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName() ||
       bodyName ==
-          tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName()) {
+          tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName() ||
+      bodyName == tcrv::rvv::TypedRepackGemvLoopBodyOp::getOperationName()) {
     // The generic typed flat/super-block loop bodies carry the generic loop kind
-    // ("typed_*_block_dot_loop_body") and NO scale_model attr; their export
-    // identity is the resolved shared Flat/SuperBlock entry, so kind/scale_model
-    // come from the entry (this also lets findMonolithicBlockDotOpEntryByKind
-    // resolve the kind target-side during export).
+    // ("typed_*_block_dot_loop_body") and NO scale_model attr; the repacked-GEVM
+    // loop body carries the generic loop kind + a DYNAMIC scale_model. In every
+    // case the export identity is the resolved shared Flat/SuperBlock/RepackGemv
+    // entry, so kind/scale_model come from the entry (this also lets
+    // findMonolithicBlockDotOpEntryByKind resolve the kind target-side during
+    // export).
     kindValue = entry->kind;
     scaleModelValue = entry->scaleModel;
   } else {

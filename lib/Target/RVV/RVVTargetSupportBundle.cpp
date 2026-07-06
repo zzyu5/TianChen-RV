@@ -1669,8 +1669,17 @@ llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
       module, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
-llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
-                                              llvm::raw_ostream &os) {
+// Package the generated EmitC C/C++ as a RISC-V RVV relocatable object under an
+// explicit target -march. Every existing RVV route packages under the baseline
+// rv64gcv (below); the repacked-GEVM route needs rv64gcv_zvfh because its dual-
+// fp16 scale fold loads the per-strip fp16 scales as a VECTOR (vle16_v_f16m1 --
+// the repack locality win), which is a Zvfh op the baseline march rejects. Only
+// the march string differs; the source, headers, ABI, and object are otherwise
+// packaged identically (so every non-repack route stays byte-identical under the
+// unchanged rv64gcv default).
+llvm::Error compileRVVGeneratedSourceToObjectWithMarch(llvm::StringRef source,
+                                                       llvm::raw_ostream &os,
+                                                       llvm::StringRef marchArg) {
   llvm::ErrorOr<std::string> clang = llvm::sys::findProgramByName("clang");
   if (!clang)
     clang = llvm::sys::findProgramByName(
@@ -1747,7 +1756,7 @@ llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
       "-target",
       "riscv64",
       "-O2",
-      "-march=rv64gcv",
+      marchArg,
       "-mabi=lp64d",
       "-isystem",
       libmShimDir.path,
@@ -1787,6 +1796,24 @@ llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
     return makeRVVTargetRouteError("generated RISC-V object is empty");
   os << (*objectBuffer)->getBuffer();
   return llvm::Error::success();
+}
+
+// The baseline RVV object packager (rv64gcv): every existing selected-body /
+// monolithic block-dot route uses this -- byte-identical to before the march was
+// parameterized.
+llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
+                                              llvm::raw_ostream &os) {
+  return compileRVVGeneratedSourceToObjectWithMarch(source, os,
+                                                    "-march=rv64gcv");
+}
+
+// The repacked-GEVM object packager (rv64gcv_zvfh): the repack dual-fp16 scale
+// fold emits Zvfh fp16 vector loads (vle16_v_f16m1), so its object needs the Zvfh
+// extension enabled at the clang march.
+llvm::Error compileRVVGeneratedSourceToObjectZvfh(llvm::StringRef source,
+                                                  llvm::raw_ostream &os) {
+  return compileRVVGeneratedSourceToObjectWithMarch(source, os,
+                                                    "-march=rv64gcv_zvfh");
 }
 
 // P2-b chunk3: monolithic ggml block-dot (super-block + flat) target-artifact-export
@@ -1832,6 +1859,10 @@ monolithicBlockDotFamilyForRouteID(llvm::StringRef routeID) {
                      MonolithicBlockDotRouteFamily::Flat)
                      .routeID)
     return MonolithicBlockDotRouteFamily::Flat;
+  if (routeID == plugin::rvv::getMonolithicBlockDotFamilyConstants(
+                     MonolithicBlockDotRouteFamily::RepackGemv)
+                     .routeID)
+    return MonolithicBlockDotRouteFamily::RepackGemv;
   return makeRVVTargetRouteError(
       llvm::Twine("candidate route id '") + routeID +
       "' is not a monolithic ggml block-dot route id");
@@ -2112,31 +2143,61 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
                                  8>
       kFlatEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
           plugin::rvv::MonolithicBlockDotRouteFamily::Flat);
+  static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
+                                 8>
+      kRepackGemvEvidence = buildRVVMonolithicBlockDotHeaderMetadataEvidence(
+          plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv);
   const plugin::rvv::MonolithicBlockDotFamilyConstants &fc =
       plugin::rvv::getMonolithicBlockDotFamilyConstants(family);
-  bool isSuperBlock =
-      family == plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock;
+
+  llvm::StringRef routeDescription;
+  llvm::StringRef objectDescription;
+  const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 8>
+      *evidence = &kFlatEvidence;
+  switch (family) {
+  case plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock:
+    routeDescription =
+        "RVV monolithic ggml super-block block-dot materialized EmitC target "
+        "artifact bridge (single plugin-owned typed body lowering directly "
+        "through the common RVV->EmitC DialectConversion)";
+    objectDescription = "RVV monolithic ggml super-block block-dot materialized "
+                        "EmitC candidate";
+    evidence = &kSuperBlockEvidence;
+    break;
+  case plugin::rvv::MonolithicBlockDotRouteFamily::Flat:
+    routeDescription =
+        "RVV monolithic ggml flat block-dot materialized EmitC target artifact "
+        "bridge (single plugin-owned typed body lowering directly through the "
+        "common RVV->EmitC DialectConversion)";
+    objectDescription =
+        "RVV monolithic ggml flat block-dot materialized EmitC candidate";
+    evidence = &kFlatEvidence;
+    break;
+  case plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv:
+    routeDescription =
+        "RVV monolithic ggml repacked-GEVM materialized EmitC target artifact "
+        "bridge (single plugin-owned typed body lowering directly through the "
+        "common RVV->EmitC DialectConversion)";
+    objectDescription =
+        "RVV monolithic ggml repacked-GEVM materialized EmitC candidate";
+    evidence = &kRepackGemvEvidence;
+    break;
+  }
 
   ConstructionTemplateArtifactAdapterConfig config =
       getRVVSelectedBodyArtifactAdapterConfig();
   config.selectedRoute.routeID = fc.routeID;
-  config.selectedRoute.routeDescription =
-      isSuperBlock
-          ? "RVV monolithic ggml super-block block-dot materialized EmitC "
-            "target artifact bridge (single plugin-owned typed body lowering "
-            "directly through the common RVV->EmitC DialectConversion)"
-          : "RVV monolithic ggml flat block-dot materialized EmitC target "
-            "artifact bridge (single plugin-owned typed body lowering directly "
-            "through the common RVV->EmitC DialectConversion)";
+  config.selectedRoute.routeDescription = routeDescription;
   config.selectedRoute.candidateValidationFn =
       validateRVVMonolithicBlockDotTargetArtifactCandidate;
   config.headerRouteID = fc.headerRouteID;
-  config.metadataEvidence = isSuperBlock ? kSuperBlockEvidence : kFlatEvidence;
-  config.selectedObjectDescription =
-      isSuperBlock
-          ? "RVV monolithic ggml super-block block-dot materialized EmitC "
-            "candidate"
-          : "RVV monolithic ggml flat block-dot materialized EmitC candidate";
+  config.metadataEvidence = *evidence;
+  config.selectedObjectDescription = objectDescription;
+  // The repacked-GEVM emits Zvfh fp16 vector loads (vle16_v_f16m1) for its
+  // dual-fp16 scale fold, so it packages under rv64gcv_zvfh; the block-dot
+  // families stay on the baseline rv64gcv packager (byte-identical).
+  if (family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv)
+    config.objectPackagerFn = compileRVVGeneratedSourceToObjectZvfh;
   return config;
 }
 
@@ -2156,6 +2217,15 @@ exportRVVMonolithicFlatBlockDotTargetArtifact(mlir::ModuleOp module,
       module, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::Flat));
+}
+
+llvm::Error
+exportRVVMonolithicRepackGemvTargetArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportConstructionTemplateObjectArtifact(
+      module, os,
+      getRVVMonolithicBlockDotArtifactAdapterConfig(
+          plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv));
 }
 
 // Register one bare peer OBJECT exporter for a monolithic block-dot route family.
@@ -2202,6 +2272,17 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
   if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
           registry, plugin::rvv::MonolithicBlockDotRouteFamily::Flat,
           exportRVVMonolithicFlatBlockDotTargetArtifact))
+    return error;
+
+  // The option-2 quant_contraction BRIDGE repacked-GEVM peer OBJECT route: the
+  // q4_0 16x1-repacked GEVM the front door constructs as the typed
+  // tcrv_rvv.typed_repack_gemv_loop_body region flows through the SAME monolithic
+  // emission-plan + object-export mechanism as the flat/super-block block-dots,
+  // on its own RepackGemv route id. Registered as a bare object exporter like its
+  // block-dot siblings; idempotent-guarded.
+  if (llvm::Error error = registerRVVMonolithicBlockDotObjectExporter(
+          registry, plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv,
+          exportRVVMonolithicRepackGemvTargetArtifact))
     return error;
 
   return llvm::Error::success();
