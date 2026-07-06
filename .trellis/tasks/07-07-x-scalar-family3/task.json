@@ -3,7 +3,7 @@
   "name": "x-scalar-family3",
   "title": "[X-SCALAR] 家族#3 接入(真核+F-6)",
   "description": "曳光弹最小贯通已落(implies闭包95f1a482+tracer-bullet 5c010b2b);remaining=真三值2-bit vec_dot标量(主选)/4-bit dequantize_row(保底)真核+F-3收容+F-6独立性验收(implies闭包∩rvv.*=∅+向量缺席only_feasible真选中)。popcount陷阱在案。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

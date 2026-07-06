@@ -22,7 +22,8 @@
     "07-07-line-A-board",
     "07-07-line-C-coverage",
     "07-07-line-D-evidence",
-    "07-07-x-scalar-family3"
+    "07-07-x-scalar-family3",
+    "07-07-fix-negattr-positivity-gate"
   ],
   "parent": null,
   "relatedFiles": [],

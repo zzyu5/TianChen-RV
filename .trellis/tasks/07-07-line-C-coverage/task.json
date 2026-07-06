@@ -3,7 +3,7 @@
   "name": "line-C-coverage",
   "title": "线C 覆盖(iq2→vec_dot→前向算子)",
   "description": "iq2系→余下vec_dot→前向算子(rms_norm/softmax/rope/silu/gelu/add/mul/scale/cpy:先全dispatch-wired再逐个构造)。节奏法债上限4。每格走标准流水线(构造→板配对→落表→triage→措辞门)。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
