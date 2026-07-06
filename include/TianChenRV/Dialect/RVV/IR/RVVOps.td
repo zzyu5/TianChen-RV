@@ -9685,6 +9685,298 @@ def RepackDualFp16ScaleFoldOp
   let hasVerifier = 1;
 }
 
+def RepackGemmLaneWiseQ4Q8DotOp
+    : TCRVRVV_Op<"repack_gemm_lane_wise_q4_x_i8_dot",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_0 16x1-REPACKED GEMM per-block ONE-STRIP N-COLUMN "
+      "LANE-WISE nibble dot (vwmacc lo/hi + lo/hi vwadd combine) integer-core op";
+  let description = [{
+    Records ONE repacked contraction-BLOCK's q4_0 16x1-REPACKED per-block
+    LANE-WISE integer dot for the GEMM (prefill) -- the integer CORE of the ggml
+    `ggml_gemm_q4_0_16x1_q8_0` per-(strip, column-pass) inner block loop -- as ONE
+    bounded generic plugin-local typed RVV dataflow step. It is the GEMM sibling of
+    the GEVM tcrv_rvv.repack_lane_wise_q4_x_i8_dot: where the GEVM core loops the
+    numHalves disjoint strips over a SINGLE broadcast activation column (numHalves
+    per-strip sumi), THIS GEMM core reads ONE strip (a RUNTIME `roff` strip row
+    offset) across the columnsPerPass INTERLEAVED activation columns of a
+    block_q8_0x4 group (columnsPerPass per-column sumi). This 1-strip-runtime x
+    N-column TRANSPOSE of the GEVM's numHalves-strip x 1-column nesting is a
+    structure the GEVM core brick cannot express (the strip is a runtime loop, the
+    activation is a 4-way interleave, and the per-column accumulators fold one
+    column per pass).
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemm_loop_body region and
+    consumes the repacked q4_0x16 weight base pointer, the interleaved q8_0x4
+    activation base pointer, the active !tcrv_rvv.vl token, the loop's `block_index`
+    induction variable (region argument 0), and the `strip_row_offset` runtime
+    strip offset (region argument 1, the enclosing strip loop's h*half_lanes). It
+    produces the columnsPerPass per-column combined `sumi` values (the lo/hi
+    vwadd_vv results) as a VARIADIC result group -- one i32 !tcrv_rvv.vector per
+    interleaved activation column folded in this pass (columnsPerPass == the fold
+    granularity: FOUR for the RVV1.0 fractional mf2 chain that holds all 4 columns
+    at once, ONE for the RVV0.7 whole-LMUL chain that folds one column per pass to
+    stay under the 32-vreg spill wall). The per-column dual-fp16 scale FOLD siblings
+    (tcrv_rvv.repack_gemm_dual_fp16_scale_fold, one per column) each consume one
+    result.
+
+    The block-as-lane integer core STRUCTURE is first-class in the typed body: the
+    emission mirrors emitRepackGemmQ4_0Q8_0's integer part LINE-FOR-LINE (shared
+    VERBATIM through the SAME leaf emitRepackGemmQ4LaneWiseIntegerCore), so
+    byte-exactness is by construction. Per column the i16 lo/hi accumulators are
+    seeded (vmv_v_x), then a nibble-step loop of qk/2 iterations does one disjoint
+    repacked sub-load (vle8 at `block_base + weight_quant_byte_offset + i*
+    weight_interleave + roff` -- the runtime strip row offset selects the strip),
+    the plain sign-extension nibble decode (vsll/vsra, NO vxor -- the repacked
+    nibbles carry the ^0x88 bias), the two SCALAR interleaved activation quant reads
+    (the column-c q8_0x4 quant at `act_base + activation_quant_byte_offset +
+    i*activation_interleave + c` low / `+ activation_interleave*nibbleBytes` high),
+    and the two lane-wise vwmacc.vx into the per-column i16 lo/hi accumulators; then
+    the ONE lo/hi combine vwadd_vv into the per-column i32 result. The integer add
+    is associative/order-free so the per-lane accumulation is byte-exact.
+
+    The `block_index` operand is the ANTI-BYPASS tie: it MUST be the loop induction
+    variable (region argument 0), so the per-block base is `base + block_index*
+    stride (+ byte_offset)` -- the emit provably addresses block ib, not the
+    loop-invariant block 0 (fail-closed otherwise). The `strip_row_offset` operand
+    is the SECOND anti-bypass tie: it MUST be the region's strip offset argument
+    (region argument 1), so the emit provably addresses the runtime strip, not a
+    hardcoded strip 0. The `weight_quant_byte_offset` / `activation_quant_byte_
+    offset` locate the repacked nibble bytes and the q8_0x4 quant bytes WITHIN their
+    blocks (32 / 8 for block_q4_0x16 / block_q8_0x4); the per-block strides + qk +
+    interleaves + the resource-aware strip width are the enclosing loop op's
+    block-format facts. The bounded surface kind is limited to
+    "repack_gemm_lane_wise_q4_x_i8_dot". The optional `integer_core_lmul` is the
+    bounded resource knob selecting the widening-chain base LMUL ("mf2" default RVV
+    1.0 fractional; "m1" the RVV0.7 whole-LMUL chain) -- the *how*, never the
+    *what*. Route ids, helper names, ABI strings, artifact names, status fields,
+    exact intrinsic spellings, operand mirror strings, and q8/q4 names must not
+    infer or choose this repacked lane-wise dot's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    Index:$block_index,
+    Index:$strip_row_offset,
+    StrAttr:$kind,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs Variadic<AnyType>:$results);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $vl `block` $block_index `strip` "
+    "$strip_row_offset `:` type($block_index) `,` type($strip_row_offset) "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` type($vl) "
+    "`->` type($results)";
+  let hasVerifier = 1;
+}
+
+def RepackGemmDualFp16ScaleFoldOp
+    : TCRVRVV_Op<"repack_gemm_dual_fp16_scale_fold",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV q4_0 16x1-REPACKED GEMM per-block per-COLUMN dual-fp16 "
+      "scale FOLD (vle16 weight scale / _Float16 act scale / vfwmul / vfcvt / "
+      "vfmacc) op consuming the lane-wise integer sumi";
+  let description = [{
+    Records ONE repacked contraction-BLOCK's q4_0 16x1-REPACKED per-COLUMN
+    dual-fp16 scale FOLD for the GEMM -- the second half of the ggml
+    `ggml_gemm_q4_0_16x1_q8_0` per-(strip, column-pass) inner loop, the step that
+    folds one interleaved column's lane-wise integer dot result into that column's
+    running per-strip f32 accumulator -- as ONE bounded generic plugin-local typed
+    RVV dataflow step. It is the FOLD sibling of the integer CORE brick
+    tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot (the two together are the complete
+    per-block repacked GEMM inner body): the integer brick produces the
+    columnsPerPass per-column i32 `sumi`, this brick consumes ONE column's `sumi`
+    plus that column's loop-carried per-strip f32 accumulator `acc` and produces the
+    folded-out `acc_next`.
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemm_loop_body region and
+    consumes the repacked q4_0x16 weight base pointer (for the per-block per-strip
+    fp16 weight scale vle16 at `&bl.d[roff]`), the interleaved q8_0x4 activation
+    base pointer (for the per-column _Float16 activation scale `&al.d[c]`), the
+    integer brick's per-column i32 `sumi`, the loop-carried per-column-per-strip f32
+    accumulator `acc`, the active !tcrv_rvv.vl token, the loop's `block_index`
+    induction variable (region argument 0), and the `strip_row_offset` runtime strip
+    offset (region argument 1). It produces ONE f32 !tcrv_rvv.vector result -- the
+    folded-out accumulator `acc_next` the loop yield names.
+
+    The per-column fold STRUCTURE is first-class in the typed body: the emission
+    mirrors emitRepackGemmQ4_0Q8_0's scale-fold part LINE-FOR-LINE (shared VERBATIM
+    through the SAME leaf emitRepackGemmDualFp16ScaleFold), so byte-exactness is by
+    construction. Per strip the per-block fp16 weight scales are loaded ONCE (vle16
+    at `block_base + weight_scale_byte_offset + roff*2`), then per column the single
+    per-block activation scale is read (`*(const _Float16 *)&al.d[c]`), d =
+    vfwmul(weight_scale, act_scale) widens the dual-fp16 product to f32, the integer
+    sumi is converted with vfcvt_f_x_v, and acc_next = vfmacc(acc, sumi_f, d) folds
+    it in.
+
+    The `block_index` operand is the ANTI-BYPASS tie: it MUST be the loop induction
+    variable (region argument 0). The `strip_row_offset` operand is the SECOND
+    anti-bypass tie: it MUST be the region's strip offset argument (region argument
+    1), so the per-strip fp16 weight scale load provably addresses the runtime strip.
+    The `weight_scale_byte_offset` / `activation_scale_byte_offset` locate the fp16
+    scale bytes WITHIN their blocks (0 / 0 for block_q4_0x16 / block_q8_0x4: the
+    scale `d` field leads each block). The bounded surface kind is limited to
+    "repack_gemm_dual_fp16_scale_fold". The optional `integer_core_lmul` is the
+    bounded resource knob selecting the widening-chain base LMUL ("mf2" default
+    RVV1.0 fractional f32m2 fold; "m1" the RVV0.7 whole-LMUL f32m4 fold) -- the
+    *how*, never the *what*. Route ids, helper names, ABI strings, artifact names,
+    status fields, exact intrinsic spellings, operand mirror strings, and q8/q4
+    names must not infer or choose this repacked per-column fold's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$sumi,
+    AnyType:$acc,
+    AnyType:$vl,
+    Index:$block_index,
+    Index:$strip_row_offset,
+    StrAttr:$kind,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$activation_scale_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$acc_next);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $sumi `,` $acc `,` $vl `block` "
+    "$block_index `strip` $strip_row_offset `:` type($block_index) `,` "
+    "type($strip_row_offset) attr-dict `:` type($weight_base) `,` "
+    "type($activation_base) `,` type($sumi) `,` type($acc) `,` type($vl) `->` "
+    "type($acc_next)";
+  let hasVerifier = 1;
+}
+
+def TypedRepackGemmLoopBodyOp
+    : TCRVRVV_Op<"typed_repack_gemm_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV row-group/column-group/strip/pass-wrapped nb loop op for "
+      "the q4_0 16x1-REPACKED GEMM (per-column per-strip lane-wise f32 VECTOR "
+      "accumulators)";
+  let description = [{
+    Records the q4_0 16x1-REPACKED GEMM's inner contraction-BLOCK loop as ONE typed
+    region-carrying dataflow op -- the M-FLAT REPACK scaffold GEMM sibling of
+    tcrv_rvv.typed_repack_gemv_loop_body. Where the GEVM loop op internalizes ONLY
+    the weight-column-group (N) loop over a single broadcast activation column, this
+    GEMM loop op internalizes the FULL ggml `ggml_gemm_q4_0_16x1_q8_0` nest: the
+    activation-ROW-group (M-tiling) loop over nr/activation_interleave, the
+    weight-column-group (N) loop over nc/weight_interleave, the RUNTIME strip loop
+    over numHalves (weight_interleave/half_lanes disjoint e16m1 strips, with a
+    runtime `roff = h*half_lanes` strip row offset), and a compile-time column PASS
+    loop that folds columnsPerPass of the activation_interleave interleaved columns
+    per pass. The region is the SINGLE innermost contraction-block loop; the lowering
+    wraps ALL FOUR outer loops around it (the "transpose nesting" contrast against
+    the GEVM's numHalves-strip x 1-column body).
+
+    The op consumes SEVEN runtime ABI value operands -- the repacked q4_0x16 weight
+    base pointer, the interleaved q8_0x4 activation base pointer, the fp32 output
+    pointer, the runtime contraction element count (n), the runtime activation-row
+    count (nr), the runtime weight-column count (nc), and the runtime output row
+    stride (bs, in floats) -- and owns one single-block region whose entry arguments
+    are the `block_index` induction variable (index) FOLLOWED by the runtime
+    `strip_row_offset` (index) FOLLOWED by the columnsPerPass loop-carried
+    per-column-per-strip f32 VECTOR accumulators `acc` (columnsPerPass + 2 entry
+    arguments; columnsPerPass == activation_interleave for the RVV1.0 fractional mf2
+    core, 1 for the RVV0.7 whole-LMUL m1 core). The region is terminated by
+    tcrv_rvv.typed_repack_gemm_loop_yield, which names the carried-out `acc_next`
+    vectors (columnsPerPass entries). The lowering wraps the region in the outer
+    row-group / column-group / runtime strip / compile-time column-pass loops, seeds
+    each per-column vector accumulator with vfmv_v_f(0.0f) per pass, maps each
+    carried-IN `acc` block argument to a LOAD of its accumulator's emitc.variable
+    lvalue at the top of the block loop and each carried-OUT `acc_next` to an
+    emitc.assign back at the bottom (emitc.for has no iter_args, exactly the
+    flat/super-block/GEVM loop lowering convention), and stores each final column
+    through s + (y*activation_interleave + c)*bs + x*weight_interleave + roff with a
+    lane-wise vse32.
+
+    Making the repacked GEMM block loop + the per-column per-strip VECTOR accumulate
+    a first-class typed body op (I5) means the emission is determined by op identity
+    + the explicit scheduling facts, never inferred from candidate-mirror metadata,
+    route ids, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, or q8/q4 names. The bounded scheduling facts (qk, the repacked AoS
+    block strides / byte offsets, weight_interleave, activation_interleave, the
+    resource-aware half_lanes strip width, the optional integer_core_lmul) are the
+    SAME byte-exact shape knobs the monolithic emitRepackGemmQ4_0Q8_0 reads (the
+    *how* -- LMUL / strip width / spill-avoiding columnsPerPass -- never the *what*);
+    fold_model "lane_wise_vector_scale" fixes the per-column fp32 fold tree
+    (vfwmul/vfcvt/vfmacc). The per-block lane-wise integer product (the nibble decode
+    + vwmacc lo/hi + lo/hi combine) and the per-column dual-fp16 scale fold are
+    separate typed steps carried inside the region (the two decomposed GEMM bricks).
+    For the current bounded surface kind is limited to "typed_repack_gemm_loop_body",
+    fold_model to "lane_wise_vector_scale", and scale_model to
+    "dual-fp16-per-block-d_x.d_y".
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$row_count,
+    AnyType:$column_count,
+    AnyType:$output_row_stride,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$activation_interleave,
+    I64Attr:$half_lanes,
+    StrAttr:$fold_model,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $activation_base `,` $output `,` $element_count `,`
+    $row_count `,` $column_count `,` $output_row_stride
+    attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($activation_base) `,` type($output) `,`
+    type($element_count) `,` type($row_count) `,` type($column_count) `,`
+    type($output_row_stride)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedRepackGemmLoopYieldOp
+    : TCRVRVV_Op<"typed_repack_gemm_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedRepackGemmLoopBodyOp">]> {
+  let summary =
+      "terminator naming the carried-out per-column per-strip f32 VECTOR "
+      "accumulators of the repacked GEMM block loop op";
+  let description = [{
+    Terminates the tcrv_rvv.typed_repack_gemm_loop_body region by naming the
+    carried-out per-column per-strip f32 VECTOR accumulators `acc_next` as a
+    VARIADIC operand group -- one !tcrv_rvv.vector<f32, "m2"> (mf2 core) or
+    <f32, "m4"> (m1 whole-LMUL core) per interleaved column folded in the pass
+    (columnsPerPass entries: FOUR for the RVV1.0 fractional mf2 all-columns pass,
+    ONE for the RVV0.7 whole-LMUL one-column-per-pass form). It makes the
+    loop-carried dataflow explicit (the SSA values carried into the next block
+    iteration), so the lowering maps each `acc_next` to the emitc.assign back into
+    its per-column accumulator emitc.variable lvalue with no implicit convention.
+    Every operand is required to be an f32 VECTOR accumulator (a scalar f32 or an
+    i32 lane accumulator is rejected fail-closed). It carries no compute, dtype,
+    memory, or route semantics.
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$acc_next);
+
+  let assemblyFormat = "$acc_next attr-dict `:` type($acc_next)";
+  let hasVerifier = 1;
+}
+
 def TypedVectorLane0ToScalarExtractOp :
     TCRVRVV_Op<"typed_vector_lane0_to_scalar_extract",
     [TCRVEmitCLowerableOpInterface]> {

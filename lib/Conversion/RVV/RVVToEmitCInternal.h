@@ -380,6 +380,16 @@ private:
   /// emitRepackGemvQ4_0Q8_0.
   static bool isTypedRepackGemvLoopBody(tcrvrvv::WithVLOp scope);
 
+  /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold recognizer: a with_vl scope
+  /// whose ONLY op is a single tcrv_rvv.typed_repack_gemm_loop_body (the
+  /// region-carrying nb contraction-block loop with the per-column per-strip
+  /// LANE-WISE f32 VECTOR loop-carried accumulators, wrapped by the emitter in the
+  /// outer row-group / column-group / runtime-strip / column-pass loops). Routed
+  /// through the block-dot table (NOT the elementwise path) so no outer AVL loop
+  /// wraps it; the op owns its own internal loop nest, exactly like the monolithic
+  /// emitRepackGemmQ4_0Q8_0.
+  static bool isTypedRepackGemmLoopBody(tcrvrvv::WithVLOp scope);
+
   /// The BINARY-class sibling recognizer: a with_vl scope whose ONLY compute op
   /// is a single tcrv_rvv.q1_0_q8_0_block_dot. The op identity is the dispatch
   /// key; the emitter owns the structured binary-sign-decode expansion.
@@ -1538,6 +1548,29 @@ private:
   /// monolithic emitRepackGemvQ4_0Q8_0 by construction (shared leaves + same
   /// numHalves/half/l8/l16/l32/byte-offset facts) on every arm.
   mlir::LogicalResult emitTypedRepackGemvLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The M-FLAT q4_0 16x1-REPACKED GEMM loop-scaffold emitter: lower the
+  /// region-carrying tcrv_rvv.typed_repack_gemm_loop_body to the byte-exact
+  /// repacked GEMM kernel by wrapping the region's inner contraction-block loop in
+  /// the SAME four outer loops the monolithic emitRepackGemmQ4_0Q8_0 emits -- the
+  /// activation-ROW-group (M-tiling) loop over nr/activation_interleave, the
+  /// weight-column-group loop over nc/weight_interleave, the RUNTIME strip loop
+  /// over numHalves (roff = h*half_lanes), and the compile-time column-PASS loop
+  /// (columnsPerPass of activation_interleave per pass). Per pass it seeds the
+  /// columnsPerPass per-column f32{m2,m4} accumulators with vfmv_v_f(0.0f), emits
+  /// the inner block loop, and stores each column through s + (y*ai + c)*bs +
+  /// x*wi + roff with a lane-wise vse32. The inner body drives the SHARED GEMM
+  /// leaves emitRepackGemmQ4LaneWiseIntegerCore (the ONE-strip N-column integer
+  /// core, producing columnsPerPass per-column sumi) + emitRepackGemmDualFp16Scale
+  /// Fold (the per-column scale fold) from the region's CORE + FOLD bricks, so the
+  /// whole kernel body is byte-identical to emitRepackGemmQ4_0Q8_0 by construction
+  /// on every arm (RVV1.0 mf2 columnsPerPass=4 one pass; RVV0.7 m1 columnsPerPass=1
+  /// four passes). Every brick is block_index + strip_row_offset tied (anti-bypass)
+  /// and dataflow-tied fail-closed (I7).
+  mlir::LogicalResult emitTypedRepackGemmLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

@@ -48,22 +48,30 @@ module {
 // DEFERRED-SAME: tcrv_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
 
 // REALIZED (VLEN128): the prefill Repack selection is CONSTRUCTED as the typed
-// tcrv_rvv.typed_repack_gemv_loop_body REGION (C1, the monolithic repack-GEMV op
-// is retired) carrying the x16 facts (half_lanes 8) + the OUTPUT CONTRACT
-// weight_layout_contract = "x16", with the PREFILL reason token, plus the two
-// decomposed inner bricks + yield. This proves the prefill realization arm (the
-// decode arm is proven in the stage-b-selection fixture); both arms share the SAME
-// lowerToRepackGemv bridge.
+// tcrv_rvv.typed_repack_gemm_loop_body REGION (the block-as-lane GEMM the PREFILL
+// m_regime selects, distinct from the decode GEVM). It carries the x16 weight facts
+// (stride 288, half_lanes 8) AND the block_q8_0x4 INTERLEAVED activation facts
+// (stride 136, activation_interleave 4) + the OUTPUT CONTRACT weight_layout_contract
+// = "x16", with the PREFILL reason token, plus the two decomposed inner GEMM bricks
+// + yield. The bridge MATERIALIZES the two GEMM ABI values (row count nr, output row
+// stride bs) the abstract op does not carry. This proves the prefill GEMM
+// realization arm; the decode arm (GEVM) is proven in the stage-b-selection fixture.
 // REALIZED-NOT: tcrv_rvv.quant_contraction
 // REALIZED-NOT: tcrv_rvv.q4_0_q8_0_block_dot
-// REALIZED-NOT: tcrv_rvv.repack_gemv_q4_0_q8_0
-// REALIZED: tcrv_rvv.typed_repack_gemv_loop_body
+// REALIZED-NOT: tcrv_rvv.repack_gemm_q4_0_q8_0
+// REALIZED-NOT: tcrv_rvv.typed_repack_gemv_loop_body
+// The two materialized GEMM ABI values (nr row count, bs output row stride).
+// REALIZED: tcrv_rvv.runtime_abi_value {c_name = "nr"
+// REALIZED: tcrv_rvv.runtime_abi_value {c_name = "bs"
+// REALIZED: tcrv_rvv.typed_repack_gemm_loop_body
+// REALIZED-SAME: activation_block_stride = 136 : i64
+// REALIZED-SAME: activation_interleave = 4 : i64
 // REALIZED-SAME: half_lanes = 8 : i64
 // REALIZED-SAME: tcrv_rvv.contraction_algorithm = "repack"
 // REALIZED-SAME: tcrv_rvv.path_materialization = "realized"
 // REALIZED-SAME: tcrv_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
 // REALIZED-SAME: tcrv_rvv.weight_layout_contract = "x16"
 // REALIZED-SAME: weight_block_stride = 288 : i64
-// REALIZED: tcrv_rvv.repack_lane_wise_q4_x_i8_dot
-// REALIZED: tcrv_rvv.repack_dual_fp16_scale_fold
-// REALIZED: tcrv_rvv.typed_repack_gemv_loop_yield
+// REALIZED: tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot
+// REALIZED: tcrv_rvv.repack_gemm_dual_fp16_scale_fold
+// REALIZED: tcrv_rvv.typed_repack_gemm_loop_yield

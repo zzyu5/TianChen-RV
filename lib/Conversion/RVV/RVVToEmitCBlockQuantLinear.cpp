@@ -2202,6 +2202,420 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   return mlir::success();
 }
 
+// M-FLAT REPACK GEMM finale M2: the typed region-carrying sibling of the
+// monolithic emitRepackGemmQ4_0Q8_0. It lowers tcrv_rvv.typed_repack_gemm_loop_body
+// -- whose region carries the inner contraction-block loop with the columnsPerPass
+// per-column LANE-WISE f32 VECTOR loop-carried accumulators (plus the block_index
+// and the runtime strip_row_offset entry args) -- to the byte-exact repacked GEMM
+// kernel by wrapping that block loop in the SAME four outer loops the monolith
+// emits: the activation-ROW-group (M-tiling) loop over nr/activation_interleave,
+// the weight-column-group loop over nc/weight_interleave, the RUNTIME strip loop
+// over numHalves (roff = h*half_lanes), and the compile-time column-PASS loop
+// (columnsPerPass of the activation_interleave interleaved columns per pass). The
+// inner body drives the SHARED GEMM leaves emitRepackGemmQ4LaneWiseIntegerCore (the
+// ONE-strip N-column integer core, producing columnsPerPass per-column sumi) +
+// emitRepackGemmDualFp16ScaleFold (the per-column dual-fp16 scale fold) -- the SAME
+// leaves the monolith calls -- from the region's CORE + FOLD bricks, so the whole
+// kernel body is byte-identical to emitRepackGemmQ4_0Q8_0 by construction on every
+// arm (the monolith's trailing unused-result token is its only residue). The emit
+// GATES on the core brick's block_index + strip_row_offset anti-bypass ties and its
+// weight/activation ABI bases, on EACH fold brick's block_index + strip + base +
+// sumi(result c) + acc(region arg 2+c) dataflow tie, and on the yield naming the
+// folds' acc_next; the within-block weight/activation quant byte offsets driving the
+// integer core are SOURCED from the CORE brick (the anti-bypass surface).
+mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+
+  tcrvrvv::TypedRepackGemmLoopBodyOp loopBody;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(op))
+      loopBody = lb;
+  }
+  if (!loopBody)
+    return rewriter.notifyMatchFailure(
+        scope, "typed repack GEMM loop body missing the op");
+
+  // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
+  // columnsPerPass -- never the *what*): the per-block strides drive the base
+  // advance (loop shape); the within-block quant byte offsets driving the integer
+  // core come from the CORE BRICK (the anti-bypass surface). numHalves ==
+  // weight_interleave / half_lanes is the RUNTIME disjoint-strip count. ----
+  int64_t qk = loopBody.getQk();
+  int64_t weightInterleave = loopBody.getWeightInterleave();      // 16
+  int64_t activationInterleave = loopBody.getActivationInterleave(); // 4
+  int64_t half = loopBody.getHalfLanes();                         // 8 @128, 16 @256
+  int64_t numHalves = weightInterleave / half;                    // 2 @128, 1 @256
+  int64_t weightStride = loopBody.getWeightBlockStride();
+  int64_t activationStride = loopBody.getActivationBlockStride();
+  int64_t nibbleBytes = qk / 2;                                   // 16
+  // The activation high-half int8 quants start after the low-half quants the
+  // interleaved columns consume per nibble step (activationInterleave*nibbleBytes).
+  int64_t activationHighRow = activationInterleave * nibbleBytes; // 64
+
+  // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" default
+  // (RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
+  // "m1" (the RVV0.7 whole-LMUL chain i8m1 -> i16m2 -> i32m4 -> f32m4, f16 scale
+  // m2). Only the type/callee LMUL suffixes change; numHalves, vl, every loop bound
+  // and byte offset stay identical -- exactly the monolithic rung derivation. The
+  // fold granularity columnsPerPass is 4 (all columns, one pass) for the mf2
+  // fractional chain and 1 (one column per pass) for the m1 whole-LMUL chain (the
+  // spill-avoiding form; see emitRepackGemmQ4_0Q8_0's columnsPerPass rationale).
+  llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+  llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
+  llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
+  llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
+  int64_t columnsPerPass =
+      (coreLmul == "m1") ? 1 : activationInterleave;      // 1 @rvv07; 4 @rvv1.0
+
+  // ---- Region walk + region-driven gates (fail-closed, I7). The full-body region
+  // carries the (block_index, strip_row_offset, columnsPerPass per-column vector
+  // acc) entry args, ONE integer-core brick tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_
+  // dot producing columnsPerPass per-column sumi, columnsPerPass per-column dual-
+  // fp16 scale FOLD bricks tcrv_rvv.repack_gemm_dual_fp16_scale_fold (each folding
+  // one sumi + one carried acc), and a yield naming the columnsPerPass carried-out
+  // vectors. Every brick is block_index + strip_row_offset tied (anti-bypass) and
+  // dataflow-tied (the column-c fold consumes the integer brick's column-c sumi +
+  // the column-c loop-carried acc; the yield names the folds' acc_next). ----
+  mlir::Block &coreBlock = loopBody.getBody().front();
+  tcrvrvv::TypedRepackGemmLoopYieldOp yieldOp;
+  tcrvrvv::RepackGemmLaneWiseQ4Q8DotOp coreBrick;
+  llvm::SmallVector<tcrvrvv::RepackGemmDualFp16ScaleFoldOp> foldBricks;
+  loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+    if (auto o = llvm::dyn_cast<tcrvrvv::TypedRepackGemmLoopYieldOp>(bodyOp))
+      yieldOp = o;
+    else if (auto o = llvm::dyn_cast<tcrvrvv::RepackGemmLaneWiseQ4Q8DotOp>(bodyOp))
+      coreBrick = o;
+    else if (auto o =
+                 llvm::dyn_cast<tcrvrvv::RepackGemmDualFp16ScaleFoldOp>(bodyOp))
+      foldBricks.push_back(o);
+  });
+  if (!yieldOp)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed repack GEMM loop body requires the loop yield");
+  if (static_cast<int64_t>(coreBlock.getNumArguments()) != columnsPerPass + 2)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed repack GEMM loop body region must carry the "
+                  "(block_index, strip_row_offset, columnsPerPass per-column "
+                  "vector acc) entry args");
+  mlir::Value blockIndexArg = coreBlock.getArgument(0);
+  mlir::Value stripOffsetArg = coreBlock.getArgument(1);
+
+  // The integer CORE brick + its block_index + strip anti-bypass gate: the brick
+  // must name the loop induction variable (region arg 0) as its block_index, the
+  // region's runtime strip offset (region arg 1) as its strip_row_offset, and the
+  // loop-body's own weight/activation ABI buffers as its bases (so the emit
+  // provably addresses `base + block_index*stride (+ byte_offset)` at the runtime
+  // strip, never the loop-invariant block 0 / hardcoded strip 0 / a foreign
+  // buffer), and produce ONE per-column sumi per pass column (columnsPerPass
+  // results).
+  if (!coreBrick)
+    return rewriter.notifyMatchFailure(
+        loopBody, "repack GEMM loop body requires the region integer CORE brick "
+                  "tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot (the one-strip "
+                  "N-column per-block lane-wise nibble dot)");
+  if (coreBrick.getBlockIndex() != blockIndexArg)
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack GEMM lane-wise dot brick's block_index must be the "
+                   "loop induction variable (region arg 0)");
+  if (coreBrick.getStripRowOffset() != stripOffsetArg)
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack GEMM lane-wise dot brick's strip_row_offset must be "
+                   "the region's runtime strip offset (region arg 1)");
+  if (coreBrick.getWeightBase() != loopBody.getWeightBase() ||
+      coreBrick.getActivationBase() != loopBody.getActivationBase())
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack GEMM lane-wise dot brick's weight/activation bases "
+                   "must be the loop-body's own repacked-weight / q8_0x4-activation "
+                   "ABI buffers");
+  if (static_cast<int64_t>(coreBrick.getNumResults()) != columnsPerPass)
+    return rewriter.notifyMatchFailure(
+        coreBrick, "the repack GEMM lane-wise dot brick must produce one per-column "
+                   "sumi per pass column (columnsPerPass results)");
+
+  // The columnsPerPass per-column dual-fp16 scale FOLD bricks, INDEXED by the
+  // carried accumulator they consume: the column-c fold consumes region acc arg
+  // (2 + c) AND the integer brick's column-c sumi (result c), is addressed off the
+  // SAME block_index + strip + ABI buffers (anti-bypass), and produces the yield's
+  // column-c acc_next. Every column shares the ONE within-block scale byte offset.
+  if (static_cast<int64_t>(foldBricks.size()) != columnsPerPass)
+    return rewriter.notifyMatchFailure(
+        loopBody, "repack GEMM loop body requires one dual-fp16 scale FOLD brick "
+                  "tcrv_rvv.repack_gemm_dual_fp16_scale_fold per pass column "
+                  "(columnsPerPass bricks)");
+  if (static_cast<int64_t>(yieldOp.getAccNext().size()) != columnsPerPass)
+    return rewriter.notifyMatchFailure(
+        yieldOp, "repack GEMM loop yield must name one carried-out per-column "
+                 "accumulator per pass column (columnsPerPass acc_next)");
+  llvm::SmallVector<tcrvrvv::RepackGemmDualFp16ScaleFoldOp> foldByColumn(
+      columnsPerPass);
+  for (int64_t c = 0; c < columnsPerPass; ++c) {
+    mlir::Value accArg = coreBlock.getArgument(2 + c);
+    tcrvrvv::RepackGemmDualFp16ScaleFoldOp fb;
+    for (tcrvrvv::RepackGemmDualFp16ScaleFoldOp cand : foldBricks) {
+      if (cand.getAcc() == accArg) {
+        fb = cand;
+        break;
+      }
+    }
+    if (!fb)
+      return rewriter.notifyMatchFailure(
+          loopBody, "each per-column accumulator region argument must be consumed "
+                    "by exactly one dual-fp16 scale FOLD brick");
+    if (fb.getBlockIndex() != blockIndexArg)
+      return rewriter.notifyMatchFailure(
+          fb, "the repack GEMM scale-fold brick's block_index must be the loop "
+              "induction variable (region arg 0)");
+    if (fb.getStripRowOffset() != stripOffsetArg)
+      return rewriter.notifyMatchFailure(
+          fb, "the repack GEMM scale-fold brick's strip_row_offset must be the "
+              "region's runtime strip offset (region arg 1)");
+    if (fb.getWeightBase() != loopBody.getWeightBase() ||
+        fb.getActivationBase() != loopBody.getActivationBase())
+      return rewriter.notifyMatchFailure(
+          fb, "the repack GEMM scale-fold brick's weight/activation bases must be "
+              "the loop-body's own repacked-weight / q8_0x4-activation ABI "
+              "buffers");
+    if (fb.getSumi() != coreBrick.getResults()[c])
+      return rewriter.notifyMatchFailure(
+          fb, "the repack GEMM scale-fold brick for column c must consume the "
+              "integer CORE brick's column-c per-column sumi (result c)");
+    if (yieldOp.getAccNext()[c] != fb.getAccNext())
+      return rewriter.notifyMatchFailure(
+          yieldOp, "the repack GEMM loop yield's column-c acc_next must be the "
+                   "column-c scale-fold brick's folded-out accumulator");
+    if (fb.getWeightScaleByteOffset() !=
+            foldBricks.front().getWeightScaleByteOffset() ||
+        fb.getActivationScaleByteOffset() !=
+            foldBricks.front().getActivationScaleByteOffset())
+      return rewriter.notifyMatchFailure(
+          fb, "all per-column scale-fold bricks must share the ONE within-block "
+              "fp16 scale byte offset");
+    foldByColumn[c] = fb;
+  }
+
+  // ---- ABI operands (the same seven the monolithic repack GEMM reads; element
+  // count n is the enclosing setvl AVL, exactly the GEVM emitter's derivation). ----
+  mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+  mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+  mlir::Value output = valueMap.lookup(loopBody.getOutput());
+  mlir::Value rowCount = valueMap.lookup(loopBody.getRowCount());
+  mlir::Value columnCount = valueMap.lookup(loopBody.getColumnCount());
+  mlir::Value outputRowStride = valueMap.lookup(loopBody.getOutputRowStride());
+  if (!weightBase || !activationBase || !output || !rowCount || !columnCount ||
+      !outputRowStride)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "repack GEMM loop ABI operand unmapped");
+
+  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+
+  // The within-block quant byte offsets driving the integer core are SOURCED from
+  // the CORE brick (a rewired offset changes the emitted addresses -- the
+  // anti-bypass surface). The fp16 scale byte offsets are the fold bricks' declared
+  // facts (the shared fold leaf hardcodes the block-leading scale d, byte-exact to
+  // the monolith); they are gate-verified consistent above.
+  int64_t weightQuantOffset = coreBrick.getWeightQuantByteOffset();
+  int64_t activationQuantOffset = coreBrick.getActivationQuantByteOffset();
+
+  mlir::Type f32AccType =
+      emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type weightPtrType = weightBase.getType();
+  mlir::Type activationPtrType = activationBase.getType();
+  mlir::Type floatPtrType = output.getType();
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto step = [&](llvm::StringRef s) {
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // The active vl is the compile-time-constant strip width (half_lanes e16m1 lanes:
+  // 16 for the one-strip VLEN=256/RVV0.7 form, 8 for the two-halves VLEN=128 form),
+  // exactly as the monolithic repack GEMM runs every intrinsic.
+  mlir::Value vl8 = sizeLit(half);
+
+  // size_t nb = n / QK; nr_groups = nr / 4; nc_groups = nc / 16.
+  step("block_count");
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+  step("row_group_count");
+  mlir::Value nrGroups = rewriter.create<emitc::DivOp>(
+      loc, sizeType, rowCount, sizeLit(activationInterleave));
+  step("col_group_count");
+  mlir::Value ncGroups = rewriter.create<emitc::DivOp>(
+      loc, sizeType, columnCount, sizeLit(weightInterleave));
+
+  // ===== Outer activation-ROW-GROUP loop: for (y = 0; y < nr/4; ++y) =====
+  auto rowLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nrGroups,
+                                               sizeLit(1),
+                                               /*bodyBuilder=*/nullptr);
+  {
+    mlir::OpBuilder::InsertionGuard rg(rewriter);
+    rewriter.setInsertionPointToStart(rowLoop.getBody());
+    mlir::Value y = rowLoop.getInductionVar();
+
+    // const uint8_t *a = vy + y*nb*136;  (the q8_0x4 row group base).
+    step("act_group_base");
+    mlir::Value aGroupBlocks =
+        rewriter.create<emitc::MulOp>(loc, sizeType, y, nb);
+    mlir::Value aGroupOff = rewriter.create<emitc::MulOp>(
+        loc, sizeType, aGroupBlocks, sizeLit(activationStride));
+    mlir::Value aGroup = rewriter.create<emitc::AddOp>(
+        loc, activationPtrType, activationBase, aGroupOff);
+
+    // ===== Weight-COLUMN-GROUP loop: for (x = 0; x < nc/16; ++x) =====
+    auto colLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), ncGroups,
+                                                 sizeLit(1),
+                                                 /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard cg(rewriter);
+      rewriter.setInsertionPointToStart(colLoop.getBody());
+      mlir::Value x = colLoop.getInductionVar();
+
+      // const uint8_t *b = vx + x*nb*288;  (the q4_0x16 column group base).
+      step("weight_group_base");
+      mlir::Value bGroupBlocks =
+          rewriter.create<emitc::MulOp>(loc, sizeType, x, nb);
+      mlir::Value bGroupOff = rewriter.create<emitc::MulOp>(
+          loc, sizeType, bGroupBlocks, sizeLit(weightStride));
+      mlir::Value bGroup = rewriter.create<emitc::AddOp>(
+          loc, weightPtrType, weightBase, bGroupOff);
+
+      // ===== Strip loop: for (h = 0; h < num_halves; ++h) {roff = h*half} =====
+      auto halfLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
+                                                    sizeLit(numHalves),
+                                                    sizeLit(1),
+                                                    /*bodyBuilder=*/nullptr);
+      {
+        mlir::OpBuilder::InsertionGuard hg(rewriter);
+        rewriter.setInsertionPointToStart(halfLoop.getBody());
+        mlir::Value h = halfLoop.getInductionVar();
+        step("half_row_offset");
+        mlir::Value roff =
+            rewriter.create<emitc::MulOp>(loc, sizeType, h, sizeLit(half));
+
+        // ===== Activation-column-PASS loop (compile-time, C++): the columns
+        // [cLo, cLo+columnsPerPass) folded in this pass over the block loop.
+        for (int64_t cLo = 0; cLo < activationInterleave;
+             cLo += columnsPerPass) {
+          int64_t cHi = cLo + columnsPerPass;
+          // vfloat32{m2,m4}_t sumf_{cLo..cHi} = vfmv_v_f(0.0f, vl);
+          std::string fmvCallee = riscvIntrinsicName("vfmv_v_f", 32, l32, "f32");
+          llvm::SmallVector<mlir::Value> sumf(activationInterleave);
+          for (int64_t c = cLo; c < cHi; ++c) {
+            sumf[c] = emitOpaqueCallBuilt(
+                rewriter, loc, f32AccType, fmvCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  mlir::Value zero =
+                      rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f")
+                          .getResult();
+                  return {zero, vl8};
+                });
+          }
+          // Mutable f32 accumulator lvalues (the inner block loop carries them;
+          // the region's per-column acc entry args (2+c) lower to these lvalues).
+          llvm::SmallVector<mlir::Value> sumfVar(activationInterleave);
+          for (int64_t c = cLo; c < cHi; ++c) {
+            auto v = rewriter.create<emitc::VariableOp>(
+                loc, emitc::LValueType::get(f32AccType),
+                emitc::OpaqueAttr::get(ctx, ""));
+            rewriter.create<emitc::AssignOp>(loc, v, sumf[c]);
+            sumfVar[c] = v;
+          }
+
+          // ===== Inner contraction-BLOCK loop: for (l = 0; l < nb; ++l) =====
+          auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                         sizeLit(1),
+                                                         /*bodyBuilder=*/nullptr);
+          {
+            mlir::OpBuilder::InsertionGuard bg(rewriter);
+            rewriter.setInsertionPointToStart(blockLoop.getBody());
+            mlir::Value l = blockLoop.getInductionVar();
+
+            // const uint8_t *bl = b + l*288;   const uint8_t *al = a + l*136;
+            // The per-block bases advance off the loop induction variable `l` (==
+            // the bricks' gated block_index) by the loop-op strides -- the
+            // block_index-tied anti-bypass addressing, byte-exact to the monolith.
+            step("weight_block_base");
+            mlir::Value blOff = rewriter.create<emitc::MulOp>(
+                loc, sizeType, l, sizeLit(weightStride));
+            mlir::Value bl = rewriter.create<emitc::AddOp>(loc, weightPtrType,
+                                                           bGroup, blOff);
+            step("act_block_base");
+            mlir::Value alOff = rewriter.create<emitc::MulOp>(
+                loc, sizeType, l, sizeLit(activationStride));
+            mlir::Value al = rewriter.create<emitc::AddOp>(
+                loc, activationPtrType, aGroup, alOff);
+
+            // ===== The region integer CORE: the tcrv_rvv.repack_gemm_lane_wise_
+            // q4_x_i8_dot brick lowers to the SHARED emitRepackGemmQ4LaneWise
+            // IntegerCore leaf (seed per-column i16 lo/hi -> nibble-step vwmacc
+            // loop over ONE strip at the runtime roff and the [cLo,cHi) interleaved
+            // columns -> per-column lo/hi vwadd combine), byte-exact to the
+            // monolith's integer part, producing the columnsPerPass per-column
+            // sumi. The within-block quant byte offsets are SOURCED from the CORE
+            // brick (the anti-bypass surface). =====
+            RepackGemmQ4IntegerCoreContext coreCx{
+                opName, role, l8, l16, l32, nibbleBytes, weightInterleave,
+                weightQuantOffset, activationQuantOffset, activationInterleave,
+                activationHighRow, vl8, sizeType};
+            llvm::SmallVector<mlir::Value> sumi32 =
+                emitRepackGemmQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al,
+                                                    roff, cLo, cHi);
+
+            // ===== The region dual-fp16 scale FOLD: the columnsPerPass
+            // tcrv_rvv.repack_gemm_dual_fp16_scale_fold bricks lower through ONE
+            // call to the SHARED emitRepackGemmDualFp16ScaleFold leaf (vle16 the
+            // per-strip weight scales -> per column widen d = vfwmul(b_d, act_d),
+            // convert the column sumi, vfmacc into sumf_c; load sumf_c, fold, assign
+            // back), byte-exact to the monolith's fold part. =====
+            RepackGemmDualFp16ScaleFoldContext foldCx{opName, role, l16, l32,
+                                                      vl8, sizeType};
+            emitRepackGemmDualFp16ScaleFold(rewriter, loc, foldCx, bl, al, roff,
+                                            sumi32, sumfVar, cLo, cHi);
+          }
+
+          // vse32(s + (y*4 + c)*bs + x*16 + roff, sumf_c, vl);  -- the 4x8 store.
+          std::string vseCallee = riscvIntrinsicName("vse", 32, l32, "f32");
+          for (int64_t c = cLo; c < cHi; ++c) {
+            step("output_addr");
+            // row = y*4 + c;  off = row*bs + x*16 + roff.
+            mlir::Value y4 = rewriter.create<emitc::MulOp>(
+                loc, sizeType, y, sizeLit(activationInterleave));
+            mlir::Value rowIdx =
+                rewriter.create<emitc::AddOp>(loc, sizeType, y4, sizeLit(c));
+            mlir::Value rowOff = rewriter.create<emitc::MulOp>(
+                loc, sizeType, rowIdx, outputRowStride);
+            mlir::Value x16 = rewriter.create<emitc::MulOp>(
+                loc, sizeType, x, sizeLit(weightInterleave));
+            mlir::Value colOff =
+                rewriter.create<emitc::AddOp>(loc, sizeType, rowOff, x16);
+            mlir::Value totalOff =
+                rewriter.create<emitc::AddOp>(loc, sizeType, colOff, roff);
+            mlir::Value dst = rewriter.create<emitc::AddOp>(
+                loc, floatPtrType, output, totalOff);
+            mlir::Value sumfVal =
+                rewriter.create<emitc::LoadOp>(loc, f32AccType, sumfVar[c])
+                    .getResult();
+            emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                               mlir::ValueRange{dst, sumfVal, vl8}, opName, role);
+          }
+        } // end activation-column-PASS loop (cLo)
+      }
+    }
+  }
+
+  return mlir::success();
+}
+
 // q5_0 16x1-REPACKED single-column GEMV (decode). q5_0 = q4_0 + the 5th high
 // bit. The weight side is block_q5_0x16 (16 interleaved rows across 16 lanes,
 // dot accumulates LANE-WISE via vwmacc, NO per-block vredsum): RAW nibbles at

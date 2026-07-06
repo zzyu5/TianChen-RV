@@ -363,6 +363,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody},
         {&isTypedRepackGemvLoopBody,
          &VariantToEmitCFunc::emitTypedRepackGemvLoopBody},
+        {&isTypedRepackGemmLoopBody,
+         &VariantToEmitCFunc::emitTypedRepackGemmLoopBody},
         {&isIQ4XSQ8KBlockDotBody,
          &VariantToEmitCFunc::emitIQ4XSQ8KBlockDot},
         {&isIQ2XXSQ8KBlockDotBody,
@@ -1266,6 +1268,20 @@ bool VariantToEmitCFunc::isTypedRepackGemvLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::TypedRepackGemvLoopBodyOp>(op)) {
+        if (sawLoopBody)
+          return false;
+        sawLoopBody = true;
+      } else {
+        return false;
+      }
+    }
+    return sawLoopBody;
+  }
+
+bool VariantToEmitCFunc::isTypedRepackGemmLoopBody(tcrvrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::TypedRepackGemmLoopBodyOp>(op)) {
         if (sawLoopBody)
           return false;
         sawLoopBody = true;
@@ -5614,15 +5630,24 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // integer-core brick (seed i16 lo/hi + nibble-step vwmacc + lo/hi vwadd
       // combine) carried inside the repack GEVM loop body region
       tcrv::rvv::RepackLaneWiseQ4Q8DotOp,
+      // M-FLAT REPACK (q4_0 16x1 GEMM, finale): the ONE-strip N-column integer
+      // core brick + the per-column dual-fp16 scale FOLD brick carried inside the
+      // repack GEMM loop body region (the runtime-strip x interleaved-column
+      // transpose of the GEVM bricks)
+      tcrv::rvv::RepackGemmLaneWiseQ4Q8DotOp,
+      tcrv::rvv::RepackGemmDualFp16ScaleFoldOp,
       // the loop ops themselves + their terminators (forward-compatible): the
       // flat single-accumulator loop op, the q4_K DUAL-accumulator super-block
-      // loop op, and the q4_0 16x1-repacked GEVM per-strip vector-accumulator loop
+      // loop op, the q4_0 16x1-repacked GEVM per-strip vector-accumulator loop, and
+      // the q4_0 16x1-repacked GEMM per-column vector-accumulator loop
       tcrv::rvv::TypedFlatBlockDotLoopBodyOp,
       tcrv::rvv::TypedFlatBlockDotLoopYieldOp,
       tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp,
       tcrv::rvv::TypedSuperBlockBlockDotLoopYieldOp,
       tcrv::rvv::TypedRepackGemvLoopBodyOp,
-      tcrv::rvv::TypedRepackGemvLoopYieldOp>(op);
+      tcrv::rvv::TypedRepackGemvLoopYieldOp,
+      tcrv::rvv::TypedRepackGemmLoopBodyOp,
+      tcrv::rvv::TypedRepackGemmLoopYieldOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

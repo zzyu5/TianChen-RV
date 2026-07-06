@@ -10365,6 +10365,394 @@ mlir::LogicalResult TypedRepackGemvLoopYieldOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // within-block byte offsets the per-block lane-wise nibble dot needs, and the
+  // OPTIONAL integer_core_lmul resource anchor. The per-block strides, qk, the
+  // interleaves, and the resource-aware strip width are the enclosing loop op's
+  // facts. A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot keeps SEW/LMUL/"
+                "policy on setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded repacked GEMM lane-wise dot attributes "
+                "'kind', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "repack_gemm_lane_wise_q4_x_i8_dot")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"repack_gemm_lane_wise_q4_x_i8_dot\" for the bounded q4_0 "
+              "16x1-repacked GEMM per-block one-strip N-column lane-wise "
+              "nibble-dot integer-core typed surface";
+
+  // Bounded resource knob (the *how*, never the *what*): the integer-core
+  // widening-chain base LMUL {"mf2" RVV1.0 fractional, "m1" RVV0.7 whole-LMUL}.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "chain) or \"m1\" (the RVV0.7 whole-LMUL chain); got \""
+             << coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 5 || op->getNumResults() < 1)
+    return emitOpError()
+           << "requires the repacked weight base, the interleaved q8_0x4 "
+              "activation base, one !tcrv_rvv.vl operand, one block_index "
+              "induction operand, one strip_row_offset runtime strip operand, and "
+              "one or more per-column i32 vector results (one per interleaved "
+              "activation column folded in the pass -- columnsPerPass total)";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  if (!llvm::isa<mlir::IndexType>(getStripRowOffset().getType()))
+    return emitOpError()
+           << "requires the strip_row_offset operand to be index-typed (the "
+              "enclosing runtime strip loop's h*half_lanes row offset)";
+  // Each per-column combined sumi widens the i16 lo/hi accumulators one LMUL rung:
+  // i32m2 for the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7
+  // whole-LMUL) core. Every column shares the ONE integer-core LMUL rung.
+  for (mlir::Value result : getResults()) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+      return emitOpError()
+             << "requires every per-column result to be an i32 "
+                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "(the m1 core) -- the per-column combined sumi";
+    if (result.getType() != getResults().front().getType())
+      return emitOpError()
+             << "requires all per-column results to share the ONE integer-core "
+                "LMUL rung (all i32m2 or all i32m4)";
+  }
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked GEMM lane-wise nibble-dot integer core";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // within-block fp16 scale byte offsets the per-column dual-fp16 fold needs, and
+  // the OPTIONAL integer_core_lmul resource anchor. The per-block strides, qk, the
+  // interleaves, and the resource-aware strip width are the enclosing loop op's
+  // facts. A forbidden local element_count/SEW/LMUL/policy attr or an unexpected
+  // name is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "weight_scale_byte_offset" ||
+           name == "activation_scale_byte_offset" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemm_dual_fp16_scale_fold keeps SEW/LMUL/"
+                "policy on setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded repacked GEMM per-column scale-fold "
+                "attributes 'kind', 'weight_scale_byte_offset', "
+                "'activation_scale_byte_offset', and 'integer_core_lmul'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "repack_gemm_dual_fp16_scale_fold")
+    return emitOpError()
+           << "currently supports only kind "
+              "\"repack_gemm_dual_fp16_scale_fold\" for the bounded q4_0 "
+              "16x1-repacked GEMM per-block per-column dual-fp16 scale fold typed "
+              "surface";
+
+  // Bounded resource knob (the *how*, never the *what*): the widening-chain base
+  // LMUL {"mf2" RVV1.0 fractional f32m2 fold, "m1" RVV0.7 whole-LMUL f32m4 fold}.
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "f32m2 fold) or \"m1\" (the RVV0.7 whole-LMUL f32m4 fold); got \""
+             << coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 7 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires the repacked weight base, the interleaved q8_0x4 "
+              "activation base, the per-column i32 sumi, the loop-carried "
+              "per-column f32 accumulator, one !tcrv_rvv.vl operand, one "
+              "block_index induction operand, and one strip_row_offset runtime "
+              "strip operand, producing one folded-out per-column f32 vector "
+              "accumulator";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  if (!llvm::isa<mlir::IndexType>(getStripRowOffset().getType()))
+    return emitOpError()
+           << "requires the strip_row_offset operand to be index-typed (the "
+              "enclosing runtime strip loop's h*half_lanes row offset)";
+  // The consumed sumi is the integer brick's per-column combined result: i32m2 for
+  // the mf2 (RVV1.0 fractional) core, i32m4 for the m1 (RVV0.7 whole-LMUL) core.
+  if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+          getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+      !isGenericRVVSignedOrSignlessIntegerVectorType(
+          getSumi().getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+    return emitOpError()
+           << "requires the consumed sumi to be an i32 !tcrv_rvv.vector<i32, "
+              "\"m2\"> (the mf2 core) or <i32, \"m4\"> (the m1 core)";
+  // The loop-carried accumulator + folded-out result are per-column f32 vectors:
+  // f32m2 for the mf2 (RVV1.0 fractional) fold, f32m4 for the m1 (RVV0.7
+  // whole-LMUL) fold. Both share the ONE fold LMUL rung, and the consumed sumi
+  // must sit on that SAME rung (i32m2 <-> f32m2, i32m4 <-> f32m4).
+  if (!isF32M2OrM4VectorAccumulator(getAcc().getType()))
+    return emitOpError()
+           << "requires the loop-carried accumulator to be a per-column f32 "
+              "vector (!tcrv_rvv.vector<f32, \"m2\"> the mf2 fold or "
+              "<f32, \"m4\"> the m1 whole-LMUL fold)";
+  if (getAccNext().getType() != getAcc().getType())
+    return emitOpError()
+           << "requires the folded-out accumulator to share the loop-carried "
+              "accumulator's f32 LMUL rung (both f32m2 or both f32m4)";
+  auto accVec = llvm::cast<VectorType>(getAcc().getType());
+  auto sumiVec = llvm::cast<VectorType>(getSumi().getType());
+  if (sumiVec.getLmul() != accVec.getLmul())
+    return emitOpError()
+           << "requires the consumed sumi to sit on the same LMUL rung as the "
+              "f32 accumulator (i32m2 with f32m2, i32m4 with f32m4)";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked GEMM per-column dual-fp16 scale fold";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded surface (I7 fail-closed): the repack GEMM loop op owns the q4_0
+  // 16x1-repacked per-column per-strip lane-wise fold tree; any other kind/
+  // fold_model/scale_model spelling is rejected fail-closed.
+  if (getKind() != "typed_repack_gemm_loop_body")
+    return emitOpError()
+           << "currently supports only kind \"typed_repack_gemm_loop_body\" for "
+              "the bounded q4_0 16x1-repacked GEMM block loop surface";
+  if (getFoldModel() != "lane_wise_vector_scale")
+    return emitOpError()
+           << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
+              "repacked GEMM per-column vfwmul/vfcvt/vfmacc lane-wise fold tree)";
+  if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+    return emitOpError()
+           << "currently supports only scale_model "
+              "\"dual-fp16-per-block-d_x.d_y\" (the per-block d_x*d_y dual-fp16 "
+              "repacked scale model)";
+
+  // Externally-defined ggml repacked block facts: QK and the AoS strides are
+  // positive byte counts the per-block address arithmetic depends on.
+  if (getQk() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count)";
+  if (getWeightBlockStride() <= 0)
+    return emitOpError()
+           << "requires weight_block_stride > 0 (the block_q4_0x16 repacked "
+              "weight block stride)";
+  if (getActivationBlockStride() <= 0)
+    return emitOpError()
+           << "requires activation_block_stride > 0 (the block_q8_0x4 "
+              "interleaved activation block stride)";
+  if (getWeightInterleave() <= 0)
+    return emitOpError()
+           << "requires weight_interleave > 0 (the block-as-lane interleave "
+              "width, 16 for block_q4_0x16)";
+  if (getActivationInterleave() <= 0)
+    return emitOpError()
+           << "requires activation_interleave > 0 (the interleaved activation "
+              "column count, 4 for block_q8_0x4)";
+  // Resource-aware strip width (I7): half_lanes must be in {8, 16} and divide the
+  // 16-way interleave, exactly as the monolithic repack GEMM op pins it.
+  int64_t half = getHalfLanes();
+  if ((half != 8 && half != 16) || getWeightInterleave() % half != 0)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} dividing weight_interleave (the "
+              "resource-aware e16m1 strip width); got "
+           << half;
+
+  // Bounded scheduling knob (the *how*, never the *what*): the integer-core
+  // widening-chain base LMUL {"mf2" (RVV1.0 fractional), "m1" (RVV0.7 whole)}.
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
+    if (*coreLmul != "mf2" && *coreLmul != "m1")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 fractional "
+                "chain) or \"m1\" (the RVV0.7 whole-LMUL chain); got \""
+             << *coreLmul << "\"";
+  }
+
+  if (op->getNumOperands() != 7 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires the seven repacked-GEMM ABI operands (weight base, "
+              "activation base, output, element count, row count, column count, "
+              "output row stride) and no results (the lane-wise vector store is "
+              "the sink)";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of C "
+              "type 'const uint8_t *' (the block_q4_0x16 repacked weight byte "
+              "array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI value "
+              "of C type 'const uint8_t *' (the block_q8_0x4 interleaved "
+              "activation byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml *s destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getRowCount().getType()))
+    return emitOpError()
+           << "requires the row-count operand to be the runtime nr index value "
+              "driving the activation-row-group loop";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be the runtime nc index "
+              "value driving the weight-column-group loop";
+  if (!llvm::isa<mlir::IndexType>(getOutputRowStride().getType()))
+    return emitOpError()
+           << "requires the output-row-stride operand to be the runtime bs index "
+              "value (the fp32 output row stride)";
+
+  // The per-pass fold granularity: columnsPerPass == activation_interleave for the
+  // RVV1.0 fractional mf2 core (all interleaved columns folded in one pass), or 1
+  // for the RVV0.7 whole-LMUL m1 core (one column per pass, the spill-avoiding
+  // form). The region carries ONE accumulator per column-in-pass.
+  bool isM1 = getIntegerCoreLmul().has_value() && *getIntegerCoreLmul() == "m1";
+  int64_t columnsPerPass = isM1 ? 1 : getActivationInterleave();
+
+  // Region: columnsPerPass + 2 entry args -- the block_index induction variable,
+  // the runtime strip_row_offset, FOLLOWED by the columnsPerPass loop-carried
+  // per-column f32 VECTOR accumulators -- terminated by the repack GEMM loop yield
+  // naming the carried-out vectors.
+  mlir::Block &block = getBody().front();
+  if (static_cast<int64_t>(block.getNumArguments()) != columnsPerPass + 2)
+    return emitOpError()
+           << "requires the region to carry exactly columnsPerPass + 2 ("
+           << (columnsPerPass + 2)
+           << ") entry arguments: the block_index induction variable, the runtime "
+              "strip_row_offset, and the columnsPerPass loop-carried per-column "
+              "f32 vector accumulators";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the first region argument (block_index) to be "
+              "index-typed (the nb block induction variable)";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(1).getType()))
+    return emitOpError()
+           << "requires the second region argument (strip_row_offset) to be "
+              "index-typed (the runtime strip loop's h*half_lanes row offset)";
+  for (int64_t c = 0; c < columnsPerPass; ++c) {
+    if (!isF32M2OrM4VectorAccumulator(block.getArgument(2 + c).getType()))
+      return emitOpError()
+             << "requires each per-column loop-carried accumulator region "
+                "argument to be an f32 vector (!tcrv_rvv.vector<f32, \"m2\"> or "
+                "<f32, \"m4\">)";
+    if (block.getArgument(2 + c).getType() != block.getArgument(2).getType())
+      return emitOpError()
+             << "requires all per-column accumulator region arguments to share "
+                "the ONE f32 LMUL rung (all f32m2 or all f32m4)";
+  }
+
+  TypedRepackGemmLoopYieldOp yield =
+      block.empty()
+          ? TypedRepackGemmLoopYieldOp()
+          : llvm::dyn_cast<TypedRepackGemmLoopYieldOp>(&block.back());
+  if (!yield)
+    return emitOpError()
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_repack_gemm_loop_yield (the carried-out per-column "
+              "f32 vector accumulators)";
+  if (static_cast<int64_t>(yield.getAccNext().size()) != columnsPerPass)
+    return emitOpError()
+           << "requires the loop yield to carry columnsPerPass (" << columnsPerPass
+           << ") per-column f32 vector accumulators";
+  for (mlir::Value accNext : yield.getAccNext())
+    if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
+      return emitOpError()
+             << "requires each loop-yield accumulator to be a per-column f32 "
+                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">)";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedRepackGemmLoopYieldOp::verify() {
+  if (getAccNext().empty())
+    return emitOpError()
+           << "requires at least one carried-out per-column f32 vector "
+              "accumulator";
+  for (mlir::Value accNext : getAccNext())
+    if (!isF32M2OrM4VectorAccumulator(accNext.getType()))
+      return emitOpError()
+             << "requires every carried-out accumulator to be a per-column f32 "
+                "vector (!tcrv_rvv.vector<f32, \"m2\"> or <f32, \"m4\">, the "
+                "lane-wise repacked GEMM accumulator domain)";
+  return mlir::success();
+}
+
 mlir::LogicalResult TypedVectorLane0ToScalarExtractOp::verify() {
   mlir::Operation *op = getOperation();
 
