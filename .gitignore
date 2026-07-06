@@ -19,7 +19,11 @@ artifacts/tmp/
 .claude/worktrees/
 
 # on-device measurement raw artifacts (kernels/objs/logs) — data, not source
-experiments/ondevice-*/
+# (moved 2026-07-06 org STAGE1: experiments/ondevice-*/ -> experiments/archive/perf-historical/ondevice-*/)
+experiments/archive/perf-historical/ondevice-*/
+
+# gitignored diagnostic scratch (org STAGE1 target structure)
+scratch/
 
 # touch-set active-line marker — per-worktree, not shared (see .touch-set/README.md)
 .touch-set/ACTIVE
