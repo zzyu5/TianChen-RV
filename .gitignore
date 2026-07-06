@@ -5,9 +5,19 @@ __pycache__/
 .ruff_cache/
 
 build/
+build/*/
 cmake-build-*/
 dist/
 *.egg-info/
+
+# parallel work-line infra (see docs/method/parallel-build-and-baseline.md):
+#   .worktrees/<line>/        — per-line isolated worktree (branched from HEAD)
+#   .worktrees/<line>/build/  — that line's independent CMakeCache
+#   .worktrees/baseline-<sha> — detached base worktree for byte-exact (transient)
+#   .worktrees/cache/<sha>/   — cached pinned-base build products (idempotent)
+# All local, never committed. tools/bench/byte-exact-baseline.sh replaces the
+# global `git stash` baseline so parallel lines are not clobbered.
+.worktrees/
 
 artifacts/tmp/
 *.log
