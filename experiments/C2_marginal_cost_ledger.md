@@ -63,3 +63,20 @@ qh attr → −374,结构距离≈0);③沿【新轴泛化】原语(累加器 ar
 *关联:六态 coverage(schema/coverage-sixstate.v1.json,C_construct 计数)、
 T7 覆盖率 Fig.1、full-refactor program 台账。数值/perf 主张见 T3/T8(K-quant perf
 = 骨架收口战役,排队第二)。*
+
+---
+
+## 第二谱:decode_model=lookup(IQ/码本族)+ repack —— 跨轴复证同一 C2 规律(2026-07-06)
+
+K-quant 谱证了 super-block 算术族内的边际成本律。第二谱在【全新 decode 轴 + 全新 loop-shape】上复证:**建原语贵、参数复用便宜**跨族成立。
+
+| 格式 | 里程碑 | 新增 vs 复用 | 边际成本 tier |
+|---|---|---|---|
+| **q4_0 repack GEVM** | 7(loop-shape/整数核/fold/全臂/front-door/退役/flip) | **第三个 distinct typed-loop shape**(per-strip lane-wise f32 VECTOR 累加器,flat=scalar/super-block=horizontal 都表达不了)=greenfield 原语 | 最贵(新 loop-shape 从零,repack 族基础) |
+| **iq4_nl**(flat codebook) | 3(M1 byte-exact/M2M3 flip) | 复用 flat block-dot 族外壳 + codebook 砖(CodebookTableBroadcast/GatherXI8Product 已存);net-new=emitter codebook sub-case + front-door 分支 | 中(flat 族在、codebook decode 新轴) |
+| **iq1_s**(super-block 2048-grid vluxei16) | 3 + foundation(M1 scaffold/M2 byte-exact/M3 flip) | **新 grid-core 砖(vluxei16 2048-ternary)+ 新 fold_model scalar_delta_grid + super-block grid loop-body branch + selector**=grid 族 greenfield 基础 | 贵(grid 基础从零,net −475 LOC 退役 monolith) |
+| **iq1_m**(grid+delta) | **1 workflow** | ★REUSE 整个 iq1_s scalar-delta-grid scaffold 零边际(loop op/fold/verifier/selector/emitter dispatch/front-door skeleton);唯一 net-new=distinct 核砖 + body code-move | **最便宜(参数复用、结构距离≈0)** |
+
+**★跨族复证**:iq1_s→iq1_m = q4_K→q5_K 的精确同构。**首个 grid-family 成员付 greenfield 基础(iq1_s:新砖+fold+branch+selector),次个成员(iq1_m,同 2048-grid 只 re-param 核)一个 workflow 就 flip=零边际复用。** 证 C2 "成本∝结构距离到已覆盖原语空间"跨【三个不同族】(K-quant 算术 super-block / IQ grid super-block / repack GEVM)成立——不是 K-quant 偶然,是模式库的普适经济学。**预测**:iq2(+sign-plane 砖变体)/iq3(+i32 grid 砖变体)成本 = iq1_m tier(便宜、复用 grid scaffold)+ 一个 brick-variant 增量(有界,像 q6_K 的 +213 泛化 tier);iq2/iq3 用【不同 grid 内容/宽】,故比 iq1_m(同 grid)略贵、但远低于 iq1_s greenfield。
+
+*关联:C_construct=17(session 起 13:q4_0 repack=14/iq4_nl=15/iq1_s=16/iq1_m=17);travel-decision-ledger.md F8/F11/F14/F15。*
