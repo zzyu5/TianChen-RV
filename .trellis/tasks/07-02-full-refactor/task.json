@@ -19,8 +19,9 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "07-03-e5-provenance-sixstate",
-    "07-03-g1-q8-0-strong-construct"
+    "07-06-lined-s3-ternary-dequant-kernel",
+    "07-06-lined-s4-f6-falsifier",
+    "07-06-coverage-next-iq2xs"
   ],
   "parent": null,
   "relatedFiles": [],
