@@ -57,74 +57,45 @@ namespace tianchenrv::plugin::rvv {
 //   correspondingly HARDER to earn than a vs-scalar number.
 // ============================================================================
 
+// The roster above is now the EMPIRICAL JUSTIFICATION for the per-format opponent
+// facts the abstract op CARRIES as structured attrs (the IR declaration layer),
+// NOT a set of C++ switches this selector reads. Facts 1 and 2 arrive in the
+// `facts` parameter (read from the op's opponent_vlen_native_floor /
+// block_dot_compute_heavy attrs by RVVLowerQuantContraction); only fact 3 (the
+// pure VLEN/M-regime capability rule) is still computed here.
+
 namespace {
-
-// Fact 1: does ggml ship a VLEN-NATIVE hand-tuned kernel for (quant, VLEN) that
-// the repack rewrite CANNOT beat? When TRUE the repack path LOSES -> decline.
-//
-// The decline trigger is NOT "any RVV body exists" -- per the roster above ALL
-// THREE of q4_0/q8_0/q4_K ship a hand-tuned RVV vec_dot -- it is "a VLEN-native
-// kernel the MEASURED repack rewrite loses to":
-//   * q4_K -- YES at every VLEN >= 128. ggml ships a PER-VLEN-dispatched kernel:
-//     ggml_vec_dot_q4_K_q8_K_vl128 is inline RVV ASSEMBLY (quants.c:1770), _vl256
-//     is VLEN256-tuned (quants.c:1975); the dispatcher (quants.c:2064) selects by
-//     __riscv_vlenb(). This is the hardest opponent form in the roster -> repack
-//     declines at every VLEN.
-//   * q4_0 / q8_0 -- NO. They DO ship a hand-tuned RVV vec_dot (q4_0 quants.c:222,
-//     q8_0 quants.c:435) but it is a SINGLE non-VLEN-specialized body the measured
-//     repack out-streams (q4_0 ~2.1x, q8_0 ~5.5x repack-form) -> repack is KEPT
-//     (fact 1 false), declined only later by fact 2/3 where it is.
-bool ggmlHandTunedVLENNativeExists(QuantType quant, std::int64_t minVLEN) {
-  switch (quant) {
-  case QuantType::Q4_K:
-    // Hand-tuned at every RVV VLEN (vl128 inline asm + vl256+); repack loses.
-    return minVLEN >= 128;
-  case QuantType::Q4_0:
-  case QuantType::Q8_0:
-    // A hand-tuned RVV vec_dot exists but is NOT VLEN-native; the measured repack
-    // out-streams it, so it is not a decline trigger here.
-    return false;
-  }
-  return false;
-}
-
-// Fact 2: is the plain block-dot COMPUTE-HEAVY enough that the repacked
-// out-of-block stream actually removes work? q4_0 is heavy (nibble decode +
-// per-block vredsum + scattered reads -> repack out-streams it). q8_0 is LEAN
-// (one vwredsum/block; nothing for repack to remove -> decline).
-bool blockDotIsHeavy(QuantType quant) {
-  switch (quant) {
-  case QuantType::Q4_0:
-    return true;
-  case QuantType::Q8_0:
-    return false;
-  case QuantType::Q4_K:
-    // n/a: fact 1 already declines every q4_K cell (VLEN-native at all VLEN >=
-    // 128, per the roster), so this heaviness fact is never the q4_K carrier.
-    return false;
-  }
-  return false;
-}
 
 // Fact 3: does the VLEN regime (or the prefill M-regime) favor repack? VLEN==128
 // keeps the two disjoint 8-lane halves repack is tuned for; any prefill GEMM
 // amortizes the repack weight decode across the M columns. q4_0 @ VLEN256 decode
-// measured a 0.74x LOSS, so that decode cell is declined.
+// measured a 0.74x LOSS, so that decode cell is declined. This is the ONE fact
+// that is NOT per-format -- it is a pure capability/regime rule -- so it stays in
+// C++ (there is no format knowledge to relocate).
 bool vlenOrPrefillFavorsRepack(std::int64_t minVLEN, MRegime mRegime) {
   return minVLEN == 128 || mRegime == MRegime::Prefill;
 }
 
 } // namespace
 
-ContractionSelection selectContractionAlgorithm(QuantType quant, MRegime mRegime,
-                                                std::int64_t minVLEN) {
-  bool selectRepack = !ggmlHandTunedVLENNativeExists(quant, minVLEN) &&
-                      blockDotIsHeavy(quant) &&
+ContractionSelection
+selectContractionAlgorithm(const ContractionOpponentFacts &facts,
+                           MRegime mRegime, std::int64_t minVLEN) {
+  // Fact 1, evaluated against the DERIVED capability VLEN: a VLEN-native
+  // hand-tuned opponent the repack loses to exists iff the op DECLARES a floor
+  // AND the target meets it. Read from facts -- never switched on a format name.
+  bool ggmlVlenNativeExists =
+      facts.ggmlVlenNativeKernelFloor.has_value() &&
+      minVLEN >= *facts.ggmlVlenNativeKernelFloor;
+
+  bool selectRepack = !ggmlVlenNativeExists && facts.blockDotComputeHeavy &&
                       vlenOrPrefillFavorsRepack(minVLEN, mRegime);
 
   if (selectRepack) {
     // Repack SELECTED. Differentiate the prefill (amortized) reason from the
-    // VLEN128 decode reason so the audit reflects WHICH fact carried it.
+    // VLEN128 decode reason so the audit reflects WHICH fact carried it. The
+    // audit token retains the historical format spelling as pure PROVENANCE (it
+    // names the fact-pattern/cell, it is NOT read from the op's format label).
     if (mRegime == MRegime::Prefill)
       return {ContractionAlgorithm::Repack, "repack-kept-q4_0-prefill"};
     return {ContractionAlgorithm::Repack, "repack-kept-q4_0-vlen128-decode"};
@@ -132,10 +103,10 @@ ContractionSelection selectContractionAlgorithm(QuantType quant, MRegime mRegime
 
   // BlockDot (decline) SELECTED. Differentiate the reason by WHICH fact declined
   // so the audit token is a precise, stable provenance string.
-  if (ggmlHandTunedVLENNativeExists(quant, minVLEN))
+  if (ggmlVlenNativeExists)
     return {ContractionAlgorithm::BlockDot,
             "block-dot-decline-q4_K-vlen-native-exists"};
-  if (!blockDotIsHeavy(quant))
+  if (!facts.blockDotComputeHeavy)
     return {ContractionAlgorithm::BlockDot,
             "block-dot-decline-q8_0-lean-fallback"};
   // Heavy + no native kernel, but fact 3 declined: the VLEN256 decode loss cell.

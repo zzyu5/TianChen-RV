@@ -4,6 +4,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace tianchenrv::plugin::rvv {
 
@@ -16,12 +17,16 @@ namespace tianchenrv::plugin::rvv {
 // IR moves INTO a capability-fact-driven pass.
 //
 // The selection is BRANCH-FREE over a small static prior (a 3-fact AND), reads
-// only the abstract op's committed WHAT axes (quant type, M-regime) lifted to
-// plain enums plus the DERIVED capability fact minVLEN
-// (deriveMinimumVLEN(march, hints)) -- it NEVER string-matches an op kind, an ABI
-// string, or a family name (the I3/N2 discipline). The result is a STABLE audit
-// token the stage-B pass stamps on the lowered op so the decision is provable
-// in-IR.
+// the abstract op's committed WHAT axis (M-regime) plus the two PER-FORMAT
+// OPPONENT FACTS the op now carries as STRUCTURED ATTRS (block_dot_compute_heavy,
+// opponent_vlen_native_floor) and the DERIVED capability fact minVLEN
+// (deriveMinimumVLEN(march, hints)). It NEVER string-matches an op kind, an ABI
+// string, a family name, OR the quant FORMAT LABEL (the I3/N2 discipline): the
+// measured win/loss knowledge that used to live as a per-format switch keyed on
+// the quant enum inside this file has MOVED into the IR declaration layer as
+// facts, so this selector is blind to the format name -- it is a pure function of
+// facts + capability. The result is a STABLE audit token the stage-B pass stamps
+// on the lowered op so the decision is provable in-IR.
 
 // The concrete contraction algorithm the abstract request is committed to.
 enum class ContractionAlgorithm {
@@ -33,16 +38,30 @@ enum class ContractionAlgorithm {
   BlockDot
 };
 
-// The committed WHAT axis: the block-quantization type the request carries.
-// Lifted from the abstract op's `quant` attr so the selector is a pure function
-// of capability facts, NOT a string-match on op kind. (Q8_0/Q4_K are encoded for
-// the full static prior; the abstract op's verifier currently admits only Q4_0,
-// so those rows are encoded-but-unexercised in stage B -- see the finding.)
-enum class QuantType { Q4_0, Q8_0, Q4_K };
-
 // The committed WHAT axis: the M-regime the request carries. Lifted from the
 // abstract op's `m_regime` attr (Decode == M==1 GEVM, Prefill == M>>1 GEMM).
 enum class MRegime { Decode, Prefill };
+
+// The PER-FORMAT OPPONENT FACTS that drive the repack-vs-block-dot decision,
+// READ from the abstract tcrv_rvv.quant_contraction op's STRUCTURED ATTRS (the IR
+// declaration layer) -- NOT derived from a per-format switch keyed on the quant
+// format NAME. This is the C1 relocation: the measured win/loss matrix that used
+// to be C++ tables (ggmlHandTunedVLENNativeExists / blockDotIsHeavy switching on
+// a QuantType enum) now lives in the IR as facts, so the selector below is blind
+// to the format label and cannot smuggle per-format knowledge back into C++.
+struct ContractionOpponentFacts {
+  // Fact 1 (VLEN-thresholded): ggml ships a VLEN-native hand-tuned vec_dot the
+  // repack rewrite LOSES to at every VLEN >= this floor. std::nullopt => no such
+  // kernel at any VLEN. (q4_K: 128 -- per-VLEN dispatch, @128 inline RVV asm,
+  // @256 VLEN256-tuned. q4_0/q8_0: nullopt -- they ship only a
+  // non-VLEN-specialized body the measured repack out-streams.)
+  std::optional<std::int64_t> ggmlVlenNativeKernelFloor;
+  // Fact 2: the plain block-dot is COMPUTE-HEAVY enough that the repacked
+  // out-of-block stream removes work. (q4_0: true -- nibble decode + per-block
+  // vredsum + scattered reads. q8_0: false -- LEAN, one vwredsum/block, nothing
+  // for repack to remove.)
+  bool blockDotComputeHeavy;
+};
 
 struct ContractionSelection {
   ContractionAlgorithm algorithm;
@@ -52,24 +71,23 @@ struct ContractionSelection {
 };
 
 // Capability-fact-driven, branch-free over the static prior. Prefers Repack iff
-// ALL THREE capability facts hold; else BlockDot (= decline = match the ggml
-// VLEN-native kernel). The three facts encode the measured win/loss matrix as
-// per-quant capability facts (NOT magic constants):
+// ALL THREE facts hold; else BlockDot (= decline = match the ggml VLEN-native
+// kernel). The two PER-FORMAT facts (1, 2) arrive as `facts` READ from the op's
+// structured attrs; the capability fact (3) is derived from minVLEN + mRegime:
 //   1. NO ggml VLEN-native hand-tuned kernel that repack LOSES to exists for this
-//      (quant, VLEN). q4_K has one at every VLEN >= 128 (per-VLEN dispatch:
-//      @128 inline RVV ASM, @256 VLEN256-tuned -> repack loses -> decline). q4_0
-//      and q8_0 DO ship a hand-tuned RVV vec_dot too, but a non-VLEN-specialized
-//      one the measured repack out-streams, so it is NOT a decline trigger. (See
-//      the verified ggml opponent roster at the top of the .cpp; note this
-//      corrects an earlier premise that q4_K@128 was a scalar fallback -- it is
-//      the roster's STRONGEST opponent, inline RVV assembly.)
-//   2. the plain block-dot is COMPUTE-HEAVY enough that repack out-streams it
-//      (q4_0 yes: nibble + per-block vredsum + scattered reads; q8_0 no: LEAN,
-//      one vwredsum/block, nothing for repack to remove -> decline).
+//      (format, VLEN): facts.ggmlVlenNativeKernelFloor is unset, OR minVLEN is
+//      below it. (q4_K carries floor 128 -> repack loses at every VLEN >= 128 ->
+//      decline; q4_0/q8_0 carry no floor. See the verified ggml opponent roster
+//      at the top of the .cpp for the empirical justification of the fixture
+//      values -- note it corrects an earlier premise that q4_K@128 was a scalar
+//      fallback: it is the roster's STRONGEST opponent, inline RVV assembly.)
+//   2. the plain block-dot is COMPUTE-HEAVY enough that repack out-streams it:
+//      facts.blockDotComputeHeavy (q4_0 yes; q8_0 no -> decline).
 //   3. VLEN==128 OR Prefill favors repack (q4_0 @ VLEN256 decode measured a
 //      0.74x LOSS -> decline that decode cell).
-ContractionSelection selectContractionAlgorithm(QuantType quant, MRegime mRegime,
-                                                std::int64_t minVLEN);
+ContractionSelection
+selectContractionAlgorithm(const ContractionOpponentFacts &facts,
+                           MRegime mRegime, std::int64_t minVLEN);
 
 } // namespace tianchenrv::plugin::rvv
 

@@ -136,3 +136,30 @@ module {
     }
   }
 }
+
+// -----
+
+// Accept the request with NO `quant` label at all (it is now OPTIONAL) and the
+// STRUCTURED OPPONENT FACTS present: this is the C1 shape the routing pass reads.
+// The verifier does NOT require the format label and DOES accept both new
+// structured facts (block_dot_compute_heavy / opponent_vlen_native_floor); the
+// routing pass, not the verifier, interprets them. q4_0-ness stays pinned
+// STRUCTURALLY (qk 32, plain stride 18, dual-fp16 scale), not by the label.
+// CHECK-LABEL: tcrv.exec.kernel @quant_contraction_accepts_facts_without_quant_label
+module {
+  tcrv.exec.kernel @quant_contraction_accepts_facts_without_quant_label {
+    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "quant_contraction_accepts_facts_without_quant_label", status = "selected-lowering-boundary"} {
+        // CHECK: tcrv_rvv.quant_contraction
+        // CHECK-SAME: block_dot_compute_heavy = true
+        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {scale_model = "dual-fp16-per-block-d_x.d_y", m_regime = "decode", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}

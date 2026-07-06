@@ -4256,6 +4256,28 @@ def GgmlQuantContractionOp
     never reaches the EmitC conversion. It has no emitter of its own; the
     identity lowering to block-dot is therefore total and byte-exact.
 
+    The repack-vs-block-dot ROUTING is driven by STRUCTURED OPPONENT FACTS the op
+    carries, NOT by the `quant` format label:
+
+    - **`opponent_vlen_native_floor` (optional i64).** The minimum VLEN at/above
+      which ggml ships a VLEN-native hand-tuned vec_dot the repack rewrite LOSES
+      to (q4_K = 128: per-VLEN dispatch, @128 inline RVV asm). ABSENT means no
+      such kernel at any VLEN (q4_0/q8_0 ship only a non-VLEN-specialized body the
+      measured repack out-streams). Fact 1 of the selection.
+
+    - **`block_dot_compute_heavy` (optional bool).** Whether the plain block-dot
+      is compute-heavy enough that the repacked out-of-block stream removes work
+      (q4_0 = true: nibble decode + per-block vredsum + scattered reads; q8_0/absent
+      = lean). Fact 2 of the selection.
+
+    The `quant` attribute is now an OPTIONAL, purely human-readable format LABEL
+    (a table-lookup entry point / provenance token). The
+    `--tcrv-rvv-lower-quant-contraction` selection READS the structured facts
+    above (plus the derived capability VLEN and `m_regime`) and NEVER the format
+    label, so deleting `quant` and keeping the structured facts constructs the
+    IDENTICAL concrete L2 contraction region: routing is fact-driven, the format
+    string is just a label.
+
     The `min_vlen` attribute, when present, is a read-only advisory capability
     snapshot (a deriveMinimumVLEN(march) value) consumed by a later
     selection-logic stage; it never gates correctness in the identity stage.
@@ -4268,7 +4290,7 @@ def GgmlQuantContractionOp
     AnyType:$element_count,
     AnyType:$column_count,
     AnyType:$vl,
-    StrAttr:$quant,
+    OptionalAttr<StrAttr>:$quant,
     StrAttr:$scale_model,
     StrAttr:$m_regime,
     I64Attr:$qk,
@@ -4277,6 +4299,8 @@ def GgmlQuantContractionOp
     I64Attr:$activation_block_stride,
     I64Attr:$quant_byte_offset,
     I64Attr:$activation_high_byte_offset,
+    OptionalAttr<I64Attr>:$opponent_vlen_native_floor,
+    OptionalAttr<BoolAttr>:$block_dot_compute_heavy,
     OptionalAttr<I64Attr>:$min_vlen
   );
   let results = (outs AnyType:$result);

@@ -1590,19 +1590,23 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   mlir::Operation *op = getOperation();
 
   // The abstract option-2 stage-A contraction request carries ONLY its bounded
-  // WHAT attrs (I4): the quant type, the dual-fp16 scale model, the M-regime,
-  // the PLAIN weight-layout commitment, the plain block-format byte facts, and
-  // an optional advisory min_vlen capability snapshot. Anything else -- a
-  // forbidden local element_count/SEW/LMUL/policy attr, an unexpected name, or
-  // any REPACK-only layout fact (weight_interleave / half_lanes / the x16 stride
-  // 288) -- is rejected fail-closed (I7). The repack-only facts are deliberately
-  // absent: this op is PRE-weight-layout-commitment.
+  // WHAT attrs (I4): an OPTIONAL quant format LABEL, the dual-fp16 scale model,
+  // the M-regime, the PLAIN weight-layout commitment, the plain block-format byte
+  // facts, the STRUCTURED OPPONENT FACTS that drive routing
+  // (opponent_vlen_native_floor / block_dot_compute_heavy), and an optional
+  // advisory min_vlen capability snapshot. Anything else -- a forbidden local
+  // element_count/SEW/LMUL/policy attr, an unexpected name, or any REPACK-only
+  // layout fact (weight_interleave / half_lanes / the x16 stride 288) -- is
+  // rejected fail-closed (I7). The repack-only facts are deliberately absent:
+  // this op is PRE-weight-layout-commitment.
   auto isAllowedQuantContractionAttr = [](llvm::StringRef name) {
     return name == "quant" || name == "scale_model" || name == "m_regime" ||
            name == "qk" || name == "weight_layout" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
-           name == "activation_high_byte_offset" || name == "min_vlen";
+           name == "activation_high_byte_offset" ||
+           name == "opponent_vlen_native_floor" ||
+           name == "block_dot_compute_heavy" || name == "min_vlen";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -1618,8 +1622,10 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
              << "only accepts the bounded abstract contraction attributes "
                 "'quant', 'scale_model', 'm_regime', 'qk', 'weight_layout', "
                 "'weight_block_stride', 'activation_block_stride', "
-                "'quant_byte_offset', 'activation_high_byte_offset', and the "
-                "advisory 'min_vlen'; unexpected attribute '"
+                "'quant_byte_offset', 'activation_high_byte_offset', the "
+                "structured opponent facts 'opponent_vlen_native_floor' / "
+                "'block_dot_compute_heavy', and the advisory 'min_vlen'; "
+                "unexpected attribute '"
              << attr.getName()
              << "' (the repack-only weight_interleave / half_lanes / x16 layout "
                 "facts are a stage-C materialization and may not be carried "
@@ -1637,14 +1643,15 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "the compiler drives, never an input fact); got \""
            << getWeightLayout() << "\"";
 
-  // The committed WHAT axes. quant is bounded to the stage-A identity-supported
-  // set; scale_model and m_regime are pinned to the block-dot-compatible values.
-  if (getQuant() != "q4_0")
-    return emitOpError()
-           << "currently supports only quant \"q4_0\" for the abstract "
-              "block-quantized contraction request (the stage-A identity "
-              "lowering target is the ggml Q4_0 x Q8_0 block dot-product); got \""
-           << getQuant() << "\"";
+  // The committed WHAT axes. `quant` is now an OPTIONAL, purely human-readable
+  // format LABEL (a table-lookup / provenance token) -- the verifier does NOT
+  // require it and NEVER routes on it: the repack-vs-block-dot decision is driven
+  // by the structured opponent facts (opponent_vlen_native_floor /
+  // block_dot_compute_heavy) plus the derived capability VLEN, so an op with the
+  // facts but NO `quant` label lowers to the IDENTICAL concrete region. The
+  // q4_0-ness of a request is pinned STRUCTURALLY below (qk 32, plain stride 18,
+  // dual-fp16 scale), not by the label. scale_model and m_regime remain pinned to
+  // the block-dot-compatible values.
   if (getScaleModel() != "dual-fp16-per-block-d_x.d_y")
     return emitOpError()
            << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" for the "

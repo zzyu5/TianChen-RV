@@ -1,0 +1,108 @@
+
+== ENV FINGERPRINT (instance-hash inputs) ==
+uname=Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP Mon Feb  2 22:50:01 CST 2026 riscv64 riscv64 riscv64 GNU/Linux
+isa=isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+nproc=64  pinned_cores=8-11
+governor=performance
+cpu_max_khz=2600000
+libc=glibc 2.38
+model=/home/ubuntu/tcrv-llamacpp/models/tinyllama-q4_0.gguf  model_sha256=da3087fb14aede55
+bench_A=/home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/llama-bench
+bench_B=/home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/llama-bench
+config: PP=128 TG=32 REPS=5 PASSES=2
+== WARMUP (dropped) ==
+== ABPASS 1 ==
+###AB pass=1 side=ours freq_khz=2600000
+[
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/home/ubuntu/tcrv-llamacpp/models/tinyllama-q4_0.gguf",
+    "model_type": "llama 1B Q4_0",
+    "model_size": 635990016,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-06T08:56:06Z",
+    "avg_ns": 4151200569,
+    "stddev_ns": 2910557,
+    "avg_ts": 30.834465,
+    "stddev_ts": 0.021607,
+    "samples_ns": [ 4148792207, 4148560145, 4154039231, 4154606513, 4150004752 ],
+    "samples_ts": [ 30.8524, 30.8541, 30.8134, 30.8092, 30.8433 ]
+  },
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/home/ubuntu/tcrv-llamacpp/models/tinyllama-q4_0.gguf",
+    "model_type": "llama 1B Q4_0",
+    "model_size": 635990016,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-06T08:56:31Z",
+    "avg_ns": 3584081372,
+    "stddev_ns": 9930334,
+    "avg_ts": 8.928423,
+    "stddev_ts": 0.024715,
+    "samples_ns": [ 3574888226, 3575552228, 3581158355, 3597188450, 3591619604 ],
+    "samples_ts": [ 8.95133, 8.94967, 8.93566, 8.89584, 8.90963 ]
+  }
+]
+###END

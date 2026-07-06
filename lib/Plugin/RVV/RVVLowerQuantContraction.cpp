@@ -8,11 +8,14 @@
 // repack-vs-block-dot from capability facts" actually TRUE. Per walked
 // quant_contraction request it derives the target VLEN from the pass's -march
 // (deriveMinimumVLEN -- the SAME capability authority every other capability-gated
-// pass uses; the op's advisory min_vlen attr is NOT the source), lifts the op's
-// committed WHAT attrs (quant, m_regime) to plain enums, and calls the pure,
-// branch-free, capability-fact-driven selectContractionAlgorithm. The decision is
-// stamped on the lowered op as three INERT audit attrs (tcrv_rvv.*) so it is
-// provable in-IR and lit-CHECKable.
+// pass uses; the op's advisory min_vlen attr is NOT the source), READS the op's
+// STRUCTURED OPPONENT FACTS (opponent_vlen_native_floor / block_dot_compute_heavy)
+// and its committed m_regime, and calls the pure, branch-free,
+// capability-fact-driven selectContractionAlgorithm. Routing reads the structured
+// facts, NEVER the (now optional) quant format LABEL: deleting `quant` and keeping
+// the facts selects the IDENTICAL algorithm and constructs the IDENTICAL region.
+// The decision is stamped on the lowered op as three INERT audit attrs
+// (tcrv_rvv.*) so it is provable in-IR and lit-CHECKable.
 //
 // STAGE C1 (this file, the in-IR BRIDGE): the pass now LOWERS a repack-SELECTED
 // request to the REAL tcrv_rvv.repack_gemv_q4_0_q8_0 op and DECLARES the kernel's
@@ -142,21 +145,20 @@ public:
   }
 
 private:
-  // Lift the abstract op's committed WHAT attr to the selector's pure enum. The
-  // verifier already pins quant=="q4_0"; the full enum is encoded so the selector
-  // is the complete in-compiler static prior, but only q4_0 is reachable here.
-  static mlir::FailureOr<pluginrvv::QuantType>
-  liftQuant(tcrvrvv::GgmlQuantContractionOp op) {
-    if (op.getQuant() == "q4_0")
-      return pluginrvv::QuantType::Q4_0;
-    if (op.getQuant() == "q8_0")
-      return pluginrvv::QuantType::Q8_0;
-    if (op.getQuant() == "q4_K")
-      return pluginrvv::QuantType::Q4_K;
-    return mlir::FailureOr<pluginrvv::QuantType>(
-        op.emitError() << "stage-B contraction-path selection does not "
-                          "recognize quant \""
-                       << op.getQuant() << "\"");
+  // Read the abstract op's STRUCTURED OPPONENT FACTS (the IR declaration layer)
+  // into the selector's pure fact struct. This is the C1 relocation: routing
+  // reads opponent_vlen_native_floor / block_dot_compute_heavy from the IR, NEVER
+  // the quant format LABEL, so a request that deleted its `quant` label but kept
+  // the facts selects the IDENTICAL algorithm. Absent facts default to the
+  // conservative "no repack advantage" (no VLEN-native opponent floor / not
+  // compute-heavy), which routes to the safe block-dot path.
+  static pluginrvv::ContractionOpponentFacts
+  readOpponentFacts(tcrvrvv::GgmlQuantContractionOp op) {
+    pluginrvv::ContractionOpponentFacts facts;
+    if (mlir::IntegerAttr floor = op.getOpponentVlenNativeFloorAttr())
+      facts.ggmlVlenNativeKernelFloor = floor.getInt();
+    facts.blockDotComputeHeavy = op.getBlockDotComputeHeavy().value_or(false);
+    return facts;
   }
 
   static mlir::FailureOr<pluginrvv::MRegime>
@@ -178,9 +180,9 @@ private:
   // differentiated only by the inert audit attrs -- so the emitted C is unchanged
   // on every cell and the repack EFFECT is honestly deferred to stage C.
   mlir::LogicalResult lowerOne(tcrvrvv::GgmlQuantContractionOp op) {
-    mlir::FailureOr<pluginrvv::QuantType> quant = liftQuant(op);
-    if (mlir::failed(quant))
-      return mlir::failure();
+    // Read the per-format OPPONENT FACTS from the op's structured attrs -- routing
+    // is fact-driven, NOT keyed on the (now optional) quant format label.
+    pluginrvv::ContractionOpponentFacts facts = readOpponentFacts(op);
     mlir::FailureOr<pluginrvv::MRegime> mRegime = liftMRegime(op);
     if (mlir::failed(mRegime))
       return mlir::failure();
@@ -192,7 +194,7 @@ private:
     std::int64_t minVLEN = pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
 
     pluginrvv::ContractionSelection selection =
-        pluginrvv::selectContractionAlgorithm(*quant, *mRegime, minVLEN);
+        pluginrvv::selectContractionAlgorithm(facts, *mRegime, minVLEN);
 
     // STAGE C1 (the in-IR BRIDGE): when the selection is Repack AND the target
     // capability supplies a valid e16m1 strip width (minVLEN >= 128 => half_lanes
