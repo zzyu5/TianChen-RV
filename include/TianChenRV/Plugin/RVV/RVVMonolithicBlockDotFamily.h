@@ -1448,6 +1448,16 @@ enum class TypedFlatBlockDotLoopSelector {
   // super-block resolver keys on the loop op's fold_model to pick this scalar
   // family, then disambiguates by weight stride (block_q2_K 84).
   SuperBlockScalarScaleMin,
+  // iq1_s (TERNARY-grid CODEBOOK class): the typed SUPER-BLOCK SCALAR-accumulator
+  // loop body (same op, fold_model "scalar_delta_grid" -- the iq1_s scalar fold
+  // `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)`, sumi/sumi1 being the SCALAR
+  // integer states of the iq1_s ternary-grid integer core). The accumulator arity is
+  // IDENTICAL to q2_K's scalar path; the STRUCTURAL contrast is the fold ARITHMETIC
+  // + a GRID (decode_model=lookup) integer core (tcrv_rvv.iq1_s_q8_k_grid_core) vs
+  // q2_K's arithmetic bit-unpack core. The super-block resolver keys on the loop op's
+  // fold_model to pick this grid-scalar family, then disambiguates by weight stride
+  // (block_iq1_s 50).
+  SuperBlockScalarDeltaGrid,
 };
 
 // The per-op family table (the "small per-op table"): every monolithic block-dot
@@ -1505,7 +1515,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "per-sub-block-int6-signed-codebook-scale-float-domain",
        "ggml IQ4_XS x Q8_K super-block codebook block-dot source front door failed: ", "iq4xs-weight", "q8k-act",
        "", kIQ4XSFacts, kIQ4XSCodebook, {}, {}, {}},
-      {tcrv::rvv::GgmlBlockDotIQ1SQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq1_s_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_s_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door",
@@ -1513,7 +1523,17 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq1_s_q8_K_block_dot", "rvv_iq1_s_q8_K_block_dot_from_vector_source",
        "per-sub-block-qh-scale-ternary-grid-codebook-qh-plane-delta-bsum-int-domain",
        "ggml IQ1_S x Q8_K super-block ternary-grid block-dot source front door failed: ", "iq1s-weight", "q8k-act",
-       "", kIQ1SFacts, {}, kIQ1SGrid, {}, {}},
+       "", kIQ1SFacts, {}, kIQ1SGrid, {}, {},
+       // iq1_s flip (L3 M3): the typed super-block SCALAR-accumulator GRID loop body
+       // (fold_model "scalar_delta_grid" -- iq1_s's fold is a single per-super-block
+       // scalar `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)`, sumi/sumi1 being
+       // the scalar states of the iq1_s ternary-grid integer core). The resolver
+       // disambiguates it from q2_K (scalar_scale_min) by fold_model, then by the loop
+       // op's weight_block_stride (block_iq1_s 50). The monolith op
+       // tcrv_rvv.iq1_s_q8_k_block_dot is RETIRED (this opName is now a dead string --
+       // no op carries it; the row is reached by the marker for construction and by
+       // this selector for export resolution).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotIQ1MQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_m_q8_K_block_dot_source",
@@ -1786,10 +1806,14 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     // SuperBlockTwoLevelScaleMin export entry; "scales_times_sumi" (q6_K SINGLE --
     // the no-min positive fold ONLY) resolves to a SuperBlockScalesTimesSumi entry;
     // "scalar_scale_min" (q2_K SCALAR -- the scalar `sumf += dall*isum - dmin*summs`
-    // fold) resolves to a SuperBlockScalarScaleMin entry. Within each family the
+    // fold) resolves to a SuperBlockScalarScaleMin entry; "scalar_delta_grid" (iq1_s
+    // SCALAR-grid -- the ternary-grid `sumf += d*((float)sumi + IQ1S_DELTA*
+    // (float)sumi1)` fold) resolves to a SuperBlockScalarDeltaGrid entry. Within each
+    // family the
     // selector alone is still ambiguous (q4_K and q5_K both dual), so DISAMBIGUATE
     // by the loop op's OWN weight_block_stride (block_q4_K 144 / block_q5_K 176 /
-    // block_q6_K 210 / block_q2_K 84) so each resolves to its OWN export entry
+    // block_q6_K 210 / block_q2_K 84 / block_iq1_s 50) so each resolves to its OWN
+    // export entry
     // (kind / ABI roles / facts). The typed super-block path depends on NO
     // GgmlBlockDotQ*KQ8KOp existing.
     auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
@@ -1799,6 +1823,8 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
       wantSelector = TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi;
     else if (foldModel && foldModel.getValue() == "scalar_scale_min")
       wantSelector = TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin;
+    else if (foldModel && foldModel.getValue() == "scalar_delta_grid")
+      wantSelector = TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid;
     std::int64_t stride = 0;
     if (auto strideAttr =
             op->getAttrOfType<mlir::IntegerAttr>("weight_block_stride"))

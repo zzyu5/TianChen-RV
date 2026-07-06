@@ -375,8 +375,6 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitIQ3XXSQ8KBlockDot},
         {&isIQ3SQ8KBlockDotBody,
          &VariantToEmitCFunc::emitIQ3SQ8KBlockDot},
-        {&isIQ1SQ8KBlockDotBody,
-         &VariantToEmitCFunc::emitIQ1SQ8KBlockDot},
         {&isIQ1MQ8KBlockDotBody,
          &VariantToEmitCFunc::emitIQ1MQ8KBlockDot},
         {&isMXFP4Q8_0BlockDotBody,
@@ -1368,20 +1366,6 @@ bool VariantToEmitCFunc::isIQ3SQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlBlockDotIQ3SQ8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
-
-bool VariantToEmitCFunc::isIQ1SQ8KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotIQ1SQ8KOp>(op)) {
         if (sawBlockDot)
           return false;
         sawBlockDot = true;

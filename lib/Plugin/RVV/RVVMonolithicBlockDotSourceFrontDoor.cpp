@@ -1338,6 +1338,132 @@ void createTypedSuperBlockScalarScaleMinLoopChain(
   }
 }
 
+// The iq1_s sibling of createTypedSuperBlockScalarScaleMinLoopChain. iq1_s is a
+// super-block quant whose per-sub-block decode is a codebook GRID GATHER
+// (decode_model=lookup -- the 2048-entry TERNARY iq1s_grid + a vluxei16 gather),
+// NOT an arithmetic bit-unpack, but its whole fold is a SINGLE per-super-block
+// SCALAR `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)` -- the SAME scalar-
+// accumulator arity as q2_K, with sumi (the qh-scaled POSITIVE ternary-grid dot) and
+// sumi1 (the iq1_s DELTA-bsum integer sum) being the two SCALAR i32 states of the
+// iq1_s grid core. So it assembles the OUTER nb = n/QK_K loop as ONE region-carrying
+// tcrv_rvv.typed_super_block_block_dot_loop_body op carrying a SINGLE `sumf` SCALAR
+// accumulator (region args (index, sumf:f32)), with just ONE in-loop brick inside
+// the region: the iq1_s TERNARY-grid INTEGER CORE
+// (tcrv_rvv.iq1_s_q8_k_grid_core: the 11-bit grid index build from qs+qh + the
+// vluxei16 ternary-grid gather + the signed widening grid dot + the qh-encoded
+// per-sub-block scale + the delta-bsum sum, producing the two scalar states sumi +
+// sumi1), then a SINGLE yield naming the `sumf` scalar. The scalar delta fold itself
+// (d*((float)sumi + 0.125f*(float)sumi1), fp16 x.d @0 / fp32 y.d @0) has NO separate
+// fold brick -- its offsets are FIXED block_iq1_s / block_q8_K constants, so the
+// SCALAR-accumulator GRID lowering emitter inlines it. It replaces the ONE monolith
+// tcrv_rvv.iq1_s_q8_k_block_dot op (RETIRED the SAME action as the flip). fold_model
+// "scalar_delta_grid" KEYS the scalar-accumulator arity AND the iq1_s grid emitter
+// (the loop op verifier rejects an 8-lane `sums` vector region here; the emitter
+// dispatch keys the grid gather off this fold_model). The brick's per-super-block
+// addressing keys off the loop induction variable (region arg 0), so the emit is
+// operand-driven (anti-bypass).
+//
+// The integer-core LMUL is NOT stamped (iq1_s carries no shape knob -- its grid dot
+// is FIXED at the emitter's vluxei16/i8m2/i16m4/i32m1 anchor, matching the untuned
+// monolith), so the untuned construction lowers byte-identically to the untuned
+// monolith.
+void createTypedSuperBlockScalarDeltaGridLoopChain(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed super-block scalar-delta-grid chain: missing fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 256 (QK_K)
+  std::int64_t subBlock = factByName("sub_block");             //  32 (iq1_s)
+  std::int64_t weightStride = factByName("weight_block_stride");        //  50
+  std::int64_t activationStride = factByName("activation_block_stride"); // 292
+  std::int64_t weightQsOffset = factByName("weight_qs_byte_offset");    //   2
+  std::int64_t weightQhOffset = factByName("weight_qh_byte_offset");    //  34
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");              //   4
+  std::int64_t activationBsumsOffset =
+      factByName("activation_bsums_byte_offset");              // 260
+
+  mlir::MLIRContext *ctx = builder.getContext();
+  (void)ctx;
+  mlir::Type i32ScalarType = builder.getI32Type();
+  mlir::Type f32ScalarType = builder.getF32Type();
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute(
+      "kind", builder.getStringAttr("typed_super_block_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "scalar_delta_grid" KEYS the SCALAR-accumulator arity + the iq1_s
+  // GRID emitter (vs q2_K's arithmetic "scalar_scale_min").
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("scalar_delta_grid"));
+  // integer_core_lmul is LEFT OFF (iq1_s carries no shape knob; the emitter's fixed
+  // vluxei16/i8m2 grid dot matches the untuned monolith byte-identically).
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value sbIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value sumf = body.addArgument(f32ScalarType, loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the iq1_s TERNARY-grid INTEGER CORE (the 11-bit grid index build from
+  // qs+qh + the vluxei16 ternary-grid gather + the signed widening grid dot + the
+  // qh-encoded per-sub-block scale + the delta-bsum sum). The LIVE operands are the
+  // weight base (%vx) + activation base (%vy) + n + vl + block_index; it produces the
+  // two SCALAR i32 states sumi + sumi1 (NO output pointer -- iq1_s's states are scalar
+  // registers, like q2_K's). Per-super-block address vx + ib*50, vy + ib*292.
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp::getOperationName());
+    s.addOperands({weight, activation, n, vl, sbIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_iq1_s_q8_k_grid_core"));
+    s.addAttribute(
+        "scale_model",
+        builder.getStringAttr(
+            "per-sub-block-qh-scale-ternary-grid-codebook-delta-bsum-int-domain"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("sub_block", builder.getI64IntegerAttr(subBlock));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("weight_qs_byte_offset",
+                   builder.getI64IntegerAttr(weightQsOffset));
+    s.addAttribute("weight_qh_byte_offset",
+                   builder.getI64IntegerAttr(weightQhOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addAttribute("activation_bsums_byte_offset",
+                   builder.getI64IntegerAttr(activationBsumsOffset));
+    s.addTypes({i32ScalarType, i32ScalarType});
+    (void)builder.create(s);
+  }
+  // The SINGLE carried-out SCALAR accumulator (the `sumf` scalar ONLY -- no 8-lane
+  // `sums` vector, no second delta-term operand; the scalar delta fold is
+  // emitter-inlined).
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp::getOperationName());
+    s.addOperands({sumf});
+    (void)builder.create(s);
+  }
+}
+
 // The ggml block dot-product op for this row: the bounded WHAT (kind, scale model,
 // block-format i64 facts, and any codebook/grid/ksigns DATA) is stamped from the
 // table row. Shape knobs are NOT stamped (the op lowers at the emitter default,
@@ -1694,6 +1820,17 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // single-vector chain. Its stride-84 facts flow through entry.facts.
   const bool isQ2KTypedSuperBlock =
       entry.opName == tcrvrvv::GgmlBlockDotQ2KQ8KOp::getOperationName();
+  // iq1_s flip (L3 M3): iq1_s is a super-block GRID/codebook quant whose whole fold
+  // is a SINGLE per-super-block SCALAR `sumf += d*((float)sumi + IQ1S_DELTA*
+  // (float)sumi1)` (the SAME scalar-accumulator arity as q2_K), so it flips to the
+  // typed super-block SCALAR-accumulator loop chain (fold_model "scalar_delta_grid"
+  // -- the iq1_s ternary-grid integer core + the emitter-inlined scalar delta fold +
+  // a single `sumf` scalar yield), NOT the q4_K/q5_K dual, the q6_K single-vector,
+  // nor q2_K's arithmetic scalar chain. Its stride-50 facts + the iq1s_grid flow
+  // through entry.facts. The monolith op tcrv_rvv.iq1_s_q8_k_block_dot is retired, so
+  // this gate keys off the entry.opName STRING (no op type reference).
+  const bool isIq1sTypedSuperBlock =
+      entry.opName == "tcrv_rvv.iq1_s_q8_k_block_dot";
   // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
   // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
   // plain flat cores which frame the OUTER config at SEW8.
@@ -1789,6 +1926,17 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     createTypedSuperBlockScalarScaleMinLoopChain(builder, loc, entry, weight,
                                                  activation, out, n,
                                                  setvl.getVl());
+  } else if (isIq1sTypedSuperBlock) {
+    // The auto-constructed typed SUPER-BLOCK SCALAR-accumulator GRID loop chain (the
+    // iq1_s ternary-grid integer core producing the two scalar states sumi + sumi1 +
+    // the single `sumf` scalar yield are op structure inside the region; the scalar
+    // delta fold `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)` is
+    // emitter-inlined -- no separate fold brick, no 8-lane sums vector, no post-loop
+    // horizontal add). Same scalar-accumulator arity as q2_K, distinct GRID core +
+    // fold arithmetic (fold_model "scalar_delta_grid").
+    createTypedSuperBlockScalarDeltaGridLoopChain(builder, loc, entry, weight,
+                                                  activation, out, n,
+                                                  setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).

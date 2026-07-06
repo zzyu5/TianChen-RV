@@ -4008,20 +4008,21 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
     return mlir::success();
   }
 
-// M-FLAT iq1_s super-block SCALAR-accumulator GRID emitter (milestone-2, M2).
+// M-FLAT iq1_s super-block SCALAR-accumulator GRID emitter (the flip lowering, M3).
 // Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body whose
-// fold_model is "scalar_delta_grid" to the byte-exact skeleton the (not-yet-retired)
-// monolith emitIQ1SQ8KBlockDot emits: the `static const uint64_t tcrv_iq1s_grid[2048]`
+// fold_model is "scalar_delta_grid" to the byte-exact skeleton the (now-retired)
+// monolith emitIQ1SQ8KBlockDot emitted: the `static const uint64_t tcrv_iq1s_grid[2048]`
 // TERNARY grid decl (keyed off the grid-core brick op identity from the canonical
 // kIQ1SGrid), the `sumf` float SCALAR accumulator seeded ONCE outside the loop (NO
 // 8-lane `sums` vector), nb = n / QK_K, the `tcrv_iq1s_grid` base literal, the outer
 // emitc.for over nb, and (post-loop) the `*s` store. The in-loop per-super-block body
-// is emitted by the SHARED emitIQ1SSuperBlockGridBody helper (the same one the
-// monolith calls), sourcing the per-super-block ADDRESSES from the grid-core brick's
+// is emitted by the SHARED emitIQ1SSuperBlockGridBody helper (the same one the retired
+// monolith called), sourcing the per-super-block ADDRESSES from the grid-core brick's
 // (base, block_index) OPERANDS via a per-body memo (anti-bypass W4), so the emitted C
-// is byte-identical to the monolith by construction (same grid decl, same body helper,
-// same facts, same order) modulo the source-op provenance token + the func name. This
-// is NOT a flip: the monolith stays the front-door route; M3 retires it.
+// is byte-identical to the retired monolith by construction (same grid decl, same body
+// helper, same facts, same order) modulo the source-op provenance token + the func
+// name. M3 (the flip): the front door now constructs this typed body as the SOLE
+// representation (the monolith op + emitter + verifier were retired the same action).
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -4198,7 +4199,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
       // The shared iq1_s per-super-block TERNARY-grid body (fp16*fp32 d fold scale,
       // qs/qh/q8/bsums bases, the two SCALAR states sumi + sumi1 via the vluxei16
       // grid gather, then the scalar delta fold into `sumf`). The SAME byte-exact
-      // helper the (not-yet-retired) monolith calls.
+      // helper the (now-retired) monolith called.
       emitIQ1SSuperBlockGridBody(
           rewriter, loc, cx, xb, yb,
           llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
