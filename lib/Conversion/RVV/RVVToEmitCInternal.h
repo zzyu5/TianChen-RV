@@ -487,12 +487,11 @@ private:
   /// decoded scale/min partial -- the INTEGER CORE before the fp32 d/dmin fold).
   static bool isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope);
 
-  /// The tq2_0 recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.tq2_0_q8_k_block_dot (the TQ2_0 x Q8_K super-block FULL block
-  /// dot-product producing the fp32 *s -- q2_K's 2-bit weight unpack with the
-  /// per-element `-1` ternary bias + a single per-super-block integer
-  /// accumulator + the single-fp16-scale SCALAR fp32 fold; NO scales, NO min).
-  static bool isTQ2_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: isTQ2_0Q8_KBlockDotBody + emitTQ2_0Q8_KBlockDot (the monolith tq2_0
+  // recognizer + emitter) were RETIRED at the tq2_0 flip (C_construct 24->25). The
+  // front door now constructs the typed super-block SCALAR-accumulator TERNARY loop
+  // body (fold_model "scalar_delta_grid", stride 66) carrying the tq2_0 ternary-core
+  // brick, lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 (declared above).
 
   /// The tq1_0 recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.tq1_0_q8_k_block_dot (the TQ1_0 x Q8_K super-block FULL block
@@ -1804,6 +1803,20 @@ private:
   /// emitTypedSuperBlockScalarDeltaGridLoopBody, dispatched on the codebook-core brick
   /// identity.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
+  // tq2_0 (the FIRST TQ-family member, C_construct 24->25): the typed super-block
+  // SCALAR-accumulator TERNARY loop body lowering (fold_model "scalar_delta_grid",
+  // stride 66), dispatched from emitTypedSuperBlockScalarDeltaGridLoopBody on the
+  // tq2_0 ternary-core brick identity. It is the byte-exact code-move of the retired
+  // monolith emitTQ2_0Q8_KBlockDot per-super-block body (the FUSED 2-bit plane ternary
+  // dot + the single-scale scalar fp32 fold), re-parameterized to source the
+  // per-super-block addresses from the ternary-core brick's operands. Carries the
+  // Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq2_0").
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
@@ -3168,43 +3181,14 @@ private:
       mlir::TypedValue<emitc::LValueType> isumVar,
       mlir::TypedValue<emitc::LValueType> summsVar) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_tq2_0_q8_K block kernel (the TERNARY
-  /// {-1,0,+1} TriLM coverage rung) for one tcrv_rvv.tq2_0_q8_k_block_dot op as
-  /// fully STRUCTURED emitc nodes (I5; no verbatim C-control-flow blob, no
-  /// raw()). tq2_0 REUSES q2_K's 2-bit weight unpack VERBATIM but is genuinely
-  /// SIMPLER -- NO scales, NO per-sub-block scale, NO min, NO dmin, NO bsums --
-  /// mirroring _generic (quants.c:482-511) line-for-line so byte-exactness is
-  /// by construction:
-  ///   float sumf = 0.0f;                                        // ONCE
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     const uint8_t *xb = vx + ib*66;  const uint8_t *yb = vy + ib*292;
-  ///     // (A) the 2-bit ternary unpack: for each 32-byte qs chunk (k in 0..1)
-  ///     //     and each shift in {0,2,4,6}, aux8[128*k + 32*(shift/2) + l] =
-  ///     //     ((qs[k*32+l] >> shift) & 3) - 1 (the 32 lanes l) -- u8m2 load +
-  ///     //     vsrl + vand + u8->i8 reinterpret + vadd.vx(-1) + vse8. The `-1`
-  ///     //     ternary bias is folded PER ELEMENT into the unpack (mirrors
-  ///     //     _generic's `(((qs>>shift)&3) - 1)`); the aux8 ordering pairs
-  ///     //     contiguously with q8 (aux8[i] <-> q8[i]).
-  ///     int sumi = 0;
-  ///     for (size_t s = 0; s < 16; ++s)                         // 16x16 elems
-  ///       sumi += vmv_x_s(vwredsum(vwmul(q8[16s..], aux8[16s..]), seed0));
-  ///     // (B) the single-scale SCALAR fp32 fold, ONE C statement:
-  ///     float d = *(const float *)(yb + 0) * (float)*(const _Float16 *)(xb+64);
-  ///     sumf += (float)sumi * d;
-  ///   }
-  ///   *s = sumf;
-  /// The integer side is order-free (associative int add) so the per-sub-block
-  /// 16-lane reduce is summed into a SINGLE per-super-block scalar `sumi` (NO
-  /// per-sub-block scale multiply -- tq2_0 has none); the ONLY pinned order is
-  /// the SCALAR fp32 fold `sumf += (float)sumi * d` carried in super-block
-  /// order, with `d = y.d * fp16(x.d)` as its OWN product so the association
-  /// matches _generic (quants.c:506-508). The fold is ONE emitc.expression so
-  /// it renders as ggml's single C statement and tracks the contraction. The
-  /// block-format facts are the op's typed attrs (I4 mirror).
-  mlir::LogicalResult emitTQ2_0Q8_KBlockDot(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+  // NOTE: emitTQ2_0Q8_KBlockDot (the monolith tq2_0 emitter) was RETIRED at the tq2_0
+  // flip (C_construct 24->25). Its per-super-block body -- the FUSED 2-bit plane ternary
+  // dot (32-byte qs chunk load, 4 planes each vand/vsrl unpacked + `-1` bias vsub +
+  // vwmacc against q8 into a wide i16 accumulator, ONE vwredsum per chunk into the scalar
+  // sumi) + the single-scale SCALAR fp32 fold `sumf += (float)sumi * d` (d = fp16(x.d @64)
+  // * y.d @0) -- was code-moved byte-exactly into
+  // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 (declared above), the sole live caller,
+  // re-parameterized to source the addresses from the ternary-core brick's operands.
 
   /// Emit the COMPLETE ggml ggml_vec_dot_tq1_0_q8_K block kernel (the BASE-3
   /// TriLM coverage rung -- the LAST of the 24 ggml dot kernels) for one

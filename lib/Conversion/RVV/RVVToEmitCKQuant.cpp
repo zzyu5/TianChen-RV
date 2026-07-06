@@ -4139,6 +4139,24 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
         return emitTypedSuperBlockScalarDeltaGridLoopBodyIq4xs(
             rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
     }
+    // tq2_0 (the FIRST TQ-family member, ARITHMETIC 2-bit ternary decode): a tq2_0 FUSED
+    // 2-bit ternary integer-core brick routes to the tq2_0 emitter (the 32-byte qs chunk
+    // load + the 4 2-bit planes each unpacked to 32 ternary lanes via vand/vsrl + the `-1`
+    // bias vsub + vwmacc DIRECTLY against the matching 32 q8 lanes into a wide i16 accumulator
+    // + ONE vwredsum per chunk into the per-super-block scalar sumi, then the emitter-inlined
+    // scalar fold `sumf += (float)sumi * d`, d = fp16(x.d @64) * y.d @0, NO trailing factor);
+    // otherwise the iq1_s path proceeds. tq2_0 SHARES weight_block_stride 66 with iq2_xxs but
+    // dispatches by this DISTINCT brick op TYPE, so there is no stride ambiguity. Carries the
+    // Win-A m2/m1 gearbox on the brick's integer_core_lmul.
+    {
+      bool hasTq20Core = false;
+      loopBody.getBody().walk([&](tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp) {
+        hasTq20Core = true;
+      });
+      if (hasTq20Core)
+        return emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
+            rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
+    }
     // ---- Region walk (identify, no emit): the iq1_s grid-core brick + yield. ----
     tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
     tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;

@@ -7473,28 +7473,34 @@ def GgmlBlockDotQ3KQ8KOp
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotTQ20Q8KOp
-    : TCRVRVV_Op<"tq2_0_q8_k_block_dot",
+def GgmlBlockDotTQ20Q8KTernaryCoreOp
+    : TCRVRVV_Op<"tq2_0_q8_k_ternary_core",
     [TCRVEmitCLowerableOpInterface,
      DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
   let summary =
-      "generic typed RVV ggml TQ2_0 x Q8_K super-block FULL block dot-product op";
+      "generic typed RVV ggml TQ2_0 x Q8_K super-block FUSED 2-bit TERNARY SCALAR "
+      "integer-core op (sumi, the tq2_0 ternary brick, the FIRST TQ-family member)";
   let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_tq2_0_q8_K` super-block dot-product
-    as ONE bounded generic plugin-local typed RVV dataflow step -- the TERNARY
-    ({-1,0,+1}) TriLM coverage rung, one of the LAST TWO uncommon ggml dot
-    kernels (the other is tq1_0, the base-3-packed sibling). tq2_0 is the 2-bit
-    TriLM ternary K-quant: each weight is a 2-bit field whose value decodes to a
-    ternary lane `((qs >> (l*2)) & 3) - 1` in {-1,0,1,2} (the encoder only emits
-    {0,1,2} so the realized ternary is {-1,0,1}; the structural decode is exact
-    over the full 2-bit range). The activation is q8_K (the SAME super-block
-    activation as q2_K/q3_K/q4_K/q5_K/q6_K).
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_tq2_0_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    tq2_0 FUSED 2-bit TERNARY brick, the FIRST member of the TQ ({-1,0,+1}) TriLM
+    family and the arity-cousin of the iq1_s/iq3_s scalar grid cores. UNLIKE the
+    iq* siblings it decodes ARITHMETICALLY (NO grid/codebook gather): each weight
+    is a 2-bit field whose value decodes to a ternary lane `((qs >> (l*2)) & 3) - 1`
+    in {-1,0,1,2} (the encoder only emits {0,1,2} so the realized ternary is
+    {-1,0,1}; the structural decode is exact over the full 2-bit range). The
+    activation is q8_K (the SAME super-block activation as q2_K/q3_K/q4_K/q5_K/q6_K).
+    It reproduces ggml's per-super-block SCALAR integer state EXACTLY as `_generic`
+    computes `sumi` right BEFORE the fp32 `d` multiply, byte-exact (i32 equality):
+    - `sumi` = Σ_{l=0..255} (((qs[l/4] >> (2*(l%4))) & 3) - 1) * q8[l], the flat
+      256-element ternary*q8 contraction over the WHOLE super-block (single fp16
+      scale, NO per-sub-block scale -- integer add is order-free).
 
-    tq2_0 REUSES q2_K's 2-bit weight unpack VERBATIM (the same `(qs >> shift) &
-    3` over the 4 shifts {0,2,4,6} into an element-ordered int8_t aux8[256]) but
-    is genuinely SIMPLER than every K-quant sibling -- there is NO scales[16]
-    nibble extraction, NO per-sub-block scale, NO min term, NO dmin, NO bsums.
-    THREE structural facts distinguish tq2_0, all load-bearing:
+    tq2_0 REUSES q2_K's 2-bit weight unpack VERBATIM (the same `(qs >> shift) & 3`
+    over the 4 shifts {0,2,4,6}) but folds a per-element `-1` ternary bias into the
+    unpack and is genuinely SIMPLER than every K-quant sibling -- there is NO
+    scales[16] nibble extraction, NO per-sub-block scale, NO min term, NO dmin, NO
+    bsums. THREE structural facts distinguish tq2_0, all load-bearing:
 
     (1) SUPER-BLOCK FORMAT, d AT THE END. block_tq2_0 is `{ uint8_t qs[QK_K/4];
         ggml_half d }` (QK_K = 256, sizeof 66): the 64 packed 2-bit-weight qs
@@ -7505,70 +7511,76 @@ def GgmlBlockDotTQ20Q8KOp
         prefix and the single scale is the suffix.
 
     (2) TERNARY `-1` BIAS, folded into the unpack. `_generic` (quants.c:501)
-        computes `(((qs >> (l*2)) & 3) - 1)` PER ELEMENT, so the emitter folds
+        computes `(((qs >> (l*2)) & 3) - 1)` PER ELEMENT, so the fused dot folds
         the `- 1` into the unpack: after q2_K's `&3` + u8->i8 reinterpret, ONE
-        `vadd.vx -1` on the i8 vector before the `vse8`, so aux8 holds the
-        signed ternary lanes {-1,0,1,2} directly. The dot is then q2_K's
-        VERBATIM signed widening reduce (vle8 i8 x q8 i8 -> vwmul i16 ->
-        vwredsum i32) with NO per-sub-block scale multiply -- a single
-        per-super-block integer accumulator `sumi`. (The per-element subtract,
-        NOT a `Σ(field*q8) - Σq8` refactor, mirrors `_generic` and keeps the
-        decode exact; omitting it is a non-vacuous wrong-ternary control.)
+        `vsub.vx 1` on the i8 vector, so each lane holds the signed ternary
+        {-1,0,1,2} directly. The dot is then q2_K's VERBATIM signed widening
+        reduce (vwmacc i8 x q8 i8 -> i16, vwredsum i32) with NO per-sub-block
+        scale multiply -- a single per-super-block integer accumulator `sumi`.
+        (The per-element subtract, NOT a `Σ(field*q8) - Σq8` refactor, mirrors
+        `_generic` and keeps the decode exact.)
 
-    (3) ONE INTEGER ACCUMULATOR + a SINGLE-SCALE SCALAR fp32 FOLD. ggml
+    (3) ONE INTEGER ACCUMULATOR + a DEFERRED SINGLE-SCALE SCALAR fp32 FOLD. ggml
         accumulates ONE `int32_t sumi` over the WHOLE super-block (the 256
-        ternary*q8 products, integer add is order-free), then folds
-        `sumf += (float)sumi * d` with `d = y.d * fp16(x.d)` -- ONE fp16 read of
-        the weight scale (xb+64), ONE fp32 read of the q8_K scale (yb+0), their
-        product, then the scaled accumulate. The `d` product is its OWN statement
-        and the fold is ONE emitc.expression so the association matches
-        `_generic`'s `d = y[i].d * GGML_CPU_FP16_TO_FP32(x[i].d); sumf += (float)
-        sumi * d` (quants.c:506-508) and the fp32 byte-exactness is by
-        construction (NOT a 3-factor `sumi*yd*xd` inline, which C would
-        left-associate and break the last-ulp match).
+        ternary*q8 products), then folds `sumf += (float)sumi * d` with `d = y.d *
+        fp16(x.d)`. The DEFERRED fp32 SCALAR fold (`d = y.d @0 * fp16(x.d @64)`,
+        `sumf += (float)sumi * d`) is DELIBERATELY OUT OF SCOPE here -- it is
+        emitter-inlined by the scalar-delta-grid lowering. This op isolates the
+        genuinely-new tq2_0 machinery (the fused 2-bit plane ternary dot) from the
+        fp32 fold.
 
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
-    ABI value operands -- the tq2_0 weight base pointer (vx), the q8_K activation
-    base pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime
-    element count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32
-    LMUL m1 !tcrv_rvv.vector token whose lowering writes the fp32 dot result `*s`.
+    The result is produced as ONE SCALAR i32 SSA result (ggml's per-super-block
+    `int sumi`), NOT an 8-lane vector -- the arity-cousin of the iq1_s scalar grid
+    core. The op is nested directly under tcrv_rvv.with_vl and consumes the tq2_0
+    weight base pointer (vx), the q8_K activation base pointer (vy), the runtime
+    element count (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index`
+    induction operand. It carries NO output pointer -- like the iq1_s scalar grid
+    core, tq2_0's sumi is a scalar register.
 
     The structural facts -- QK_K=256, the AoS block strides (66 bytes for
     block_tq2_0, 292 bytes for block_q8_K), the tq2_0 weight byte offsets (qs @0,
     d @64) and the q8_K payload byte offsets (the fp32 activation scale d @0, qs
     @4) -- are carried as typed integer/string attributes (I4 mirror only). The
-    bounded surface kind is limited to "ggml_tq2_0_q8_k_block_dot" and
-    scale_model to "ternary-single-fp16-scale-i32-domain-scalar-fp32-fold". The
-    op identity is the dispatch key. Route ids, helper names, ABI strings,
-    artifact names, status fields, exact intrinsic spellings, operand mirror
-    strings, q8/tq2_0 names, and common EmitC/export code must not infer or
-    choose super-block dot-product semantics.
+    bounded surface kind is limited to "ggml_tq2_0_q8_k_ternary_core" and
+    scale_model to "ternary-2bit-fused-plane-single-fp16-scale-i32-domain". Route
+    ids, helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/tq2_0 names, and common EmitC/export code
+    must not infer or choose super-block dot-product semantics.
 
-    tq2_0 emits the byte-exact form for the VLEN>=128 capability class (rv64gcv
-    => Zvl128b => VLEN>=128, the validated target), with NO VLEN-robust re-strip
-    loop (the zve32x/zve64x re-strip is a capability item, not built here).
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand
+    toggles the per-super-block-source form. When present it is the induction
+    variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_super_block_block_dot_loop_body region whose fold_model is
+    "scalar_delta_grid": the tq2_0 weight strip and the q8_K activation strip are
+    read at `weight_base + block_index*66` and `activation_base + block_index*292`.
+    When ABSENT the op keeps the standalone single-super-block form.
 
     The optional `integer_core_lmul` attribute is the SAME bounded resource shape
-    knob the q1_0 / q8_0 siblings carry (the *how*, never the *what*; the
-    dot-product is byte-exact for any legal value because the per-element ternary
-    decode is identical and the i32 integer accumulation is order-independent).
-    The dot runs ONE FUSED 32-lane plane body per 2-bit shift (ggml's shipped
-    `_vl128`/`_vl256` lane structure): the 32-byte qs chunk loads once, the 4
-    planes each vwmacc 32 ternary*q8 lanes into a wide i16 accumulator, ONE
-    vwredsum per chunk. The 32-element plane straddles m1's i8 VLMAX boundary
-    between VLEN128/256, so its span-correct anchor MOVES with VLEN across {m1,
-    m2} exactly like q1_0: the schedule autotuner stamps "m2" at VLEN128 (e8m1
-    VLMAX 16 < 32) and the lighter "m1" at VLEN256 from the SAME
+    knob the retired monolith carried (the *how*, never the *what*; the dot-product
+    is byte-exact for any legal value because the per-element ternary decode is
+    identical and the i32 integer accumulation is order-independent). The fused
+    ternary dot runs ONE 32-lane plane body per 2-bit shift (ggml's shipped
+    `_vl128`/`_vl256` lane structure): the 32-byte qs chunk loads once, the 4 planes
+    each vwmacc 32 ternary*q8 lanes into a wide i16 accumulator, ONE vwredsum per
+    chunk. The single vsetvl_e8<anchor>(32) cover is correct ONLY at the whole-LMUL
+    anchor whose i8 strip VLMAX spans the 32-element plane at the derived minimum
+    VLEN: the span-correct anchor MOVES with VLEN across {m1, m2} exactly like q1_0
+    -- the schedule autotuner stamps "m2" at VLEN128 (e8m1 VLMAX 16 < 32) and the
+    lighter "m1" at VLEN256 (e8m1 VLMAX reaches 32) from the SAME
     getRVVStripVLMAXElements truth source (it adopts TunableScheduleOpInterface;
-    kernel key "tq2_0"). The verifier rejects any other anchor fail-closed (I7).
+    kernel key "tq2_0"). The verifier rejects any other anchor fail-closed (I7). The
+    anchor defaults to "m2" (the VLEN-universal-safe floor), so an attr-less brick
+    verifies + lowers correctly and the gearbox is free to REFINE m2->m1 at
+    VLEN>=256. This is the Win-A capability-keyed selection preserved across the
+    tq2_0 flip.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$activation_base,
-    AnyType:$output,
     AnyType:$element_count,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     I64Attr:$qk,
@@ -7581,12 +7593,13 @@ def GgmlBlockDotTQ20Q8KOp
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$minimum_vlen
   );
-  let results = (outs AnyType:$result);
+  let results = (outs AnyType:$sumi);
 
   let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($sumi)";
   let hasVerifier = 1;
 }
 
@@ -7833,6 +7846,20 @@ def GgmlBlockDotIQ4XSQ8KCodebookCoreOp
 // emitIQ2XXSSuperBlockGridBody (the sole live caller is the constructed loop lowering).
 // The grid-core brick carries the SAME Win-A integer_core_lmul gearbox (kernel key
 // "iq2_xxs") so the m2->m1 VLEN capability selection is preserved on the constructed op.
+
+// NOTE: def GgmlBlockDotTQ20Q8KOp (the monolith tq2_0 block-dot op) was RETIRED at the
+// tq2_0 flip (C_construct 24->25, the FIRST TQ-family member): the front door now
+// constructs the typed super-block SCALAR-accumulator loop body
+// (tcrv_rvv.typed_super_block_block_dot_loop_body with fold_model "scalar_delta_grid",
+// stride 66) carrying the tq2_0 FUSED 2-bit TERNARY integer-core brick
+// (GgmlBlockDotTQ20Q8KTernaryCoreOp, def above) instead. The retired monolith emitter's
+// per-super-block body was code-moved into the byte-exact
+// emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 lowering (the sole live caller). Like
+// iq2_xxs the ternary-core brick carries the SAME Win-A integer_core_lmul m2/m1 gearbox
+// (kernel key "tq2_0") so the VLEN capability selection is preserved on the constructed
+// op. tq2_0 shares weight_block_stride 66 with iq2_xxs but dispatches by its OWN DISTINCT
+// brick op identity (arithmetic ternary decode, NO grid/signs gather), so there is no
+// emitter ambiguity.
 
 def GgmlBlockDotIQ2XSQ8KGridCoreOp
     : TCRVRVV_Op<"iq2_xs_q8_k_grid_core",

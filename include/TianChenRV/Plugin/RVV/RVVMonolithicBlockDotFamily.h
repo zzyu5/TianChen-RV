@@ -1867,7 +1867,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ternary-base3-single-fp16-scale-i32-domain-scalar-fp32-fold",
        "ggml TQ1_0 x Q8_K super-block ternary block-dot source front door failed: ", "tq1-weight", "q8-act",
        "", kTQ10Facts, {}, {}, {}, {}},
-      {tcrv::rvv::GgmlBlockDotTQ20Q8KOp::getOperationName(),
+      {"tcrv_rvv.tq2_0_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq2_0_q8_K_block_dot_source",
        "tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
@@ -1875,7 +1875,21 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_tq2_0_q8_K_block_dot", "rvv_tq2_0_q8_K_block_dot_from_vector_source",
        "ternary-single-fp16-scale-i32-domain-scalar-fp32-fold",
        "ggml TQ2_0 x Q8_K super-block ternary block-dot source front door failed: ", "tq2-weight", "q8-act",
-       "", kTQ20Facts, {}, {}, {}, {}},
+       "", kTQ20Facts, {}, {}, {}, {},
+       // tq2_0 flip (C_construct 24->25, the FIRST TQ-family member): the typed super-block
+       // SCALAR-accumulator loop body (fold_model "scalar_delta_grid" -- tq2_0's fold is a
+       // single per-super-block scalar `sumf += (float)sumi * d`, d = fp16(x.d @64) * y.d @0,
+       // sumi being the scalar state of the tq2_0 FUSED 2-bit ternary integer core). Shares
+       // iq1_s's selector; the emitter dispatches by the DISTINCT tq2_0 ternary-core brick
+       // identity (arithmetic 2-bit ternary decode, NO grid/signs gather). tq2_0 SHARES
+       // weight_block_stride 66 with iq2_xxs but the brick op type disambiguates. The
+       // monolith op tcrv_rvv.tq2_0_q8_k_block_dot is RETIRED (this opName is now a dead
+       // string -- no op carries it; the row is reached by the marker for construction and by
+       // this selector for export resolution). The FIRST TQ member reuses the whole iq1_s
+       // scaffold and only adds a variant integer-core brick that PRESERVES tq2_0's Win-A
+       // integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"); tq1_0 (base-3) reuses this
+       // ternary scaffold next at C2 marginal cost.
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided, "ggml_q4_0_q8_0_block_dot_source",
@@ -2134,8 +2148,23 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
     if (auto strideAttr =
             op->getAttrOfType<mlir::IntegerAttr>("weight_block_stride"))
       stride = strideAttr.getInt();
+    // STRIDE-66 COLLISION tie-breaker: block_tq2_0 and block_iq2_xxs BOTH have
+    // weight_block_stride 66, and both export through fold_model "scalar_delta_grid"
+    // (SuperBlockScalarDeltaGrid), so the (selector, stride) key alone is ambiguous.
+    // They carry DISTINCT integer-core bricks -- tq2_0 the ARITHMETIC fused 2-bit
+    // ternary core, iq2_xxs the GRID-of-8 vluxei16 gather core -- so disambiguate by
+    // the region brick op type: a tq2_0 ternary-core body binds ONLY the tq2_0 entry,
+    // and every other scalar_delta_grid body (iq2_xxs included) SKIPS the tq2_0 entry
+    // and resolves by stride as before.
+    bool hasTq20Core = false;
+    op->walk([&](tcrv::rvv::GgmlBlockDotTQ20Q8KTernaryCoreOp) {
+      hasTq20Core = true;
+    });
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
       if (entry.typedFlatLoopSelector != wantSelector)
+        continue;
+      bool isTq20Entry = entry.opName == "tcrv_rvv.tq2_0_q8_k_block_dot";
+      if (hasTq20Core != isTq20Entry)
         continue;
       for (const MonolithicBlockDotI64Attr &fact : entry.facts)
         if (fact.name == "weight_block_stride" && fact.value == stride)

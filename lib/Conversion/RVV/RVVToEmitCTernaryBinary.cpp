@@ -1508,42 +1508,91 @@ void VariantToEmitCFunc::emitIQ1MSuperBlockGridBody(
 // same anchors this retired monolith called, so the flip is byte-identical by
 // construction (modulo the source-op provenance token + the func name).
 
-mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
+// NOTE: the monolith emitTQ2_0Q8_KBlockDot was RETIRED at the tq2_0 flip (C_construct
+// 24->25, the FIRST TQ-family member). The front door now constructs the typed super-block
+// SCALAR-accumulator loop body (fold_model "scalar_delta_grid", stride 66) carrying the
+// tq2_0 FUSED 2-bit TERNARY integer-core brick (GgmlBlockDotTQ20Q8KTernaryCoreOp), lowered
+// by this emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20 -- a byte-exact code-move of the
+// retired monolith's per-super-block body, re-parameterized to source the per-super-block
+// addresses from the ternary-core brick's operands (block_index tied to the loop induction
+// variable). The emitted C is byte-identical to the retired monolith (same fused 2-bit
+// plane ternary dot + single-scale scalar fp32 fold, same facts, same op order) modulo the
+// source-op provenance token + the func name. Like iq2_xxs the brick carries the SAME Win-A
+// integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"), so the capability-keyed VLEN128 m2 /
+// VLEN256 m1 selection is preserved on the constructed op.
+mlir::LogicalResult
+VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotTQ20Q8KOp blockDot;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotTQ20Q8KOp>(op))
-        blockDot = bd;
-    }
-    if (!blockDot)
-      return rewriter.notifyMatchFailure(scope,
-                                         "tq2_0 block-dot body missing the op");
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    (void)scope;
+    // ---- Region walk (identify, no emit): the tq2_0 ternary-core brick + yield. ----
+    tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp coreOp;
+    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o =
+              llvm::dyn_cast<tcrvrvv::GgmlBlockDotTQ20Q8KTernaryCoreOp>(bodyOp))
+        coreOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                       bodyOp))
+        yieldOp = o;
+    });
 
-    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
-    mlir::Value output = valueMap.lookup(blockDot.getOutput());
+    // ---- Region-driven gate (fail-closed, I7): the byte-exact SCALAR-accumulator
+    // TERNARY body requires the tq2_0 ternary-core brick + the SINGLE scalar yield,
+    // the (index, sumf scalar) entry-arg pair, and the brick's block_index tied to the
+    // loop induction variable (region arg 0) -- the anti-bypass tie (the emit provably
+    // tracks the region content, not merely the loop op attrs). ----
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    if (!coreOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "tq2_0 super-block scalar-accumulator ternary body requires "
+                    "the tq2_0 fused 2-bit ternary integer-core brick + the single "
+                    "scalar yield");
+    if (coreBlock.getNumArguments() != 2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "tq2_0 super-block scalar-accumulator ternary body region "
+                    "must carry exactly the (super_block_index, sumf) pair");
+    mlir::Value sbIndex = coreBlock.getArgument(0);
+    mlir::Value sumfArg = coreBlock.getArgument(1);
+    if (yieldOp.getSumsNext() != sumfArg || yieldOp.getSumfNext())
+      return rewriter.notifyMatchFailure(
+          yieldOp, "tq2_0 super-block scalar yield must carry the loop-carried "
+                   "sumf scalar ALONE (no second operand under the scalar fold)");
+    if (coreOp.getBlockIndex() != sbIndex)
+      return rewriter.notifyMatchFailure(
+          loopBody, "the tq2_0 super-block ternary-core brick's block_index must "
+                    "be the loop induction variable (region arg 0) so the emit "
+                    "addresses base + ib*stride, not super-block-0");
+
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
     if (!weightBase || !activationBase || !output)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "tq2_0 block-dot ABI operand unmapped");
+      return rewriter.notifyMatchFailure(
+          loopBody, "tq2_0 super-block scalar-accumulator ternary ABI operand "
+                    "unmapped");
 
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int");
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The block-format structural facts come straight off the typed attrs (I4).
-    int64_t qk = blockDot.getQk();                                  // 256
-    int64_t weightStride = blockDot.getWeightBlockStride();         // 66
-    int64_t activationStride = blockDot.getActivationBlockStride(); // 292
-    int64_t qsOffset = blockDot.getWeightQsByteOffset();            //  0
-    int64_t weightDOffset = blockDot.getWeightDByteOffset();        // 64
-    int64_t activationDOffset = blockDot.getActivationDByteOffset();//  0
-    int64_t q8Offset = blockDot.getActivationQuantByteOffset();     //  4
+    // The block-format structural facts. The strides + qk come off the LOOP OP (the
+    // byte-exact schedule shape knobs); the per-region byte offsets come off the tq2_0
+    // ternary-core BRICK that owns them (I4 mirror).
+    int64_t qk = loopBody.getQk();                                  // 256
+    int64_t weightStride = loopBody.getWeightBlockStride();         // 66
+    int64_t activationStride = loopBody.getActivationBlockStride(); // 292
+    int64_t qsOffset = coreOp.getWeightQsByteOffset();              //  0
+    int64_t weightDOffset = coreOp.getWeightDByteOffset();          // 64
+    int64_t activationDOffset = coreOp.getActivationDByteOffset();  //  0
+    int64_t q8Offset = coreOp.getActivationQuantByteOffset();       //  4
     int64_t planeLanes = 32; // the 32-element 2-bit plane (ggml's FUSED strip).
     int64_t planesPerChunk = 4; // the 4 2-bit shifts {0,2,4,6} per qs chunk.
     int64_t chunkBytes = 32;    // a qs chunk is 32 packed bytes (= 128 weights).
@@ -1564,7 +1613,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
     // i16 vacc never overflows: |ternary|<=2, |q8|<=127, 4 planes -> max |acc| <=
     // 4*2*127 = 1016 << 32767.
     llvm::StringRef coreLmul = "m2";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
+    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
       coreLmul = *attrLmul;
     llvm::StringRef wideLmul = (coreLmul == "m2") ? "m4" : "m2";
     mlir::Type u8CoreType =
@@ -1611,16 +1660,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
         rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
     rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfZero);
 
-    // Per-super-block base address arithmetic (vx + ib*66, vy + ib*292).
-    auto blockBaseValue = [&](mlir::Value ib, mlir::Value base,
-                              mlir::Type ptrType, int64_t stride,
-                              const char *step) -> mlir::Value {
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
-      mlir::Value off =
-          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
-      return rewriter.create<emitc::AddOp>(loc, ptrType, base, off);
-    };
-
     // The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1).
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "super_block_loop"));
@@ -1632,10 +1671,36 @@ mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
       rewriter.setInsertionPointToStart(blockLoop.getBody());
       mlir::Value ib = blockLoop.getInductionVar();
 
-      mlir::Value xb = blockBaseValue(ib, weightBase, weightPtrType,
-                                      weightStride, "super_block_base_x");
-      mlir::Value yb = blockBaseValue(ib, activationBase, activationPtrType,
-                                      activationStride, "super_block_base_y");
+      // W-E: per-super-block base = base + ib*stride, built from the ternary-core
+      // brick's (base operand, block_index operand) through a per-iteration memo.
+      // Correct wiring collapses to exactly TWO emitted bases -- xb (super_block_base_x)
+      // and yb (super_block_base_y) -- byte-identical to the monolith's per-block base
+      // arithmetic (MulOp(ib, stride) + AddOp(base, off)). A CHANGED brick base operand
+      // keys a DIFFERENT memo entry (anti-bypass, operand-driven emit).
+      llvm::DenseMap<std::pair<mlir::Value, mlir::Value>, mlir::Value>
+          blockBaseMemo;
+      auto blockBaseFor = [&](mlir::Value bufferSSA, mlir::Value blockIndexSSA,
+                              int64_t stride, const char *step) -> mlir::Value {
+        std::pair<mlir::Value, mlir::Value> key(bufferSSA, blockIndexSSA);
+        auto it = blockBaseMemo.find(key);
+        if (it != blockBaseMemo.end())
+          return it->second;
+        mlir::Value emittedBase = valueMap.lookup(bufferSSA);
+        rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+        mlir::Value off =
+            rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+        mlir::Value base = rewriter.create<emitc::AddOp>(
+            loc, emittedBase.getType(), emittedBase, off);
+        blockBaseMemo[key] = base;
+        return base;
+      };
+
+      mlir::Value xb =
+          blockBaseFor(coreOp.getWeightBase(), coreOp.getBlockIndex(),
+                       weightStride, "super_block_base_x");
+      mlir::Value yb =
+          blockBaseFor(coreOp.getActivationBase(), coreOp.getBlockIndex(),
+                       activationStride, "super_block_base_y");
 
       // The q8 quant base (vy + activation_quant_byte_offset).
       mlir::Value q8Base =
@@ -1873,13 +1938,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
     }
 
     // *s = sumf;  (structured scalar store through the float * output pointer).
+    // The LoadOp of the carried sumf is emitted BEFORE the output subscript, exactly
+    // as the retired monolith emitted it, so the emit is byte-identical.
     mlir::Value sumf =
         rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
     auto outPointer =
         llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
     if (!outPointer)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "tq2_0 block-dot output not a pointer");
+      return rewriter.notifyMatchFailure(
+          loopBody, "tq2_0 super-block scalar-accumulator ternary output not a "
+                    "pointer");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "store_s"));
     mlir::Value outIndex =
@@ -1888,7 +1956,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot(
         rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumf);
 
-    valueMap[blockDot.getResult()] = sumf;
     return mlir::success();
   }
 

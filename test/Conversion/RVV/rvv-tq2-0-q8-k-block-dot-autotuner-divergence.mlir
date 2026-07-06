@@ -1,10 +1,16 @@
-// The tq2_0 Win-A proof: the COMPILER SELECTS the ggml TQ2_0 x Q8_K fused-ternary
-// block-dot integer-core anchor, and the selection DIVERGES by capability from the
-// SAME attr-less input -- via the UNIFIED schedule autotuner (the SAME walk-all
-// pass that auto-discovers every TunableScheduleOpInterface op, NO per-tq2_0 pass).
+// The tq2_0 Win-A proof (PRESERVED across the tq2_0 flip): the COMPILER SELECTS the
+// ggml TQ2_0 x Q8_K FUSED 2-bit ternary integer-core anchor, and the selection DIVERGES
+// by capability from the SAME attr-less input -- via the UNIFIED schedule autotuner (the
+// SAME walk-all pass that auto-discovers every TunableScheduleOpInterface op, NO
+// per-tq2_0 pass). The monolith op was RETIRED at the flip; the Win-A gearbox moved
+// verbatim onto the CONSTRUCTED tcrv_rvv.tq2_0_q8_k_ternary_core brick (SAME kernel key
+// "tq2_0"), so the autotuner stamps the SAME m2->m1 selection onto the brick with NO
+// registry change. This test now drives the CONSTRUCTED typed super-block
+// SCALAR-accumulator TERNARY loop body (fold_model "scalar_delta_grid"), not the retired
+// monolith op.
 //
-// The kernel below carries NO integer_core_lmul knob -- the compiler must compute
-// it. tq2_0's fused ternary dot is ALWAYS one 32-lane plane body (load the 32-byte
+// The ternary-core brick below carries NO integer_core_lmul knob -- the compiler must
+// compute it. tq2_0's fused ternary dot is ALWAYS one 32-lane plane body (load the 32-byte
 // qs chunk once, 4 2-bit planes each vwmacc 32 ternary*q8 lanes into a wide i16
 // accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32) cover is
 // correct ONLY at the whole-LMUL anchor whose i8 strip VLMAX spans the 32-element
@@ -16,12 +22,11 @@
 //     the lighter footprint breaks the tie -> integer_core_lmul "m1" (i16m2 acc).
 //
 // One capability fact (the REAL VLEN bits) -> the anchor FLIPS m2->m1. This is the
-// compiler SELECTING the shape from a capability fact, not a hand-set attr -- the
-// Win-A enrichment that targets tq2_0's narrow-strip LOSS (the prior aux8[256]
-// spill + 16x 16-lane vwmul reductions, replaced by ggml's fused 32-lane dot).
+// compiler SELECTING the shape from a capability fact, not a hand-set attr.
 
 // First, the DECISION-LEVEL proof: the unified autotuner stamps DIFFERENT anchors
-// onto the SAME attr-less op purely by the VLEN capability fact (no lowering).
+// onto the SAME attr-less ternary-core brick purely by the VLEN capability fact (no
+// lowering).
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
 //
@@ -42,7 +47,11 @@ module {
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_tq2_0_q8_K, sew = 32 : i64, source_kernel = "ggml_vec_dot_tq2_0_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.tq2_0_q8_k_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_tq2_0_q8_k_block_dot", scale_model = "ternary-single-fp16-scale-i32-domain-scalar-fp32-fold", qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, fold_model = "scalar_delta_grid"} {
+        ^bb0(%super_block_index: index, %sumf: f32):
+          %sumi = tcrv_rvv.tq2_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq2_0_q8_k_ternary_core", scale_model = "ternary-2bit-fused-plane-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
+          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
   }
@@ -51,18 +60,18 @@ module {
 // ================= STAMPED ANCHOR (the SELECTION decision) ==================
 // rv64gcv (VLEN128): the compiler SELECTED m2 (the ONLY anchor whose e8 VLMAX 32
 // spans the 32-element plane at VLEN128) + the SEMANTIC minimum_vlen = 128 the
-// verifier recomputes legality from.
-// STAMP-VLEN128: tcrv_rvv.tq2_0_q8_k_block_dot
+// verifier recomputes legality from. The gearbox now stamps the CONSTRUCTED brick.
+// STAMP-VLEN128: tcrv_rvv.tq2_0_q8_k_ternary_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
 // STAMP-VLEN128-SAME: tcrv_rvv.tq2_0_schedule.has_zvl128b = true
 // STAMP-VLEN128-SAME: tcrv_rvv.tq2_0_schedule.producer = "rvv-tq2-0-autotuner"
 //
-// rv64gcv_zvl256b (VLEN256): the SAME op FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
+// rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
 // reaches 32, so it spans the plane in ONE vsetvl, TIES m2 on the capability-blind
 // cost, and the lighter footprint breaks the tie to m1. The anchor MOVES with VLEN
 // (the headline Win-A enrichment). minimum_vlen = 256 is stamped.
-// STAMP-VLEN256: tcrv_rvv.tq2_0_q8_k_block_dot
+// STAMP-VLEN256: tcrv_rvv.tq2_0_q8_k_ternary_core
 // STAMP-VLEN256-SAME: integer_core_lmul = "m1"
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 

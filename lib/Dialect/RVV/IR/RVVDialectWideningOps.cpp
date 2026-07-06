@@ -1344,9 +1344,15 @@ bool GgmlBlockDotQ10Q80Op::isSchedulePinned() {
 // multi_block_factor / strip_elision -- the fused ternary dot is ALWAYS one
 // 32-lane plane body). Its 32-element 2-bit plane straddles m1's i8 VLMAX
 // boundary between VLEN128/256 (like q1_0 / q8_0), so the gearbox stamps "m2" at
-// VLEN128 / "m1" at VLEN256.
-llvm::StringRef GgmlBlockDotTQ20Q8KOp::getScheduleKernelKey() { return "tq2_0"; }
-bool GgmlBlockDotTQ20Q8KOp::isSchedulePinned() {
+// VLEN128 / "m1" at VLEN256. KEPT across the tq2_0 flip: the monolith op RETIRED,
+// but the Win-A gearbox moved verbatim onto the constructed FUSED 2-bit TERNARY
+// integer-core brick (SAME kernel key "tq2_0", so the unified autotuner -- which
+// dyn_casts TunableScheduleOpInterface, not op-type -- stamps the SAME m2->m1
+// selection onto the brick without any registry change).
+llvm::StringRef GgmlBlockDotTQ20Q8KTernaryCoreOp::getScheduleKernelKey() {
+  return "tq2_0";
+}
+bool GgmlBlockDotTQ20Q8KTernaryCoreOp::isSchedulePinned() {
   return static_cast<bool>(getIntegerCoreLmul());
 }
 
@@ -6612,17 +6618,19 @@ mlir::LogicalResult GgmlBlockDotQ3KQ8KOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
+mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
   // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
-  // ternary-single-fp16-scale scalar-fp32-fold scale model, and the
-  // super-block-format structural facts (the 64 packed 2-bit-weight qs @0, the
-  // fp16 weight scale d @64 -- d is at the END of block_tq2_0, distinct from
-  // every sibling -- the fp32 activation scale d @0, qs @4). tq2_0 is TERNARY
-  // with NO scales[16], NO per-sub-block scale, NO min term, NO dmin, NO bsums.
-  // Anything else -- a forbidden local element_count/SEW/LMUL/policy attr, or an
-  // unexpected name -- is rejected fail-closed (I7).
+  // ternary-2bit-fused-plane single-fp16-scale integer-core scale model, and the
+  // super-block-format structural facts the integer core reads (the 64 packed
+  // 2-bit-weight qs @0, the fp16 weight scale d @64 -- d is at the END of
+  // block_tq2_0, distinct from every sibling -- the fp32 activation scale d @0,
+  // qs @4), plus the Win-A resource shape knob integer_core_lmul + minimum_vlen
+  // and the "tcrv_rvv.tq2_0_schedule.*" autotuner provenance namespace. tq2_0 is
+  // TERNARY with NO scales[16], NO per-sub-block scale, NO min term, NO dmin, NO
+  // bsums. Anything else -- a forbidden local element_count/SEW/LMUL/policy attr,
+  // or an unexpected name -- is rejected fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
@@ -6638,85 +6646,88 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.tq2_0_q8_k_block_dot keeps SEW/LMUL/policy on "
+             << "'; tcrv_rvv.tq2_0_q8_k_ternary_core keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
                 "control-plane IR, and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedBlockDotAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded super-block dot-product attributes "
-                "'kind', 'scale_model', 'qk', 'weight_block_stride', "
-                "'activation_block_stride', 'weight_qs_byte_offset', "
-                "'weight_d_byte_offset', 'activation_d_byte_offset', "
-                "'activation_quant_byte_offset', 'integer_core_lmul', and "
-                "'minimum_vlen'; unexpected attribute '"
+             << "only accepts the bounded FUSED 2-bit ternary super-block "
+                "integer-core attributes 'kind', 'scale_model', 'qk', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'weight_qs_byte_offset', 'weight_d_byte_offset', "
+                "'activation_d_byte_offset', 'activation_quant_byte_offset', "
+                "'integer_core_lmul', and 'minimum_vlen'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
-  if (getKind() != "ggml_tq2_0_q8_k_block_dot")
+  if (getKind() != "ggml_tq2_0_q8_k_ternary_core")
     return emitOpError()
-           << "currently supports only kind \"ggml_tq2_0_q8_k_block_dot\" for "
-              "the bounded ggml TQ2_0 x Q8_K super-block full block dot-product "
-              "typed surface";
+           << "currently supports only kind \"ggml_tq2_0_q8_k_ternary_core\" for "
+              "the bounded ggml TQ2_0 x Q8_K super-block FUSED 2-bit ternary "
+              "scalar integer-core typed surface";
   if (getScaleModel() !=
-      "ternary-single-fp16-scale-i32-domain-scalar-fp32-fold")
+      "ternary-2bit-fused-plane-single-fp16-scale-i32-domain")
     return emitOpError()
            << "requires scale_model "
-              "\"ternary-single-fp16-scale-i32-domain-scalar-fp32-fold\" for "
-              "the ggml TQ2_0 x Q8_K super-block full block dot-product route";
+              "\"ternary-2bit-fused-plane-single-fp16-scale-i32-domain\" for "
+              "the ggml TQ2_0 x Q8_K super-block FUSED 2-bit ternary scalar "
+              "integer-core route";
   // ggml's externally-defined super-block format (ggml-common.h): QK_K == 256,
   // block_tq2_0 stride 66 (qs[64]@0|d@64 -- the weight LEADS, the single fp16
   // scale is the SUFFIX), block_q8_K stride 292 (d@0|qs@4). Pin them so a
-  // malformed typed body cannot lower under the super-block dot emission.
+  // malformed typed body cannot lower under the integer-core emission.
   if (getQk() != 256)
     return emitOpError() << "requires qk == 256 (QK_K) for the ggml TQ2_0 x "
-                            "Q8_K super-block full block dot-product route";
+                            "Q8_K super-block FUSED 2-bit ternary integer-core "
+                            "route";
   if (getWeightBlockStride() != 66)
     return emitOpError()
            << "requires weight_block_stride == 66 (sizeof block_tq2_0 = qs[64] "
-              "+ fp16 d) for the ggml TQ2_0 x Q8_K super-block full block "
-              "dot-product route";
+              "+ fp16 d) for the ggml TQ2_0 x Q8_K super-block FUSED 2-bit "
+              "ternary integer-core route";
   if (getActivationBlockStride() != 292)
     return emitOpError()
            << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
-              "the ggml TQ2_0 x Q8_K super-block full block dot-product route";
+              "the ggml TQ2_0 x Q8_K super-block FUSED 2-bit ternary "
+              "integer-core route";
   if (getWeightQsByteOffset() != 0)
     return emitOpError()
            << "requires weight_qs_byte_offset == 0 (the 64 packed 2-bit-weight "
               "qs bytes LEAD block_tq2_0) for the ggml TQ2_0 x Q8_K super-block "
-              "full block dot-product route";
+              "FUSED 2-bit ternary integer-core route";
   if (getWeightDByteOffset() != 64)
     return emitOpError()
            << "requires weight_d_byte_offset == 64 (the fp16 super-block scale "
               "d FOLLOWS qs[64] -- d is at the END of block_tq2_0) for the ggml "
-              "TQ2_0 x Q8_K super-block full block dot-product route";
+              "TQ2_0 x Q8_K super-block FUSED 2-bit ternary integer-core route";
   if (getActivationDByteOffset() != 0)
     return emitOpError()
            << "requires activation_d_byte_offset == 0 (the fp32 q8_K scale d "
-              "leads the block) for the ggml TQ2_0 x Q8_K super-block full "
-              "block dot-product route";
+              "leads the block) for the ggml TQ2_0 x Q8_K super-block FUSED "
+              "2-bit ternary integer-core route";
   if (getActivationQuantByteOffset() != 4)
     return emitOpError()
            << "requires activation_quant_byte_offset == 4 (qs follow the fp32 "
-              "d) for the ggml TQ2_0 x Q8_K super-block full block dot-product "
-              "route";
+              "d) for the ggml TQ2_0 x Q8_K super-block FUSED 2-bit ternary "
+              "integer-core route";
 
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+  // The OPTIONAL loop-form `block_index` operand adds a 5th operand (the
+  // per-super-block induction variable). Absent = the standalone 4-operand
+  // single-super-block form; present = the loop form. The op produces ONE scalar
+  // i32 result (sumi) -- NO output pointer (the scalar state is an SSA result).
+  unsigned expectedOperands = getBlockIndex() ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
     return emitOpError()
            << "requires one weight base pointer, one activation base pointer, "
-              "one fp32 *s output pointer, one runtime element-count runtime ABI "
-              "operand, one !tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, an OPTIONAL `block_index` induction operand, and one "
+              "scalar i32 result (sumi)";
 
-  // The three buffer operands and the element count are runtime ABI values; the
-  // weight/activation bases address the AoS byte arrays as const uint8_t *, the
-  // output is a float * (the fp32 *s dot-product destination), and the element
-  // count carries n.
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp activationBinding =
       getActivationBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
   if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
     return emitOpError()
            << "requires the weight base operand to bind a runtime ABI value of "
@@ -6726,20 +6737,15 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
            << "requires the activation base operand to bind a runtime ABI "
               "value of C type 'const uint8_t *' (the AoS block_q8_K byte "
               "array)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the fp32 *s dot-product destination)";
   if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
     return emitOpError()
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  if (!isGenericRVVVectorI32M1(getResult().getType()))
+  if (!getSumi().getType().isInteger(32))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
-              "\"m1\"> for the ggml TQ2_0 x Q8_K super-block full block "
-              "dot-product route";
+           << "requires the result (sumi, the per-super-block fused 2-bit "
+              "ternary*q8 integer dot) to be scalar i32";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -6752,30 +6758,28 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KOp::verify() {
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml TQ2_0 x Q8_K super-block full block "
-              "dot-product";
+              "metadata for the ggml TQ2_0 x Q8_K super-block FUSED 2-bit "
+              "ternary scalar integer core";
 
-  // The ternary dot runs ONE FUSED 32-lane plane body per 2-bit shift (load the
-  // 32-byte qs chunk once, 4 planes each vwmacc 32 ternary*q8 lanes into a wide
-  // i16 accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32)
-  // cover is correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED
-  // minimum VLEN spans the whole 32-element plane. WHICH anchor that is MOVES
-  // with VLEN exactly like the q1_0 / q8_0 siblings: at VLEN=128 only m2 spans it
-  // (e8m1 VLMAX 16 < 32), at VLEN=256 m1's VLMAX also reaches 32. Any other
-  // spelling is rejected fail-closed (I7); the VLMAX legality is recomputed here
-  // from the SAME formula the gearbox selects with (getRVVStripVLMAXElements --
-  // this verifier is the single source of truth). The anchor defaults to "m2"
-  // (the emitter's VLEN-universal-safe default), so an attr-less op verifies +
-  // lowers correctly and the gearbox is free to REFINE m2->m1 at VLEN>=256. The
-  // explicit aggressive anchor m1 is REJECTED at minimum_vlen 128 (e8m1 VLMAX 16
-  // < 32) -- the silent-wrong guard.
+  // The Win-A resource shape knob (preserved across the flip): the fused ternary
+  // dot runs ONE FUSED 32-lane plane body per 2-bit shift (load the 32-byte qs
+  // chunk once, 4 planes each vwmacc 32 ternary*q8 lanes into a wide i16
+  // accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32) cover
+  // is correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED minimum
+  // VLEN spans the whole 32-element plane. WHICH anchor that is MOVES with VLEN
+  // exactly like the q1_0 / q8_0 siblings: at VLEN=128 only m2 spans it (e8m1
+  // VLMAX 16 < 32), at VLEN=256 m1's VLMAX also reaches 32. The anchor defaults
+  // to "m2" (the VLEN-universal-safe floor); the gearbox REFINES m2->m1 at
+  // VLEN>=256. The VLMAX legality is recomputed here from the SAME
+  // getRVVStripVLMAXElements truth source the autotuner selects with; any other
+  // anchor is fail-closed (I7).
   {
     llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
     if (anchor != "m1" && anchor != "m2")
       return emitOpError()
              << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "TQ2_0 x Q8_K super-block full block dot-product (the fused "
-                "ternary dot runs ONE 32-lane plane body at the whole-LMUL "
+                "TQ2_0 x Q8_K super-block FUSED 2-bit ternary integer core (the "
+                "fused ternary dot runs ONE 32-lane plane body at the whole-LMUL "
                 "anchor whose i8 strip VLMAX spans the 32-element plane: m2 at "
                 "VLEN128, m1 at VLEN256); got \""
              << anchor << "\"";

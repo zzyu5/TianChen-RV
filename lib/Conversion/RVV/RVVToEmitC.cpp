@@ -416,8 +416,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitQ4_KHorizontalFold},
         {&isQ4_KQ8_KAux32PartialBody,
          &VariantToEmitCFunc::emitQ4_KQ8_KAux32Partial},
-        {&isTQ2_0Q8_KBlockDotBody,
-         &VariantToEmitCFunc::emitTQ2_0Q8_KBlockDot},
+        // NOTE: the monolith tq2_0 kernel {isTQ2_0Q8_KBlockDotBody,
+        // emitTQ2_0Q8_KBlockDot} was RETIRED at the tq2_0 flip (C_construct 24->25,
+        // the FIRST TQ-family member): the front door now constructs the typed
+        // super-block SCALAR-accumulator TERNARY loop body (fold_model
+        // "scalar_delta_grid", stride 66) carrying the tq2_0 ternary-core brick,
+        // lowered by isTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockBlockDotLoopBody ->
+        // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20.
         {&isTQ1_0Q8_KBlockDotBody,
          &VariantToEmitCFunc::emitTQ1_0Q8_KBlockDot},
     };
@@ -1501,19 +1507,10 @@ bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
   }
 
 
-bool VariantToEmitCFunc::isTQ2_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotTQ20Q8KOp>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: isTQ2_0Q8_KBlockDotBody (the monolith tq2_0 recognizer) was RETIRED at the
+// tq2_0 flip (C_construct 24->25). The constructed typed super-block ternary loop body
+// is recognized by isTypedSuperBlockBlockDotLoopBody + resolved via
+// emitTypedSuperBlockScalarDeltaGridLoopBody -> emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20.
 
 bool VariantToEmitCFunc::isTQ1_0Q8_KBlockDotBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
@@ -5645,6 +5642,16 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // the codebook gather pins m1). UNLIKE the grid siblings the fold runs per-sub-block
       // in float, but the single-scalar accumulator arity is identical.
       tcrv::rvv::GgmlBlockDotIQ4XSQ8KCodebookCoreOp,
+      // tq2_0 (the FIRST TQ-family member, ARITHMETIC 2-bit ternary decode): the tq2_0
+      // FUSED 2-bit TERNARY super-block INTEGER core (decode_model=arithmetic -- q2_K's
+      // 2-bit `(qs>>shift)&3` unpack over the 4 shifts {0,2,4,6}, the per-element `-1`
+      // ternary bias vsub, the fused-plane vwmacc against q8 into a wide i16 accumulator,
+      // ONE vwredsum per 32-byte chunk, producing the ONE SCALAR state sumi -- NO
+      // grid/codebook gather); it is the scalar-accumulator body's ternary brick under
+      // fold_model "scalar_delta_grid" (it SHARES weight_block_stride 66 with iq2_xxs but
+      // the DISTINCT brick op type disambiguates; carries the Win-A integer_core_lmul
+      // m2/m1 gearbox, kernel key "tq2_0")
+      tcrv::rvv::GgmlBlockDotTQ20Q8KTernaryCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

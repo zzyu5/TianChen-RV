@@ -524,6 +524,36 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq4xs (typed super-block SCALAR-accumulator CODEBOOK loop body; flat iq4_nl codebook sibling, super-block rung, per-sub-block float fold, no gearbox)",
     },
+    # tq2_0 vec_dot: STRONG (the FIRST TQ-family member flipped, C_construct 24->25 -- the
+    # first ARITHMETIC-ternary super-block vec_dot vs the iq* grid/codebook siblings). tq2_0
+    # is the 2-bit TERNARY ({-1,0,+1}) TriLM K-quant: the SAME single per-super-block SCALAR
+    # fold arity (fold_model "scalar_delta_grid"), so its front door
+    # (createTypedSuperBlockScalarDeltaGridLoopChainTq20) REUSES the WHOLE iq1_s
+    # scalar-delta-grid scaffold and constructs the typed SUPER-BLOCK SCALAR-accumulator loop
+    # body out of just ONE decomposed brick: the DISTINCT tq2_0 FUSED 2-bit TERNARY INTEGER
+    # CORE (tq2_0_q8_k_ternary_core -- q2_K's 2-bit (qs>>shift)&3 unpack over the 4 shifts
+    # {0,2,4,6} + the per-element -1 ternary bias vsub + the fused-plane vwmacc against q8 into
+    # a wide i16 accumulator + ONE seed-0 vwredsum per 32-byte chunk producing the
+    # per-super-block scalar sumi -- decode_model=arithmetic, NO grid/codebook gather). Its
+    # fold is a single per-super-block scalar `sumf += (float)sumi * d` (d = fp16(x.d @64) *
+    # y.d @0, NO trailing factor), emitter-inlined. NOT the opaque emitTQ2_0Q8_KBlockDot hand
+    # helper (the GgmlBlockDotTQ20Q8KOp op + emitter + verifier + monolith conversion+dataflow
+    # tests RETIRED same action as the flip). The contraction+reduction is the fused per-plane
+    # vand/vsrl unpack + vsub bias + vwmacc + vwredsum INSIDE the ternary core (see
+    # _FUSED_DOT_REDUCE_RE's ternary_core token); NO opaque *_block_dot op, so [L-8] derives
+    # constructed (STRONG). tq2_0 SHARES weight_block_stride 66 with iq2_xxs but resolves to its
+    # OWN export entry by the DISTINCT ternary-core brick op type (stride-66 collision
+    # tie-breaker). UNLIKE iq4_xs the ternary-core brick PRESERVES tq2_0's Win-A
+    # integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"), so tq2_0 IS in the schedule
+    # autotuner and HAS a VLEN128(m2)-vs-VLEN256(m1) byte-flip. It builds the REUSABLE ternary
+    # scaffold that tq1_0 (base-3) reuses next at C2 marginal cost.
+    {
+        "op": "vec_dot", "format": "tq2_0", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "tq2-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq20 (typed super-block SCALAR-accumulator TERNARY loop body; FIRST TQ-family member, arithmetic 2-bit ternary core, Win-A m2/m1 gearbox preserved)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
@@ -595,7 +625,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # purpose: `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -625,8 +655,14 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # gather + asymmetric vwmul/vwmacc widening product + seed-0 vwredsum reduces the 32
 # products into the scalar sumi, which the per-sub-block float scale fold consumes --
 # NO separate standalone_reduce, the fold that follows is a scale/add, not a reduce), so
-# its `codebook_core` token joins this whitelist too.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+# its `codebook_core` token joins this whitelist too. The tq2_0 super-block FUSED 2-bit
+# TERNARY integer core `tq2_0_q8_k_ternary_core` is likewise a fused dot-reduce (its
+# per-plane vand/vsrl 2-bit unpack + the -1 ternary-bias vsub + the fused-plane vwmacc
+# against q8 into a wide i16 accumulator + ONE seed-0 vwredsum per 32-byte chunk reduces
+# the products into the per-super-block scalar sumi, which the single-scale scalar fold
+# consumes -- NO separate standalone_reduce, the fold that follows is a scale/add, not a
+# reduce), so its `ternary_core` token joins this whitelist too.
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 
 def _leading_ws(line):
