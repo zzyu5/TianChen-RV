@@ -2,7 +2,7 @@
 """gen_sixstate_table.py -- T0 six-state census table (visibility pack, line E).
 
 Renders schema/coverage-sixstate.v1.json into the T0 census artifact
-experiments/visibility/T0-sixstate.md (format x state x regime, plus the
+experiments/active/visibility/T0-sixstate.md (format x state x regime, plus the
 state histogram and the C_construct headline). Governance / workflow tooling,
 stdlib-only: Python is tooling here, never the compiler stack. It does NOT read
 or touch any C++/ODS.
@@ -22,8 +22,8 @@ denominator). A cross-check line names that authority.
 
 Subcommands
 -----------
-render [--out PATH]   write the T0 markdown (default: experiments/visibility/
-                      T0-sixstate.md under the repo root).
+render [--out PATH]   write the T0 markdown (default: experiments/active/
+                      visibility/T0-sixstate.md under the repo root).
 --check               render to memory, compare with the committed artifact;
                       exit non-zero on drift (used by the CI regen/drift gate).
 --self-test           hermetic: synthetic sixstate fixture; asserts the
@@ -41,7 +41,7 @@ from pathlib import Path
 # This file lives at <repo>/tools/visibility/gen_sixstate_table.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
-DEFAULT_OUT = REPO_ROOT / "experiments" / "visibility" / "T0-sixstate.md"
+DEFAULT_OUT = REPO_ROOT / "experiments" / "active" / "visibility" / "T0-sixstate.md"
 
 # six-state ladder ([K-4]); index order is the maturity order.
 LADDER = ["absent", "emittable", "dispatch-wired",

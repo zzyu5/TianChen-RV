@@ -3,7 +3,7 @@
 #
 # The structured opponent facts the tcrv_rvv.quant_contraction op carries
 # (opponent_vlen_native_floor / block_dot_compute_heavy) are VALUES read off a
-# PINNED ggml tree. experiments/opponent-facts-provenance/opponent-facts.pin.json
+# PINNED ggml tree. experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json
 # records the pin sha those fact values were verified against. This gate compares
 # it to the live pin in schema/ggml-pin.lock.json:
 #
@@ -23,7 +23,7 @@ set -u
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOCK="$REPO/schema/ggml-pin.lock.json"
-PROV="$REPO/experiments/opponent-facts-provenance/opponent-facts.pin.json"
+PROV="$REPO/experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json"
 
 # JSON field extraction via python3 (robust; avoids jq dependency).
 json_get() {  # <file> <key>
@@ -70,7 +70,7 @@ run_check() {  # <lock_sha_override_or_empty>
   echo "  live  ggml-pin sha = ${live_sha}"
   echo "  -> pin was bumped; re-verify opponent-fact line anchors against the new tree"
   echo "     (.trellis/scripts/fetch_ggml_pin.py), then update"
-  echo "     experiments/opponent-facts-provenance/opponent-facts.pin.json (pin_sha + line refs)."
+  echo "     experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json (pin_sha + line refs)."
   return 1
 }
 

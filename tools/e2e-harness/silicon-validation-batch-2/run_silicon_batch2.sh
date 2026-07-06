@@ -16,7 +16,7 @@ set -u
 HOST="${HOST:-rvv}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"        # this harness dir (driver lives here)
 REPO="$(cd "$HERE/../../.." && pwd)"                        # repo root
-CELL="$REPO/experiments/silicon-validation-batch-2"        # DATA cell: kernels/ + results/ stay under experiments/
+CELL="$REPO/experiments/sealed/silicon/silicon-validation-batch-2"        # DATA cell: kernels/ + results/ stay under experiments/
 GGML="${GGML:-/home/ubuntu/tcrv-llamacpp}"
 OPT="$REPO/build/bin/tcrv-opt"
 MT="${MT:-/usr/lib/llvm-20/bin/mlir-translate}"

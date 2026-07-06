@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gen_burndown_curve.py -- T7 burn-down double curve (visibility pack, line E).
 
-Renders the paper Fig.1 double series into experiments/visibility/T7-burndown.md:
+Renders the paper Fig.1 double series into experiments/active/visibility/T7-burndown.md:
 
   * C_construct (STRONG coverage) climbing, read from the FLIP commits (each such
     commit's subject carries a `C_construct N->M` transition), and
@@ -21,8 +21,8 @@ lands (or history is rewritten). Data points are labelled with the short hash.
 
 Subcommands
 -----------
-render [--out PATH]   write the T7 markdown (default: experiments/visibility/
-                      T7-burndown.md under the repo root).
+render [--out PATH]   write the T7 markdown (default: experiments/active/
+                      visibility/T7-burndown.md under the repo root).
 --check               regenerate to memory, compare with committed artifact;
                       exit non-zero on drift.
 --self-test           hermetic: synthetic flip list; asserts the transition
@@ -38,7 +38,7 @@ from pathlib import Path
 
 # This file lives at <repo>/tools/visibility/gen_burndown_curve.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUT = REPO_ROOT / "experiments" / "visibility" / "T7-burndown.md"
+DEFAULT_OUT = REPO_ROOT / "experiments" / "active" / "visibility" / "T7-burndown.md"
 
 # `C_construct 13→14` / `C_construct 13->14` (arrow may be unicode or ascii).
 FLIP_RE = re.compile(r"C_construct\s*(\d+)\s*(?:→|->)\s*(\d+)")

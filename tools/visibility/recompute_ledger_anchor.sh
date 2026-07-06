@@ -5,7 +5,7 @@
 # source size: raw wc-l = 2484 (docs/TianChen-RV_执行总纲v2.md line 239/241;
 # [C2-1]/[C2-4] require it be reproducible). This script RECOMPUTES that anchor
 # from the live tree via .trellis/scripts/family_ledger.py and records the
-# recompute command + result into experiments/visibility/T2-ledger-anchor.md.
+# recompute command + result into experiments/active/visibility/T2-ledger-anchor.md.
 #
 # Idempotent: the rendered markdown is a pure function of the IME source files +
 # the family-dirs manifest (no wall clock), so a rerun on the same tree is
@@ -23,7 +23,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ANCHOR_EXPECTED=2484
 LEDGER_REL=".trellis/scripts/family_ledger.py"
-OUT_REL="experiments/visibility/T2-ledger-anchor.md"
+OUT_REL="experiments/active/visibility/T2-ledger-anchor.md"
 # TCRV_T2_OUT lets the CI drift check render to a temp file (non-destructive compare).
 OUT_ABS="${TCRV_T2_OUT:-${REPO_ROOT}/${OUT_REL}}"
 

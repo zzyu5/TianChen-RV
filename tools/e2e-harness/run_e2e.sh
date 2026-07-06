@@ -14,7 +14,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"     # tools/e2e-harness (board/ + aggregate_e2e.py live here)
 REPO="$(cd "$HERE/../.." && pwd)"                        # repo root
-RESULTS_ROOT="${RESULTS_ROOT:-$REPO/experiments/e2e-harness/results}"  # DATA cells stay under experiments/
+RESULTS_ROOT="${RESULTS_ROOT:-$REPO/experiments/sealed/repack}"  # DATA cells stay under experiments/ (reorg 1d24dcf8: results/rvv-* -> sealed/repack/)
 
 HOST="${HOST:-rvv}"
 EXP_VLEN="${EXP_VLEN:-128}"
