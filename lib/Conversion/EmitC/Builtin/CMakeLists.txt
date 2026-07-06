@@ -8,6 +8,7 @@ add_mlir_library(TianChenRVConversionEmitCBuiltin
   TianChenRVToyBackendEmitter
   TianChenRVTemplateBackendEmitter
   TianChenRVTensorExtLiteBackendEmitter
+  TianChenRVScalarBackendEmitter
   MLIRIR
   MLIRSupport
 )

@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
+#include "TianChenRV/Target/Scalar/ScalarTargetSupportBundle.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
@@ -276,6 +277,12 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
       "scalar fallback first slice no longer materializes a legacy metadata "
       "selected lowering boundary");
   return llvm::Error::success();
+}
+
+llvm::Error ScalarExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  return target::scalar_ext::registerScalarTargetSupportTargetTranslateRoutes(
+      registry);
 }
 
 } // namespace scalar

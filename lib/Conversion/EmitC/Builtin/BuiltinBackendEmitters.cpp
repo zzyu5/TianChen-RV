@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/RVV/RVVBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/IME/IMEBackendEmissionDriver.h"
+#include "TianChenRV/Plugin/Scalar/ScalarBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/Template/TemplateBackendEmissionDriver.h"
 #include "TianChenRV/Plugin/Toy/ToyBackendEmissionDriver.h"
@@ -28,6 +29,7 @@ constexpr BackendEmitterRegistrationFn kBuiltinBackendEmitters[] = {
     ::tianchenrv::plugin::template_ext::registerTemplateBackendEmitter,
     ::tianchenrv::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter,
     ::tianchenrv::plugin::ime::registerIMEBackendEmitter,
+    ::tianchenrv::plugin::scalar::registerScalarBackendEmitter,
 };
 
 } // namespace
