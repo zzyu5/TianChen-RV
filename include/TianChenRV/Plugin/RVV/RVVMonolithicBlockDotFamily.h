@@ -1691,7 +1691,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // the whole iq1_s scaffold and only adds a variant integer-core brick that
        // PRESERVES iq2_xxs's Win-A integer_core_lmul m2/m1 gearbox (kernel key "iq2_xxs").
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {tcrv::rvv::GgmlBlockDotIQ2XSQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq2_xs_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xs_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
@@ -1699,7 +1699,21 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq2_xs_q8_K_block_dot", "rvv_iq2_xs_q8_K_block_dot_from_vector_source",
        "per-half-int4-explicit-scales-grid-codebook-int-domain",
        "ggml IQ2_XS x Q8_K super-block grid-codebook block-dot source front door failed: ", "iq2xs-weight", "q8k-act",
-       "", kIQ2XSFacts, {}, kIQ2XSGrid, {}, kIQ2XSKsigns},
+       "", kIQ2XSFacts, {}, kIQ2XSGrid, {}, kIQ2XSKsigns,
+       // iq2_xs flip (L3 coverage, SIGN-PLANE signs64 variant, PER-HALF explicit scale):
+       // the typed super-block SCALAR-accumulator GRID loop body (fold_model
+       // "scalar_delta_grid" -- iq2_xs's fold is a single per-super-block scalar `sumf +=
+       // d*(float)bsum` with the trailing `*s = 0.125f*sumf`, bsum being the scalar state
+       // of the iq2_xs per-half-explicit-scale GRID integer core). Shares iq1_s's selector;
+       // the resolver disambiguates iq2_xs from iq1_s/iq1_m/iq3_xxs/iq2_xxs (all
+       // scalar_delta_grid) by the loop op's OWN weight_block_stride (block_iq2_xs 74 vs
+       // iq1_s 50 / iq1_m 56 / iq3_xxs 98 / iq2_xxs 66). The monolith op
+       // tcrv_rvv.iq2_xs_q8_k_block_dot is RETIRED (this opName is now a dead string -- no
+       // op carries it; the row is reached by the marker for construction and by this
+       // selector for export resolution). The FIFTH GRID/codebook member reuses the whole
+       // iq1_s scaffold and only adds a variant integer-core brick (NO gearbox -- fixed
+       // 16-lane per-half shape, unlike iq2_xxs's m2/m1).
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotIQ2SQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_s_q8_K_block_dot_source",

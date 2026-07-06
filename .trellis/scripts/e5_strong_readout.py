@@ -414,6 +414,32 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs (typed super-block SCALAR-accumulator GRID-of-8 loop body; iq1_s grid sibling, signs64 variant)",
     },
+    # iq2_xs vec_dot: STRONG (the FIFTH super-block GRID/CODEBOOK-class vec_dot flipped, L3
+    # coverage -- another marginal-cost payoff, SIGN-PLANE signs64 variant, PER-HALF explicit
+    # scale). iq2_xs is the iq2_xxs GRID SIBLING: the SAME single per-super-block SCALAR fold
+    # arity (fold_model "scalar_delta_grid"), so its front door
+    # (createTypedSuperBlockScalarDeltaGridLoopChainIq2xs) REUSES the WHOLE iq1_s
+    # scalar-delta-grid scaffold and constructs the typed SUPER-BLOCK SCALAR-accumulator loop
+    # body out of just ONE decomposed brick: the DISTINCT iq2_xs per-half-scale GRID INTEGER
+    # CORE (iq2_xs_q8_k_grid_core -- the 512-entry iq2xs_grid vluxei16_v_i64m1 gather indexed
+    # by w&511 + the SECOND signs64 vluxei16 gather over the DERIVED keven_signs_q2xs sign
+    # plane keyed by w>>9 + the EXPLICIT per-sub-block 4-bit scales[8] two-half split ls1/ls2,
+    # producing the ONE scalar state bsum) -> a SINGLE `sumf` scalar yield. NOT the opaque
+    # emitIQ2XSQ8KBlockDot hand helper (the GgmlBlockDotIQ2XSQ8KOp op + emitter + verifier +
+    # monolith conversion+dataflow tests RETIRED same action as the flip; the shared
+    # grid/signs64/body anchors kept; UNLIKE iq2_xxs the brick carries NO gearbox -- fixed
+    # 16-lane per-half shape). The contraction+reduction is the fused per-half 2-index
+    # vluxei16 gather + vmul-sign-fold + vwmul + vwredsum INSIDE the grid core (see
+    # _FUSED_DOT_REDUCE_RE's grid_core token); NO opaque *_block_dot op, so [L-8] derives
+    # constructed (STRONG). Resolves to iq2_xs's OWN export entry by fold_model +
+    # weight_block_stride 74 (vs iq1_s 50 / iq1_m 56 / iq3_xxs 98 / iq2_xxs 66).
+    {
+        "op": "vec_dot", "format": "iq2_xs", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "iq2-xs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2xs (typed super-block SCALAR-accumulator per-half-scale GRID loop body; iq2_xxs grid sibling, signs64 variant, no gearbox)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
