@@ -7218,6 +7218,127 @@ def GgmlBlockDotIQ3XXSQ8KGridCoreOp
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotIQ2XXSQ8KGridCoreOp
+    : TCRVRVV_Op<"iq2_xxs_q8_k_grid_core",
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
+  let summary =
+      "generic typed RVV ggml IQ2_XXS x Q8_K super-block GRID-of-8 SCALAR "
+      "integer-core op (bsum, the iq2_xxs grid/signs64 brick, iq1_s grid sibling)";
+  let description = [{
+    Records the INTEGER CORE of the ggml `ggml_vec_dot_iq2_xxs_q8_K` super-block
+    dot-product as ONE bounded generic plugin-local typed RVV dataflow step -- the
+    iq2_xxs GRID-of-8 brick, the SIGN-PLANE (signs64) sibling of the iq3_xxs GRID-of-4
+    core (tcrv_rvv.iq3_xxs_q8_k_grid_core) and the iq1_s ternary-grid core. It decodes
+    with a codebook GRID GATHER (decode_model=lookup) like iq1_s, but over the 256-entry
+    `iq2xxs_grid[256]` uint64 GRID-of-8 (each entry EIGHT int8 values -- TWICE the lane
+    width of iq3_xxs's uint32 grid-of-4) via a `vluxei16_v_i64<anchor>` indexed gather,
+    with per-element signs read via a SECOND `vluxei16_v_i64<anchor>` indexed gather over
+    the DERIVED `keven_signs_q2xs` SIGN-PLANE (signs64 -- 1024 +-1 bytes = the 128-entry
+    ksigns_iq2xs selector EXPANDED to per-lane +-1). It reproduces ggml's per-super-block
+    SCALAR integer state EXACTLY as `_generic` computes `bsum` right BEFORE the fp32 `d`
+    multiply, byte-exact (i32 equality):
+    - `bsum` = Σ_{ib=0..7} ls[ib] * (Σ_{lane} signed_grid[lane] * q8[lane]), the
+      per-sub-block 4-bit-scaled grid/sign dot over one 32-lane sub-block. Each sub-block
+      reads its aux word pair from the INTERLEAVED qs stream at `qs + ib*8`: the 4 grid
+      INDICES `idx = a[l]` (l=0..3, the low 4 bytes) and the aux1 uint32 `a[4]|a[5]<<8|
+      a[6]<<16|a[7]<<24` (the high 4 bytes) -- iq2_xxs INTERLEAVES the indices and the
+      aux pair, unlike iq3_xxs's SEPARATE q3/gas regions. The per-sub-block scale
+      `ls = 2*(aux1 >> 28) + 1`; each of the 4 sign groups l=0..3 reads the sign selector
+      `sel = (aux1 >> 7*l) & 127`. The 4 grid indices (idx*8 byte-offsets) and 4 sign
+      selectors (sel*8 byte-offsets) are packed as u16 index arrays; TWO
+      `vluxei16_v_i64<anchor>` gathers over the i64 grid64 / signs64 bases fetch the 32
+      grid bytes + 32 +-1 sign bytes; the sign folds onto the GRID via
+      `vmul_vv_i8<anchor>(grid, signs)` (NOT q8 -- the i8 product wraps at the q8=-128
+      lane, so folding onto the [8,43]-bounded grid is byte-exact); then ONE
+      `vwmul_vv_i16<2*anchor>` + ONE `vwredsum_vs_i16<2*anchor>_i32m1` per sub-block, then
+      `bsum += sumi*ls`.
+    The result is produced as ONE SCALAR i32 SSA result (ggml's per-super-block `int
+    bsum`), NOT an 8-lane vector -- the arity-cousin of the iq1_s scalar grid core. The
+    DEFERRED fp32 SCALAR fold (`d = fp16(x.d @0) * y.d @0`, `sumf += d * (float)bsum`,
+    then the trailing `*s = 0.125f * sumf` factor) is DELIBERATELY OUT OF SCOPE here --
+    it is emitter-inlined by the scalar-delta-grid lowering. This op isolates the
+    genuinely-new iq2_xxs machinery (the i64 GRID-of-8 vluxei16 gather, the signs64
+    sign-plane vluxei16 gather, the aux1 4-bit-scale + 4-sign-group decode) from the
+    fp32 fold.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes the iq2_xxs weight
+    base pointer (vx), the q8_K activation base pointer (vy), the runtime element count
+    (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index` induction operand.
+    It produces ONE scalar i32 SSA result (bsum). It carries NO output pointer -- like
+    the iq1_s scalar grid core, iq2_xxs's bsum is a scalar register.
+
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- QK_K=256, 8 sub-blocks of 32 elements, the AoS block strides
+    (66 bytes for block_iq2_xxs = {fp16 d; uint16 qs[32]}, 292 bytes for block_q8_K), the
+    iq2_xxs payload byte offsets (the fp16 d @0, the 64 uint8 interleaved index+aux bytes
+    qs @2) and the q8_K payload byte offsets (fp32 d @0, int8 qs @4) -- are carried as
+    typed integer/string attributes (I4 mirror only). The FIXED 256-entry iq2xxs_grid
+    GRID-of-8 codebook and the DERIVED keven_signs_q2xs signs64 sign plane are byte-exact
+    constants of the iq2_xxs FORMAT; they are emitted keyed by the brick op identity, NOT
+    carried in the IR here (the signs64 sign-plane mechanism is DERIVED at emit from the
+    fixed ksigns selector, NO op-attr extension). The bounded surface kind is limited to
+    "ggml_iq2_xxs_q8_k_grid_core" and scale_model to
+    "per-sub-block-aux1-scale-grid-of-8-codebook-signs64-sign-plane-int-domain". Route
+    ids, helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, q8/iq2 names, and common EmitC/export code must
+    not infer or choose the grid-of-8 super-block dot-product semantics.
+
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand toggles
+    the per-super-block-source form. When present it is the induction variable (region
+    argument 0) of an enclosing tcrv_rvv.typed_super_block_block_dot_loop_body region
+    whose fold_model is "scalar_delta_grid": the iq2_xxs weight strip and the q8_K
+    activation strip are read at `weight_base + block_index*66` and `activation_base +
+    block_index*292`. When ABSENT the op keeps the standalone single-super-block form.
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape knob
+    the retired monolith carried (the *how*, never the *what*; the dot-product is
+    byte-exact for any legal value because the per-element grid+sign decode is identical
+    and the i32 integer accumulation is order-independent). The grid+sign vluxei16 gather
+    + dot runs ONE 32-lane sub-block body: the 4 u64 grid entries gather as
+    vint64<anchor> (4 entries = 32 i8 = one 32-lane sub-block), reinterpret to i8<anchor>,
+    fold the per-lane +-1 sign (vmul_vv_i8<anchor>), one vwmul_vv_i16<2*anchor>, ONE
+    vwredsum per sub-block. A single i64 entry is 8 bytes, so the 4-entry gather needs an
+    i64 anchor whose VLMAX reaches 4 (=> the i8 view spans 32): the span-correct anchor
+    MOVES with VLEN across {m1, m2} exactly like tq2_0 -- the schedule autotuner stamps
+    "m2" at VLEN128 (e8m1 VLMAX 16 < 32) and the lighter "m1" at VLEN256 (e8m1 VLMAX
+    reaches 32, i64m1 VLMAX reaches 4) from the SAME getRVVStripVLMAXElements truth source
+    (it adopts TunableScheduleOpInterface; kernel key "iq2_xxs"). The verifier rejects any
+    other anchor fail-closed (I7). The anchor defaults to "m2" (the VLEN-universal-safe
+    floor), so an attr-less brick verifies + lowers correctly and the gearbox is free to
+    REFINE m2->m1 at VLEN>=256 (ggml's shipped `_vl256` m1-32-lane shape). This is the
+    Win-A capability-keyed selection preserved across the iq2_xxs flip.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$sub_block,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_qs_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$minimum_vlen
+  );
+  let results = (outs AnyType:$bsum);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($bsum)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ3KQ8KOp
     : TCRVRVV_Op<"q3_k_q8_k_block_dot",
     [TCRVEmitCLowerableOpInterface]> {
@@ -7713,129 +7834,15 @@ def GgmlBlockDotIQ4XSQ8KOp
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotIQ2XXSQ8KOp
-    : TCRVRVV_Op<"iq2_xxs_q8_k_block_dot",
-    [TCRVEmitCLowerableOpInterface,
-     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
-  let summary =
-      "generic typed RVV ggml IQ2_XXS x Q8_K GRID-codebook super-block dot-product op";
-  let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_iq2_xxs_q8_K` super-block dot-product as
-    ONE bounded generic plugin-local typed RVV dataflow step -- the FIRST member of
-    the DEEP IQ tail: the GRID-codebook class. This is a genuinely NEW mechanism, NOT
-    the 16-entry per-nibble gather (iq4_nl/iq4_xs): each weight byte INDEXES a large
-    packed GRID codebook (`iq2xxs_grid[256]`, a uint64 table where each entry encodes
-    8 int8 values), the per-element SIGN is read from a separate SIGN PLANE
-    (`ksigns_iq2xs[128]` / `kmask_iq2xs[8]`), and a per-group 4-bit scale folds in the
-    INTEGER domain. It REUSES the q6_K-style super-block structure (the q8_K
-    activation, the integer-domain `bsum` accumulation, the per-super-block fp32 fold).
-
-    Block format (ggml-common.h): block_iq2_xxs = { ggml_half d; uint16_t qs[QK_K/8] }
-    (= {fp16 d; uint16_t qs[32]}, stride 66), the q8_K activation unchanged (stride
-    292, fp32 d @0, int8 qs @4). QK_K=256, 8 sub-blocks of 32 elements (ib32=0..7).
-
-    (1) Per super-block d = (float)*(const _Float16 *)(xb) * *(const float *)(yb)
-        (the fp16 weight scale times the fp32 q8_K scale, ONE mul), computed once.
-        int32_t bsum = 0 reset per super-block.
-
-    (2) For each of the 8 sub-blocks (a FLAT unrolled loop over ib32=0..7), read the
-        two aux uint32 words from qs + ib32*8 by REASSEMBLING each from 4 little-
-        endian byte loads (the qs stream starts at byte 2 so the aux words are
-        2-aligned, NOT 4-aligned -- the byte reassembly is alignment-safe structured
-        scalar emitc, no misaligned `*(uint32_t*)`): aux0 packs the 4 grid byte
-        INDICES (aux8[0..3] = the low 4 bytes), aux1 packs the SIGN selectors + the
-        scale. The per-sub-block scale `ls = 2*(aux1 >> 28) + 1` and the integer dot
-        `sumi = 0`. For each of the 4 groups l=0..3: the grid INDEX `idx = aux8[l]`,
-        the sign byte `signs = ksigns_iq2xs[(aux1 >> 7*l) & 127]`, the 8 grid int8
-        values `grid = (const int8_t *)(iq2xxs_grid + idx)` (an indexed pointer-arith
-        lookup `grid_table_i8 + idx*8`, NOT a vrgather -- the 2048-byte table cannot
-        broadcast into a vreg), are decoded over 8 lanes: broadcast `signs`, `vand`
-        with the kmask vector {1,2,4,8,16,32,64,128}, `vmsne 0` -> mask, `vmerge(grid,
-        vneg(grid), mask)` applies the per-lane sign, then `vwmul(grid_signed, q8)` ->
-        i16, `vwredsum` accumulates (seed = the running sumi i32m1, integer add is
-        order-free) into the chained i32 reduction. After the 4 groups `bsum +=
-        sumi * ls`.
-
-    (3) The per-super-block fp32 fold `sumf = sumf + d * (float)bsum` is ONE
-        emitc.expression (the SAME FMA `_generic` does under -ffp-contract on/default;
-        the `(float)bsum` cast is explicit) invoked in STRICT ascending super-block
-        order so fp non-associativity is byte-exact across all four -ffp-contract
-        modes. The final `*s = 0.125f * sumf` (the iq2_xxs trailing 1/8 factor) is a
-        SEPARATE statement OUTSIDE the accumulate expression.
-
-    The grid lookup is an indexed vle8(8) over a pointer (`grid_table + idx*8`), the
-    operative vector width is 8 (one group), so there is NO vrgather table-index
-    legality fact and the integer core does NOT pin an m1 table anchor. The grid +
-    ksigns tables are STRUCTURAL facts (I4 mirror) carried as typed array attributes
-    and emitted as structured `static const` decls (the grid as `int64_t[256]`
-    rendering ggml's exact uint64 literals, read via a `(const int8_t *)` cast; ksigns
-    as a `uint8_t[128]` decl); kmask is the inline const {1<<j}. They are consumed
-    STRUCTURALLY into the realized body (decls + indexed loads + the vle8 grid load),
-    NOT an arithmetic decode, NOT a string plan read. The op identity is the dispatch
-    key. Route ids, helper names, ABI strings, artifact names, status fields, exact
-    intrinsic spellings, operand mirror strings, q8/iq2 names, and common EmitC/export
-    code must not infer or choose super-block dot-product semantics.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the iq2_xxs weight base pointer (vx), the q8_K activation base
-    pointer (vy), the fp32 output pointer `*s` (a `float *`), the runtime element
-    count (n) -- plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
-    !tcrv_rvv.vector token whose lowering writes the single fp32 reduction result.
-
-    iq2_xxs emits the byte-exact form for the VLEN>=128 capability class (rv64gcv =>
-    Zvl128b => VLEN>=128, the validated target).
-
-    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
-    knob the q1_0 / tq2_0 siblings carry (the *how*, never the *what*; the
-    dot-product is byte-exact for any legal value because the per-element grid+sign
-    decode is identical and the i32 integer accumulation is order-independent). The
-    grid+sign vluxei16 gather + dot runs ONE 32-lane sub-block body: the 4 u64 grid
-    entries gather as vint64<anchor> (4 entries = 32 i8 = one 32-lane sub-block),
-    reinterpret to i8<anchor>, fold the per-lane +-1 sign (vmul_vv_i8<anchor>), one
-    vwmul_vv_i16<2*anchor>, ONE vwredsum per sub-block. A single i64 entry is 8
-    bytes, so the 4-entry gather needs an i64 anchor whose VLMAX reaches 4 (=> the
-    i8 view spans 32): the span-correct anchor MOVES with VLEN across {m1, m2}
-    exactly like tq2_0 -- the schedule autotuner stamps "m2" at VLEN128 (e8m1 VLMAX
-    16 < 32) and the lighter "m1" at VLEN256 (e8m1 VLMAX reaches 32, i64m1 VLMAX
-    reaches 4) from the SAME getRVVStripVLMAXElements truth source (it adopts
-    TunableScheduleOpInterface; kernel key "iq2_xxs"). The verifier rejects any
-    other anchor fail-closed (I7). The anchor defaults to "m2" (the VLEN-universal-
-    safe floor, e8m2 VLMAX 32 at any VLEN), so an attr-less op verifies + lowers
-    correctly and the gearbox is free to REFINE m2->m1 at VLEN>=256 (matching ggml's
-    shipped `_vl256` m1-32-lane shape). (The siblings iq2_xs / iq2_s reduce in
-    16-lane HALVES forced by their distinct per-half scales ls1/ls2 -- 2 i64 entries
-    = always sub-m1 since i64 cannot strip below m1 -- so they carry NO shape knob.)
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$sub_block,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_d_byte_offset,
-    I64Attr:$weight_qs_byte_offset,
-    I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    DenseI64ArrayAttr:$grid,
-    DenseI32ArrayAttr:$ksigns,
-    OptionalAttr<StrAttr>:$integer_core_lmul,
-    OptionalAttr<I64Attr>:$minimum_vlen
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
+// NOTE: def GgmlBlockDotIQ2XXSQ8KOp (the monolith iq2_xxs block-dot op) was RETIRED at
+// the iq2_xxs flip (L3 coverage): the front door now constructs the typed super-block
+// SCALAR-accumulator GRID loop body (tcrv_rvv.typed_super_block_block_dot_loop_body with
+// fold_model "scalar_delta_grid", stride 66) carrying the iq2_xxs GRID-of-8 grid/signs64
+// grid-core brick (GgmlBlockDotIQ2XXSQ8KGridCoreOp) instead. The retired monolith
+// emitter's per-super-block body was extracted into the byte-exact shared anchor
+// emitIQ2XXSSuperBlockGridBody (the sole live caller is the constructed loop lowering).
+// The grid-core brick carries the SAME Win-A integer_core_lmul gearbox (kernel key
+// "iq2_xxs") so the m2->m1 VLEN capability selection is preserved on the constructed op.
 
 def GgmlBlockDotIQ2XSQ8KOp
     : TCRVRVV_Op<"iq2_xs_q8_k_block_dot",

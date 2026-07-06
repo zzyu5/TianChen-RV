@@ -34,6 +34,18 @@
 // gearbox's VLEN256 m1 refinement is a separate schedule-pass concern NOT exercised
 // here. COVERAGE at the default anchor.
 //
+// iq2_xxs FLIP (L3 coverage, SIGN-PLANE signs64): the front door no longer constructs
+// the retired monolith op -- it constructs the typed super-block SCALAR-accumulator GRID
+// loop body (fold_model "scalar_delta_grid", stride 66) with the iq2_xxs GRID-of-8
+// grid-core brick (tcrv_rvv.iq2_xxs_q8_k_grid_core). The export still resolves through the
+// SAME super-block monolithic route family (kind/ABI/facts) by the selector +
+// weight_block_stride 66, so the emission-plan metadata + the exported object are
+// byte-unchanged, and the CORE EmitC is byte-identical to the retired monolith modulo the
+// source-op provenance token. The constructed brick is left attr-less at construction
+// (default m2 anchor = the byte-exact CORE target); its Win-A m2/m1 gearbox is PRESERVED
+// on the brick (kernel key "iq2_xxs") and refined by the schedule pass, a separate concern
+// NOT exercised here (see rvv-iq2-xxs-q8-k-block-dot-autotuner-divergence.mlir).
+//
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
 
@@ -76,7 +88,12 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq2_xxs_q8_K_block_dot_sou
 // The kernel survived coherence with exactly the supported monolithic
 // emission-plan diagnostic naming the SUPER-BLOCK monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_iq2_xxs_q8_K_kernel
-// PLAN: tcrv_rvv.iq2_xxs_q8_k_block_dot
+// iq2_xxs FLIP (L3 coverage, SIGN-PLANE signs64): the front door now constructs the typed
+// super-block SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid", stride
+// 66) with the iq2_xxs GRID-of-8 grid-core brick, NOT the retired monolith op. The export
+// still resolves through the SAME super-block monolithic route family (kind/ABI/facts) by
+// the selector + weight_block_stride 66, so the emission-plan metadata is byte-unchanged.
+// PLAN: tcrv_rvv.typed_super_block_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata

@@ -1669,7 +1669,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // resolution). The C2 marginal-cost payoff: the SECOND GRID/codebook member
        // reuses the whole iq1_s scaffold and only adds a variant integer-core brick.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
-      {tcrv::rvv::GgmlBlockDotIQ2XXSQ8KOp::getOperationName(),
+      {"tcrv_rvv.iq2_xxs_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xxs_q8_K_block_dot_source",
        "tcrv-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
@@ -1677,7 +1677,20 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_iq2_xxs_q8_K_block_dot", "rvv_iq2_xxs_q8_K_block_dot_from_vector_source",
        "per-group-int4-grid-codebook-scale-int-domain",
        "ggml IQ2_XXS x Q8_K super-block grid-codebook block-dot source front door failed: ", "iq2xxs-weight", "q8k-act",
-       "", kIQ2XXSFacts, {}, kIQ2XXSGrid, {}, kIQ2XXSKsigns},
+       "", kIQ2XXSFacts, {}, kIQ2XXSGrid, {}, kIQ2XXSKsigns,
+       // iq2_xxs flip (L3 coverage, SIGN-PLANE signs64 variant): the typed super-block
+       // SCALAR-accumulator GRID loop body (fold_model "scalar_delta_grid" -- iq2_xxs's
+       // fold is a single per-super-block scalar `sumf += d*(float)bsum` with the trailing
+       // `*s = 0.125f*sumf`, bsum being the scalar state of the iq2_xxs GRID-of-8 integer
+       // core). Shares iq1_s's selector; the resolver disambiguates iq2_xxs from
+       // iq1_s/iq1_m/iq3_xxs (all scalar_delta_grid) by the loop op's OWN
+       // weight_block_stride (block_iq2_xxs 66 vs iq1_s 50 / iq1_m 56 / iq3_xxs 98). The
+       // monolith op tcrv_rvv.iq2_xxs_q8_k_block_dot is RETIRED (this opName is now a dead
+       // string -- no op carries it; the row is reached by the marker for construction and
+       // by this selector for export resolution). The FOURTH GRID/codebook member reuses
+       // the whole iq1_s scaffold and only adds a variant integer-core brick that
+       // PRESERVES iq2_xxs's Win-A integer_core_lmul m2/m1 gearbox (kernel key "iq2_xxs").
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {tcrv::rvv::GgmlBlockDotIQ2XSQ8KOp::getOperationName(),
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xs_q8_K_block_dot_source",

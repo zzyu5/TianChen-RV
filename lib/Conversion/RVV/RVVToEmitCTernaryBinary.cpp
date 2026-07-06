@@ -650,6 +650,55 @@ void VariantToEmitCFunc::emitIQ3XXSCanonicalKsignsTableDecl(
   rewriter.create<emitc::VerbatimOp>(loc, decl);
 }
 
+// The fixed 256-entry iq2_xxs GRID-of-8 codebook as ONE `static const int64_t
+// tcrv_iq2xxs_grid[256]` verbatim decl (ggml's exact uint64 literals rendered
+// `0x%016llxULL` so the int64_t initializer carries the exact uint64 bit pattern; every
+// grid byte is <= 0x2b < 128 so reading it as int8 yields the identical numeric value as
+// ggml's uint8 read). The byte-exact SHARED anchor kept across the iq2_xxs flip: the
+// retired monolith rendered its carried grid attr identically; the typed grid loop
+// lowering passes the canonical kIQ2XXSGrid so the decl is byte-identical.
+void VariantToEmitCFunc::emitIQ2XXSCanonicalGridTableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &grid = tianchenrv::plugin::rvv::kIQ2XXSGrid;
+  std::string decl = "static const int64_t tcrv_iq2xxs_grid[256] = {";
+  for (size_t i = 0; i < grid.size(); ++i) {
+    if (i)
+      decl += ", ";
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%016llxULL",
+                  static_cast<unsigned long long>(
+                      static_cast<uint64_t>(grid[i])));
+    decl += buf;
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
+// The DERIVED keven_signs_q2xs signs64 SIGN plane as ONE `static const int8_t
+// tcrv_iq2xxs_signs64[1024]` verbatim decl (128 selectors * 8 +-1 bytes). This IS the
+// signs64 sign-plane MECHANISM carried by op identity (NO op-attr extension): byte b of
+// selector j is `(ksigns_iq2xs[j] & (1<<b)) ? -1 : +1`, exactly the per-lane sign the
+// old scalar fold computed via vmv/vand/vmsne/vneg/vmerge, so gathering signs64[sel]
+// reproduces it byte-exact (0/1024 mismatch vs ggml's literal keven_signs_q2xs). The
+// byte-exact SHARED anchor kept across the iq2_xxs flip: the retired monolith derived it
+// identically from its carried 128-entry ksigns attr; the typed grid loop lowering passes
+// the canonical kIQ2XXSKsigns so the decl is byte-identical.
+void VariantToEmitCFunc::emitIQ2XXSCanonicalSigns64TableDecl(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc) const {
+  const auto &ksigns = tianchenrv::plugin::rvv::kIQ2XXSKsigns;
+  std::string decl = "static const int8_t tcrv_iq2xxs_signs64[1024] = {";
+  for (size_t j = 0; j < ksigns.size(); ++j) {
+    unsigned sel = static_cast<unsigned>(ksigns[j]) & 0xff;
+    for (int b = 0; b < 8; ++b) {
+      if (j || b)
+        decl += ", ";
+      decl += ((sel >> b) & 1u) ? "-1" : "1";
+    }
+  }
+  decl += "};";
+  rewriter.create<emitc::VerbatimOp>(loc, decl);
+}
+
 // Emit ONE iq1_m super-block's TERNARY-grid body (the packed iq1m_scale fp16
 // reconstruct + the fp32 d fold scale, the qs/qh/sc/q8 bases, the two SCALAR i32
 // accumulators sumi1/sumi2, the flat 8-sub-block per-half vluxei16 grid gather +

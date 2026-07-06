@@ -389,6 +389,31 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs (typed super-block SCALAR-accumulator GRID-of-4 loop body; iq1_s grid sibling)",
     },
+    # iq2_xxs vec_dot: STRONG (the FOURTH super-block GRID/CODEBOOK-class vec_dot flipped,
+    # L3 coverage -- another marginal-cost payoff, SIGN-PLANE signs64 variant). iq2_xxs is
+    # an iq1_s GRID SIBLING: the SAME single per-super-block SCALAR fold arity (fold_model
+    # "scalar_delta_grid"), so its front door
+    # (createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs) REUSES the WHOLE iq1_s
+    # scalar-delta-grid scaffold and constructs the typed SUPER-BLOCK SCALAR-accumulator loop
+    # body out of just ONE decomposed brick: the DISTINCT iq2_xxs GRID-of-8 INTEGER CORE
+    # (iq2_xxs_q8_k_grid_core -- the i64 iq2xxs_grid vluxei16_v_i64<core> gather + the SECOND
+    # signs64 vluxei16 gather over the DERIVED keven_signs_q2xs sign plane + the aux1
+    # 4-bit-scale + 4-sign-group decode, producing the ONE scalar state bsum) -> a SINGLE
+    # `sumf` scalar yield. NOT the opaque emitIQ2XXSQ8KBlockDot hand helper (the
+    # GgmlBlockDotIQ2XXSQ8KOp op + emitter + verifier + monolith conversion+dataflow tests
+    # RETIRED same action as the flip; the shared grid/signs64/body anchors kept; the brick
+    # PRESERVES iq2_xxs's Win-A m2/m1 gearbox). The contraction+reduction is the fused
+    # 4-index vluxei16 gather + vmul-sign-fold + vwmul + vwredsum INSIDE the grid core (see
+    # _FUSED_DOT_REDUCE_RE's grid_core token); NO opaque *_block_dot op, so [L-8] derives
+    # constructed (STRONG). Resolves to iq2_xxs's OWN export entry by fold_model +
+    # weight_block_stride 66 (vs iq1_s 50 / iq1_m 56 / iq3_xxs 98).
+    {
+        "op": "vec_dot", "format": "iq2_xxs", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "iq2-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
+        "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs (typed super-block SCALAR-accumulator GRID-of-8 loop body; iq1_s grid sibling, signs64 variant)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
@@ -967,6 +992,36 @@ module {
 """
 
 
+# Super-block SCALAR-accumulator GRID-of-8 ground truth (iq2_xxs milestone, iq1_s GRID
+# SIBLING, SIGN-PLANE signs64 variant): iq2_xxs REUSES the whole iq1_s scalar-delta-grid
+# scaffold (fold_model "scalar_delta_grid", single `sumf` scalar yield) with a DISTINCT
+# integer-core brick `iq2_xxs_q8_k_grid_core` (the i64 GRID-of-8 vluxei16 gather + the
+# SECOND signs64 vluxei16 gather over the DERIVED keven_signs_q2xs sign plane + aux1
+# 4-bit-scale + 4-sign-group decode). Its brick token ends in `grid_core`, so it satisfies
+# BOTH the product AND reduce conjunct (the 4-index vluxei16_v_i64<core> gather + the
+# vmul-onto-grid sign fold + vwmul + vwredsum reduction is fused into it), the region
+# carries no separate contraction or fold brick, and no opaque *_block_dot appears, so it
+# derives constructed via the grid_core fused-reduce path -- the L3 marginal-cost proof
+# that the FOURTH grid member is strong at the same gate as iq1_s/iq1_m/iq3_xxs.
+_GT_SUPERBLOCK_IQ2XXS = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", fold_model = "scalar_delta_grid"} {
+        ^bb0(%ib: index, %sumf: f32):
+          %bsum = tcrv_rvv.iq2_xxs_q8_k_grid_core %vx, %vy, %n, %vl block %ib : index {kind = "ggml_iq2_xxs_q8_k_grid_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> i32
+          tcrv_rvv.typed_super_block_block_dot_loop_yield %sumf : f32
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 # Repack GEVM ground truth (q4_0 16x1-repacked, the M-FLAT REPACK flip): the typed
 # tcrv_rvv.typed_repack_gemv_loop_body region decomposes into the per-block
 # lane-wise integer CORE brick + the numHalves per-strip dual-fp16 scale FOLD bricks
@@ -1213,6 +1268,26 @@ def cmd_self_test(_args):
     assert superblock_iq3xxs["has_reduce"] is True, superblock_iq3xxs
     assert superblock_iq3xxs["decomposed"] is True, superblock_iq3xxs
     assert superblock_iq3xxs["derived_state"] == "constructed", superblock_iq3xxs
+
+    # Super-block SCALAR-accumulator GRID-of-8 ground truth (iq2_xxs milestone, iq1_s GRID
+    # SIBLING, SIGN-PLANE signs64 variant): iq2_xxs reuses the SAME scalar-delta-grid
+    # scaffold with the DISTINCT iq2_xxs grid-of-8 core `iq2_xxs_q8_k_grid_core`, whose token
+    # likewise satisfies BOTH product AND reduce (the 4-index vluxei16_v_i64<core> gather +
+    # the SECOND signs64 vluxei16 gather + the vmul-onto-grid sign fold + vwmul + vwredsum is
+    # fused into it); no opaque *_block_dot, so it derives constructed via the grid_core
+    # fused-reduce path -- the L3 marginal-cost proof (the fourth grid member is strong at
+    # the SAME gate as iq1_s/iq1_m/iq3_xxs).
+    superblock_iq2xxs = derive(parse_realized_body(_GT_SUPERBLOCK_IQ2XXS))
+    assert superblock_iq2xxs["manifest"] == [
+        "tcrv_rvv.typed_super_block_block_dot_loop_body",
+        "tcrv_rvv.iq2_xxs_q8_k_grid_core",
+        "tcrv_rvv.typed_super_block_block_dot_loop_yield",
+    ], superblock_iq2xxs["manifest"]
+    assert superblock_iq2xxs["has_opaque"] is False, superblock_iq2xxs
+    assert superblock_iq2xxs["has_product"] is True, superblock_iq2xxs
+    assert superblock_iq2xxs["has_reduce"] is True, superblock_iq2xxs
+    assert superblock_iq2xxs["decomposed"] is True, superblock_iq2xxs
+    assert superblock_iq2xxs["derived_state"] == "constructed", superblock_iq2xxs
 
     # Repack GEVM ground truth (q4_0 16x1-repacked flip): the region decomposes into
     # the lane-wise integer CORE brick + the per-strip scale FOLD bricks + the yield.
