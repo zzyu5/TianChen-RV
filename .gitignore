@@ -20,3 +20,6 @@ artifacts/tmp/
 
 # on-device measurement raw artifacts (kernels/objs/logs) — data, not source
 experiments/ondevice-*/
+
+# touch-set active-line marker — per-worktree, not shared (see .touch-set/README.md)
+.touch-set/ACTIVE

@@ -71,6 +71,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/finish-task-stop.py",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {}

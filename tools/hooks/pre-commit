@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Touch-set pre-commit gate — reject a commit whose staged set escapes the
+# active line's declared touch-set. This is the git-side enforcement of the
+# parallel-line discipline (see docs/并行线纪律-worktree-与触碰集.md).
+#
+# WHY: when parallel work lines are active, `git add -A` / exclusion-based
+# staging silently pulls in files another line owns (the classic hazard that
+# interleaved two lines before). This hook makes an out-of-bounds staged set a
+# hard, local, pre-commit failure — before the bad commit exists.
+#
+# Active line is resolved by tools/ci/check_commit_touchset.py:
+#   $TRELLIS_TOUCH_SET_LINE  >  .touch-set/ACTIVE (per-worktree marker)
+#
+# Escape hatch (use consciously, e.g. a genuine solo cross-cutting commit):
+#   TOUCH_SET_SKIP=1 git commit ...
+#
+# Install: see tools/hooks/README.md (core.hooksPath or symlink).
+
+set -euo pipefail
+
+if [ "${TOUCH_SET_SKIP:-0}" = "1" ]; then
+    echo "[touch-set] SKIPPED via TOUCH_SET_SKIP=1 (conscious override)." >&2
+    exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+CHECKER="$ROOT/tools/ci/check_commit_touchset.py"
+
+if [ ! -f "$CHECKER" ]; then
+    echo "[touch-set] checker not found at $CHECKER — skipping gate." >&2
+    exit 0
+fi
+
+# Resolve the active line the same way the checker does, only to decide whether
+# a line is declared at all. No line declared => solo mode, gate is a no-op
+# (but nudge the operator to declare one if parallel lines exist).
+LINE="${TRELLIS_TOUCH_SET_LINE:-}"
+if [ -z "$LINE" ] && [ -f "$ROOT/.touch-set/ACTIVE" ]; then
+    LINE="$(tr -d '[:space:]' < "$ROOT/.touch-set/ACTIVE")"
+fi
+
+if [ -z "$LINE" ]; then
+    # No active line. If other lines have declared touch-sets, this tree is
+    # committing untracked-by-line — warn but do not block solo work.
+    if ls "$ROOT"/.touch-set/*.txt >/dev/null 2>&1; then
+        echo "[touch-set] NOTE: parallel-line touch-sets exist but this worktree" >&2
+        echo "           has no active line (set .touch-set/ACTIVE or \$TRELLIS_TOUCH_SET_LINE)." >&2
+        echo "           Gate is a no-op; do NOT use 'git add -A' while lines are active." >&2
+    fi
+    exit 0
+fi
+
+# A line is active: enforce the staged-set subset. Non-zero => reject commit.
+if ! python3 "$CHECKER" --staged --line "$LINE"; then
+    echo "" >&2
+    echo "[touch-set] COMMIT REJECTED: staged files escape line '$LINE'." >&2
+    echo "            Stage only declared paths (explicit whitelist, never 'git add -A')," >&2
+    echo "            or widen .touch-set/$LINE.txt on purpose. Override: TOUCH_SET_SKIP=1." >&2
+    exit 1
+fi
+
+exit 0

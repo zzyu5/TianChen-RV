@@ -1,0 +1,9 @@
+# Copyable template. Rename to <line>.txt and set `.touch-set/ACTIVE` to <line>.
+# One path-glob per line; '#' starts a comment. See README.md for glob syntax.
+#
+# Rule of thumb: keep line globs DISJOINT across concurrently-active lines
+# (shared files — ODS / verifier / emitter — must be serialized, not co-owned).
+
+# tools/ci/
+# tools/hooks/
+# docs/
