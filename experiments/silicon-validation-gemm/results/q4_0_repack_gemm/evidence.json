@@ -1,0 +1,23 @@
+{
+  "cell": "silicon-validation-gemm/q4_0_repack_gemm",
+  "kernel": "front-door CONSTRUCTED q4_0 16x1 REPACK GEMM (PREFILL, M>1)",
+  "kernel_symbol": "tcrv_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_ggml_gemm_q4_0_q8_0_repack_gemm",
+  "provenance": "tcrv-opt --tcrv-rvv-lower-quant-contraction=march=rv64gcv (prefill regime, lowerToRepackGemm) @ be66c917; typed_repack_gemm_loop_body",
+  "board": "rvv-openeuler-vlen128",
+  "date": "2026-07-06",
+  "oracle": "ggml_vec_dot_q4_0_q8_0_generic (quants.c) recompiled -ffp-contract=off => no-FMA left-assoc scalar",
+  "f64_reference": "independent double-precision dequant+accumulate (board-fp16-independent)",
+  "march": "rv64gcv_zfh_zvfh_zicbop_zihintpause",
+  "compiler": "clang-17",
+  "method": "each out[r][c] compared vs (A) pinned no-FMA scalar ggml oracle and (B) f64 hi-precision ref; kernel uses vector FMA (vfmacc) so bounded-ULP vs no-FMA scalar is EXPECTED, not a bug",
+  "shapes": [
+    {"K": 4096, "nr": 4,  "nc": 128, "trials": 2, "cmps": 1024, "bitexact_vs_noFMA": "397/1024",  "worst_ulp": 503,  "worst_rel_vs_f64": 7.829e-05, "mean_ulp_vs_f64_kernel": 6.625, "mean_ulp_vs_f64_ggml_scalar": 5.767},
+    {"K": 2048, "nr": 8,  "nc": 64,  "trials": 2, "cmps": 1024, "bitexact_vs_noFMA": "455/1024",  "worst_ulp": 732,  "worst_rel_vs_f64": 3.888e-05, "mean_ulp_vs_f64_kernel": 3.935, "mean_ulp_vs_f64_ggml_scalar": 3.767},
+    {"K": 4096, "nr": 16, "nc": 256, "trials": 1, "cmps": 4096, "bitexact_vs_noFMA": "1528/4096", "worst_ulp": 4100, "worst_rel_vs_f64": 1.127e-03, "mean_ulp_vs_f64_kernel": 9.611, "mean_ulp_vs_f64_ggml_scalar": 11.892},
+    {"K": 128,  "nr": 4,  "nc": 16,  "trials": 4, "cmps": 256,  "bitexact_vs_noFMA": "189/256",   "worst_ulp": 7,    "worst_rel_vs_f64": 4.751e-07, "mean_ulp_vs_f64_kernel": 0.406, "mean_ulp_vs_f64_ggml_scalar": 0.496}
+  ],
+  "verdict": "FMA_FOLD_BOUNDED_ULP",
+  "accuracy_substantiation": "kernel mean-ULP-vs-f64 is as-accurate-or-BETTER than ggml's own scalar reference in 2/4 shapes (9.611<11.892; 0.406<0.496) and same-order in the other 2 (6.625~5.767; 3.935~3.767). At the single worst point (shape3) the kernel is CLOSER to the f64 truth than the ggml scalar (|k-f64|=0.038 < |ggml-f64|=0.053). The FMA fold is legitimate, not a defect.",
+  "debt_status": "GEMM silicon-validation debt closed (1 -> 0): FMA-bounded-correct, mirroring the GEVM q4_0_repack result in silicon-validation-batch-1.",
+  "honest_note": "This is the ISOLATED-kernel silicon validation (bit-level, vs pinned oracle). It is a STRONGER statement than the e2e greedy-token gate but a DIFFERENT one; it is NOT a perf claim."
+}

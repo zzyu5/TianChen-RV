@@ -1,0 +1,36 @@
+# q4_0 REPACK GEMM (PREFILL) silicon validation -- board raw
+# generated 2026-07-06T08:51:38Z on localhost.localdomain
+# oracle = ggml_vec_dot_q4_0_q8_0_generic (quants.c) recompiled -ffp-contract=off (no-FMA left-assoc)
+# kernel = front-door CONSTRUCTED tcrv_emitc_ggml_gemm_q4_0_q8_0_repack_gemm (be66c917)
+# march  = rv64gcv_zfh_zvfh_zicbop_zihintpause  clang = clang version 17.0.6 ( 17.0.6-16.oe2403)
+# isa    = isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+# shapes: <K> <nr> <nc> <trials> <seed>
+
+### ./gemm_verify 4096 4 128 2 0xBEEF01
+FMT=q4_0_repack_gemm K=4096 nr=4 nc=128 trials=2 cmps=1024
+  vs_noFMA_scalar_ggml: bitexact=397/1024 worst_ulp=503 worst_rel=7.829e-05
+  mean_ulp_vs_f64: kernel=6.625  ggml_scalar=5.767  (lower=more accurate)
+  WORST t=0 row=1 col=120 kernel=-756.179138 ggml=-756.148438 f64=-756.119942
+VERDICT=FMA_FOLD_BOUNDED_ULP
+
+### ./gemm_verify 2048 8 64 2 0xC0FFEE
+FMT=q4_0_repack_gemm K=2048 nr=8 nc=64 trials=2 cmps=1024
+  vs_noFMA_scalar_ggml: bitexact=455/1024 worst_ulp=732 worst_rel=3.888e-05
+  mean_ulp_vs_f64: kernel=3.935  ggml_scalar=3.767  (lower=more accurate)
+  WORST t=0 row=1 col=35 kernel=44.2277374 ggml=44.2305298 f64=44.2294569
+VERDICT=FMA_FOLD_BOUNDED_ULP
+
+### ./gemm_verify 4096 16 256 1 0x99887766
+FMT=q4_0_repack_gemm K=4096 nr=16 nc=256 trials=1 cmps=4096
+  vs_noFMA_scalar_ggml: bitexact=1528/4096 worst_ulp=4100 worst_rel=1.127e-03
+  mean_ulp_vs_f64: kernel=9.611  ggml_scalar=11.892  (lower=more accurate)
+  WORST t=0 row=12 col=184 kernel=33.3839302 ggml=33.3995705 f64=33.3463344
+VERDICT=FMA_FOLD_BOUNDED_ULP
+
+### ./gemm_verify 128 4 16 4 0x1234567
+FMT=q4_0_repack_gemm K=128 nr=4 nc=16 trials=4 cmps=256
+  vs_noFMA_scalar_ggml: bitexact=189/256 worst_ulp=7 worst_rel=4.751e-07
+  mean_ulp_vs_f64: kernel=0.406  ggml_scalar=0.496  (lower=more accurate)
+  WORST t=0 row=0 col=3 kernel=-19.0226994 ggml=-19.022686 f64=-19.0227064
+VERDICT=FMA_FOLD_BOUNDED_ULP
+

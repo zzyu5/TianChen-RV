@@ -34,6 +34,7 @@
 - `experiments/MANIFEST.md` — 本保留工件台账(self)
 - `experiments/CADENCE-LAW.md` — 节奏法 C:每 +4 C_construct → 强制上板批验证(self)
 - `experiments/check_manifest.py` — CI 漂移校验脚本(self)
+- `experiments/.gitignore` — 忽略 INTERIM / P3-parked cell(见文末 PENDING/INTERIM 区);工件留盘、未跟踪、不入机检
 
 空表模板(零现值,按快照由 CI 填):
 - `experiments/T0_kernel_census_sixstate.csv`
@@ -147,6 +148,15 @@ silicon-validation-batch-1 cell — 4 constructed 格 emit-golden→silicon_vali
 - `experiments/silicon-validation-batch-1/results/q4_0_repack/run_rvv.txt` — 板 raw(FMA-fold bounded-ULP ×3 seeds)
 - `experiments/silicon-validation-batch-1/results/q4_0_repack/evidence.json` — q4_0-repack FMA_FOLD_BOUNDED_ULP + f64 accuracy
 
+silicon-validation-gemm cell — constructed q4_0 REPACK GEMM(PREFILL,M>1)硅验,GEMM silicon-validation debt 1→0(board rvv/VLEN128, no-FMA 左结合 ggml scalar oracle + f64 ref, 2026-07-06;引用者 F23 / silicon-validation debt):
+- `experiments/silicon-validation-gemm/NOTES.md` — 方法 + FMA-fold bounded 诚实说明(debt 1→0,FMA-bounded-correct 非 ULP=0,GEVM 姊妹)
+- `experiments/silicon-validation-gemm/target_profile.txt` — board + clang + oracle + repack 布局 + provenance(be66c917)指纹
+- `experiments/silicon-validation-gemm/run_silicon_gemm.sh` — 复现 orchestrator(export→board build→run)
+- `experiments/silicon-validation-gemm/gemm_verify_driver.c` — GEMM bit-level 驱动(repack 布局 + no-FMA scalar oracle + f64 ref + ULP)
+- `experiments/silicon-validation-gemm/kernels/q4_0_repack_gemm.kernel.c` — front-door 导出 kernel-under-test(C,VERBATIM)
+- `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/run_rvv.txt` — 板 raw(4 shapes,FMA-fold bounded-ULP)
+- `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/evidence.json` — GEMM FMA_FOLD_BOUNDED_ULP verdict + 4-shape f64 accuracy substantiation
+
 e2e cell — rvv/VLEN128 q4_0 repack generation-vs-routing 分相 + constructed-GEVM 重部署(2026-07-06):
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/evidence.json` — 批级汇总(gen-vs-routing + sealed + decode 问答 + confound)
 - `experiments/e2e-harness/results/rvv-vlen128-q4_0-repack-genroute/NOTES.md` — 方法 + 分相 + confound 诚实说明
@@ -206,3 +216,19 @@ CLASS 3 "on-device seal");**剩下的留 gitignored**——都是可再生残渣
 留 gitignored 的判据:**无 tracked 文件引用 + 可由重跑板子再生**。若日后某残渣被 tracked 文件引用,
 按 option-1 同法 `git add -f` 提升 + 入 REGISTRY CLASS 3(否则 `check_manifest.py` 会红——promote 后
 它即 durable content、必须登记)。
+
+---
+
+## PENDING / INTERIM(P3 board-recovery 阻塞 · 不入 REGISTRY · 不当合规格 cell)
+
+以下 cell 是**未完成的 finale perf seal**,board finale 重测(ssh 中断)遗留。**不是合规格 cell**
+(缺 stock 侧 + PASS 2 = clean paired 5× 未完成),故**不登记进 REGISTRY**;其部署工件留在磁盘、
+经 `experiments/.gitignore` 忽略(未跟踪、不入机检),board 恢复后由 P3 重测完成、届时再 `git add -f`
+提升为合规格 cell 并入 REGISTRY。
+
+- `experiments/e2e-harness/results/rvv-vlen128-q4_0-gemm-constructed-redeploy/` — q4_0 REPACK GEMM
+  finale perf seal,**PARKED P3**。现有 `phase_split_raw.txt` 只含 ours-pass1(无 stock/pass2),
+  **未完成 5×、board 恢复后由 P3 重测完成**。保留的部署工件(P3 board 恢复后可直接复用):
+  `constructed_gemm.o` / `tcrv_emitted_repack_gemm_constructed.inc` / `gemm_abi_shim_tail.c` /
+  `objdump_seal.txt`(+ `preflight.txt` / `target_profile.txt`)。
+  注:这些文件本轮从 tracked 降级(`git rm --cached`,工件留盘不删),以对齐 gitignore 忽略语义。

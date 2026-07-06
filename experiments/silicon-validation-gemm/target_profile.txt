@@ -1,0 +1,31 @@
+# q4_0 REPACK GEMM (PREFILL) silicon-validation -- environment fingerprint
+# Session: on-board ssh rvv, 2026-07-06. Sibling of silicon-validation-batch-1.
+
+## board
+board_id  = rvv-openeuler-vlen128
+uname     = Linux localhost.localdomain 6.12.66-0.0.0.0.riscv64 #1 SMP riscv64
+isa       = rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zihpm_zawrs_zfa_zfh_zfhmin_zca_zcb_zcd_zba_zbb_zbc_zbs_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_sscofpmf_sstc_svinval_svnapot_svpbmt
+vlen      = 128 bits
+nproc     = 64
+
+## toolchain (isolated silicon build; independent of the llama.cpp trees)
+host_compiler = clang-17 (/usr/bin/clang-17, clang++)
+march         = rv64gcv_zfh_zvfh_zicbop_zihintpause
+flags         = -O2 -march=... -mabi=lp64d -ffp-contract=off  (-ffp-contract=off pins the ORACLE to no-FMA left-assoc)
+oracle_src    = /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c  (ggml_vec_dot_q4_0_q8_0_generic)
+
+## kernel-under-test provenance
+export        = tcrv-opt test/Target/RVV/q4-0-q8-0-repack-gemm-full-pipeline-export-e2e.mlir \
+                  --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc \
+                  | mlir-translate --mlir-to-cpp
+repo_commit   = be66c917 (refactor/full-refactor-m1); GEMM finale CONSTRUCTED
+symbol        = tcrv_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_ggml_gemm_q4_0_q8_0_repack_gemm
+abi_7role     = (nr, bs, n, s, nc, vx, vy)  [nr rows, bs out-stride, n=K, s=out f32*, nc cols, vx=q4 weight, vy=q8 act]
+
+## repack layouts exercised (derived from the exported kernel body; see gemm_verify_driver.c)
+weight        = block_q4_0x16, 288 B/block, 16 cols as lanes; scale col cc @ cc*2; nibble l col cc @ 32+l*16+cc = qs[l]^0x88
+activation    = block_q8_0x4,  136 B/block, 4 rows interleaved; scale row rr @ rr*2; low quant l @ 8+l*4+rr; high @ 72+l*4+rr
+
+## metric
+verdict       = BIT_EXACT (ULP=0 vs no-FMA scalar) OR FMA_FOLD_BOUNDED_ULP (bounded; kernel uses vfmacc)
+               plus mean-ULP-vs-f64 both sides (accuracy substantiation, NOT a perf claim)
