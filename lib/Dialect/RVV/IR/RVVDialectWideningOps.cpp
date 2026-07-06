@@ -9313,16 +9313,25 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
               "tree); the other flat fold trees are later steps";
 
   // Externally-defined ggml block facts: QK and the AoS block strides are
-  // positive byte counts the per-block address arithmetic depends on.
-  if (getQk() <= 0)
-    return emitOpError() << "requires qk > 0 (the QK block element count)";
-  if (getWeightBlockStride() <= 0)
+  // positive byte counts the per-block address arithmetic depends on. The
+  // positivity gate MUST read the SIGNED attr view (getXAttr().getInt()): the
+  // ODS uint64_t accessors (getQk() etc.) zero-extend the i64 attr, so a
+  // NEGATIVE value reinterprets as a huge positive count and fail-OPENS the
+  // `<= 0` guard (qk=-32 would slip through while qk=0 is rejected). Reading the
+  // int64_t signed view fail-CLOSES both non-positive spellings (I7).
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count); got "
+                         << getQkAttr().getInt();
+  if (getWeightBlockStrideAttr().getInt() <= 0)
     return emitOpError()
-           << "requires weight_block_stride > 0 (the AoS weight block stride)";
-  if (getActivationBlockStride() <= 0)
+           << "requires weight_block_stride > 0 (the AoS weight block stride); "
+              "got "
+           << getWeightBlockStrideAttr().getInt();
+  if (getActivationBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires activation_block_stride > 0 (the AoS activation block "
-              "stride)";
+              "stride); got "
+           << getActivationBlockStrideAttr().getInt();
 
   // Bounded scheduling knobs, mirroring the monolithic block-dot surface (the
   // *how* -- LMUL / unroll / elision -- never the *what*). Any other spelling
@@ -9629,17 +9638,23 @@ mlir::LogicalResult TypedSuperBlockBlockDotLoopBodyOp::verify() {
 
   // Externally-defined ggml super-block facts: QK_K and the AoS super-block
   // strides are positive byte counts the per-super-block address arithmetic
-  // depends on.
-  if (getQk() <= 0)
-    return emitOpError() << "requires qk > 0 (the QK_K super-block element count)";
-  if (getWeightBlockStride() <= 0)
+  // depends on. Read the SIGNED attr view (getXAttr().getInt()): the uint64_t
+  // ODS accessors zero-extend the i64 attr, so a negative value would fail-OPEN
+  // the `<= 0` guard (I7).
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError()
+           << "requires qk > 0 (the QK_K super-block element count); got "
+           << getQkAttr().getInt();
+  if (getWeightBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires weight_block_stride > 0 (the AoS weight super-block "
-              "stride)";
-  if (getActivationBlockStride() <= 0)
+              "stride); got "
+           << getWeightBlockStrideAttr().getInt();
+  if (getActivationBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires activation_block_stride > 0 (the AoS activation "
-              "super-block stride)";
+              "super-block stride); got "
+           << getActivationBlockStrideAttr().getInt();
 
   // Bounded scheduling knob, mirroring the q4_K scaled-dot brick surface: the
   // integer-MAC widening-chain base LMUL {"mf2","m1","m2"} (the *how*, never the
@@ -9942,21 +9957,28 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
               "repacked scale model)";
 
   // Externally-defined ggml repacked block facts: QK and the AoS strides are
-  // positive byte counts the per-block address arithmetic depends on.
-  if (getQk() <= 0)
-    return emitOpError() << "requires qk > 0 (the QK block element count)";
-  if (getWeightBlockStride() <= 0)
+  // positive byte counts the per-block address arithmetic depends on. Read the
+  // SIGNED attr view (getXAttr().getInt()): the uint64_t ODS accessors
+  // zero-extend the i64 attr, so a negative value would fail-OPEN the `<= 0`
+  // guard (I7).
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count); got "
+                         << getQkAttr().getInt();
+  if (getWeightBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires weight_block_stride > 0 (the block_q4_0x16 repacked "
-              "weight block stride)";
-  if (getActivationBlockStride() <= 0)
+              "weight block stride); got "
+           << getWeightBlockStrideAttr().getInt();
+  if (getActivationBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires activation_block_stride > 0 (the plain block_q8_0 "
-              "activation block stride)";
-  if (getWeightInterleave() <= 0)
+              "activation block stride); got "
+           << getActivationBlockStrideAttr().getInt();
+  if (getWeightInterleaveAttr().getInt() <= 0)
     return emitOpError()
            << "requires weight_interleave > 0 (the block-as-lane interleave "
-              "width, 16 for block_q4_0x16)";
+              "width, 16 for block_q4_0x16); got "
+           << getWeightInterleaveAttr().getInt();
   // Resource-aware strip width (I7): half_lanes must be in {8, 16} and divide the
   // 16-way interleave, exactly as the monolithic repack GEVM op pins it.
   int64_t half = getHalfLanes();
@@ -10309,25 +10331,33 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "repacked scale model)";
 
   // Externally-defined ggml repacked block facts: QK and the AoS strides are
-  // positive byte counts the per-block address arithmetic depends on.
-  if (getQk() <= 0)
-    return emitOpError() << "requires qk > 0 (the QK block element count)";
-  if (getWeightBlockStride() <= 0)
+  // positive byte counts the per-block address arithmetic depends on. Read the
+  // SIGNED attr view (getXAttr().getInt()): the uint64_t ODS accessors
+  // zero-extend the i64 attr, so a negative value would fail-OPEN the `<= 0`
+  // guard (I7).
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count); got "
+                         << getQkAttr().getInt();
+  if (getWeightBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires weight_block_stride > 0 (the block_q4_0x16 repacked "
-              "weight block stride)";
-  if (getActivationBlockStride() <= 0)
+              "weight block stride); got "
+           << getWeightBlockStrideAttr().getInt();
+  if (getActivationBlockStrideAttr().getInt() <= 0)
     return emitOpError()
            << "requires activation_block_stride > 0 (the block_q8_0x4 "
-              "interleaved activation block stride)";
-  if (getWeightInterleave() <= 0)
+              "interleaved activation block stride); got "
+           << getActivationBlockStrideAttr().getInt();
+  if (getWeightInterleaveAttr().getInt() <= 0)
     return emitOpError()
            << "requires weight_interleave > 0 (the block-as-lane interleave "
-              "width, 16 for block_q4_0x16)";
-  if (getActivationInterleave() <= 0)
+              "width, 16 for block_q4_0x16); got "
+           << getWeightInterleaveAttr().getInt();
+  if (getActivationInterleaveAttr().getInt() <= 0)
     return emitOpError()
            << "requires activation_interleave > 0 (the interleaved activation "
-              "column count, 4 for block_q8_0x4)";
+              "column count, 4 for block_q8_0x4); got "
+           << getActivationInterleaveAttr().getInt();
   // Resource-aware strip width (I7): half_lanes must be in {8, 16} and divide the
   // 16-way interleave, exactly as the monolithic repack GEMM op pins it.
   int64_t half = getHalfLanes();
