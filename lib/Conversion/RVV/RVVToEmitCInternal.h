@@ -1600,6 +1600,31 @@ private:
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
       tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
 
+  /// The M-FLAT iq1_s super-block SCALAR-accumulator GRID loop emitter (milestone-2,
+  /// M2): lower the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body
+  /// whose fold_model is "scalar_delta_grid" (the iq1_s ternary-grid path) to the
+  /// byte-exact skeleton the (not-yet-retired) monolith emitIQ1SQ8KBlockDot emits --
+  /// the function-scoped `static const uint64_t tcrv_iq1s_grid[2048]` TERNARY grid
+  /// decl, the `sumf` float emitc.variable SCALAR accumulator seeded once OUTSIDE the
+  /// loop (NO 8-lane `sums` vector), nb = n / QK_K, the `tcrv_iq1s_grid` base literal,
+  /// the outer emitc.for over nb, and (post-loop) the `*s` store. The in-loop body is
+  /// emitted OP-BY-OP from the region's iq1_s grid-core brick OPERANDS: the shared
+  /// per-super-block grid body (emitIQ1SSuperBlockGridBody: the fp16*fp32 d fold, the
+  /// 11-bit grid-index build from qs+qh, the vluxei16 ternary-grid gather, the signed
+  /// widening grid dot into the SCALAR sumi + the delta-bsum SCALAR sumi1, then the
+  /// scalar fold sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)), the
+  /// per-super-block base built from the brick's (base, block_index) via a shared memo
+  /// (anti-bypass), byte-identical to the monolith by construction (same grid decl,
+  /// same body helper, same facts, same order). Dispatched from
+  /// emitTypedSuperBlockBlockDotLoopBody on the fold_model. This is NOT a flip: the
+  /// monolith remains the front-door route; M3 retires it and wires the front-door
+  /// here.
+  mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const;
+
   /// The structured E8M0 -> fp32 HALF weight scale (the mxfp4 FP4-class scale
   /// source, FlatWeightScaleSource::E8M0): GGML_E8M0_TO_FP32_HALF(e) = 2^(e-128),
   /// reconstructed from the single shared-exponent byte at `xb` by ggml's EXACT
@@ -1963,6 +1988,63 @@ private:
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The bounded per-super-block byte-exact facts the iq1_s TERNARY-grid body helper
+  /// reads (the I4 mirror off the monolith op / the grid-core brick). The emitc
+  /// element/pointer types are re-derived inside the helper from the MLIRContext
+  /// (uniqued -> the SAME Type instances), so this struct carries only the
+  /// provenance, the size type, the two buffer pointer types, the format byte
+  /// offsets/sub-block shape, and the `tcrv_iq1s_grid` base literal.
+  struct IQ1SGridBodyContext {
+    llvm::StringRef opName;
+    llvm::StringRef role;
+    mlir::Type sizeType;
+    mlir::Type weightPtrType;
+    mlir::Type activationPtrType;
+    int64_t weightDOffset;        //   0 (fp16 x.d)
+    int64_t qsOffset;             //   2 (32 uint8 grid-index bytes)
+    int64_t qhOffset;             //  34 (uint16 qh[8] plane)
+    int64_t activationDOffset;    //   0 (fp32 y.d)
+    int64_t q8Offset;             //   4 (q8_K quants)
+    int64_t bsumsOffset;          // 260 (int16 per-sub-block sums)
+    int64_t subBlock;             //  32
+    int64_t numSubBlocks;         //   8
+    int64_t groupsPerSub;         //   4 (grid groups per sub-block)
+    mlir::Value gridArrayName;    // the `tcrv_iq1s_grid` u64 base literal
+  };
+
+  /// Emit the fixed 2048-entry iq1_s TERNARY grid codebook as ONE `static const
+  /// uint64_t tcrv_iq1s_grid[2048] = { ... };` verbatim decl (ggml's exact hex
+  /// literals rendered `0x%016llxULL`). Shared by the monolith emitIQ1SQ8KBlockDot
+  /// (passing its carried grid attr) and the typed grid loop lowering (passing the
+  /// canonical kIQ1SGrid) so the emitted decl is byte-identical by construction.
+  void emitIQ1SGridTableDecl(mlir::ConversionPatternRewriter &rewriter,
+                             mlir::Location loc,
+                             llvm::ArrayRef<int64_t> grid) const;
+
+  /// Emit the iq1_s grid decl from the CANONICAL kIQ1SGrid constant (the grid-core
+  /// brick carries no grid in the IR -- the emitter keys the fixed codebook off the
+  /// brick op identity). Delegates to emitIQ1SGridTableDecl; byte-identical to the
+  /// monolith decl whose grid attr is populated from the same kIQ1SGrid.
+  void emitIQ1SCanonicalGridTableDecl(mlir::ConversionPatternRewriter &rewriter,
+                                      mlir::Location loc) const;
+
+  /// Emit ONE iq1_s super-block's TERNARY-grid body at the current insertion point
+  /// (INSIDE an already-open super-block loop whose per-super-block bases xb/yb are
+  /// provided): the per-super-block `d = fp16(x.d)*y.d` fold scale, the qs/qh/q8/bsums
+  /// base setup, the two SCALAR i32 accumulators sumi + sumi1, the flat 8-sub-block
+  /// grid gather (the 11-bit index build from qs+qh, the vluxei16 gather over the
+  /// 2048-entry ternary grid, the signed widening product + ONE vwredsum per
+  /// sub-block, the qh-scaled positive dot into sumi and the delta-bsum sum into
+  /// sumi1), then the per-super-block scalar fold `sumf += d*((float)sumi +
+  /// IQ1S_DELTA*(float)sumi1)` (IQ1S_DELTA=0.125f) folded into the carried `sumf`
+  /// lvalue. This is the byte-exact anchor shared by the monolith emitIQ1SQ8KBlockDot
+  /// and the typed super-block SCALAR-accumulator grid loop lowering (same nodes,
+  /// same order).
+  void emitIQ1SSuperBlockGridBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      const IQ1SGridBodyContext &cx, mlir::Value xb, mlir::Value yb,
+      mlir::TypedValue<emitc::LValueType> sumfVar) const;
 
   /// Emit the COMPLETE ggml ggml_vec_dot_iq1_m_q8_K super-block dot-product for one
   /// tcrv_rvv.iq1_m_q8_k_block_dot op as fully STRUCTURED emitc nodes (I5; no raw()).

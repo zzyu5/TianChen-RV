@@ -2880,6 +2880,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
       return emitTypedSuperBlockScalarScaleMinLoopBody(
           rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
 
+    // The iq1_s "scalar_delta_grid" path carries a SINGLE `sumf` SCALAR accumulator
+    // arity-identical to q2_K's "scalar_scale_min", but the integer core is a
+    // TERNARY-grid GATHER (decode_model=lookup) and the fold arithmetic is the
+    // iq1_s delta fold `sumf += d*((float)sumi + IQ1S_DELTA*(float)sumi1)`; dispatch
+    // it to its own grid emitter. The q4_K/q5_K DUAL, q6_K SINGLE-vector, and q2_K
+    // scalar paths are UNTOUCHED (zero regression).
+    if (loopBody.getFoldModel() == "scalar_delta_grid")
+      return emitTypedSuperBlockScalarDeltaGridLoopBody(
+          rewriter, loc, scope, avlArg, sizeType, valueMap, loopBody);
+
     // ---- Region walk (identify, no emit): the 5 in-loop bricks + the yield. ----
     mlir::Block &coreBlock = loopBody.getBody().front();
     tcrvrvv::Q4KNibbleUnpackOp b1;
@@ -3995,6 +4005,221 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarScaleMinLoopBody(
     emitc::SubscriptOp outSubscript =
         rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumf);
+    return mlir::success();
+  }
+
+// M-FLAT iq1_s super-block SCALAR-accumulator GRID emitter (milestone-2, M2).
+// Lowers the region-carrying tcrv_rvv.typed_super_block_block_dot_loop_body whose
+// fold_model is "scalar_delta_grid" to the byte-exact skeleton the (not-yet-retired)
+// monolith emitIQ1SQ8KBlockDot emits: the `static const uint64_t tcrv_iq1s_grid[2048]`
+// TERNARY grid decl (keyed off the grid-core brick op identity from the canonical
+// kIQ1SGrid), the `sumf` float SCALAR accumulator seeded ONCE outside the loop (NO
+// 8-lane `sums` vector), nb = n / QK_K, the `tcrv_iq1s_grid` base literal, the outer
+// emitc.for over nb, and (post-loop) the `*s` store. The in-loop per-super-block body
+// is emitted by the SHARED emitIQ1SSuperBlockGridBody helper (the same one the
+// monolith calls), sourcing the per-super-block ADDRESSES from the grid-core brick's
+// (base, block_index) OPERANDS via a per-body memo (anti-bypass W4), so the emitted C
+// is byte-identical to the monolith by construction (same grid decl, same body helper,
+// same facts, same order) modulo the source-op provenance token + the func name. This
+// is NOT a flip: the monolith stays the front-door route; M3 retires it.
+mlir::LogicalResult
+VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+    tcrvrvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) const {
+    (void)scope;
+    // ---- Region walk (identify, no emit): the iq1_s grid-core brick + yield. ----
+    tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp coreOp;
+    tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o =
+              llvm::dyn_cast<tcrvrvv::GgmlBlockDotIQ1SQ8KGridCoreOp>(bodyOp))
+        coreOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedSuperBlockBlockDotLoopYieldOp>(
+                       bodyOp))
+        yieldOp = o;
+    });
+
+    // ---- Region-driven gate (fail-closed, I7): the byte-exact SCALAR-accumulator
+    // GRID body requires the iq1_s grid-core brick + the SINGLE scalar yield, the
+    // (index, sumf scalar) entry-arg pair, and the brick's block_index tied to the
+    // loop induction variable (region arg 0) -- the anti-bypass tie (the emit
+    // provably tracks the region content, not merely the loop op attrs). ----
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    if (!coreOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "iq1_s super-block scalar-accumulator grid body requires the "
+                    "iq1_s ternary-grid integer-core brick + the single scalar "
+                    "yield");
+    if (coreBlock.getNumArguments() != 2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "iq1_s super-block scalar-accumulator grid body region must "
+                    "carry exactly the (super_block_index, sumf) pair");
+    mlir::Value sbIndex = coreBlock.getArgument(0);
+    mlir::Value sumfArg = coreBlock.getArgument(1);
+    if (yieldOp.getSumsNext() != sumfArg || yieldOp.getSumfNext())
+      return rewriter.notifyMatchFailure(
+          yieldOp, "iq1_s super-block scalar yield must carry the loop-carried "
+                   "sumf scalar ALONE (no second operand under the scalar fold)");
+    if (coreOp.getBlockIndex() != sbIndex)
+      return rewriter.notifyMatchFailure(
+          loopBody, "the iq1_s super-block grid-core brick's block_index must be "
+                    "the loop induction variable (region arg 0) so the emit "
+                    "addresses base + ib*stride, not super-block-0");
+
+    // ---- ABI operands (the same three the monolith reads). ----
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(
+          loopBody,
+          "iq1_s super-block scalar-accumulator grid ABI operand unmapped");
+
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type weightPtrType = weightBase.getType();
+    mlir::Type activationPtrType = activationBase.getType();
+
+    // ---- The block-format structural facts. The strides + qk come off the LOOP
+    // OP (the byte-exact schedule shape knobs); the per-region byte offsets + the
+    // sub-block shape come off the iq1_s grid-core BRICK that owns them (I4 mirror).
+    // The fp16 x.d @0 / fp32 y.d @0 are FIXED block_iq1_s / block_q8_K constants of
+    // the emitter-inlined scalar fold (the grid core carries no d offset). The fixed
+    // 2048-entry iq1s_grid TERNARY codebook is keyed off the brick op identity. ----
+    int64_t qk = loopBody.getQk();                              // 256
+    int64_t subBlock = coreOp.getSubBlock();                    //  32
+    int64_t weightStride = loopBody.getWeightBlockStride();     //  50
+    int64_t activationStride = loopBody.getActivationBlockStride(); // 292
+    int64_t weightDOffset = 0;                                  //   0 (fp16 x.d)
+    int64_t qsOffset = coreOp.getWeightQsByteOffset();          //   2
+    int64_t qhOffset = coreOp.getWeightQhByteOffset();          //  34
+    int64_t activationDOffset = 0;                              //   0 (fp32 y.d)
+    int64_t q8Offset = coreOp.getActivationQuantByteOffset();   //   4
+    int64_t bsumsOffset = coreOp.getActivationBsumsByteOffset();// 260
+    int64_t numSubBlocks = qk / subBlock;                       //   8
+    int64_t groupsPerSub = 4;  // 4 grid groups per sub-block (l=0..3)
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // The 2048-entry TERNARY grid codebook, keyed off the grid-core brick op
+    // identity (the grid is NOT carried in the IR) from the canonical kIQ1SGrid --
+    // byte-identical to the monolith's carried-attr decl.
+    emitIQ1SCanonicalGridTableDecl(rewriter, loc);
+
+    // float sumf = 0.0f;  -- the carried SCALAR fp32 accumulator (the typed region
+    // arg `sumf` lowers to this emitc.variable lvalue; emitc.for has no iter_args, so
+    // the fold mutates it in place across iterations). NO 8-lane `sums` vector.
+    (void)sumfArg;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("sumf", opName, role));
+    auto sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, sumfVar,
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
+
+    // size_t nb = n / QK_K;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    // const uint64_t *grid = tcrv_iq1s_grid;  (the u64 grid base; the vluxei16
+    // gather reads it as (const int64_t *) with u16 byte-offset indices idx*8.)
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "grid_table_byte_view"));
+    mlir::Type u64PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
+    mlir::Value gridArrayName =
+        rewriter.create<emitc::LiteralOp>(loc, u64PtrType, "tcrv_iq1s_grid");
+
+    // The context the shared per-super-block grid body reads.
+    IQ1SGridBodyContext cx{opName,        role,              sizeType,
+                           weightPtrType, activationPtrType, weightDOffset,
+                           qsOffset,      qhOffset,          activationDOffset,
+                           q8Offset,      bsumsOffset,       subBlock,
+                           numSubBlocks,  groupsPerSub,      gridArrayName};
+
+    // ---- The outer super-block loop: for (size_t ib = 0; ib < nb; ib += 1). ----
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "super_block_loop"));
+    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
+                                                   sizeLit(1),
+                                                   /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(blockLoop.getBody());
+      mlir::Value ib = blockLoop.getInductionVar();
+
+      // W-E: per-super-block base = base + ib*stride, built from the grid-core
+      // brick's (base operand, block_index operand) through a per-iteration memo.
+      // Correct wiring (weight base -> ABI weight, activation base -> ABI
+      // activation, block_index == the IV) collapses to exactly TWO emitted bases
+      // -- xb (super_block_base_x) and yb (super_block_base_y) -- byte-identical to
+      // the monolith's blockBaseValue. A CHANGED brick base operand keys a
+      // DIFFERENT memo entry and emits a DIFFERENT base (anti-bypass).
+      llvm::DenseMap<std::pair<mlir::Value, mlir::Value>, mlir::Value>
+          blockBaseMemo;
+      auto blockBaseFor = [&](mlir::Value bufferSSA, mlir::Value blockIndexSSA,
+                              int64_t stride, const char *step) -> mlir::Value {
+        std::pair<mlir::Value, mlir::Value> key(bufferSSA, blockIndexSSA);
+        auto it = blockBaseMemo.find(key);
+        if (it != blockBaseMemo.end())
+          return it->second;
+        mlir::Value emittedBase = valueMap.lookup(bufferSSA);
+        rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, step));
+        mlir::Value off =
+            rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+        mlir::Value base = rewriter.create<emitc::AddOp>(
+            loc, emittedBase.getType(), emittedBase, off);
+        blockBaseMemo[key] = base;
+        return base;
+      };
+
+      // Establish the two canonical bases up-front in the monolith's byte-exact
+      // order (weight x before activation y), from the grid-core brick that owns
+      // both bases.
+      mlir::Value xb =
+          blockBaseFor(coreOp.getWeightBase(), coreOp.getBlockIndex(),
+                       weightStride, "super_block_base_x");
+      mlir::Value yb =
+          blockBaseFor(coreOp.getActivationBase(), coreOp.getBlockIndex(),
+                       activationStride, "super_block_base_y");
+
+      // The shared iq1_s per-super-block TERNARY-grid body (fp16*fp32 d fold scale,
+      // qs/qh/q8/bsums bases, the two SCALAR states sumi + sumi1 via the vluxei16
+      // grid gather, then the scalar delta fold into `sumf`). The SAME byte-exact
+      // helper the (not-yet-retired) monolith calls.
+      emitIQ1SSuperBlockGridBody(
+          rewriter, loc, cx, xb, yb,
+          llvm::cast<mlir::TypedValue<emitc::LValueType>>(sumfVar.getResult()));
+    }
+
+    // *s = sumf;  (structured scalar store through the float * output pointer).
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(
+          loopBody,
+          "iq1_s super-block scalar-accumulator grid output not a pointer");
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "store_s"));
+    mlir::Value sumfFinal =
+        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+    mlir::Value outIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp outSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, outPointer, outIndex);
+    rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
     return mlir::success();
   }
 
