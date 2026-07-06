@@ -19,7 +19,6 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "07-07-parallel-infra",
     "07-07-line-A-board",
     "07-07-line-C-coverage",
     "07-07-line-D-evidence",
