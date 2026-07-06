@@ -13,8 +13,9 @@
 #      --gc-sections, run bit-exact vs oracle over several (K,nr,nc,seed) shapes.
 set -u
 HOST="${HOST:-rvv}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CELL="$REPO/experiments/silicon-validation-gemm"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"        # this harness dir (driver lives here, tools/)
+REPO="$(cd "$HERE/../../.." && pwd)"                        # repo root (tools/e2e-harness/<cell> -> ../../..)
+CELL="$REPO/experiments/silicon-validation-gemm"          # DATA cell: kernels/ + results/ stay under experiments/
 GGML="${GGML:-/home/ubuntu/tcrv-llamacpp}"
 OPT="$REPO/build/bin/tcrv-opt"
 MT="${MT:-/usr/lib/llvm-20/bin/mlir-translate}"
@@ -30,7 +31,7 @@ mkdir -p "$CELL/kernels"
 
 # ---- step 2 (board): build + run ----
 ssh "$HOST" "mkdir -p $RDIR"
-scp -q "$CELL/gemm_verify_driver.c" "$CELL/kernels/q4_0_repack_gemm.kernel.c" "$HOST:$RDIR/"
+scp -q "$HERE/gemm_verify_driver.c" "$CELL/kernels/q4_0_repack_gemm.kernel.c" "$HOST:$RDIR/"
 ssh "$HOST" "bash -s" <<REMOTE
 set -e; cd $RDIR
 CLANG=\$(command -v clang-17); CXX=\$(command -v clang++-17 || command -v clang++)

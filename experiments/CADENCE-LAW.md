@@ -7,7 +7,7 @@
 
 1. **批验证节奏**:**每 +4 C_construct**(强义 constructed 递增 4 格)→ **强制上板批验证** =
    对这批新格逐个 **bit-exact vs 钉死 oracle**(no-FMA 左结合 oracle,双板 rvv/VLEN128 + k1/VLEN256)
-   + **MANIFEST 自审**(`python3 experiments/check_manifest.py` 绿 + 新增 seal 入 CLASS 2/3)。
+   + **MANIFEST 自审**(`python3 tools/lint/check_manifest.py` 绿 + 新增 seal 入 CLASS 2/3)。
 2. **验证债上限 = 4 格**。债 = 已 flip 到 constructed 但**尚未上板 bit-exact 证过**(emit-golden 只是
    region-vs-monolith by-construction / EMPIRICAL diff,**≠ 硅上数值验证**,标 pending-hardware)的格数。
 3. **超 cap = 停 coverage grind、先上板**。债 ≥ 4 时**不得**再起新的 flip/coverage 构造线,直到把在债
@@ -31,6 +31,6 @@
 
 - 每格新 seal → `experiments/e2e-harness/results/<board>-<fmt>-.../` 或 `experiments/ondevice-<fmt>/`
   的合规格 cell(带 board+phase+指纹+快照);raw/objdump seal 入 CLASS 3 被引用工件。
-- 批验证完成后:更新 `T3_*` / `T8` cell + 本文件"当前债"表 + 跑 `check_manifest.py` 绿。
+- 批验证完成后:更新 `T3_*` / `T8` cell + 本文件"当前债"表 + 跑 `tools/lint/check_manifest.py` 绿。
 - 相关纪律:六态 coverage(`schema/coverage-sixstate.v1.json`)、`README.md` 格 schema 状态枚举
   (bit-exact 未达 = `board-pending`,不得正文引用)。

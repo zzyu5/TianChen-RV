@@ -45,5 +45,6 @@ provably discriminates (it is not comparing a computation to itself). The three
 block-dots exercise three structurally distinct decoders, all landing ULP=0.
 
 ## Reproduce
-`experiments/silicon-validation-batch-1/run_silicon_batch.sh` (HOST= ssh alias,
-default `rvv`). Fingerprints in `target_profile.txt`.
+`tools/e2e-harness/silicon-validation-batch-1/run_silicon_batch.sh` (harness relocated
+2026-07-06 A2; kernels/ + results/ stay in this cell). HOST= ssh alias, default `rvv`.
+Fingerprints in `target_profile.txt`.

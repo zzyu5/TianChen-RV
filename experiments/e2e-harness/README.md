@@ -1,5 +1,10 @@
 # e2e-harness — T6 端到端分相测量台 (llama-bench 集成)
 
+> **协议脚本位置(A2,2026-07-06):** 本目录已变**纯数据 cell** —— `results/` 测量格 + `models.manifest.csv`
+> + 本 README 留在 `experiments/e2e-harness/`;**运行用的 `run_e2e.sh` / `aggregate_e2e.py` / `board/*.sh`
+> 已迁至 repo 根 `tools/e2e-harness/`。** 下文 §3/§5 出现的脚本名均指 `tools/e2e-harness/…`;跑法见 §5
+> (`cd tools/e2e-harness && bash run_e2e.sh`,结果仍回写本目录 `results/`)。
+
 > **主张定位.** 这是 **T6**(`experiments/T6_e2e_phase_split.csv`)唯一进入 **beat 舞台**的门 —— Win-C(相级 e2e 赢)必须过 `[PERF-1]` 八门后、以 **prefill/decode 分相 vs 出厂 ggml** 呈现(登记阶梯见 `experiments/README.md`)。此前 T6 未接、八门 0/8;本台接上 llama-bench 分相 + 全套纪律 + 违宪纠正后的正确性门。
 >
 > **三消费者**(为什么这是长杆):① repack 战役的赢落 e2e prefill 分相;② 已归档两赢补 `[PERF-1]` 第④门(micro+e2e,7/8→8/8);③ T6 首批格。
@@ -51,16 +56,17 @@ llama-bench 天然分相,直接喂纪律:
 ## 5. 怎么跑
 
 ```bash
-# 全流程(preflight → 分相 A/B → 正确性门 → 本地聚合),写进 results/<LABEL>/
-cd experiments/e2e-harness
+# 全流程(preflight → 分相 A/B → 正确性门 → 本地聚合)。脚本在 tools/e2e-harness/,
+# 结果仍回写 experiments/e2e-harness/results/<LABEL>/(RESULTS_ROOT 可覆盖)。
+cd tools/e2e-harness
 LABEL=rvv-bringup-q4_0-vlen128 REPS=4 PASSES=2 PP=128 TG=32 bash run_e2e.sh
 
-# 换格式/板:覆盖 env(见 models.manifest.csv)
+# 换格式/板:覆盖 env(见 experiments/e2e-harness/models.manifest.csv)
 QUANT=q8_0 MODEL=/home/ubuntu/tcrv-llamacpp/models/tinyllama-q8_0.gguf \
   A_BUILD=... B_BUILD=... EXP_VLEN=128 bash run_e2e.sh
 ```
 
-产物:`results/<LABEL>/{preflight.txt, phase_split_raw.txt, correctness.txt, aggregate.txt, evidence.json}`。
+产物:`experiments/e2e-harness/results/<LABEL>/{preflight.txt, phase_split_raw.txt, correctness.txt, aggregate.txt, evidence.json}`。
 
 ## 6. 钉死的板/工具链(bring-up 环境指纹)
 

@@ -13,8 +13,9 @@
 # -ffp-contract=off so the sumf reduction is scalar / left-assoc / non-FMA.
 set -u
 HOST="${HOST:-rvv}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CELL="$REPO/experiments/silicon-validation-batch-1"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"        # this harness dir (drivers live here, tools/)
+REPO="$(cd "$HERE/../../.." && pwd)"                        # repo root (tools/e2e-harness/<cell> -> ../../..)
+CELL="$REPO/experiments/silicon-validation-batch-1"        # DATA cell: kernels/ + results/ stay under experiments/
 GGML="${GGML:-/home/ubuntu/tcrv-llamacpp}"
 OPT="$REPO/build/bin/tcrv-opt"
 MT="${MT:-/usr/lib/llvm-20/bin/mlir-translate}"
@@ -35,7 +36,7 @@ export_c "$CELL/kernels/q4_0_repack.kernel.c" test/Target/RVV/q4-0-q8-0-repack-g
 
 # ---- step 2 (board): build + run ----
 ssh "$HOST" "mkdir -p $RDIR"
-scp -q "$CELL/bd_verify_driver.c" "$CELL/q4_0_repack_verify_driver.c" \
+scp -q "$HERE/bd_verify_driver.c" "$HERE/q4_0_repack_verify_driver.c" \
        "$CELL"/kernels/{iq4_nl,iq1_s,iq1_m,q4_0_repack}.kernel.c "$HOST:$RDIR/"
 ssh "$HOST" "bash -s" <<REMOTE
 set -e; cd $RDIR

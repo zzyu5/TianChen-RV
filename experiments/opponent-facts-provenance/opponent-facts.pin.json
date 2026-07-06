@@ -1,0 +1,47 @@
+{
+  "$schema_note": "Provenance probe for the STRUCTURED OPPONENT FACTS the tcrv_rvv.quant_contraction op carries (opponent_vlen_native_floor / block_dot_compute_heavy). Binds each fact VALUE to a line-anchored location in the PINNED ggml tree. CI gate: tools/lint/check_opponent_facts_pin.sh compares pin_sha below vs schema/ggml-pin.lock.json; on divergence -> STALE (facts must be re-verified against the new tree).",
+  "pin_sha": "6eab47181cbd3532c88a105682b81b4729ab809b",
+  "pin_tag": "b9652",
+  "pin_epoch": 1,
+  "pin_source_of_truth": "schema/ggml-pin.lock.json",
+  "ggml_source_files": [
+    "ggml/src/ggml-cpu/arch/riscv/quants.c",
+    "ggml/src/ggml-cpu/arch/riscv/repack.cpp"
+  ],
+  "consumed_by": {
+    "op_attrs": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td (GgmlQuantContractionOp: opponent_vlen_native_floor, block_dot_compute_heavy)",
+    "roster": "lib/Plugin/RVV/RVVContractionPathSelection.cpp (GGML OPPONENT ROSTER, verified cell-by-cell against the pinned checkout)"
+  },
+  "fact_assertions": [
+    {
+      "quant": "q4_K",
+      "fact": "opponent_vlen_native_floor",
+      "value": 128,
+      "meaning": "ggml ships a VLEN-native hand-tuned vec_dot at/above VLEN128 that the repack rewrite LOSES to; repack declined when target VLEN >= 128.",
+      "ggml_provenance": "quants.c:2064 per-VLEN dispatch; quants.c:1770 @128 INLINE RVV ASM; quants.c:1975 @256 VLEN256-tuned; quants.c:1634 xtheadvector variant"
+    },
+    {
+      "quant": "q4_0",
+      "fact": "opponent_vlen_native_floor",
+      "value": null,
+      "meaning": "ABSENT: q4_0 ships only a non-VLEN-specialized vec_dot body (one body, m1) the measured repack out-streams; no VLEN-native kernel at any VLEN.",
+      "ggml_provenance": "quants.c:222 (RVV intrinsics, m1, NOT VLEN-specialized)"
+    },
+    {
+      "quant": "q4_0",
+      "fact": "block_dot_compute_heavy",
+      "value": true,
+      "meaning": "plain block-dot is compute-heavy (nibble decode + per-block vredsum + scattered reads) so the repacked out-of-block stream removes work.",
+      "ggml_provenance": "quants.c:222 (ggml_vec_dot_q4_0_q8_0)"
+    },
+    {
+      "quant": "q8_0",
+      "fact": "block_dot_compute_heavy",
+      "value": false,
+      "meaning": "ABSENT/lean: q8_0 block-dot is already lean (no nibble decode); repack removes little compute-side work.",
+      "ggml_provenance": "quants.c:435 (ggml_vec_dot_q8_0_q8_0, RVV intrinsics, m2)"
+    }
+  ],
+  "repack_opponent_provenance": "repack.cpp 16x1 gemv:260 / gemm:983 (hand_tuned_repack; the Win-B opponent for the repack path)",
+  "verify_note": "Roster verified READ-ONLY against a 2026-06-15 checkout == this pin (tag b9652 == 6eab471 exactly). A full re-verify fetches upstream at the tag via .trellis/scripts/fetch_ggml_pin.py and re-reads the cited line anchors."
+}

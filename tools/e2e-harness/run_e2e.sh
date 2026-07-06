@@ -12,7 +12,9 @@
 # Pinned rvv (openEuler VLEN128) defaults below; override via env for other
 # boards / models / quant formats (q8_0, etc.) -- see models.manifest.csv.
 set -u
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"     # tools/e2e-harness (board/ + aggregate_e2e.py live here)
+REPO="$(cd "$HERE/../.." && pwd)"                        # repo root
+RESULTS_ROOT="${RESULTS_ROOT:-$REPO/experiments/e2e-harness/results}"  # DATA cells stay under experiments/
 
 HOST="${HOST:-rvv}"
 EXP_VLEN="${EXP_VLEN:-128}"
@@ -28,7 +30,7 @@ PP="${PP:-128}"; TG="${TG:-32}"; REPS="${REPS:-5}"; PASSES="${PASSES:-2}"
 NTOK="${NTOK:-24}"
 ALLOW_MARCH_INCOMPLETE_IF_LIBCALL_CLEAN="${ALLOW_MARCH_INCOMPLETE_IF_LIBCALL_CLEAN:-1}"
 LABEL="${LABEL:-${BOARD_LABEL}-${QUANT}-$(date +%Y%m%d-%H%M)}"
-OUT="$HERE/results/$LABEL"
+OUT="$RESULTS_ROOT/$LABEL"
 mkdir -p "$OUT"
 
 RDIR="/tmp/tcrv_e2e_$$"

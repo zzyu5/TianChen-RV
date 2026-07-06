@@ -1,0 +1,36 @@
+{
+  "$schema_note": "C1-cleanliness delete-string proof (F22 / commit c347b412). Machine-readable sibling of NOTES.md. NOT a board measurement cell -- a compiler-invariant proof archive.",
+  "claim": "quant_contraction routing is fact-driven, NOT keyed on the quant format label; deleting quant=\"q4_0\" yields byte-identical lowered output.",
+  "proof_kind": "delete-string byte-exact",
+  "recorded_output_sha256_prefix": "a457e1b9",
+  "recorded_by": "quant-fix task F22 (commit c347b412), fresh clean rebuild",
+  "regression": "786/789 (3 pre-existing), zero new failures",
+  "fixtures": {
+    "with_label": {
+      "path": "test/Conversion/RVV/rvv-lower-quant-contraction-stage-b-selection.mlir",
+      "quant_attr": "q4_0"
+    },
+    "no_label": {
+      "path": "test/Conversion/RVV/rvv-lower-quant-contraction-facts-drive-routing.mlir",
+      "quant_attr": null
+    }
+  },
+  "pass": "tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv",
+  "identical_audit_tokens": {
+    "tcrv_rvv.contraction_algorithm": "repack",
+    "tcrv_rvv.path_selection_reason": "repack-kept-q4_0-vlen128-decode",
+    "tcrv_rvv.weight_layout_contract": "x16",
+    "weight_block_stride": 288,
+    "weight_interleave": 16,
+    "weight_quant_byte_offset": 32,
+    "half_lanes": 8
+  },
+  "adversarial": [
+    "lying label quant=q8_0 + block_dot_compute_heavy=true -> still REPACK (fact wins)",
+    "true quant=q4_0 with block_dot_compute_heavy removed -> declines to block-dot",
+    "opponent_vlen_native_floor=128 @ VLEN128 -> declines (q4_K semantics)"
+  ],
+  "dataflow_verifier": "test/Dialect/RVV/quant-contraction-dataflow.mlir",
+  "selection_authority": "lib/Plugin/RVV/RVVContractionPathSelection.cpp",
+  "reproduction_status": "pointer + recorded sha; fresh-binary regeneration pending built build/bin/tcrv-opt (not built in this archival env)"
+}

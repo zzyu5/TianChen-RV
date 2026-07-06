@@ -1,8 +1,14 @@
 # experiments/ MANIFEST —— 保留工件台账 + 漂移校验源
 
-> 机检:`experiments/check_manifest.py`(fail-closed CI 门)。校验【耐久内容】(git 跟踪 +
+> 机检:`tools/lint/check_manifest.py`(fail-closed CI 门)。校验【耐久内容】(git 跟踪 +
 > 未跟踪-未忽略 = fresh clone 会拿到的全部文件)与本文件 `REGISTRY` 区逐路径相等;有未登记
 > 文件或登记文件缺失即红(退出非零)。**改 experiments/ 增删文件 → 必须同步改 REGISTRY,否则 CI 红。**
+>
+> 第二道门:`tools/lint/check_experiments_data_only.py`(A2 data-only 门)。experiments/ 是
+> **数据 cell 不是代码树**:耐久内容只准是数据/证据(`*.json`/`*.csv`/`*.txt`/`*.md`/`*.objdump`/
+> `*.log`/`*.err`/`.gitignore`)+ 被 REGISTRY 登记的**证据指针代码**(kernel 源/`.emitc.mlir`/sealed
+> `.o`,CLASS 3)。**任何 harness / 脚本(`*.py`/`*.sh`)/ 可执行 / 未登记代码 → 红**;协议脚本一律
+> 落 `tools/e2e-harness/`(见下"harness 迁出"注)。
 
 ## 三类内容铁律(experiments/ 只放这三类,其余=残留必清)
 
@@ -33,8 +39,17 @@
 - `experiments/README.md` — 表→主张映射 + 格 schema + Win 阶梯(index/template)
 - `experiments/MANIFEST.md` — 本保留工件台账(self)
 - `experiments/CADENCE-LAW.md` — 节奏法 C:每 +4 C_construct → 强制上板批验证(self)
-- `experiments/check_manifest.py` — CI 漂移校验脚本(self)
 - `experiments/.gitignore` — 忽略 INTERIM / P3-parked cell(见文末 PENDING/INTERIM 区);工件留盘、未跟踪、不入机检
+
+> **harness 迁出(A2,2026-07-06):** experiments/ 里的所有协议/编排/驱动脚本已 `git mv` 到
+> `tools/e2e-harness/`(保结构),CI 校验脚本本身迁到 `tools/lint/`——experiments/ 从此只留数据 +
+> 证据指针代码。迁出清单:`tools/lint/check_manifest.py`(原 experiments/check_manifest.py)、
+> `tools/e2e-harness/{run_e2e.sh, aggregate_e2e.py, board/*.sh}`、
+> `tools/e2e-harness/T3_step3/{board_ab.sh, aggregate.py}`、
+> `tools/e2e-harness/silicon-validation-batch-1/{run_silicon_batch.sh, bd_verify_driver.c, q4_0_repack_verify_driver.c}`、
+> `tools/e2e-harness/silicon-validation-gemm/{run_silicon_gemm.sh, gemm_verify_driver.c}`。
+> 被复现脚本引用的 **kernels/`*.kernel.c` / `*.emitc.mlir` / sealed `.o`** 是证据指针,**留 experiments/**
+> (下方 CLASS 2/3 仍登记)。
 
 空表模板(零现值,按快照由 CI 填):
 - `experiments/T0_kernel_census_sixstate.csv`
@@ -54,22 +69,11 @@
 - `experiments/T6_e2e_phase_split.csv`
 - `experiments/T7_coverage_burndown.csv`
 
-T6 e2e 分相 harness(协议脚本):
+T6 e2e 分相 harness — 索引 + 模型表(协议脚本已迁 `tools/e2e-harness/`,见上"harness 迁出"注):
 - `experiments/e2e-harness/README.md`
-- `experiments/e2e-harness/run_e2e.sh`
-- `experiments/e2e-harness/aggregate_e2e.py`
 - `experiments/e2e-harness/models.manifest.csv`
-- `experiments/e2e-harness/board/correctness_gate.sh`
-- `experiments/e2e-harness/board/decode_snapshots.sh`
-- `experiments/e2e-harness/board/fullmarch_rebuild.sh`
-- `experiments/e2e-harness/board/objdump_seal.sh`
-- `experiments/e2e-harness/board/phase_split_ab.sh`
-- `experiments/e2e-harness/board/preflight_e2e.sh`
-- `experiments/e2e-harness/board/run_seal_measure.sh`
 
-T3_step3 协议 / 分析脚本:
-- `experiments/T3_step3/board_ab.sh` — 双板 A/B + fail-closed preflight 四门(docs 执行总纲 §引用)
-- `experiments/T3_step3/aggregate.py`
+T3_step3 — 本地 *.o 忽略规则(协议/分析脚本已迁 `tools/e2e-harness/T3_step3/`):
 - `experiments/T3_step3/.gitignore` — 忽略本地 *.o 构建产物
 
 框架 / ledger 文档(稳定契约级、被 docs/schema 引用):
@@ -77,6 +81,12 @@ T3_step3 协议 / 分析脚本:
 - `experiments/perf-characterizations-layer4.md` — perf 指令级 emit 四特性化 + 忠实性(docs/schema 引)
 - `experiments/方法学-kernel微基准两大隐形混淆.md` — 测量混淆方法学(perf-char 姊妹页)
 - `experiments/travel-decision-ledger.md` — 出行期自主裁决 + F1..F15 findings 台账
+
+C1 洁净化证据档(quant-fix F22 / commit c347b412 补验,2026-07-06):
+- `experiments/quant-label-proof/NOTES.md` — 删字符串 byte-exact 证明(fact-drives-routing、label-inert)+ 复现命令 + 记录 sha256 a457e1b9
+- `experiments/quant-label-proof/evidence.json` — 同证明 machine 版(fixtures + audit tokens + adversarial)
+- `experiments/opponent-facts-provenance/NOTES.md` — opponent-fact(floor/heavy)溯源到 pinned ggml 行锚 + CI 门说明
+- `experiments/opponent-facts-provenance/opponent-facts.pin.json` — fact↔ggml-pin 绑定探针(`tools/lint/check_opponent_facts_pin.sh` 消费:pin 变 → STALE)
 
 ### CLASS 2 — 合规格 cell(board + phase + 指纹 + 快照)
 
@@ -132,9 +142,6 @@ silicon-validation-batch-1 cell — 4 constructed 格 emit-golden→silicon_vali
 - `experiments/silicon-validation-batch-1/evidence.json` — 批级汇总(4 格 verdict + falsifier 控制)
 - `experiments/silicon-validation-batch-1/NOTES.md` — 方法 + q4_0-repack FMA 分相诚实说明
 - `experiments/silicon-validation-batch-1/target_profile.txt` — board + clang + oracle + host tool 指纹
-- `experiments/silicon-validation-batch-1/run_silicon_batch.sh` — 复现 orchestrator(export→board build→run)
-- `experiments/silicon-validation-batch-1/bd_verify_driver.c` — block-dot bit-exact 驱动(iq4_nl/iq1_s/iq1_m)
-- `experiments/silicon-validation-batch-1/q4_0_repack_verify_driver.c` — q4_0 repack GEVM 驱动(no-FMA scalar + f64 ref)
 - `experiments/silicon-validation-batch-1/kernels/iq4_nl.kernel.c` — front-door 导出 kernel-under-test(C)
 - `experiments/silicon-validation-batch-1/kernels/iq1_s.kernel.c` — front-door 导出 kernel-under-test(C)
 - `experiments/silicon-validation-batch-1/kernels/iq1_m.kernel.c` — front-door 导出 kernel-under-test(C)
@@ -151,8 +158,6 @@ silicon-validation-batch-1 cell — 4 constructed 格 emit-golden→silicon_vali
 silicon-validation-gemm cell — constructed q4_0 REPACK GEMM(PREFILL,M>1)硅验,GEMM silicon-validation debt 1→0(board rvv/VLEN128, no-FMA 左结合 ggml scalar oracle + f64 ref, 2026-07-06;引用者 F23 / silicon-validation debt):
 - `experiments/silicon-validation-gemm/NOTES.md` — 方法 + FMA-fold bounded 诚实说明(debt 1→0,FMA-bounded-correct 非 ULP=0,GEVM 姊妹)
 - `experiments/silicon-validation-gemm/target_profile.txt` — board + clang + oracle + repack 布局 + provenance(be66c917)指纹
-- `experiments/silicon-validation-gemm/run_silicon_gemm.sh` — 复现 orchestrator(export→board build→run)
-- `experiments/silicon-validation-gemm/gemm_verify_driver.c` — GEMM bit-level 驱动(repack 布局 + no-FMA scalar oracle + f64 ref + ULP)
 - `experiments/silicon-validation-gemm/kernels/q4_0_repack_gemm.kernel.c` — front-door 导出 kernel-under-test(C,VERBATIM)
 - `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/run_rvv.txt` — 板 raw(4 shapes,FMA-fold bounded-ULP)
 - `experiments/silicon-validation-gemm/results/q4_0_repack_gemm/evidence.json` — GEMM FMA_FOLD_BOUNDED_ULP verdict + 4-shape f64 accuracy substantiation
@@ -214,8 +219,8 @@ CLASS 3 "on-device seal");**剩下的留 gitignored**——都是可再生残渣
 - `.err` / `.cc.err` 编译日志、`*_rdir.txt` 远端目录快照、`regresident-precheck/`、`fair/ship/` 等 scratch。
 
 留 gitignored 的判据:**无 tracked 文件引用 + 可由重跑板子再生**。若日后某残渣被 tracked 文件引用,
-按 option-1 同法 `git add -f` 提升 + 入 REGISTRY CLASS 3(否则 `check_manifest.py` 会红——promote 后
-它即 durable content、必须登记)。
+按 option-1 同法 `git add -f` 提升 + 入 REGISTRY CLASS 3(否则 `tools/lint/check_manifest.py` 会红——
+promote 后它即 durable content、必须登记)。
 
 ---
 

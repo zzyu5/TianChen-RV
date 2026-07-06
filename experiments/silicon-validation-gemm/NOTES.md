@@ -42,4 +42,5 @@ verdict (not ULP=0), matching the GEVM.
 ## Honest scope
 This is the ISOLATED-kernel bit-level silicon validation (vs a pinned oracle). It is a
 DIFFERENT statement from the e2e greedy-token gate (which lives in the e2e cell) and is
-NOT a perf claim. Reproduce: `run_silicon_gemm.sh`.
+NOT a perf claim. Reproduce: `tools/e2e-harness/silicon-validation-gemm/run_silicon_gemm.sh`
+(harness relocated 2026-07-06 A2; kernels/ + results/ stay in this cell).

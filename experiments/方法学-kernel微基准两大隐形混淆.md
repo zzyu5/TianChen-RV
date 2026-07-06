@@ -1,7 +1,7 @@
 # 方法学:kernel 微基准的两大隐形混淆
 
 > 性质:**设计空间知识 + 已落治理的说明**,不是战役,不是新数字。
-> 治理执法在别处(实验总纲v1 §1 第9/10条 + `T3_step3/board_ab.sh` preflight),本页只**命名混淆 + 指纹 + 指针**,不重复条文。
+> 治理执法在别处(实验总纲v1 §1 第9/10条 + `tools/e2e-harness/T3_step3/board_ab.sh` preflight),本页只**命名混淆 + 指纹 + 指针**,不重复条文。
 > 起因:P2c deferred "1.69× vs factory" 被公平复测证伪 = 100% 此两类混淆之一(见 gap-log GAP-1/P2c-A、P2c-B)。
 
 kernel 微基准(单核、固频、cache-resident、best-of-N)看似干净,但两类混淆能把
@@ -40,6 +40,6 @@ kernel 微基准(单核、固频、cache-resident、best-of-N)看似干净,但�
 ---
 
 **指针(不重复条文).** 执法条款见 `docs/TianChen-RV_实验总纲v1.md` §1 第9/10条;preflight 四门
-在 `experiments/T3_step3/board_ab.sh`;被证伪的原始误判命名在
+在 `tools/e2e-harness/T3_step3/board_ab.sh`(harness 2026-07-06 A2 迁出 experiments/);被证伪的原始误判命名在
 `.trellis/tasks/07-04-m-flat-nb-loop-layer/evidence/gap-log.md` GAP-1/P2c-A(fp16 libcall)、
 GAP-1/P2c-B(跨 clang 指纹)。本页是这两条治理为何存在的**设计空间说明**,治理本身已落。
