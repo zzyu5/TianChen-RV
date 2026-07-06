@@ -21,7 +21,8 @@
   "children": [
     "07-06-lined-s3-ternary-dequant-kernel",
     "07-06-lined-s4-f6-falsifier",
-    "07-06-coverage-next-iq2xs"
+    "07-06-coverage-next-iq2xs",
+    "07-07-parallel-infra"
   ],
   "parent": null,
   "relatedFiles": [],
