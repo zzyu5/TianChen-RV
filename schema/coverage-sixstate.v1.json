@@ -624,8 +624,10 @@
     {
       "op": "scale",
       "format": "f32",
-      "state": "dispatch-wired",
-      "anchor": "RVVToEmitCForwardElementwise.cpp + conversion lit"
+      "state": "constructed",
+      "auto_readout": "pending-E5-map: constructed (STRONG); realized-body manifest=typed_elementwise_loop_body+elementwise_scale_map+typed_elementwise_loop_yield; opaque_helper=false; map-family primitive (elementwise_scale_map), no product/reduce (pure map). NOTE: the e5_strong_readout.py [L-8] rule is contraction-shaped (requires a product-family AND reduce-family primitive); the forward-elementwise MAP model needs a map-branch + a full-pipeline export-e2e + a CLI source-front-door before this row's auto_readout is machine-derived (reported remaining, scaffold-first).",
+      "anchor": "M-FLAT forward-elementwise scaffold: RVVOps.td TypedElementwiseLoopBodyOp (+ TypedElementwiseLoopYieldOp + ElementwiseScaleMapOp map core brick) -> RVVDialectWideningOps.cpp verifiers -> RVVToEmitC.cpp isTypedElementwiseLoopBody dispatch + [L-8] validateTypedElementwiseLoopBodyAllowlist -> RVVToEmitCForwardElementwise.cpp emitTypedElementwiseLoopBody (typed lowering). The constructed body is the typed elementwise strip-loop op (reduce_map_model \"map\") carrying the decomposed per-strip elementwise_scale_map map primitive, NO opaque emitGgmlVecScaleF32 hand helper (the monolith tcrv_rvv.ggml_vec_scale_f32 op + emitter + verifier + conversion lit RETIRED same action as the flip)",
+      "note": "byte-identical-to-monolith emit (EMPIRICAL, no-stash: the golden was captured from the pre-refactor binary BEFORE the edit; the normalized diff is EMPTY -- the executable C is byte-identical modulo ONLY the source-op provenance token, tcrv_rvv.ggml_vec_scale_f32 -> tcrv_rvv.elementwise_scale_map -- INCLUDING the outer vsetvl_e32m1 scope frame, the pre-loop vsetvl_e32m8 VLMAX, the for i+=vlmax strip loop, and the per-strip vsetvl_e32m8(n-i)/vle32/vfmul_vf/vse32 chain). The FIRST forward-elementwise operator flipped dispatch-wired -> constructed (C_construct 28->29): it lands the typed elementwise strip-loop SCAFFOLD (the forward-pass non-dot sibling of typed_flat_block_dot_loop_body) with a reduce/map model, so the remaining 4 forward operators reuse it -- scale/silu are pure MAPs (reuse the map model + a per-op core brick); rms_norm/softmax are REDUCEs (a later reduce model on the same loop op). This is coverage/representation maturity, NOT a numerical or perf claim; numbers pending-hardware."
     },
     {
       "op": "gelu",

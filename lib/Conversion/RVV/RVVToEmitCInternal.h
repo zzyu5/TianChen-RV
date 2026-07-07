@@ -502,11 +502,13 @@ private:
   // ternary-core brick, lowered by emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10
   // (declared below).
 
-  /// The forward-pass F1 recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.ggml_vec_scale_f32 (the f32 in-place elementwise scale
-  /// y[i] *= v). The op identity is the dispatch key; the emitter owns the
-  /// structured f32 strip-loop expansion (vle32 / vfmul_vf / vse32).
-  static bool isGgmlVecScaleF32Body(tcrvrvv::WithVLOp scope);
+  /// The M-FLAT forward-elementwise scaffold recognizer: a with_vl scope whose
+  /// compute op is a tcrv_rvv.typed_elementwise_loop_body (the constructed typed
+  /// strip-loop op that replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32).
+  /// The loop op identity is the dispatch key; emitTypedElementwiseLoopBody owns
+  /// the byte-exact f32 strip-loop expansion driven by the region's map core
+  /// brick (tcrv_rvv.elementwise_scale_map).
+  static bool isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope);
 
   /// The forward-pass F3 recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.ggml_rms_norm_f32 (the f32 row rms_norm: Sx^2 scalar-double
@@ -3347,25 +3349,27 @@ private:
       llvm::StringRef resDtype, llvm::StringRef opName, llvm::StringRef role,
       bool applyOffsetBias = true) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_scale_f32 forward-pass op (the FIRST
-  /// non-dot f32 elementwise family member) for one tcrv_rvv.ggml_vec_scale_f32
-  /// op as fully STRUCTURED emitc nodes (I5; no verbatim C-string blob -- every
-  /// value is a node in the IR graph):
+  /// Emit the M-FLAT forward-elementwise scaffold's typed strip-loop body (the
+  /// constructed sibling of emitTypedFlatBlockDotLoopBody) for one
+  /// tcrv_rvv.typed_elementwise_loop_body op as fully STRUCTURED emitc nodes
+  /// (I5; no verbatim C-string blob -- every value is a node in the IR graph):
+  ///   size_t vlmax = __riscv_vsetvl_e32m<L>(n);
   ///   for (size_t i = 0; i < n; i += vlmax) {
   ///     size_t vl = __riscv_vsetvl_e32m<L>(n - i);    // emitc.sub + call_opaque
   ///     vfloat32m<L>_t ay = __riscv_vle32_v_f32m<L>(y + i, vl);
   ///     vfloat32m<L>_t ny = __riscv_vfmul_vf_f32m<L>(ay, v, vl);  // scalar bcast
   ///     __riscv_vse32_v_f32m<L>(y + i, ny, vl);       // in-place store back
   ///   }
-  /// `y` is read AND written in place (the first forward-pass op whose single
-  /// buffer is both input and output); `v` is the runtime f32 scalar broadcast
-  /// into every lane. Byte-exactness to ggml's real op (vec.h:733-739) is
-  /// UNCONDITIONAL: a bare per-lane fp32 multiply (no FMA -> -ffp-contract
-  /// cannot bite; no cross-lane reduction -> LMUL/tail/strip-count are
-  /// correctness-free). The LMUL is the bounded resource/scheduling knob
-  /// (default m8, matching ggml). The intrinsics are emitc.call_opaque nodes
-  /// (the one sanctioned opaque piece, exactly how the dot kernels emit theirs).
-  mlir::LogicalResult emitGgmlVecScaleF32(
+  /// The outer strip loop is owned by the loop-body op; the per-strip body
+  /// (the map) is re-emitted from the region's tcrv_rvv.elementwise_scale_map
+  /// core brick, whose strip_index MUST be the loop induction variable (region
+  /// arg 0, anti-bypass). This is BYTE-EXACT to the retired monolith
+  /// tcrv_rvv.ggml_vec_scale_f32 emit modulo ONLY the source-op provenance
+  /// token: a bare per-lane fp32 multiply (no FMA -> -ffp-contract cannot bite;
+  /// no cross-lane reduction -> LMUL/tail/strip-count are correctness-free). The
+  /// strip LMUL is the bounded resource knob (default m8, matching ggml). The
+  /// intrinsics are emitc.call_opaque nodes (the one sanctioned opaque piece).
+  mlir::LogicalResult emitTypedElementwiseLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

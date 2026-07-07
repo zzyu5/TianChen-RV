@@ -367,6 +367,16 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ4KQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
+        // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
+        // elementwise strip-loop body (constructed sibling of the flat block-dot
+        // loop body). It replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32
+        // (its {isGgmlVecScaleF32Body, emitGgmlVecScaleF32} dispatch branch was
+        // RETIRED at the scale flip): the constructed body carries the
+        // tcrv_rvv.elementwise_scale_map map core brick, lowered by
+        // isTypedElementwiseLoopBody -> emitTypedElementwiseLoopBody, byte-exact
+        // to the monolith emit modulo the source-op provenance token.
+        {&isTypedElementwiseLoopBody,
+         &VariantToEmitCFunc::emitTypedElementwiseLoopBody},
         {&isTypedSuperBlockBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody},
         {&isTypedRepackGemvLoopBody,
@@ -456,21 +466,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         return mlir::success();
       }
     }
-    // The forward-pass F1 op (tcrv_rvv.ggml_vec_scale_f32) is the FIRST non-dot
-    // f32 elementwise family member: the in-place per-lane multiply y[i] *= v
-    // over a flat unit-stride f32 buffer. It owns a dedicated routine -- ONE f32
-    // strip loop (vsetvl_e32m<L>(n-i) / vle32 / vfmul_vf / vse32) -- a DIFFERENT
-    // shape from the block-quantized integer dot ops (no AoS block loop, no
-    // packed-int decode, no integer widening, no per-block fp16 scale). The
-    // structural marker is the tcrv_rvv.ggml_vec_scale_f32 op identity.
-    if (isGgmlVecScaleF32Body(scope)) {
-      if (mlir::failed(emitGgmlVecScaleF32(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
+    // NOTE: the monolith forward-pass F1 kernel {isGgmlVecScaleF32Body,
+    // emitGgmlVecScaleF32} was RETIRED at the scale flip (C_construct 28->29,
+    // the FIRST forward-elementwise operator constructed): the constructed body
+    // is the typed elementwise strip-loop op (tcrv_rvv.typed_elementwise_loop_body,
+    // reduce_map_model "map") carrying the tcrv_rvv.elementwise_scale_map map core
+    // brick, dispatched via the {isTypedElementwiseLoopBody,
+    // emitTypedElementwiseLoopBody} entry in kBlockDotKernels above (byte-exact to
+    // the monolith emit modulo the source-op provenance token).
 
     // The forward-pass F3 op (tcrv_rvv.ggml_rms_norm_f32) is the FIRST non-dot
     // f32 REDUCTION op: the row Sx^2 scalar-double fold -> scalar 1/sqrtf -> the
@@ -1533,18 +1536,18 @@ bool VariantToEmitCFunc::isQ4_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
 // body is recognized by isTypedSuperBlockBlockDotLoopBody + resolved via
 // emitTypedSuperBlockScalarDeltaGridLoopBody -> emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10.
 
-bool VariantToEmitCFunc::isGgmlVecScaleF32Body(tcrvrvv::WithVLOp scope) {
-    bool sawScale = false;
+bool VariantToEmitCFunc::isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlVecScaleF32Op>(op)) {
-        if (sawScale)
+      if (llvm::isa<tcrvrvv::TypedElementwiseLoopBodyOp>(op)) {
+        if (sawLoopBody)
           return false;
-        sawScale = true;
+        sawLoopBody = true;
       } else {
         return false;
       }
     }
-    return sawScale;
+    return sawLoopBody;
   }
 
 bool VariantToEmitCFunc::isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope) {
@@ -5715,7 +5718,16 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       tcrv::rvv::TypedRepackGemvLoopBodyOp,
       tcrv::rvv::TypedRepackGemvLoopYieldOp,
       tcrv::rvv::TypedRepackGemmLoopBodyOp,
-      tcrv::rvv::TypedRepackGemmLoopYieldOp>(op);
+      tcrv::rvv::TypedRepackGemmLoopYieldOp,
+      // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
+      // elementwise strip-loop op + its map core brick + terminator. They join
+      // the SAME union allowlist (making it strictly MORE permissive, never
+      // rejecting an op it used to accept, so every block-dot path is
+      // structurally unchanged); the dedicated elementwise validator walk below
+      // fires only on the elementwise loop op_kind.
+      tcrv::rvv::TypedElementwiseLoopBodyOp,
+      tcrv::rvv::TypedElementwiseLoopYieldOp,
+      tcrv::rvv::ElementwiseScaleMapOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op
@@ -5752,6 +5764,17 @@ llvm::LogicalResult validateTypedSuperBlockBlockDotLoopBodyAllowlist(
   return validateLoopBodyAllowlist(loopBody.getBody(), "super-block");
 }
 
+// M-FLAT forward-elementwise scaffold: the typed elementwise strip-loop body's
+// [L-8] allowlist gate -- the SAME recursive strong-form certifier, wired to the
+// forward-pass (non-dot) elementwise loop op. It fail-closes on any op outside
+// the union allowlist (an opaque emitc.call_opaque or a hand-written monolith
+// forward helper leaking into the constructed body), the machine-checkable
+// provenance basis for the scale constructed(strong) flip.
+llvm::LogicalResult validateTypedElementwiseLoopBodyAllowlist(
+    tcrv::rvv::TypedElementwiseLoopBodyOp loopBody) {
+  return validateLoopBodyAllowlist(loopBody.getBody(), "elementwise");
+}
+
 class RVVLowerToEmitCPass final
     : public impl::RVVLowerToEmitCBase<RVVLowerToEmitCPass> {
 public:
@@ -5781,6 +5804,14 @@ public:
     module.walk([&](tcrv::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
       if (mlir::failed(
               validateTypedSuperBlockBlockDotLoopBodyAllowlist(loopBody)))
+        allowlistRejected = true;
+    });
+    // M-FLAT forward-elementwise scaffold: the SAME strong-form [L-8] gate on the
+    // typed elementwise strip-loop body. The walk only fires on the elementwise
+    // op_kind, so the flat + super-block + single-block strong paths are untouched
+    // (zero regression).
+    module.walk([&](tcrv::rvv::TypedElementwiseLoopBodyOp loopBody) {
+      if (mlir::failed(validateTypedElementwiseLoopBodyAllowlist(loopBody)))
         allowlistRejected = true;
     });
     if (allowlistRejected) {

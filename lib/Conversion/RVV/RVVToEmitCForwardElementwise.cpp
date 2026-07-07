@@ -26,26 +26,58 @@ namespace detail {
 // rmsnorm / silu (+ vexpf) / softmax / quantize_row_q8_0 / rope_norm. Split out
 // of RVVToEmitC.cpp as a pure code move; the emitted C is byte-identical.
 
-mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecScaleF32(
+mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlVecScaleF32Op scaleOp;
+    // The M-FLAT forward-elementwise scaffold's typed strip-loop lowering, the
+    // constructed sibling of emitTypedFlatBlockDotLoopBody. The outer strip loop
+    // is owned by the loop op; the per-strip map is re-emitted from the region's
+    // core brick (anti-bypass: the brick's strip_index MUST be the loop induction
+    // variable). BYTE-EXACT to the retired monolith tcrv_rvv.ggml_vec_scale_f32
+    // emit modulo ONLY the source-op provenance token.
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto s = llvm::dyn_cast<tcrvrvv::GgmlVecScaleF32Op>(op))
-        scaleOp = s;
+      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopBodyOp>(op))
+        loopBody = lb;
     }
-    if (!scaleOp)
-      return rewriter.notifyMatchFailure(scope, "scale body missing the op");
+    if (!loopBody)
+      return rewriter.notifyMatchFailure(
+          scope, "typed elementwise loop body missing the op");
 
-    mlir::Value buffer = valueMap.lookup(scaleOp.getBuffer());
-    mlir::Value scalar = valueMap.lookup(scaleOp.getScalar());
+    // The current bounded surface is the "map" model whose core brick is the
+    // per-strip scale map (elementwise_scale_map). Find the brick + the yield.
+    tcrvrvv::ElementwiseScaleMapOp mapOp;
+    tcrvrvv::TypedElementwiseLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseScaleMapOp>(bodyOp))
+        mapOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopYieldOp>(bodyOp))
+        yieldOp = o;
+    });
+    if (!mapOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "map-model elementwise loop body requires the "
+                    "elementwise_scale_map core brick + the loop yield");
+
+    // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
+    // variable (region arg 0), so the emit addresses buffer + i, not strip 0.
+    mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
+    if (mapOp.getStripIndex() != stripIndex)
+      return rewriter.notifyMatchFailure(
+          mapOp, "the elementwise_scale_map brick's strip_index must be the "
+                 "loop induction variable (region arg 0)");
+
+    // The ABI bases are sourced from the BRICK's operands (not the loop op), the
+    // same anti-bypass convention the flat block-dot bricks use.
+    mlir::Value buffer = valueMap.lookup(mapOp.getBuffer());
+    mlir::Value scalar = valueMap.lookup(mapOp.getScalar());
     if (!buffer || !scalar)
-      return rewriter.notifyMatchFailure(scaleOp,
-                                         "scale ABI operand unmapped");
+      return rewriter.notifyMatchFailure(mapOp, "scale ABI operand unmapped");
 
-    llvm::StringRef opName = scaleOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = scaleOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = mapOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = mapOp.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type bufferPtrType = buffer.getType();
 
@@ -55,7 +87,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecScaleF32(
     // (every lane is multiplied by the same scalar v). The verifier bounds it to
     // m1|m2|m4|m8 (carried as "strip_lmul" so the op holds no forbidden
     // dataflow-parameter "lmul" at the I5 boundary).
-    llvm::StringRef lmul = scaleOp.getStripLmul().value_or("m8");
+    llvm::StringRef lmul = mapOp.getStripLmul().value_or("m8");
     std::string f32VecTypeName = ("vfloat32" + lmul + "_t").str();
     mlir::Type f32VecType = emitc::OpaqueType::get(ctx, f32VecTypeName);
     mlir::Type floatPtrType =

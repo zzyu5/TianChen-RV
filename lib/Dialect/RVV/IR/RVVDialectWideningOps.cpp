@@ -8240,64 +8240,55 @@ mlir::LogicalResult GgmlBlockDotIQ3SQ8KGridCoreOp::verify() {
 // monolith op def; the iq1_m grid-core brick verifier
 // (GgmlBlockDotIQ1MQ8KGridCoreOp::verify) is the live bounded-surface gate.
 
-mlir::LogicalResult GgmlVecScaleF32Op::verify() {
+// M-FLAT forward-elementwise scaffold verifiers (line C, ① 之后). The typed
+// elementwise strip-loop op is the forward-pass sibling of the flat block-dot
+// loop op (RVVDialectWideningOps.cpp TypedFlatBlockDotLoopBodyOp::verify): it
+// carries the outer `for (i=0; i<n; i+=vlmax)` strip loop + a single-block
+// region whose entry arg is the strip induction variable and whose per-strip
+// work is a separate typed core brick. The map model carries NO loop-carried
+// accumulator (the yield names no operand); a bounded reduce model is later.
+mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // The op carries ONLY its bounded mirror attrs (I4): the operation kind plus
-  // the optional resource/scheduling strip-LMUL knob. Anything else -- a
-  // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
-  // is rejected fail-closed (I7). The knob is named "strip_lmul" (not the
-  // forbidden with_vl/setvl "lmul" spelling), exactly as the sibling block-dot
-  // op uses "integer_core_lmul", so the I5 boundary check stays untouched.
-  auto isAllowedScaleAttr = [](llvm::StringRef name) {
-    return name == "kind" || name == "strip_lmul";
-  };
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.ggml_vec_scale_f32 keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-    if (!isAllowedScaleAttr(attrName))
-      return emitOpError()
-             << "only accepts the bounded f32 scale attributes 'kind' and "
-                "'strip_lmul'; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (getKind() != "ggml_vec_scale_f32")
+  if (getKind() != "typed_elementwise_loop_body")
     return emitOpError()
-           << "currently supports only kind \"ggml_vec_scale_f32\" for the "
-              "bounded ggml f32 in-place elementwise scale typed surface";
-
-  // The optional strip-LMUL is a bounded resource/scheduling fact: the f32 strip
-  // loop anchors at m1/m2/m4/m8 (default m8, matching ggml's hand-written path).
-  // All are byte-exact (every lane is multiplied by the same scalar v; the
-  // runtime vsetvl_e32m<L>(n-i) re-strips correctly for any VLEN). Any other
-  // spelling is rejected fail-closed (I7).
+           << "currently supports only kind \"typed_elementwise_loop_body\" for "
+              "the bounded forward-pass elementwise strip-loop surface";
+  // reduce_map_model fixes the loop shape; the current bounded surface is the
+  // pure elementwise "map" (no loop-carried accumulator). "reduce" (rms_norm /
+  // softmax row folds) is a later step. Any other spelling fails closed (I7).
+  if (getReduceMapModel() != "map")
+    return emitOpError()
+           << "currently supports only reduce_map_model \"map\" (the pure "
+              "elementwise per-lane map with no loop-carried accumulator); "
+              "\"reduce\" is a later step";
+  // element_sew currently pins the f32 (SEW=32) strip; other widths are later.
+  if (getElementSewAttr().getInt() != 32)
+    return emitOpError()
+           << "currently supports only element_sew 32 (the f32 elementwise "
+              "strip); got "
+           << getElementSewAttr().getInt();
+  // The optional strip-LMUL is a bounded resource/scheduling fact (the *how*):
+  // the f32 strip anchors at m1/m2/m4/m8 (default m8, ggml's apply path). All
+  // are byte-exact (bare per-lane multiply; the runtime vsetvl re-strips for any
+  // VLEN). Any other spelling fails closed (I7).
   if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
     if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
         *stripLmul != "m8")
       return emitOpError()
-             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\" (the "
-                "bounded byte-exact f32-strip resource anchors for the ggml "
-                "f32 elementwise scale); got \""
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\"; got "
+                "\""
              << *stripLmul << "\"";
   }
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
     return emitOpError()
            << "requires one in-place f32 buffer pointer, one runtime f32 scalar, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
-              "operand, and one f32 LMUL m1 result";
+              "and one runtime element-count runtime ABI operand, and no results "
+              "(the in-place strip store is the sink)";
 
-  // The in-place buffer is read AND written (y[i] *= v) -- it is the FIRST
-  // forward-pass op whose single buffer is both input and output. It binds a
-  // runtime ABI value of C type 'float *'; the scalar binds a runtime ABI value
-  // of C type 'float' (the ggml `v` multiplier); the element count carries n.
+  // The buffer/scalar operands bind runtime ABI values whose C types pin the
+  // ggml ABI (mirroring the flat block-dot loop op's operand-binding checks).
   RuntimeABIValueOp bufferBinding =
       getBuffer().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp scalarBinding =
@@ -8311,28 +8302,114 @@ mlir::LogicalResult GgmlVecScaleF32Op::verify() {
     return emitOpError()
            << "requires the scalar operand to bind a runtime ABI value of C "
               "type 'float' (the ggml v multiplier)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
     return emitOpError()
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  if (!isGenericRVVVectorF32M1(getResult().getType()))
+  // Region structure: exactly one entry argument -- the strip_index induction
+  // variable (index) -- terminated by the typed elementwise loop yield (which
+  // names no operand for the map model).
+  mlir::Block &block = getBody().front();
+  if (block.getNumArguments() != 1)
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
-              "\"m1\"> for the ggml f32 elementwise scale route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+           << "requires the region to carry exactly one entry argument: the "
+              "strip_index induction variable";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the region argument (strip_index) to be index-typed "
+              "(the strip induction variable)";
 
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+  TypedElementwiseLoopYieldOp yield =
+      block.empty()
+          ? TypedElementwiseLoopYieldOp()
+          : llvm::dyn_cast<TypedElementwiseLoopYieldOp>(&block.back());
+  if (!yield)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml f32 elementwise scale";
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_elementwise_loop_yield";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
+  // The map model carries no loop-carried value, so the yield names no operand
+  // (structurally enforced by the ODS `arguments = (ins)`); the HasParent trait
+  // pins the enclosing loop op.
+  return mlir::success();
+}
+
+mlir::LogicalResult ElementwiseScaleMapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind + the optional
+  // resource/scheduling strip-LMUL knob. A forbidden local element_count/SEW/
+  // LMUL/policy attr or an unexpected name fails closed (I7). The knob is named
+  // "strip_lmul" (not the with_vl/setvl "lmul" spelling), exactly as the sibling
+  // block-dot bricks use "integer_core_lmul".
+  auto isAllowedScaleAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "strip_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_scale_map keeps SEW/LMUL/policy on "
+                "setvl/with_vl and rejects deleted local element_count metadata";
+    if (!isAllowedScaleAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded scale-map attributes 'kind' and "
+                "'strip_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_scale_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_scale_map\" for the "
+              "bounded per-strip f32 in-place scale map brick";
+  if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
+    if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
+        *stripLmul != "m8")
+      return emitOpError()
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\"; got "
+                "\""
+             << *stripLmul << "\"";
+  }
+
+  RuntimeABIValueOp bufferBinding =
+      getBuffer().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp scalarBinding =
+      getScalar().getDefiningOp<RuntimeABIValueOp>();
+  if (!bufferBinding || bufferBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the in-place buffer operand to bind a runtime ABI value "
+              "of C type 'float *' (the ggml y[] buffer read and written in "
+              "place)";
+  if (!scalarBinding || scalarBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the scalar operand to bind a runtime ABI value of C "
+              "type 'float' (the ggml v multiplier)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // ANTI-BYPASS (I7): the strip_index MUST be the enclosing loop op's region
+  // induction variable (region argument 0), so the emit provably addresses strip
+  // i (buffer + strip_index), not the loop-invariant strip 0.
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return emitOpError()
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 1 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0) so the emit addresses buffer + "
+              "strip_index, not the loop-invariant strip 0 (anti-bypass)";
 
   return mlir::success();
 }

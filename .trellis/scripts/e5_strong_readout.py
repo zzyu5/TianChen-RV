@@ -761,6 +761,22 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # `binary_sign_core` token joins this whitelist too.
 _FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
+# M-FLAT forward-elementwise scaffold (line C, ① 之后): the reduce/MAP model. The
+# forward-pass (non-dot) operators are NOT contractions -- a pure elementwise MAP
+# (scale's y[i]*=v, silu's y[i]=x[i]*sigmoid(x[i])) has NO product-family AND NO
+# reduce-family primitive, so the contraction-shaped decomposed gate above would
+# wrongly demote it to constructed-weak. The MAP class satisfies the [L-8]
+# "decomposed = built from typed pattern-library primitives, no opaque helper"
+# conjunct via a MAP-family primitive instead: the per-strip
+# `tcrv_rvv.elementwise_scale_map` map brick (carried inside the typed
+# `tcrv_rvv.typed_elementwise_loop_body` strip-loop op). This whitelist is
+# deliberately NARROW (a scale-only fp16 `block_fp16_scale_product` body is NOT a
+# forward map primitive, so it stays the constructed-weak negative control; an
+# opaque monolith still trips the opaque gate), so the check stays discriminating.
+# The forward REDUCE model (rms_norm's Σx², softmax's Σe^x) is a later step and
+# would use the reduce conjunct on the same loop op.
+_MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map)")
+
 
 def _leading_ws(line):
     return len(line) - len(line.lstrip(" "))
@@ -848,7 +864,10 @@ def derive(manifest):
     # live in ONE brick — is not wrongly demoted.
     has_reduce = any("reduce" in m for m in mnemonics) or any(
         _FUSED_DOT_REDUCE_RE.search(m) for m in mnemonics)
-    decomposed = has_product and has_reduce
+    # M-FLAT reduce/MAP model: the forward-elementwise MAP class satisfies the
+    # [L-8] decomposed conjunct via a MAP-family primitive (no product/reduce).
+    has_map = any(_MAP_PRIMITIVE_RE.search(m) for m in mnemonics)
+    decomposed = (has_product and has_reduce) or has_map
     derived_state = (
         "constructed" if (non_empty and not has_opaque and decomposed)
         else "constructed-weak"
@@ -859,6 +878,7 @@ def derive(manifest):
         "opaque_ops": opaque_ops,
         "has_product": has_product,
         "has_reduce": has_reduce,
+        "has_map": has_map,
         "decomposed": decomposed,
         "derived_state": derived_state,
     }
@@ -1017,6 +1037,34 @@ module {
         %7 = tcrv_rvv.load %0, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f16, "m1">
         %8 = tcrv_rvv.block_fp16_scale_product %7, %2, %6 {kind = "block_fp16_scale_product"} : !tcrv_rvv.vector<f16, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         tcrv_rvv.store %4, %8, %6 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# M-FLAT forward-elementwise MAP ground truth (line C, ① 之后): the CONSTRUCTED
+# scale (y[i]*=v) realized body -- the typed elementwise strip-loop op carrying
+# the per-strip elementwise_scale_map map brick + the yield. It has NO
+# product/reduce primitive (a pure MAP), so it exercises the reduce/MAP model
+# branch: `has_map` satisfies the decomposed conjunct and it derives constructed
+# (STRONG). Distinct from _GT_SCALE_ONLY (which carries the fp16
+# block_fp16_scale_product and stays constructed-weak): the discriminator is the
+# map-FAMILY primitive, not a bare "scale" substring.
+_GT_ELEMENTWISE_MAP = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %v = tcrv_rvv.runtime_abi_value {c_name = "v"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_elementwise_loop_body %y, %v, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64, strip_lmul = "m8"} {
+        ^bb0(%i: index):
+          tcrv_rvv.elementwise_scale_map %y, %v, %n strip %i : index {kind = "elementwise_scale_map", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+          tcrv_rvv.typed_elementwise_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
   }
@@ -1386,8 +1434,33 @@ def cmd_self_test(_args):
     assert scale["has_opaque"] is False, scale
     assert scale["has_product"] is False, scale
     assert scale["has_reduce"] is False, scale
+    assert scale["has_map"] is False, scale
     assert scale["decomposed"] is False, scale
     assert scale["derived_state"] == "constructed-weak", scale
+
+    # M-FLAT forward-elementwise MAP ground truth: the CONSTRUCTED scale realized
+    # body (typed_elementwise_loop_body + elementwise_scale_map + yield). It has NO
+    # product/reduce (a pure MAP), so it exercises the reduce/MAP model branch:
+    # `has_map` satisfies the decomposed conjunct and it derives constructed
+    # (STRONG). This is the discriminating opposite of _GT_SCALE_ONLY (same "scale"
+    # word, but that carries the fp16 block_fp16_scale_product -- NOT a map primitive
+    # -- so it stays constructed-weak): the machine key is the map-FAMILY primitive
+    # tcrv_rvv.elementwise_scale_map, never a bare substring.
+    ew_map = derive(parse_realized_body(_GT_ELEMENTWISE_MAP))
+    assert ew_map["manifest"] == [
+        "tcrv_rvv.typed_elementwise_loop_body",
+        "tcrv_rvv.elementwise_scale_map",
+        "tcrv_rvv.typed_elementwise_loop_yield",
+    ], ew_map["manifest"]
+    assert ew_map["has_opaque"] is False, ew_map
+    assert ew_map["has_product"] is False, ew_map
+    assert ew_map["has_reduce"] is False, ew_map
+    assert ew_map["has_map"] is True, ew_map
+    assert ew_map["decomposed"] is True, ew_map
+    assert ew_map["derived_state"] == "constructed", ew_map
+    # Discrimination: the MAP model derives strong, the scale-only fp16 negative
+    # stays weak (the map-family primitive is the ONLY thing that flips it).
+    assert ew_map["derived_state"] != scale["derived_state"]
 
     # Super-block ground truth (q4_K milestone-3): the 5 q4_K bricks decompose the
     # super-block dot; the FUSED per-sub-block q4_k_scaled_dot satisfies BOTH the
@@ -1613,7 +1686,8 @@ def cmd_self_test(_args):
           "strong(super-block iq1_m grid_core fused reduce)=constructed / "
           "strong(repack GEVM lane-wise dot fused reduce, grouped %r:2 parse)=constructed / "
           "strong(repack GEMM prefill lane-wise dot fused reduce, grouped %r:4 parse)=constructed / "
-          "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate)")
+          "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate) / "
+          "forward-elementwise MAP(elementwise_scale_map)=constructed (reduce/MAP model branch)")
     return 0
 
 

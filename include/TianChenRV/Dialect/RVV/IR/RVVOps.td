@@ -8371,65 +8371,147 @@ def GgmlBlockDotIQ3SQ8KGridCoreOp
 // the iq1_m flip (L3): the front door constructs the typed super-block loop body
 // carrying the iq1_m grid-core brick (GgmlBlockDotIQ1MQ8KGridCoreOp) instead.
 
-def GgmlVecScaleF32Op
-    : TCRVRVV_Op<"ggml_vec_scale_f32",
-    [TCRVEmitCLowerableOpInterface]> {
+// ===========================================================================
+// M-FLAT FORWARD-ELEMENTWISE scaffold (line C, ① 之后): the typed elementwise
+// strip-loop body op + its map/reduce core brick + terminator. This is the
+// forward-pass (non-dot) sibling of the tcrv_rvv.typed_flat_block_dot_loop_body
+// block-dot scaffold: it puts the ELEMENTWISE strip loop (the
+// `for (i = 0; i < n; i += vlmax)` f32 map, no AoS block loop, no integer
+// widening, no cross-block accumulator) INTO the CORE typed body as ONE
+// region-carrying dataflow op, so the emission is determined by op identity + the
+// explicit reduce/map model, never by an opaque hand-written helper. The FIRST
+// forward operator constructed through it is scale (y[i] *= v, reduce_map_model
+// "map"); rms_norm / softmax (reduce_map_model "reduce") reuse the same scaffold.
+// ===========================================================================
+
+def TypedElementwiseLoopBodyOp
+    : TCRVRVV_Op<"typed_elementwise_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
   let summary =
-      "generic typed RVV ggml f32 in-place elementwise scale (y[i] *= v) op";
+      "generic typed RVV f32 elementwise strip-loop op for the forward-pass "
+      "(non-dot) map/reduce operators";
   let description = [{
-    Records the COMPLETE ggml `ggml_vec_scale_f32` forward-pass op as ONE bounded
-    generic plugin-local typed RVV f32 elementwise dataflow step: the in-place
-    per-lane multiply `y[i] = y[i] * v` over a flat unit-stride f32 buffer. This
-    is the FIRST forward-pass (non-dot) op family member -- a DIFFERENT shape
-    from the block-quantized integer dot-product ops (no AoS block loop, no
-    packed-int decode, no integer widening, no per-block fp16 scale): a single
-    VLEN-robust `vsetvl_e32m<L>` strip loop over the f32 lanes, `vle32` /
-    `vfmul_vf` (scalar broadcast) / `vse32`, matching ggml's hand-written RVV
-    path (vec.h:733-739, anchored at m8). The op is nested directly under
-    tcrv_rvv.with_vl and consumes THREE runtime ABI value operands -- the f32
-    buffer base pointer `y` (read AND written in place), the runtime f32 scalar
-    `v`, the runtime element count `n` -- plus the active !tcrv_rvv.vl token. It
-    produces ONE f32 LMUL !tcrv_rvv.vector token whose lowering is the in-place
-    strip store (no separate output buffer; `y` is both input and output).
+    Records a forward-pass f32 elementwise operator's OUTER strip loop as ONE
+    typed region-carrying dataflow op: the VLEN-robust
+    `for (i = 0; i < n; i += vlmax)` strip loop over a flat unit-stride f32
+    buffer, whose region carries the per-strip core brick that does the actual
+    map/reduce work. It is the forward-pass (non-dot) sibling of
+    tcrv_rvv.typed_flat_block_dot_loop_body: like that op it makes the loop +
+    the per-strip work a first-class typed body (I5) so the emission is
+    determined by op identity + the explicit `reduce_map_model` fact, NEVER
+    inferred from candidate-mirror metadata, route ids, ABI strings, artifact
+    names, status fields, exact intrinsic spellings, or op-name strings, and
+    NEVER an opaque hand-written elementwise helper.
 
-    The op makes the f32 elementwise in-place scale STRUCTURE first-class in the
-    typed body. Byte-exactness to ggml's real op is UNCONDITIONAL: `y[i] *= v` is
-    a bare per-lane fp32 multiply, so there is NO fused multiply-add (so
-    `-ffp-contract` cannot perturb it) and NO cross-lane reduction (so the LMUL /
-    tail / strip-count are correctness-free resource/scheduling knobs, never the
-    *what*). The fixed emission -- the strip loop, the vle32/vfmul_vf/vse32
-    intrinsic chain via emitc.call_opaque (the one sanctioned opaque piece,
-    exactly as the dot kernels emit their intrinsics) -- is the op's lowering,
-    NOT a candidate-mirror string read in the conversion. For the bounded surface
-    `kind` is limited to "ggml_vec_scale_f32". Route ids, helper names, ABI
-    strings, artifact names, status fields, exact intrinsic spellings, and common
-    EmitC/export code must not infer or choose f32 elementwise scale semantics.
+    `reduce_map_model` fixes the loop SHAPE (region-invariant): "map" (the
+    current bounded surface) is the pure elementwise map -- NO loop-carried
+    accumulator, the region carries just the strip induction variable and the
+    per-strip core brick writes its result straight to the buffer (scale's
+    `y[i] *= v`, silu's `y[i] = x[i]*sigmoid(x[i])`); "reduce" (a later step)
+    carries a loop-carried scalar/vector accumulator for the row reductions
+    (rms_norm's Σx², softmax's Σe^x). The current surface admits only "map".
 
-    The optional `strip_lmul` attribute is a bounded resource/scheduling fact --
-    it selects the LMUL the f32 strip loop anchors at ("m1", "m2", "m4", or "m8";
-    default "m8" to match ggml's hand-written path). It is purely the *how*
-    (vector grouping / strip width), never the *what*: the result is byte-exact
-    at any anchor because every lane is multiplied by the same `v` and the strip
-    loop re-strips correctly for any VLEN via the runtime `vsetvl_e32m<L>(n-i)`.
-    (It is named `strip_lmul`, not the with_vl/setvl `lmul` spelling, so the op
-    keeps no SEW/LMUL/policy dataflow-parameter attr at the I5 boundary -- the
-    sibling block-dot op uses the same convention with `integer_core_lmul`.)
+    The op consumes the forward operator's runtime ABI operands -- the in/out
+    f32 buffer base pointer `buffer`, the runtime f32 `scalar` broadcast value,
+    and the runtime element count `n` -- and owns one single-block region whose
+    entry argument is the `strip_index` induction variable (index). The region
+    is terminated by tcrv_rvv.typed_elementwise_loop_yield (no carried operand
+    for the map model). The bounded scheduling facts (`element_sew`, the
+    optional `strip_lmul`) are the byte-exact shape knobs the monolithic
+    forward emit reads (the *how* -- SEW / strip width -- never the *what*): the
+    map is a bare per-lane multiply (no FMA, no reduction), so it is byte-exact
+    at any LMUL because the strip re-strips via the runtime `vsetvl_e32m<L>(n-i)`.
+    The op does NOT own dtype/route authority; the per-strip compute is a
+    separate typed core brick carried inside the region.
   }];
 
   let arguments = (ins
     AnyType:$buffer,
     AnyType:$scalar,
-    AnyType:$element_count,
-    AnyType:$vl,
+    AnyType:$n,
+    StrAttr:$kind,
+    StrAttr:$reduce_map_model,
+    I64Attr:$element_sew,
+    OptionalAttr<StrAttr>:$strip_lmul
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $buffer `,` $scalar `,` $n
+    attr-dict-with-keyword $body `:`
+    type($buffer) `,` type($scalar) `,` type($n)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedElementwiseLoopYieldOp
+    : TCRVRVV_Op<"typed_elementwise_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedElementwiseLoopBodyOp">]> {
+  let summary =
+      "terminator of the typed elementwise strip-loop region (map model: no "
+      "carried operand)";
+  let description = [{
+    Terminates the tcrv_rvv.typed_elementwise_loop_body region. For the current
+    bounded "map" reduce_map_model the map writes its result straight to the
+    buffer per strip, so there is NO loop-carried value and the yield names no
+    operand (mirroring an emitc.for with no iter_args). It carries no compute,
+    dtype, memory, or route semantics.
+  }];
+
+  let arguments = (ins);
+
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
+
+def ElementwiseScaleMapOp
+    : TCRVRVV_Op<"elementwise_scale_map",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-strip f32 in-place scale map brick (y[i] *= v)";
+  let description = [{
+    Records ONE strip's f32 in-place elementwise scale -- the per-strip CORE of
+    ggml's `ggml_vec_scale_f32` (y[i] = y[i] * v) -- as ONE bounded generic
+    plugin-local typed RVV dataflow step: the map-family primitive of the
+    forward-elementwise scaffold (the sibling of the block-dot integer-core
+    product bricks). It is carried inside the tcrv_rvv.typed_elementwise_loop_body
+    region and lowers to the byte-exact strip
+    (`vsetvl_e32m<L>(n-i)` / `vle32` / `vfmul_vf` scalar-broadcast / `vse32`),
+    node-identical to ggml's hand-written RVV path (vec.h:733-739).
+
+    Byte-exactness is UNCONDITIONAL: `y[i] *= v` is a bare per-lane fp32 multiply
+    (no FMA, so -ffp-contract cannot perturb it; no cross-lane reduction, so the
+    LMUL / tail / strip-count are correctness-free resource knobs). The op
+    consumes the in/out f32 buffer base pointer `buffer`, the runtime f32
+    `scalar`, the runtime element count `n`, and the loop's `strip_index`
+    induction variable (region argument 0). It has NO result -- the in-place
+    strip store is the sink.
+
+    The `strip_index` operand is the ANTI-BYPASS tie: it MUST be the loop
+    induction variable (region argument 0), so the per-strip element pointer is
+    `buffer + strip_index` -- the emit provably addresses strip i, not the
+    loop-invariant strip 0 (fail-closed otherwise, exactly the flat/super-block
+    per-block-source anti-bypass). The bounded surface `kind` is limited to
+    "elementwise_scale_map". The optional `strip_lmul` is the bounded resource
+    knob selecting the f32 strip anchor LMUL ("m1"|"m2"|"m4"|"m8", default "m8"
+    to match ggml's apply path) -- the *how*, never the *what*. Route ids,
+    helper names, ABI strings, artifact names, status fields, and exact
+    intrinsic spellings must not infer or choose this map's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$scalar,
+    AnyType:$n,
+    Index:$strip_index,
     StrAttr:$kind,
     OptionalAttr<StrAttr>:$strip_lmul
   );
-  let results = (outs AnyType:$result);
 
   let assemblyFormat =
-    "$buffer `,` $scalar `,` $element_count `,` $vl "
-    "attr-dict `:` type($buffer) `,` type($scalar) `,` "
-    "type($element_count) `,` type($vl) `->` type($result)";
+    "$buffer `,` $scalar `,` $n `strip` $strip_index `:` type($strip_index) "
+    "attr-dict `:` type($buffer) `,` type($scalar) `,` type($n)";
   let hasVerifier = 1;
 }
 
