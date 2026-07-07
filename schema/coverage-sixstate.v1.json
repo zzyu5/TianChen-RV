@@ -241,14 +241,16 @@
     {
       "op": "quantize_row",
       "format": "q8_1",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlQuantizeRowQ81Op (tcrv_rvv.quantize_row_q8_1, hasVerifier) -> RVVDialectWideningOps.cpp GgmlQuantizeRowQ81Op::verify (fail-closed I7, kind + block_stride=36 + scale/sum/quant byte offsets 0/2/4) -> RVVToEmitC.cpp isGgmlQuantizeRowQ81Body dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlQuantizeRowQ81 (hand-written AoS block loop reproducing ggml quantize_row_q8_1 RVV path: the q8_0 amax/scale/narrow SIBLING -- vfabs+vfredmax amax, d=amax/127, id=d?1/d:0 structured cmp/if, native (_Float16)d store, vfmul_vf scale, vfncvt(rne)+vncvt f32->i16->i8 narrow, 32 int8 qs store -- PLUS the extra vwredsum_vs_i8m2_i16m1 integer block sum, vmv_x_s extract, native (_Float16)(sum*d) stored as block_q8_1.s); lit test/Conversion/RVV/rvv-to-emitc-ggml-quantize-row-q8-1.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written per-format monolith activation-quantizer, NOT a typed_flat_block_dot brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q8_1 SIBLING of q8_0 REUSES the whole q8_0 amax/scale/narrow shape + adds the vwredsum block sum feeding block_q8_1.s. Byte-exact to ggml's EXACT RVV method (vfncvt rne + native _Float16 casts + vwredsum int sum), NOT the scalar _ref (roundf); numbers pending-hardware."
     },
     {
       "op": "quantize_row",
       "format": "q8_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlQuantizeRowQ8KOp (tcrv_rvv.quantize_row_q8_K, hasVerifier) -> RVVDialectWideningOps.cpp GgmlQuantizeRowQ8KOp::verify (fail-closed I7, kind + qk=256 + block_stride=292 + scale/quant/bsums byte offsets 0/4/260) -> RVVToEmitC.cpp isGgmlQuantizeRowQ8KBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlQuantizeRowQ8K (hand-written AoS QK_K=256 super-block loop reproducing ggml quantize_row_q8_K RVV path: vsetvlmax_e32m8-folded vfmax_vv/vfmin_vv min/max strip loop + vfredmax/vfredmin scalar reduce seeded -/+inf, fabsf-symmetric amax + iscale=-127/(|max|>|min|?max:min), a STRUCTURED amax==0 if/else zero path (float d=0, memset qs+bsums), else the FLOAT d=1/iscale store + the quantize strip loop vfmul_vf + vfcvt_x_f_v_i32m8_rm(RNE) + vnclip_wx_i16m4/i8m2(RNE) f32->i32->i16->i8 narrow + 256 int8 qs store + the 16 per-16-element vslidedown-advanced vwredsum_vs_i8m1_i16m1 bsums); lit test/Conversion/RVV/rvv-to-emitc-ggml-quantize-row-q8-k.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written per-format monolith activation-quantizer, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. q8_K is the K-quant activation quantizer the K-quant block-dot vec_dots (q2_K..q6_K + IQ grid tables) CONSUME; it is the heaviest quantizer (min/max symmetric scale, float d, RNE vfcvt/vnclip narrow, per-16 bsums, zero-block memset). Byte-exact to ggml's EXACT RVV method; numbers pending-hardware."
     },
     {
       "op": "dequantize_row",
@@ -456,8 +458,9 @@
       "op": "gemm_tile",
       "format": "q5_1",
       "engine": "rvv",
-      "state": "absent",
-      "anchor": "no in-code repack GEMM"
+      "state": "dispatch-wired",
+      "anchor": "emitRepackGemv q5_1 (tcrv_rvv.repack_gemv_q5_1_q8_1): GgmlRepackGemvQ51Q81Op (RVVOps.td) + GgmlRepackGemvQ51Q81Op::verify (RVVDialectWideningOps.cpp, fail-closed I7) + isRepackGemvQ5_1Q8_1Body dispatch (RVVToEmitC.cpp) + emitRepackGemvQ5_1Q8_1 (RVVToEmitCBlockQuantLinear.cpp) + rvv-to-emitc-repack-gemv-q5-1-q8-1.mlir",
+      "note": "absent -> dispatch-wired (裁决四接线批②). q5_1 repacked block-as-lane GEVM (decode) wired as the UNION of the two proven repacked-GEVM siblings: the FIVE-BIT transposed-qh weight decode of the q5_0 repack (block_q5_1x16: 16 fp16 d @0 + 16 fp16 m @32 + 256 RAW nibble bytes @64 + 64 transposed bit-packed qh bytes @320, stride 384) fused with the FAMILY-B (scale+MIN, asymmetric) dual fold of the q4_1 repack (plain block_q8_1 activation, stride 36, d@0/s@2/qs@4; per-strip sumf += (d_x*d_y)*sumi + m_x*s_y). q5_1 is q4_1 plus the 5th high bit: the integer core assembles the UNSIGNED A = nibble | (qh_bit<<4) in [0,31] WITHOUT the q5_0 `-16` offset-binary bias (asymmetric; bias in the MIN scale), then feeds the SAME lane-wise vwmacc + q4_1 dual fold. Verifier pins the block_q5_1x16 ABI fail-closed (wrong stride/kind/min-offset/qh-offset, forbidden LMUL attr, bad half_lanes all rejected -- verified). Byte-exact-vs-ggml-q5_1 by construction (union of two byte-exact decode paths); numbers pending-hardware (not run on ssh rvv this cut). This is coverage/dispatch wiring, NOT the constructed typed-loop-body rung (like the q5_0/q8_0/q4_1/q4_K dispatch-wired siblings, not the q4_0 constructed repack GEVM/GEMM). DECODE only (single-column GEVM); the prefill GEMM sibling is not wired (matches the q5_0/q8_0 dispatch-wired precedent -- GEVM alone flips the single gemm_tile roster entry)."
     },
     {
       "op": "gemm_tile",

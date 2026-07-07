@@ -370,6 +370,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // emitTypedRepackGemvLoopBody.
         {&isRepackGemvQ5_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0},
+        {&isRepackGemvQ5_1Q8_1Body,
+         &VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1},
         {&isPackQ4_0ToX16Body,
          &VariantToEmitCFunc::emitPackQ4_0ToX16},
         {&isRepackGemvQ4_1Q8_1Body,
@@ -554,6 +556,33 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     // scalar branch) and vs the integer block-dot ops. Marker: the op identity.
     if (isGgmlQuantizeRowQ80Body(scope)) {
       if (mlir::failed(emitGgmlQuantizeRowQ80(rewriter, loc, scope, avlArg,
+                                              sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The q8_1 SIBLING quantizer (tcrv_rvv.quantize_row_q8_1): the SAME amax/
+    // scale/narrow shape as q8_0 PLUS the extra vwredsum integer block sum stored
+    // as the fp16 block_q8_1.s. DISPATCH-WIRED, void-return like q8_0. Marker: the
+    // op identity ([L-6] wiring != construction).
+    if (isGgmlQuantizeRowQ81Body(scope)) {
+      if (mlir::failed(emitGgmlQuantizeRowQ81(rewriter, loc, scope, avlArg,
+                                              sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The q8_K K-quant activation quantizer (tcrv_rvv.quantize_row_q8_K): the
+    // heaviest quantizer -- a QK_K=256 super-block min/max symmetric scale, the
+    // vfcvt/vnclip RNE narrowing, the float d store, the per-16 vwredsum bsums,
+    // and the zero-block memset special case. DISPATCH-WIRED, void-return. Marker:
+    // the op identity ([L-6] wiring != construction).
+    if (isGgmlQuantizeRowQ8KBody(scope)) {
+      if (mlir::failed(emitGgmlQuantizeRowQ8K(rewriter, loc, scope, avlArg,
                                               sizeType, valueMap)))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
@@ -1217,6 +1246,20 @@ bool VariantToEmitCFunc::isRepackGemvQ5_0Q8_0Body(tcrvrvv::WithVLOp scope) {
     return sawGemv;
   }
 
+bool VariantToEmitCFunc::isRepackGemvQ5_1Q8_1Body(tcrvrvv::WithVLOp scope) {
+    bool sawGemv = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ51Q81Op>(op)) {
+        if (sawGemv)
+          return false;
+        sawGemv = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemv;
+  }
+
 bool VariantToEmitCFunc::isPackQ4_0ToX16Body(tcrvrvv::WithVLOp scope) {
     bool sawPack = false;
     for (mlir::Operation &op : scope.getBody().front()) {
@@ -1619,6 +1662,34 @@ bool VariantToEmitCFunc::isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope) {
     bool sawQuantize = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlQuantizeRowQ80Op>(op)) {
+        if (sawQuantize)
+          return false;
+        sawQuantize = true;
+      } else {
+        return false;
+      }
+    }
+    return sawQuantize;
+  }
+
+bool VariantToEmitCFunc::isGgmlQuantizeRowQ81Body(tcrvrvv::WithVLOp scope) {
+    bool sawQuantize = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlQuantizeRowQ81Op>(op)) {
+        if (sawQuantize)
+          return false;
+        sawQuantize = true;
+      } else {
+        return false;
+      }
+    }
+    return sawQuantize;
+  }
+
+bool VariantToEmitCFunc::isGgmlQuantizeRowQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool sawQuantize = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlQuantizeRowQ8KOp>(op)) {
         if (sawQuantize)
           return false;
         sawQuantize = true;

@@ -312,6 +312,13 @@ private:
   /// expansion with the transposed bit-packed qh 5th-bit decode.
   static bool isRepackGemvQ5_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
+  /// The q5_1 16x1-REPACKED single-column GEMV (decode) recognizer: a with_vl
+  /// scope whose ONLY compute op is a single tcrv_rvv.repack_gemv_q5_1_q8_1. The
+  /// op identity is the dispatch key; the emitter owns the block-as-lane
+  /// expansion (the q5_0 transposed bit-packed qh 5th-bit decode fused with the
+  /// q4_1 scale+MIN dual fold).
+  static bool isRepackGemvQ5_1Q8_1Body(tcrvrvv::WithVLOp scope);
+
   /// The option-2 stage-C1b PACK (materialize) recognizer: a with_vl scope whose
   /// ONLY compute op is a single tcrv_rvv.pack_q4_0_to_q4_0x16. The op identity
   /// is the dispatch key; the emitter owns the scalar gather + ^0x88 pack body.
@@ -530,6 +537,21 @@ private:
   /// loop with the vfredmax reduction, the d?1/d:0 conditional, and the
   /// vfncvt/vncvt narrowing chain.
   static bool isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope);
+
+  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_1
+  /// (the f32->block_q8_1 activation quantizer: the q8_0 amax/scale/narrow SIBLING
+  /// plus the extra vwredsum integer block sum stored as the fp16 block_q8_1.s).
+  /// The op identity is the dispatch key; the emitter owns the structured block
+  /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
+  static bool isGgmlQuantizeRowQ81Body(tcrvrvv::WithVLOp scope);
+
+  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_K
+  /// (the f32->block_q8_K K-quant activation quantizer: the QK_K=256 min/max
+  /// symmetric scale, the vfcvt/vnclip RNE narrowing, the float d store, and the
+  /// per-16 vwredsum bsums, with the zero-block memset special case). The op
+  /// identity is the dispatch key; the emitter owns the structured super-block
+  /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
+  static bool isGgmlQuantizeRowQ8KBody(tcrvrvv::WithVLOp scope);
 
   /// True iff the with_vl body is EXACTLY one forward-elementwise f32 support op
   /// (tcrv_rvv.vec_add_f32 | tcrv_rvv.vec_mul_f32 | tcrv_rvv.vec_cpy_f32 |
@@ -1261,6 +1283,29 @@ private:
   /// ((nibble | (qh_bit<<4)) - 16). Activation + dual-fp16 scale fold are
   /// byte-identical to the q4_0 GEMV.
   mlir::LogicalResult emitRepackGemvQ5_0Q8_0(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The q5_1 block-as-lane 16x1-REPACKED single-column GEVM (decode): the UNION
+  /// of emitRepackGemvQ5_0Q8_0's FIVE-BIT weight decode and emitRepackGemvQ4_1Q8_1's
+  /// FAMILY-B (scale+MIN, asymmetric) dual fold. q5_1 is q4_1 plus the 5th high
+  /// bit. The weight side is block_q5_1x16 (16 interleaved rows; 16 fp16 d @+0, 16
+  /// fp16 m @+32, RAW nibbles @+64, a 64-byte TRANSPOSED bit-packed qh region
+  /// @+320 carrying one 16-bit mask per element step). Per nibble step the lane
+  /// decode expands the qh mask (splat, vsrl by lane id, vand 1 -> qh_bit),
+  /// assembles the UNSIGNED A = nibble | (qh_bit<<4) in [0,31], reinterprets
+  /// u8->i8 -- WITHOUT the q5_0 `-16` bias (q5_1 is asymmetric; the bias lives in
+  /// the MIN scale) -- then feeds the SAME lane-wise vwmacc against the plain q8_1
+  /// quants. The fold carries the per-block MIN correction LANE-WISE: d_x/m_x are
+  /// VECTOR strips (vle16 at +0 / +32), d_y/s_y are the single activation column's
+  /// SCALARS (+0 / +2), and the fold is ggml's q5_1 statement
+  /// sumf += (d_x*d_y)*sumi + m_x*s_y folded as vfmacc (scale term) then vfadd of
+  /// vfwmul(m_x, s_y) (MIN term). Byte-exact vs canonical ggml q5_1 by
+  /// construction (the union of two proven repacked-GEVM decode paths). The
+  /// block-format facts are the op's typed attrs (I4 mirror); the emission is the
+  /// op's fixed structure (I5; every value is a node, ZERO raw() strings).
+  mlir::LogicalResult emitRepackGemvQ5_1Q8_1(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
@@ -3552,6 +3597,42 @@ private:
   /// matching ggml's exact path -- never synthesized (a _rm/_tu suffix would
   /// change the rounding mode or fail to compile).
   mlir::LogicalResult emitGgmlQuantizeRowQ80(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_1` RVV-path body for the single
+  /// tcrv_rvv.quantize_row_q8_1 op nested under `scope` as fully STRUCTURED emitc
+  /// nodes (I5). The SIBLING of emitGgmlQuantizeRowQ80: the SAME per-32-block amax
+  /// reduction + d = amax/127 + id = d?1/d:0 + fp16 d store + vfmul scale +
+  /// vfncvt/vncvt f32->i16->i8 narrow + the 32 int8 qs store, PLUS the extra
+  /// block sum:
+  ///     vint16m1_t tmp2 = __riscv_vmv_v_x_i16m1(0, vl);
+  ///     vint16m1_t vwrs = __riscv_vwredsum_vs_i8m2_i16m1(vs, tmp2, vl);
+  ///     int sum = __riscv_vmv_x_s_i16m1_i16(vwrs);
+  ///     *(_Float16 *)(yb + 2) = (_Float16)(sum * d);      // block_q8_1.s
+  /// The qs move to AoS byte 4 (after the fp16 d + fp16 s). BYTE-EXACTNESS is to
+  /// ggml's EXACT RVV method (vfncvt rne + native _Float16 casts + vwredsum int
+  /// sum). Hand-written monolith body (wiring, not construction: no typed loop
+  /// brick).
+  mlir::LogicalResult emitGgmlQuantizeRowQ81(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_K` RVV-path body for the single
+  /// tcrv_rvv.quantize_row_q8_K op nested under `scope` as fully STRUCTURED emitc
+  /// nodes (I5). The heaviest quantizer: an outer QK_K=256 super-block loop whose
+  /// body (1) folds a min AND max over an e32m8 strip loop (vfmax_vv/vfmin_vv)
+  /// then vfredmax/vfredmin to scalars, (2) computes amax via fabsf and the
+  /// symmetric iscale = -127/(|max|>|min|?max:min), (3) on amax==0 takes a
+  /// STRUCTURED emitc.if/else zero path (float d=0, memset qs+bsums), else stores
+  /// the FLOAT d = 1/iscale and runs the quantize strip loop: vfmul by iscale,
+  /// vfcvt_x_f_v_i32m8_rm(RNE) + two vnclip_wx(RNE) f32->i32->i16->i8 narrow, the
+  /// 256 int8 qs store, and the 16 per-16-element bsums (vslidedown-advanced
+  /// vwredsum chunks). BYTE-EXACTNESS is to ggml's EXACT RVV method. Hand-written
+  /// monolith body (wiring, not construction: no typed loop brick).
+  mlir::LogicalResult emitGgmlQuantizeRowQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

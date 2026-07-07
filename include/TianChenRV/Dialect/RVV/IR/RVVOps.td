@@ -4600,6 +4600,118 @@ def GgmlRepackGemvQ50Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemvQ51Q81Op
+    : TCRVRVV_Op<"repack_gemv_q5_1_q8_1",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml Q5_1 x Q8_1 16x1-REPACKED GEMV (block-as-lane) op";
+  let description = [{
+    Records the COMPLETE ggml q5_1 16x1-REPACKED GEMV (decode) hot kernel as ONE
+    bounded generic plugin-local typed RVV dataflow step. It is the UNION of the
+    two existing repacked-GEVM siblings: the FIVE-BIT weight decode of
+    tcrv_rvv.repack_gemv_q5_0_q8_0 (the transposed bit-packed qh 5th-bit source)
+    fused with the FAMILY-B (scale+MIN, asymmetric) dual fold of
+    tcrv_rvv.repack_gemv_q4_1_q8_1. The weight side is the block_q5_1x16
+    block-as-lane layout (the 16 interleaved weight rows of a group occupy 16
+    distinct vector lanes so the dot accumulates LANE-WISE via vwmacc, NO
+    cross-lane vredsum -- the per-block reduction wall is gone), and the
+    activation is ONE plain block_q8_1 stream (NOT an interleaved x4). At VLEN=128
+    an e16m1 vector holds only 8 i16 lanes, so each 16-block-as-lane group is
+    processed as TWO disjoint contiguous halves of 8 lanes each (rows 0..7 then
+    rows 8..15) inline; at VLEN=256 it is ONE 16-lane strip. Every weight byte is
+    read exactly once.
+
+    q5_1 is q4_1 PLUS the 5th high bit, exactly as q5_0 is q4_0 plus the 5th bit.
+    The integer core assembles the UNSIGNED 5-bit weight `A = nibble | (qh_bit <<
+    4)` in [0,31] (the SAME transposed bit-packed qh source as the q5_0 repack: a
+    64-byte qh region carrying, for each of the 32 element steps, ONE 16-bit mask
+    whose bit b is block b's qh bit for that element; the low-half element i takes
+    the mask at qh+i*2, the high-half element i+16 the mask at qh+(16+i)*2), then
+    reinterprets u8->i8 (value-identity for 0..31). UNLIKE the q5_0 sibling there
+    is NO offset-binary `-16` bias (q5_1 is asymmetric -- the bias lives in the
+    separate per-block MIN scale), so the assembled lane feeds vwmacc DIRECTLY.
+    The qs nibbles are stored RAW (the bias is NOT baked), byte-identical to the
+    q4_1/q5_0 repacked nibble load path.
+
+    The per-strip fold carries the per-block MIN correction LANE-WISE, exactly as
+    the q4_1 repacked GEVM: block_q5_1x16 stores 16 inline fp16 `d` (per row),
+    then 16 inline fp16 `m` (per row, the MIN), then the 256 interleaved nibble
+    bytes, then the 64-byte transposed bit-packed qh region; block_q8_1 stores
+    fp16 `d` then fp16 `s` (the PRECOMPUTED scaled activation sum d_y*sum(q8))
+    then the 32 int8 quants. ggml's exact per-row statement is
+    `sumf += (d_x*d_y)*sumi + m_x*s_y`: the (d_x*d_y)*sumi scale term plus the
+    m_x*s_y MIN term. d_x and m_x are VECTOR strips (one lane per weight row,
+    vle16), d_y and s_y are the single activation column's SCALARS. The MIN term
+    is folded LANE-WISE (vfwmul(m_x, s_y) then vfadd) -- the lane-wise analogue of
+    the q4_1/q5_1 block-dot's scalar m_x*s_y.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
+    ABI value operands -- the repacked q5_1x16 weight base pointer (vx), the plain
+    q8_1 activation base pointer (vy), the fp32 output base pointer (s) -- plus the
+    runtime contraction element count (n) and the runtime weight-column count (nc),
+    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token whose lowering writes the nc fp32 results through the
+    output pointer. There is NO activation-row count (nr is 1) and NO output row
+    stride (single-column store `s + x*16`).
+
+    The structural facts -- QK=32, the repacked weight block stride (384 bytes for
+    block_q5_1x16 = 16 fp16 d + 16 fp16 m + 256 nibble bytes + 64 transposed qh
+    bytes), the plain activation block stride (36 bytes for block_q8_1), the
+    repacked weight nibble byte offset (qs at +64 after the 16 d + 16 m fp16
+    scales), the per-row weight MIN byte offset (m strip at +32 after the 16 d
+    scales), the repacked weight qh byte offset (the transposed bit-packed qh
+    masks at +320 after the 256 nibble bytes), the plain activation quant byte
+    offset (qs at +4 after the d + s fp16 scales), the activation scaled-sum byte
+    offset (s at +2 after d), the weight interleave width (16), the resource-aware
+    e16m1 strip width (half_lanes in {8,16}), and the dual-fp16-plus-min scale
+    model -- are carried as typed integer/string attributes (I4 mirror only). The
+    fixed emission is the op's lowering, NOT a candidate-mirror string read in the
+    conversion. The bounded surface kind is limited to
+    "ggml_repack_gemv_q5_1_q8_1" and scale_model to
+    "dual-fp16-per-block-d_x.d_y-plus-min".
+
+    The optional `integer_core_lmul` attribute is the SAME bounded
+    resource/scheduling fact the q4_1/q5_0 repacked GEVM siblings carry (the *how*,
+    never the *what*; the 16-way interleaved repack reads the SAME bytes either
+    way): absent / "mf2" anchors the RVV1.0 fractional chain (half_lanes in
+    {8,16}), "m1" anchors the RVV0.7.1 whole-LMUL chain (half_lanes 16, ONE
+    16-lane strip). The verifier pins the legal (integer_core_lmul, half_lanes)
+    combinations fail-closed (I7); half_lanes must divide the 16-way interleave.
+    A malformed typed body cannot lower under this emission.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_qh_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$weight_min_byte_offset,
+    I64Attr:$activation_sum_byte_offset,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$column_count `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($column_count) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlPackQ40ToX16Op
     : TCRVRVV_Op<"pack_q4_0_to_q4_0x16",
     [TCRVEmitCLowerableOpInterface]> {
@@ -9044,9 +9156,11 @@ def GgmlQuantizeRowQ80Op
     strings, artifact names, status fields, exact intrinsic spellings, and common
     EmitC/export code must not infer or choose f32->q8_0 quantizer semantics.
 
-    q8_1 is the SIBLING quantizer (same amax/scale/narrow + an extra
-    `vfredusum` block sum stored as `block_q8_1.s`); it is a separate op for a
-    later increment, NOT folded into this kind.
+    q8_1 is the SIBLING quantizer (same amax/scale/narrow + an extra `vwredsum`
+    integer block sum stored as the fp16 `block_q8_1.s`); it is its own op
+    (GgmlQuantizeRowQ81Op), NOT folded into this kind. q8_K is the K-quant
+    activation quantizer (GgmlQuantizeRowQ8KOp) -- a heavier min/max-symmetric
+    QK_K = 256 super-block quantizer with a float `d` + per-16 `bsums`.
   }];
 
   let arguments = (ins
@@ -9059,6 +9173,138 @@ def GgmlQuantizeRowQ80Op
     I64Attr:$block_stride,
     I64Attr:$scale_byte_offset,
     I64Attr:$quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlQuantizeRowQ81Op
+    : TCRVRVV_Op<"quantize_row_q8_1",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32->block_q8_1 activation quantizer op";
+  let description = [{
+    Records the COMPLETE ggml `quantize_row_q8_1` RVV-path forward-pass op (the
+    f32 -> block_q8_1 ACTIVATION QUANTIZER; riscv/quants.c) as ONE bounded generic
+    plugin-local typed RVV dataflow step, DISPATCH-WIRED ([L-6] wiring !=
+    construction: the emitter owns a hand-written monolith body, NOT a
+    typed_flat_block_dot / pattern-library primitive). q8_1 is the SIBLING of the
+    q8_0 quantizer: the SAME per-32-block max-abs REDUCTION (`vfredmax` of
+    `vfabs`) + scalar scale (`d = amax/127`, `id = d ? 1/d : 0`) + f32->i16->i8
+    NARROWING CONVERT (`vfncvt` round-to-nearest-EVEN + `vncvt` truncate) written
+    into the AoS `qs`, PLUS an extra integer block sum `s = d * sum(qs[i])` stored
+    as the fp16 `block_q8_1.s`. The sum is a WIDENING INTEGER reduction of the
+    int8 quants (`vwredsum` of the i8 `vs` into an i16m1 accumulator seeded 0,
+    then `vmv_x_s` extract), NOT a float reduction.
+
+    block_q8_1 AoS layout (ggml-common.h:248-259 + QK8_1 = 32): the fp16 `d` at
+    byte 0, the fp16 `s` at byte 2, the 32 int8 `qs` at byte 4; stride 36. The
+    block-format facts (`qk` = 32, `block_stride` = 36, the scale/sum/quant byte
+    offsets) are the op's typed mirror attrs (I4); the emission is the op's fixed
+    structure. For the bounded surface `kind` is limited to
+    "ggml_quantize_row_q8_1". The strip is pinned at the m8 anchor ggml uses (the
+    block's 32 lanes in one e32m8 strip; there is NO strip_lmul knob, matching
+    q8_0/silu precedent). Route ids, helper names, ABI strings, artifact names,
+    status fields, and common EmitC/export code must not infer or choose
+    f32->q8_1 quantizer semantics.
+
+    BYTE-EXACTNESS to the DEPLOYED kernel hinges on ggml's EXACT RVV method, NOT
+    the scalar `_ref`: the `vfncvt_x_f_w_i16m4` round-to-nearest-EVEN narrow, the
+    native `(_Float16)` casts for BOTH `d` and `s` (the board is __riscv_zfhmin),
+    the load-bearing `d ? 1/d : 0` conditional (STRUCTURED emitc.cmp + emitc.if),
+    and the `vwredsum` int8->i16 block sum feeding `(_Float16)(sum * d)`.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
+    ABI value operands -- the read-only f32 input base pointer `x` (`const float
+    *`), the block_q8_1 output BYTE buffer base pointer `vy` (`uint8_t *`), the
+    runtime element count `n` (= ggml's `k`, n % 32 == 0 a ggml contract) -- plus
+    the active !tcrv_rvv.vl token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector
+    token (the per-block store boundary).
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$sum_byte_offset,
+    I64Attr:$quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlQuantizeRowQ8KOp
+    : TCRVRVV_Op<"quantize_row_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml f32->block_q8_K activation quantizer op";
+  let description = [{
+    Records the COMPLETE ggml `quantize_row_q8_K` RVV-path forward-pass op (the
+    f32 -> block_q8_K ACTIVATION QUANTIZER; riscv/quants.c) as ONE bounded generic
+    plugin-local typed RVV dataflow step, DISPATCH-WIRED ([L-6] wiring !=
+    construction). q8_K is the K-quant activation quantizer the K-quant block-dot
+    vec_dots (q2_K..q6_K + the IQ grid tables) CONSUME. It is structurally the
+    heaviest quantizer: over a QK_K = 256 super-block it runs a min AND max
+    REDUCTION (a strip loop of `vfmax_vv`/`vfmin_vv` folded by `vfredmax`/
+    `vfredmin` seeded -/+inf), a SYMMETRIC `iscale = -127 / (|max| > |min| ? max :
+    min)` scale with `d = 1/iscale` (a FLOAT, NOT an fp16), a f32->i32->i16->i8
+    NARROWING CONVERT with EXPLICIT round-to-nearest-even modes
+    (`vfcvt_x_f_v_i32m8_rm` frm = __RISCV_FRM_RNE, then two `vnclip_wx` vxrm =
+    __RISCV_VXRM_RNE), and 16 per-16-element block sums (`bsums`) each a
+    `vwredsum` over a `vslidedown`-advanced 16-lane chunk. The all-zero
+    super-block (`amax == 0`) is the load-bearing special case: `d = 0`, `qs` and
+    `bsums` memset to 0, emitted as a STRUCTURED emitc.if/else (NOT a `continue`).
+
+    block_q8_K AoS layout (ggml-common.h:360-366 + QK_K = 256): the FLOAT `d` at
+    byte 0 (four bytes; NOT an fp16 like q8_0/q8_1), the 256 int8 `qs` at byte 4,
+    the 16 int16 `bsums` at byte 260; stride 292. The block-format facts (`qk` =
+    256, `block_stride` = 292, the scale/quant/bsums byte offsets) are the op's
+    typed mirror attrs (I4). For the bounded surface `kind` is limited to
+    "ggml_quantize_row_q8_K". The strip fold rides ggml's e32m8 vlmax anchor
+    (`vsetvlmax_e32m8`); there is NO strip_lmul knob. Route ids, helper names, ABI
+    strings, artifact names, status fields, and common EmitC/export code must not
+    infer or choose f32->q8_K quantizer semantics.
+
+    BYTE-EXACTNESS is to ggml's EXACT RVV method: the `vfcvt`/`vnclip` explicit
+    RNE rounding modes, the `fabsf`-based symmetric `iscale`, the FLOAT `d =
+    1/iscale` store, the `vwredsum` per-16 bsums, and the zero-block memset path.
+    `fabsf` and `memset` are the sanctioned scalar/opaque seams; the -inf/+inf
+    reduction seeds are `-__builtin_inff()` / `__builtin_inff()`.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
+    ABI value operands -- the read-only f32 input base pointer `x` (`const float
+    *`), the block_q8_K output BYTE buffer base pointer `vy` (`uint8_t *`), the
+    runtime element count `n` (= ggml's `k`, n % 256 == 0 a ggml contract) -- plus
+    the active !tcrv_rvv.vl token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector
+    token (the per-block store boundary).
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$quant_byte_offset,
+    I64Attr:$bsums_byte_offset
   );
   let results = (outs AnyType:$result);
 
