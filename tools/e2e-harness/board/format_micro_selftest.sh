@@ -58,19 +58,19 @@ if $CC -O2 -c "$HERE/format_micro_factory_stub.c" -o "$WD/factory_stub.o" 2>"$WD
   LOC="$(NM="$NM" bash "$HERE/format_micro_opponent.sh" locate "$WD/factory_stub.o" 2>&1)"
   echo "$LOC" | sed 's/^/     /'
   NFOUND="$(echo "$LOC" | grep -c 'status=FOUND')"
-  [ "$NFOUND" = 6 ] && ok "opponent locate found all 6 ggml_vec_dot_<fmt>_q8_K symbols" \
-                    || no "opponent locate found $NFOUND/6 symbols"
+  [ "$NFOUND" = 8 ] && ok "opponent locate found all 8 ggml_vec_dot_<fmt>_q8_K symbols" \
+                    || no "opponent locate found $NFOUND/8 symbols"
 else no "factory stub compile failed:"; sed 's/^/     /' "$WD/cc3.err" | head; fi
 
 echo "-- check 4: opponent probe prints 6 canonical symbol names --"
 SYMS="$(bash "$HERE/format_micro_opponent.sh" syms 2>/dev/null)"
-NS="$(echo "$SYMS" | grep -cE '^ggml_vec_dot_(iq3_s|iq2_s|iq2_xs|iq2_xxs|iq3_xxs|iq4_xs)_q8_K$')"
-[ "$NS" = 6 ] && ok "opponent syms emits 6 canonical names" || no "opponent syms emitted $NS/6"
+NS="$(echo "$SYMS" | grep -cE '^ggml_vec_dot_(iq3_s|iq2_s|iq2_xs|iq2_xxs|iq3_xxs|iq4_xs|tq2_0|tq1_0)_q8_K$')"
+[ "$NS" = 8 ] && ok "opponent syms emits 8 canonical names" || no "opponent syms emitted $NS/8"
 
 echo "-- check 5: DRYRUN paired emits 6 legal T3 rows (28 cols; values pending-board) --"
 DRY="$(DRYRUN=1 bash "$HERE/format_micro_paired.sh" 2>/dev/null)"
-NROWS="$(echo "$DRY" | grep -cE '^vec_dot\|(iq3_s|iq2_s|iq2_xs|iq2_xxs|iq3_xxs|iq4_xs)\|')"
-[ "$NROWS" = 6 ] && ok "DRYRUN emitted 6 T3 rows" || no "DRYRUN emitted $NROWS/6 T3 rows"
+NROWS="$(echo "$DRY" | grep -cE '^vec_dot\|(iq3_s|iq2_s|iq2_xs|iq2_xxs|iq3_xxs|iq4_xs|tq2_0|tq1_0)\|')"
+[ "$NROWS" = 8 ] && ok "DRYRUN emitted 8 T3 rows" || no "DRYRUN emitted $NROWS/8 T3 rows"
 # column count: every emitted row must have exactly 28 fields
 BADCOLS=0
 while IFS= read -r row; do

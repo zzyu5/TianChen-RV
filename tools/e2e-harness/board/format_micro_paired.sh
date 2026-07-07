@@ -24,11 +24,11 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-FMTS=(iq3_s iq2_s iq2_xs iq2_xxs iq3_xxs iq4_xs)
+FMTS=(iq3_s iq2_s iq2_xs iq2_xxs iq3_xxs iq4_xs tq2_0 tq1_0)
 DRYRUN="${DRYRUN:-0}"
-SESSION="${SESSION:-2026-07-07-lineA-batch1-harness}"
+SESSION="${SESSION:-2026-07-07-lineA-batch2-board}"
 CELL="experiments/active/format-micro-rvv-vlen128"
-PROV="$CELL/export_provenance.txt (pinned HEAD d1a26e4a)"
+PROV="$CELL/export_provenance.txt (pinned HEAD 49ede67d)"
 
 # per-fmt correctness state (sealed batch-2 vs not-yet-on-board)
 corr_of() { case "$1" in

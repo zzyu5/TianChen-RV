@@ -24,7 +24,7 @@
 #                        ggml's own build compiles for riscv is confirmed ON BOARD).
 #      NM, OD  (nm / objdump overrides)
 set -u
-FMTS=(iq3_s iq2_s iq2_xs iq2_xxs iq3_xxs iq4_xs)
+FMTS=(iq3_s iq2_s iq2_xs iq2_xxs iq3_xxs iq4_xs tq2_0 tq1_0)
 MARCH="${MARCH:-rv64gcv_zfh_zvfh_zicbop_zihintpause}"
 NM="${NM:-$(command -v llvm-nm-17 || command -v llvm-nm || command -v nm)}"
 OD="${OD:-$(command -v llvm-objdump-17 || command -v llvm-objdump || command -v objdump)}"

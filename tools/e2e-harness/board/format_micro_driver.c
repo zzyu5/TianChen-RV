@@ -1,6 +1,7 @@
-/* format_micro_driver.c -- cache-HYGIENE paired micro driver for the 6 constructed
- * super-block-grid vec_dot kernels {iq3_s, iq2_s, iq2_xs, iq2_xxs, iq3_xxs, iq4_xs}
- * (lineA format-micro, step 4). Times ONE side per invocation (side=ours|factory);
+/* format_micro_driver.c -- cache-HYGIENE paired micro driver for the 8 constructed
+ * super-block-grid vec_dot kernels {iq3_s, iq2_s, iq2_xs, iq2_xxs, iq3_xxs, iq4_xs,
+ * tq2_0, tq1_0} (lineA format-micro, step 4; TQ = TriLM ternary siblings, `d` LAST in
+ * block). Times ONE side per invocation (side=ours|factory);
  * the paired orchestrator (format_micro_paired.sh) interleaves the two sides and
  * forms the ratio. Keeping each side in its own timed pass matches board_ab.sh.
  *
@@ -46,6 +47,9 @@ typedef struct { ggml_half d; uint8_t qs[3*QK_K/8]; }                           
 typedef struct { ggml_half d; uint8_t qs[QK_K/4]; uint8_t qh[QK_K/32];
                  uint8_t signs[QK_K/8]; uint8_t scales[QK_K/64]; }                                 block_iq3_s;   /* 110 */
 typedef struct { ggml_half d; uint16_t scales_h; uint8_t scales_l[QK_K/64]; uint8_t qs[QK_K/2]; }  block_iq4_xs;  /* 136 */
+/* TQ (TriLM ternary) blocks: NOTE `d` is the LAST field (offset != 0, unlike IQ) */
+typedef struct { uint8_t qs[QK_K/4]; ggml_half d; }                                                block_tq2_0;   /* 66  (qs@0, d@64) */
+typedef struct { uint8_t qs[(QK_K-4*QK_K/64)/5]; uint8_t qh[QK_K/64]; ggml_half d; }                block_tq1_0;   /* 54  (qs@0, qh@48, d@52) */
 typedef struct { float d; int8_t qs[QK_K]; int16_t bsums[QK_K/16]; }                               block_q8_K;    /* 292 */
 
 _Static_assert(sizeof(block_iq2_xxs)==66,  "iq2_xxs");
@@ -54,6 +58,10 @@ _Static_assert(sizeof(block_iq2_s)==82,    "iq2_s");
 _Static_assert(sizeof(block_iq3_xxs)==98,  "iq3_xxs");
 _Static_assert(sizeof(block_iq3_s)==110,   "iq3_s");
 _Static_assert(sizeof(block_iq4_xs)==136,  "iq4_xs");
+_Static_assert(sizeof(block_tq2_0)==66,    "tq2_0");
+_Static_assert(sizeof(block_tq1_0)==54,    "tq1_0");
+_Static_assert(offsetof(block_tq2_0,d)==64,"tq2_0 d@64");
+_Static_assert(offsetof(block_tq1_0,d)==52,"tq1_0 d@52");
 _Static_assert(sizeof(block_q8_K)==292,    "q8_K");
 
 /* ---- side ours: the exported constructed kernels (extern "C", resolved on board) ---- */
@@ -63,6 +71,8 @@ extern void tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot
 extern void tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot(size_t n, float*s, const uint8_t*vx, const uint8_t*vy);
 extern void tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot(size_t n, float*s, const uint8_t*vx, const uint8_t*vy);
 extern void tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot (size_t n, float*s, const uint8_t*vx, const uint8_t*vy);
+extern void tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot   (size_t n, float*s, const uint8_t*vx, const uint8_t*vy);
+extern void tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot   (size_t n, float*s, const uint8_t*vx, const uint8_t*vy);
 
 /* ---- side factory: the ggml DISPATCHED vec_dot (extern; format_micro_opponent.sh
  *      compiles factory.o from pinned ggml source and provides these symbols) ---- */
@@ -72,19 +82,26 @@ extern void ggml_vec_dot_iq2_xs_q8_K (int n, float*s, size_t bs, const void*vx, 
 extern void ggml_vec_dot_iq2_xxs_q8_K(int n, float*s, size_t bs, const void*vx, size_t bx, const void*vy, size_t by, int nrc);
 extern void ggml_vec_dot_iq3_xxs_q8_K(int n, float*s, size_t bs, const void*vx, size_t bx, const void*vy, size_t by, int nrc);
 extern void ggml_vec_dot_iq4_xs_q8_K (int n, float*s, size_t bs, const void*vx, size_t bx, const void*vy, size_t by, int nrc);
+extern void ggml_vec_dot_tq2_0_q8_K  (int n, float*s, size_t bs, const void*vx, size_t bx, const void*vy, size_t by, int nrc);
+extern void ggml_vec_dot_tq1_0_q8_K  (int n, float*s, size_t bs, const void*vx, size_t bx, const void*vy, size_t by, int nrc);
 
-/* ---- format descriptor: name, weight block size, side fn ptrs ---- */
+/* ---- format descriptor: name, weight block size, f16-scale offset in block, side fn ptrs ----
+ * d_off = byte offset of the ggml_half `d` scale within a weight block. IQ formats keep
+ * `d` FIRST (offset 0); the TQ (TriLM) formats keep it LAST (tq2_0@64, tq1_0@52). fill_weight
+ * writes a finite moderate f16 there so the scalar fold `sumf += (float)sumi * d` stays finite. */
 typedef void (*ours_fn)(size_t, float*, const uint8_t*, const uint8_t*);
 typedef void (*fact_fn)(int, float*, size_t, const void*, size_t, const void*, size_t, int);
-typedef struct { const char* name; size_t wsize; ours_fn ours; fact_fn fact; } fmt_desc;
+typedef struct { const char* name; size_t wsize; size_t d_off; ours_fn ours; fact_fn fact; } fmt_desc;
 
 static const fmt_desc FMTS[] = {
-  {"iq3_s",   sizeof(block_iq3_s),   tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot,     ggml_vec_dot_iq3_s_q8_K},
-  {"iq2_s",   sizeof(block_iq2_s),   tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot,     ggml_vec_dot_iq2_s_q8_K},
-  {"iq2_xs",  sizeof(block_iq2_xs),  tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot,   ggml_vec_dot_iq2_xs_q8_K},
-  {"iq2_xxs", sizeof(block_iq2_xxs), tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot, ggml_vec_dot_iq2_xxs_q8_K},
-  {"iq3_xxs", sizeof(block_iq3_xxs), tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot, ggml_vec_dot_iq3_xxs_q8_K},
-  {"iq4_xs",  sizeof(block_iq4_xs),  tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot,   ggml_vec_dot_iq4_xs_q8_K},
+  {"iq3_s",   sizeof(block_iq3_s),   0,  tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot,     ggml_vec_dot_iq3_s_q8_K},
+  {"iq2_s",   sizeof(block_iq2_s),   0,  tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot,     ggml_vec_dot_iq2_s_q8_K},
+  {"iq2_xs",  sizeof(block_iq2_xs),  0,  tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot,   ggml_vec_dot_iq2_xs_q8_K},
+  {"iq2_xxs", sizeof(block_iq2_xxs), 0,  tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot, ggml_vec_dot_iq2_xxs_q8_K},
+  {"iq3_xxs", sizeof(block_iq3_xxs), 0,  tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot, ggml_vec_dot_iq3_xxs_q8_K},
+  {"iq4_xs",  sizeof(block_iq4_xs),  0,  tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot,   ggml_vec_dot_iq4_xs_q8_K},
+  {"tq2_0",   sizeof(block_tq2_0),   64, tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot,     ggml_vec_dot_tq2_0_q8_K},
+  {"tq1_0",   sizeof(block_tq1_0),   52, tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot,     ggml_vec_dot_tq1_0_q8_K},
 };
 #define NFMT (int)(sizeof(FMTS)/sizeof(FMTS[0]))
 
@@ -100,12 +117,14 @@ static uint16_t rf16(void){
     uint16_t m = (uint16_t)(xr()&0x3FF);
     return (uint16_t)(s|(e<<10)|m);
 }
-/* generic weight fill: d(f16) finite + all remaining bytes random. Valid for ALL 6
- * formats because every grid/sign/scale index is a MASKED bit-field (in range for any
- * byte). This isolates decode+dot timing without a quantizer in the loop. */
-static void fill_weight(uint8_t* blk, size_t wsize){
-    uint16_t d = rf16(); memcpy(blk, &d, 2);
-    for(size_t j=2;j<wsize;j++) blk[j]=(uint8_t)(xr()&0xff);
+/* generic weight fill: all bytes random, then the f16 `d` scale (at d_off) overwritten
+ * finite. Valid for ALL 8 formats because every grid/sign/scale index is a MASKED
+ * bit-field (in range for any byte) and the ternary qs planes are pure arithmetic decode;
+ * this isolates decode+dot timing without a quantizer in the loop. d_off differs by family
+ * (IQ: 0 / tq2_0: 64 / tq1_0: 52) so the finite scale lands on the real `d` field. */
+static void fill_weight(uint8_t* blk, size_t wsize, size_t d_off){
+    for(size_t j=0;j<wsize;j++) blk[j]=(uint8_t)(xr()&0xff);
+    uint16_t d = rf16(); memcpy(blk+d_off, &d, 2);
 }
 static void fill_q8_K(block_q8_K* y){
     y->d = rf32(0.001f, 0.05f);
@@ -153,7 +172,7 @@ int main(int argc, char** argv){
     uint8_t*    wpool = (uint8_t*)malloc((size_t)pool_blocks * fd->wsize);
     block_q8_K* ypool = (block_q8_K*)malloc((size_t)pool_blocks * sizeof(block_q8_K));
     if(!wpool || !ypool){ fprintf(stderr,"alloc fail (%zu B pool)\n",working_set_bytes); return 1; }
-    for(long b=0;b<pool_blocks;b++){ fill_weight(wpool + (size_t)b*fd->wsize, fd->wsize); fill_q8_K(&ypool[b]); }
+    for(long b=0;b<pool_blocks;b++){ fill_weight(wpool + (size_t)b*fd->wsize, fd->wsize, fd->d_off); fill_q8_K(&ypool[b]); }
 
     /* optional do_bench-style L2 flush buffer swept between rounds */
     if(flush_mib>0){ g_flush_n = (size_t)flush_mib*1024*1024/sizeof(uint64_t);

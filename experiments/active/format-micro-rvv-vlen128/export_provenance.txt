@@ -1,11 +1,14 @@
-# format export provenance — pinned HEAD d1a26e4a via cached detached-worktree binaries
-# opt=.worktrees/cache/d1a26e4a.../tcrv-opt  translate=.worktrees/cache/d1a26e4a.../tcrv-translate
-# command per fmt: tcrv-opt <mlir> --tcrv-rvv-materialize-<fmt>-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > <fmt>.o
-# session 2026-07-07-lineA-batch1
+# format export provenance — pinned HEAD 49ede67d via cached detached-worktree binaries
+# opt=.worktrees/cache/49ede67d9105055d97e7785903d6127f9fdc5b39/tcrv-opt  translate=.worktrees/cache/49ede67d9105055d97e7785903d6127f9fdc5b39/tcrv-translate
+# command per fmt: tcrv-opt <mlir> --tcrv-rvv-materialize-<dashfmt>-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > <fmt>.o
+# input mlir: test/Target/RVV/<dashfmt>-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir
+# session 2026-07-07-lineA-batch2-board (8 formats: 6 IQ + 2 TQ; TQ front-door added in d1a26e4a..49ede67d)
 
-iq3_s    size=8456B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot
-iq2_s    size=14896B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot
-iq2_xs   size=9832B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot
-iq2_xxs  size=6632B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot
-iq3_xxs  size=7920B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
-iq4_xs   size=2744B  UCB RISC-V, RVC, double-float ABI  kernel_sym=tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot
+iq3_s    size=8456B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot
+iq2_s    size=14896B  ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot
+iq2_xs   size=9832B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot
+iq2_xxs  size=6632B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot
+iq3_xxs  size=7920B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
+iq4_xs   size=2744B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot
+tq2_0    size=1872B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot
+tq1_0    size=2488B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot

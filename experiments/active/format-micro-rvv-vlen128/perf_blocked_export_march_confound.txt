@@ -1,0 +1,59 @@
+# format-micro PAIRED PERF — BLOCKED (export-side march confound)  [2026-07-07 lineA-batch2]
+# board: rvv (openEuler 24.03 LTS, uname 6.12.66 riscv64, VLEN128, 64c, L2=2MiB/core L3=64MiB, gov=performance@2.6GHz)
+# pinned export HEAD: 49ede67d (cached detached-worktree tcrv-opt/translate; main tree + build/ untouched, no git stash)
+# opponent ggml pin: e36a602b (build-vericurve, gcc-12.3.1 -O3 -march=rv64gcv_zfh_zvfh_zicbop_zihintpause)
+
+STATUS
+  EXPORT   : DONE  — 8/8 valid UCB RISC-V objects w/ constructed kernel symbol (see export_provenance.txt).
+  OPPONENT : DONE  — real ggml factory for all 8 fmts, ld -r merged from ggml's OWN build objects,
+                     8/8 ggml_vec_dot_<fmt>_q8_K DEFINED-T, fp16-libcall-free. (anti-fabrication gate CLOSED)
+  PAIRED   : BLOCKED — export-side march confound (below). NO ratio fabricated.
+
+ROOT CAUSE (export-side march confound; one-sided AGAINST us)
+  Our block-dot object packager emits -march=rv64gcv (NO zfh):
+    lib/Target/RVV/RVVTargetSupportBundle.cpp:1807 (baseline "rv64gcv" packager)
+    lib/Target/RVV/RVVTargetSupportBundle.cpp:2214-2215 (block-dot families assigned the baseline packager;
+      only the repacked-GEVM route gets rv64gcv_zvfh @ :1816).
+  => the per-super-block fp16 scale d (ggml_half -> float) lowers to a __extendhfsf2 SOFTFLOAT LIBCALL.
+  The ggml factory is built -march=...zfh => hardware fcvt.s.h (no libcall).
+
+  objdump evidence (board):
+    ours  iq2_xxs.o : __extendhfsf2 references = 1
+    factory (merged): __extendhfsf2 references = 0
+
+  This is BOTH:
+   (a) a HARD LINK BLOCKER — clang-17 final link fails:
+         undefined reference to `__extendhfsf2'   (all 6 IQ ours objects; TQ same class)
+         relocation R_RISCV_HI20 against a local symbol ... recompile with -fPIC   (ours objects are non-PIC;
+           a non-PIE exe (-no-pie) is needed because the default toolchain makes a PIE)
+         (factory.o also pulled undefined quantize_row_*_ref — resolved by adding generic quants.c.o, done)
+   (b) a ONE-SIDED PERF CONFOUND biased against our own kernel (we pay the fp16 libcall per block; factory does not).
+
+WHY NOT MEASURE ANYWAY
+  Forcing the link (-no-pie -lgcc to supply __extendhfsf2) would time our SOFTFLOAT fp16 path against the
+  factory's HARDWARE fp16 path — the exact contamination class that STALE-marked the step-3 rows in T3_A,
+  but one-sided. A ratio from that is confounded-against-us, not a real kernel result. Per the confound-clean
+  discipline (the reason batch#1 left this leg OPEN), it is left STALE, not fabricated.
+
+HARNESS IS PROVEN (the batch#1 blockers are built + green)
+  - host self-test 12/12 GREEN, now incl. the 2 new TQ formats (driver compiles/links/runs; 8/8 opponent
+    locate; 8x 28-col DRYRUN T3 rows).
+  - board preflight would run (march-complete / libcall-free / same-compiler / VLEN==128); the run reached the
+    build/link step and fail-closed there on the ours-object __extendhfsf2 (fail-closed is correct behavior).
+  - opponent real-dispatch probe satisfied via ggml's own prebuilt arch/riscv+generic quants objects
+    (clang-17 cannot recompile arch/riscv/quants.c: missing tuple intrinsic __riscv_vcreate_v_i8m1_i8m2;
+     gcc-12.3.1, which built ggml, has it — so the faithful opponent is ggml's own object, not hand-filled).
+
+FIX (follow-up; lib-side; OUTSIDE this batch's touch-set — line C is editing RVV lib in parallel)
+  Give the block-dot super-block families a _zfh object packager (mirror the repack route's rv64gcv_zvfh),
+  i.e. package these routes under -march=rv64gcv_zfh (or _zfh_zvfh) in RVVTargetSupportBundle.cpp, re-export
+  the 8 objects at the new HEAD, then re-run:
+    OURS_OBJDIR=<dir> FACTORY_OBJ=/tmp/factory.o GGML_ROOT=/home/ubuntu/vericurve-rv-lab/llama.cpp \
+    CORE=8 EXP_VLEN=128 MARCH=rv64gcv_zfh_zvfh_zicbop_zihintpause CC=clang-17 \
+    N=4096 ROUNDS=12 POOL_MIB=256 FLUSH_MIB=0 L2_KIB=65536 HYGIENE_X=3 ROOFLINE_READ_GBS=5.237 \
+    bash tools/e2e-harness/board/format_micro_paired.sh
+  POOL_MIB=256 => working_set ~256MB > 3xL3(64MB)=192MB so weights stream DRAM-cold (L3 is the real hygiene
+  wall on this board, not the 2MB L2). Expected roofline_class = latency/compute-bound cache-cold per the
+  q5_K/q8_0 super-block precedent (achieved GB/s << 5.237 ceiling).
+
+RAW: /tmp/lineA_paired_board.out (host) — board link-fail log (PREFLIGHT_FAIL(build)).
