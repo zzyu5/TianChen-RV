@@ -4241,9 +4241,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
     return mlir::success();
   }
 
-// q4_K GEVM emitter — 1b-i scaffold (q4_1 GEVM renamed). COMPILES + reads q4_K ABI via shared
-// getters, but COMPUTES q4_1-style (single block fold) = NUMERICALLY WRONG until 1b-iii adapts
-// it to q4_K's 8-sub-block 6-bit-unpack + bsums-min (see KQUANT-REPACK-DESIGN.md STAGE-1b).
+// q4_K GEVM emitter (stage-1b, COMPLETE — this is the REAL K-quant decode, NOT q4_1-style).
+// Emits the full super-block decode: the per-sub-block 6-bit scale/min are unpacked LANE-WISE
+// (vand 0x0F / vsrl / vsll bit-dance), the MIN correction folds the activation int16 bsums
+// weighted by the 6-bit mins, and each 32-elem sub-block dot is split into 2x16 i16 chunks
+// (i16 overflow guard) promoted to i32 weighted by the 6-bit scale — byte-for-byte the lane-wise
+// form of ggml arch/riscv/repack.cpp:260-389 (ggml_gemv_q4_K_16x1_q8_K). NUMERIC STATUS:
+// oracle-verified vs an INDEPENDENT scalar dequant-matmul reference on the RVV1.0 VLEN128 board
+// (bounded-norm PASS, WORST_NORM ~7e-07 over 8 shapes; controls NOMIN 4e5x / PERM 2e6x). NOT
+// byte-exact vs ggml: the MIN term is folded once across super-halves (an IEEE-legal reassociation
+// of ggml's per-super-half subtract), so the difference is fp round-off only, not a decode error.
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -5353,8 +5360,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
 // ggml_gemm_q4_K_16x1_q8_K_generic + ggml_quantize_mat_q8_K_4x1, repack.cpp:2442/:90): qs@16 are
 // 4-column-interleaved (element e of column c at qs[e*4 + c]); bsums@1040 are group16-major /
 // column-minor (group g16 col c at bsums[g16*4 + c]); d[4]@0 are 4 fp32 (NOT fp16) scalars.
-// NUMERIC STATUS: structurally complete, NUMERICALLY UNVERIFIED -- the byte-exact rvv oracle vs
-// ggml_gemm_q4_K_16x1_q8_K is a deferred follow-up (see the handoff in the task FINDING).
+// NUMERIC STATUS: structurally complete AND oracle-verified — vs an INDEPENDENT scalar
+// dequant-matmul reference (M=4) on the RVV1.0 VLEN128 board (bounded-norm PASS, WORST_NORM
+// ~7e-07 over 8 shapes; controls NOMIN 3.5e5x / PERM 4e6x / ROWROT 7.6e6x). NOT byte-exact vs
+// ggml_gemm_q4_K_16x1_q8_K (IEEE-legal float reassociation only, not a decode error).
 mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
