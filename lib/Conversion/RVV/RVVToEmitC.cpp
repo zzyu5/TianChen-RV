@@ -380,10 +380,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1},
         {&isRepackGemmQ4KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmQ4KQ8K},
+        {&isRepackGemmQ5KQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemmQ5KQ8K},
         {&isRepackGemvQ8_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
         {&isRepackGemvQ4KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ4KQ8K},
+        {&isRepackGemvQ5KQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemvQ5KQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
@@ -1334,6 +1338,34 @@ bool VariantToEmitCFunc::isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlRepackGemvQ4KQ8KOp>(op)) {
+        if (sawGemv)
+          return false;
+        sawGemv = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemv;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool sawGemm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ5KQ8KOp>(op)) {
+        if (sawGemm)
+          return false;
+        sawGemm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemm;
+  }
+
+bool VariantToEmitCFunc::isRepackGemvQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool sawGemv = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ5KQ8KOp>(op)) {
         if (sawGemv)
           return false;
         sawGemv = true;
