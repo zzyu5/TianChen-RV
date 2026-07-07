@@ -31,9 +31,12 @@
 > NON-DEFECT** via 3-way vs ggml scalar *_generic oracle (50k-block sweep): ours ULP0 vs
 > oracle on both; iq4_xs FNV mismatch = FACTORY-vl128 reassociation (28140/50000 maxULP26621,
 > ours=faithful side); tq1_0 = contract+harness-caliber. **No construction-queue fix task
-> opened** (no our-side defect). Evidence: gap_triage_batch2c/{objdump_gap_triage.txt,
-> numerics_triage_divergent.txt, disasm/*, ours_emitc_c/*, threeway*.c, sweep*.c} +
-> T8_winloss_gap_ledger.csv rows format-micro-<fmt>-q8k-block-dot-batch2c.
+> opened** (no our-side defect). Data evidence (durable, this cell):
+> gap_triage_batch2c/{objdump_gap_triage.txt, numerics_triage_divergent.txt, disasm/*} +
+> T8_winloss_gap_ledger.csv rows format-micro-<fmt>-q8k-block-dot-batch2c. The triage HARNESS
+> (drivers `threeway*.c` / `sweep*.c` + the exported EmitC kernel sources `ours_emitc_c/*.cpp`)
+> is CODE, not data — it lives under `tools/e2e-harness/board/gap-triage/` (moved out of the data
+> cell 2026-07-07 裁决九.5 hygiene; re-run from there against the exported objects).
 > ############################################################################
 
 > ############################################################################
@@ -137,7 +140,34 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 - `perf_blocked_export_march_confound.txt` — SUPERSEDED historical record: why batch2b(49ede67d)
   was STALE (export-side -march=rv64gcv no-zfh => one-sided __extendhfsf2 fp16 libcall vs hw-zfh
   factory). Resolved-banner points to the batch2b result above.
+- `perf_result_batch2c_symmetric.txt` — batch2c COMPLIANT symmetric re-measure (裁决一.3): both timed
+  sides gcc-15.2.0 -O3 identical-march, PREFLIGHT(0) toolchain-symmetry PASS, 8/8 LOSS ratio/roofline/
+  fingerprint table + correctness cross-check. SUPERSEDES the batch2b INVALID compiler-asymmetry ratios.
+- `rvv_paired_raw_batch2c.txt` — raw board output for the batch2c symmetric re-measure (full MICRO lines
+  + emitted T3_ROW lines).
 - `.gitignore` — marks `exported_objects/` + `*.o` as gitignored scratch (evidence, regenerable).
+
+### gap-1 triage evidence (batch2c, 裁决一.4) — DATA ONLY (harness code lives in tools/e2e-harness/board/gap-triage/)
+- `gap_triage_batch2c/objdump_gap_triage.txt` — per-cell ours-vs-factory objdump classification =>
+  8/8 missing_pattern (named emitter-maturity sub-patterns; none physical → construction-queue targets).
+- `gap_triage_batch2c/numerics_triage_divergent.txt` — 3-way vs ggml `*_generic` oracle (50k-block sweep)
+  resolving the 2 FNV-divergent cells NON-DEFECT (ours ULP0; iq4_xs=factory-vl128 reassoc; tq1_0=harness).
+- `gap_triage_batch2c/disasm/iq2_s.ours.objdump.txt` — board-native ours disasm, iq2_s (gcc-15.2.0 -O3).
+- `gap_triage_batch2c/disasm/iq2_s.factory_vl128.objdump.txt` — board-native factory disasm, iq2_s.
+- `gap_triage_batch2c/disasm/iq2_xs.ours.objdump.txt` — board-native ours disasm, iq2_xs.
+- `gap_triage_batch2c/disasm/iq2_xs.factory_vl128.objdump.txt` — board-native factory disasm, iq2_xs.
+- `gap_triage_batch2c/disasm/iq2_xxs.ours.objdump.txt` — board-native ours disasm, iq2_xxs.
+- `gap_triage_batch2c/disasm/iq2_xxs.factory_vl128.objdump.txt` — board-native factory disasm, iq2_xxs.
+- `gap_triage_batch2c/disasm/iq3_s.ours.objdump.txt` — board-native ours disasm, iq3_s.
+- `gap_triage_batch2c/disasm/iq3_s.factory_vl128.objdump.txt` — board-native factory disasm, iq3_s.
+- `gap_triage_batch2c/disasm/iq3_xxs.ours.objdump.txt` — board-native ours disasm, iq3_xxs (worst gap).
+- `gap_triage_batch2c/disasm/iq3_xxs.factory_vl128.objdump.txt` — board-native factory disasm, iq3_xxs.
+- `gap_triage_batch2c/disasm/iq4_xs.ours.objdump.txt` — board-native ours disasm, iq4_xs.
+- `gap_triage_batch2c/disasm/iq4_xs.factory_vl128.objdump.txt` — board-native factory disasm, iq4_xs.
+- `gap_triage_batch2c/disasm/tq1_0.ours.objdump.txt` — board-native ours disasm, tq1_0.
+- `gap_triage_batch2c/disasm/tq1_0.factory_vl128.objdump.txt` — board-native factory disasm, tq1_0.
+- `gap_triage_batch2c/disasm/tq2_0.ours.objdump.txt` — board-native ours disasm, tq2_0.
+- `gap_triage_batch2c/disasm/tq2_0.factory_vl128.objdump.txt` — board-native factory disasm, tq2_0.
 
 ## scratch (gitignored, rides with cell, not durable)
 - `exported_objects/*.o` — the 6 pinned-HEAD RISC-V objects (evidence the export path works; regenerable).
