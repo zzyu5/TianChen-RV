@@ -14,6 +14,11 @@
 - `T1_C1_structural_conjunction.csv`
 - `T2_C2_ledger_marginal_cost.csv`
 - `T1b_failclosed_runtime.csv`
+- `T-PERF1_q4_0_vlen128_prefill_8gate.md`
+
+## notes — T-PERF1 口径
+
+- **T-PERF1** (q4_0@VLEN128 e2e prefill 5.92× 8-gate cell): per-gate [PERF-1] §4.4 accounting for the flagship **L1 capability-keyed path-selection** win (repack-vs-blockdot ROUTING, NOT faster codegen). **Verdict 5/8 PASS · ②③④ pending** → NOT a sealed universal Win-C; beat wording stays LOCKED per [NG-4]. Board-A (rvv VLEN128) evidence transcribed into `T3_A_…` (mirror of the `T3_B_…` VLEN256 rows) + a `q4_0-repack-gemm-rvv-vlen128-prefill-5.92x` row in `T8_…` (win_type=C NOT-sealed). Primary evidence cell = `experiments/sealed/repack/rvv-vlen128-q4_0-gemm-constructed-sealed/`. Gate ① is FMA-fold **bounded-ULP** (NOT byte-exact); ② needs an RVV1.0 VLEN256 flip lit; ③ needs a k1/VLEN256 objdump seal; ④ needs micro↔e2e Amdahl transduction + multi-prompt-length e2e.
 
 ## notes — T1/T2 口径
 
