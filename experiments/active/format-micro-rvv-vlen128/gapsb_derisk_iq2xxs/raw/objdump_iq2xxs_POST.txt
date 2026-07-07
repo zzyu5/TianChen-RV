@@ -1,0 +1,446 @@
+
+objdir_POST/iq2_xxs.o:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000000000000 <tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot>:
+       0:      	srli	a0, a0, 8
+       2:      	beqz	a0, 0x2 <tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot+0x2>
+       6:      	addi	sp, sp, -352
+       8:      	sd	ra, 344(sp)
+       a:      	sd	s0, 336(sp)
+       c:      	sd	s1, 328(sp)
+       e:      	sd	s2, 320(sp)
+      10:      	sd	s3, 312(sp)
+      12:      	sd	s4, 304(sp)
+      14:      	sd	s5, 296(sp)
+      16:      	sd	s6, 288(sp)
+      18:      	sd	s7, 280(sp)
+      1a:      	sd	s8, 272(sp)
+      1c:      	sd	s9, 264(sp)
+      1e:      	sd	s10, 256(sp)
+      20:      	sd	s11, 248(sp)
+      22:      	csrr	a4, vlenb
+      26:      	slli	a4, a4, 1
+      28:      	sub	sp, sp, a4
+      2c:      	sd	a1, 16(sp)
+      2e:      	li	s6, 0
+      30:      	li	a1, 66
+      34:      	addi	s2, a3, 196
+      38:      	fmv.w.x	fa5, zero
+      3c:      	mul	a0, a0, a1
+      40:      	sd	a0, 24(sp)
+      42:      	sd	a2, 32(sp)
+
+0000000000000044 <.L0 >:
+      44:      	add	a0, a2, s6
+      48:      	addi	t4, a0, 2
+      4c:      	lbu	a7, 6(a0)
+      50:      	lbu	t0, 7(a0)
+      54:      	lbu	t2, 8(a0)
+      58:      	addi	t3, a0, 10
+      5c:      	lbu	s8, 9(a0)
+      60:      	lbu	s11, 14(a0)
+      64:      	lbu	a1, 15(a0)
+      68:      	sd	a1, 88(sp)
+      6a:      	lbu	a1, 16(a0)
+      6e:      	sd	a1, 80(sp)
+      70:      	addi	t5, a0, 18
+      74:      	lbu	a6, 22(a0)
+      78:      	lbu	s5, 23(a0)
+      7c:      	lbu	s7, 24(a0)
+      80:      	addi	t6, a0, 26
+      84:      	lbu	s0, 25(a0)
+      88:      	sd	s0, 48(sp)
+      8a:      	lbu	t1, 30(a0)
+      8e:      	lbu	a1, 31(a0)
+      92:      	sd	a1, 72(sp)
+      94:      	lbu	a1, 32(a0)
+      98:      	sd	a1, 64(sp)
+      9a:      	addi	a4, a0, 34
+      9e:      	lbu	s3, 38(a0)
+      a2:      	lbu	s9, 39(a0)
+      a6:      	lbu	a1, 40(a0)
+      aa:      	addi	ra, a0, 42
+      ae:      	lbu	a5, 41(a0)
+      b2:      	sd	a5, 56(sp)
+      b4:      	lbu	s4, 46(a0)
+      b8:      	lbu	a2, 47(a0)
+      bc:      	lbu	a3, 48(a0)
+      c0:      	sd	a3, 40(sp)
+      c2:      	vsetivli	zero, 4, e16, mf2, ta, ma
+      c6:      	vle8.v	v15, (t4)
+      ca:      	addi	a3, a0, 50
+      ce:      	vle8.v	v16, (t3)
+      d2:      	vle8.v	v13, (t5)
+      d6:      	vle8.v	v14, (t6)
+      da:      	lbu	t3, 54(a0)
+      de:      	lbu	t4, 55(a0)
+      e2:      	lbu	t5, 56(a0)
+      e6:      	vle8.v	v21, (a4)
+      ea:      	addi	a4, a0, 58
+      ee:      	vle8.v	v8, (ra)
+      f2:      	addi	t6, sp, 240
+      f6:      	vs1r.v	v8, (t6)
+      fa:      	vle8.v	v22, (a3)
+      fe:      	vle8.v	v8, (a4)
+     102:      	csrr	a3, vlenb
+     106:      	add	a3, a3, sp
+     108:      	addi	a3, a3, 240
+     10c:      	vs1r.v	v8, (a3)
+     110:      	slli	t0, t0, 8
+     112:      	slli	t2, t2, 16
+     114:      	slli	a3, s8, 24
+     118:      	slli	s5, s5, 8
+     11a:      	slli	s7, s7, 16
+     11c:      	slli	a4, s0, 24
+     120:      	slli	s9, s9, 8
+     122:      	slli	a1, a1, 16
+     124:      	slli	t6, a5, 24
+     128:      	slli	t4, t4, 8
+     12a:      	slli	t5, t5, 16
+     12c:      	or	ra, a3, t2
+     130:      	or	a3, t2, t0
+     134:      	or	t0, t0, a7
+     138:      	or	a4, a4, s7
+     13c:      	or	s7, s7, s5
+     140:      	or	s5, s5, a6
+     144:      	or	t2, t6, a1
+     148:      	or	s10, a1, s9
+     14c:      	or	a1, s9, s3
+     150:      	srli	t0, t0, 4
+     154:      	srli	t6, s5, 4
+     158:      	srli	a1, a1, 4
+     15a:      	vmv.v.x	v8, t0
+     15e:      	vmv.v.x	v9, t6
+     162:      	vmv.v.x	v10, a1
+     166:      	lbu	t0, 57(a0)
+     16a:      	lbu	a1, 62(a0)
+     16e:      	lbu	t6, 63(a0)
+     172:      	lbu	s5, 64(a0)
+     176:      	slli	s0, t0, 24
+     17a:      	or	s9, s0, t5
+     17e:      	or	t5, t5, t4
+     182:      	or	s1, t4, t3
+     186:      	srli	s1, s1, 4
+     188:      	vmv.v.x	v11, s1
+     18c:      	srli	a3, a3, 11
+     18e:      	vslide1down.vx	v8, v8, a3
+     192:      	slli	a3, a7, 57
+     196:      	lbu	a7, 17(a0)
+     19a:      	ld	s1, 88(sp)
+     19c:      	slli	s1, s1, 8
+     19e:      	ld	s0, 80(sp)
+     1a0:      	slli	s0, s0, 16
+     1a2:      	srli	a3, a3, 54
+     1a4:      	slli	a5, a7, 24
+     1a8:      	or	a5, a5, s0
+     1aa:      	or	s0, s0, s1
+     1ac:      	or	s1, s1, s11
+     1b0:      	srli	s1, s1, 4
+     1b2:      	andi	s1, s1, 1016
+     1b6:      	sh	a3, 192(sp)
+     1ba:      	srli	s0, s0, 11
+     1bc:      	andi	a3, s0, 1016
+     1c0:      	sh	s1, 202(sp)
+     1c4:      	srli	a5, a5, 18
+     1c6:      	andi	a5, a5, 1016
+     1ca:      	sh	a3, 204(sp)
+     1ce:      	sh	a5, 206(sp)
+     1d2:      	srli	a3, s7, 11
+     1d6:      	vslide1down.vx	v9, v9, a3
+     1da:      	srli	a3, s10, 11
+     1de:      	vslide1down.vx	v10, v10, a3
+     1e2:      	srli	a3, t5, 11
+     1e6:      	vslide1down.vx	v11, v11, a3
+     1ea:      	srli	a3, ra, 18
+     1ee:      	vslide1down.vx	v8, v8, a3
+     1f2:      	addi	a3, s2, -192
+     1f6:      	vsetivli	zero, 8, e8, mf2, ta, ma
+     1fa:      	vslideup.vi	v15, v16, 4
+     1fe:      	vsetvli	zero, zero, e16, m1, ta, ma
+     202:      	vzext.vf2	v16, v15
+     206:      	vsll.vi	v15, v16, 3
+     20a:      	addi	s10, sp, 208
+     20e:      	vse16.v	v15, (s10)
+     212:      	li	ra, 64
+     216:      	vsetvli	zero, ra, e8, m4, ta, ma
+     21a:      	vle8.v	v16, (a3)
+     21e:      	srli	a4, a4, 18
+     220:      	vsetivli	zero, 4, e16, mf2, ta, ma
+     224:      	vslide1down.vx	v9, v9, a4
+     228:      	flh	fa4, 0(a0)
+     22c:      	srli	a3, t2, 18
+     230:      	vslide1down.vx	v10, v10, a3
+     234:      	lbu	t5, 33(a0)
+     238:      	srli	a3, s9, 18
+     23c:      	vslide1down.vx	v11, v11, a3
+     240:      	lbu	t4, 49(a0)
+     244:      	lbu	t2, 65(a0)
+     248:      	slli	s11, s11, 3
+     24a:      	ld	a0, 72(sp)
+     24c:      	slli	a0, a0, 8
+     24e:      	ld	a3, 64(sp)
+     250:      	slli	a3, a3, 16
+     252:      	vslide1down.vx	v8, v8, s11
+     256:      	slli	a4, t5, 24
+     25a:      	or	a5, a4, a3
+     25e:      	or	s0, a3, a0
+     262:      	or	s1, a0, t1
+     266:      	slli	t1, t1, 3
+     268:      	slli	a2, a2, 8
+     26a:      	ld	a4, 40(sp)
+     26c:      	slli	a4, a4, 16
+     26e:      	vslide1down.vx	v28, v9, t1
+     272:      	slli	a3, t4, 24
+     276:      	or	s7, a3, a4
+     27a:      	or	a4, a4, a2
+     27c:      	or	a2, a2, s4
+     280:      	slli	s4, s4, 3
+     282:      	slli	a0, t6, 8
+     286:      	slli	s5, s5, 16
+     288:      	vslide1down.vx	v20, v10, s4
+     28c:      	slli	a3, t2, 24
+     290:      	or	t1, a3, s5
+     294:      	or	t6, s5, a0
+     298:      	or	a0, a0, a1
+     29a:      	slli	a1, a1, 3
+     29c:      	vslide1down.vx	v23, v11, a1
+     2a0:      	slli	a6, a6, 57
+     2a2:      	srli	a1, a6, 54
+     2a6:      	vsetivli	zero, 8, e16, m1, ta, ma
+     2aa:      	vle16.v	v9, (s10)
+     2ae:      	vsetivli	zero, 4, e16, mf2, ta, ma
+     2b2:      	li	a6, 1016
+     2b6:      	vand.vx	v8, v8, a6
+     2ba:      	addi	a3, sp, 194
+     2be:      	vse16.v	v8, (a3)
+     2c2:      	vsetivli	zero, 8, e64, m4, ta, ma
+     2c6:      	addi	a3, sp, 192
+     2c8:      	vle16.v	v24, (a3)
+     2cc:      	srli	s1, s1, 4
+     2ce:      	andi	a3, s1, 1016
+     2d2:      	lui	s1, 0
+     2d6:      	mv	s1, s1
+     2da:      	vluxei16.v	v0, (s1), v9
+     2de:      	lui	s4, 0
+     2e2:      	mv	s4, s4
+     2e6:      	vluxei16.v	v8, (s4), v24
+     2ea:      	sh	a1, 160(sp)
+     2ee:      	srli	s0, s0, 11
+     2f0:      	andi	a1, s0, 1016
+     2f4:      	sh	a3, 170(sp)
+     2f8:      	srli	a5, a5, 18
+     2fa:      	andi	a3, a5, 1016
+     2fe:      	sh	a1, 172(sp)
+     302:      	sh	a3, 174(sp)
+     306:      	addi	a1, s2, -128
+     30a:      	vsetvli	zero, zero, e8, mf2, ta, ma
+     30e:      	vslideup.vi	v13, v14, 4
+     312:      	vsetvli	zero, zero, e16, m1, ta, ma
+     316:      	vzext.vf2	v14, v13
+     31a:      	vsll.vi	v13, v14, 3
+     31e:      	addi	a5, sp, 176
+     320:      	vse16.v	v13, (a5)
+     324:      	vsetvli	zero, ra, e8, m4, ta, ma
+     328:      	vle8.v	v24, (a1)
+     32c:      	slli	s3, s3, 57
+     32e:      	srli	a1, s3, 54
+     332:      	vsetivli	zero, 4, e16, mf2, ta, ma
+     336:      	vand.vx	v13, v28, a6
+     33a:      	addi	a3, sp, 162
+     33e:      	vse16.v	v13, (a3)
+     342:      	vsetivli	zero, 8, e64, m4, ta, ma
+     346:      	vle16.v	v13, (a5)
+     34a:      	addi	a3, sp, 160
+     34c:      	vle16.v	v14, (a3)
+     350:      	srli	a2, a2, 4
+     352:      	andi	a2, a2, 1016
+     356:      	vluxei16.v	v28, (s1), v13
+     35a:      	vluxei16.v	v4, (s4), v14
+     35e:      	sh	a1, 128(sp)
+     362:      	srli	a4, a4, 11
+     364:      	andi	a1, a4, 1016
+     368:      	sh	a2, 138(sp)
+     36c:      	srli	a2, s7, 18
+     370:      	andi	a2, a2, 1016
+     374:      	sh	a1, 140(sp)
+     378:      	vsetvli	zero, ra, e8, m4, ta, ma
+     37c:      	vmul.vv	v8, v0, v8
+     380:      	li	a5, 32
+     384:      	vsetvli	zero, a5, e8, m2, ta, ma
+     388:      	vwmul.vv	v0, v8, v16
+     38c:      	vwmul.vv	v12, v10, v18
+     390:      	sh	a2, 142(sp)
+     394:      	addi	a1, s2, -64
+     398:      	srli	a2, s8, 3
+     39c:      	srli	a3, a7, 3
+     3a0:      	ori	a2, a2, 1
+     3a4:      	ori	a3, a3, 1
+     3a8:      	addi	a4, sp, 240
+     3aa:      	vl1r.v	v8, (a4)
+     3ae:      	vsetivli	zero, 8, e8, mf2, ta, ma
+     3b2:      	vslideup.vi	v21, v8, 4
+     3b6:      	vsetvli	zero, zero, e16, m1, ta, ma
+     3ba:      	vzext.vf2	v8, v21
+     3be:      	vsll.vi	v8, v8, 3
+     3c2:      	addi	a4, sp, 144
+     3c4:      	vse16.v	v8, (a4)
+     3c8:      	vsetvli	zero, zero, e32, m2, ta, ma
+     3cc:      	vmv.s.x	v8, zero
+     3d0:      	vmv1r.v	v10, v8
+     3d4:      	vsetvli	zero, a5, e16, m4, ta, ma
+     3d8:      	vwredsum.vs	v8, v0, v8
+     3dc:      	vwredsum.vs	v9, v12, v10
+     3e0:      	vmv1r.v	v21, v10
+     3e4:      	vsetvli	zero, ra, e8, m4, ta, ma
+     3e8:      	vle8.v	v16, (a1)
+     3ec:      	vsetvli	zero, ra, e32, m1, ta, ma
+     3f0:      	vmv.x.s	a1, v8
+     3f4:      	mul	a1, a1, a2
+     3f8:      	vmv.x.s	a2, v9
+     3fc:      	mul	a2, a2, a3
+     400:      	add	a1, a1, a2
+     402:      	slli	t3, t3, 57
+     404:      	srli	a2, t3, 54
+     408:      	vsetivli	zero, 4, e16, mf2, ta, ma
+     40c:      	vand.vx	v8, v20, a6
+     410:      	addi	a3, sp, 130
+     414:      	vse16.v	v8, (a3)
+     418:      	vsetivli	zero, 8, e64, m4, ta, ma
+     41c:      	vle16.v	v12, (a4)
+     420:      	addi	a3, sp, 128
+     422:      	vle16.v	v13, (a3)
+     426:      	srli	a0, a0, 4
+     428:      	andi	a0, a0, 1016
+     42c:      	vluxei16.v	v8, (s1), v12
+     430:      	vluxei16.v	v0, (s4), v13
+     434:      	sh	a2, 96(sp)
+     438:      	srli	a2, t6, 11
+     43c:      	andi	a2, a2, 1016
+     440:      	sh	a0, 106(sp)
+     444:      	srli	a0, t1, 18
+     448:      	andi	a0, a0, 1016
+     44c:      	sh	a2, 108(sp)
+     450:      	vsetvli	zero, ra, e8, m4, ta, ma
+     454:      	vmul.vv	v12, v28, v4
+     458:      	vsetvli	zero, a5, e8, m2, ta, ma
+     45c:      	vwmul.vv	v28, v12, v24
+     460:      	vwmul.vv	v4, v14, v26
+     464:      	vsetvli	zero, zero, e16, m4, ta, ma
+     468:      	vwredsum.vs	v12, v28, v21
+     46c:      	vwredsum.vs	v13, v4, v21
+     470:      	vmv1r.v	v28, v21
+     474:      	sh	a0, 110(sp)
+     478:      	vsetvli	zero, zero, e32, m8, ta, ma
+     47c:      	vmv.x.s	a0, v12
+     480:      	ld	a2, 48(sp)
+     482:      	srli	a2, a2, 3
+     484:      	ori	a2, a2, 1
+     488:      	mul	a0, a0, a2
+     48c:      	vmv.x.s	a2, v13
+     490:      	srli	a3, t5, 3
+     494:      	ori	a3, a3, 1
+     498:      	mul	a2, a2, a3
+     49c:      	add	a0, a0, a2
+     49e:      	vsetvli	zero, ra, e8, m4, ta, ma
+     4a2:      	vmul.vv	v8, v8, v0
+     4a6:      	vsetvli	zero, a5, e8, m2, ta, ma
+     4aa:      	vwmul.vv	v12, v8, v16
+     4ae:      	vwmul.vv	v24, v10, v18
+     4b2:      	ld	a2, 56(sp)
+     4b4:      	srli	a2, a2, 3
+     4b6:      	srli	a3, t4, 3
+     4ba:      	ori	a2, a2, 1
+     4be:      	ori	a3, a3, 1
+     4c2:      	add	a0, a0, a1
+     4c4:      	vsetvli	zero, zero, e16, m4, ta, ma
+     4c8:      	vwredsum.vs	v8, v12, v21
+     4cc:      	vwredsum.vs	v9, v24, v21
+     4d0:      	vsetvli	zero, zero, e32, m8, ta, ma
+     4d4:      	vmv.x.s	a1, v8
+     4d8:      	mul	a1, a1, a2
+     4dc:      	vmv.x.s	a2, v9
+     4e0:      	mul	a2, a2, a3
+     4e4:      	vsetvli	zero, ra, e8, m4, ta, ma
+     4e8:      	vle8.v	v8, (s2)
+     4ec:      	csrr	a3, vlenb
+     4f0:      	add	a3, a3, sp
+     4f2:      	addi	a3, a3, 240
+     4f6:      	vl1r.v	v12, (a3)
+     4fa:      	vsetivli	zero, 8, e8, mf2, ta, ma
+     4fe:      	vslideup.vi	v22, v12, 4
+     502:      	vsetvli	zero, zero, e16, m1, ta, ma
+     506:      	vzext.vf2	v12, v22
+     50a:      	vsll.vi	v12, v12, 3
+     50e:      	vsetivli	zero, 4, e16, mf2, ta, ma
+     512:      	vand.vx	v13, v23, a6
+     516:      	addi	a3, sp, 98
+     51a:      	vse16.v	v13, (a3)
+     51e:      	vsetivli	zero, 8, e64, m4, ta, ma
+     522:      	addi	a3, sp, 112
+     524:      	vse16.v	v12, (a3)
+     528:      	vle16.v	v12, (a3)
+     52c:      	addi	a3, sp, 96
+     52e:      	vle16.v	v13, (a3)
+     532:      	srli	a3, t0, 3
+     536:      	srli	a4, t2, 3
+     53a:      	vluxei16.v	v16, (s1), v12
+     53e:      	vluxei16.v	v20, (s4), v13
+     542:      	ori	a3, a3, 1
+     546:      	ori	a4, a4, 1
+     54a:      	add	a1, a1, a2
+     54c:      	vsetvli	zero, ra, e8, m4, ta, ma
+     550:      	vmul.vv	v12, v16, v20
+     554:      	vsetvli	zero, a5, e8, m2, ta, ma
+     558:      	vwmul.vv	v16, v12, v8
+     55c:      	vwmul.vv	v20, v14, v10
+     560:      	vsetvli	zero, zero, e16, m4, ta, ma
+     564:      	vwredsum.vs	v8, v16, v28
+     568:      	vwredsum.vs	v9, v20, v28
+     56c:      	vsetvli	zero, zero, e32, m8, ta, ma
+     570:      	vmv.x.s	a2, v8
+     574:      	mul	a2, a2, a3
+     578:      	vmv.x.s	a3, v9
+     57c:      	mul	a3, a3, a4
+     580:      	add	a1, a1, a2
+     582:      	ld	a2, 32(sp)
+     584:      	add	a0, a0, a1
+     586:      	flw	fa3, -196(s2)
+     58a:      	add	a0, a0, a3
+     58c:      	fcvt.s.w	fa2, a0
+     590:      	fcvt.s.h	fa4, fa4
+     594:      	fmul.s	fa4, fa3, fa4
+     598:      	addi	s6, s6, 66
+     59c:      	fmadd.s	fa5, fa4, fa2, fa5
+     5a0:      	addi	s2, s2, 292
+     5a4:      	ld	a0, 24(sp)
+     5a6:      	bne	a0, s6, 0x5a6 <.L0 +0x562>
+     5aa:      	lui	a0, 253952
+     5ae:      	fmv.w.x	fa4, a0
+     5b2:      	fmul.s	fa5, fa5, fa4
+     5b6:      	ld	a1, 16(sp)
+     5b8:      	csrr	a0, vlenb
+     5bc:      	slli	a0, a0, 1
+     5be:      	add	sp, sp, a0
+     5c0:      	ld	ra, 344(sp)
+     5c2:      	ld	s0, 336(sp)
+     5c4:      	ld	s1, 328(sp)
+     5c6:      	ld	s2, 320(sp)
+     5c8:      	ld	s3, 312(sp)
+     5ca:      	ld	s4, 304(sp)
+     5cc:      	ld	s5, 296(sp)
+     5ce:      	ld	s6, 288(sp)
+     5d0:      	ld	s7, 280(sp)
+     5d2:      	ld	s8, 272(sp)
+     5d4:      	ld	s9, 264(sp)
+     5d6:      	ld	s10, 256(sp)
+     5d8:      	ld	s11, 248(sp)
+     5da:      	addi	sp, sp, 352
+     5dc:      	fsw	fa5, 0(a1)
+     5e0:      	ret
+
+00000000000005e2 <.L0 >:
+     5e2:      	fmv.w.x	fa5, zero
+     5e6:      	fsw	fa5, 0(a1)
+     5ea:      	ret

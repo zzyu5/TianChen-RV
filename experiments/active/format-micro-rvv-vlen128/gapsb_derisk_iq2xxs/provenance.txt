@@ -1,0 +1,37 @@
+# [GAP-SB] de-risk cell — iq2_xxs pair-batching (EMIT gather 16->8): does it get FASTER on board?
+# session 2026-07-07 GAP-SB de-risk board batch (autonomous; NOT committed — user commits)
+# board: ssh rvv = openEuler riscv64, VLEN128, 64c, L1d 64K / L2 2MiB / L3 64MiB (index3), zvfh/zba/zbb/zbc/zbs
+# main tree + build/ UNTOUCHED; no git stash. all ours binaries built via tools/bench/byte-exact-baseline.sh (cached detached worktrees).
+
+## artifacts
+- objdir_PRE/iq2_xxs.o   ours @ 0c64477c (before pair-batching)   sha256 f86b5f4ded6bafa2...  6640B
+- objdir_POST/iq2_xxs.o  ours @ 169f0cc0 (the [GAP-SB] commit)     sha256 f9e87d2333313062...  6520B
+- objdir_{PRE,POST}/{iq3_s,iq2_s,iq2_xs,iq3_xxs,iq4_xs,tq1_0,tq2_0}.o = shared HEAD(0ca224f7) exports (link-fillers; only iq2_xxs read)
+- factory_generic.o  = ggml-cpu/quants.c GENERIC ref, clang-17 -O2, _generic symbols objcopy-aliased to dispatched names; 8/8 opponent-locate FOUND
+  (this is the PREFLIGHT(0)-PASSING symmetric factory: llvm-vs-llvm, version-skew CAVEAT clang20-vs-clang17)
+
+## export command (per binary, host, main tree untouched)
+tcrv-opt <git-show sha:test/Target/RVV/iq2-xxs-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir> \
+  --tcrv-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans \
+  | tcrv-translate --tcrv-export-target-artifact > iq2_xxs.o
+  PRE  binaries: .worktrees/cache/0c64477ca5e6b1bd9e7e2dff697f58d2c1e8dc38/{tcrv-opt,tcrv-translate}
+  POST binaries: .worktrees/cache/169f0cc0b6c948542f0432c76ef287dd1c61e611/{tcrv-opt,tcrv-translate}
+
+## PRE->POST isolation
+- intervening commits e37e64ef (GAP-NUM q8_0 numeric dual-mode) and 1076d75e (heal-fix) do NOT touch iq2_xxs
+  => PRE(0c64477c)->POST(169f0cc0) iq2_xxs codegen delta = pair-batching ONLY.
+- both PRE and POST are post the 0ca224f7 zfh merge => both hardware-fp16 (PREFLIGHT(2) libcall-free OK, no __extendhfsf2). A/B not confounded by softfloat.
+
+## board micro
+- harness: tools/e2e-harness/board/format_micro_paired.sh (read-only; env-driven), driver format_micro_driver.c
+- params: CORE=8 EXP_VLEN=128 POOL_MIB=256 ROUNDS=16 N=4096 MARCH=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause
+- cache hygiene: working_set ~256MiB cold-streamed, >= 3xL3(64MiB)=192MiB => measured (NOT cache-resident/STALE)
+- A/B = run harness twice (objdir_POST, objdir_PRE); ours-PRE-median / ours-POST-median (factory-independent; factory column is a cross-run drift sentinel)
+
+## factory notes (the "vs-factory" leg)
+- vs-GENERIC (gate-passing): factory_generic.o above. Real ggml generic reference impl, but scalar-ish (NOT the SIMD dispatch).
+- vs-gcc15-SIMD (task's named "gcc-15.2.0 -O3" dispatched factory): prebuilt object
+  /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/.../arch/riscv/quants.c.o  (.comment "GCC 15.2.0"), defines real ggml_vec_dot_iq2_xxs_q8_K.
+  This pairing CANNOT pass PREFLIGHT(0): ours is an LLVM codegen-export (clang-20) with no gcc equivalent => compiler-FAMILY axis inherently unsatisfiable.
+  BOARD LIMIT: board caps at clang-17; ggml's modern riscv SIMD TU needs clang-18+ (__riscv_vcreate_* + short-form vsetivli inline-asm) and the board GNU as is too old for zvfh => a SYMMETRIC (clang) SIMD factory is unbuildable on this board.
+  Reported as a caveated supplement via a manual driver link (STAGE2), with the fairness gate's honest REFUSE verdict recorded.

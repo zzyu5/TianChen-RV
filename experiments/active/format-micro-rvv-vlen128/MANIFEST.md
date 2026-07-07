@@ -169,6 +169,18 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 - `gap_triage_batch2c/disasm/tq2_0.ours.objdump.txt` — board-native ours disasm, tq2_0.
 - `gap_triage_batch2c/disasm/tq2_0.factory_vl128.objdump.txt` — board-native factory disasm, tq2_0.
 
+### [GAP-SB] de-risk (iq2_xxs pair-batching, 裁决三, HEAD 169f0cc0 POST vs 0c64477c PRE) — DATA ONLY
+- `gapsb_derisk_iq2xxs/derisk_cell.md` — the de-risk writeup: A/B 3.52× (ours-PRE 883ns→POST 251ns, clean
+  isolation identical working-set), vs-generic LOSS→WIN flip 0.735×→2.57× (byte-exact ULP0, PREFLIGHT-pass),
+  vs-gcc15 2.53× wall-time flagged compiler-CONFOUNDED (clang20-vs-gcc15, PREFLIGHT REFUSE, NOT headline),
+  roofline 21.9% = latency/gather-bound. Conclusion: emit-level gather 16→8 transduces to silicon speedup.
+- `gapsb_derisk_iq2xxs/objdump_pre_post.md` — real machine-code PRE→POST counts (gather 16→8, vset* 56→40,
+  vwmul/vwredsum 8→8 unchanged = byte-exact core, total 459→436).
+- `gapsb_derisk_iq2xxs/provenance.txt` — pinned commands, .o sha256 (PRE f86b5f4d/POST f9e87d23), board fingerprint.
+- `gapsb_derisk_iq2xxs/raw/objdump_iq2xxs_PRE.txt` / `raw/objdump_iq2xxs_POST.txt` — llvm-objdump of exported .o.
+- `gapsb_derisk_iq2xxs/raw/gcc15_factory_vl128_disasm.txt` — gcc-15 factory vl128 body (4 gathers/120 insns, confirms factory=4).
+- (`.o` objects + `*.log` = gitignored scratch, evidence-regenerable, not durable.)
+
 ## scratch (gitignored, rides with cell, not durable)
 - `exported_objects/*.o` — the 6 pinned-HEAD RISC-V objects (evidence the export path works; regenerable).
 
