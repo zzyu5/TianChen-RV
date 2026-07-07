@@ -2975,11 +2975,16 @@ void appendScheduleAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp)
 std::string buildScheduleFillAttributionRecord(
     llvm::StringRef kernelName, llvm::ArrayRef<llvm::StringRef> candidates,
     const RVVFillLMULChoice &choice, std::int64_t minimumVLEN,
+    const RVVNumericsTierChoice &numericsChoice,
     llvm::StringRef declaredInstanceHash, bool noTimestamp) {
   std::string line;
   llvm::raw_string_ostream os(line);
   // Canonical top-level key order (sorted): candidates, chosen,
-  // declared_instance_hash, kernel, minimum_vlen, reason, ts.
+  // declared_instance_hash, kernel, minimum_vlen, numerics_reason,
+  // numerics_tier, reason, ts. numerics_reason/numerics_tier ride ONLY on the
+  // chooseNumericsTier output (they cannot be forged here), exactly as reason
+  // rides only on chooseFillOptimalLMUL -- the [GAP-NUM] tier is a schedule-stage
+  // policy pick attributed at the SAME sink as the fill-LMUL pick.
   os << '{';
   os << "\"candidates\":[";
   for (std::size_t index = 0; index < candidates.size(); ++index) {
@@ -2993,6 +2998,11 @@ std::string buildScheduleFillAttributionRecord(
      << llvm::json::Value(declaredInstanceHash.str());
   os << ",\"kernel\":" << llvm::json::Value(kernelName.str());
   os << ",\"minimum_vlen\":" << minimumVLEN;
+  os << ",\"numerics_reason\":"
+     << llvm::json::Value(
+            stringifyRVVNumericsTierReason(numericsChoice.reason).str());
+  os << ",\"numerics_tier\":"
+     << llvm::json::Value(stringifyRVVNumericsTier(numericsChoice.tier).str());
   os << ",\"reason\":"
      << llvm::json::Value(stringifyRVVFillLMULReason(choice.reason).str());
   os << ",\"ts\":";
@@ -3007,7 +3017,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                   const ExtensionPluginRegistry &registry,
                   const MonolithicBlockDotOpEntry &entry,
                   BlockDotSourceMatch source, llvm::StringRef march,
-                  llvm::StringRef isaVectorHints,
+                  llvm::StringRef isaVectorHints, bool numericsReassocOk,
                   llvm::raw_ostream *attributionStream,
                   bool attributionNoTimestamp) {
   mlir::Location loc = source.func.getLoc();
@@ -3588,9 +3598,15 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
           support::computeDeclaredInstanceHash(*capabilities);
     else
       llvm::consumeError(capabilities.takeError());
+    // [GAP-NUM] the schedule-stage numerics-tier pick, attributed alongside the
+    // fill-LMUL pick. The typed-flat block-dots all carry an fp cross-block fold,
+    // so they ARE fp-order-sensitive; the tier is then keyed by the
+    // `numerics.reassoc_ok` policy fact (fail-closed: absent => strict).
+    const RVVNumericsTierChoice numericsChoice = chooseNumericsTier(
+        numericsReassocOk, /*kernelIsFpOrderSensitive=*/true);
     *attributionStream << buildScheduleFillAttributionRecord(
                               kernelName, typedFlatLMULCandidates, fillChoice,
-                              minimumVLEN, declaredInstanceHash,
+                              minimumVLEN, numericsChoice, declaredInstanceHash,
                               attributionNoTimestamp)
                        << "\n";
   }
@@ -3695,6 +3711,17 @@ public:
       llvm::cl::desc("Emit a fixed sentinel ts instead of the wall-clock time so "
                      "the attribution record is byte-deterministic for lit."),
       llvm::cl::init(false)};
+  ::mlir::Pass::Option<bool> numericsReassocOk{
+      *this, "numerics-reassoc-ok",
+      llvm::cl::desc(
+          "[GAP-NUM] the `numerics.reassoc_ok` (kind=policy) capability fact: a "
+          "build/permission gate authorizing the [flat-block-dot-fp-fold-oracle "
+          "§5] reassociation (relaxed) numerics tier. FAIL-CLOSED: OFF by default "
+          "=> the strict §1 byte-exact tier (the paper headline). When ON the "
+          "chooseNumericsTier selector unlocks the relaxed tier for fp-order "
+          "sensitive kernels; the relaxed body is verified against a declared ULP "
+          "upper bound, never §1, and never a headline."),
+      llvm::cl::init(false)};
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
     registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
@@ -3772,7 +3799,7 @@ public:
     builder.setInsertionPointToStart(module.getBody());
     if (mlir::failed(materializeKernel(builder, kernelName, *registry, *entry,
                                        *source, march, isaVectorHints,
-                                       attributionStream,
+                                       numericsReassocOk, attributionStream,
                                        attributionJsonlNoTimestamp))) {
       signalPassFailure();
       return;

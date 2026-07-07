@@ -6630,6 +6630,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         "q8_0 (sumi_times_scales) full flat block-dot body; the other folds "
         "require the per-block default (later steps)");
 
+  // [GAP-NUM] the numerics tier (which fp oracle governs the fold). "strict"
+  // (default; absent = strict, fail-closed I7) issues the §1 byte-exact fold;
+  // "relaxed" is the §5 policy-gated reassociation variant. The relaxed body is
+  // currently materialized ONLY on the q8_0 deferred-ordered path (the vectorized
+  // cross-block fold, where premultiply + vfmacc + one deferred vfredusum is the
+  // minimal surgical delta). A relaxed request on any OTHER path must NOT silently
+  // emit the strict fold (IR-says-relaxed / emit-does-strict is a lie) -- reject it
+  // fail-closed so the tier is only ever honored where a relaxed body exists.
+  llvm::StringRef numericsTier =
+      loopBody.getNumericsTier().value_or("strict");
+  if (numericsTier == "relaxed" &&
+      !(foldStructure == "deferred-ordered" && isQ80ScheduleParam))
+    return rewriter.notifyMatchFailure(
+        loopBody,
+        "numerics_tier \"relaxed\" is currently materialized only for the q8_0 "
+        "(sumi_times_scales) deferred-ordered flat block-dot body; every other "
+        "path must use the strict tier (later steps)");
+
   if (isQ40ScheduleParam) {
     // ===================================================================
     // q4_0 (left_assoc) SCHEDULE-PARAMETERIZED emit: the FULL legal
@@ -7392,6 +7410,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       std::string fSeedCallee = riscvIntrinsicName("vfmv_v_f", 32, "m1", "f32");
       std::string fExtractCallee =
           riscvFloatScalarExtractIntrinsicName("f32", "m1");
+      // [GAP-NUM] relaxed-tier callees (§5 reassociation variant): a fused
+      // vfmacc.vv (one rounding for sumi*dxy + accumulate) into a persistent
+      // lane-wise accumulator, collapsed by ONE unordered tree vfredusum.vs at the
+      // very end. Both are BANNED in the strict tier (the strict deferred lit pins
+      // implicit-check-not vfmacc/vfredusum); they materialize only when relaxed.
+      const bool relaxed = numericsTier == "relaxed";
+      std::string vfmaccCallee = riscvIntrinsicName("vfmacc", 32, "m1", "f32");
+      std::string fredusumCallee =
+          riscvReductionIntrinsicName("vfredusum", 32, "m1", "f32");
 
       // Region-sourced strides / offsets (the operand-flow real gate, W4): the
       // per-block integer-core address arithmetic reads the load ops' strides,
@@ -7464,6 +7491,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                               mlir::ValueRange{red}, opName, role);
       };
 
+      // [GAP-NUM] relaxed tier: a PERSISTENT B-lane fp32 accumulator held across
+      // ALL batches (the K-way accumulator of §5). Seeded to 0.0 once before the
+      // main loop; each batch fuses its B lane terms in via vfmacc; the whole
+      // vector collapses to sumf with ONE unordered vfredusum AFTER the loop. The
+      // strict tier keeps sumf as its only accumulator (this lvalue is unused).
+      mlir::Value accVecVar;
+      if (relaxed) {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, localVariableComment("acc_vec", opName, role));
+        accVecVar = rewriter
+                        .create<emitc::VariableOp>(
+                            loc, emitc::LValueType::get(f32m1Type),
+                            emitc::OpaqueAttr::get(ctx, ""))
+                        .getResult();
+        mlir::Value zeroF =
+            rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+        mlir::Value zeroVec =
+            emitOpaqueCall(rewriter, loc, f32m1Type, fSeedCallee,
+                           mlir::ValueRange{zeroF, sizeLit(B)}, opName, role);
+        rewriter.create<emitc::AssignOp>(loc, accVecVar, zeroVec);
+      }
+
       // The by-B main loop: each batch packs B sumi + strided B scales, then ONE
       // seed-ordered vfredosum fold; the nb % B robust scalar tail continues the
       // SAME §1 serial fold.
@@ -7524,34 +7573,65 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         mlir::Value dxVec = scaleVec(dxScaleBase, dxScaleStride, dxScaleOff);
         mlir::Value dyVec = scaleVec(dyScaleBase, dyScaleStride, dyScaleOff);
 
-        // PHASE B: bit-exact §1. int32->f32 (exact), vfmul x2 per lane (SEPARATE
-        // roundings -- NO premultiply, NO FMA), then ONE vfredosum.vs SEEDED by
-        // the running sumf (lane-ascending, seed-first = serial left-fold).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, "deferred_ordered_fold"));
-        mlir::Value sumfCur =
-            rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-        mlir::Value seedVec =
-            emitOpaqueCall(rewriter, loc, f32m1Type, fSeedCallee,
-                           mlir::ValueRange{sumfCur, sizeLit(1)}, opName, role);
-        mlir::Value sumiF =
-            emitOpaqueCall(rewriter, loc, f32m1Type, sumiCvtCallee,
-                           mlir::ValueRange{sumiVec, sizeLit(B)}, opName, role);
-        mlir::Value tVec = emitOpaqueCall(
-            rewriter, loc, f32m1Type, fmulCallee,
-            mlir::ValueRange{sumiF, dxVec, sizeLit(B)}, opName, role);
-        tVec = emitOpaqueCall(rewriter, loc, f32m1Type, fmulCallee,
-                              mlir::ValueRange{tVec, dyVec, sizeLit(B)}, opName,
-                              role);
-        mlir::Value red = emitOpaqueCall(
-            rewriter, loc, f32m1Type, fredosumCallee,
-            mlir::ValueRange{tVec, seedVec, sizeLit(B)}, opName, role);
-        mlir::Value sumfNext =
-            emitOpaqueCall(rewriter, loc, floatType, fExtractCallee,
-                           mlir::ValueRange{red}, opName, role);
-        rewriter.create<emitc::VerbatimOp>(
-            loc, assignComment("sumf", opName, role));
-        rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfNext);
+        if (relaxed) {
+          // PHASE B (RELAXED, §5). The reassociation variant: premultiply the two
+          // scales into d_xy (ONE vfmul -- §1 FORBIDS d_x*d_y premultiply, §5
+          // ALLOWS it) and fuse sumi*d_xy into the persistent lane-wise
+          // accumulator with ONE vfmacc (a single fused rounding replacing the §1
+          // {vfmul, vfmul} + the per-batch ordered reduction). NO per-batch
+          // reduction -- the whole cross-block collapse is deferred to one
+          // post-loop vfredusum, so the serial fold chain is broken (batches are
+          // independent). Verified against the reassoc-tolerant oracle + a declared
+          // ULP bound, NEVER §1.
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, "relaxed_reassoc_fold"));
+          mlir::Value sumiF =
+              emitOpaqueCall(rewriter, loc, f32m1Type, sumiCvtCallee,
+                             mlir::ValueRange{sumiVec, sizeLit(B)}, opName, role);
+          mlir::Value dxyVec = emitOpaqueCall(
+              rewriter, loc, f32m1Type, fmulCallee,
+              mlir::ValueRange{dxVec, dyVec, sizeLit(B)}, opName, role);
+          mlir::Value accCur =
+              rewriter.create<emitc::LoadOp>(loc, f32m1Type, accVecVar)
+                  .getResult();
+          mlir::Value accNext = emitOpaqueCall(
+              rewriter, loc, f32m1Type, vfmaccCallee,
+              mlir::ValueRange{accCur, sumiF, dxyVec, sizeLit(B)}, opName, role);
+          rewriter.create<emitc::VerbatimOp>(
+              loc, assignComment("acc_vec", opName, role));
+          rewriter.create<emitc::AssignOp>(loc, accVecVar, accNext);
+        } else {
+          // PHASE B (STRICT): bit-exact §1. int32->f32 (exact), vfmul x2 per lane
+          // (SEPARATE roundings -- NO premultiply, NO FMA), then ONE vfredosum.vs
+          // SEEDED by the running sumf (lane-ascending, seed-first = serial
+          // left-fold). This block is BYTE-IDENTICAL to the pre-[GAP-NUM] strict
+          // deferred emit (op order unchanged).
+          rewriter.create<emitc::VerbatimOp>(
+              loc, stepComment(opName, role, "deferred_ordered_fold"));
+          mlir::Value sumfCur =
+              rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+          mlir::Value seedVec =
+              emitOpaqueCall(rewriter, loc, f32m1Type, fSeedCallee,
+                             mlir::ValueRange{sumfCur, sizeLit(1)}, opName, role);
+          mlir::Value sumiF =
+              emitOpaqueCall(rewriter, loc, f32m1Type, sumiCvtCallee,
+                             mlir::ValueRange{sumiVec, sizeLit(B)}, opName, role);
+          mlir::Value tVec = emitOpaqueCall(
+              rewriter, loc, f32m1Type, fmulCallee,
+              mlir::ValueRange{sumiF, dxVec, sizeLit(B)}, opName, role);
+          tVec = emitOpaqueCall(rewriter, loc, f32m1Type, fmulCallee,
+                                mlir::ValueRange{tVec, dyVec, sizeLit(B)}, opName,
+                                role);
+          mlir::Value red = emitOpaqueCall(
+              rewriter, loc, f32m1Type, fredosumCallee,
+              mlir::ValueRange{tVec, seedVec, sizeLit(B)}, opName, role);
+          mlir::Value sumfNext =
+              emitOpaqueCall(rewriter, loc, floatType, fExtractCallee,
+                             mlir::ValueRange{red}, opName, role);
+          rewriter.create<emitc::VerbatimOp>(
+              loc, assignComment("sumf", opName, role));
+          rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfNext);
+        }
       }
       auto tailLoop = rewriter.create<emitc::ForOp>(
           loc, nbMain, nb, sizeLit(1), /*bodyBuilder=*/nullptr);
@@ -7564,6 +7644,33 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           return mlir::failure();
         emitFlatFold(rewriter, loc, st, core->sumiVar, core->dX, core->dY,
                      core->mX, core->sY);
+      }
+      if (relaxed) {
+        // [GAP-NUM] relaxed final collapse: ONE unordered vfredusum.vs folds the B
+        // deferred lane accumulators into the running sumf (which by now already
+        // carries the nb % B strict scalar tail). vfredusum is a TREE reduction --
+        // it does NOT preserve lane order, which is exactly the reassociation §5
+        // permits (and §1 forbids). Seeded by sumf so the vector part folds onto
+        // the scalar tail; the result lands back in the SAME sumf lvalue the store
+        // reads.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "relaxed_final_reduce"));
+        mlir::Value sumfCur =
+            rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
+        mlir::Value seedVec =
+            emitOpaqueCall(rewriter, loc, f32m1Type, fSeedCallee,
+                           mlir::ValueRange{sumfCur, sizeLit(1)}, opName, role);
+        mlir::Value accCur =
+            rewriter.create<emitc::LoadOp>(loc, f32m1Type, accVecVar).getResult();
+        mlir::Value red = emitOpaqueCall(
+            rewriter, loc, f32m1Type, fredusumCallee,
+            mlir::ValueRange{accCur, seedVec, sizeLit(B)}, opName, role);
+        mlir::Value sumfNext =
+            emitOpaqueCall(rewriter, loc, floatType, fExtractCallee,
+                           mlir::ValueRange{red}, opName, role);
+        rewriter.create<emitc::VerbatimOp>(
+            loc, assignComment("sumf", opName, role));
+        rewriter.create<emitc::AssignOp>(loc, sumfVar, sumfNext);
       }
     } else if (multiBlockFactor == 1) {
       auto blockLoop = rewriter.create<emitc::ForOp>(

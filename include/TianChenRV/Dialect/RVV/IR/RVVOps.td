@@ -9569,7 +9569,26 @@ def TypedFlatBlockDotLoopBodyOp : TCRVRVV_Op<"typed_flat_block_dot_loop_body",
     their integer sumi into one vector, strided-loads the fp16 scales, and issues
     the cross-block fold as a single seed-ordered vfredosum.vs -- bit-exact to the
     SAME §1 oracle by construction (vfredosum.vs reduces lane-ascending, seed-first
-    = the serial left-fold). Both variants verify against the one §1 oracle. For the
+    = the serial left-fold). Both variants verify against the one §1 oracle.
+
+    numerics_tier is a THIRD, ORTHOGONAL scheduling axis (distinct from fold_model
+    = the *what*, and fold_structure = *how the STRICT fold is issued*): it selects
+    WHICH numeric oracle governs the fp fold. "strict" (default; absent = strict,
+    fail-closed I7) pins the [testing/flat-block-dot-fp-fold-oracle.md §1] fold
+    (no-FMA, strict left-assoc, ordered, no d_x*d_y premultiply) -- BOTH per-block
+    and deferred-ordered strict variants verify byte-exact against §1, and the paper
+    headline number is ALWAYS strict. "relaxed" is the policy-gated reassociation
+    variant of §5: it is admitted ONLY behind the `numerics.reassoc_ok`
+    (kind=policy) capability fact (fail-closed: the fact absent => strict), verifies
+    against the SEPARATE reassoc-tolerant oracle + a DECLARED ULP upper bound (NEVER
+    against §1, NEVER a headline -- [K-5] fp gate = ULP-bound declaration). Under
+    relaxed the deferred-ordered q8_0 body may premultiply the scales, fuse the
+    per-block dequant into a vfmacc lane-wise accumulator, and defer the whole
+    cross-block collapse to ONE unordered vfredusum.vs (a K-way accumulator that
+    breaks the serial fold chain, §5). fold_structure then degrades to a sub-knob of
+    the strict tier. For the current bounded surface numerics_tier is limited to
+    "strict" or "relaxed".
+    For the
     current bounded surface kind is limited to "typed_flat_block_dot_loop_body"
     and fold_model to "sumi_times_scales" (the q8_0 `(float)sumi * (d_x * d_y)`
     fold tree) or "left_assoc" (the q4_0 `((float)sumi * d_x) * d_y` fold tree,
@@ -9592,7 +9611,8 @@ def TypedFlatBlockDotLoopBodyOp : TCRVRVV_Op<"typed_flat_block_dot_loop_body",
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$multi_block_factor,
     OptionalAttr<StrAttr>:$strip_elision,
-    OptionalAttr<StrAttr>:$fold_structure
+    OptionalAttr<StrAttr>:$fold_structure,
+    OptionalAttr<StrAttr>:$numerics_tier
   );
   let regions = (region SizedRegion<1>:$body);
 

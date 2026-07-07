@@ -27,6 +27,11 @@ using tianchenrv::plugin::rvv::selectRVVLowPrecisionMaxLegalAccumulatorLMULRung;
 using tianchenrv::plugin::rvv::RVVFillLMULReason;
 using tianchenrv::plugin::rvv::chooseFillOptimalLMUL;
 using tianchenrv::plugin::rvv::stringifyRVVFillLMULReason;
+using tianchenrv::plugin::rvv::RVVNumericsTier;
+using tianchenrv::plugin::rvv::RVVNumericsTierReason;
+using tianchenrv::plugin::rvv::chooseNumericsTier;
+using tianchenrv::plugin::rvv::stringifyRVVNumericsTier;
+using tianchenrv::plugin::rvv::stringifyRVVNumericsTierReason;
 
 namespace {
 
@@ -196,6 +201,54 @@ int runFillOptimalLMULPriorTest() {
   return 0;
 }
 
+// [GAP-NUM] numerics-tier policy selection: a DIRECT test of chooseNumericsTier.
+// Like chooseFillOptimalLMUL this is a PURE, COST-MODEL-FREE policy pick -- it
+// touches ZERO cost model, only the two boolean facts (reassoc_ok present, kernel
+// fp-order-sensitive). The DISCRIMINANT: it fail-closes to strict, so the paper
+// headline (§1 byte-exact) is the default and the relaxed §5 variant is unlocked
+// ONLY behind the numerics.reassoc_ok policy fact.
+int runNumericsTierPolicyTest() {
+  // Fail-closed default: an fp-order-sensitive kernel with NO reassoc_ok policy
+  // fact stays STRICT (the §1 byte-exact headline), reason strict_default.
+  auto strictDefault = chooseNumericsTier(/*reassocOkPresent=*/false,
+                                          /*kernelIsFpOrderSensitive=*/true);
+  if (strictDefault.tier != RVVNumericsTier::Strict ||
+      strictDefault.reason != RVVNumericsTierReason::StrictDefault)
+    return fail("no reassoc_ok policy fact => strict/strict_default; got " +
+                stringifyRVVNumericsTier(strictDefault.tier) + "/" +
+                stringifyRVVNumericsTierReason(strictDefault.reason));
+
+  // Policy fact present AND fp-order-sensitive => the §5 relaxed variant is
+  // unlocked, reason relaxed_by_reassoc_ok_policy.
+  auto relaxed = chooseNumericsTier(/*reassocOkPresent=*/true,
+                                    /*kernelIsFpOrderSensitive=*/true);
+  if (relaxed.tier != RVVNumericsTier::Relaxed ||
+      relaxed.reason != RVVNumericsTierReason::RelaxedByPolicy)
+    return fail("reassoc_ok present + fp-order-sensitive => "
+                "relaxed/relaxed_by_reassoc_ok_policy; got " +
+                stringifyRVVNumericsTier(relaxed.tier) + "/" +
+                stringifyRVVNumericsTierReason(relaxed.reason));
+
+  // Integer-exact kernel (no reassociable fp fold): STRICT regardless of the
+  // policy fact -- there is nothing to reorder, reason strict_only_integer_exact.
+  auto exactWithPolicy = chooseNumericsTier(/*reassocOkPresent=*/true,
+                                            /*kernelIsFpOrderSensitive=*/false);
+  auto exactNoPolicy = chooseNumericsTier(/*reassocOkPresent=*/false,
+                                          /*kernelIsFpOrderSensitive=*/false);
+  if (exactWithPolicy.tier != RVVNumericsTier::Strict ||
+      exactWithPolicy.reason != RVVNumericsTierReason::StrictOnlyExact ||
+      exactNoPolicy.tier != RVVNumericsTier::Strict ||
+      exactNoPolicy.reason != RVVNumericsTierReason::StrictOnlyExact)
+    return fail("integer-exact kernel => strict/strict_only_integer_exact "
+                "regardless of the policy fact");
+
+  llvm::outs() << "[GAP-NUM] numerics-tier policy: no-fact->strict/strict_default, "
+                  "fact+fp->relaxed/relaxed_by_reassoc_ok_policy, "
+                  "integer-exact->strict/strict_only_integer_exact "
+                  "(fail-closed, cost-model-free)\n";
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -208,6 +261,8 @@ int main() {
   if (int result = runAllPrunedTest())
     return result;
   if (int result = runFillOptimalLMULPriorTest())
+    return result;
+  if (int result = runNumericsTierPolicyTest())
     return result;
   llvm::outs() << "RVV N3 resource-aware LMUL selection tests passed\n";
   return 0;

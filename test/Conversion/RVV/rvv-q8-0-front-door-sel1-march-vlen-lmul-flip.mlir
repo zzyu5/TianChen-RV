@@ -46,6 +46,14 @@
 // RUN: tcrv-opt %s "--tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=attribution-jsonl=%t.none.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
 // RUN: FileCheck %s --check-prefix=NOMARKREC < %t.none.jsonl
 
+// --- [GAP-NUM] the numerics-tier policy pick is attributed at the SAME schedule
+// --- sink. FAIL-CLOSED: with NO --numerics-reassoc-ok the record reads
+// --- strict/strict_default (the §1 headline). With the policy gate ON the SAME
+// --- schema flips to relaxed/relaxed_by_reassoc_ok_policy -- keyed on the policy
+// --- fact alone, NOT the VLEN fact. ---
+// RUN: tcrv-opt %s "--tcrv-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv numerics-reassoc-ok=true attribution-jsonl=%t.relaxed.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
+// RUN: FileCheck %s --check-prefix=RELAXEDREC < %t.relaxed.jsonl
+
 module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
                    tcrv_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
   func.func @source_q8_0_q8_0_block_dot(%s: memref<?xf32>, %n: index, %vx: memref<?xi8>, %vy: memref<?xi8>) {
@@ -80,19 +88,24 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // M2EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 
 // [D-4] canonical-JSON record (sorted keys: candidates, chosen,
-// declared_instance_hash, kernel, minimum_vlen, reason, ts). Same schema, two
-// instances: identical candidate set + kernel, the VLEN fact flips chosen + drives
-// reason=prior.
+// declared_instance_hash, kernel, minimum_vlen, numerics_reason, numerics_tier,
+// reason, ts). Same schema, two instances: identical candidate set + kernel, the
+// VLEN fact flips chosen + drives reason=prior. The [GAP-NUM] numerics tier is
+// fail-closed strict (no --numerics-reassoc-ok policy gate), independent of VLEN.
 // PRIOR256: "candidates":["m1","m2"]
 // PRIOR256-SAME: "chosen":"m1"
 // PRIOR256-SAME: "kernel":"ggml_vec_dot_q8_0_q8_0_kernel"
 // PRIOR256-SAME: "minimum_vlen":256
+// PRIOR256-SAME: "numerics_reason":"strict_default"
+// PRIOR256-SAME: "numerics_tier":"strict"
 // PRIOR256-SAME: "reason":"prior"
 
 // PRIOR128: "candidates":["m1","m2"]
 // PRIOR128-SAME: "chosen":"m2"
 // PRIOR128-SAME: "kernel":"ggml_vec_dot_q8_0_q8_0_kernel"
 // PRIOR128-SAME: "minimum_vlen":128
+// PRIOR128-SAME: "numerics_reason":"strict_default"
+// PRIOR128-SAME: "numerics_tier":"strict"
 // PRIOR128-SAME: "reason":"prior"
 
 // NO -march -> the widest default core = today's untuned m2 (byte-identical).
@@ -102,5 +115,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // The no-capability path is HONESTLY not a prior: reason=fallback_widest, vlen 0.
 // NOMARKREC: "chosen":"m2"
 // NOMARKREC-SAME: "minimum_vlen":0
+// NOMARKREC-SAME: "numerics_tier":"strict"
 // NOMARKREC-SAME: "reason":"fallback_widest"
 // NOMARKREC-NOT: "reason":"prior"
+
+// [GAP-NUM] the policy gate ON flips ONLY the numerics tier (the fill LMUL still
+// keys on VLEN128 -> m2/prior): relaxed/relaxed_by_reassoc_ok_policy.
+// RELAXEDREC: "chosen":"m2"
+// RELAXEDREC-SAME: "minimum_vlen":128
+// RELAXEDREC-SAME: "numerics_reason":"relaxed_by_reassoc_ok_policy"
+// RELAXEDREC-SAME: "numerics_tier":"relaxed"
+// RELAXEDREC-SAME: "reason":"prior"

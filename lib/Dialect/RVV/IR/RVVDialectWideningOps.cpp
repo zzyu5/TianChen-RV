@@ -10019,6 +10019,20 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
                 "\"deferred-ordered\"; got \""
              << *foldStructure << "\"";
   }
+  // numerics_tier is the orthogonal ORACLE-selection knob (which fp oracle governs
+  // the fold), not an arithmetic tree and not a fold schedule: "strict" (default;
+  // absent = strict) pins the §1 byte-exact fold; "relaxed" is the §5 policy-gated
+  // reassociation variant (verified against the reassoc-tolerant oracle + a declared
+  // ULP bound, admitted only behind numerics.reassoc_ok). Any other spelling is
+  // rejected fail-closed (I7). Whether a given fold tree / knob combo actually
+  // materializes a relaxed body is an emit-time surface gate (like fold_structure),
+  // not a verifier concern.
+  if (std::optional<llvm::StringRef> numericsTier = getNumericsTier()) {
+    if (*numericsTier != "strict" && *numericsTier != "relaxed")
+      return emitOpError()
+             << "only accepts numerics_tier \"strict\" or \"relaxed\"; got \""
+             << *numericsTier << "\"";
+  }
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 0)
     return emitOpError()

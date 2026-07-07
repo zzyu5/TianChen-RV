@@ -2730,6 +2730,96 @@ chooseFillOptimalLMUL(unsigned vlenBits, unsigned sew, unsigned blockLen,
   return {best, RVVFillLMULReason::Prior};
 }
 
+//===----------------------------------------------------------------------===//
+// [GAP-NUM] capability-keyed NUMERICS-TIER selection (the schedule-stage sibling
+// of chooseFillOptimalLMUL). A PURE, COST-MODEL-FREE decision over exactly two
+// boolean facts: (1) whether the `numerics.reassoc_ok` (kind=policy) capability
+// fact is AVAILABLE, and (2) whether this kernel has an fp-order-sensitive
+// cross-block fold at all. It maps to a two-member closed tier enum + a closed
+// attribution reason, and NEVER touches a cost model, measured_ns, or a vreg
+// budget -- the tier is a policy gate, not a performance pick.
+//
+// FAIL-CLOSED CRUX ([K-5] / flat-block-dot-fp-fold-oracle.md §5): the DEFAULT is
+// always Strict. Relaxed (the §5 reassociation variant -- premultiplied scales,
+// vfmacc lane-wise accumulation, one deferred unordered vfredusum) is admitted
+// ONLY when the policy fact is present AND the kernel is fp-order-sensitive. A
+// kernel with NO reassociable fp fold (an integer-exact / bit-exact path) is
+// StrictOnlyExact regardless of the policy fact -- there is no faster reordering
+// to unlock, and the integer path is byte-exact by construction.
+//
+// This selector is keyed on the `numerics.reassoc_ok` (kind=policy) capability
+// fact. Its concrete availability is a build/permission gate: today it enters the
+// q8_0 front door through the `--numerics-reassoc-ok` pass option (a policy gate,
+// fail-closed OFF). Wiring it as a first-class TargetCapabilitySet fact keyed off
+// a target profile is a later step. Either way the fact is CONTENT, not schema
+// shape (schema.def not_in_shape: concrete fact rows), so no schema.def change is
+// implied.
+//===----------------------------------------------------------------------===//
+
+/// The numeric-fold policy tier the fp cross-block fold is issued under. `Strict`:
+/// the §1 byte-exact oracle (no-FMA, strict left-assoc, ordered, no premultiply)
+/// -- the fail-closed default and the paper headline. `Relaxed`: the §5
+/// policy-gated reassociation variant (verified against the reassoc-tolerant
+/// oracle + a declared ULP bound, NEVER §1, NEVER a headline).
+enum class RVVNumericsTier { Strict, Relaxed };
+
+/// Why the tier was chosen -- carried on the selector output ONLY, so the reason
+/// can never be forged elsewhere (the static_order attribution discipline: this
+/// enumerates the capability-blind selection mechanism, not a prior/guard).
+/// `StrictDefault`: no `numerics.reassoc_ok` policy fact => strict, fail-closed.
+/// `RelaxedByPolicy`: the policy fact is present AND the kernel is fp-order
+/// sensitive => the §5 relaxed variant is unlocked. `StrictOnlyExact`: the kernel
+/// carries no reassociable fp fold (integer-exact path), so strict is the ONLY
+/// tier regardless of the policy fact.
+enum class RVVNumericsTierReason {
+  StrictDefault,
+  RelaxedByPolicy,
+  StrictOnlyExact
+};
+
+inline llvm::StringRef stringifyRVVNumericsTier(RVVNumericsTier tier) {
+  switch (tier) {
+  case RVVNumericsTier::Strict:
+    return "strict";
+  case RVVNumericsTier::Relaxed:
+    return "relaxed";
+  }
+  return "";
+}
+
+inline llvm::StringRef
+stringifyRVVNumericsTierReason(RVVNumericsTierReason reason) {
+  switch (reason) {
+  case RVVNumericsTierReason::StrictDefault:
+    return "strict_default";
+  case RVVNumericsTierReason::RelaxedByPolicy:
+    return "relaxed_by_reassoc_ok_policy";
+  case RVVNumericsTierReason::StrictOnlyExact:
+    return "strict_only_integer_exact";
+  }
+  return "";
+}
+
+struct RVVNumericsTierChoice {
+  RVVNumericsTier tier = RVVNumericsTier::Strict;
+  RVVNumericsTierReason reason = RVVNumericsTierReason::StrictDefault;
+};
+
+/// [GAP-NUM] capability-keyed numerics-tier selection (see the block comment).
+/// PURE + COST-MODEL-FREE: f(reassocOkPresent, kernelIsFpOrderSensitive) only.
+/// - A kernel with no reassociable fp fold is StrictOnlyExact (the integer-exact
+///   path has nothing to reorder), independent of the policy fact.
+/// - Otherwise the tier is Relaxed IFF the `numerics.reassoc_ok` policy fact is
+///   present; absent => Strict (fail-closed, the §5 default).
+inline RVVNumericsTierChoice
+chooseNumericsTier(bool reassocOkPresent, bool kernelIsFpOrderSensitive) {
+  if (!kernelIsFpOrderSensitive)
+    return {RVVNumericsTier::Strict, RVVNumericsTierReason::StrictOnlyExact};
+  if (reassocOkPresent)
+    return {RVVNumericsTier::Relaxed, RVVNumericsTierReason::RelaxedByPolicy};
+  return {RVVNumericsTier::Strict, RVVNumericsTierReason::StrictDefault};
+}
+
 /// The per-kernel structural facts the shared block-dot enumeration reasons over.
 /// The fn-pointer fields capture the two per-anchor structural counts (the strip
 /// SEW, the vreg footprint) that differ between the nibble-half-block kernels
