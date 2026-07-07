@@ -1,4 +1,17 @@
-# format-micro PAIRED PERF — MEASURED (fair, both-hardware-fp16)  [2026-07-07 lineA-batch2b]
+# ############################################################################
+# >>> INVALID — PROTOCOL DEFECT (2026-07-07 裁决一.1) <<<  数据保留不删,可重测
+# 本文件的 RESULT ratio / "HONEST READ 7/8 LOSS" 叙事【全部 INVALID,作废,禁作结论/立项依据】。
+# 缺陷 = compiler-asymmetry:被计时的 OURS vec_dot = clang-17 -O2(tcrv-translate 导出),
+#   FACTORY vec_dot = gcc-12.3.1 -O3(ggml 自建预制对象,见下方 OPPONENT 段 board header
+#   "opponent ggml pin: build-vericurve gcc-12.3.1")。两个被计时 kernel 由不同编译器 + 不同 -O
+#   产出 → ratio 混淆 kernel 质量与 compiler 质量。实验宪法 §1:对手计时双方须同工具链。
+# ⚠ 下方 "PREFLIGHT 4/4 (3) same-compiler OK (clang-17 both sides)" 是【假绿】:它只验了 LINK
+#   编译器,未验两个被计时 vec_dot 目标由同一编译器产出(factory 目标实为 gcc-12.3.1)。
+# zfh fp16-libcall 修复(两侧硬件 fp16)不能补救本缺陷 —— 是独立的第二缺陷。
+# 仍可引用:EXPORT / OPPONENT-locate(8/8)/ correctness 6/8 FNV bit-match(非计时)。
+# 权威封禁记录见 cell MANIFEST 顶部 banner + T3_A batch2b banner。
+# ############################################################################
+# format-micro PAIRED PERF — [was: MEASURED (fair, both-hardware-fp16)]  [2026-07-07 lineA-batch2b]
 # board: rvv (openEuler 24.03 LTS, uname 6.12.66 riscv64, VLEN128, 64c, L2=2MiB/core, L3=64MiB,
 #        governor=performance @ 2.6GHz). core pinned = 8 (taskset -c 8).
 # export HEAD: 0ca224f7 (= zfh merge; cached detached-worktree tcrv-opt/translate; main tree +

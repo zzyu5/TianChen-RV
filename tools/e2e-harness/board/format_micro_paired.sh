@@ -30,6 +30,220 @@ SESSION="${SESSION:-2026-07-07-lineA-batch2-board}"
 CELL="experiments/active/format-micro-rvv-vlen128"
 PROV="$CELL/export_provenance.txt (pinned HEAD 49ede67d)"
 
+# =====================================================================================
+# 裁决一.2 — MECHANIZED FAIRNESS PRE-FLIGHT ([PERF-1] symmetry gate).
+# format-micro was ruled INVALID once because the two timed objects were built by an
+# ASYMMETRIC toolchain (clang-O2 ours vs gcc-O3 factory). This block mechanizes the
+# check: it extracts a (compiler-family, opt-level, march) triple from EACH side and
+# REFUSES to run (exit!=0) on any asymmetry, naming the offending SIDE and AXIS.
+#   * compiler family + version : read straight out of the ELF `.comment` section
+#                                 (cannot be spoofed by a mere claim).
+#   * march                     : read out of `.riscv.attributes` Tag_RISCV_arch.
+#   * opt level                 : from the build command (factory) / provenance (ours).
+# Policy knobs (env):
+#   MARCH_POLICY   off | critical(default) | exact
+#                  critical => vector/base (rv*,imafdc,zve*,zvl*) diff = REFUSE;
+#                              fp16/bitmanip (zfh*,zvfh*,zb*) diff = loud CAVEAT.
+#                  exact    => any march-token diff = REFUSE.
+#   COMPILER_STRICT 1 => compiler VERSION (not just family) must match.
+#   CANON_OPT      canonical optimization level for a C-compiled side (default O2).
+#   HYGIENE_SOFT   1 => a cache-hygiene shortfall downgrades to STALE instead of REFUSE.
+RE="${RE:-$(command -v readelf || command -v llvm-readelf-17 || command -v llvm-readelf || echo readelf)}"
+MARCH_POLICY="${MARCH_POLICY:-critical}"
+COMPILER_STRICT="${COMPILER_STRICT:-0}"
+CANON_OPT="${CANON_OPT:-O2}"
+HYGIENE_SOFT="${HYGIENE_SOFT:-0}"
+
+fm_comment(){ $RE -p .comment "$1" 2>/dev/null | tr -d '\000'; }
+fm_family(){ local c; c="$(fm_comment "$1")"
+  if   echo "$c" | grep -qiE 'clang|llvm';        then echo llvm
+  elif echo "$c" | grep -qiE '(^|[^a-z])gcc|gnu c'; then echo gcc
+  else echo unknown; fi; }
+fm_ver(){ local c v; c="$(fm_comment "$1")"
+  v="$(echo "$c" | grep -oiE 'clang version [0-9]+(\.[0-9]+)*' | head -1)"
+  [ -n "$v" ] || v="$(echo "$c" | grep -oiE 'gcc[^0-9]{0,6}[0-9]+(\.[0-9]+)*' | head -1)"
+  [ -n "$v" ] || v="$(echo "$c" | grep -oiE '[0-9]+\.[0-9]+(\.[0-9]+)*' | head -1)"
+  echo "${v:-unknown}"; }
+fm_arch(){ $RE -A "$1" 2>/dev/null | sed -nE 's/.*Tag_RISCV_arch: "([^"]*)".*/\1/p' | head -1; }
+# version-stripped RISC-V arch token set, filtered to a fairness group.
+# $1=arch-string  $2=hard|soft|full
+fm_arch_set(){ local s="$1" g="$2" re; [ -n "$s" ] || { echo ""; return; }
+  case "$g" in
+    hard) re='^(rv32|rv64)|^(m|a|f|d|c|v)$|^zve|^zvl' ;;   # base ISA + vector: unfair if it differs
+    soft) re='^zfh|^zvfh|^zba$|^zbb$|^zbs$|^zbc$|^zbk' ;;  # scalar/vec fp16 + bitmanip: caveat
+    full) re='.' ;;
+  esac
+  echo "$s" | tr '_' '\n' | sed -E 's/[0-9]+p[0-9]+$//' | grep -E "$re" | sort -u | tr '\n' ' ' | sed -E 's/ +$//'; }
+# $1 ours-set  $2 factory-set  -> prints "ours_only={..} factory_only={..}"; rc=0 iff identical
+fm_diff_report(){ local oo fo
+  oo="$(comm -23 <(echo "$1"|tr ' ' '\n'|sort -u|grep -v '^$') <(echo "$2"|tr ' ' '\n'|sort -u|grep -v '^$')|tr '\n' ',' |sed 's/,$//')"
+  fo="$(comm -13 <(echo "$1"|tr ' ' '\n'|sort -u|grep -v '^$') <(echo "$2"|tr ' ' '\n'|sort -u|grep -v '^$')|tr '\n' ',' |sed 's/,$//')"
+  echo "ours_only={$oo} factory_only={$fo}"
+  [ -z "$oo" ] && [ -z "$fo" ]; }
+# canonical-opt policy: a direct-codegen-export side (ours tcrv-translate, no -Ox) is
+# conformant against a $CANON_OPT peer; a C-compiled side must literally be $CANON_OPT.
+fm_opt_ok(){ case "$1" in codegen-export*|"$CANON_OPT") return 0;; *) return 1;; esac; }
+# read the board's last-level (or L2) cache size in KiB from sysfs for core $1
+fm_sysfs_kib(){ local v i; for i in index3 index2; do
+    v="$(cat /sys/devices/system/cpu/cpu${1}/cache/$i/size 2>/dev/null)"; [ -n "$v" ] || continue
+    case "$v" in *K) echo "${v%K}"; return;; *M) echo "$(( ${v%M} * 1024 ))"; return;;
+      *) echo "$v" | grep -qE '^[0-9]+$' && { echo "$v"; return; };; esac
+  done; }
+
+# fm_gate_toolchain <ours_obj> <ours_opt> <factory_obj> <factory_opt> -> 0 pass / 1 refuse
+fm_gate_toolchain(){
+  local oo="$1" oopt="$2" fo="$3" fopt="$4" fail=0 d
+  local ofam ofamv ffam ffamv oarch farch
+  ofam="$(fm_family "$oo")"; ofamv="$(fm_ver "$oo")"; oarch="$(fm_arch "$oo")"
+  ffam="$(fm_family "$fo")"; ffamv="$(fm_ver "$fo")"; farch="$(fm_arch "$fo")"
+  echo "  [ours   ] obj=$oo"
+  echo "            family=$ofam ver=($ofamv) opt=$oopt march=${oarch:-<none>}"
+  echo "  [factory] obj=$fo"
+  echo "            family=$ffam ver=($ffamv) opt=$fopt march=${farch:-<none>}"
+
+  # --- axis 1: compiler family (HARD) + version (caveat / hard under COMPILER_STRICT) ---
+  if [ "$ofam" = unknown ] || [ "$ffam" = unknown ]; then
+    echo "  AXIS compiler: REFUSE unreadable family (ours=$ofam factory=$ffam)"; fail=1
+  elif [ "$ofam" != "$ffam" ]; then
+    echo "  AXIS compiler: MISMATCH ours=$ofam factory=$ffam  (the clang-vs-gcc class of unfairness)"; fail=1
+  elif [ "$ofamv" != "$ffamv" ]; then
+    if [ "$COMPILER_STRICT" = 1 ]; then
+      echo "  AXIS compiler: MISMATCH(version;COMPILER_STRICT=1) ours=$ofamv factory=$ffamv"; fail=1
+    else
+      echo "  AXIS compiler: CAVEAT same family($ofam) but version skew ours=$ofamv factory=$ffamv (COMPILER_STRICT=1 to enforce)"
+    fi
+  else
+    echo "  AXIS compiler: OK ($ofam $ofamv both sides)"
+  fi
+
+  # --- axis 2: optimization level ---
+  local a2=0
+  fm_opt_ok "$oopt" || { echo "  AXIS opt: ours opt='$oopt' non-canonical (policy=$CANON_OPT)"; a2=1; }
+  fm_opt_ok "$fopt" || { echo "  AXIS opt: factory opt='$fopt' non-canonical (policy=$CANON_OPT)"; a2=1; }
+  case "$oopt$fopt" in
+    *codegen-export*) : ;;  # ours is a direct codegen export; canonical policy above governs
+    *) [ "$oopt" = "$fopt" ] || { echo "  AXIS opt: MISMATCH ours=$oopt factory=$fopt"; a2=1; } ;;
+  esac
+  [ "$a2" = 0 ] && echo "  AXIS opt: OK (ours=$oopt factory=$fopt; canonical=$CANON_OPT)"
+  fail=$(( fail | a2 ))
+
+  # --- axis 3: march ---
+  if [ "$MARCH_POLICY" = off ]; then
+    echo "  AXIS march: report-only (MARCH_POLICY=off)"
+  elif [ -z "$oarch" ] || [ -z "$farch" ]; then
+    if [ -n "$oarch$farch" ]; then
+      echo "  AXIS march: MISMATCH one side carries RISC-V arch attrs, the other does not (ours='${oarch:-none}' factory='${farch:-none}')"; fail=1
+    else
+      echo "  AXIS march: n/a (neither side carries .riscv.attributes)"
+    fi
+  else
+    local oh fh os fs of ff
+    oh="$(fm_arch_set "$oarch" hard)"; fh="$(fm_arch_set "$farch" hard)"
+    if d="$(fm_diff_report "$oh" "$fh")"; then echo "  AXIS march(vector/base HARD): OK"
+    else echo "  AXIS march(vector/base HARD): MISMATCH $d"; fail=1; fi
+    os="$(fm_arch_set "$oarch" soft)"; fs="$(fm_arch_set "$farch" soft)"
+    if d="$(fm_diff_report "$os" "$fs")"; then echo "  AXIS march(fp16/bitmanip SOFT): OK"
+    elif [ "$MARCH_POLICY" = exact ]; then echo "  AXIS march(fp16/bitmanip SOFT;MARCH_POLICY=exact): MISMATCH $d"; fail=1
+    else echo "  AXIS march(fp16/bitmanip SOFT): CAVEAT $d (MARCH_POLICY=exact to enforce)"; fi
+    if [ "$MARCH_POLICY" = exact ]; then
+      of="$(fm_arch_set "$oarch" full)"; ff="$(fm_arch_set "$farch" full)"
+      d="$(fm_diff_report "$of" "$ff")" || { echo "  AXIS march(FULL;exact): MISMATCH $d"; fail=1; }
+    fi
+  fi
+  return "$fail"
+}
+
+# fm_gate_hygiene <pool_mib> <llc_kib> <hygiene_x> -> 0 ok(or STALE-soft) / 1 refuse
+fm_gate_hygiene(){
+  local pool_b=$(( $1 * 1024 * 1024 )) llc_b=$(( $2 * 1024 )) x="$3" need
+  need=$(( llc_b * x ))
+  echo "  streaming pool=${1}MiB(${pool_b}B) LLC=${2}KiB need>=${x}xLLC=${need}B"
+  if [ "$pool_b" -ge "$need" ]; then
+    echo "  AXIS cache-hygiene: OK (pool ${pool_b}B >= ${x}xLLC ${need}B)"; return 0
+  elif [ "$HYGIENE_SOFT" = 1 ]; then
+    echo "  AXIS cache-hygiene: SHORTFALL->STALE (pool ${pool_b}B < ${x}xLLC ${need}B; raise POOL_MIB) [HYGIENE_SOFT=1]"; return 0
+  else
+    echo "  AXIS cache-hygiene: REFUSE (pool ${pool_b}B < ${x}xLLC ${need}B; raise POOL_MIB or set HYGIENE_SOFT=1)"; return 1
+  fi
+}
+
+# ---------------- SELFTEST (host): prove the fairness gate really blocks ---------------
+if [ "${SELFTEST:-0}" = 1 ]; then
+  echo "== FORMAT-MICRO FAIRNESS-GATE SELF-TEST (host; no board) =="
+  CC_ST="${CC:-$(command -v gcc || command -v cc || command -v clang)}"
+  WDS="$(mktemp -d)"; trap 'rm -rf "$WDS"' EXIT
+  PASS=0; FAIL=0
+  ok(){ echo "  [PASS] $1"; PASS=$((PASS+1)); }
+  no(){ echo "  [FAIL] $1"; FAIL=$((FAIL+1)); }
+  printf 'int f(){return 0;}\n' > "$WDS/t.c"
+  $CC_ST -O2 -c "$WDS/t.c" -o "$WDS/base.o" 2>/dev/null || { echo "SELFTEST_FATAL: host cc cannot build a probe object"; exit 2; }
+  cp "$WDS/base.o" "$WDS/ours_ok.o"; cp "$WDS/base.o" "$WDS/factory_ok.o"
+  # forge a clang-stamped variant end-to-end via objcopy on a REAL ELF .comment
+  OCP="$(command -v objcopy || echo objcopy)"
+  printf 'Ubuntu clang version 17.0.0\000' > "$WDS/clang.comment"
+  $OCP --remove-section .comment --add-section .comment="$WDS/clang.comment" "$WDS/base.o" "$WDS/ours_clang.o" 2>/dev/null \
+    || { echo "SELFTEST_FATAL: objcopy .comment stamp failed"; exit 2; }
+
+  echo "-- case A: SYMMETRIC (gcc/O2 vs gcc/O2) must PASS --"
+  if fm_gate_toolchain "$WDS/ours_ok.o" O2 "$WDS/factory_ok.o" O2 > "$WDS/a.log" 2>&1; then
+    ok "symmetric build accepted (exit 0)"; sed 's/^/     /' "$WDS/a.log"
+  else no "symmetric build wrongly REFUSED:"; sed 's/^/     /' "$WDS/a.log"; fi
+
+  echo "-- case B: ASYMMETRIC (clang/O2 ours vs gcc/O3 factory) must REFUSE --"
+  if fm_gate_toolchain "$WDS/ours_clang.o" O2 "$WDS/factory_ok.o" O3 > "$WDS/b.log" 2>&1; then
+    no "asymmetric build wrongly ACCEPTED:"; sed 's/^/     /' "$WDS/b.log"
+  else
+    ok "asymmetric build REFUSED (exit!=0)"; sed 's/^/     /' "$WDS/b.log"
+    grep -q 'AXIS compiler: MISMATCH ours=llvm factory=gcc' "$WDS/b.log" && ok "report names the compiler axis (clang vs gcc)" || no "compiler axis not named in report"
+    grep -q 'AXIS opt: MISMATCH ours=O2 factory=O3'          "$WDS/b.log" && ok "report names the opt axis (O2 vs O3)"     || no "opt axis not named in report"
+  fi
+
+  echo "-- case C: OPT-only asymmetry (gcc/O2 vs gcc/O3) must REFUSE --"
+  if fm_gate_toolchain "$WDS/ours_ok.o" O2 "$WDS/factory_ok.o" O3 > "$WDS/c.log" 2>&1; then
+    no "opt asymmetry wrongly ACCEPTED"; sed 's/^/     /' "$WDS/c.log"
+  else ok "opt asymmetry REFUSED"; grep -q 'AXIS opt: MISMATCH' "$WDS/c.log" && ok "opt axis named" || no "opt axis not named"; fi
+
+  echo "-- case D: MARCH decision path (vector/VLEN diff must REFUSE) --"
+  A_ARCH="rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_v1p0_zvfh1p0_zvl128b1p0"
+  B_ARCH="rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_v1p0_zvfh1p0_zvl64b1p0"
+  if fm_diff_report "$(fm_arch_set "$A_ARCH" hard)" "$(fm_arch_set "$A_ARCH" hard)" >/dev/null; then ok "identical march HARD set compares equal" ; else no "identical march wrongly differs"; fi
+  MD="$(fm_diff_report "$(fm_arch_set "$A_ARCH" hard)" "$(fm_arch_set "$B_ARCH" hard)")" && no "zvl128b-vs-zvl64b wrongly equal" \
+     || { ok "vector-VLEN march diff detected"; echo "     $MD" | grep -q 'zvl128b' && echo "$MD" | grep -q 'zvl64b' && ok "march diff names zvl128b/zvl64b" || no "march diff tokens not named"; }
+  # fp16-only diff is a CAVEAT under critical, REFUSE under exact
+  Z_ARCH="rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_v1p0_zfh1p0_zvfh1p0_zvl128b1p0"
+  if fm_diff_report "$(fm_arch_set "$A_ARCH" hard)" "$(fm_arch_set "$Z_ARCH" hard)" >/dev/null; then ok "fp16-only diff leaves HARD set equal (=> CAVEAT not REFUSE under critical)"; else no "fp16-only diff polluted HARD set"; fi
+
+  echo "-- case E: cache-hygiene gate --"
+  fm_gate_hygiene 64 512 3 >/dev/null 2>&1 && ok "large pool (64MiB > 3x512KiB) passes hygiene" || no "large pool wrongly failed hygiene"
+  if fm_gate_hygiene 1 512 3 >/dev/null 2>&1; then no "tiny pool (1MiB < 3x512KiB) wrongly passed hygiene"; else ok "tiny pool REFUSED by hygiene"; fi
+  HYGIENE_SOFT=1 fm_gate_hygiene 1 512 3 >/dev/null 2>&1 && ok "HYGIENE_SOFT=1 downgrades shortfall to STALE (exit 0)" || no "HYGIENE_SOFT did not downgrade"
+
+  echo "-- case F: real exported RISC-V object provenance is readable (extraction path) --"
+  REALO=""; for f in "${FMTS[@]}"; do o="$REPO/$CELL/exported_objects/$f.o"; [ -f "$o" ] && { REALO="$o"; break; }; done
+  if [ -n "$REALO" ]; then
+    RF="$(fm_family "$REALO")"; RA="$(fm_arch "$REALO")"
+    echo "     real ours obj=$REALO family=$RF"
+    echo "     march=$RA"
+    [ "$RF" = llvm ] && ok "real ours object family extracted = llvm" || no "real ours family mis-extracted ($RF)"
+    echo "$RA" | grep -q 'zvfh' && ok "real ours march carries zvfh (fp16 vector) via .riscv.attributes" || no "real ours march missing zvfh"
+  else echo "     (no exported object present; skipping real-object extraction sub-check)"; fi
+
+  echo "-- case G: within-family version skew (models real clang-20 ours vs clang-17 factory) --"
+  printf 'Ubuntu clang version 20.1.8\000' > "$WDS/c20"; printf 'Ubuntu clang version 17.0.0\000' > "$WDS/c17"
+  if $OCP --remove-section .comment --add-section .comment="$WDS/c20" "$WDS/base.o" "$WDS/o20.o" 2>/dev/null \
+     && $OCP --remove-section .comment --add-section .comment="$WDS/c17" "$WDS/base.o" "$WDS/o17.o" 2>/dev/null; then
+    if fm_gate_toolchain "$WDS/o20.o" O2 "$WDS/o17.o" O2 > "$WDS/g1.log" 2>&1; then
+      grep -q 'AXIS compiler: CAVEAT' "$WDS/g1.log" && ok "default: same-family version skew = CAVEAT (accepted, loud)" || no "version skew not reported as CAVEAT"
+    else no "default policy wrongly REFUSED a same-family version skew"; fi
+    if COMPILER_STRICT=1 fm_gate_toolchain "$WDS/o20.o" O2 "$WDS/o17.o" O2 > "$WDS/g2.log" 2>&1; then
+      no "COMPILER_STRICT=1 wrongly ACCEPTED a version skew"
+    else grep -q 'AXIS compiler: MISMATCH(version' "$WDS/g2.log" && ok "COMPILER_STRICT=1: version skew REFUSED + named" || no "strict refusal not named"; fi
+  else echo "     (objcopy .comment stamp unavailable; skipping version-skew sub-case)"; fi
+
+  echo "== FAIRNESS-GATE SELF-TEST: pass=$PASS fail=$FAIL =="
+  [ "$FAIL" = 0 ] && { echo "FORMAT_MICRO_FAIRNESS_SELFTEST: GREEN"; exit 0; } || { echo "FORMAT_MICRO_FAIRNESS_SELFTEST: RED"; exit 1; }
+fi
+
 # per-fmt correctness state (sealed batch-2 vs not-yet-on-board)
 corr_of() { case "$1" in
   iq2_xxs|iq3_xxs) echo "byte-exact(sealed;silicon-validation-batch-2;ULP=0)";;
@@ -106,6 +320,30 @@ if [ -z "$FACTORY_OBJ" ]; then
     || pf_fail opponent "format_micro_opponent.sh could not compile+locate the ggml factory"
 fi
 
+# ==== PREFLIGHT(0): mechanized toolchain-symmetry fairness gate ([PERF-1] precondition) ====
+# Runs BEFORE the heavy link so an asymmetric pairing fails fast. Extracts (compiler,
+# opt, march) from the ACTUAL ours + factory objects and refuses on any asymmetry.
+PROV_FILE="$REPO/$CELL/export_provenance.txt"
+OURS_REPO_OBJ=""; for f in "${FMTS[@]}"; do [ -f "$OURS_OBJDIR/$f.o" ] && { OURS_REPO_OBJ="$OURS_OBJDIR/$f.o"; break; }; done
+[ -n "$OURS_REPO_OBJ" ] || pf_fail symmetry "no ours object under $OURS_OBJDIR to probe for provenance"
+# ours opt: the exported objects are a direct tcrv-translate codegen export (no -Ox);
+# honour an explicit -O flag only if the provenance actually records one.
+OURS_OPT="${OURS_OPT:-}"
+if [ -z "$OURS_OPT" ]; then
+  OURS_OPT="$( [ -f "$PROV_FILE" ] && grep -oE '(^| )-O(fast|g|[0-3sz])( |$)' "$PROV_FILE" | tr -d ' ' | head -1 | sed 's/^-//')"
+  OURS_OPT="${OURS_OPT:-codegen-export(llvm-no-Ox)}"
+fi
+# factory opt: from the opponent-emitted provenance sidecar; else the canonical policy.
+FACTORY_OPT="${FACTORY_OPT:-}"
+if [ -z "$FACTORY_OPT" ]; then
+  FACTORY_OPT="$( [ -f "$FACTORY_OBJ.prov" ] && sed -nE 's/^opt=(.+)$/\1/p' "$FACTORY_OBJ.prov" | head -1)"
+  FACTORY_OPT="${FACTORY_OPT:-$CANON_OPT}"
+fi
+echo "== PREFLIGHT(0) toolchain-symmetry ([PERF-1] fairness; MARCH_POLICY=$MARCH_POLICY COMPILER_STRICT=$COMPILER_STRICT) =="
+fm_gate_toolchain "$OURS_REPO_OBJ" "$OURS_OPT" "$FACTORY_OBJ" "$FACTORY_OPT" \
+  || pf_fail symmetry "OURS/FACTORY toolchain asymmetry (see AXIS lines above) — align the offending axis (or set the documented override) before any timing"
+echo "PREFLIGHT(0) toolchain-symmetry: OK"
+
 # ---- build: driver + all 8 ours .o + factory.o into one binary ----
 # -no-pie: our exported constructed objects are non-PIC (absolute HI20/LO12 relocs
 #   by construction), so the exe must be non-PIE. This is a whole-exe link mode
@@ -146,8 +384,11 @@ for o in $OURS_OBJS "$FACTORY_OBJ"; do
     && pf_fail libcall "$o has fp16 softfloat libcall (crippled build; march needs zfh/zvfh)"
 done
 echo "PREFLIGHT(2) libcall-free: OK (ours + factory)"
-echo "$($CC --version|head -1)" | grep -qi clang || echo "PREFLIGHT(3) same-compiler: WARN (non-clang $CC)"
-echo "PREFLIGHT(3) same-compiler: OK ($CC on both sides; flags='$FF')"
+# PREFLIGHT(3): the authoritative ours-vs-factory toolchain symmetry was certified in
+# PREFLIGHT(0) by probing the ACTUAL timed objects. Here we only note the LINK compiler
+# ($CC drives the driver compile + final link, applied uniformly to the whole exe).
+echo "$($CC --version|head -1)" | grep -qi clang || echo "PREFLIGHT(3) link-compiler: WARN (non-clang $CC for driver/link)"
+echo "PREFLIGHT(3) link-compiler: OK ($CC; per-side symmetry sealed by PREFLIGHT(0); link flags='$FF')"
 # VLEN gate via a tiny riscv probe (driver is intentionally intrinsics-free)
 cat > "$WD/vlen.c" <<'EOF'
 #include <riscv_vector.h>
@@ -161,6 +402,13 @@ if $CC $FF "$WD/vlen.c" -o "$WD/vlen" 2>/dev/null; then
 else
   echo "PREFLIGHT(4) fingerprint<->T-cell: WARN (vlen probe would not compile; skip)"; ACT_VLEN="$EXP_VLEN"
 fi
+# ==== PREFLIGHT(5): cache-hygiene — the streaming pool must exceed the board LLC by
+# HYGIENE_X, else the timed vec_dot is cache-resident and the ratio is meaningless.
+# (增补一·一.4) LLC is read from sysfs for the pinned CORE; override with LLC_KIB.
+LLC_KIB="${LLC_KIB:-$(fm_sysfs_kib "$CORE")}"; LLC_KIB="${LLC_KIB:-$L2_KIB}"
+echo "PREFLIGHT(5) cache-hygiene (LLC=${LLC_KIB}KiB pool=${POOL_MIB}MiB need>=${HYGIENE_X}xLLC):"
+fm_gate_hygiene "$POOL_MIB" "$LLC_KIB" "$HYGIENE_X" \
+  || pf_fail hygiene "streaming pool does not exceed ${HYGIENE_X}xLLC — measurement would be cache-resident (raise POOL_MIB, or set HYGIENE_SOFT=1 to run+STALE-tag)"
 echo "== PREFLIGHT PASS =="
 
 BOARD_FP="rvv-VLEN${ACT_VLEN}-$($CC --version|head -1|grep -oE 'clang version [0-9.]+'|tr ' ' '-')-march=$MARCH-core$CORE-pool${POOL_MIB}MiB"
@@ -184,10 +432,11 @@ for f in "${FMTS[@]}"; do
   if [ -n "${ROOFLINE_READ_GBS:-}" ] && [ -n "$GBS" ]; then
     RFC="$(awk -v g="$GBS" -v c="$ROOFLINE_READ_GBS" 'BEGIN{ if(c>0 && g/c>=0.7) printf "bandwidth-bound(%.0f%%-of-ceiling)", 100*g/c; else printf "latency/compute-bound(%.0f%%-of-read-ceiling)", (c>0?100*g/c:0) }')"
   else RFC="unclassified(pass-ROOFLINE_READ_GBS)"; fi
-  # cache-hygiene gate: working set must exceed L2 by HYGIENE_X
-  L2B=$(( L2_KIB * 1024 )); NEED=$(( L2B * HYGIENE_X ))
-  if [ -n "$WB" ] && [ "$WB" -ge "$NEED" ] 2>/dev/null; then ST="measured(cache-cold;wset=${WB}B>=${HYGIENE_X}xL2)"
-  else ST="STALE(cache-resident;wset=${WB}B<${HYGIENE_X}xL2=${NEED}B;raise POOL_MIB)"; fi
+  # cache-hygiene gate (per-fmt ground truth): the MEASURED working set must exceed the
+  # board LLC by HYGIENE_X (same threshold PREFLIGHT(5) pre-checked from the config).
+  LLCB=$(( LLC_KIB * 1024 )); NEED=$(( LLCB * HYGIENE_X ))
+  if [ -n "$WB" ] && [ "$WB" -ge "$NEED" ] 2>/dev/null; then ST="measured(cache-cold;wset=${WB}B>=${HYGIENE_X}xLLC)"
+  else ST="STALE(cache-resident;wset=${WB}B<${HYGIENE_X}xLLC=${NEED}B;raise POOL_MIB)"; fi
   echo "  RATIO factory/ours = $RATIO  wset=${WB}B strat=$STRAT roofline=$RFC"
   echo "  T3_ROW:"
   emit_t3_row "$f" "$(corr_of "$f")" "pending-board(run objdump_seal.sh)" \

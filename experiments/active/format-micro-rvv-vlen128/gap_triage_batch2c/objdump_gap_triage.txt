@@ -1,0 +1,118 @@
+================================================================================
+BATCH2C GAP-1 TRIAGE — per-cell objdump (ours vs factory), 8/8 LOSS
+裁决一.4  session=2026-07-07-lineA-batch2c-gap-triage
+================================================================================
+INPUT: the 8/8 LOSS batch2c-symmetric format-micro (rvv/VLEN128, both sides
+       gcc-15.2.0 -O3, byte-identical march). This file is the per-cell
+       disassembly triage that assigns each losing cell ONE GAP-1 category
+       {missing_fact | missing_pattern | misselection | physical} with objdump
+       evidence.  ★ NO aggregate "compute axis" narrative (L-7): every cell is
+       named individually with its own instruction-level fingerprint.
+
+METHOD (host-side analysis; does NOT touch the pinned batch2c timing data)
+-------------------------------------------------------------------------
+* OURS disasm  = the SAME EmitC C that batch2c timed, re-captured host-side via
+  a clang-wrapper on the pinned-HEAD ffcfcf80 object route (byte-for-byte the C
+  tcrv-translate feeds to the packager), then compiled ON BOARD with the batch2c
+  timed toolchain: g++-15.2.0 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -mabi=lp64d
+  -ffunction-sections -fdata-sections.  (ours_emitc_c/*.cpp are the captured C.)
+* FACTORY disasm = the SAME ggml source batch2c timed: arch/riscv/quants.c +
+  generic quants.c, gcc-15.2.0 -O3 same march, ld -r merged. The public symbol
+  ggml_vec_dot_<fmt>_q8_K is a VLEN-DISPATCH TRAMPOLINE (csrr vlenb -> branch to
+  _vl128/_vl256/_vl512 pre-specialized workers). On this VLEN128 board the TIMED
+  code is the _vl128.isra.0 worker; that is what is disassembled below.
+* Disassembler = board-native /usr/bin/objdump (riscv64). Full per-symbol dumps:
+  disasm/<fmt>.ours.objdump.txt  and  disasm/<fmt>.factory_vl128.objdump.txt.
+* Both sides are SELF-CONTAINED leaf kernels (no external helper calls in the
+  timed body), so the static instruction fingerprint == the executed mechanism.
+
+--------------------------------------------------------------------------------
+PER-CELL FINGERPRINT (objdump histograms; ours = the timed C @ g++-15.2.0 -O3)
+--------------------------------------------------------------------------------
+fmt      ratio   ours-   | OURS static:                                   | FACTORY vl128:            | GAP-1
+         fac/ours slower | insns vsetvli gather AVL2 fracLMUL wholeRegSpill| insns vsetvli gather      |
+iq3_s    0.2804  3.57x   | 1364  156     33     63   38       7            | 121   12      1           | missing_pattern
+iq2_s    0.4772  2.10x   |  697   75     32     19   19       0            | 116   16      1           | missing_pattern
+iq2_xs   0.3293  3.04x   |  941   92     32     22   23       5            | 259   23      8           | missing_pattern
+iq2_xxs  0.7796  1.28x   |  458   50     16      0   11       0            | 151   16      4           | missing_pattern
+iq3_xxs  0.1583  6.32x   | 1047  220     32    110   78       0            | 141   16      2           | missing_pattern
+iq4_xs   0.7178  1.39x   |  246   30     16*    0    0        0            | 116    9      1*          | missing_pattern   (*=vrgather LUT)
+tq2_0    0.2311  4.33x   |   97    5      0      0    0        4            | 114    8      0           | missing_pattern
+tq1_0    0.5505  1.82x   |  313   61      0      0    0        2            | 126   18      0           | missing_pattern
+
+  gather  = vluxei[ei].v indexed-load (IQ sign/grid gather); for iq4_xs the "*"
+            column is vrgather.vv (codebook LUT). AVL2 = vsetivli-with-AVL=2 ops
+            (2-elements-at-a-time). fracLMUL = vset* configuring a fractional LMUL
+            (mf2/mf4/mf8). wholeRegSpill = vsNr.v/vlNr.v whole-register spill+reload.
+            FACTORY wholeRegSpill = 0 on all 8 cells (register-resident).
+
+================================================================================
+GAP-1 CATEGORY DECISION (why all 8 = missing_pattern, NOT physical/fact/select)
+================================================================================
+* NOT missing_fact: ours DOES emit every relevant capability instruction
+  (vluxei/vrgather gather, vwmacc/vwredsum widening reduce, fcvt.s.h hw-fp16).
+  The facts are keyed and used -> the gap is not an un-modeled capability.
+* NOT misselection: T3 rows are lmul=n_a (super-block has no LMUL variant knob)
+  and there is no compact alternative variant in the registry being blind-picked
+  wrong -- the compact pattern simply is not built yet. (tq2_0's over-wide-LMUL
+  spill is the closest to a selection axis, but with no register-pressure-aware
+  variant to select it reduces to an unbuilt pattern.)
+* NOT physical: none of the 8 is a compact-vs-compact uarch tie. Every ours body
+  carries 1.3x-13x more vector-config churn, gathers, or spills than factory --
+  all FIXABLE by a better emit pattern. The loss is emitter immaturity, not a
+  fundamental/algorithmic wall. (tq2_0 even has FEWER static insns than factory
+  yet is 4.33x slower -- pure spill round-trip latency, i.e. fixable.)
+=> 8/8 = missing_pattern, each with a DISTINCT named sub-pattern below. These are
+   construction-queue emitter-maturity targets (cf. vsetvli 19->=<7; wide-LMUL
+   K-quant emit; vluxei/vrgather batching), not physical LOSSES.
+
+--------------------------------------------------------------------------------
+PER-CELL NAMED GAP (逐格具名; disasm ptr = disasm/<fmt>.*.objdump.txt)
+--------------------------------------------------------------------------------
+[iq3_xxs] 6.32x (WORST). named=fraclmul-2elem-scalarization + vsetvli-storm.
+  ours issues 220 vsetvli (fac 16) TOGGLING SEW/LMUL across ~12 configs, incl.
+  110 ops at AVL=2 and 78 at fractional LMUL (mf2/mf4/mf8) -- the sign/grid decode
+  is emitted TWO-ELEMENTS-AT-A-TIME (scalarized-in-vector) + 32 per-sub-block
+  vluxei gathers (fac 2). The extreme 2-elem width is exactly why it is the worst
+  cell. Fix = batch the sub-block decode at one wide (SEW,LMUL) with a hoisted
+  vsetvli.
+
+[iq3_s] 3.57x. named=per-subblock-gather-redsum + churn + regspill.
+  156 vsetvli (fac 12), 33 vluxei gathers (fac 1), 32 per-sub-block vwredsum,
+  63 AVL=2 ops, 38 fractional-LMUL, +7 whole-reg spills. Sign(qh)+grid decode
+  emitted per-sub-block instead of one batched gather+widen+reduce over the
+  super-block.
+
+[iq2_xs] 3.04x. named=per-subblock-gather + churn + regspill.
+  92 vsetvli (fac 23), 32 vluxei gathers (fac 8), 22 AVL=2, +5 spills. Same
+  per-sub-block-gather family; factory batches to 8 gathers.
+
+[iq2_s] 2.10x. named=per-subblock sign-grid gather x32 + churn.
+  75 vsetvli (fac 16), 32 vluxei (fac 1), 19 AVL=2. Per-sub-block gather, no spill.
+
+[iq2_xxs] 1.28x (MILDEST). named=gather x16 + vsetvli churn (NO 2-elem scalarize).
+  50 vsetvli (fac 16), 16 vluxei (fac 4), 0 AVL=2 ops. This cell already avoids
+  the 2-elem fractional scalarization, so only the gather-count + vsetvli-count
+  gap remains -> mildest loss. (Discriminates the family: the gap magnitude
+  tracks the AVL=2 count, iq3_xxs 110 -> 6.32x vs iq2_xxs 0 -> 1.28x.)
+
+[iq4_xs] 1.39x. named=codebook-LUT-gather-not-batched + per-elem-fcvt. DIVERGENT.
+  ours does 16 separate small-AVL vrgather.vv against the 16-entry NL codebook
+  (loaded once into v1) + 17 fcvt.s.h per-element scale converts; factory does
+  1 batched vrgather + 2 fcvt. LUT lookup + scale fold emitted per-sub-block
+  instead of one wide table-gather. (numerics: see numerics_triage_divergent.txt
+  -- non-defect.)
+
+[tq1_0] 1.82x. named=ternary-unpack scratch-roundtrip + vsetvli churn. DIVERGENT.
+  61 vsetvli (fac 18) + 14 vse.v scratch stores + 2 whole-reg spills + 13 scalar
+  loads. The base-243 trit unpack spills intermediates to a scratch buffer instead
+  of keeping the unpack register-resident. (numerics: non-defect, see below.)
+
+[tq2_0] 4.33x. named=LMUL-over-widen register-pressure spill.
+  ours is well-batched (only 5 vsetvli, FEWER static insns than factory's 114!)
+  but the 8-way e16m4/m2 widening-macc exceeds the vector register file -> 4
+  whole-register spill+reload (vs2r.v/vl2r.v at kernel offsets 0x*: 2 stores +
+  2 reloads) INSIDE the hot super-block loop; factory has 0 spills. The 4.33x is
+  a per-iteration spill memory round-trip, not an instruction-count gap. Fix =
+  register-pressure-aware LMUL (narrower m1/m2) to stay register-resident.
+================================================================================

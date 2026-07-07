@@ -1,0 +1,137 @@
+================================================================================
+BATCH2C — COMPLIANT SYMMETRIC-TOOLCHAIN FORMAT-MICRO (rvv / VLEN128)
+2026-07-07  lineA-batch2c  session=2026-07-07-lineA-batch2c-symmetric-gcc1520
+裁决一.3 — the fair re-measure that SUPERSEDES the INVALID batch2b ratios.
+================================================================================
+
+WHY THIS BATCH
+--------------
+batch2b (0ca224f7) was ruled INVALID (裁决一.1): the two head-to-head-timed
+vec_dot objects were built by an ASYMMETRIC toolchain — OURS = clang-17 -O2
+(tcrv-translate's embedded LLVM-20 codegen export) vs FACTORY = gcc -O3 (ggml
+own object). ratio=factory/ours therefore conflated KERNEL quality with
+COMPILER/-O quality. batch2c rebuilds BOTH timed objects with ONE identical
+compiler + flags + march, so the ratio isolates CODE difference, not compiler
+difference. The mechanized fairness pre-flight (PREFLIGHT(0)) is the gate.
+
+TOOLCHAIN SELECTION (symmetric) + RATIONALE
+-------------------------------------------
+Directive named "gcc-12.3.1 -O3". On THIS board that specific compiler is NOT
+usable for either side:
+  * system gcc 12.3.1 (openEuler, /usr/bin/gcc, /usr/bin/cc) has NO
+    riscv_vector.h and rejects _Float16 ("not supported on this target") and
+    the `zvfh` march token — it cannot compile ggml's RVV path NOR our EmitC C.
+  * clang-17 compiles basic RVV but LACKS the segment/tuple intrinsics ggml
+    arch/riscv/quants.c needs (e.g. __riscv_vcreate_v_*) — cannot build factory.
+The RVV + fp16 + tuple-intrinsic capable toolchains actually installed are
+gcc-15.2.0 (SpacemiT fork) and llvm-18. Chosen SYMMETRIC compiler for BOTH
+timed sides:
+    riscv64-unknown-linux-gnu-gcc/g++ (GCC) 15.2.0
+    /opt/tcrv-toolchains/gcc-15.2.0/bin/
+    flags: -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -mabi=lp64d
+           -ffunction-sections -fdata-sections
+This fully satisfies the compliance PRINCIPLE (same compiler + same -O + same
+march on both timed objects → isolates code diff, not compiler diff). It also
+satisfies the task's "gcc" intent; only the version differs from the (on this
+board non-existent for RVV) 12.3.1.  march=<full zvfh> = rv64gcv_zfh_zvfh_zba_
+zbb_zbs (zba/zbb/zbs added so MARCH covers the board ISA for the harness
+march-complete gate; zvfhmin/zfhmin implied). ours + factory .comment are
+BOTH exactly "GCC: (GNU) 15.2.0" and their Tag_RISCV_arch strings are BYTE-
+IDENTICAL (verified in PREFLIGHT(0) below).
+
+LINK / DRIVER compiler (uniform, NON-biasing): clang-17. The gcc-15.2.0 cross
+toolchain ships no libgomp.spec (bare cross-gcc), so it cannot satisfy the
+harness's unconditional -fopenmp link flag; the system gcc-12.3.1 rejects the
+zvfh march. clang-17 accepts the march + supplies libomp for -fopenmp + links
+the gcc-built objects cleanly. Per the harness design (PREFLIGHT(3)) the link/
+driver compiler is applied UNIFORMLY to the whole exe and does NOT touch the
+ours/factory kernel machine code (both are pre-built .o); per-side symmetry is
+sealed by PREFLIGHT(0) on the ACTUAL timed objects. This is exactly the intended
+separation (timed-object compiler ≠ link compiler), not an asymmetry.
+
+METHOD / PROVENANCE
+-------------------
+* HEAD ffcfcf80 (current tip), via baseline.sh cached detached-worktree binaries
+  (.worktrees/cache/ffcfcf80.../tcrv-opt + tcrv-translate). MAIN TREE + build/
+  UNTOUCHED; no git stash.
+* OURS = the constructed super-block block-dot EmitC C (portable, riscv_vector.h
+  + _Float16), one per fmt. Because the monolithic block-dot families expose no
+  emitc-to-cpp translate route, the CppEmitter C that the object exporter feeds
+  to clang was captured host-side via a clang-wrapper (snapshot the -c source,
+  then exec real clang). Byte-for-byte the same C tcrv-translate would compile;
+  input MLIR = test/Target/RVV/<fmt>-q8-k-super-block-block-dot-full-pipeline-
+  export-e2e.mlir; pass = --tcrv-rvv-materialize-<fmt>-q8-k-block-dot-source-
+  front-door --tcrv-materialize-emission-plans. Compiled ON BOARD with
+  g++-15.2.0 -O3 (as C++; the emit carries extern "C"). Each ours object:
+  0 __extendhfsf2 / 1 fcvt.s.h (hw fp16), kernel symbol DEFINED-T, zero
+  undefined non-libc refs.
+* FACTORY = ggml DISPATCHED ggml_vec_dot_<fmt>_q8_K, compiled from PINNED ggml
+  source (/home/ubuntu/vericurve-rv-lab/llama.cpp) — arch/riscv/quants.c (the
+  vectorized dispatched impl; defines all 8) + generic quants.c (the *_generic
+  fallbacks the arch impls call), gcc-15.2.0 -O3 same march, ld -r merged.
+  8/8 ggml_vec_dot_<fmt>_q8_K DEFINED-T; 禁手填 (real ggml source, not hand-filled).
+* Cache hygiene: POOL_MIB=256 => working_set ~268MB > 3×LLC(L3=64MB)=192MB
+  DRAM-cold; N=ROUNDS=12 median+IQR+min; interleaved cold; pinned CORE=8.
+  ROOFLINE_READ_GBS=5.237 (rvv read wall, same-board anchor).
+
+PREFLIGHT (all PASS — this is the compliance certificate)
+---------------------------------------------------------
+(0) toolchain-symmetry:
+      [ours   ] family=gcc ver=(15.2.0) opt=O3
+      [factory] family=gcc ver=(15.2.0) opt=O3
+      both march = rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_b1p0_v1p0_zicsr..._zfh1p0_
+                   zfhmin1p0_..._zba1p0_zbb1p0_zbs1p0_..._zvfh1p0_zvfhmin1p0_
+                   zvl128b1p0_zvl32b1p0_zvl64b1p0   (BYTE-IDENTICAL)
+      AXIS compiler: OK (gcc 15.2.0 both sides)
+      AXIS opt:      OK (ours=O3 factory=O3; canonical=O3)
+      AXIS march(vector/base HARD): OK
+      AXIS march(fp16/bitmanip SOFT): OK
+      => PREFLIGHT(0) toolchain-symmetry: OK   [NO caveat, NO refuse]
+(1) march-complete: OK (zvfhmin satisfied-by zvfh)
+(2) libcall-free:   OK (ours + factory; 0 __extendhfsf2)
+(3) link-compiler:  OK (clang-17; per-side symmetry sealed by PREFLIGHT(0))
+(4) fingerprint<->T-cell: OK (VLEN=128 == 128)
+(5) cache-hygiene:  OK (pool 268435456B >= 3×LLC 201326592B)
+
+RESULT (ratio = factory/ours; >1 => OURS faster; N=12 median ns/block, cache-cold)
+---------------------------------------------------------------------------------
+  fmt      ours ns/blk  factory ns/blk  ratio    ours-slower  roofline(%read)  FNV xcheck
+  iq3_s     2033.708      570.267      0.2804x    3.57x        4%    (compute)  ours==factory
+  iq2_s      446.092      212.897      0.4772x    2.10x       16%    (compute)  ours==factory
+  iq2_xs     854.439      281.375      0.3293x    3.04x        8%    (compute)  ours==factory
+  iq2_xxs    912.576      711.481      0.7796x    1.28x        7%    (compute)  ours==factory (SEALED)
+  iq3_xxs   1885.484      298.557      0.1583x    6.32x        4%    (compute)  ours==factory (SEALED)
+  iq4_xs     280.916      201.638      0.7178x    1.39x       29%    (compute)  DIVERGE (ours!=factory)
+  tq2_0      491.747      113.662      0.2311x    4.33x       14%    (compute)  ours==factory
+  tq1_0      311.232      171.320      0.5505x    1.82x       21%    (compute)  DIVERGE (ours!=factory)
+
+  => 8 / 8 LOSS. NO [PERF-1] eight-gate beat. Ratios 0.158x .. 0.780x.
+
+CORRECTNESS CROSS-CHECK (FNV fingerprint, cold-random inputs, same seed)
+------------------------------------------------------------------------
+  6/8 ours==factory bit-match (iq3_s, iq2_s, iq2_xs, iq2_xxs, iq3_xxs, tq2_0),
+      INCLUDING both sealed (iq2_xxs, iq3_xxs). Strong numeric-equivalence evidence.
+  2/8 DIVERGE: iq4_xs (ours 0x8d7f728f596bb503 vs factory 0xf1423a9ccef83fc3),
+               tq1_0 (ours 0x2832bb78ddc6eab7 vs factory 0xfc5951359d5fea87).
+      SAME divergent set as batch2b (a stable fold-order/decode difference, not a
+      new regression). Their ratios are reported but carry the divergence caveat.
+
+HONEST READ
+-----------
+On a FULLY FAIR footing (both sides gcc-15.2.0 -O3, byte-identical march, hw
+fp16, cache-cold DRAM-streamed) our constructed super-block block-dot decode
+LOSES to ggml's hand-tuned arch/riscv IQ/TQ intrinsics on the COMPUTE-micro axis
+at EVERY format (8/8). The batch2b iq4_xs "1.4556x ratio>1" evaporates under the
+fair toolchain (0.7178x LOSS) — confirming it was a compiler-asymmetry artifact,
+NOT a kernel win. This is thesis-coherent: the format-micro compute axis is a
+declared honest LOSS; our contribution lives in the N1/N2/N3 conjunction and the
+memory-bound e2e / capability-keyed regimes, not in out-coding ggml's per-format
+hand intrinsics. All rows are latency/compute-bound (4–29% of the 5.237 GB/s read
+ceiling) = KERNEL-micro only, NOT the bandwidth-bound e2e decode regime.
+
+DURABLE FILES
+-------------
+  perf_result_batch2c_symmetric.txt  — this file
+  rvv_paired_raw_batch2c.txt         — full raw board output (MICRO + T3_ROW lines)
+  T3_A_board_A_rvv1.0_vlen128.csv    — batch2c measured rows (supersede batch2b INVALID)
+================================================================================

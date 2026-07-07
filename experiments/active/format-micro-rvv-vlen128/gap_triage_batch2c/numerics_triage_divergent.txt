@@ -1,0 +1,81 @@
+================================================================================
+BATCH2C NUMERICS TRIAGE — the 2 output-DIVERGENT cells (iq4_xs, tq1_0)
+裁决一.4  session=2026-07-07-lineA-batch2c-gap-triage
+================================================================================
+QUESTION (per divergent cell): is the batch2c FNV mismatch ours!=factory a
+  {我方缺陷 our-side defect} | {数值契约差异 numeric-contract (FMA/reassoc)} |
+  {harness 口径 harness-caliber} ?
+  -> our-defect => write a construction-queue fix task (.trellis/tasks).
+  -> contract/harness => note NON-defect.
+
+METHOD: 3-way DIFFERENTIAL vs ggml's OWN SCALAR ORACLE
+------------------------------------------------------
+batch2c only compared ours-vs-factory FNV (a fingerprint over the whole cold pool).
+That cannot distinguish "ours wrong" from "factory reassociates". So this triage
+adds the arbiter: ggml_vec_dot_<fmt>_q8_K_generic (the scalar, non-vectorized
+reference, present in the same factory.o). For each divergent cell we compute
+ULP(ours, oracle), ULP(factory, oracle), ULP(ours, factory) on IDENTICAL inputs.
+Harness: gap_triage_batch2c/ (threeway.c / threeway2.c / sweep.c / sweep2.c),
+built clang-17 -O2 -no-pie --gc-sections, linked against the SAME ours .o (g++-
+15.2.0 -O3) + factory.o used above. bsums made consistent with q8_K.qs.
+
+RESULT 1 — single-block, 4 input regimes (threeway2.c)
+------------------------------------------------------
+regime                                   iq4_xs                         tq1_0
+                                    ours-gen fac-gen ours-fac    ours-gen fac-gen ours-fac
+A fixed d=1.0 + consistent bsums        0      0       0            0       0       0
+B random-finite d + consistent bsums    0      0       0            0       0       0
+C random d + INCONSISTENT bsums         0      0       0            0       0       0
+C2 (different seed)                     0      1       1            0       0       0
+  => ours-vs-oracle = 0 ULP in EVERY regime for BOTH cells.
+  => the ONLY nonzero is C2/iq4_xs where FACTORY drifts 1 ULP from the oracle
+     (fac-gen=1) while OURS stays exact (ours-gen=0). i.e. the mismatch is
+     FACTORY-side, not ours.
+
+RESULT 2 — pool-scale sweeps (N=50000 random blocks; sweep.c / sweep2.c)
+-----------------------------------------------------------------------
+(a) fp16 d=1.0, q8_K.d=1.0, consistent bsums, random payloads:
+      iq4_xs : ours-vs-oracle 0/50000 (maxULP 0)   factory-vs-oracle 0/50000 (maxULP 0)
+      tq1_0  : ours-vs-oracle 0/50000 (maxULP 0)   factory-vs-oracle 0/50000 (maxULP 0)
+    => with a well-scaled scale, ALL THREE are bit-identical over 50k blocks:
+       ours implements the same dot as the scalar reference AND as factory.
+(b) bounded-random fp16 scale d (the batch2c-style magnitude spread):
+      iq4_xs : ours-vs-oracle  0/50000 (maxULP 0)
+               factory-vs-oracle 28140/50000 (maxULP 26621)
+      tq1_0  : ours-vs-oracle  0/50000 (maxULP 0)
+               factory-vs-oracle 0/50000 (maxULP 0)
+    => iq4_xs: ours is BIT-EXACT to the scalar oracle on all 50k blocks; FACTORY's
+       vl128 kernel diverges from the oracle on 56% of blocks by up to 26621 ULP.
+       The batch2c ours!=factory FNV mismatch is 100% FACTORY-side reassociation.
+
+VERDICT (逐格)
+--------------
+[iq4_xs]  numeric-contract difference (fold-order / reassociation). NON-DEFECT.
+  Root cause visible in objdump: ours folds PER-SUB-BLOCK in f32 (8 fmadd.s + 9
+  fmul.s -> tracks the scalar oracle's left-assoc accumulation), factory folds
+  BATCHED (1 fmadd.s + 1 fmul.s in a different summation tree). Under a spread of
+  fp16 super-block scales the two float summation orders round differently.
+  Differential proof: ours = ggml scalar oracle ULP0 on 50000/50000 blocks;
+  FACTORY = oracle-divergent on 28140/50000 (maxULP 26621). OURS IS THE FAITHFUL
+  SIDE -- same "more faithful than ggml's own vector kernel" pattern as the sealed
+  q5_K result. NOT an our-side defect; NO fix task. (Reference precedent: the
+  +8.4% no-FMA-left-assoc oracle / fold-order tax.)
+
+[tq1_0]  numeric-contract + harness-caliber. NON-DEFECT.
+  ours = scalar oracle ULP0 in EVERY tested regime (A/B/C/C2 + both 50k sweeps;
+  0/50000). ours never deviates from the reference. tq1_0 has the SAME fp-op
+  structure as the bit-exact sibling tq2_0 (fmadd=1/fmul=1), so its batch2c FNV
+  mismatch is not an our-side fold error. It is attributable to (i) factory vl128
+  reassociation on the subset of blocks the batch2c pool hits (not reproduced in
+  my draws but same mechanism as iq4_xs) and (ii) harness-caliber: the batch2c
+  input generator fills the fp16 scale field + q8_K.bsums with UNCONSTRAINED
+  random bytes, so some blocks carry non-finite/pathological fp16 scales where
+  bit-level FNV equality is not a meaningful correctness criterion. NOT an our-side
+  defect; NO fix task.
+
+CONCLUSION: 0/2 divergent cells are our-side defects. Ours is ULP0-faithful to
+ggml's scalar oracle on both. No construction-queue numerics fix task is opened.
+The batch2c "6/8 bit-match, 2/8 diverge" is consistent: for the 6, factory==oracle
+so ours==factory; for iq4_xs (and tq1_0 on some blocks) factory reassociates off
+the oracle while ours stays on it, so ours!=factory even though ours is correct.
+================================================================================

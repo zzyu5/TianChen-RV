@@ -1,8 +1,67 @@
 # cell MANIFEST — format-micro-rvv-vlen128
 
+> ############################################################################
+> **RESOLVED — COMPLIANT SYMMETRIC RE-MEASURE (2026-07-07 裁决一.3 / batch2c)** — the
+> batch2b compiler-asymmetry defect is now REPAIRED. Both head-to-head-timed vec_dot
+> were rebuilt with ONE identical toolchain **gcc-15.2.0 -O3 -march=rv64gcv_zfh_zvfh_
+> zba_zbb_zbs** (ours .comment == factory .comment == "GCC: (GNU) 15.2.0"; Tag_RISCV_arch
+> BYTE-IDENTICAL). **PREFLIGHT(0) toolchain-symmetry PASS** (compiler OK / opt O3-both /
+> march HARD OK / march SOFT OK — no caveat, no refuse), full preflight 5/5.
+> **RESULT: 8/8 LOSS** (factory/ours 0.158x–0.780x; the batch2b iq4_xs "1.4556 ratio>1"
+> evaporates → 0.7178 LOSS, confirming it was a compiler artifact). 6/8 ours==factory
+> FNV bit-match (incl. both sealed); iq4_xs+tq1_0 diverge (same set as batch2b). HONEST:
+> on a fair footing our constructed super-block decode LOSES to ggml hand-tuned arch/riscv
+> IQ/TQ on the compute-micro axis at every format — no beat. KERNEL-micro only, NOT e2e.
+> Toolchain note: the directive's "gcc-12.3.1" is unusable on this board (system gcc-12.3.1
+> lacks riscv_vector.h/_Float16/zvfh); gcc-15.2.0 is the RVV+fp16+tuple GCC, used symmetrically.
+> HEAD ffcfcf80 via baseline.sh cached (main tree + build/ UNTOUCHED). Link/driver=clang-17
+> (uniform, non-biasing). Evidence: perf_result_batch2c_symmetric.txt + rvv_paired_raw_batch2c.txt
+> + T3_A batch2c rows. The batch2b INVALID banner below is kept for the record; its ratios
+> stay VOID and are SUPERSEDED by batch2c.
+> ############################################################################
+
+> ############################################################################
+> **GAP-1 TRIAGE COMPLETE (2026-07-07 裁决一.4)** — the 8/8 batch2c LOSS is triaged
+> per-cell (NO L-7 aggregate). Per-cell objdump ours-vs-factory (both gcc-15.2.0 -O3,
+> board-native disasm) => **8/8 = missing_pattern**, each a DISTINCT named emitter-maturity
+> sub-pattern (iq3_xxs worst=fraclmul-2elem-scalarization+220-vsetvli-storm; IQ family=
+> per-subblock-gather-not-batched with gap tracking AVL=2 count; iq4_xs=codebook-LUT-gather-
+> not-batched; tq2_0=LMUL-over-widen-regfile-spill; tq1_0=ternary-unpack-scratch-roundtrip).
+> NONE physical => all construction-queue emitter targets. **2 divergent cells RESOLVED
+> NON-DEFECT** via 3-way vs ggml scalar *_generic oracle (50k-block sweep): ours ULP0 vs
+> oracle on both; iq4_xs FNV mismatch = FACTORY-vl128 reassociation (28140/50000 maxULP26621,
+> ours=faithful side); tq1_0 = contract+harness-caliber. **No construction-queue fix task
+> opened** (no our-side defect). Evidence: gap_triage_batch2c/{objdump_gap_triage.txt,
+> numerics_triage_divergent.txt, disasm/*, ours_emitc_c/*, threeway*.c, sweep*.c} +
+> T8_winloss_gap_ledger.csv rows format-micro-<fmt>-q8k-block-dot-batch2c.
+> ############################################################################
+
+> ############################################################################
+> **INVALID — PROTOCOL DEFECT (2026-07-07 裁决一.1)** — 本 cell 的 batch2b PAIRED-PERF
+> ratio(7/8 LOSS + 1 divergent)**全部 INVALID,禁作任何结论 / 叙事 / 立项依据**。
+> 缺陷 = **compiler-asymmetry**:被 head-to-head 计时的两个 vec_dot 由【不同编译器 + 不同
+> -O 级】产出 —— OURS = clang-17 -O2(tcrv-translate 导出目标)vs FACTORY = gcc-12.3.1 -O3
+> (ggml 自建预制对象)。ratio=factory/ours 混淆 kernel 质量与 compiler/-O 质量。实验宪法
+> (§1:指纹含双方 compiler+flags)要求对手计时双方同工具链;perf_result_batch2b_zfh.txt 的
+> preflight(3)"same-compiler clang-17" 只验 LINK 编译器,未验两个被计时目标同源 → 假绿。
+> zfh fp16-libcall 修复(两侧硬件 fp16)是【独立的另一缺陷】的修复,**不能补救本编译器
+> 不对称缺陷**。上一轮 "honest 7/8 LOSS" 叙事【作废】:公平协议对称工具链拦假输,未对称
+> 前不得声称我方 kernel 在 compute-micro 轴输给厂商。
+> **数据不删、可重测**:EXPORT 成功 + OPPONENT-locate(8/8 DEFINED-T)+ correctness 交叉
+> 核对(6/8 FNV bit-match,含 sealed iq2_xxs/iq3_xxs)不受影响(存在性 / 数值一致性,非计时);
+> 仅 perf ratio / win-loss INVALID。重测:双方用【同编译器 + 同 -O + 同 march】重建 vec_dot
+> 再跑 tools/e2e-harness/board/format_micro_paired.sh。
+> ############################################################################
+
 - **campaign**: silicon (format micro, step 4 of lineA-batch1)
-- **status**: ACTIVE — EXPORT DONE (8 fmts) + OPPONENT DONE (real ggml, 8/8) + PAIRED-PERF
-  **MEASURED (fair, both-hardware-fp16)** (2026-07-07-lineA-batch2b; RE-EXPORT pinned HEAD 0ca224f7
+- **status**: ACTIVE cell — **PAIRED-PERF MEASURED (COMPLIANT, batch2c 裁决一.3): both timed sides
+  gcc-15.2.0 -O3 identical-march; PREFLIGHT(0) toolchain-symmetry PASS; 8/8 LOSS (factory/ours
+  0.158x–0.780x); no beat**. This SUPERSEDES the batch2b INVALID ratios (compiler-asymmetry;
+  clang-O2-ours vs gcc-O3-factory — kept below for record, VOID). Non-timing legs still hold:
+  EXPORT DONE (8 fmts) + OPPONENT DONE (real ggml, 8/8) + correctness 6/8 FNV bit-match (incl.
+  both sealed). See perf_result_batch2c_symmetric.txt. [was: INVALID compiler-asymmetry; earlier:
+  MEASURED fair-on-fp16-axis-only]
+  (2026-07-07-lineA-batch2b; RE-EXPORT pinned HEAD 0ca224f7
   = the zfh merge). The export-side march confound that STALE-marked batch2b(49ede67d) is RESOLVED:
   the block-dot super-block families now package under -march=rv64gcv_zvfh
   (RVVTargetSupportBundle.cpp:1811/2219) so the per-super-block fp16 scale d lowers to a HARDWARE

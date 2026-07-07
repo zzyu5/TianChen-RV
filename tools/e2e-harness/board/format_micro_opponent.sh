@@ -30,6 +30,17 @@ NM="${NM:-$(command -v llvm-nm-17 || command -v llvm-nm || command -v nm)}"
 OD="${OD:-$(command -v llvm-objdump-17 || command -v llvm-objdump || command -v objdump)}"
 if [ -z "${CC:-}" ]; then for c in clang-17 clang gcc; do command -v "$c" >/dev/null 2>&1 && { CC="$c"; break; }; done; fi
 
+# 裁决一.2 — the opponent participates in toolchain selection ($CC + FF below), so it
+# must assert it is compiling the factory with the CANONICAL toolchain family and emit
+# a provenance stamp the paired [PERF-1] symmetry gate can read back. The factory MUST
+# match the ours-side family (both llvm/clang) or the format-micro is unfair (INVALID).
+OPP_CANON_FAMILY="${OPP_CANON_FAMILY:-llvm}"
+OPPONENT_ALLOW_NONCANON="${OPPONENT_ALLOW_NONCANON:-0}"
+cc_family(){ local v; v="$($CC --version 2>/dev/null | head -1)"
+  if   echo "$v" | grep -qiE 'clang|llvm'; then echo llvm
+  elif echo "$v" | grep -qiE 'gcc|gnu';    then echo gcc
+  else echo unknown; fi; }
+
 sym_of() { echo "ggml_vec_dot_$1_q8_K"; }
 
 # grep a source tree for the factory definition of one fmt (returns file:line or empty)
@@ -68,6 +79,16 @@ compile() {
   local root="$1" out="$2"
   [ -n "$CC" ] || { echo "OPPONENT_FATAL no compiler"; return 2; }
   [ -d "$root" ] || { echo "OPPONENT_FATAL ggml_root '$root' not a dir"; return 2; }
+  # --- canonical-toolchain assertion (fair [PERF-1] precondition) ---
+  local fam; fam="$(cc_family)"
+  echo "OPPONENT_TOOLCHAIN cc=$CC family=$fam canon=$OPP_CANON_FAMILY opt=O2 march=$MARCH"
+  if [ "$fam" != "$OPP_CANON_FAMILY" ] && [ "$OPPONENT_ALLOW_NONCANON" != 1 ]; then
+    echo "OPPONENT_FATAL non-canonical compiler family '$fam' (policy=$OPP_CANON_FAMILY): the factory"
+    echo "  must be built with the SAME toolchain family as the ours side to keep format-micro fair."
+    echo "  Fix by pointing CC at a '$OPP_CANON_FAMILY' compiler, or set OPPONENT_ALLOW_NONCANON=1"
+    echo "  ONLY if the ours side is ALSO '$fam' (the paired PREFLIGHT(0) will re-verify from the ELFs)."
+    return 5
+  fi
   echo "== OPPONENT COMPILE (ggml_root=$root march=$MARCH cc=$CC) =="
   # auto-select the quants TU(s): prefer arch/riscv (the dispatched impl) then the
   # top-level (generic fallback + wrappers). Override with GGML_QUANTS_SRCS on board.
@@ -90,6 +111,11 @@ compile() {
   # merge into one relocatable factory.o (weak/generic + strong/arch resolve naturally)
   ld -r $objs -o "$out" 2>/tmp/fmo_ld.err || { echo "OPPONENT_FATAL ld -r merge:"; cat /tmp/fmo_ld.err; return 4; }
   echo "factory object => $out ($(wc -c < "$out") B)"
+  # provenance sidecar consumed by format_micro_paired.sh PREFLIGHT(0) symmetry gate.
+  local opt; opt="$(echo "$FF" | grep -oE '\-O(fast|g|[0-3sz])' | head -1 | sed 's/^-//')"; opt="${opt:-O2}"
+  printf 'cc=%s\nfamily=%s\nopt=%s\nmarch=%s\nff=%s\nout=%s\n' \
+    "$CC" "$fam" "$opt" "$MARCH" "$FF" "$out" > "$out.prov" 2>/dev/null \
+    && echo "OPPONENT_PROVENANCE => $out.prov (family=$fam opt=$opt)"
   locate "$out"; local rc=$?
   if [ "$rc" != 0 ]; then
     echo "OPPONENT_HINT: $rc factory symbol(s) MISSING from the compiled TU set."

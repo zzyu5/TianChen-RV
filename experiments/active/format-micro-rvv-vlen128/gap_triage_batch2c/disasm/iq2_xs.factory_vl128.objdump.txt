@@ -1,0 +1,516 @@
+
+fac/factory.o:     file format elf64-littleriscv
+
+
+Disassembly of section .text.ggml_vec_dot_q1_0_q8_0_vl256:
+
+Disassembly of section .text.ggml_vec_dot_q1_0_q8_0_vl128:
+
+Disassembly of section .text.ggml_vec_dot_mxfp4_q8_0_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_mxfp4_q8_0_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_tq2_0_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_tq2_0_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_tq1_0_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_tq1_0_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_tq1_0_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_nl_q8_0_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_nl_q8_0_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_s_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_s_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq3_s_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xxs_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xxs_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xxs_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xs_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xs_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0:
+
+0000000000000000 <ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0>:
+   0:	1101                	add	sp,sp,-32
+   2:	ec06                	sd	ra,24(sp)
+   4:	0ff57893          	zext.b	a7,a0
+   8:	32089b63          	bnez	a7,33e <.L370>
+   c:	4785                	li	a5,1
+   e:	34f71e63          	bne	a4,a5,36a <.L371>
+  12:	0ff00793          	li	a5,255
+  16:	30a7dd63          	bge	a5,a0,330 <.L366>
+  1a:	cd00f057          	vsetivli	zero,1,e32,m1,ta,ma
+  1e:	f0000753          	fmv.w.x	fa4,zero
+  22:	00000337          	lui	t1,0x0
+  26:	00000837          	lui	a6,0x0
+  2a:	420060d7          	vmv.s.x	v1,zero
+  2e:	e822                	sd	s0,16(sp)
+  30:	e426                	sd	s1,8(sp)
+  32:	40855e9b          	sraw	t4,a0,0x8
+  36:	0609                	add	a2,a2,2
+  38:	0691                	add	a3,a3,4
+  3a:	00030313          	mv	t1,t1
+  3e:	00080813          	mv	a6,a6
+  42:	1ff00e13          	li	t3,511
+  46:	04000793          	li	a5,64
+
+000000000000004a <.L365>:
+  4a:	cc847057          	vsetivli	zero,8,e16,m1,ta,ma
+  4e:	02065107          	vle16.v	v2,(a2)
+  52:	ffe61787          	flh	fa5,-2(a2)
+  56:	ffc6a687          	flw	fa3,-4(a3)
+  5a:	402787d3          	fcvt.s.h	fa5,fa5
+  5e:	262e41d7          	vand.vx	v3,v2,t3
+  62:	a224b157          	vsrl.vi	v2,v2,9
+  66:	10d7f7d3          	fmul.s	fa5,fa5,fa3
+  6a:	9631b1d7          	vsll.vi	v3,v3,3
+  6e:	9621b157          	vsll.vi	v2,v2,3
+  72:	0da07057          	vsetvli	zero,zero,e64,m4,ta,ma
+  76:	06335207          	vluxei16.v	v4,(t1),v3
+  7a:	06285407          	vluxei16.v	v8,(a6),v2
+  7e:	0c27f057          	vsetvli	zero,a5,e8,m4,ta,ma
+  82:	96442257          	vmul.vv	v4,v4,v8
+  86:	02068807          	vle8.v	v16,(a3)
+  8a:	ee482457          	vwmul.vv	v8,v4,v16
+  8e:	cc987057          	vsetivli	zero,16,e16,m2,ta,ma
+  92:	c6808357          	vwredsum.vs	v6,v8,v1
+  96:	c6a082d7          	vwredsum.vs	v5,v10,v1
+  9a:	c6c081d7          	vwredsum.vs	v3,v12,v1
+  9e:	c6e08257          	vwredsum.vs	v4,v14,v1
+  a2:	01060713          	add	a4,a2,16
+  a6:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+  aa:	02075107          	vle16.v	v2,(a4)
+  ae:	04064503          	lbu	a0,64(a2)
+  b2:	04164703          	lbu	a4,65(a2)
+  b6:	426022d7          	vmv.x.s	t0,v6
+  ba:	00f57413          	and	s0,a0,15
+  be:	0045551b          	srlw	a0,a0,0x4
+  c2:	42302f57          	vmv.x.s	t5,v3
+  c6:	42502fd7          	vmv.x.s	t6,v5
+  ca:	00f77393          	and	t2,a4,15
+  ce:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+  d2:	0406                	sll	s0,s0,0x1
+  d4:	0506                	sll	a0,a0,0x1
+  d6:	262e41d7          	vand.vx	v3,v2,t3
+  da:	2405                	addw	s0,s0,1
+  dc:	a224b157          	vsrl.vi	v2,v2,9
+  e0:	0505                	add	a0,a0,1
+  e2:	cd007057          	vsetivli	zero,0,e32,m1,ta,ma
+  e6:	0386                	sll	t2,t2,0x1
+  e8:	0047571b          	srlw	a4,a4,0x4
+  ec:	028282bb          	mulw	t0,t0,s0
+  f0:	2385                	addw	t2,t2,1
+  f2:	42402457          	vmv.x.s	s0,v4
+  f6:	0706                	sll	a4,a4,0x1
+  f8:	0705                	add	a4,a4,1
+  fa:	cc847057          	vsetivli	zero,8,e16,m1,ta,ma
+  fe:	9631b1d7          	vsll.vi	v3,v3,3
+ 102:	9621b157          	vsll.vi	v2,v2,3
+ 106:	0da07057          	vsetvli	zero,zero,e64,m4,ta,ma
+ 10a:	06335407          	vluxei16.v	v8,(t1),v3
+ 10e:	02af8fbb          	mulw	t6,t6,a0
+ 112:	06285207          	vluxei16.v	v4,(a6),v2
+ 116:	0c27f057          	vsetvli	zero,a5,e8,m4,ta,ma
+ 11a:	96442257          	vmul.vv	v4,v4,v8
+ 11e:	027f053b          	mulw	a0,t5,t2
+ 122:	005f8f3b          	addw	t5,t6,t0
+ 126:	02e4043b          	mulw	s0,s0,a4
+ 12a:	01e5073b          	addw	a4,a0,t5
+ 12e:	9c39                	addw	s0,s0,a4
+ 130:	04068713          	add	a4,a3,64
+ 134:	02070807          	vle8.v	v16,(a4)
+ 138:	ee482457          	vwmul.vv	v8,v4,v16
+ 13c:	cc987057          	vsetivli	zero,16,e16,m2,ta,ma
+ 140:	c6808357          	vwredsum.vs	v6,v8,v1
+ 144:	c6a082d7          	vwredsum.vs	v5,v10,v1
+ 148:	c6c08257          	vwredsum.vs	v4,v12,v1
+ 14c:	c6e081d7          	vwredsum.vs	v3,v14,v1
+ 150:	04264503          	lbu	a0,66(a2)
+ 154:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+ 158:	02060713          	add	a4,a2,32
+ 15c:	02075107          	vle16.v	v2,(a4)
+ 160:	00f57493          	and	s1,a0,15
+ 164:	04364703          	lbu	a4,67(a2)
+ 168:	426022d7          	vmv.x.s	t0,v6
+ 16c:	0486                	sll	s1,s1,0x1
+ 16e:	2485                	addw	s1,s1,1
+ 170:	0045551b          	srlw	a0,a0,0x4
+ 174:	42502fd7          	vmv.x.s	t6,v5
+ 178:	029282bb          	mulw	t0,t0,s1
+ 17c:	0506                	sll	a0,a0,0x1
+ 17e:	00f77493          	and	s1,a4,15
+ 182:	42402f57          	vmv.x.s	t5,v4
+ 186:	423023d7          	vmv.x.s	t2,v3
+ 18a:	0505                	add	a0,a0,1
+ 18c:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+ 190:	0486                	sll	s1,s1,0x1
+ 192:	0047571b          	srlw	a4,a4,0x4
+ 196:	262e41d7          	vand.vx	v3,v2,t3
+ 19a:	02af8fbb          	mulw	t6,t6,a0
+ 19e:	a224b157          	vsrl.vi	v2,v2,9
+ 1a2:	2485                	addw	s1,s1,1
+ 1a4:	0706                	sll	a4,a4,0x1
+ 1a6:	0705                	add	a4,a4,1
+ 1a8:	9631b1d7          	vsll.vi	v3,v3,3
+ 1ac:	9621b157          	vsll.vi	v2,v2,3
+ 1b0:	0da07057          	vsetvli	zero,zero,e64,m4,ta,ma
+ 1b4:	06335407          	vluxei16.v	v8,(t1),v3
+ 1b8:	06285207          	vluxei16.v	v4,(a6),v2
+ 1bc:	029f053b          	mulw	a0,t5,s1
+ 1c0:	008282bb          	addw	t0,t0,s0
+ 1c4:	005f8f3b          	addw	t5,t6,t0
+ 1c8:	0c27f057          	vsetvli	zero,a5,e8,m4,ta,ma
+ 1cc:	96442257          	vmul.vv	v4,v4,v8
+ 1d0:	02e383bb          	mulw	t2,t2,a4
+ 1d4:	01e5073b          	addw	a4,a0,t5
+ 1d8:	00e383bb          	addw	t2,t2,a4
+ 1dc:	08068713          	add	a4,a3,128
+ 1e0:	02070807          	vle8.v	v16,(a4)
+ 1e4:	ee482457          	vwmul.vv	v8,v4,v16
+ 1e8:	cc987057          	vsetivli	zero,16,e16,m2,ta,ma
+ 1ec:	c6808357          	vwredsum.vs	v6,v8,v1
+ 1f0:	c6a082d7          	vwredsum.vs	v5,v10,v1
+ 1f4:	c6c08257          	vwredsum.vs	v4,v12,v1
+ 1f8:	c6e081d7          	vwredsum.vs	v3,v14,v1
+ 1fc:	04464503          	lbu	a0,68(a2)
+ 200:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+ 204:	03060713          	add	a4,a2,48
+ 208:	02075107          	vle16.v	v2,(a4)
+ 20c:	00f57493          	and	s1,a0,15
+ 210:	04564703          	lbu	a4,69(a2)
+ 214:	426022d7          	vmv.x.s	t0,v6
+ 218:	0486                	sll	s1,s1,0x1
+ 21a:	2485                	addw	s1,s1,1
+ 21c:	0045551b          	srlw	a0,a0,0x4
+ 220:	42502fd7          	vmv.x.s	t6,v5
+ 224:	029282bb          	mulw	t0,t0,s1
+ 228:	0506                	sll	a0,a0,0x1
+ 22a:	00f77493          	and	s1,a4,15
+ 22e:	42402f57          	vmv.x.s	t5,v4
+ 232:	42302457          	vmv.x.s	s0,v3
+ 236:	0505                	add	a0,a0,1
+ 238:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+ 23c:	0486                	sll	s1,s1,0x1
+ 23e:	0047571b          	srlw	a4,a4,0x4
+ 242:	262e41d7          	vand.vx	v3,v2,t3
+ 246:	02af8fbb          	mulw	t6,t6,a0
+ 24a:	a224b157          	vsrl.vi	v2,v2,9
+ 24e:	2485                	addw	s1,s1,1
+ 250:	0706                	sll	a4,a4,0x1
+ 252:	0705                	add	a4,a4,1
+ 254:	9631b1d7          	vsll.vi	v3,v3,3
+ 258:	9621b157          	vsll.vi	v2,v2,3
+ 25c:	0da07057          	vsetvli	zero,zero,e64,m4,ta,ma
+ 260:	06335407          	vluxei16.v	v8,(t1),v3
+ 264:	06285207          	vluxei16.v	v4,(a6),v2
+ 268:	029f053b          	mulw	a0,t5,s1
+ 26c:	007282bb          	addw	t0,t0,t2
+ 270:	005f8f3b          	addw	t5,t6,t0
+ 274:	0c27f057          	vsetvli	zero,a5,e8,m4,ta,ma
+ 278:	96442257          	vmul.vv	v4,v4,v8
+ 27c:	02e4043b          	mulw	s0,s0,a4
+ 280:	01e5073b          	addw	a4,a0,t5
+ 284:	9c39                	addw	s0,s0,a4
+ 286:	0c068713          	add	a4,a3,192
+ 28a:	02070807          	vle8.v	v16,(a4)
+ 28e:	ee482457          	vwmul.vv	v8,v4,v16
+ 292:	cc987057          	vsetivli	zero,16,e16,m2,ta,ma
+ 296:	c68082d7          	vwredsum.vs	v5,v8,v1
+ 29a:	c6a08257          	vwredsum.vs	v4,v10,v1
+ 29e:	c6c081d7          	vwredsum.vs	v3,v12,v1
+ 2a2:	c6e08157          	vwredsum.vs	v2,v14,v1
+ 2a6:	04664503          	lbu	a0,70(a2)
+ 2aa:	04764703          	lbu	a4,71(a2)
+ 2ae:	cd007057          	vsetivli	zero,0,e32,m1,ta,ma
+ 2b2:	00f57f13          	and	t5,a0,15
+ 2b6:	425023d7          	vmv.x.s	t2,v5
+ 2ba:	0f06                	sll	t5,t5,0x1
+ 2bc:	0045551b          	srlw	a0,a0,0x4
+ 2c0:	2f05                	addw	t5,t5,1
+ 2c2:	00f77493          	and	s1,a4,15
+ 2c6:	424022d7          	vmv.x.s	t0,v4
+ 2ca:	0506                	sll	a0,a0,0x1
+ 2cc:	03e383bb          	mulw	t2,t2,t5
+ 2d0:	42302fd7          	vmv.x.s	t6,v3
+ 2d4:	0505                	add	a0,a0,1
+ 2d6:	0486                	sll	s1,s1,0x1
+ 2d8:	0047571b          	srlw	a4,a4,0x4
+ 2dc:	42202f57          	vmv.x.s	t5,v2
+ 2e0:	2485                	addw	s1,s1,1
+ 2e2:	0706                	sll	a4,a4,0x1
+ 2e4:	0705                	add	a4,a4,1
+ 2e6:	2885                	addw	a7,a7,1
+ 2e8:	02a282bb          	mulw	t0,t0,a0
+ 2ec:	008383bb          	addw	t2,t2,s0
+ 2f0:	12468693          	add	a3,a3,292
+ 2f4:	04a60613          	add	a2,a2,74
+ 2f8:	029f853b          	mulw	a0,t6,s1
+ 2fc:	00728fbb          	addw	t6,t0,t2
+ 300:	02ef073b          	mulw	a4,t5,a4
+ 304:	01f5053b          	addw	a0,a0,t6
+ 308:	9f29                	addw	a4,a4,a0
+ 30a:	d00776d3          	fcvt.s.w	fa3,a4
+ 30e:	70d7f743          	fmadd.s	fa4,fa5,fa3,fa4
+ 312:	d3d8cce3          	blt	a7,t4,4a <.L365>
+ 316:	000007b7          	lui	a5,0x0
+ 31a:	0007a787          	flw	fa5,0(a5) # 0 <ggml_vec_dot_iq2_xs_q8_K_vl128.isra.0>
+ 31e:	6442                	ld	s0,16(sp)
+ 320:	60e2                	ld	ra,24(sp)
+ 322:	10f77753          	fmul.s	fa4,fa4,fa5
+ 326:	64a2                	ld	s1,8(sp)
+ 328:	00e5a027          	fsw	fa4,0(a1)
+ 32c:	6105                	add	sp,sp,32
+ 32e:	8082                	ret
+
+0000000000000330 <.L366>:
+ 330:	f0000753          	fmv.w.x	fa4,zero
+ 334:	60e2                	ld	ra,24(sp)
+ 336:	00e5a027          	fsw	fa4,0(a1)
+ 33a:	6105                	add	sp,sp,32
+ 33c:	8082                	ret
+
+000000000000033e <.L370>:
+ 33e:	000006b7          	lui	a3,0x0
+ 342:	000005b7          	lui	a1,0x0
+ 346:	00000537          	lui	a0,0x0
+ 34a:	6605                	lui	a2,0x1
+ 34c:	00068693          	mv	a3,a3
+ 350:	0d960613          	add	a2,a2,217 # 10d9 <iq2xs_grid+0xd9>
+ 354:	00058593          	mv	a1,a1
+ 358:	00050513          	mv	a0,a0
+ 35c:	e822                	sd	s0,16(sp)
+ 35e:	e426                	sd	s1,8(sp)
+ 360:	e04a                	sd	s2,0(sp)
+ 362:	00000097          	auipc	ra,0x0
+ 366:	000080e7          	jalr	ra # 362 <.L370+0x24>
+
+000000000000036a <.L371>:
+ 36a:	000006b7          	lui	a3,0x0
+ 36e:	000005b7          	lui	a1,0x0
+ 372:	00000537          	lui	a0,0x0
+ 376:	6605                	lui	a2,0x1
+ 378:	00068693          	mv	a3,a3
+ 37c:	0da60613          	add	a2,a2,218 # 10da <iq2xs_grid+0xda>
+ 380:	00058593          	mv	a1,a1
+ 384:	00050513          	mv	a0,a0
+ 388:	e822                	sd	s0,16(sp)
+ 38a:	e426                	sd	s1,8(sp)
+ 38c:	e04a                	sd	s2,0(sp)
+ 38e:	00000097          	auipc	ra,0x0
+ 392:	000080e7          	jalr	ra # 38e <.L371+0x24>
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K_vl1024.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K_vl512.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K_vl128.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q4_K_q8_K_vl256.isra.0:
+
+Disassembly of section .text.ggml_vec_dot_q4_K_q8_K_vl128.isra.0:
+
+Disassembly of section .text.vc_trace_dump:
+
+Disassembly of section .text.quantize_row_q8_0:
+
+Disassembly of section .text.quantize_row_q8_1:
+
+Disassembly of section .text.quantize_row_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_q4_0_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_q4_1_q8_1:
+
+Disassembly of section .text.ggml_vec_dot_q5_0_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_q5_1_q8_1:
+
+Disassembly of section .text.ggml_vec_dot_q8_0_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_q1_0_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_q2_K_q8_K_vl128:
+
+Disassembly of section .text.ggml_vec_dot_q2_K_q8_K_vl256:
+
+Disassembly of section .text.ggml_vec_dot_q2_K_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K_vl128:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K_vl256:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K_vl512:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K_vl1024:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_q4_K_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_q5_K_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xs_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xxs_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq3_s_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_iq4_nl_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_tq1_0_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_tq2_0_q8_K:
+
+Disassembly of section .text.ggml_vec_dot_mxfp4_q8_0:
+
+Disassembly of section .text.quantize_row_q1_0:
+
+Disassembly of section .text.quantize_row_q4_0:
+
+Disassembly of section .text.quantize_row_q4_1:
+
+Disassembly of section .text.quantize_row_q5_0:
+
+Disassembly of section .text.quantize_row_q5_1:
+
+Disassembly of section .text.quantize_row_q8_0_generic:
+
+Disassembly of section .text.quantize_row_q8_1_generic:
+
+Disassembly of section .text.quantize_row_mxfp4:
+
+Disassembly of section .text.quantize_row_nvfp4:
+
+Disassembly of section .text.quantize_row_q2_K:
+
+Disassembly of section .text.quantize_row_q3_K:
+
+Disassembly of section .text.quantize_row_q4_K:
+
+Disassembly of section .text.quantize_row_q5_K:
+
+Disassembly of section .text.quantize_row_q6_K:
+
+Disassembly of section .text.quantize_row_tq1_0:
+
+Disassembly of section .text.quantize_row_tq2_0:
+
+Disassembly of section .text.quantize_row_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q1_0_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_q4_0_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_q4_1_q8_1_generic:
+
+Disassembly of section .text.ggml_vec_dot_mxfp4_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_nvfp4_q8_0:
+
+Disassembly of section .text.ggml_vec_dot_q5_0_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_q5_1_q8_1_generic:
+
+Disassembly of section .text.ggml_vec_dot_q8_0_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_tq1_0_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_tq2_0_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q2_K_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q3_K_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q4_K_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q5_K_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_q6_K_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xxs_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq2_xs_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq2_s_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq3_xxs_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq3_s_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq1_s_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq1_m_q8_K_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq4_nl_q8_0_generic:
+
+Disassembly of section .text.ggml_vec_dot_iq4_xs_q8_K_generic:
+
+Disassembly of section .text.quantize_row_iq4_nl:
+
+Disassembly of section .text.quantize_row_iq4_xs:
