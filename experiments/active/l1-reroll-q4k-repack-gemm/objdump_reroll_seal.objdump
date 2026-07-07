@@ -1,0 +1,34 @@
+# OBJDUMP SEAL — q4_K repack GEMM PRE(full-unroll golden) vs POST(k/ii RE-ROLL to emitc.for)
+# board rvv/VLEN128, clang-17.0.6, -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on
+# counts: vsetvli=grep(vsetvli|vsetivli); spill=grep(vs[1248]r.v); reload=grep(vl[1248]r.v); vwmacc=grep(vwmacc)
+# PRE = pre_q4K.c  (md5 b0b5beac == cached golden gemm_q4_K_q8_K.kernel.c, oracle-GREEN @039133ea)
+# POST = post_q4K.c (k-chunk[2] + ii-nibble[16] dims converted to runtime emitc.for; byte-exact-identical)
+#
+# QUESTION (the "confirm it drops" gate): does the RE-ROLL reduce vsetvli + register spill?
+# ANSWER: NO — vsetvli RISES and spill RISES at BOTH opt levels. The full-unroll register-pressure
+#         opening is NOT relieved by rolling k/ii; the diagnosis model (roll -> clang hoists the
+#         loop-invariant vsetvli + reuses accumulator regs) is FALSIFIED.
+
+| form       | vsetvli | spill(vs*r.v) | reload(vl*r.v) | vwmacc(static) | textB  |
+|------------|--------:|--------------:|---------------:|---------------:|-------:|
+| PRE  -O2   |      53 |            84 |             88 |           2240 |  23486 |
+| POST -O2   |      76 |           118 |            127 |            320 |  10220 |
+| PRE  -O3   |      52 |            84 |             87 |           2240 |  23540 |
+| POST -O3   |      75 |           143 |            158 |            320 |  11394 |
+
+# DELTA PRE->POST:
+#   vsetvli  -O2: 53 -> 76  (+43%)      -O3: 52 -> 75  (+44%)     <-- ROSE (did NOT drop)
+#   spill    -O2: 84 -> 118 (+40%)      -O3: 84 -> 143 (+70%)     <-- ROSE (did NOT drop)
+#   reload   -O2: 88 -> 127 (+44%)      -O3: 87 -> 158 (+82%)     <-- ROSE
+#   vwmacc   -O2/-O3: 2240 -> 320 (7x fewer STATIC; dynamic count identical, now looped)
+#   textB    -O2: 23486 -> 10220 (-56%)  -O3: 23540 -> 11394 (-52%)  <-- code halved (icache), but...
+#
+# MECHANISM (why vsetvli+spill rise instead of fall):
+#  (1) vsetvli is NOT loop-invariant. The 32-elem sub-block body genuinely ALTERNATES SEW:
+#      e8/mf2 (nibble decode) <-> e16/m1 (i16 vwmacc accumulate). Rolling k/ii MULTIPLIES the
+#      per-iteration vtype toggles instead of hoisting one invariant vsetvli out.
+#  (2) emitc.for has NO iter-args -> the 16 loop-carried [col][half] i16 accumulators become C
+#      locals (VariableOp = memory), spilled/reloaded EACH iteration. PRE keeps those accumulator
+#      chains in SSA registers as straight-line code (fewer DYNAMIC spills). Peak liveness
+#      (~16 accumulators x strips > 32 vregs) is STRUCTURAL in the [col][half] fan-out, which
+#      rolling k/ii does not shrink. Text halves but dynamic vsetvli/spill traffic rises.

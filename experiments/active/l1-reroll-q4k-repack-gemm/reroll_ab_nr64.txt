@@ -1,0 +1,50 @@
+# [KQUANT-L1 / RE-ROLL 曳光弹 #2] q4_K repack GEMM PRE(full-unroll golden) vs POST(k/ii re-roll)
+# board rvv/VLEN128, core 8, gov=performance, 2.6 GHz. clang-17.0.6 -O2 measured binary.
+# harness: tools/e2e-harness/board/kquant_gemm_reroll_ab.sh  (SRC=/tmp/q4k_reroll, RDIR=/tmp/kquant_reroll_ab)
+# CLEAN OPPONENT ANCHOR: nr=64 (opponent block-dot cv ~0.7%). K=2048 nc=512 iters=20 N=12.
+# PRE md5=b0b5beac == cached golden baseline (gemm_q4_K_q8_K.kernel.c, oracle-GREEN @039133ea).
+
+[preflight] core=8 freq=2600000 gov=performance
+=== [1] OBJDUMP seal: vsetvli + spill/reload PRE->POST (does it DROP?) ===
+  OBJD PRE  -O2   vsetvli=53   spill=84   reload=88   vwmacc=2240  textB=23486
+  OBJD POST -O2   vsetvli=76   spill=118  reload=127  vwmacc=320   textB=10220
+  OBJD PRE  -O3   vsetvli=52   spill=84   reload=87   vwmacc=2240  textB=23540
+  OBJD POST -O3   vsetvli=75   spill=143  reload=158  vwmacc=320   textB=11394
+=== [2] BYTE-EXACT identity gate PRE vs POST (int + norm) ===
+  ORACLE mode=int : IDENTICAL (0 byte mismatch)
+  ORACLE mode=norm : IDENTICAL (0 byte mismatch)
+=== [3/4] A/B + vs-opponent (cold N=12 rounds; each round pre then post as fresh procs) ===
+    KQGEMM line: ours_gmacs / opp_gmacs / ratio_ours_over_opp
+ROUND 1 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15821250.4 ours_gmacs=4.2417 opp_ns=15318809.4 opp_gmacs=4.3808 ratio_ours_over_opp=0.968 sink=49115.7
+ROUND 1 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17729859.2 ours_gmacs=3.7851 opp_ns=15270847.2 opp_gmacs=4.3946 ratio_ours_over_opp=0.861 sink=49115.7
+ROUND 2 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15910457.8 ours_gmacs=4.2179 opp_ns=15213896.0 opp_gmacs=4.4110 ratio_ours_over_opp=0.956 sink=49115.7
+ROUND 2 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17700038.1 ours_gmacs=3.7915 opp_ns=15071562.4 opp_gmacs=4.4527 ratio_ours_over_opp=0.851 sink=49115.7
+ROUND 3 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15838557.6 ours_gmacs=4.2371 opp_ns=15206601.0 opp_gmacs=4.4131 ratio_ours_over_opp=0.960 sink=49115.7
+ROUND 3 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17716852.2 ours_gmacs=3.7879 opp_ns=15227576.1 opp_gmacs=4.4071 ratio_ours_over_opp=0.859 sink=49115.7
+ROUND 4 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15850794.6 ours_gmacs=4.2338 opp_ns=15154551.8 opp_gmacs=4.4283 ratio_ours_over_opp=0.956 sink=49115.7
+ROUND 4 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17703936.1 ours_gmacs=3.7906 opp_ns=15166147.8 opp_gmacs=4.4249 ratio_ours_over_opp=0.857 sink=49115.7
+ROUND 5 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15843769.6 ours_gmacs=4.2357 opp_ns=15095333.5 opp_gmacs=4.4457 ratio_ours_over_opp=0.953 sink=49115.7
+ROUND 5 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17714792.1 ours_gmacs=3.7883 opp_ns=15236495.1 opp_gmacs=4.4045 ratio_ours_over_opp=0.860 sink=49115.7
+ROUND 6 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15810011.4 ours_gmacs=4.2447 opp_ns=15390997.7 opp_gmacs=4.3603 ratio_ours_over_opp=0.973 sink=49115.7
+ROUND 6 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17753853.3 ours_gmacs=3.7800 opp_ns=15150556.8 opp_gmacs=4.4295 ratio_ours_over_opp=0.853 sink=49115.7
+ROUND 7 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15805724.4 ours_gmacs=4.2459 opp_ns=14945609.8 opp_gmacs=4.4902 ratio_ours_over_opp=0.946 sink=49115.7
+ROUND 7 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17710170.1 ours_gmacs=3.7893 opp_ns=15310378.4 opp_gmacs=4.3832 ratio_ours_over_opp=0.864 sink=49115.7
+ROUND 8 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15821947.5 ours_gmacs=4.2415 opp_ns=15239492.1 opp_gmacs=4.4036 ratio_ours_over_opp=0.963 sink=49115.7
+ROUND 8 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17721795.2 ours_gmacs=3.7868 opp_ns=15210162.0 opp_gmacs=4.4121 ratio_ours_over_opp=0.858 sink=49115.7
+ROUND 9 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15803901.4 ours_gmacs=4.2463 opp_ns=15239907.1 opp_gmacs=4.4035 ratio_ours_over_opp=0.964 sink=49115.7
+ROUND 9 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17705328.1 ours_gmacs=3.7903 opp_ns=15265590.2 opp_gmacs=4.3961 ratio_ours_over_opp=0.862 sink=49115.7
+ROUND 10 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15803755.4 ours_gmacs=4.2464 opp_ns=15426669.8 opp_gmacs=4.3502 ratio_ours_over_opp=0.976 sink=49115.7
+ROUND 10 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17707037.1 ours_gmacs=3.7900 opp_ns=15317067.4 opp_gmacs=4.3813 ratio_ours_over_opp=0.865 sink=49115.7
+ROUND 11 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15806207.4 ours_gmacs=4.2457 opp_ns=15200459.9 opp_gmacs=4.4149 ratio_ours_over_opp=0.962 sink=49115.7
+ROUND 11 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17727723.2 ours_gmacs=3.7855 opp_ns=15243356.1 opp_gmacs=4.4025 ratio_ours_over_opp=0.860 sink=49115.7
+ROUND 12 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=15826557.5 ours_gmacs=4.2403 opp_ns=15233696.1 opp_gmacs=4.4053 ratio_ours_over_opp=0.963 sink=49115.7
+ROUND 12 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=17715318.2 ours_gmacs=3.7882 opp_ns=15312225.3 opp_gmacs=4.3827 ratio_ours_over_opp=0.864 sink=49115.7
+
+# ---- derived (nr=64, N=12) ----
+# ours_pre  mean = 4.2398 GMAC/s  (min 4.2179 max 4.2464; cv ~0.2% -- very tight)
+# ours_post mean = 3.7878 GMAC/s  (min 3.7800 max 3.7915; cv ~0.09% -- very tight)
+# A/B paired ours_post/ours_pre = 0.893  (per-round 0.891..0.899)  => REGRESSION ~-10.7%
+# vs-opponent parity: PRE mean 0.962x (reproduces precedent 0.94-0.97x band -> harness validated)
+#                     POST mean 0.860x  => parity got WORSE by ~10.6%, still < 1.0, NOT a win.
+# opponent GMAC/s stable across pre/post (24 samples 4.350..4.490, cv ~0.7%) -> parity delta is 100% ours-side.
+# NOISE FLOOR: -10.7% A/B is ~15x the opponent run-to-run cv (0.7%) and ~50x our own cv (0.2%) => REAL, not noise.

@@ -1,0 +1,42 @@
+# [KQUANT-L1 / RE-ROLL 曳光弹 #2] q4_K repack GEMM — SHAPE-ROBUSTNESS anchor (nr=16).
+# board rvv/VLEN128, core 8, gov=performance, 2.6 GHz. clang-17.0.6 -O2. K=2048 nc=512 iters=20 N=10.
+# NOTE: at nr=16 the opponent block-dot is NOISE-DOMINATED (opp_gmacs 4.28..4.81, cv ~3.7%), so parity
+# is not a usable anchor here; the OURS-SIDE A/B (reroll regression) reproduces cleanly. nr=64 is the
+# clean parity anchor (see reroll_ab_nr64.txt).
+
+[preflight] core=8 freq=2600000 gov=performance
+=== [1] OBJDUMP seal (nr-independent; same kernel binary as nr=64) ===
+  OBJD PRE  -O2   vsetvli=53   spill=84   reload=88   vwmacc=2240  textB=23486
+  OBJD POST -O2   vsetvli=76   spill=118  reload=127  vwmacc=320   textB=10220
+  OBJD PRE  -O3   vsetvli=52   spill=84   reload=87   vwmacc=2240  textB=23540
+  OBJD POST -O3   vsetvli=75   spill=143  reload=158  vwmacc=320   textB=11394
+=== [2] BYTE-EXACT identity gate PRE vs POST (int + norm) ===
+  ORACLE mode=int : IDENTICAL (0 byte mismatch)
+  ORACLE mode=norm : IDENTICAL (0 byte mismatch)
+=== [3/4] A/B + vs-opponent (cold N=10 rounds; each round pre then post as fresh procs) ===
+ROUND 1 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3945012.1 ours_gmacs=4.2528 opp_ns=3776397.4 opp_gmacs=4.4427 ratio_ours_over_opp=0.957 sink=29769.9
+ROUND 1 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4433098.0 ours_gmacs=3.7845 opp_ns=3490661.2 opp_gmacs=4.8063 ratio_ours_over_opp=0.787 sink=29769.9
+ROUND 2 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3951728.1 ours_gmacs=4.2455 opp_ns=3838887.6 opp_gmacs=4.3703 ratio_ours_over_opp=0.971 sink=29769.9
+ROUND 2 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4429758.0 ours_gmacs=3.7874 opp_ns=3683443.0 opp_gmacs=4.5548 ratio_ours_over_opp=0.832 sink=29769.9
+ROUND 3 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3953416.1 ours_gmacs=4.2437 opp_ns=3710596.1 opp_gmacs=4.5214 ratio_ours_over_opp=0.939 sink=29769.9
+ROUND 3 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4444903.2 ours_gmacs=3.7745 opp_ns=3923412.0 opp_gmacs=4.2762 ratio_ours_over_opp=0.883 sink=29769.9
+ROUND 4 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3957144.1 ours_gmacs=4.2397 opp_ns=3520120.4 opp_gmacs=4.7661 ratio_ours_over_opp=0.890 sink=29769.9
+ROUND 4 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4424380.0 ours_gmacs=3.7920 opp_ns=3842805.6 opp_gmacs=4.3659 ratio_ours_over_opp=0.869 sink=29769.9
+ROUND 5 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3954292.1 ours_gmacs=4.2428 opp_ns=3714158.1 opp_gmacs=4.5171 ratio_ours_over_opp=0.939 sink=29769.9
+ROUND 5 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4429657.0 ours_gmacs=3.7875 opp_ns=3526646.4 opp_gmacs=4.7573 ratio_ours_over_opp=0.796 sink=29769.9
+ROUND 6 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3949619.1 ours_gmacs=4.2478 opp_ns=3803818.5 opp_gmacs=4.4106 ratio_ours_over_opp=0.963 sink=29769.9
+ROUND 6 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4433902.1 ours_gmacs=3.7838 opp_ns=3741889.2 opp_gmacs=4.4836 ratio_ours_over_opp=0.844 sink=29769.9
+ROUND 7 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3950747.1 ours_gmacs=4.2466 opp_ns=3917717.0 opp_gmacs=4.2824 ratio_ours_over_opp=0.992 sink=29769.9
+ROUND 7 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4430185.0 ours_gmacs=3.7870 opp_ns=3772258.4 opp_gmacs=4.4475 ratio_ours_over_opp=0.851 sink=29769.9
+ROUND 8 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3949461.1 ours_gmacs=4.2480 opp_ns=3508908.3 opp_gmacs=4.7813 ratio_ours_over_opp=0.888 sink=29769.9
+ROUND 8 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4432676.1 ours_gmacs=3.7849 opp_ns=3741574.2 opp_gmacs=4.4840 ratio_ours_over_opp=0.844 sink=29769.9
+ROUND 9 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3953945.1 ours_gmacs=4.2432 opp_ns=3854506.7 opp_gmacs=4.3526 ratio_ours_over_opp=0.975 sink=29769.9
+ROUND 9 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4433067.0 ours_gmacs=3.7846 opp_ns=3863999.8 opp_gmacs=4.3419 ratio_ours_over_opp=0.872 sink=29769.9
+ROUND 10 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3947531.1 ours_gmacs=4.2501 opp_ns=3734000.2 opp_gmacs=4.4931 ratio_ours_over_opp=0.946 sink=29769.9
+ROUND 10 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=4430665.0 ours_gmacs=3.7866 opp_ns=3507964.3 opp_gmacs=4.7826 ratio_ours_over_opp=0.792 sink=29769.9
+
+# ---- derived (nr=16, N=10) ----
+# ours_pre  mean = 4.2460 GMAC/s  (min 4.2397 max 4.2528)
+# ours_post mean = 3.7853 GMAC/s  (min 3.7745 max 3.7920)
+# A/B paired ours_post/ours_pre = 0.892  => REGRESSION ~-10.8%  (matches nr=64's -10.7% -> SHAPE-ROBUST)
+# parity NOT a clean anchor here (opponent cv ~3.7%): PRE 0.888..0.992, POST 0.787..0.883.

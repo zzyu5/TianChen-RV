@@ -1,0 +1,5 @@
+nr,N,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_ours_over_opp,ab_post_over_pre,vsetvli_O2,spill_O2,notes
+64,12,pre,4.2398,0.20,4.4090,0.71,0.962,,53,84,clean opponent anchor; PRE==cached golden md5 b0b5beac
+64,12,post,3.7878,0.09,4.4060,0.47,0.860,0.893,76,118,RE-ROLL: A/B -10.7%; parity 0.962->0.860 WORSE; still <1.0 NOT a win
+16,10,pre,4.2460,0.09,4.4818,3.72,noisy,,53,84,opponent noise-dominated at nr=16 (parity not a clean anchor)
+16,10,post,3.7853,0.11,4.5250,4.28,noisy,0.892,76,118,RE-ROLL A/B -10.8% reproduces (shape-robust)
