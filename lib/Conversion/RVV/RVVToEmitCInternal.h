@@ -407,6 +407,30 @@ private:
   /// single signed-scale no-min accumulator.
   static bool isRepackGemmQ3KQ8KBody(tcrvrvv::WithVLOp scope);
 
+  /// The TERNARY (BitNet-class) 16x1-REPACKED single-output-column GEVM recognizer
+  /// for tq2_0: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_tq2_0_q8_K. The emitter owns the block-as-lane single-column
+  /// expansion with the 2-bit TERNARY weight (`((qs>>shift)&3)-1`, trit in {-1,0,1})
+  /// and the single fp16 super-block scale, single-accumulator no-min fold.
+  static bool isRepackGemvTQ20Q8KBody(tcrvrvv::WithVLOp scope);
+  /// The TERNARY 16x1-REPACKED multi-output-column GEMM recognizer for tq2_0: a
+  /// with_vl scope whose ONLY compute op is a single tcrv_rvv.repack_gemm_tq2_0_q8_K.
+  /// The emitter shares the 2-bit ternary decode (amortized across the 4 interleaved
+  /// activation columns) with the single-scale no-min accumulator.
+  static bool isRepackGemmTQ20Q8KBody(tcrvrvv::WithVLOp scope);
+
+  /// The TERNARY (BitNet-class) 16x1-REPACKED single-output-column GEVM recognizer
+  /// for tq1_0: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_tq1_0_q8_K. The emitter owns the block-as-lane single-column
+  /// expansion with the BASE-3 TERNARY weight unpack (5 trits/qs byte + 4 trits/qh
+  /// byte) and the single fp16 super-block scale, single-accumulator no-min fold.
+  static bool isRepackGemvTQ10Q8KBody(tcrvrvv::WithVLOp scope);
+  /// The TERNARY 16x1-REPACKED multi-output-column GEMM recognizer for tq1_0: a
+  /// with_vl scope whose ONLY compute op is a single tcrv_rvv.repack_gemm_tq1_0_q8_K.
+  /// The emitter shares the base-3 ternary decode (amortized across the 4 interleaved
+  /// activation columns) with the single-scale no-min accumulator.
+  static bool isRepackGemmTQ10Q8KBody(tcrvrvv::WithVLOp scope);
+
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
   /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
   /// block loop with a SSA loop-carried f32 accumulator). Routed through the
@@ -1573,6 +1597,49 @@ private:
   /// signed-6bit-scale single-accumulator no-min fold, with the weight decode AMORTIZED
   /// across the 4 interleaved block_q8_Kx4 activation columns.
   mlir::LogicalResult emitRepackGemmQ3KQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_tq2_0_q8_K op. tq2_0 is the FIRST TERNARY
+  /// (BitNet-class) repack: a LINEAR trit weight (`((qs>>shift)&3)-1` in {-1,0,1},
+  /// the q2_K 2-bit 4-lane peel + the ternary -1 bias vsub_vx_i8), ONE fp16
+  /// super-block scale, and a SINGLE i32 accumulator per column strip (per-super-half
+  /// i16 partial widened into i32, NO per-sub-block scale / dmin / bsums / min term).
+  /// LANE-WISE vwmacc, VLEN 8/16-lane strips, i32->f32 single-scale fold.
+  mlir::LogicalResult emitRepackGemvTQ20Q8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_tq2_0_q8_K op. The tq2_0 prefill sibling of
+  /// emitRepackGemvTQ20Q8K: the SAME 2-bit ternary weight decode + single-scale no-min
+  /// fold, with the weight decode AMORTIZED across the 4 interleaved block_q8_Kx4
+  /// activation columns.
+  mlir::LogicalResult emitRepackGemmTQ20Q8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_tq1_0_q8_K op. tq1_0 REUSES the tq2_0 single-scale
+  /// no-min scaffold and differs ONLY in the weight decode: a BASE-3 unpack (`q =
+  /// (uint8_t)(byte*pow3[l])`, `xi = (q*3)>>8`, `xi-1`) over the 48-byte qs plane (5
+  /// trits/byte) + the 4-byte qh plane (4 trits/byte), lane-wise across the 16-column
+  /// strip. LANE-WISE vwmacc, i32->f32 single-scale fold.
+  mlir::LogicalResult emitRepackGemvTQ10Q8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_tq1_0_q8_K op. The tq1_0 prefill sibling of
+  /// emitRepackGemvTQ10Q8K: the SAME base-3 ternary weight decode + single-scale
+  /// no-min fold, with the weight decode AMORTIZED across the 4 interleaved
+  /// block_q8_Kx4 activation columns.
+  mlir::LogicalResult emitRepackGemmTQ10Q8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
