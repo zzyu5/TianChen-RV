@@ -1,0 +1,30 @@
+[pl-ab] board=rvv core=8 K=2048 nr=16 nc=512 iters=20 N=10 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+
+
+[preflight] freq=2600000 gov=performance vlenb=
+[compile] PRE + POST q4_K kernels + shared q5_K + driver (clang-17 -O2)
+[objdump] measured-binary vsetvli (clang-17 -O2, the ACTUAL board form):
+  OBJD pre_q4k.o vset_all=53 vsetvli=52 vwmacc=2240 fp16libcall=0
+  OBJD post_q4k.o vset_all=53 vsetvli=52 vwmacc=2240 fp16libcall=0
+=== PIPELINE A/B (cold N=10 rounds, each round pre then post as fresh procs) ===
+ROUND 1 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3946312.0 ours_gmacs=4.2514 opp_ns=3827478.5 opp_gmacs=4.3834 ratio_ours_over_opp=0.970 sink=29769.9
+ROUND 1 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3929054.0 ours_gmacs=4.2700 opp_ns=3482984.1 opp_gmacs=4.8169 ratio_ours_over_opp=0.886 sink=29769.9
+ROUND 2 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3946261.0 ours_gmacs=4.2514 opp_ns=3657114.9 opp_gmacs=4.5876 ratio_ours_over_opp=0.927 sink=29769.9
+ROUND 2 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3922232.0 ours_gmacs=4.2775 opp_ns=3763267.2 opp_gmacs=4.4582 ratio_ours_over_opp=0.959 sink=29769.9
+ROUND 3 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3945015.0 ours_gmacs=4.2528 opp_ns=3495653.1 opp_gmacs=4.7995 ratio_ours_over_opp=0.886 sink=29769.9
+ROUND 3 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3921631.9 ours_gmacs=4.2781 opp_ns=3748855.2 opp_gmacs=4.4753 ratio_ours_over_opp=0.956 sink=29769.9
+ROUND 4 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3959302.0 ours_gmacs=4.2374 opp_ns=3804883.4 opp_gmacs=4.4094 ratio_ours_over_opp=0.961 sink=29769.9
+ROUND 4 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3923833.0 ours_gmacs=4.2757 opp_ns=3740875.2 opp_gmacs=4.4848 ratio_ours_over_opp=0.953 sink=29769.9
+ROUND 5 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3946383.0 ours_gmacs=4.2513 opp_ns=3833024.5 opp_gmacs=4.3770 ratio_ours_over_opp=0.971 sink=29769.9
+ROUND 5 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3923693.0 ours_gmacs=4.2759 opp_ns=3490025.2 opp_gmacs=4.8072 ratio_ours_over_opp=0.889 sink=29769.9
+ROUND 6 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3953070.0 ours_gmacs=4.2441 opp_ns=3486909.1 opp_gmacs=4.8115 ratio_ours_over_opp=0.882 sink=29769.9
+ROUND 6 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3921092.9 ours_gmacs=4.2787 opp_ns=3867978.7 opp_gmacs=4.3375 ratio_ours_over_opp=0.986 sink=29769.9
+ROUND 7 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3949852.0 ours_gmacs=4.2476 opp_ns=3636192.8 opp_gmacs=4.6140 ratio_ours_over_opp=0.921 sink=29769.9
+ROUND 7 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3924155.9 ours_gmacs=4.2754 opp_ns=3789064.4 opp_gmacs=4.4278 ratio_ours_over_opp=0.966 sink=29769.9
+ROUND 8 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3955399.0 ours_gmacs=4.2416 opp_ns=3726114.1 opp_gmacs=4.5026 ratio_ours_over_opp=0.942 sink=29769.9
+ROUND 8 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3921035.0 ours_gmacs=4.2788 opp_ns=3727863.1 opp_gmacs=4.5005 ratio_ours_over_opp=0.951 sink=29769.9
+ROUND 9 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3943837.0 ours_gmacs=4.2540 opp_ns=3520508.3 opp_gmacs=4.7656 ratio_ours_over_opp=0.893 sink=29769.9
+ROUND 9 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3924208.0 ours_gmacs=4.2753 opp_ns=3745658.2 opp_gmacs=4.4791 ratio_ours_over_opp=0.955 sink=29769.9
+ROUND 10 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3954332.0 ours_gmacs=4.2427 opp_ns=3938893.0 opp_gmacs=4.2594 ratio_ours_over_opp=0.996 sink=29769.9
+ROUND 10 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=3920402.9 ours_gmacs=4.2795 opp_ns=3784469.4 opp_gmacs=4.4332 ratio_ours_over_opp=0.965 sink=29769.9
+[pl-ab] done. restore: nothing to restore (main tree + build/ untouched; scratch under /tmp/kquant_pipeline_ab on board).

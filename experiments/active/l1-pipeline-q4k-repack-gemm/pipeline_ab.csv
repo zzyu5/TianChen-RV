@@ -1,0 +1,5 @@
+nr,N_cold,variant,ours_gmacs_med,ours_cv_pct,opp_gmacs_med,ratio_vs_opp_med,paired_AB_post_over_pre_pct,vsetvli_board_O2,note
+64,12,pre,4.2446,0.05,4.4104,0.962,ref,52,PRE == cached golden baseline (precedent cell); parity band 0.94-0.97x reproduced
+64,12,post,4.2724,0.28,4.4070,0.970,+0.67,52,POST = decode-hoist byte-exact reorder; still <1.0 (parity/loss), NOT a win
+16,10,pre,4.2494,0.13,4.5451,0.882-0.996,ref,52,opponent noise-dominated at nr=16 (cv 3.75%), parity anchor unreliable
+16,10,post,4.2767,0.06,4.4772,0.889-0.986,+0.63,52,ours-side A/B reproduces the ~+0.65% nr=64 result across tile shape

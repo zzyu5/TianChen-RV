@@ -1,0 +1,30 @@
+objdump seal — q4_K repack GEMM  PRE (golden) vs POST (decode-hoist "pipelining")  byte-exact reorder
+symbol : tcrv_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K
+PRE    = /tmp/q4k_emitc_golden.mlir  (bit-identical to the cached baseline gemm_q4_K_q8_K.kernel.c
+                                      that the kquant-l1-q4k-q5k precedent cell measured)
+POST   = /tmp/q4k_emitc_after.mlir   (the decode-hoist regrouped emitter lowering)
+both   : 14113 lines of translated C; identical vwmacc multiset (2240); the reorder differs only in
+         SSA emit order + code layout (raw-text sort differs purely from vN renumbering).
+
+================ BOARD FORM (clang-17 -O2, rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs) — THE ACTUAL MEASURED BINARY ================
+(captured on the rvv board by tools/e2e-harness/board/kquant_gemm_pipeline_ab.sh)
+  pre_q4k.o   vset_all=53   vsetvli=52   vwmacc=2240   fp16libcall=0
+  post_q4k.o  vset_all=53   vsetvli=52   vwmacc=2240   fp16libcall=0
+  => vsetvli 52 -> 52  (NO reduction). vwmacc identical. fp16 in hardware (libcall-free) both sides.
+  (clang-17 -O2 keeps the outer block loops ROLLED, so the board binary never even reaches the
+   full-unroll register-pressure regime that the -O3 diagnosis below describes.)
+
+================ BUILD-REPORT FORM (clang-20 -target riscv64 -O3, rv64gcv_zvfh) — full-unroll diagnosis ================
+  pre  : vset*=364  vsetvli=363  vsetivli=1  spill(vs1r.v)=591  reload(vl1r.v)=1597  vwmacc=2240  text=99134
+  post : vset*=364  vsetvli=363  vsetivli=1  spill(vs1r.v)=591  reload(vl1r.v)=1601  vwmacc=2240  text=96334
+  => vsetvli 363 -> 363 (NO reduction); spill 591 -> 591 (IDENTICAL); reload 1597 -> 1601 (+4);
+     text 99134 -> 96334 (post -2.8% smaller layout).
+  Reproduces the build report's numbers exactly. The register-pressure "opening" is STRUCTURAL:
+  full-unroll peak liveness (~80 vector regs simultaneously live > 32 architectural) forces the
+  spills. A byte-exact schedule PERMUTATION cannot change peak liveness, hence 591 -> 591.
+
+  (local clang-20 -O2 cross-check, same aggressive-unroll behavior as this clang: pre vsetvli=361
+   spill=590 text=98930 ; post vsetvli=361 spill=591 text=96434 — again no vsetvli/spill reduction.)
+
+VERDICT: the "pipelining" tracer bullet (byte-exact decode-hoist reorder) does NOT reduce vsetvli or
+spill at ANY optimization level on either compiler. The structural opening is not reorderable.
