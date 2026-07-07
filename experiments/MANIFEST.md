@@ -36,13 +36,15 @@ experiments/ stays a **data cell**: data/evidence (`*.json`/`*.csv`/`*.txt`/`*.m
 `*.log`/`*.err`/`.gitignore`) + in-cell evidence-pointer code (`*.kernel.c`/`*.emitc.mlir`/sealed `*.o`).
 All harness/protocol/driver/CI scripts live under `tools/` (`tools/e2e-harness/`, `tools/lint/`, `tools/visibility/`).
 
-## ⚠ CI gates need STAGE2 rework (see archive/MOVES.md §8)
+## CI gate wiring (STAGE2 — 裁决九, RESOLVED)
 
-`tools/lint/check_manifest.py` (exact-path pin vs this single REGISTRY) and
-`tools/lint/check_experiments_data_only.py` (registered-evidence-code lookup in this REGISTRY)
-**assume the old flat single-REGISTRY layout** and will be RED after this reorg. They must be
-reworked to consume the per-cell manifests (or the STAGE2 INDEX) before committing. Likewise
-`tools/lint/check_opponent_facts_pin.sh` and `tools/visibility/*` hardcode old cell paths.
+The experiments/ layout gates are STAGE2-reworked and CI-wired, fail-closed, on PR+push:
+`check_experiments_layout.py` + `gen_experiments_index.py --check` + `check_index_consistency.py`
+(`.github/workflows/dir-hygiene.yml`), plus `check_opponent_facts_pin.sh`
+(`.github/workflows/falsifier-gate.yml`). All now consume the per-cell manifests / STAGE2 INDEX
+and the sealed cell paths; `tools/visibility/*` target `experiments/active/visibility/`. The old
+flat single-REGISTRY assumption and the hardcoded-old-path breakage (archive/MOVES.md §8) are
+closed for these gates.
 
 <!-- REGISTRY:BEGIN -->
 <!-- SUPERSEDED by per-cell MANIFEST.md files (org STAGE1, 2026-07-06). See archive/MOVES.md.

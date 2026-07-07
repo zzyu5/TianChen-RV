@@ -49,3 +49,53 @@ jobs:
           python3 .trellis/scripts/check_schema_gate.py gate \
             --base ${{ github.event.pull_request.base.sha }} \
             --head ${{ github.event.pull_request.head.sha }}
+
+  # [裁决九.2] opponent-fact provenance ⟷ ggml-pin STALE gate. The structured opponent
+  # facts the tcrv_rvv.quant_contraction op carries (opponent_vlen_native_floor /
+  # block_dot_compute_heavy) are VALUES read off a PINNED ggml tree. This gate fails
+  # closed the moment schema/ggml-pin.lock.json is bumped away from the sha those facts
+  # were verified against (experiments/sealed/c1-cleanliness/opponent-facts-provenance/
+  # opponent-facts.pin.json), forcing a re-verify of the cited line anchors.
+  opponent-facts-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: matching sha -> GREEN, bumped sha -> STALE/RED. Proves the
+      # gate discriminates before it judges the committed pin.
+      - name: Opponent-facts pin gate self-test
+        run: bash tools/lint/check_opponent_facts_pin.sh --self-test
+
+      # Default-path gate on the COMMITTED pin: non-zero exit (STALE/RED or setup error)
+      # fails the job. Fires on EVERY PR/push that bumps the ggml pin without re-verifying
+      # the opponent-fact provenance.
+      - name: Opponent-facts pin gate (provenance pin == ggml-pin.lock.json)
+        run: bash tools/lint/check_opponent_facts_pin.sh
+
+  # [裁决九.4] monolith retirement residual gate. Every vec_dot MONOLITH block-dot
+  # op-def still in the ODS (RVVOps.td) must be NAMED in
+  # schema/monolith-retire-whitelist.v1.json -- either deliberately_retained forever
+  # (mxfp4 negative control, q4_0 contraction arm) or pending_retirement under a named
+  # batch (q1_0 flat tail, K-quant x5) -- and no retired monolith verifier may linger
+  # as a `#if 0` dead-code tomb. An un-whitelisted surviving monolith, a stale whitelist
+  # entry, or a verifier tomb fails the job closed ('有名有批次': a monolith lingers only
+  # if named AND batched). Stdlib-Python only.
+  monolith-retire-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the classifier DISCRIMINATES (matching -> GREEN,
+      # each violation class -- unwhitelisted / stale / no-batch / verifier-tomb -> RED)
+      # before it judges the committed tree.
+      - name: Monolith-retire gate self-test
+        run: python3 tools/lint/check_monolith_retire.py --self-test
+
+      # Default-path gate on the COMMITTED ODS + whitelist: non-zero exit (residual /
+      # stale-whitelist / verifier-tomb / setup error) fails the job. Fires on EVERY
+      # PR/push that adds a vec_dot monolith op-def without whitelisting it, or leaves a
+      # retired verifier as a dead-code tomb.
+      - name: Monolith-retire gate (ODS monoliths == whitelist, no #if 0 tombs)
+        run: python3 tools/lint/check_monolith_retire.py

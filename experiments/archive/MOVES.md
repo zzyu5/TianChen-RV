@@ -245,12 +245,12 @@ sealed `*.o`) intentionally **stays in-cell** per the data-cell contract.
 
 ## 8. ⚠ STAGE2 follow-ups (referrers that now DANGLE — NOT fixed here; out of STAGE1 mv scope)
 
-These point at old paths and will break until STAGE2 rewires them. **Do not commit before addressing, or CI goes red:**
+These point at old paths and will break until STAGE2 rewires them. **Do not commit before addressing, or CI goes red.** The lint / tooling gate path-breaks below are **RESOLVED** (STAGE2, 裁决九 — reworked to per-cell manifests / sealed paths and CI-wired fail-closed); the schema/docs/spec reference-breaks that follow are still open:
 
-- **`tools/lint/check_manifest.py`** — exact-path pin of durable content vs the single top-MANIFEST REGISTRY. RED by design after this reorg (layout + thin MANIFEST). Needs rework to consume per-cell MANIFESTs.
-- **`tools/lint/check_experiments_data_only.py`** — looks up "registered evidence-code" in the top-MANIFEST REGISTRY; with the thin MANIFEST, in-cell `*.kernel.c`/`*.emitc.mlir`/`*.o` read as unregistered → RED. Same rework.
-- **`tools/lint/check_opponent_facts_pin.sh:26`** — hardcodes `experiments/opponent-facts-provenance/opponent-facts.pin.json` → now `experiments/sealed/c1-cleanliness/opponent-facts-provenance/…`. CI gate path break.
-- **`tools/visibility/`** (6 files: gen_sixstate_table.py, gen_burndown_curve.py, recompute_ledger_anchor.sh, regen_all.sh, check_visibility_drift.py) — hardcode `experiments/visibility/…`; `check_visibility_drift.py:101` asserts the path ends with `experiments/visibility`. Now `experiments/active/visibility/`. **Biggest breakage** — live regen + drift-check toolchain.
+- **[RESOLVED 裁决九] `tools/lint/check_manifest.py`** — was an exact-path pin vs the single top-MANIFEST REGISTRY. Reworked; parses the thin (empty) REGISTRY block without crashing, exit 0.
+- **[RESOLVED 裁决九] `tools/lint/check_experiments_data_only.py`** — superseded by `check_experiments_layout.py` (per-cell registered-artifact-pointer lookup); exit 0.
+- **[RESOLVED 裁决九] `tools/lint/check_opponent_facts_pin.sh:26`** — now points at `experiments/sealed/c1-cleanliness/opponent-facts-provenance/opponent-facts.pin.json`; CI-wired in `.github/workflows/falsifier-gate.yml` (job `opponent-facts-pin`), exit 0.
+- **[RESOLVED 裁决九] `tools/visibility/`** (gen_sixstate_table.py, gen_burndown_curve.py, recompute_ledger_anchor.sh, regen_all.sh, check_visibility_drift.py) — retargeted to `experiments/active/visibility/`; `check_visibility_drift.py:101` now asserts `endswith("experiments/active/visibility")`.
 - **`tools/e2e-harness/run_e2e.sh:17`** (`RESULTS_ROOT=…/experiments/e2e-harness/results`) and **silicon-validation-batch-1/2/gemm run_*.sh** (`CELL=…/experiments/silicon-validation-*`) — future re-runs write to old paths.
 - **`schema/pattern-registry.v1.json`** lines 75/85/88 — `experiments/ondevice-q8_0-deferred/fair/perf_rvv_vlen128_FAIR.csv`, `experiments/perf-characterizations-layer4.md`, `experiments/ondevice-q5_K/` (now archive/perf-historical/ + docs/method/).
 - **`schema/coverage-sixstate.v1.json`** lines 112/121/130/151/166/391 — `experiments/silicon-validation-batch-1|2` (now sealed/silicon/).
