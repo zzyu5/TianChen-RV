@@ -1554,6 +1554,13 @@ enum class TypedFlatBlockDotLoopSelector {
   // entry -- the export ABI-arity gate rejects the 8-role q8_0 entry against the
   // 4-role parameter list). The DISTINCT fold_model breaks the Q8Default tie.
   Q10BinarySign,
+  // nvfp4 (SECOND FP4-CODEBOOK class, NVIDIA's FP4): the typed FLAT loop body
+  // (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook" --
+  // UNIQUE among the flat folds, the four-sub-block UE4M3-codebook per-sub-block
+  // fold carried by the nvfp4 codebook integer-core brick). Like q1_0/iq4_nl it
+  // exports through its OWN 4-role n/s/vx/vy Flat entry (nvfp4's activation is a
+  // block_q8_0 stream). The DISTINCT fold_model breaks the Q8Default tie.
+  NVFP4Codebook,
   // q4_K/q5_K: the typed SUPER-BLOCK DUAL-accumulator loop body
   // (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
   // "super_block_two_level_scale_min" -- the `sums` positive fold PLUS the `sumf`
@@ -1976,7 +1983,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "e8m0-half-shared-exponent-per-block",
        "ggml MXFP4 x Q8_0 codebook block-dot source front door failed: ", "mxfp4-weight", "q8-act",
        "", kMXFP4Facts, kMXFP4Codebook, {}, {}, {}},
-      {tcrv::rvv::GgmlBlockDotNVFP4Q80Op::getOperationName(),
+      {"tcrv_rvv.nvfp4_q8_0_block_dot",
        MonolithicBlockDotRouteFamily::Flat, "ggml_nvfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_nvfp4_q8_0_block_dot_source",
        "tcrv-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
@@ -1984,7 +1991,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_nvfp4_q8_0_block_dot", "rvv_nvfp4_q8_0_block_dot_from_vector_source",
        "ue4m3-half-per-sub-block",
        "ggml NVFP4 x Q8_0 codebook block-dot source front door failed: ", "nvfp4-weight", "q8-act",
-       "m1", kNVFP4Facts, kNVFP4Codebook, {}, {}, {}},
+       "m1", kNVFP4Facts, kNVFP4Codebook, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::NVFP4Codebook},
       {tcrv::rvv::GgmlBlockDotQ10Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q1_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q1_0_q8_0_block_dot_source",
@@ -2227,6 +2235,14 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
         // BEFORE the Q8Default fall-through, so the export ABI arity is 4 not 8.
         : (foldModel && foldModel.getValue() == "flat_binary_two_level")
             ? TypedFlatBlockDotLoopSelector::Q10BinarySign
+        // nvfp4: the UNIQUE flat fold_model "flat_nvfp4_codebook" (the
+        // four-sub-block UE4M3-codebook per-sub-block fold) resolves to its OWN
+        // 4-role Flat entry -- keyed off the fold_model directly (no monolith
+        // op-name), BEFORE the Q8Default fall-through, so the export ABI arity is 4
+        // not 8. nvfp4's monolithic codebook-core brick is NOT the decomposed
+        // CodebookGatherXI8ProductOp, so it does not trip the hasCodebookGather tie.
+        : (foldModel && foldModel.getValue() == "flat_nvfp4_codebook")
+            ? TypedFlatBlockDotLoopSelector::NVFP4Codebook
         : hasCodebookGather
             ? TypedFlatBlockDotLoopSelector::Iq4NlCodebook
             : TypedFlatBlockDotLoopSelector::Q8Default;

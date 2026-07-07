@@ -5309,106 +5309,108 @@ def GgmlBlockDotMXFP4Q80Op
   let hasVerifier = 1;
 }
 
-def GgmlBlockDotNVFP4Q80Op
-    : TCRVRVV_Op<"nvfp4_q8_0_block_dot",
+// NOTE: def GgmlBlockDotNVFP4Q80Op (the monolith nvfp4 block-dot op) was RETIRED at
+// the nvfp4 flip (C_construct 27->28, the LAST dispatch-wired vec_dot -> closes the
+// ① G1 literal-block-dot zoo): the front door now constructs the typed FLAT
+// block-dot loop body (tcrv_rvv.typed_flat_block_dot_loop_body with fold_model
+// "flat_nvfp4_codebook", stride 36) carrying the nvfp4 CODEBOOK-core brick
+// (GgmlBlockDotNVFP4Q80CodebookCoreOp, below) instead -- nvfp4's activation is a
+// block_q8_0 stream (like q1_0), so it rides the FLAT loop op, NOT the q8_K
+// super-block one. The retired monolith emitter's per-super-block body was
+// code-moved into the byte-exact emitNVFP4BlockDotBodyShared lowering (the sole live
+// caller, the flat_nvfp4_codebook branch of emitTypedFlatBlockDotLoopBody). mxfp4
+// stays a monolith (the FP4-class negative control) -- do NOT retire it.
+
+def GgmlBlockDotNVFP4Q80CodebookCoreOp
+    : TCRVRVV_Op<"nvfp4_q8_0_codebook_core",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
-      "generic typed RVV block-quantized ggml NVFP4 x Q8_0 dot-product op";
+      "generic typed RVV ggml NVFP4 x Q8_0 FLAT super-block CODEBOOK integer-core "
+      "op (the nvfp4 codebook brick, mxfp4 FP4-e2m1 codebook sibling)";
   let description = [{
-    Records the COMPLETE ggml `ggml_vec_dot_nvfp4_q8_0` block dot-product as ONE
-    bounded generic plugin-local typed RVV dataflow step -- the SECOND FP4-class
-    sibling. NVFP4 is NVIDIA's FP4: it REUSES mxfp4's FP4 (e2m1) `kvalues_mxfp4`
-    codebook gather + the asymmetric signed-widening integer core verbatim; the
-    genuinely-new fact is a DIFFERENT per-sub-block scale -- a UE4M3 (unsigned 4
-    exp / 3 mantissa) fp8 scale instead of mxfp4's E8M0 shared exponent -- carried
-    on a SUPER-BLOCK that groups four such sub-blocks. THREE facts distinguish
-    nvfp4 from mxfp4, all load-bearing:
+    Records the WHOLE per-super-block body of the ggml `ggml_vec_dot_nvfp4_q8_0`
+    block dot-product as ONE bounded generic plugin-local typed RVV dataflow step --
+    the nvfp4 CODEBOOK brick, the SECOND FP4-class sibling (NVIDIA's FP4). It REUSES
+    mxfp4's FP4 (e2m1) `kvalues_mxfp4` 16-entry DOUBLED int8 CODEBOOK GATHER
+    (decode_model=lookup) -- the table broadcast into an i8m1 vreg ONCE, each 4-bit
+    nibble split into the two UNSIGNED index lanes (vand 0x0F / vsrl 0x04) and mapped
+    through the table by `vrgather_vv_i8m1` (NOT an arithmetic nibble-8 decode) -- but
+    wraps it in the nvfp4 per-SUB-block UE4M3 fp8 weight scale on a QK=64 SUPER-block
+    whose 64 elements span TWO block_q8_0 activation blocks. It reproduces ggml's
+    per-super-block fp32 contribution EXACTLY as `_generic` computes it, byte-exact:
+    - the super-block is FOUR 16-element sub-blocks. Byte +0..3 carry the four UE4M3
+      sub-block scales `d[s_idx]`; byte +4..35 carry the 32 packed FP4 nibble bytes
+      (8 per sub-block, sub-block s_idx at +4 + s_idx*8). For each sub-block s_idx the
+      weight scale `d_x` is the structured UE4M3 -> fp32 reconstruction
+      `ggml_ue4m3_to_fp32(e)` (ggml-impl.h): UNSIGNED (4 exp bits bias=7, 3 mantissa
+      bits, NO sign bit), `e==0 || e==0x7F -> 0.0f` (two specials), else `exp=(e>>3)
+      &0xF, man=e&7`, `raw = (exp==0) ? ldexpf(man,-9) : ldexpf(1 + man/8, exp-7)`,
+      then `* 0.5f` (the HALF compensation for the DOUBLED codebook). Every UE4M3
+      scale lies in comfortably-normal fp32, so the emission replicates ggml's EXACT
+      ldexpf arithmetic structurally (an emitc.cmp pair for the two specials -> 0.0f;
+      a structured exp/man split + the two ldexpf branches + the *0.5f), byte-
+      identical to `_generic`. The 64 elements span TWO block_q8_0 blocks: sub-block
+      s_idx reads q8 block `2*ib + s_idx/2` at the half-offset `(s_idx%2)*16` within
+      that q8_0's 32 quants, so `d_y` changes at s_idx==2 and the per-sub-block strip
+      is 8 lanes (QK_NVFP4_SUB/2), the high nibble pairing at +8. The per-sub-block
+      integer dot `sumi_s` feeds the SAME asymmetric signed widening product the
+      mxfp4/iq4_nl siblings use (vwmul low <-> q8 lo half + vwmacc high <-> q8 hi
+      half -> vwredsum -> i32); and `sumf += d_y * d_x * (float)sumi_s` is ONE
+      emitc.expression, invoked in STRICT ascending (ib, s_idx) order (fp non-
+      associativity byte-exact). There is NO min term and NO trailing factor. nvfp4's
+      fold runs PER-SUB-BLOCK in float (4 separate fp folds per super-block), so
+      UNLIKE the K-quant super-blocks there is no single integer state; the fold is
+      DELIBERATELY OUT OF SCOPE of this op's result -- it is emitter-inlined by the
+      flat codebook lowering keyed off this brick's identity.
 
-    (1) SUPER-BLOCK FORMAT. block_nvfp4 is `{ uint8_t d[4]; uint8_t qs[32] }`
-        (QK_NVFP4 = 64, sizeof 36), NOT mxfp4's flat `{ uint8_t e; uint8_t qs[16] }`
-        QK=32 block. ONE nvfp4 super-block is FOUR 16-element sub-blocks: byte +0..3
-        carry the four UE4M3 sub-block scales `d[s_idx]`; byte +4..35 carry the 32
-        packed FP4 nibble bytes (8 per sub-block, sub-block s_idx at +4 + s_idx*8).
-        The 64 elements span TWO block_q8_0 activation blocks (each 32 elements):
-        sub-block s_idx reads q8 block `2*ib + s_idx/2` at the half-offset
-        `(s_idx%2)*16` within that q8_0's 32 quants. So the q8 activation scale
-        `d_y` changes at s_idx==2, and the per-sub-block strip is 8 lanes
-        (QK_NVFP4_SUB/2), the high nibble pairing at +8 (not the 16-lane / +16 of
-        mxfp4). The recognizer/emitter walk the four sub-blocks per super-block
-        explicitly; the OUTER loop is over super-blocks nb = n / 64.
+    The op is nested directly under tcrv_rvv.with_vl and consumes the nvfp4 weight
+    base pointer (vx), the block_q8_0 activation base pointer (vy), the runtime
+    element count (n), the active !tcrv_rvv.vl token, and an OPTIONAL `block_index`
+    induction operand. It produces ONE scalar i32 SSA result (a structural
+    placeholder mirroring the sibling flat integer-core bricks' scalar-state arity;
+    nvfp4's actual per-super-block contribution is a running fp32 fold with no single
+    scalar state, so this result is UNUSED -- the whole per-super-block body is
+    emitter-inlined). It carries NO output pointer.
 
-    (2) WEIGHT SCALE. The per-sub-block weight scale is NOT mxfp4's E8M0 bit dance.
-        It is the structured UE4M3 -> fp32 reconstruction `ggml_ue4m3_to_fp32(e)`
-        (ggml-impl.h): UE4M3 is UNSIGNED (4 exp bits bias=7, 3 mantissa bits, NO
-        sign bit). `e==0 || e==0x7F -> 0.0f` (the two specials); else
-        `exp=(e>>3)&0xF, man=e&7`, and `raw = (exp==0) ? ldexpf(man, -9) :
-        ldexpf(1 + man/8, exp-7)`, then `* 0.5f` (the HALF compensation for the
-        DOUBLED `kvalues_mxfp4` codebook, exactly as mxfp4's E8M0 half form keeps
-        the dot an exact INTEGER dot). Unlike mxfp4's E8M0 (whose scales reach the
-        FTZ-risky 2^-128/2^-127 denormals, forcing the bit-construction dodge),
-        every UE4M3 scale lies in comfortably-normal fp32 (~[2^-10, 224]), so the
-        emission replicates ggml's EXACT arithmetic structurally (an emitc.cmp pair
-        for the two specials -> 0.0f; a structured exp/man split + the two ldexpf
-        branches + the *0.5f), byte-identical to `_generic` by construction (same
-        ops, same libm `ldexpf`, same board). The `scale_model` string IS pinned (a
-        wrong scale convention -- e.g. dropping the *0.5f, or the full E4M3 signed
-        decode -- is rejected fail-closed, I7).
+    The block-quantized super-block STRUCTURE is first-class in the typed body. The
+    structural facts -- qk (64, QK_NVFP4), qk_sub (16, QK_NVFP4_SUB), the AoS block
+    strides (36 bytes for block_nvfp4 = {uint8_t d[4]; uint8_t qs[32]}, 34 bytes for
+    block_q8_0), the nvfp4 weight quant payload byte offset (+4, after the four UE4M3
+    scale bytes) and the q8_0 payload byte offsets (the q8 quants at +2 after the
+    inline fp16 scale, the per-sub-block q8 high half at +8) -- are carried as typed
+    integer/string attributes (I4 mirror only). The 16-entry DOUBLED int8 CODEBOOK is
+    a `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8 entries (the SAME table as
+    mxfp4); it is a STRUCTURAL FACT consumed structurally into the realized body
+    (emitted as a `static const int8_t[16]` decl + the `vle8` table load), NOT an
+    arithmetic decode, NOT a string plan read. The bounded surface kind is limited to
+    "ggml_nvfp4_q8_0_codebook_core" and scale_model to "ue4m3-half-per-sub-block".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, operand mirror strings, q8/nvfp4 names, and common
+    EmitC/export code must not infer or choose the super-block codebook dot-product
+    semantics.
 
-    (3) ACTIVATION ADDRESSING. The activation is the SAME block_q8_0 stream, but the
-        super-block consumes TWO q8_0 blocks. The op carries the q8_0 block stride
-        (34) and the per-sub-block q8 quant byte offset (+2) + high-half offset (+8)
-        as typed facts; the q8-block-index `2*ib + s_idx/2` and the sub-block
-        half-offset `(s_idx%2)*16` are STRUCTURAL (derived in the emitter from the
-        sub-block index), not extra attrs.
+    The CODEBOOK GATHER is inherently a Zvl128b legality fact (the broadcast `values`
+    register's VLMAX must be >= 16 to index all 16 table entries), so the integer
+    core pins the m1 anchor; the OPTIONAL `integer_core_lmul` shape knob is restricted
+    to "m1" (the verifier rejects any other anchor fail-closed, I7). A board with VLEN
+    < 128 cannot legally host the codebook gather; that is an N1 capability-legality
+    divergence.
 
-    The integer core then feeds the SAME asymmetric signed widening product the
-    mxfp4/iq4_nl siblings use (vand 0x0F / vsrl 0x04 nibble split -> vrgather_vv_i8m1
-    through the broadcast `kvalues_mxfp4` table -> vwmul low <-> q8 lo half, vwmacc +
-    high <-> q8 hi half -> vwredsum -> i32 `sumi`). The per-sub-block fold is ggml's
-    nvfp4 order `sumf = sumf + d_y * d_x * (float)sumi` (_generic is `dy * d *
-    (sumi_lo + sumi_hi)`; fp multiply commutes), in STRICT ascending (ib, s_idx)
-    order so fp non-associativity is byte-exact. The q8_0 `d_y` is the ONE surviving
-    fp16 read per sub-block; the weight `d_x` read is the structured UE4M3 decode.
-
-    The CODEBOOK GATHER is the same Zvl128b legality fact as mxfp4: to index ALL 16
-    table entries the `values` register's VLMAX must be >= 16, so the gather pins the
-    m1 integer-core anchor. The verifier rejects a non-m1 anchor fail-closed (I7). A
-    board with VLEN < 128 (zve32x/zve64x) cannot legally host the codebook gather at
-    this anchor; that is an N1 capability-legality divergence, not a coverage gap.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime ABI
-    value operands -- the nvfp4 weight base pointer (vx), the q8_0 activation base
-    pointer (vy), the fp32 output pointer (s), the runtime element count (n) -- plus
-    the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
-    whose lowering writes the single fp32 reduction result through the output
-    pointer.
-
-    The structural facts -- qk (64), qk_sub (16), the super-block stride (36 bytes),
-    the q8_0 block stride (34), the weight quant payload byte offset (+4), the q8
-    quant byte offset (+2), the per-sub-block q8 high-half byte offset (+8), the
-    UE4M3 weight scale model, and the 16-entry non-linear int8 CODEBOOK itself -- are
-    carried as typed integer/string/array attributes (I4 mirror only). The codebook
-    is a `DenseI8ArrayAttr:$codebook` of EXACTLY 16 int8 entries, consumed
-    structurally into the realized body (a `static const int8_t[16]` decl + the
-    `vle8` table load). The op identity is the dispatch key. Route ids, helper names,
-    ABI strings, artifact names, status fields, exact intrinsic spellings, operand
-    mirror strings, q8/nvfp4 names, and common EmitC/export code must not infer or
-    choose block-quantized dot-product semantics.
-
-    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
-    knob the codebook siblings carry (the *how*, never the *what*; the dot-product is
-    byte-exact for any legal value because integer addition is order-independent and
-    the per-sub-block fp32 fold stays in strict ascending order). The codebook gather
-    constrains it to "m1" only; the verifier rejects any other anchor fail-closed
-    (I7).
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand
+    toggles the per-super-block-source form. When present it is the induction variable
+    (region argument 0) of an enclosing tcrv_rvv.typed_flat_block_dot_loop_body region
+    whose fold_model is "flat_nvfp4_codebook": the nvfp4 weight strip is read at
+    `weight_base + block_index*36` and the q8_0 activation blocks at
+    `activation_base + (2*block_index + s_idx/2)*34`. When ABSENT the op keeps the
+    standalone single-super-block form.
   }];
 
   let arguments = (ins
     AnyType:$weight_base,
     AnyType:$activation_base,
-    AnyType:$output,
     AnyType:$element_count,
     AnyType:$vl,
+    Optional<Index>:$block_index,
     StrAttr:$kind,
     StrAttr:$scale_model,
     I64Attr:$qk,
@@ -5421,12 +5423,13 @@ def GgmlBlockDotNVFP4Q80Op
     DenseI8ArrayAttr:$codebook,
     OptionalAttr<StrAttr>:$integer_core_lmul
   );
-  let results = (outs AnyType:$result);
+  let results = (outs AnyType:$partial);
 
   let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` "
-    "type($output) `,` type($element_count) `,` type($vl) `->` type($result)";
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($partial)";
   let hasVerifier = 1;
 }
 

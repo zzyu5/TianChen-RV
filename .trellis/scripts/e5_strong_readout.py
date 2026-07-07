@@ -613,6 +613,37 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
         "front_door_id": "createTypedFlatBlockDotLoopChainQ10 (typed flat block-dot loop body; BINARY-sign integer core, two-level fold, LAST flat family member, Win-A m2/m1 gearbox preserved)",
     },
+    # nvfp4 vec_dot: STRONG (the SECOND FP4-CODEBOOK class = NVIDIA's FP4, the LAST
+    # dispatch-wired vec_dot flipped, C_construct 27->28 -- closes the ① G1 literal
+    # block-dot zoo). nvfp4 is a SUPER-BLOCK codebook quant (block_nvfp4 = {uint8_t d[4];
+    # uint8_t qs[32]}, QK=64, four 16-element sub-blocks) but its 64 elements span TWO
+    # block_q8_0 activation blocks -- a FLAT block_q8_0 stream (like q1_0), so its front
+    # door (isNvfp4TypedFlat) constructs the FLAT loop body
+    # (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") out of
+    # just ONE decomposed brick: the DISTINCT nvfp4 CODEBOOK INTEGER CORE
+    # (nvfp4_q8_0_codebook_core -- REUSES mxfp4's 16-entry DOUBLED e2m1 codebook gathered
+    # via vand/vsrl nibble split + vrgather_vv_i8m1 through the broadcast table +
+    # asymmetric vwmul/vwmacc widening product + seed-0 vwredsum producing the per-sub-block
+    # sumi, wrapped in the per-SUB-block UE4M3 fp8 weight scale -- the ldexpf HALF-form
+    # decode). NOT the opaque emitNVFP4Q8_0BlockDot hand helper (the whole per-super-block
+    # body -- including the per-sub-block float fold -- is re-emitted from the brick via the
+    # shared emitNVFP4BlockDotBodyShared; the GgmlBlockDotNVFP4Q80Op op + emitter + verifier
+    # + monolith conversion+dataflow tests RETIRED the SAME action as the flip). The
+    # contraction+reduction is the fused vrgather codebook gather + vwmul/vwmacc + seed-0
+    # vwredsum INSIDE the codebook core (see _FUSED_DOT_REDUCE_RE's codebook_core token); NO
+    # opaque *_block_dot op, so [L-8] derives constructed (STRONG). The codebook-core brick
+    # carries NO integer_core_lmul gearbox (the codebook gather pins m1 -- VLMAX >= 16 to
+    # index all 16 table entries), so nvfp4 is NOT in any schedule autotuner and has NO
+    # VLEN128-vs-VLEN256 byte-flip. The OUTER with_vl frame stays SEW32/m1 (isNvfp4TypedFlat
+    # is OUT of typedFlatLoopPath -- the e8m1 codebook strip runs its OWN vsetvl INSIDE the
+    # brick), byte-exact to the monolith frame.
+    {
+        "op": "vec_dot", "format": "nvfp4", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "nvfp4-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChainNvfp4 (typed flat block-dot loop body; FP4-e2m1 CODEBOOK integer core reusing mxfp4's vrgather gather + per-sub-block UE4M3 fp8 scale, per-sub-block float fold, LAST dispatch-wired vec_dot, NO gearbox -- codebook gather pins m1)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/

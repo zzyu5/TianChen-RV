@@ -969,6 +969,120 @@ void createTypedFlatBlockDotLoopChainQ10(
 }
 
 // ---------------------------------------------------------------------------
+// The nvfp4 (SECOND FP4-CODEBOOK class, NVIDIA's FP4) sibling of
+// createTypedFlatBlockDotLoopChainQ10 -- the LAST dispatch-wired vec_dot to flip
+// (C_construct 27->28, closing the ① G1 literal-block-dot zoo). nvfp4 is a
+// SUPER-BLOCK codebook quant (block_nvfp4 = {uint8_t d[4]; uint8_t qs[32]}, QK=64,
+// four 16-element sub-blocks) whose 64 elements span TWO block_q8_0 activation
+// blocks -- a FLAT block_q8_0 stream (like q1_0's four-block stream), so it uses the
+// FLAT loop op (typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") --
+// NOT the super-block one (q8_K). Like q1_0 it REUSES mxfp4's 16-entry DOUBLED e2m1
+// codebook GATHER (vrgather_vv_i8m1) verbatim; the genuinely-new fact is the
+// per-SUB-block UE4M3 fp8 weight scale (ldexpf-based, HALF form). The whole
+// per-super-block body (the four UE4M3-scaled codebook sub-blocks + the per-sub-block
+// fp32 fold `sumf += (dy*d)*sumi`) is carried by ONE net-new codebook integer-core
+// brick (GgmlBlockDotNVFP4Q80CodebookCoreOp) + emitter-inlined through the SAME
+// emitNVFP4BlockDotBodyShared the retired monolith emitter called, so the emit is
+// byte-identical to the monolith. The OUTER with_vl frame stays SEW32/m1 (like q1_0
+// / the monolith): the e8m1 codebook strip runs its OWN vsetvl INSIDE the brick, so
+// this chain is dispatched OUTSIDE typedFlatLoopPath (which would force SEW8). The
+// loop op + brick are left attr-less on the shape knob (the codebook gather pins m1;
+// the emitter's fixed vrgather/i8m1/i16m2 codebook dot matches the untuned monolith
+// byte-identically). The brick's per-super-block addressing keys off the loop
+// induction variable (region arg 0), so the emit is operand-driven (anti-bypass).
+void createTypedFlatBlockDotLoopChainNvfp4(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable(
+        "typed flat nvfp4 codebook chain: missing block-format fact");
+  };
+  std::int64_t qk = factByName("qk");                          // 64 (QK_NVFP4)
+  std::int64_t qkSub = factByName("qk_sub");                   // 16 (QK_NVFP4_SUB)
+  std::int64_t weightStride = factByName("weight_block_stride");        //  36
+  std::int64_t activationStride = factByName("activation_block_stride"); //  34
+  std::int64_t weightQuantOffset = factByName("weight_quant_byte_offset");   // 4
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");               //   2
+  std::int64_t activationHighOffset =
+      factByName("activation_high_byte_offset");                //   8
+
+  mlir::Type i32ScalarType = builder.getI32Type();
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute("kind",
+                         builder.getStringAttr("typed_flat_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "flat_nvfp4_codebook" KEYS the emitter dispatch (the nvfp4 branch) +
+  // the per-sub-block UE4M3-codebook fold; the emitter disambiguates nvfp4 by the
+  // in-region codebook integer-core brick op TYPE. integer_core_lmul /
+  // multi_block_factor / strip_elision are LEFT OFF (attr-less = the m1 codebook
+  // anchor, byte-exact target).
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("flat_nvfp4_codebook"));
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value acc = body.addArgument(builder.getF32Type(), loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the nvfp4 FP4-CODEBOOK integer core (the 16-entry DOUBLED e2m1 codebook
+  // broadcast + the four UE4M3-scaled 16-element sub-blocks' nibble split + vrgather
+  // decode + asymmetric vwmul/vwmacc widening product + seed-0 vwredsum, wrapped in
+  // the per-sub-block UE4M3 fp8 weight scale + the two-q8_0-block/half addressing +
+  // the per-sub-block float fold into sumf). The LIVE operands are the weight base
+  // (%vx) + activation base (%vy) + n + vl + block_index; it produces ONE scalar i32
+  // SSA result (an UNUSED per-super-block placeholder -- nvfp4's fold is per-sub-block
+  // float, no single scalar state). Per-super-block address vx + ib*36, vy +
+  // (2*ib + s/2)*34. The 16-entry codebook (kvalues_mxfp4[16]) is carried as a
+  // DenseI8ArrayAttr like the monolith.
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp::getOperationName());
+    s.addOperands({weight, activation, n, vl, blockIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_nvfp4_q8_0_codebook_core"));
+    s.addAttribute("scale_model",
+                   builder.getStringAttr("ue4m3-half-per-sub-block"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("qk_sub", builder.getI64IntegerAttr(qkSub));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("weight_quant_byte_offset",
+                   builder.getI64IntegerAttr(weightQuantOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addAttribute("activation_high_byte_offset",
+                   builder.getI64IntegerAttr(activationHighOffset));
+    s.addAttribute("codebook", builder.getDenseI8ArrayAttr(entry.codebook));
+    s.addTypes({i32ScalarType});
+    (void)builder.create(s);
+  }
+  // The loop yield carries the loop-carried acc UNCHANGED (the per-sub-block fold is
+  // emitter-inlined by the codebook brick lowering, byte-exact = the monolith sumf;
+  // mirrors the q1_0 core's yield contract). The flat verifier requires an f32
+  // acc_next -- acc IS the f32 region arg 1.
+  createTypedFlatBlockDotLoopYield(builder, loc, acc);
+}
+
+// ---------------------------------------------------------------------------
 // Typed SUPER-BLOCK block-dot loop-body construction (M-FLAT q4_K milestone-3).
 //
 // The super-block sibling of createTypedFlatBlockDotLoopChain: it assembles the
@@ -3175,6 +3289,20 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // the SEW8 outer config. The monolith op tcrv_rvv.q1_0_q8_0_block_dot is retired,
   // so this gate keys off the entry.opName STRING (no op type reference).
   const bool isQ10TypedFlat = entry.opName == "tcrv_rvv.q1_0_q8_0_block_dot";
+  // nvfp4 flip (C_construct 27->28, the LAST dispatch-wired vec_dot, closing the ①
+  // G1 literal-block-dot zoo): nvfp4 (NVIDIA's FP4, the SECOND FP4-CODEBOOK class) is
+  // a SUPER-BLOCK codebook quant whose 64 elements span TWO block_q8_0 activation
+  // blocks -- a FLAT block_q8_0 stream (like q1_0). It flips to the FLAT loop chain
+  // (typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") carrying ONE
+  // net-new codebook integer-core brick (the per-super-block body + the
+  // emitter-inlined per-sub-block UE4M3-codebook fold), NOT any existing flat brick
+  // chain. Like q1_0 it is DELIBERATELY kept OUT of typedFlatLoopPath: nvfp4's OUTER
+  // with_vl frame stays SEW32/m1 (the e8m1 codebook strip runs its OWN vsetvl INSIDE
+  // the brick), whereas typedFlatLoopPath forces the SEW8 outer config. The monolith
+  // op tcrv_rvv.nvfp4_q8_0_block_dot is retired, so this gate keys off the
+  // entry.opName STRING (no op type reference).
+  const bool isNvfp4TypedFlat =
+      entry.opName == "tcrv_rvv.nvfp4_q8_0_block_dot";
   // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
   // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
   // plain flat cores which frame the OUTER config at SEW8.
@@ -3416,6 +3544,20 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // typedFlatLoopPath), byte-exact to the monolith frame.
     createTypedFlatBlockDotLoopChainQ10(builder, loc, entry, weight, activation,
                                         out, n, setvl.getVl());
+  } else if (isNvfp4TypedFlat) {
+    // The auto-constructed typed FLAT loop chain, nvfp4 variant (the LAST
+    // dispatch-wired vec_dot, C_construct 27->28): the FLAT loop op
+    // (typed_flat_block_dot_loop_body, fold_model "flat_nvfp4_codebook") carrying
+    // ONE net-new FP4-CODEBOOK integer-core brick (the four UE4M3-scaled 16-element
+    // sub-blocks' mxfp4 16-entry vrgather codebook gather + the two-q8_0-block/half
+    // addressing -> vwredsum, plus the emitter-inlined per-sub-block fp32 fold
+    // `sumf += (dy*d)*(float)sumi`). Like q1_0 nvfp4's activation is a block_q8_0
+    // stream, so it uses the FLAT loop op, NOT the q8_K super-block one; the net-new
+    // marginal cost is the DISTINCT codebook brick (the codebook gather pins m1, NO
+    // gearbox). The OUTER config stays SEW32/m1 (isNvfp4TypedFlat is OUT of
+    // typedFlatLoopPath), byte-exact to the monolith frame.
+    createTypedFlatBlockDotLoopChainNvfp4(builder, loc, entry, weight, activation,
+                                          out, n, setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).

@@ -439,9 +439,11 @@ private:
   /// is a single tcrv_rvv.mxfp4_q8_0_block_dot.
   static bool isMXFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
 
-  /// The NVFP4 (NVIDIA FP4) CODEBOOK sibling recognizer: a with_vl scope whose
-  /// ONLY compute op is a single tcrv_rvv.nvfp4_q8_0_block_dot.
-  static bool isNVFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope);
+  // NOTE: the monolith recognizer isNVFP4Q8_0BlockDotBody was RETIRED at the nvfp4
+  // flip (C_construct 27->28) with the monolith op; the constructed FLAT loop body
+  // (fold_model "flat_nvfp4_codebook") carrying the nvfp4 codebook-core brick is now
+  // recognized by isTypedFlatBlockDotLoopBody + resolved via
+  // emitTypedFlatBlockDotLoopBody's flat_nvfp4_codebook branch.
 
   /// The K-quant K1 recognizer: a with_vl scope whose ONLY compute op is a
   /// single tcrv_rvv.q6_k_q8_k_aux32_partial (the Q6_K x Q8_K super-block
@@ -2427,46 +2429,32 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_dot_nvfp4_q8_0 block dot-product for one
-  /// tcrv_rvv.nvfp4_q8_0_block_dot op as fully STRUCTURED emitc nodes (I5; no
-  /// raw()). NVFP4 (NVIDIA FP4) is the SECOND FP4-class sibling: it REUSES mxfp4's
-  /// FP4 codebook gather + the asymmetric signed-widening integer core verbatim.
-  /// The THREE genuinely-new facts:
-  ///   (a) SUPER-BLOCK FORMAT: block_nvfp4 = { uint8_t d[4]; uint8_t qs[32] }
-  ///       (QK=64, stride 36): four UE4M3 sub-block scales at +0..3, then 32 FP4
-  ///       nibble bytes at +4 (8 per sub-block, sub-block s at +4 + s*8). One
-  ///       super-block is four 16-element sub-blocks spanning TWO block_q8_0 blocks.
-  ///   (b) PER-SUB-BLOCK UE4M3 -> fp32 scale (the new piece): UE4M3 is unsigned
-  ///       (4 exp bias-7 / 3 man). e==0||e==0x7F -> 0.0f; else exp=(e>>3)&0xF,
-  ///       man=e&7, raw = (exp==0) ? ldexpf(man,-9) : ldexpf(1+man/8, exp-7); * 0.5f
-  ///       (the HALF compensation for the doubled kvalues_mxfp4 codebook). Emitted
-  ///       as structured emitc (no E8M0 bit dance -- UE4M3 scales are all normal
-  ///       fp32, so ggml's exact ldexpf arithmetic is byte-faithful by construction).
-  ///   (c) ACTIVATION ADDRESSING: sub-block s reads q8 block (2*ib + s/2) at the
-  ///       half-offset (s%2)*16 within that q8_0's 32 quants; the strip is 8 lanes
-  ///       (qk_sub/2), the high nibble at +8.
-  ///
-  /// _generic shape (quants.c:278-312):
-  ///   static const int8_t kvalues_mxfp4[16] = { ... };
-  ///   vint8m1_t values = __riscv_vle8_v_i8m1(kvalues_mxfp4, 16);   // ONCE
-  ///   float sumf = 0;
-  ///   for (ib = 0; ib < nb; ++ib) {                                // super-blocks
-  ///     for (s = 0; s < 4; ++s) {                                  // sub-blocks
-  ///       const uint8_t *xb = vx + ib*36;
-  ///       float d  = ggml_ue4m3_to_fp32(xb[s]);                    // (b)
-  ///       const uint8_t *xqs = xb + 4 + s*8;                       // FP4 nibbles
-  ///       const uint8_t *yb = vy + (2*ib + s/2)*34;                // (c)
-  ///       float dy = (float)*(const _Float16 *)yb;
-  ///       const int8_t *yqs = (const int8_t *)(yb + 2 + (s%2)*16);
-  ///       // strip 8 lanes: gather xqs (lo<->yqs[0..7], hi<->yqs[8..15]) -> sumi
-  ///       sumf = sumf + dy * d * (float)sumi;                      // ggml order
-  ///     }
-  ///   }
-  ///   *s = sumf;
-  mlir::LogicalResult emitNVFP4Q8_0BlockDot(
+  // NOTE: the monolith emitter emitNVFP4Q8_0BlockDot was RETIRED at the nvfp4 flip
+  // (C_construct 27->28) with the monolith op; its per-super-block body was
+  // code-moved into the byte-exact emitNVFP4BlockDotBodyShared (below), the sole
+  // live caller of which is the constructed typed_flat_block_dot_loop_body
+  // flat_nvfp4_codebook branch.
+
+  /// The BYTE-EXACT NVFP4 x Q8_0 super-block FP4-CODEBOOK block-dot body, SHARED
+  /// by (a) the monolith GgmlBlockDotNVFP4Q80Op emitter and (b) the constructed
+  /// typed_flat_block_dot_loop_body nvfp4 branch (fold_model
+  /// "flat_nvfp4_codebook"). Both callers pass the SAME validated ABI values + the
+  /// SAME I4 facts + the SAME 16-entry doubled e2m1 codebook, so the emit is
+  /// byte-identical across the flip (modulo only the source-op provenance token
+  /// carried by opName/role). Emits the WHOLE kernel (the codebook decl, the sumf
+  /// accumulator, the nb = n/64 super-block loop, the four unrolled 16-element
+  /// sub-blocks with their UE4M3 scale + q8 block/half selection + 8-lane strip,
+  /// the codebook-gather integer core, the per-sub-block fp32 fold, the scalar
+  /// store) and returns the final sumf SSA value.
+  mlir::Value emitNVFP4BlockDotBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase,
+      mlir::TypedValue<mlir::emitc::PointerType> outPointer, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t qkSub, int64_t weightStride,
+      int64_t activationStride, int64_t weightQuantOffset,
+      int64_t activationQuantOffset, int64_t highOffset,
+      llvm::ArrayRef<int8_t> codebook) const;
 
   /// The bounded set of structural facts + EmitC types the q6_K super-block
   /// integer core needs. Shared by the K1 (aux32 partial) and K2 (full block

@@ -228,11 +228,18 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
                                                      "riscv_vector.h"};
     // The bodies that call scalar libm need <math.h> so the emitted TU is
     // self-contained: F3 rms_norm (1/sqrtf(mean+eps)), F6 rope (cosf/sinf per
-    // dim-pair angle), and nvfp4 (ldexpf in the UE4M3 scale decode). ONLY these
-    // bodies add the header -- every other (quant-dot / elementwise) kernel keeps
-    // the original three-header list byte-identical (additivity).
+    // dim-pair angle), and nvfp4 (ldexpf in the UE4M3 scale decode -- the
+    // constructed typed_flat_block_dot_loop_body nvfp4 codebook-core brick; the
+    // monolith op was retired at the nvfp4 flip). ONLY these bodies add the header
+    // -- every other (quant-dot / elementwise) kernel keeps the original
+    // three-header list byte-identical (additivity).
+    bool hasNvfp4CodebookCore = false;
+    scope.getBody().walk(
+        [&](tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp) {
+          hasNvfp4CodebookCore = true;
+        });
     if (isGgmlRmsNormF32Body(scope) || isGgmlRopeNormF32Body(scope) ||
-        isNVFP4Q8_0BlockDotBody(scope))
+        hasNvfp4CodebookCore)
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
@@ -396,8 +403,14 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // emitTypedSuperBlockScalarDeltaGridLoopBodyIq3s.
         {&isMXFP4Q8_0BlockDotBody,
          &VariantToEmitCFunc::emitMXFP4Q8_0BlockDot},
-        {&isNVFP4Q8_0BlockDotBody,
-         &VariantToEmitCFunc::emitNVFP4Q8_0BlockDot},
+        // NOTE: the monolith nvfp4 kernel {isNVFP4Q8_0BlockDotBody,
+        // emitNVFP4Q8_0BlockDot} was RETIRED at the nvfp4 flip (C_construct 27->28):
+        // the front door now constructs the typed FLAT block-dot loop body
+        // (fold_model "flat_nvfp4_codebook") carrying the nvfp4 codebook-core brick,
+        // lowered by isTypedFlatBlockDotLoopBody -> emitTypedFlatBlockDotLoopBody ->
+        // the flat_nvfp4_codebook branch, which re-emits the byte-exact body through
+        // the SHARED emitNVFP4BlockDotBodyShared (the sole live caller). mxfp4 stays
+        // a monolith (the FP4-class negative control).
         {&isQ1_0Q8_0BlockDotBody,
          &VariantToEmitCFunc::emitQ1_0Q8_0BlockDot},
         {&isQ6_KQ8_KAux32PartialBody,
@@ -1386,19 +1399,16 @@ bool VariantToEmitCFunc::isMXFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
     return sawBlockDot;
   }
 
-bool VariantToEmitCFunc::isNVFP4Q8_0BlockDotBody(tcrvrvv::WithVLOp scope) {
-    bool sawBlockDot = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlBlockDotNVFP4Q80Op>(op)) {
-        if (sawBlockDot)
-          return false;
-        sawBlockDot = true;
-      } else {
-        return false;
-      }
-    }
-    return sawBlockDot;
-  }
+// NOTE: the monolith recognizer isNVFP4Q8_0BlockDotBody + emitter
+// emitNVFP4Q8_0BlockDot were RETIRED at the nvfp4 flip (C_construct 27->28): the
+// front door now constructs the typed FLAT block-dot loop body (fold_model
+// "flat_nvfp4_codebook", stride 36) carrying the nvfp4 codebook-core brick, lowered
+// by emitTypedFlatBlockDotLoopBody's flat_nvfp4_codebook branch through the SHARED
+// emitNVFP4BlockDotBodyShared (the byte-exact code-move of the retired monolith
+// body). nvfp4 is the SECOND FP4-CODEBOOK sibling of the flat q1_0 scaffold (its
+// activation is a block_q8_0 stream); it REUSES mxfp4's 16-entry DOUBLED e2m1
+// codebook gather wrapped in the per-sub-block UE4M3 fp8 weight scale. mxfp4 stays a
+// monolith (the FP4-class negative control).
 
 bool VariantToEmitCFunc::isQ6_KQ8_KAux32PartialBody(tcrvrvv::WithVLOp scope) {
     bool sawBlockDot = false;
@@ -5672,6 +5682,15 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // FLAT block_q8_0 stream). Carries the Win-A integer_core_lmul m2/m1
       // gearbox, kernel key "q1_0".
       tcrv::rvv::GgmlBlockDotQ10Q80BinarySignCoreOp,
+      // nvfp4 (the SECOND FP4-codebook class, NVIDIA's FP4): the nvfp4 FP4-CODEBOOK
+      // FLAT integer core (decode_model=lookup -- REUSES mxfp4's 16-entry DOUBLED
+      // e2m1 codebook gathered via vrgather_vv_i8m1, wrapped in the per-sub-block
+      // UE4M3 fp8 weight scale + the two-q8_0-block/half addressing, producing the 4
+      // per-sub-block sumi that fold into the scalar sumf); it is the flat loop
+      // body's codebook brick under fold_model "flat_nvfp4_codebook" (the FLAT
+      // scaffold sibling of q1_0 -- nvfp4's activation is a block_q8_0 stream). NO
+      // gearbox -- the codebook gather pins m1.
+      tcrv::rvv::GgmlBlockDotNVFP4Q80CodebookCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

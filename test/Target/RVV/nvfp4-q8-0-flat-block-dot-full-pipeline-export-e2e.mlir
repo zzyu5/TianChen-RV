@@ -1,7 +1,9 @@
 // FULL production-export CLOSURE for the nvfp4 (ggml NVFP4 x Q8_0 FP4-CODEBOOK
 // block-dot) front door -- the sibling that CLOSES the literal block-dot zoo (the
 // SECOND FP4-codebook op, after iq4_nl's non-linear int8 table). The front door's OWN
-// auto-constructed monolithic block-dot body flows through the COMPLETE
+// auto-constructed typed FLAT block-dot loop body (fold_model "flat_nvfp4_codebook",
+// the nvfp4 CODEBOOK integer-core brick -- the flip retired the monolith op) flows
+// through the COMPLETE
 // tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
 // --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
 // through tcrv-translate --tcrv-export-target-artifact.
@@ -20,15 +22,16 @@
 // ggml vec_dot ABI n/s/vx/vy) + one front door (RVVNVFP4BlockDotSourceFrontDoor.cpp),
 // NOT any new mechanism. q4_0/q8_0/iq4_nl/q4_K/iq4_xs stay byte-exact on their routes.
 //
-// NO SCHEDULE PASS -- the front door STAMPS the m1 anchor itself (the inversion vs
-// iq4_nl). Unlike iq4_nl (a TunableScheduleOpInterface op whose attr-less op is
-// shaped by --tcrv-rvv-materialize-schedule and rides its m1<->mf2 VLEN flip), nvfp4
-// is NOT tunable: the codebook gather admits ONLY the m1 anchor (mf2's VLMAX < 16 at
-// VLEN=128 cannot host the 16-entry gather), so there is NO nvfp4 schedule autotuner
-// and NO VLEN128-vs-VLEN256 byte-flip. Because the FP4 emitter fail-closes on an
-// attr-less op (I7), the front door stamps integer_core_lmul="m1" directly -- exactly
-// the shape the hand-authored CORE emit fixture (rvv-to-emitc-nvfp4-q8-0-block-dot)
-// pins. So NO --tcrv-rvv-materialize-schedule appears in any RUN line below.
+// NO SCHEDULE PASS -- the codebook gather pins the m1 anchor in the emitter (the
+// inversion vs iq4_nl). Unlike iq4_nl (a TunableScheduleOpInterface op whose attr-less
+// op is shaped by --tcrv-rvv-materialize-schedule and rides its m1<->mf2 VLEN flip),
+// nvfp4 is NOT tunable: the codebook gather admits ONLY the m1 anchor (mf2's VLMAX < 16
+// at VLEN=128 cannot host the 16-entry gather), so there is NO nvfp4 schedule autotuner
+// and NO VLEN128-vs-VLEN256 byte-flip. The nvfp4 codebook-core brick carries NO
+// integer_core_lmul shape knob (the emitter's fixed vrgather/i8m1/i16m2 codebook dot is
+// the m1 anchor) -- exactly the shape the constructed CORE emit fixture
+// (rvv-to-emitc-nvfp4-q8-0-typed-flat-block-dot-loop-body) pins. So NO
+// --tcrv-rvv-materialize-schedule appears in any RUN line below.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same lowering the
 // direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
@@ -39,8 +42,8 @@
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
 
-// FULL pipeline: front door auto-constructs the monolithic FP4-codebook block-dot
-// body (m1 stamped by the front door -- no schedule pass), the
+// FULL pipeline: front door auto-constructs the typed FLAT FP4-codebook block-dot
+// loop body (the codebook gather pins m1 in the emitter -- no schedule pass), the
 // tcrv-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --tcrv-check-execution-plan-coherence (the flat monolithic route id is a registered
 // target-artifact export route).
@@ -78,7 +81,14 @@ module attributes {tcrv_rvv.source_front_door = "ggml_nvfp4_q8_0_block_dot_sourc
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the FLAT monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_nvfp4_q8_0_kernel
-// PLAN: tcrv_rvv.nvfp4_q8_0_block_dot
+// nvfp4 FLIP (C_construct 27->28, the LAST dispatch-wired vec_dot): the front door
+// now constructs the typed FLAT block-dot loop body (fold_model
+// "flat_nvfp4_codebook", stride 36) with the nvfp4 CODEBOOK integer-core brick
+// (mxfp4's 16-entry vrgather e2m1 codebook gather + the per-sub-block UE4M3 fp8
+// weight scale), NOT the retired monolith op. The export still resolves through the
+// SAME flat monolithic route family (kind/ABI/facts) by the selector +
+// fold_model "flat_nvfp4_codebook", so the emission-plan metadata is byte-unchanged.
+// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys,

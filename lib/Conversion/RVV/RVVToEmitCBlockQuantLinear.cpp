@@ -6434,6 +6434,85 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     return mlir::success();
   }
 
+  // ===================================================================
+  // nvfp4 (flat_nvfp4_codebook) FP4-CODEBOOK full-body emit. nvfp4 (NVIDIA's FP4,
+  // the SECOND FP4-class sibling) is a SUPER-BLOCK codebook quant whose 64 elements
+  // span TWO block_q8_0 activation blocks -- a q8_0 activation STREAM (like q1_0),
+  // so it rides the FLAT loop op (NOT the q8_K super-block one). Its per-super-block
+  // body (the four 16-element sub-blocks, each with its UE4M3 weight scale + q8
+  // block/half selection + the FP4-codebook gather integer core + the per-sub-block
+  // fp32 fold `sumf += (d_y*d_x)*(float)sumi_s`) is carried WHOLE by ONE net-new
+  // codebook integer-core brick + re-emitted here through emitNVFP4BlockDotBodyShared
+  // -- the SAME shared body the retired monolith GgmlBlockDotNVFP4Q80Op emitter
+  // called, so the emit is BYTE-EXACT to the monolith modulo only the source-op
+  // provenance token. Handled BEFORE the shared sumf/nb prelude below (the shared
+  // body emits its own), so it returns here. Anti-bypass (I7): the ABI bases are
+  // sourced from the BRICK's operands (not the loop op attrs) and the brick's
+  // block_index MUST be the region induction variable.
+  if (loopBody.getFoldModel() == "flat_nvfp4_codebook") {
+    tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp coreOp;
+    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o =
+              llvm::dyn_cast<tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp>(bodyOp))
+        coreOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+        yieldOp = o;
+    });
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    if (!coreOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "nvfp4 flat_nvfp4_codebook body requires the nvfp4 "
+                    "codebook integer-core brick + the loop yield");
+    if (coreBlock.getNumArguments() != 2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "nvfp4 flat_nvfp4_codebook body region must carry exactly "
+                    "the (block_index, sumf) pair");
+    mlir::Value blockIndex = coreBlock.getArgument(0);
+    mlir::Value accArg = coreBlock.getArgument(1);
+    // The emit re-creates the whole body (including the per-sub-block fold), so the
+    // loop yield carries the loop-carried acc UNCHANGED (byte-exact = the monolith
+    // sumf; the SSA fold is emitter-inlined, mirroring the q1_0 codebook core).
+    if (yieldOp.getAccNext() != accArg)
+      return rewriter.notifyMatchFailure(
+          yieldOp, "nvfp4 flat_nvfp4_codebook yield must carry the loop-carried "
+                   "acc (the per-sub-block fold is emitter-inlined by the "
+                   "nvfp4 codebook brick lowering)");
+    if (coreOp.getBlockIndex() != blockIndex)
+      return rewriter.notifyMatchFailure(
+          loopBody, "the nvfp4 codebook core brick's block_index must be the "
+                    "loop induction variable (region arg 0) so the emit "
+                    "addresses base + ib*stride, not super-block-0");
+
+    mlir::Value weightBase = valueMap.lookup(coreOp.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(coreOp.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(
+          loopBody, "nvfp4 flat_nvfp4_codebook ABI operand unmapped");
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(loopBody,
+                                         "nvfp4 loop-body output not a pointer");
+
+    // The codebook gather pins the m1 anchor (VLMAX >= 16); the brick's optional
+    // integer_core_lmul is verifier-restricted to m1.
+    llvm::StringRef coreLmul = "m1";
+    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
+      coreLmul = *attrLmul;
+
+    (void)emitNVFP4BlockDotBodyShared(
+        rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
+        opName, role, coreLmul, coreOp.getQk(), coreOp.getQkSub(),
+        coreOp.getWeightBlockStride(), coreOp.getActivationBlockStride(),
+        coreOp.getWeightQuantByteOffset(),
+        coreOp.getActivationQuantByteOffset(),
+        coreOp.getActivationHighByteOffset(), coreOp.getCodebook());
+    return mlir::success();
+  }
+
   // iq4_nl / FP4 codebook class (2nd primitive class): peek the region for the
   // 16-entry codebook table broadcast + the codebook-gather integer core. When
   // present, the codebook decl + broadcast are emitted at the SAME positions the

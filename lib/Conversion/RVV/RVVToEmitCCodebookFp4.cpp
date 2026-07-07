@@ -718,28 +718,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
                             *descriptor);
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
+// NOTE: the monolith emitter VariantToEmitCFunc::emitNVFP4Q8_0BlockDot was RETIRED
+// at the nvfp4 flip (C_construct 27->28) with the monolith op def; its
+// per-super-block body lives on in emitNVFP4BlockDotBodyShared (below), whose sole
+// live caller is the constructed typed_flat_block_dot_loop_body flat_nvfp4_codebook
+// branch (emitTypedFlatBlockDotLoopBody). mxfp4 stays a monolith (the FP4-class
+// negative control).
+
+// The BYTE-EXACT NVFP4 x Q8_0 FP4-CODEBOOK block-dot body, code-moved verbatim out
+// of the (retired) monolith emitNVFP4Q8_0BlockDot so the constructed
+// typed_flat_block_dot_loop_body nvfp4 branch (fold_model "flat_nvfp4_codebook")
+// emits character-for-character identical C to the retired monolith, modulo only the
+// source-op provenance token carried by opName/role.
+mlir::Value VariantToEmitCFunc::emitNVFP4BlockDotBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotNVFP4Q80Op blockDot;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotNVFP4Q80Op>(op))
-        blockDot = bd;
-    }
-    if (!blockDot)
-      return rewriter.notifyMatchFailure(scope,
-                                         "block-dot body missing the op");
-
-    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
-    mlir::Value output = valueMap.lookup(blockDot.getOutput());
-    if (!weightBase || !activationBase || !output)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot ABI operand unmapped");
-
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase,
+    mlir::TypedValue<emitc::PointerType> outPointer, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    llvm::StringRef coreLmul, int64_t qk, int64_t qkSub, int64_t weightStride,
+    int64_t activationStride, int64_t weightQuantOffset,
+    int64_t activationQuantOffset, int64_t highOffset,
+    llvm::ArrayRef<int8_t> codebook) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
@@ -750,11 +749,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
     mlir::Type weightPtrType = weightBase.getType();
     mlir::Type activationPtrType = activationBase.getType();
 
-    // The codebook gather REQUIRES the m1 anchor (VLMAX >= 16); the verifier fixes
-    // it to m1. The i8 source LMUL ("m1") drives the i16 product LMUL ("m2").
-    llvm::StringRef coreLmul = "m1";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
+    // The i8 source LMUL ("m1") drives the i16 product LMUL ("m2").
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef wideLmul = wideningChain.l16;
     std::string i8CoreTypeName = ("vint8" + coreLmul + "_t").str();
@@ -765,17 +760,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
     mlir::Type i16WideType = emitc::OpaqueType::get(ctx, i16WideTypeName);
     mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
 
-    // The super-block-format structural facts come straight off the typed attrs
-    // (I4). NOTE the nvfp4-specific layout: four UE4M3 scales at +0..3, then the FP4
-    // nibbles at the WEIGHT quant offset (+4); the q8 quants at the ACTIVATION quant
-    // offset (+2, after the inline fp16 scale), the per-sub-block q8 high half at +8.
-    int64_t qk = blockDot.getQk();           // 64 (QK_NVFP4)
-    int64_t qkSub = blockDot.getQkSub();     // 16 (QK_NVFP4_SUB)
-    int64_t weightStride = blockDot.getWeightBlockStride();       // 36
-    int64_t activationStride = blockDot.getActivationBlockStride(); // 34
-    int64_t weightQuantOffset = blockDot.getWeightQuantByteOffset(); // 4
-    int64_t activationQuantOffset = blockDot.getActivationQuantByteOffset(); // 2
-    int64_t highOffset = blockDot.getActivationHighByteOffset();  // 8
+    // The super-block-format structural facts are passed in (I4). NOTE the
+    // nvfp4-specific layout: four UE4M3 scales at +0..3, then the FP4 nibbles at the
+    // WEIGHT quant offset (+4); the q8 quants at the ACTIVATION quant offset (+2,
+    // after the inline fp16 scale), the per-sub-block q8 high half at +8.
     int64_t numSubBlocks = qk / qkSub;       // 4
     int64_t subHalf = qkSub / 2;             // 8 lanes per strip
     int64_t weightSubStride = qkSub / 2;     // 8 nibble bytes per sub-block
@@ -790,7 +778,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
     // (I4 mirror) -- REUSED from mxfp4 (the SAME kvalues_mxfp4 table). Emit it as a
     // `static const int8_t[16]` decl ONCE, then broadcast it into `values` via vle8
     // ONCE above the block loop (the gather table).
-    llvm::ArrayRef<int8_t> codebook = blockDot.getCodebook();
     {
       std::string decl = "static const int8_t tcrv_nvfp4_kvalues[16] = {";
       for (size_t i = 0; i < codebook.size(); ++i) {
@@ -1200,15 +1187,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
         emitFold(*sumi, dY, scaleX);
       }
     }
+    // The product chain (emitOffsetBinaryProductFromDecodedValue) never fails on
+    // the verifier-gated typed input, so `status` is always success here; the guard
+    // is a defensive no-op (returns a null Value the caller ignores, never reached).
     if (mlir::failed(status))
-      return mlir::failure();
+      return mlir::Value();
 
     // *s = sumf;  (structured scalar store through the output pointer)
-    auto outPointer =
-        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
-    if (!outPointer)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot output not a pointer");
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(opName, role, "store_s"));
     mlir::Value outIndex =
@@ -1219,8 +1204,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitNVFP4Q8_0BlockDot(
         rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
 
-    valueMap[blockDot.getResult()] = sumfFinal;
-    return mlir::success();
+    return sumfFinal;
   }
 
 } // namespace detail
