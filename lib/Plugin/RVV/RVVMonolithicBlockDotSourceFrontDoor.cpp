@@ -866,6 +866,109 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
 }
 
 // ---------------------------------------------------------------------------
+// The q1_0 (BINARY {-1,+1}-sign class) sibling of createTypedFlatBlockDotLoopChain
+// -- the LAST flat block-dot family member, the genuine structural-special case
+// (C_construct 26->27). Unlike q8_0/q4_0/q4_1/q5_0/q5_1/iq4_nl (a single per-block
+// integer core folded by the shared brick 1 (scale) -> brick 2 (dequant) -> brick 3
+// (cross-block accumulate) chain), q1_0's per-super-block contribution is a
+// FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL fp32 fold
+// (`d0 * Σ_k(d1_k * sumi_block_k)`), so no existing flat brick chain expresses it.
+// The net-new marginal cost is ONE brick -- the q1_0 BINARY-sign integer core
+// (GgmlBlockDotQ10Q80BinarySignCoreOp) -- carrying the whole per-super-block body;
+// the two-level fold is emitter-inlined (the super-block scalar-core precedent
+// tq1_0/iq1_s applied to the FLAT loop op). q1_0's activation is a FLAT block_q8_0
+// stream (four 34-byte q8_0 blocks per q1_0 super-block), so it uses the FLAT loop
+// op (typed_flat_block_dot_loop_body, fold_model "flat_binary_two_level") -- NOT the
+// super-block one (q8_K). The OUTER with_vl frame stays SEW32/m1 (like the monolith
+// / iq4_nl): the e8m2 binary sign decode runs its OWN vsetvl INSIDE the brick, so
+// this chain is dispatched OUTSIDE typedFlatLoopPath (which would force SEW8). The
+// loop op + brick are left attr-less (default m2 anchor = the byte-exact CORE
+// target); q1_0's Win-A gearbox lives on the binary-sign brick (kernel key "q1_0").
+void createTypedFlatBlockDotLoopChainQ10(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+  auto factByName = [&](llvm::StringRef name) -> std::int64_t {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    llvm_unreachable("typed flat binary-sign q1_0 chain: missing block-format fact");
+  };
+  std::int64_t qk = factByName("qk");                            // 128
+  std::int64_t weightStride = factByName("weight_block_stride");         //  18
+  std::int64_t activationStride = factByName("activation_block_stride"); //  34
+  std::int64_t blocksPerWeight = factByName("activation_blocks_per_weight"); // 4
+  std::int64_t weightQuantOffset = factByName("weight_quant_byte_offset");   // 2
+  std::int64_t activationQuantOffset =
+      factByName("activation_quant_byte_offset");                 //   2
+
+  mlir::Type i32ScalarType = builder.getI32Type();
+
+  mlir::OperationState loopState(
+      loc, tcrvrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
+  loopState.addOperands({weight, activation, out, n});
+  loopState.addAttribute("kind",
+                         builder.getStringAttr("typed_flat_block_dot_loop_body"));
+  loopState.addAttribute("qk", builder.getI64IntegerAttr(qk));
+  loopState.addAttribute("weight_block_stride",
+                         builder.getI64IntegerAttr(weightStride));
+  loopState.addAttribute("activation_block_stride",
+                         builder.getI64IntegerAttr(activationStride));
+  // fold_model "flat_binary_two_level" KEYS the emitter dispatch (the q1_0 branch)
+  // + the two-level scalar fold; the emitter disambiguates q1_0 by the in-region
+  // binary-sign integer-core brick op TYPE. integer_core_lmul / multi_block_factor /
+  // strip_elision are LEFT OFF (attr-less = the default m2 anchor, byte-exact target).
+  loopState.addAttribute("fold_model",
+                         builder.getStringAttr("flat_binary_two_level"));
+  loopState.addRegion();
+  auto loop = llvm::cast<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(
+      builder.create(loopState));
+
+  mlir::Block &body = loop.getBody().emplaceBlock();
+  mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+  mlir::Value acc = body.addArgument(builder.getF32Type(), loc);
+
+  mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+  builder.setInsertionPointToStart(&body);
+
+  // BRICK: the q1_0 BINARY-sign integer core (the FOUR q8_0 sub-blocks, each a
+  // vlm_v_b{ratio} packed-bit sign mask + vle8 q8 + i8-domain vneg/vmerge -> ONE
+  // vwredsum i8->i16m1, plus the emitter-inlined two-level fp32 fold). The LIVE
+  // operands are the weight base (%vx) + activation base (%vy) + n + vl +
+  // block_index; it produces ONE scalar i32 SSA result (a placeholder -- the
+  // emitter re-emits the whole body including the fold). Per-super-block address
+  // vx + ib*18, vy + (ib*4 + k)*34. Left attr-less so the gearbox is free to stamp
+  // integer_core_lmul m2/m1 from the VLEN capability fact (kernel key "q1_0").
+  {
+    mlir::OperationState s(
+        loc, tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp::getOperationName());
+    s.addOperands({weight, activation, n, vl, blockIndex});
+    s.addAttribute("kind",
+                   builder.getStringAttr("ggml_q1_0_q8_0_binary_sign_core"));
+    s.addAttribute("scale_model",
+                   builder.getStringAttr("binary-sign-per-bit"));
+    s.addAttribute("qk", builder.getI64IntegerAttr(qk));
+    s.addAttribute("weight_block_stride",
+                   builder.getI64IntegerAttr(weightStride));
+    s.addAttribute("activation_block_stride",
+                   builder.getI64IntegerAttr(activationStride));
+    s.addAttribute("activation_blocks_per_weight",
+                   builder.getI64IntegerAttr(blocksPerWeight));
+    s.addAttribute("weight_quant_byte_offset",
+                   builder.getI64IntegerAttr(weightQuantOffset));
+    s.addAttribute("activation_quant_byte_offset",
+                   builder.getI64IntegerAttr(activationQuantOffset));
+    s.addTypes({i32ScalarType});
+    (void)builder.create(s);
+  }
+  // The loop yield carries the loop-carried acc UNCHANGED (the two-level fold is
+  // emitter-inlined by the binary-sign brick lowering, byte-exact = the monolith
+  // sumf; mirrors the tq1_0 scalar-core yield contract). The flat verifier requires
+  // an f32 acc_next -- acc IS the f32 region arg 1.
+  createTypedFlatBlockDotLoopYield(builder, loc, acc);
+}
+
+// ---------------------------------------------------------------------------
 // Typed SUPER-BLOCK block-dot loop-body construction (M-FLAT q4_K milestone-3).
 //
 // The super-block sibling of createTypedFlatBlockDotLoopChain: it assembles the
@@ -3059,6 +3162,19 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // (no op type reference).
   const bool isTq10TypedSuperBlock =
       entry.opName == "tcrv_rvv.tq1_0_q8_k_block_dot";
+  // q1_0 flip (C_construct 26->27, the LAST flat block-dot family member): q1_0 is
+  // the BINARY {-1,+1}-sign class whose per-super-block contribution is a
+  // FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL fp32 fold
+  // (`d0 * Σ_k(d1_k * sumi_block_k)`). It flips to the FLAT loop chain
+  // (typed_flat_block_dot_loop_body, fold_model "flat_binary_two_level") carrying
+  // ONE net-new binary-sign integer-core brick (the whole per-super-block body +
+  // the emitter-inlined two-level fold), NOT any existing single-core flat brick
+  // chain. It is DELIBERATELY kept OUT of typedFlatLoopPath: q1_0's OUTER with_vl
+  // frame stays SEW32/m1 (like the monolith / iq4_nl -- the e8m2 binary sign
+  // decode runs its OWN vsetvl INSIDE the brick), whereas typedFlatLoopPath forces
+  // the SEW8 outer config. The monolith op tcrv_rvv.q1_0_q8_0_block_dot is retired,
+  // so this gate keys off the entry.opName STRING (no op type reference).
+  const bool isQ10TypedFlat = entry.opName == "tcrv_rvv.q1_0_q8_0_block_dot";
   // iq4_nl frames its OUTER with_vl at SEW32/m1 (the codebook standalone_reduce
   // framing; the e8m1 gather core runs its own vsetvl inside the region), unlike the
   // plain flat cores which frame the OUTER config at SEW8.
@@ -3285,6 +3401,21 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     createTypedSuperBlockScalarDeltaGridLoopChainTq10(builder, loc, entry, weight,
                                                       activation, out, n,
                                                       setvl.getVl());
+  } else if (isQ10TypedFlat) {
+    // The auto-constructed typed FLAT loop chain, q1_0 variant (the LAST flat
+    // block-dot family member, C_construct 26->27): the FLAT loop op
+    // (typed_flat_block_dot_loop_body, fold_model "flat_binary_two_level")
+    // carrying ONE net-new BINARY-sign integer-core brick (the four q8_0
+    // sub-blocks' vlm_v_b{ratio} packed-bit sign mask + i8-domain vneg/vmerge ->
+    // vwredsum, plus the emitter-inlined TWO-LEVEL fp32 fold `d0 * Σ_k(d1_k *
+    // sumi_block_k)`). Unlike q8_0/q4_0/q5_0 (a single per-block core folded by the
+    // shared scale->dequant->accumulate brick chain), q1_0's four-sub-block
+    // two-level structure needs its OWN brick + fold; the net-new marginal cost is
+    // the DISTINCT binary-sign brick (preserving q1_0's Win-A m2/m1 gearbox, kernel
+    // key "q1_0"). The OUTER config stays SEW32/m1 (isQ10TypedFlat is OUT of
+    // typedFlatLoopPath), byte-exact to the monolith frame.
+    createTypedFlatBlockDotLoopChainQ10(builder, loc, entry, weight, activation,
+                                        out, n, setvl.getVl());
   } else {
     // The auto-constructed block dot-product op (the scale model, integer core,
     // super-block bit-dance, codebook gather, and deferred fold are op structure).

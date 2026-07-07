@@ -1,26 +1,31 @@
 // FULL production-export CLOSURE for the q1_0 (ggml Q1_0 x Q8_0 FLAT block-dot)
-// front door -- the 24th and LITERAL LAST of the ggml dot-kernel zoo (100%
-// block-dot front-door coverage). The front door's OWN auto-constructed monolithic
-// flat block-dot body now flows through the COMPLETE
+// front door -- the LAST flat block-dot family member flipped dispatch-wired ->
+// CONSTRUCTED (C_construct 26->27). The front door's OWN auto-constructed TYPED
+// flat block-dot LOOP body (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model
+// "flat_binary_two_level") now flows through the COMPLETE
 // tcrv-source-artifact-front-door-pipeline (materialize-emission-plans PLUS
 // --tcrv-check-execution-plan-coherence) AND exports a real RISC-V target artifact
 // through tcrv-translate --tcrv-export-target-artifact.
 //
-// THE BUCKET VERDICT (why this exemplar matters): the BINARY {-1,+1}-sign class is
-// MECHANICAL, NOT bespoke. q1_0's activation is a FLAT block_q8_0 stream, so it takes
-// the EXISTING flat monolithic route family (shared with q4_0/q8_0/iq4_nl/mxfp4 --
-// the 'rvv-ggml-flat-block-dot-monolithic-emitc-route-family' route id + the flat
-// op-derived metadata keys) and carries the SAME 4-role ggml vec_dot ABI (n, s, vx,
-// vy) as iq4_nl. The 128-element q1_0 weight super-block loop (one q1_0 block spans
-// FOUR block_q8_0 activation blocks) and the binary sign decode (vlm_v_b{ratio} the 4
-// packed bit-bytes straight into the i8 sign mask, i8-domain vneg/vmerge, ONE
-// vwredsum) are OP structure consumed by the emitter, NOT a route-family concern: the
-// emission plan (buildMonolithicBlockDotEmissionPlan) and the target-export candidate
-// validator key ONLY off op name -> route family + the kind/scale_model attrs + the
-// ordered ABI roles; neither reads the sign decode. COVERAGE = one table row
-// (RVVMonolithicBlockDotFamily.h, Flat + the 4-role ggml vec_dot ABI) + one front
-// door (RVVQ10BlockDotSourceFrontDoor.cpp), NOT any new mechanism. All 23 sibling
-// block-dot ops stay byte-exact on their own routes.
+// THE FLIP (why this exemplar matters): q1_0 is the genuine STRUCTURAL-SPECIAL
+// case of the flat family -- the BINARY {-1,+1}-sign class whose per-super-block
+// contribution is a FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL
+// fp32 fold (`d0 * Σ_k(d1_k * sumi_block_k)`) that no existing single-core flat
+// brick chain (q8_0/q4_0/q4_1/q5_0/q5_1/iq4_nl) expresses. So UNLIKE those siblings
+// its front door constructs the typed flat loop body out of ONE net-new decomposed
+// brick -- the q1_0 BINARY-sign INTEGER CORE (tcrv_rvv.q1_0_q8_0_binary_sign_core:
+// the four q8_0 sub-blocks' vlm_v_b{ratio} packed-bit sign mask loaded DIRECTLY as
+// the i8 sign mask + i8-domain vneg/vmerge -> ONE vwredsum i8->i16m1, plus the
+// emitter-inlined two-level fold) -- the super-block scalar-core precedent
+// (tq1_0/iq1_s) applied to the FLAT loop op. q1_0's activation is a FLAT
+// block_q8_0 stream, so it still EXPORTS through the EXISTING flat route family
+// ('rvv-ggml-flat-block-dot-monolithic-emitc-route-family') and carries the SAME
+// 4-role ggml vec_dot ABI (n, s, vx, vy) as iq4_nl -- resolved by its OWN
+// typedFlatLoopSelector (Q10BinarySign, keyed off the UNIQUE fold_model), NOT the
+// 8-role q8_0 default. The emission is BYTE-IDENTICAL to the retired-in-production
+// monolith emitQ1_0Q8_0BlockDot (both call the shared emitQ1_0BlockDotBodyShared),
+// modulo only the source-op provenance token. All sibling block-dot ops stay
+// byte-exact on their own routes.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same lowering the
 // direct --tcrv-rvv-lower-to-emitc path uses), so the production-export emit is
@@ -37,7 +42,7 @@
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: tianchenrv-local-rvv-object-clang
 
-// FULL pipeline: front door auto-constructs the monolithic flat block-dot body, the
+// FULL pipeline: front door auto-constructs the TYPED flat block-dot loop body, the
 // tcrv-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --tcrv-check-execution-plan-coherence (the flat monolithic route id is a registered
 // target-artifact export route).
@@ -69,7 +74,7 @@ module attributes {tcrv_rvv.source_front_door = "ggml_q1_0_q8_0_block_dot_source
 // The kernel survived coherence with exactly the supported monolithic emission-plan
 // diagnostic naming the FLAT monolithic route id + object kind.
 // PLAN: tcrv.exec.kernel @ggml_vec_dot_q1_0_q8_0_kernel
-// PLAN: tcrv_rvv.q1_0_q8_0_block_dot
+// PLAN: tcrv_rvv.typed_flat_block_dot_loop_body
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys

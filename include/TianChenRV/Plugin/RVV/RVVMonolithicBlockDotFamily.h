@@ -1546,6 +1546,14 @@ enum class TypedFlatBlockDotLoopSelector {
   // strided entry -- the export ABI-arity gate rejects the 8-role q8_0 entry against
   // the 4-role parameter list). The codebook-gather brick breaks the Q8Default tie.
   Iq4NlCodebook,
+  // q1_0 (BINARY {-1,+1}-sign class): the typed FLAT loop body
+  // (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model "flat_binary_two_level" --
+  // UNIQUE among the flat folds, the four-sub-block binary-sign two-level fold
+  // carried by the q1_0 binary-sign integer-core brick). Like iq4_nl it exports
+  // through its OWN 4-role n/s/vx/vy Flat entry (NOT q8_0/q4_0's 8-role strided
+  // entry -- the export ABI-arity gate rejects the 8-role q8_0 entry against the
+  // 4-role parameter list). The DISTINCT fold_model breaks the Q8Default tie.
+  Q10BinarySign,
   // q4_K/q5_K: the typed SUPER-BLOCK DUAL-accumulator loop body
   // (tcrv_rvv.typed_super_block_block_dot_loop_body, fold_model
   // "super_block_two_level_scale_min" -- the `sums` positive fold PLUS the `sumf`
@@ -1985,7 +1993,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q1_0_q8_0_block_dot", "rvv_q1_0_q8_0_block_dot_from_vector_source",
        "binary-sign-per-bit",
        "ggml Q1_0 x Q8_0 block-dot source front door failed: ", "q1-weight", "q8-act",
-       "", kQ10Facts, {}, {}, {}, {}}};
+       "", kQ10Facts, {}, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::Q10BinarySign}};
   return kTable;
 }
 
@@ -2210,11 +2219,17 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
             ? (hasFiveBitQh
                    ? TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh
                    : TypedFlatBlockDotLoopSelector::ScalePlusMin)
-            : (foldModel && foldModel.getValue() == "scales_times_sumi")
-                  ? TypedFlatBlockDotLoopSelector::ScalesTimesSumi
-                  : hasCodebookGather
-                        ? TypedFlatBlockDotLoopSelector::Iq4NlCodebook
-                        : TypedFlatBlockDotLoopSelector::Q8Default;
+        : (foldModel && foldModel.getValue() == "scales_times_sumi")
+            ? TypedFlatBlockDotLoopSelector::ScalesTimesSumi
+        // q1_0: the UNIQUE flat fold_model "flat_binary_two_level" (the
+        // four-sub-block binary-sign two-level fold) resolves to its OWN 4-role
+        // Flat entry -- keyed off the fold_model directly (no monolith op-name),
+        // BEFORE the Q8Default fall-through, so the export ABI arity is 4 not 8.
+        : (foldModel && foldModel.getValue() == "flat_binary_two_level")
+            ? TypedFlatBlockDotLoopSelector::Q10BinarySign
+        : hasCodebookGather
+            ? TypedFlatBlockDotLoopSelector::Iq4NlCodebook
+            : TypedFlatBlockDotLoopSelector::Q8Default;
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
       if (entry.typedFlatLoopSelector == selector)
         return &entry;

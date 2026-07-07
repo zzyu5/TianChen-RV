@@ -1373,6 +1373,23 @@ bool GgmlBlockDotTQ10Q8KTernaryCoreOp::isSchedulePinned() {
   return static_cast<bool>(getIntegerCoreLmul());
 }
 
+// q1_0 (the BINARY {-1,+1}-sign class) carries ONLY the integer_core_lmul knob;
+// here it tunes the 32-lane binary sign-decode -> vwredsum dot over each of the
+// four q8_0 sub-blocks. The 32-element sub-block straddles m1's i8 VLMAX boundary
+// between VLEN128/256 (like q8_0 / tq1_0 / tq2_0), so the gearbox stamps "m2" at
+// VLEN128 / "m1" at VLEN256. KEPT across the q1_0 flip: the monolith
+// GgmlBlockDotQ10Q80Op op carries the SAME gearbox, but the Win-A selection moves
+// verbatim onto the constructed binary-sign integer-core brick (SAME kernel key
+// "q1_0", so the unified autotuner -- which dyn_casts TunableScheduleOpInterface,
+// not op-type -- stamps the SAME m2->m1 selection onto the brick without any
+// registry change).
+llvm::StringRef GgmlBlockDotQ10Q80BinarySignCoreOp::getScheduleKernelKey() {
+  return "q1_0";
+}
+bool GgmlBlockDotQ10Q80BinarySignCoreOp::isSchedulePinned() {
+  return static_cast<bool>(getIntegerCoreLmul());
+}
+
 // The CODEBOOK-class block-dots (FP4 family). They carry the SAME bounded shape
 // knobs the Family-A siblings do (integer_core_lmul / multi_block_factor /
 // strip_elision), so the SAME pin predicate applies; their gearbox descriptor
@@ -3889,6 +3906,177 @@ mlir::LogicalResult GgmlBlockDotQ10Q80Op::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for the ggml Q1_0 x Q8_0 block dot-product";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // binary-sign scale model, and the super-block-format structural facts (the
+  // q1_0 stride, the q8_0 stride, the per-super-block q8-block span, and the two
+  // quant byte offsets), plus the Win-A resource shape knob integer_core_lmul +
+  // minimum_vlen and the "tcrv_rvv.q1_0_schedule.*" autotuner provenance
+  // namespace. Anything else -- a forbidden local element_count/SEW/LMUL/policy
+  // attr, or an unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "activation_blocks_per_weight" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "integer_core_lmul" || name == "minimum_vlen" ||
+           name.starts_with("tcrv_rvv.q1_0_schedule.");
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.q1_0_q8_0_binary_sign_core keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedBlockDotAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded BINARY-sign block dot-product "
+                "integer-core attributes 'kind', 'scale_model', 'qk', "
+                "'weight_block_stride', 'activation_block_stride', "
+                "'activation_blocks_per_weight', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'integer_core_lmul', and "
+                "'minimum_vlen'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_q1_0_q8_0_binary_sign_core")
+    return emitOpError()
+           << "currently supports only kind \"ggml_q1_0_q8_0_binary_sign_core\" "
+              "for the bounded ggml Q1_0 x Q8_0 BINARY-sign scalar integer-core "
+              "typed surface";
+  // The binary-sign scale model is the load-bearing distinction of q1_0: each
+  // weight bit is a SIGN (set -> +q8, clear -> -q8), the q8 value is the
+  // magnitude (NO codebook, NO nibble unpack, NO offset-binary `-8` bias).
+  if (getScaleModel() != "binary-sign-per-bit")
+    return emitOpError()
+           << "requires scale_model \"binary-sign-per-bit\" for the ggml Q1_0 x "
+              "Q8_0 binary-sign integer-core route (a set bit -> +q8, a clear "
+              "bit -> -q8; the q8 value is the magnitude)";
+  // ggml's externally-defined super-block format (ggml-common.h): QK1_0 == 128,
+  // block_q1_0 stride 18 (fp16 scale + 16 packed bit bytes), block_q8_0 stride
+  // 34, ONE q1_0 super-block spanning FOUR q8_0 blocks, the weight bits at byte
+  // offset +2, the q8 quants at +2.
+  if (getQk() != 128)
+    return emitOpError() << "requires qk == 128 (QK1_0) for the ggml Q1_0 x "
+                            "Q8_0 binary-sign integer-core route";
+  if (getWeightBlockStride() != 18)
+    return emitOpError()
+           << "requires weight_block_stride == 18 (sizeof block_q1_0: the fp16 "
+              "scale + 16 packed bit bytes) for the ggml Q1_0 x Q8_0 "
+              "binary-sign integer-core route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+              "the ggml Q1_0 x Q8_0 binary-sign integer-core route";
+  if (getActivationBlocksPerWeight() != 4)
+    return emitOpError()
+           << "requires activation_blocks_per_weight == 4 (one 128-element q1_0 "
+              "super-block spans four 32-element block_q8_0 activation blocks) "
+              "for the ggml Q1_0 x Q8_0 binary-sign integer-core route";
+  if (getWeightQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 2 (the packed bit bytes "
+              "follow the inline fp16 scale) for the ggml Q1_0 x Q8_0 "
+              "binary-sign integer-core route";
+  if (getActivationQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 2 (the q8 quants follow "
+              "the inline fp16 scale) for the ggml Q1_0 x Q8_0 binary-sign "
+              "integer-core route";
+
+  // The binary sign decode runs ONE 32-lane sub-block body per q8_0 sub-block;
+  // the single vsetvl_e8<anchor>(32) cover is correct ONLY when the anchor's i8
+  // strip VLMAX at the guaranteed minimum VLEN spans the whole 32-element
+  // sub-block. WHICH anchor holds MOVES with VLEN like the q8_0 sibling: m2 at
+  // VLEN128 (e8m1 VLMAX 16 < 32), m1 at VLEN256. Recomputed here from the SAME
+  // getRVVStripVLMAXElements formula the gearbox selects with (single source of
+  // truth); the anchor defaults to "m2" (attr-less = the VLEN-universal floor).
+  {
+    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
+    if (anchor != "m1" && anchor != "m2")
+      return emitOpError()
+             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
+                "Q1_0 x Q8_0 binary-sign integer core (the binary sign decode "
+                "runs ONE 32-lane sub-block body at the whole-LMUL anchor whose "
+                "i8 strip VLMAX spans the 32-element sub-block: m2 at VLEN128, "
+                "m1 at VLEN256); got \""
+             << anchor << "\"";
+    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
+    constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
+    std::int64_t stripVLMAX = ::tianchenrv::plugin::rvv::getRVVStripVLMAXElements(
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
+        ::tianchenrv::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
+    if (stripVLMAX < kQ10SubBlockLen)
+      return emitOpError()
+             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
+                "32-element q8 sub-block at the guaranteed minimum_vlen ("
+             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
+             << stripVLMAX
+             << " (the single-vsetvl whole-sub-block cover would drop lanes). At "
+                "minimum_vlen 128 the binary sign decode requires m2; at 256 m1 "
+                "also spans the sub-block";
+  }
+
+  // The OPTIONAL loop-form `block_index` operand adds a 5th operand (the
+  // per-super-block induction variable). Absent = the standalone 4-operand
+  // single-super-block form; present = the loop form. The op produces ONE scalar
+  // i32 result (sumi placeholder) -- NO output pointer (the whole two-level fp32
+  // fold + scalar store is emitter-inlined by the flat_binary_two_level loop
+  // lowering, so this result is structurally-unused).
+  unsigned expectedOperands = getBlockIndex() ? 5 : 4;
+  if (op->getNumOperands() != expectedOperands || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one weight base pointer, one activation base pointer, "
+              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, an OPTIONAL `block_index` induction operand, and one "
+              "scalar i32 result (sumi placeholder)";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q1_0 byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 byte "
+              "array)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  if (!getSumi().getType().isInteger(32))
+    return emitOpError()
+           << "requires the result (sumi, the per-super-block binary-sign "
+              "integer-dot placeholder) to be scalar i32";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q1_0 x Q8_0 binary-sign integer core";
 
   return mlir::success();
 }
@@ -9303,14 +9491,17 @@ mlir::LogicalResult TypedFlatBlockDotLoopBodyOp::verify() {
               "for the bounded flat block dot-product nb loop surface";
   if (getFoldModel() != "sumi_times_scales" && getFoldModel() != "left_assoc" &&
       getFoldModel() != "scale_plus_min" &&
-      getFoldModel() != "scales_times_sumi")
+      getFoldModel() != "scales_times_sumi" &&
+      getFoldModel() != "flat_binary_two_level")
     return emitOpError()
            << "currently supports only fold_model \"sumi_times_scales\" (the "
               "q8_0 `(float)sumi * (d_x * d_y)` fold tree), \"left_assoc\" (the "
               "q4_0 `((float)sumi * d_x) * d_y` fold tree), \"scale_plus_min\" "
-              "(the q4_1 `(d_x*d_y)*sumi + m_x*s_y` fold tree), or "
+              "(the q4_1 `(d_x*d_y)*sumi + m_x*s_y` fold tree), "
               "\"scales_times_sumi\" (the q5_0 `(d_x*d_y)*(float)sumi` fold "
-              "tree); the other flat fold trees are later steps";
+              "tree), or \"flat_binary_two_level\" (the q1_0 `d0 * Σ_k(d1_k * "
+              "sumi_block_k)` two-level fold, carried by the q1_0 binary-sign "
+              "integer-core brick); the other flat fold trees are later steps";
 
   // Externally-defined ggml block facts: QK and the AoS block strides are
   // positive byte counts the per-block address arithmetic depends on. The

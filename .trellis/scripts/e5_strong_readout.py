@@ -583,6 +583,36 @@ PATHS = [
         "front_door": "--tcrv-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
         "front_door_id": "createTypedSuperBlockScalarDeltaGridLoopChainTq10 (typed super-block SCALAR-accumulator BASE-3 TERNARY loop body; SECOND TQ-family member, arithmetic base-3 ternary core reusing the tq2_0 scaffold, Win-A m2/m1 gearbox preserved)",
     },
+    # q1_0 vec_dot: STRONG (the LAST flat block-dot family member flipped, C_construct
+    # 26->27 -- the BINARY {-1,+1}-sign class, the genuine structural-special case). q1_0
+    # is a FLAT quant (block_q8_0 activation) but its per-super-block contribution is a
+    # FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL fp32 fold
+    # (`d0 * Σ_k(d1_k * sumi_block_k)`) that no existing single-core flat brick chain
+    # expresses, so UNLIKE q8_0/q4_0/q5_0 (a single per-block core + the shared
+    # scale->dequant->accumulate brick chain) its front door (isQ10TypedFlat) constructs
+    # the FLAT loop body (tcrv_rvv.typed_flat_block_dot_loop_body, fold_model
+    # "flat_binary_two_level") out of just ONE decomposed brick: the DISTINCT q1_0
+    # BINARY-sign INTEGER CORE (q1_0_q8_0_binary_sign_core -- the four q8_0 sub-blocks'
+    # vlm_v_b{ratio} packed-bit sign mask loaded DIRECTLY as the i8 sign mask + i8-domain
+    # vneg/vmerge -> ONE vwredsum i8->i16m1 per sub-block, plus the emitter-inlined
+    # TWO-LEVEL fp32 fold; NO grid/codebook gather, NO nibble unpack). NOT the opaque
+    # emitQ1_0Q8_0BlockDot hand helper (the whole per-super-block body -- including the
+    # fold -- is re-emitted from the brick via the shared emitQ1_0BlockDotBodyShared).
+    # The contraction+reduction is the fused per-sub-block vneg/vmerge sign fold +
+    # vwredsum INSIDE the binary-sign core (see _FUSED_DOT_REDUCE_RE's binary_sign_core
+    # token); NO opaque *_block_dot op, so [L-8] derives constructed (STRONG). The
+    # binary-sign-core brick PRESERVES q1_0's Win-A integer_core_lmul m2/m1 gearbox
+    # (kernel key "q1_0"), so q1_0 IS in the schedule autotuner and HAS a
+    # VLEN128(m2)-vs-VLEN256(m1) byte-flip. The OUTER with_vl frame stays SEW32/m1
+    # (isQ10TypedFlat is OUT of typedFlatLoopPath -- the e8m2 sign decode runs its OWN
+    # vsetvl INSIDE the brick), byte-exact to the monolith frame.
+    {
+        "op": "vec_dot", "format": "q1_0", "engine": "",
+        "kind": "strong", "expected_state": "constructed",
+        "input": "q1-0-q8-0-flat-block-dot-full-pipeline-export-e2e.mlir",
+        "front_door": "--tcrv-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
+        "front_door_id": "createTypedFlatBlockDotLoopChainQ10 (typed flat block-dot loop body; BINARY-sign integer core, two-level fold, LAST flat family member, Win-A m2/m1 gearbox preserved)",
+    },
     # Negative control (weak descriptor-selected block-dot). mxfp4 REPLACES iq4_nl as the
     # negative control now that iq4_nl flipped to a constructed typed body (L3 M2). mxfp4
     # is NOT in the front door's typedFlatLoopPath gate (only q8_0/q4_0/q4_1/q5_0/q5_1/
@@ -654,7 +684,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # purpose: `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -690,8 +720,15 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # against q8 into a wide i16 accumulator + ONE seed-0 vwredsum per 32-byte chunk reduces
 # the products into the per-super-block scalar sumi, which the single-scale scalar fold
 # consumes -- NO separate standalone_reduce, the fold that follows is a scale/add, not a
-# reduce), so its `ternary_core` token joins this whitelist too.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+# reduce), so its `ternary_core` token joins this whitelist too. The q1_0 flat BINARY
+# integer core `q1_0_q8_0_binary_sign_core` is likewise a fused dot-reduce (its four
+# q8_0 sub-blocks each load the 4 packed bit-bytes DIRECTLY as the i8 sign mask via
+# vlm_v_b{ratio}, apply it in the i8 domain via vneg/vmerge -> signed q8, then ONE
+# vwredsum i8->i16m1 reduces the 32 signed products into the per-sub-block scalar
+# sumi_block, which the emitter-inlined two-level fp32 fold consumes -- NO separate
+# standalone_reduce, the fold that follows is a scale/add, not a reduce), so its
+# `binary_sign_core` token joins this whitelist too.
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 
 def _leading_ws(line):

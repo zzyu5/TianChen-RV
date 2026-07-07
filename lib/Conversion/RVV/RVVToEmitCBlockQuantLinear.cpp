@@ -6359,6 +6359,81 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
   };
 
+  // ===================================================================
+  // q1_0 (flat_binary_two_level) BINARY-sign full-body emit. The q1_0
+  // per-super-block contribution is a FOUR-sub-block binary sign decode with a
+  // distinct TWO-LEVEL fp32 fold (`d0 * Σ_k(d1_k * sumi_block_k)`) that no
+  // existing single-core flat brick chain expresses, so the WHOLE per-super-block
+  // body (including the fold) is carried by ONE net-new binary-sign integer-core
+  // brick + re-emitted here -- the super-block scalar-core precedent (tq1_0/iq1_s)
+  // applied to the flat scaffold. The emit is BYTE-EXACT to the monolith
+  // GgmlBlockDotQ10Q80Op (both call emitQ1_0BlockDotBodyShared), modulo only the
+  // source-op provenance token. Handled BEFORE the shared sumf/nb prelude below
+  // (the shared body emits its own), so it returns here. Anti-bypass (I7): the
+  // ABI bases are sourced from the BRICK's operands (not the loop op attrs) and
+  // the brick's block_index MUST be the region induction variable.
+  if (loopBody.getFoldModel() == "flat_binary_two_level") {
+    tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp coreOp;
+    tcrvrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
+    loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+      if (auto o =
+              llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ10Q80BinarySignCoreOp>(bodyOp))
+        coreOp = o;
+      else if (auto o =
+                   llvm::dyn_cast<tcrvrvv::TypedFlatBlockDotLoopYieldOp>(bodyOp))
+        yieldOp = o;
+    });
+    mlir::Block &coreBlock = loopBody.getBody().front();
+    if (!coreOp || !yieldOp)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q1_0 flat_binary_two_level body requires the q1_0 "
+                    "binary-sign integer-core brick + the loop yield");
+    if (coreBlock.getNumArguments() != 2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q1_0 flat_binary_two_level body region must carry exactly "
+                    "the (block_index, sumf) pair");
+    mlir::Value blockIndex = coreBlock.getArgument(0);
+    mlir::Value accArg = coreBlock.getArgument(1);
+    // The emit re-creates the whole body (including the two-level fold), so the
+    // loop yield carries the loop-carried acc UNCHANGED (byte-exact = the monolith
+    // sumf; the SSA fold is emitter-inlined, mirroring the tq1_0 scalar core).
+    if (yieldOp.getAccNext() != accArg)
+      return rewriter.notifyMatchFailure(
+          yieldOp, "q1_0 flat_binary_two_level yield must carry the loop-carried "
+                   "acc (the two-level fold is emitter-inlined by the binary-sign "
+                   "brick lowering)");
+    if (coreOp.getBlockIndex() != blockIndex)
+      return rewriter.notifyMatchFailure(
+          loopBody, "the q1_0 binary-sign core brick's block_index must be the "
+                    "loop induction variable (region arg 0) so the emit "
+                    "addresses base + ib*stride, not super-block-0");
+
+    mlir::Value weightBase = valueMap.lookup(coreOp.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(coreOp.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    if (!weightBase || !activationBase || !output)
+      return rewriter.notifyMatchFailure(
+          loopBody, "q1_0 flat_binary_two_level ABI operand unmapped");
+    auto outPointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+    if (!outPointer)
+      return rewriter.notifyMatchFailure(loopBody,
+                                         "q1_0 loop-body output not a pointer");
+
+    llvm::StringRef coreLmul = "m2";
+    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
+      coreLmul = *attrLmul;
+
+    (void)emitQ1_0BlockDotBodyShared(
+        rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
+        opName, role, coreLmul, coreOp.getQk(), coreOp.getWeightBlockStride(),
+        coreOp.getActivationBlockStride(),
+        coreOp.getActivationBlocksPerWeight(),
+        coreOp.getWeightQuantByteOffset(),
+        coreOp.getActivationQuantByteOffset());
+    return mlir::success();
+  }
+
   // iq4_nl / FP4 codebook class (2nd primitive class): peek the region for the
   // 16-entry codebook table broadcast + the codebook-gather integer core. When
   // present, the codebook decl + broadcast are emitted at the SAME positions the
@@ -9265,28 +9340,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   return mlir::success();
 }
 
-mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
+mlir::Value VariantToEmitCFunc::emitQ1_0BlockDotBodyShared(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlBlockDotQ10Q80Op blockDot;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ10Q80Op>(op))
-        blockDot = bd;
-    }
-    if (!blockDot)
-      return rewriter.notifyMatchFailure(scope,
-                                         "block-dot body missing the op");
-
-    mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
-    mlir::Value output = valueMap.lookup(blockDot.getOutput());
-    if (!weightBase || !activationBase || !output)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot ABI operand unmapped");
-
-    llvm::StringRef opName = blockDot.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = blockDot.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase,
+    mlir::TypedValue<emitc::PointerType> outPointer, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+    int64_t activationStride, int64_t q8PerWeight, int64_t weightQuantOffset,
+    int64_t activationQuantOffset) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
     mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -9304,9 +9365,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     // bit 8b+i -> lane 8b+i), the i8 q8 quants are negated/merged in the i8 domain,
     // and ONE vwredsum widens i8->i16m1 per sub-block (no separate vwcvt; this is
     // ggml's shipped _vl128 lane structure).
-    llvm::StringRef coreLmul = "m2";
-    if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
+    // coreLmul is passed in (the monolith derives it from GgmlBlockDotQ10Q80Op's
+    // integer_core_lmul attr; the constructed flat path from the q1_0 binary-sign
+    // core brick's attr -- default "m2", the VLEN-universal floor, in both).
     // The vbool ratio is SEW8/LMUL: m1 -> vbool8_t (vlm_v_b8), m2 -> vbool4_t
     // (vlm_v_b4). Derived from the anchor so the mask width tracks the LMUL flip.
     llvm::StringRef boolRatio = (coreLmul == "m2") ? "4" : "8";
@@ -9316,15 +9377,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     mlir::Type maskType =
         emitc::OpaqueType::get(ctx, ("vbool" + boolRatio + "_t").str());
 
-    // The block-format structural facts come straight off the typed attrs (I4).
-    int64_t qk = blockDot.getQk();                       // 128
-    int64_t weightStride = blockDot.getWeightBlockStride(); // 18
-    int64_t activationStride =
-        blockDot.getActivationBlockStride();             // 34
-    int64_t q8PerWeight = blockDot.getActivationBlocksPerWeight(); // 4
-    int64_t weightQuantOffset = blockDot.getWeightQuantByteOffset(); // 2
-    int64_t activationQuantOffset =
-        blockDot.getActivationQuantByteOffset();         // 2
+    // The block-format structural facts (I4) are passed in: qk 128, weightStride
+    // 18, activationStride 34, q8PerWeight 4, weightQuantOffset 2,
+    // activationQuantOffset 2. The monolith reads them off GgmlBlockDotQ10Q80Op;
+    // the constructed flat path off the loop op + the q1_0 binary-sign core brick.
     int64_t subBlockElems = qk / q8PerWeight;            // 32 (q8 block lanes)
     int64_t bytesPerSubBlock = subBlockElems / 8;        // 4 bit bytes per q8 block
 
@@ -9564,11 +9620,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
     }
 
     // *s = sumf;  (structured scalar store through the output pointer)
-    auto outPointer =
-        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
-    if (!outPointer)
-      return rewriter.notifyMatchFailure(blockDot,
-                                         "block-dot output not a pointer");
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "store_s"));
     mlir::Value outIndex =
         rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
@@ -9578,9 +9629,51 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
         rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
     rewriter.create<emitc::AssignOp>(loc, outSubscript.getResult(), sumfFinal);
 
-    valueMap[blockDot.getResult()] = sumfFinal;
-    return mlir::success();
+    return sumfFinal;
   }
+
+// The thin monolith GgmlBlockDotQ10Q80Op emitter: validate the ABI operands +
+// derive the coreLmul / I4 facts off the op, then delegate to the byte-exact
+// shared body. The op result maps to the returned final sumf SSA value. This is
+// byte-identical to the pre-refactor monolith emit (the whole body moved into
+// emitQ1_0BlockDotBodyShared unchanged).
+mlir::LogicalResult VariantToEmitCFunc::emitQ1_0Q8_0BlockDot(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  tcrvrvv::GgmlBlockDotQ10Q80Op blockDot;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto bd = llvm::dyn_cast<tcrvrvv::GgmlBlockDotQ10Q80Op>(op))
+      blockDot = bd;
+  }
+  if (!blockDot)
+    return rewriter.notifyMatchFailure(scope, "block-dot body missing the op");
+
+  mlir::Value weightBase = valueMap.lookup(blockDot.getWeightBase());
+  mlir::Value activationBase = valueMap.lookup(blockDot.getActivationBase());
+  mlir::Value output = valueMap.lookup(blockDot.getOutput());
+  if (!weightBase || !activationBase || !output)
+    return rewriter.notifyMatchFailure(blockDot, "block-dot ABI operand unmapped");
+  auto outPointer =
+      llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(output);
+  if (!outPointer)
+    return rewriter.notifyMatchFailure(blockDot, "block-dot output not a pointer");
+
+  llvm::StringRef coreLmul = "m2";
+  if (std::optional<llvm::StringRef> attrLmul = blockDot.getIntegerCoreLmul())
+    coreLmul = *attrLmul;
+
+  mlir::Value sumfFinal = emitQ1_0BlockDotBodyShared(
+      rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
+      blockDot.getTCRVEmitCLowerableSourceOpName(),
+      blockDot.getTCRVEmitCLowerableSourceRole(), coreLmul, blockDot.getQk(),
+      blockDot.getWeightBlockStride(), blockDot.getActivationBlockStride(),
+      blockDot.getActivationBlocksPerWeight(),
+      blockDot.getWeightQuantByteOffset(),
+      blockDot.getActivationQuantByteOffset());
+  valueMap[blockDot.getResult()] = sumfFinal;
+  return mlir::success();
+}
 
 // The typed per-block dual-fp16 SCALE reconstruction primitive. This lowers the
 // SAME two scalar fp16->fp32 reads + scalar float multiply the monolithic

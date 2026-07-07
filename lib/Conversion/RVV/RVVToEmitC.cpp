@@ -5660,6 +5660,18 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // integer_core_lmul m2/m1 gearbox, kernel key "tq1_0"). REUSES the tq2_0 ternary
       // scaffold at C2 marginal cost.
       tcrv::rvv::GgmlBlockDotTQ10Q8KTernaryCoreOp,
+      // q1_0 (the BINARY {-1,+1}-sign class, the LAST flat block-dot family
+      // member, C_construct 26->27): the q1_0 BINARY-sign FLAT integer core
+      // (decode_model=arithmetic -- the four q8_0 sub-blocks' vlm_v_b{ratio}
+      // packed-bit sign mask loaded DIRECTLY as the i8 sign mask, i8-domain
+      // vneg/vmerge -> ONE vwredsum i8->i16m1 per sub-block, plus the
+      // emitter-inlined TWO-LEVEL fp32 fold `d0 * Σ_k(d1_k * sumi_block_k)`; NO
+      // grid/codebook gather, NO nibble unpack); it is the flat loop body's
+      // binary-sign brick under fold_model "flat_binary_two_level" (the FLAT
+      // scaffold sibling of the super-block scalar cores -- q1_0's activation is a
+      // FLAT block_q8_0 stream). Carries the Win-A integer_core_lmul m2/m1
+      // gearbox, kernel key "q1_0".
+      tcrv::rvv::GgmlBlockDotQ10Q80BinarySignCoreOp,
       // structural VL / memory ops
       tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp, tcrv::rvv::LoadOp,
       tcrv::rvv::StoreOp,

@@ -5543,6 +5543,110 @@ def GgmlBlockDotQ10Q80Op
   let hasVerifier = 1;
 }
 
+def GgmlBlockDotQ10Q80BinarySignCoreOp
+    : TCRVRVV_Op<"q1_0_q8_0_binary_sign_core",
+    [TCRVEmitCLowerableOpInterface,
+     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
+  let summary =
+      "generic typed RVV ggml Q1_0 x Q8_0 BINARY-sign per-super-block "
+      "integer-core op (the q1_0 binary-sign brick, the BINARY {-1,+1} class)";
+  let description = [{
+    Records the genuinely-new q1_0 machinery -- the per-lane BINARY SIGN DECODE
+    + the four-sub-block two-level fp32 fold -- as ONE bounded generic
+    plugin-local typed RVV dataflow step, the FLAT sibling of the super-block
+    integer-core bricks (q2_K/tq1_0/iq1_s). It is the net-new marginal cost of
+    the q1_0 flip: unlike q4_0/q8_0/q5_0 (a single per-block integer core folded
+    by a shared scale-dequant + cross-block accumulate), q1_0's per-super-block
+    contribution is a FOUR-sub-block binary decode with a distinct TWO-LEVEL fold
+    (`d0 * Σ_k(d1_k * sumi_block_k)`), so no existing flat brick chain expresses
+    it; this op carries the whole per-super-block body.
+
+    The genuinely-new mechanism vs every prior sibling is the per-lane BINARY
+    SIGN DECODE -- a `vmerge(vneg(q8), q8, bit_mask)` (in the i8 domain) that
+    selects `+q8` where the weight bit is set and `-q8` where clear. The mask is
+    the 4 packed weight bit-bytes loaded DIRECTLY via `vlm_v_b{ratio}` (the
+    packed bits ARE the i8 sign mask: bit `8b+i` -> lane `8b+i`), with NO kmask
+    table, NO `vand`/`vmsne` decode, NO codebook, NO nibble unpack, NO
+    offset-binary `-8` bias: the q8 value IS the magnitude and the weight bit IS
+    the sign. This is ggml's shipped `_vl128` lane structure. Within each of the
+    FOUR q8_0 sub-blocks (k=0..3) the 32 signed lanes reduce by ONE `vwredsum`
+    (i8 -> i16m1) into the per-sub-block integer `sumi_block` (32 lanes *
+    |q8|<=127 = 4064 < 32767, no overflow). The anchor is the smallest whole-LMUL
+    whose i8 VLMAX spans the 32-element sub-block: m2 at VLEN128 (e8m1 VLMAX 16 <
+    32), m1 at VLEN256. The TWO-LEVEL fp32 fold carries a per-super-block
+    `float sumi` (folding `sumi += d1_k * (float)sumi_block` in strict ascending
+    k order), then the super-block term `sumf += d0 * sumi` (ggml EXACT order, so
+    fp non-associativity is byte-exact). The FIVE fp16 reads (d0 once, d1_k for
+    k=0..3) are the only sanctioned opaque scalar pieces.
+
+    The result is produced as ONE SCALAR i32 SSA result (a STRUCTURAL placeholder
+    mirroring the super-block integer-core bricks' scalar-state arity; q1_0's
+    per-super-block contribution is a running fp32 two-level fold with no single
+    integer scalar state, so this result is UNUSED -- the whole per-super-block
+    body, INCLUDING the fold, is emitter-inlined by the flat_binary_two_level
+    loop lowering keyed off this brick's identity). The op is nested directly
+    under tcrv_rvv.with_vl and consumes the q1_0 weight base pointer (vx), the
+    q8_0 activation base pointer (vy), the runtime element count (n), the active
+    !tcrv_rvv.vl token, and an OPTIONAL `block_index` induction operand. It
+    carries NO output pointer.
+
+    LOOP-CAPABLE per-super-block-source form: the OPTIONAL `block_index` operand
+    is the induction variable (region argument 0) of an enclosing
+    tcrv_rvv.typed_flat_block_dot_loop_body region whose fold_model is
+    "flat_binary_two_level": the q1_0 weight strip is read at
+    `weight_base + block_index*weight_block_stride` and the FOUR q8_0 activation
+    sub-blocks at `activation_base + (block_index*activation_blocks_per_weight +
+    k)*activation_block_stride`. When ABSENT the op keeps the standalone
+    single-super-block form.
+
+    The structural facts -- qk (128), the super-block stride (18 bytes), the q8_0
+    block stride (34), the per-super-block q8-block span (4), the weight bit
+    payload byte offset (+2), the q8 quant byte offset (+2), and the binary sign
+    scale model -- are carried as typed integer/string attributes (I4 mirror
+    only). The op identity is the dispatch key. Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, operand
+    mirror strings, q8/q1_0 names, and common EmitC/export code must not infer or
+    choose block-quantized dot-product semantics.
+
+    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
+    knob the siblings carry (the *how*, never the *what*; the dot-product is
+    byte-exact for any legal value because integer addition is order-independent
+    and the per-sub-block/super-block fp32 fold stays in strict ascending order).
+    The 32-element sub-block straddles m1's i8 VLMAX boundary between VLEN128/256,
+    so its elided-correct anchor MOVES with VLEN across {m1, m2} like the q8_0
+    sibling: the schedule autotuner stamps "m2" at VLEN128 and "m1" at VLEN256
+    from getRVVStripVLMAXElements (kernel key "q1_0"). The anchor defaults to "m2"
+    (the VLEN-universal-safe floor), so an attr-less brick verifies + lowers
+    correctly. The verifier rejects any other anchor fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$element_count,
+    AnyType:$vl,
+    Optional<Index>:$block_index,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$activation_blocks_per_weight,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    OptionalAttr<I64Attr>:$minimum_vlen
+  );
+  let results = (outs AnyType:$sumi);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $element_count `,` $vl "
+    "(`block` $block_index^ `:` type($block_index))? attr-dict `:` "
+    "type($weight_base) `,` type($activation_base) `,` "
+    "type($element_count) `,` type($vl) `->` type($sumi)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotQ6KQ8KAux32Op
     : TCRVRVV_Op<"q6_k_q8_k_aux32_partial",
     [TCRVEmitCLowerableOpInterface]> {
