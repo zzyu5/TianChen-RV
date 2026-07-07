@@ -26,7 +26,8 @@
     "07-07-retire-q1_0-monolith",
     "07-07-wire-opponent-facts-pin-ci",
     "07-07-retire-residual-gate-whitelist",
-    "07-07-dir-hygiene-lints-ci-clean-red"
+    "07-07-dir-hygiene-lints-ci-clean-red",
+    "07-07-construct-gemm-tile-m1"
   ],
   "parent": null,
   "relatedFiles": [],
