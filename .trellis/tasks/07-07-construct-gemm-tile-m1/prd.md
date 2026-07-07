@@ -63,3 +63,11 @@
 | gemm_tile 停手追认(18/19 不假接线=纪律对)记录 | ✅ |
 | 构造队列四条登记 | ✅ |
 | 本轮不改 lib/(真构造后续独立推进) | ✅ |
+
+## 更正(2026-07-07, commit 2a930d85): [DEBT-Q4K-SCAFFOLD] 前提证伪
+q4_K repack GEVM+GEMM **不是 debt**——"NUMERICALLY WRONG" 是陈旧注释,真解码(710ad067)已建、
+deferred oracle 现 GREEN(GEVM 8/8 + GEMM 8/8, bounded-norm 7e-7, 负控咬合)。q4_K 已开采。
+- q4_K = **L1 path-win 活候选**(board-probe-pending):ggml q4_K repack 硬编 VLEN256+在 QK 门外、
+  rvv VLEN128 上 not-selected/wrong → opponent-无-WORKING-repack-@VLEN128。需板 dispatch probe 确认、禁预判 beat。
+- 真剩余 K-quant repack 构造(新 emitter、都没有):**q5_K→q6_K→q2_K/q3_K**(q5_K=q4_K+qh 5th-bit,最便宜)。
+- 或 q4_K 专用 gemm_tile op(q4_0 GgmlGemmTileQ40Q80Op 类比)。
