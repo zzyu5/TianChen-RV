@@ -106,22 +106,41 @@ if [ -z "$FACTORY_OBJ" ]; then
     || pf_fail opponent "format_micro_opponent.sh could not compile+locate the ggml factory"
 fi
 
-# ---- build: driver + all 6 ours .o + factory.o into one binary ----
+# ---- build: driver + all 8 ours .o + factory.o into one binary ----
+# -no-pie: our exported constructed objects are non-PIC (absolute HI20/LO12 relocs
+#   by construction), so the exe must be non-PIE. This is a whole-exe link mode
+#   (applies uniformly to both sides) -- NOT a per-side flag, so it does not bias
+#   the ours-vs-factory ratio.
+# -fopenmp + FACTORY_LINK_STUBS: the REAL ggml factory object is a whole-TU compile
+#   (arch/riscv + generic vec_dot + ggml-quants quantizers). --gc-sections retains a
+#   quantizer/type-traits table that pulls GOMP_* (openmp) and 4 ggml-base leaf
+#   helpers (ggml_abort/type_size/type_name/row_size). Both are PROVEN off the timed
+#   vec_dot path (0 relocations from any ggml_vec_dot_<fmt>_q8_K symbol); -fopenmp
+#   supplies libgomp and FACTORY_LINK_STUBS (optional) supplies the 4 leaf helpers.
+#   The timed vec_dot machine code is 100% ggml's own object -- not hand-filled.
 $CC $FF -c "$HERE/format_micro_driver.c" -o "$WD/driver.o" || pf_fail build "driver compile failed"
 OURS_OBJS=""; for f in "${FMTS[@]}"; do
   o="$OURS_OBJDIR/$f.o"; [ -f "$o" ] || pf_fail build "missing ours object $o"; OURS_OBJS="$OURS_OBJS $o"; done
-$CC $FF -Wl,--gc-sections "$WD/driver.o" $OURS_OBJS "$FACTORY_OBJ" -lm -o "$WD/bench" \
+$CC $FF -no-pie -fopenmp -Wl,--gc-sections "$WD/driver.o" $OURS_OBJS "$FACTORY_OBJ" ${FACTORY_LINK_STUBS:-} -lm -o "$WD/bench" \
   || pf_fail build "link failed (driver + ours + factory)"
 echo "built $WD/bench"
 
 # ==== fail-closed preflight (4-gate, mirrors board_ab.sh) ====
 BOARD_ISA="$(grep -m1 -i isa /proc/cpuinfo 2>/dev/null | tr 'A-Z' 'a-z')"
 [ -n "$BOARD_ISA" ] || pf_fail march "cannot read /proc/cpuinfo isa"
+# march-complete gate: every board fp16 / vector-fp16 / bitmanip ext the benchmark
+# needs must be in MARCH, else codegen silently degrades (missing zfh -> fp16 softfloat
+# libcall confound). NOTE: zvfh IMPLIES zvfhmin (RVV spec), and clang-17 REJECTS an
+# explicit 'zvfhmin' arch token -- so a march textually containing 'zvfhmin' is
+# impossible on this toolchain; a MARCH carrying 'zvfh' fully satisfies the requirement.
 for ext in zfh zvfhmin zvfh zba zbb zbs; do
-  echo "$BOARD_ISA" | grep -Eq "(_|^| )$ext(_| |\$)" && ! echo "$MARCH" | grep -q "$ext" \
-    && pf_fail march "board has '$ext' but march '$MARCH' omits it"
+  echo "$BOARD_ISA" | grep -Eq "(_|^| )$ext(_| |\$)" || continue        # board lacks it -> nothing to require
+  echo "$MARCH" | grep -q "$ext" && continue                            # march carries it -> satisfied
+  [ "$ext" = "zvfhmin" ] && echo "$MARCH" | grep -q "zvfh" && continue   # zvfh implies zvfhmin
+  [ "$ext" = "zfhmin"  ] && echo "$MARCH" | grep -q "zfh"  && continue   # zfh  implies zfhmin
+  pf_fail march "board has '$ext' but march '$MARCH' omits it"
 done
-echo "PREFLIGHT(1) march-complete: OK"
+echo "PREFLIGHT(1) march-complete: OK (zvfhmin satisfied-by zvfh)"
 for o in $OURS_OBJS "$FACTORY_OBJ"; do
   $OD -d "$o" 2>/dev/null | grep -Eq '__extendhfsf2|__truncsfhf2|__gnu_h2f_ieee|__gnu_f2h_ieee' \
     && pf_fail libcall "$o has fp16 softfloat libcall (crippled build; march needs zfh/zvfh)"

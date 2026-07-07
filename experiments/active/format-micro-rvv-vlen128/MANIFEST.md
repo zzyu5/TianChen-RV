@@ -1,16 +1,22 @@
 # cell MANIFEST — format-micro-rvv-vlen128
 
 - **campaign**: silicon (format micro, step 4 of lineA-batch1)
-- **status**: ACTIVE — EXPORT DONE (8 fmts) + OPPONENT DONE (real ggml, 8/8) / PAIRED-PERF
-  STALE(export-march-confound) (2026-07-07-lineA-batch2; pinned HEAD 49ede67d). The batch#1
-  harness blockers (opponent real-dispatch probe + cache-hygiene driver) are BUILT + host-
-  self-tested GREEN (12/12, incl. the 2 new TQ). On board: EXPORT verified (8 valid objects),
-  OPPONENT satisfied (ggml's own gcc-12.3.1 arch/riscv+generic quants objects, 8/8 DEFINED-T,
-  libcall-free). PAIRED PERF is BLOCKED by an export-side march confound: our block-dot object
-  packager emits -march=rv64gcv (no zfh) so the per-block fp16 scale = a __extendhfsf2 softfloat
-  libcall (objdump: ours 1 / factory 0) — a hard link blocker AND a one-sided perf confound vs the
-  hw-zfh factory. NOT fabricated (confound-clean discipline). See perf_blocked_export_march_confound.txt.
-  FIX (lib-side follow-up, not this batch): give block-dot families a _zfh packager (mirror repack _zvfh).
+- **status**: ACTIVE — EXPORT DONE (8 fmts) + OPPONENT DONE (real ggml, 8/8) + PAIRED-PERF
+  **MEASURED (fair, both-hardware-fp16)** (2026-07-07-lineA-batch2b; RE-EXPORT pinned HEAD 0ca224f7
+  = the zfh merge). The export-side march confound that STALE-marked batch2b(49ede67d) is RESOLVED:
+  the block-dot super-block families now package under -march=rv64gcv_zvfh
+  (RVVTargetSupportBundle.cpp:1811/2219) so the per-super-block fp16 scale d lowers to a HARDWARE
+  fcvt.s.h (board llvm-objdump-17: every ours object = 0 __extendhfsf2 / 1 fcvt.s.h). Re-exported 8
+  objects at 0ca224f7 (cached detached-worktree; main tree + build/ untouched, no git stash); the
+  paired micro then LINKED + RAN fair, preflight 4/4, cache-cold (POOL 256MB > 3xL3=192MB DRAM),
+  N=12 median+IQR. **RESULT: 7/8 LOSS + 1 divergent-ratio>1 (iq4_xs 1.46x but ours!=factory output);
+  NONE a [PERF-1] eight-gate beat — parity/loss reported as-is, no beat claimed.** Correctness
+  cross-check: 6/8 ours==factory FNV bit-match cold-random (incl. both sealed iq2_xxs/iq3_xxs);
+  iq4_xs+tq1_0 diverge (fold-order-or-decode, undetermined). All latency/compute-bound micro (4-56%
+  of 5.237 GB/s read ceiling) = KERNEL-micro only, NOT the bandwidth-bound e2e regime. Honest read:
+  on a fair hw-fp16 footing our constructed super-block decode loses to ggml hand-tuned arch/riscv
+  IQ/TQ intrinsics on the compute axis. See perf_result_batch2b_zfh.txt + rvv_paired_raw_batch2b_zfh.txt;
+  T3_A rows updated (batch2b block). Prior confound record kept: perf_blocked_export_march_confound.txt.
 - **role**: rvv/VLEN128 format micro for the 8 constructed super-block formats
   {iq3_s, iq2_s, iq2_xs, iq2_xxs, iq3_xxs, iq4_xs (6 IQ) + tq2_0, tq1_0 (2 TQ TriLM ternary)}.
   This batch PROVED the pinned-HEAD (49ede67d) export path for all 8: each
@@ -64,9 +70,14 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 
 ## durable files
 - `export_provenance.txt` — exact pinned commands + per-fmt object size + verified kernel symbol.
-- `perf_blocked_export_march_confound.txt` — batch#2 board record: why PAIRED PERF is STALE
-  (export-side -march=rv64gcv no-zfh => one-sided __extendhfsf2 fp16 libcall vs hw-zfh factory),
-  objdump evidence, the ggml-own-object opponent build, and the lib-side fix pointer.
+  CURRENT export = HEAD 0ca224f7 (zfh; hw fcvt.s.h); prior 49ede67d (no-zfh) kept as history.
+- `perf_result_batch2b_zfh.txt` — batch2b MEASURED fair result: confound-fixed evidence, real
+  opponent build, preflight 4/4, cache-hygiene, the 8-fmt ratio/roofline/fingerprint table,
+  correctness cross-check, and the honest 7/8-LOSS read.
+- `rvv_paired_raw_batch2b_zfh.txt` — raw board output (full MICRO lines + emitted T3_ROW lines).
+- `perf_blocked_export_march_confound.txt` — SUPERSEDED historical record: why batch2b(49ede67d)
+  was STALE (export-side -march=rv64gcv no-zfh => one-sided __extendhfsf2 fp16 libcall vs hw-zfh
+  factory). Resolved-banner points to the batch2b result above.
 - `.gitignore` — marks `exported_objects/` + `*.o` as gitignored scratch (evidence, regenerable).
 
 ## scratch (gitignored, rides with cell, not durable)

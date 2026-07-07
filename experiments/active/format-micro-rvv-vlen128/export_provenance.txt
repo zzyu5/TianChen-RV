@@ -1,8 +1,34 @@
+# ============================================================================
+# CURRENT EXPORT — RE-EXPORT at pinned HEAD 0ca224f7 (= the zfh merge)  [2026-07-07 lineA-batch2b]
+# WHY re-export: the 49ede67d export (below) packaged the block-dot families under
+# -march=rv64gcv (NO zfh) so the per-super-block fp16 scale d became a __extendhfsf2
+# softfloat libcall (link blocker + one-sided perf confound). HEAD 0ca224f7 gives the
+# block-dot super-block families a _zvfh object packager (RVVTargetSupportBundle.cpp
+# :1811/2219) => the fp16 scale now lowers to a HARDWARE fcvt.s.h. Both sides of the
+# format-micro are hardware fp16 => fair.
+# opt=.worktrees/cache/0ca224f71537bedb5ae2f09a4784db46f6e1565d/tcrv-opt  translate=.worktrees/cache/0ca224f71537bedb5ae2f09a4784db46f6e1565d/tcrv-translate
+# command per fmt: tcrv-opt <mlir> --tcrv-rvv-materialize-<dashfmt>-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > <fmt>.o
+# input mlir: test/Target/RVV/<dashfmt>-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir
+# board-verified per object (llvm-objdump-17): 0 __extendhfsf2 / 1 fcvt.s.h (hw fp16) ; kernel symbol DEFINED-T
+# session 2026-07-07-lineA-batch2b-zfh-rerun (main tree + build/ untouched; no git stash)
+#
+#   iq3_s    size=8296B    kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot
+#   iq2_s    size=14808B   kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot
+#   iq2_xs   size=9768B    kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot
+#   iq2_xxs  size=6640B    kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_rvv_iq2_xxs_q8_K_block_dot
+#   iq3_xxs  size=7592B    kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_xxs_q8_K_kernel_rvv_iq3_xxs_q8_K_block_dot
+#   iq4_xs   size=2592B    kernel_sym=tcrv_emitc_ggml_vec_dot_iq4_xs_q8_K_kernel_rvv_iq4_xs_q8_K_block_dot
+#   tq2_0    size=1728B    kernel_sym=tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot
+#   tq1_0    size=2432B    kernel_sym=tcrv_emitc_ggml_vec_dot_tq1_0_q8_K_kernel_rvv_tq1_0_q8_K_block_dot
+# ============================================================================
+#
+# ---- PRIOR EXPORT (SUPERSEDED; kept for history) --------------------------------------
 # format export provenance — pinned HEAD 49ede67d via cached detached-worktree binaries
 # opt=.worktrees/cache/49ede67d9105055d97e7785903d6127f9fdc5b39/tcrv-opt  translate=.worktrees/cache/49ede67d9105055d97e7785903d6127f9fdc5b39/tcrv-translate
 # command per fmt: tcrv-opt <mlir> --tcrv-rvv-materialize-<dashfmt>-q8-k-block-dot-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > <fmt>.o
 # input mlir: test/Target/RVV/<dashfmt>-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir
 # session 2026-07-07-lineA-batch2-board (8 formats: 6 IQ + 2 TQ; TQ front-door added in d1a26e4a..49ede67d)
+# NOTE: these -march=rv64gcv (no-zfh) objects carried 1x __extendhfsf2 each (confound); superseded by the 0ca224f7 re-export above.
 
 iq3_s    size=8456B   ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq3_s_q8_K_kernel_rvv_iq3_s_q8_K_block_dot
 iq2_s    size=14896B  ELF 64-bit LSB relocatable RISC-V RVC double-  kernel_sym=tcrv_emitc_ggml_vec_dot_iq2_s_q8_K_kernel_rvv_iq2_s_q8_K_block_dot

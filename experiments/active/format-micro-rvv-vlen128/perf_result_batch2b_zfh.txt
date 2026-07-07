@@ -1,0 +1,68 @@
+# format-micro PAIRED PERF — MEASURED (fair, both-hardware-fp16)  [2026-07-07 lineA-batch2b]
+# board: rvv (openEuler 24.03 LTS, uname 6.12.66 riscv64, VLEN128, 64c, L2=2MiB/core, L3=64MiB,
+#        governor=performance @ 2.6GHz). core pinned = 8 (taskset -c 8).
+# export HEAD: 0ca224f7 (= zfh merge; cached detached-worktree tcrv-opt/translate; main tree +
+#              build/ untouched; no git stash). opponent ggml pin: build-vericurve gcc-12.3.1.
+
+CONFOUND FIXED (the reason batch2b(49ede67d) was STALE)
+  block-dot super-block families now package under -march=rv64gcv_zvfh
+  (RVVTargetSupportBundle.cpp:1811 packager / :2219 family assignment). The per-super-block fp16
+  scale d (ggml_half -> float) now lowers to a HARDWARE fcvt.s.h — no __extendhfsf2 softfloat
+  libcall. Board llvm-objdump-17, all 8 ours objects:  __extendhfsf2 = 0 ,  fcvt.s.h = 1 .
+  => both sides hardware fp16 => the one-sided confound biased AGAINST us is GONE. Ratios are fair.
+
+OPPONENT (real, 禁手填)
+  ggml's OWN gcc-12.3.1 objects, ld -r merged into /tmp/factory2.o:
+    arch/riscv/quants.c.o    (the DISPATCHED riscv vec_dot ggml_vec_dot_<fmt>_q8_K)
+    ggml-cpu/quants.c.o      (generic *_generic fallbacks)
+    ggml-base/ggml-quants.c.o(quantize_row_*_ref / quantize_iq4_xs referenced by the type-traits table)
+  8/8 ggml_vec_dot_<fmt>_q8_K DEFINED-T ; 0 fp16 libcall ; 132 fcvt.s.h (hw fp16).
+  Link scaffolding (does NOT touch the timed vec_dot code): -no-pie (ours objects are non-PIC),
+  -fopenmp (ggml quantizer table pulls GOMP_*), and 4 leaf link-stubs
+  (ggml_abort/ggml_type_size/ggml_type_name/ggml_row_size). All PROVEN off the timed path:
+  0 relocations from ANY ggml_vec_dot_<fmt>_q8_K symbol to a quantizer or ggml-internal helper.
+  The timed vec_dot machine code = 100% ggml's own object.
+
+PREFLIGHT 4/4 (fail-closed)
+  (1) march-complete OK — MARCH=rv64gcv_zfh_zvfh_zba_zbb_zbs_zicbop_zihintpause (zvfhmin is IMPLIED
+      by zvfh; clang-17 rejects an explicit 'zvfhmin' token, so a textually-complete march is
+      impossible on this toolchain — gate updated to treat zvfh as satisfying zvfhmin).
+  (2) libcall-free OK (ours + factory: 0 __extendhfsf2)
+  (3) same-compiler OK (clang-17 both sides)
+  (4) VLEN==128 OK
+
+CACHE HYGIENE (why the numbers are honest)
+  POOL_MIB=256 => working_set ~268 MB per fmt > 3xL3(64MB)=192MB => weights stream DRAM-cold
+  (L3 is the real hygiene wall on this board, not the 2MB L2). N=12 rounds, median+IQR, interleaved
+  ours/factory cold. All 8 rows status = measured (cache-cold; wset >= 3x). NONE sub-margin/STALE.
+
+RESULT (ratio = factory/ours ; >1 => OURS faster = win ; <1 => OURS slower = loss)
+  fmt      ours ns/blk  factory ns/blk  ratio     verdict                        roofline(%read-ceil)  fp
+  iq3_s    1451.85      1026.10         0.7068x   LOSS  (ours 1.41x slower)       latency/compute  5%   match
+  iq2_s     377.42       219.48         0.5815x   LOSS  (ours 1.72x slower)       latency/compute 19%   match
+  iq2_xs    351.58       278.24         0.7914x   LOSS  (ours 1.26x slower)       latency/compute 20%   match
+  iq2_xxs   885.14       705.73         0.7973x   LOSS  (ours 1.25x slower)       latency/compute  8%   match(sealed)
+  iq3_xxs  1692.87       296.91         0.1754x   LOSS  (ours 5.70x slower)       latency/compute  4%   match(sealed)
+  iq4_xs    146.99       213.96         1.4556x   ratio>1 (1.46x) BUT DIVERGENT   latency/compute 56%   DIVERGE
+  tq2_0     505.52       123.45         0.2442x   LOSS  (ours 4.10x slower)       latency/compute 14%   match
+  tq1_0     741.26       161.90         0.2184x   LOSS  (ours 4.58x slower)       latency/compute  9%   DIVERGE
+
+  => 7/8 LOSS + 1 divergent-ratio>1. NONE is a [PERF-1] eight-gate beat. Reported as-is; no beat claimed.
+
+CORRECTNESS CROSS-CHECK (per-side FNV over the reduced float outputs, same cold-random inputs)
+  6/8 ours == factory BIT-MATCH (incl. both already-sealed iq2_xxs / iq3_xxs). This is a strong
+  agreement signal (fold order identical to ggml on those 6). iq4_xs and tq1_0 DIVERGE — either a
+  no-FMA fold-order difference or a real decode difference; UNDETERMINED. Because iq4_xs is the only
+  ratio>1, its "win" is NOT a clean beat until the output divergence is reconciled (a faster kernel
+  that computes a different value is not comparable). This is flagged, not swept.
+
+HONEST READ
+  With the fp16-libcall confound removed (fair hardware fp16 on both sides), our CONSTRUCTED
+  super-block decode LOSES to ggml's hand-tuned arch/riscv IQ/TQ intrinsics on the compute-bound
+  micro axis. This is the expected gap: the IQ/TQ dispatched kernels use tuned gathers + precomputed
+  sign/grid tables, while our constructed decode is more generic. All rows are latency/compute-bound
+  micro (4-56% of the 5.237 GB/s read ceiling) — NOT the bandwidth-bound e2e decode regime, where
+  compute-bound micro gaps are known to wash out (project precedent). So this is a KERNEL-micro
+  result only; it does not by itself predict e2e.
+
+RAW: rvv_paired_raw_batch2b_zfh.txt (full MICRO + T3_ROW lines, this cell).

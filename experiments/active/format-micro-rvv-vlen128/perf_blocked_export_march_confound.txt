@@ -1,3 +1,12 @@
+# >>> RESOLVED 2026-07-07 lineA-batch2b: the export-side march confound below is FIXED.
+# >>> The zfh merge (HEAD 0ca224f7) gives the block-dot super-block families a _zvfh object
+# >>> packager (RVVTargetSupportBundle.cpp:1811/2219) => per-block fp16 scale d now lowers to a
+# >>> HARDWARE fcvt.s.h (board llvm-objdump-17: 0 __extendhfsf2 / 1 fcvt.s.h per ours object).
+# >>> Re-exported 8 objects at 0ca224f7; the paired micro then LINKED + RAN fair (both hw fp16),
+# >>> preflight 4/4. Result = 7/8 LOSS + 1 divergent-ratio>1 (iq4_xs), no beat. See:
+# >>>   perf_result_batch2b_zfh.txt  and  rvv_paired_raw_batch2b_zfh.txt.
+# >>> This file is kept as the historical record of WHY batch2b(49ede67d) was left STALE.
+# ---------------------------------------------------------------------------------------------
 # format-micro PAIRED PERF — BLOCKED (export-side march confound)  [2026-07-07 lineA-batch2]
 # board: rvv (openEuler 24.03 LTS, uname 6.12.66 riscv64, VLEN128, 64c, L2=2MiB/core L3=64MiB, gov=performance@2.6GHz)
 # pinned export HEAD: 49ede67d (cached detached-worktree tcrv-opt/translate; main tree + build/ untouched, no git stash)
