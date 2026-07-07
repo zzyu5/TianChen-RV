@@ -124,13 +124,18 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq3_s_q8_K_block_dot_sourc
 // CORE: bitwise_left_shift
 // CORE: bitwise_and %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
 // CORE: bitwise_or
-// The GRID-of-4 GROUP gather: the uint16_t tmp[2] idx*4 byte-offsets, vle16 index,
-// then the HARDWARE __riscv_vluxei16_v_i32m1 over the i32 grid base, reinterpreted to
-// i8m1 grid bytes, then the 8-lane q8 load (NOT a vrgather).
-// CORE: "emitc.variable"() {{.*}} -> !emitc.array<2x!emitc.opaque<"uint16_t">>
-// CORE: call_opaque "__riscv_vle16_v_u16mf2"
-// CORE: call_opaque "__riscv_vluxei16_v_i32m1"
-// CORE: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
+// The GRID-of-4 gather of the qh-injected indices, BATCHED per SUB-BLOCK PAIR (the AVL=2
+// fractional-LMUL qh fix): the 32 per-group vl=2 vluxei16_v_i32m1 gathers (each with a
+// vl=2 u16mf2 index load) are hoisted to ONE wide gather per pair -- a uint16_t[32]
+// byte-offset array (4 slots/group: 2 real idx*4 + 2 zero pads) vle16'd at u16m4, gathered
+// by ONE vluxei16_v_i32m8, and reinterpreted to i8m8. Each group's 8 grid bytes are
+// recovered in lanes 0..7 by a register-group vget (i8m8 -> i8m1), then the 8-lane q8 load
+// (NOT a vrgather) + the UNCHANGED explicit-sign fold.
+// CORE: "emitc.variable"() {{.*}} -> !emitc.array<32x!emitc.opaque<"uint16_t">>
+// CORE: call_opaque "__riscv_vle16_v_u16m4"
+// CORE: call_opaque "__riscv_vluxei16_v_i32m8"
+// CORE: call_opaque "__riscv_vreinterpret_v_i32m8_i8m8"
+// CORE: call_opaque "__riscv_vget_v_i8m8_i8m1"
 // CORE: call_opaque "__riscv_vle8_v_i8m1"
 // The EXPLICIT SIGN plane: broadcast signs / vand kmask / vmsne / vneg / vmerge.
 // CORE: call_opaque "__riscv_vmv_v_x_u8m1"

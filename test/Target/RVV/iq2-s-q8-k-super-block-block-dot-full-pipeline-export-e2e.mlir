@@ -135,15 +135,19 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq2_s_q8_K_block_dot_sourc
 // CORE: bitwise_left_shift %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
 // CORE: bitwise_and %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
 // CORE: bitwise_or %{{.*}}, %{{.*}} : (!emitc.opaque<"int">, !emitc.opaque<"int">)
-// The vluxei16 per-half body: u16 index load, TWO i64m1 indexed gathers (grid64 +
-// signs256), each reinterpreted to i8m1, then vmul-fold the +-1 signs onto the GRID.
-// CORE: call_opaque "__riscv_vle16_v_u16mf4"
-// CORE: call_opaque "__riscv_vluxei16_v_i64m1"
-// CORE: call_opaque "__riscv_vreinterpret_v_i64m1_i8m1"
-// CORE: call_opaque "__riscv_vluxei16_v_i64m1"
-// CORE: call_opaque "__riscv_vle8_v_i8m1"
-// CORE: call_opaque "__riscv_vmul_vv_i8m1"
-// The signed widening product + ONE vwredsum per half + scalar extract.
+// The vluxei16 grid+sign gather chain, BATCHED per sub-block PAIR (2 sub-blocks = 4
+// halves): the 8-slot u16 byte-offset index load (u16m1 EMUL), the i64m4 GRID gather
+// reinterpreted to i8m4, the i64m4 explicit-signs gather, the i8m4 q8 pair load, then the
+// +-1 signs folded onto the GRID by vmul_vv_i8m4.
+// CORE: call_opaque "__riscv_vle16_v_u16m1"
+// CORE: call_opaque "__riscv_vluxei16_v_i64m4"
+// CORE: call_opaque "__riscv_vreinterpret_v_i64m4_i8m4"
+// CORE: call_opaque "__riscv_vluxei16_v_i64m4"
+// CORE: call_opaque "__riscv_vle8_v_i8m4"
+// CORE: call_opaque "__riscv_vmul_vv_i8m4"
+// Each 16-lane half is recovered by a register-group vget i8m4->i8m1, then the SAME signed
+// widening product + ONE vwredsum per half + scalar extract.
+// CORE: call_opaque "__riscv_vget_v_i8m4_i8m1"
 // CORE: call_opaque "__riscv_vwmul_vv_i16m2"
 // CORE: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // CORE: call_opaque "__riscv_vmv_x_s_i32m1_i32"

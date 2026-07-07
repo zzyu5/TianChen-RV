@@ -130,14 +130,22 @@ module {
 // EMIT: bitwise_left_shift
 // EMIT: bitwise_or
 // EMIT: bitwise_right_shift
-// The HARDWARE vluxei16 grid-of-4 gather: the uint16_t tmp[2] byte-offset array, vle16 the
-// u16 indices (mf2 EMUL), gather 2 grid i32 entries via vluxei16 over (const int32_t *)grid,
-// reinterpret to signed i8 grid bytes, the EXPLICIT-signs sign fold (broadcast signs / vand
-// kmask / vmsne / vneg / vmerge), signed widening product, ONE vwredsum per group, extract.
-// EMIT: "emitc.variable"() {{.*}} -> !emitc.array<2x!emitc.opaque<"uint16_t">>
-// EMIT: call_opaque "__riscv_vle16_v_u16mf2"
-// EMIT: call_opaque "__riscv_vluxei16_v_i32m1"
-// EMIT: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
+// The HARDWARE vluxei16 grid-of-4 gather of the qh-injected indices, BATCHED per SUB-BLOCK
+// PAIR (the AVL=2 fractional-LMUL qh fix, iq3_s's heaviest gap): the 32 per-group vl=2
+// vluxei16_v_i32m1 gathers (each with a vl=2 u16mf2 index load -- the 2-element
+// scalarization storm) are HOISTED to ONE wide gather per pair (2 sub-blocks = 8 groups =
+// 16 qh-injected indices). A uint16_t[32] byte-offset array laid out 4 slots/group (2 real
+// idx*4 + 2 zero pads) is vle16'd at u16m4, gathered by ONE vluxei16_v_i32m8 over the i32
+// grid base, reinterpreted to i8m8; each group's 8 signed grid bytes are recovered in
+// lanes 0..7 by a register-group vget (i8m8 -> i8m1) and fed to the UNCHANGED EXPLICIT-signs
+// fold (broadcast signs / vand kmask / vmsne / vneg / vmerge) + signed widening dot + ONE
+// vwredsum per group. The qh injection and the per-group integer dot are byte-identical
+// (the pads fill the unread lanes 8..15); only the gather + vsetvli config are hoisted.
+// EMIT: "emitc.variable"() {{.*}} -> !emitc.array<32x!emitc.opaque<"uint16_t">>
+// EMIT: call_opaque "__riscv_vle16_v_u16m4"
+// EMIT: call_opaque "__riscv_vluxei16_v_i32m8"
+// EMIT: call_opaque "__riscv_vreinterpret_v_i32m8_i8m8"
+// EMIT: call_opaque "__riscv_vget_v_i8m8_i8m1"
 // EMIT: call_opaque "__riscv_vle8_v_i8m1"
 // EMIT: call_opaque "__riscv_vmv_v_x_u8m1"
 // EMIT: call_opaque "__riscv_vand_vv_u8m1"
@@ -147,6 +155,11 @@ module {
 // EMIT: call_opaque "__riscv_vwmul_vv_i16m2"
 // EMIT: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
 // EMIT: call_opaque "__riscv_vmv_x_s_i32m1_i32"
+// The per-group vl=2 fractional-LMUL grid gather is FULLY ELIMINATED (no i32m1 gather,
+// no u16mf2 index load remain -- the AVL=2 scalarization storm is gone).
+// EMIT-NOT: call_opaque "__riscv_vluxei16_v_i32m1"
+// EMIT-NOT: call_opaque "__riscv_vle16_v_u16mf2"
+// EMIT-NOT: call_opaque "__riscv_vreinterpret_v_i32m1_i8m1"
 // The per-sub-block bsum accumulate `bsum += sumi * ls` (integer, order-free).
 // EMIT: mul %{{.*}}, %{{.*}} : (!emitc.opaque<"int32_t">, !emitc.opaque<"int32_t">)
 // The per-super-block fp32 fold `sumf += d*(float)bsum` as ONE emitc.expression. NO 8-lane
