@@ -5,17 +5,18 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**23 cells** (active=8, sealed=10, archive=5).
+**24 cells** (active=9, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
-| active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 3 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
+| active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 5 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
 | active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
 | active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
+| active | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
-| active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 44 | — | rvv/VLEN128 format micro for the 8 constructed super-block formats |
+| active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 3 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
 | sealed | `opponent-facts-provenance` | sealed | c1-cleanliness | 2 | — | opponent-fact provenance -> pinned ggml line anchors. opponent-facts.pin.json is consumed by tools/lint/check_opponent_facts_pin.sh (pin ch… |
 | sealed | `quant-label-proof` | sealed | c1-cleanliness | 2 | — | string-deletion byte-exact proof (fact-drives-routing, label-inert); NOTES sha256 a457e1b9 + machine evidence.json. |

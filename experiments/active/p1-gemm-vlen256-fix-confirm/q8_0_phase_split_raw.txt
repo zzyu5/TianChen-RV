@@ -1,0 +1,100 @@
+== ENV ==
+clang=/usr/bin/clang-18 Bianbu clang version 18.1.8 (11bb4)
+march=rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs
+core=4 governor=performance
+shape K=2048 nc=2048 iters=60 seed=0xC0FFEE rounds=12
+== COMPILE ==
+narrow OK
+wide OK
+m1 OK
+driver OK
+LINK_OK
+== PREFLIGHT OK (march-complete, libcall-free, VLEN=256) ==
+== OBJDUMP SEAL vle8 widths ==
+narrow:
+      9c: 57 70 70 0c  	vsetvli	zero, zero, e8, mf2, ta, ma
+      b0: 57 70 80 0c  	vsetvli	zero, zero, e16, m1, ta, ma
+      b8: 57 70 70 0c  	vsetvli	zero, zero, e8, mf2, ta, ma
+      c0: 57 70 80 0c  	vsetvli	zero, zero, e16, m1, ta, ma
+wide:
+      84: 57 70 70 0c  	vsetvli	zero, zero, e8, mf2, ta, ma
+      94: 57 70 80 0c  	vsetvli	zero, zero, e16, m1, ta, ma
+m1:
+      84: 57 70 00 0c  	vsetvli	zero, zero, e8, m1, ta, ma
+== VALUE-IDENTITY (all three must match) ==
+cksum narrow=291414eeaad45f5a wide=291414eeaad45f5a m1=291414eeaad45f5a  ALL_IDENTICAL
+== ABPASS 1 ==
+AB pass=1 round=1 side=narrow_hl8  kernel_ns=3519344.5 gbps=1.2685 freq_khz=1600000
+AB pass=1 round=1 side=wide_hl16   kernel_ns=2605909.9 gbps=1.7320 freq_khz=1600000
+AB pass=1 round=1 side=m1_wholeLMUL kernel_ns=2916998.6 gbps=1.5558 freq_khz=1600000
+AB pass=1 round=2 side=narrow_hl8  kernel_ns=3521318.8 gbps=1.2727 freq_khz=1600000
+AB pass=1 round=2 side=wide_hl16   kernel_ns=2593823.5 gbps=1.7276 freq_khz=1600000
+AB pass=1 round=2 side=m1_wholeLMUL kernel_ns=2880277.4 gbps=1.5453 freq_khz=1600000
+AB pass=1 round=3 side=narrow_hl8  kernel_ns=3507788.8 gbps=1.2717 freq_khz=1600000
+AB pass=1 round=3 side=wide_hl16   kernel_ns=2584841.2 gbps=1.7152 freq_khz=1600000
+AB pass=1 round=3 side=m1_wholeLMUL kernel_ns=2882621.9 gbps=1.5481 freq_khz=1600000
+AB pass=1 round=4 side=narrow_hl8  kernel_ns=3513013.0 gbps=1.2818 freq_khz=1600000
+AB pass=1 round=4 side=wide_hl16   kernel_ns=2592400.8 gbps=1.6884 freq_khz=1600000
+AB pass=1 round=4 side=m1_wholeLMUL kernel_ns=2883240.1 gbps=1.5140 freq_khz=1600000
+AB pass=1 round=5 side=narrow_hl8  kernel_ns=3517183.2 gbps=1.2793 freq_khz=1600000
+AB pass=1 round=5 side=wide_hl16   kernel_ns=2550480.4 gbps=1.7164 freq_khz=1600000
+AB pass=1 round=5 side=m1_wholeLMUL kernel_ns=2880304.1 gbps=1.5432 freq_khz=1600000
+AB pass=1 round=6 side=narrow_hl8  kernel_ns=3502953.8 gbps=1.2615 freq_khz=1600000
+AB pass=1 round=6 side=wide_hl16   kernel_ns=2598912.0 gbps=1.7187 freq_khz=1600000
+AB pass=1 round=6 side=m1_wholeLMUL kernel_ns=2882814.6 gbps=1.5647 freq_khz=1600000
+AB pass=1 round=7 side=narrow_hl8  kernel_ns=3555990.9 gbps=1.2863 freq_khz=1600000
+AB pass=1 round=7 side=wide_hl16   kernel_ns=2600752.3 gbps=1.7260 freq_khz=1600000
+AB pass=1 round=7 side=m1_wholeLMUL kernel_ns=2853577.9 gbps=1.5678 freq_khz=1600000
+AB pass=1 round=8 side=narrow_hl8  kernel_ns=3525142.5 gbps=1.2645 freq_khz=1600000
+AB pass=1 round=8 side=wide_hl16   kernel_ns=2601251.0 gbps=1.7063 freq_khz=1600000
+AB pass=1 round=8 side=m1_wholeLMUL kernel_ns=2872067.1 gbps=1.5523 freq_khz=1600000
+AB pass=1 round=9 side=narrow_hl8  kernel_ns=3512767.2 gbps=1.2758 freq_khz=1600000
+AB pass=1 round=9 side=wide_hl16   kernel_ns=2607397.4 gbps=1.7210 freq_khz=1600000
+AB pass=1 round=9 side=m1_wholeLMUL kernel_ns=2917123.1 gbps=1.5747 freq_khz=1600000
+AB pass=1 round=10 side=narrow_hl8  kernel_ns=3516765.8 gbps=1.2701 freq_khz=1600000
+AB pass=1 round=10 side=wide_hl16   kernel_ns=2648366.6 gbps=1.7280 freq_khz=1600000
+AB pass=1 round=10 side=m1_wholeLMUL kernel_ns=2869733.4 gbps=1.5464 freq_khz=1600000
+AB pass=1 round=11 side=narrow_hl8  kernel_ns=3525581.0 gbps=1.2677 freq_khz=1600000
+AB pass=1 round=11 side=wide_hl16   kernel_ns=2573199.2 gbps=1.7130 freq_khz=1600000
+AB pass=1 round=11 side=m1_wholeLMUL kernel_ns=2893164.1 gbps=1.5387 freq_khz=1600000
+AB pass=1 round=12 side=narrow_hl8  kernel_ns=3503955.2 gbps=1.2697 freq_khz=1600000
+AB pass=1 round=12 side=wide_hl16   kernel_ns=2560416.2 gbps=1.7249 freq_khz=1600000
+AB pass=1 round=12 side=m1_wholeLMUL kernel_ns=2896265.6 gbps=1.5076 freq_khz=1600000
+== ABPASS 2 ==
+AB pass=2 round=1 side=narrow_hl8  kernel_ns=3496403.5 gbps=1.2689 freq_khz=1600000
+AB pass=2 round=1 side=wide_hl16   kernel_ns=2589801.7 gbps=1.7162 freq_khz=1600000
+AB pass=2 round=1 side=m1_wholeLMUL kernel_ns=2881679.2 gbps=1.5528 freq_khz=1600000
+AB pass=2 round=2 side=narrow_hl8  kernel_ns=3501712.5 gbps=1.2718 freq_khz=1600000
+AB pass=2 round=2 side=wide_hl16   kernel_ns=2579758.3 gbps=1.7218 freq_khz=1600000
+AB pass=2 round=2 side=m1_wholeLMUL kernel_ns=2837006.8 gbps=1.5710 freq_khz=1600000
+AB pass=2 round=3 side=narrow_hl8  kernel_ns=3499234.2 gbps=1.2771 freq_khz=1600000
+AB pass=2 round=3 side=wide_hl16   kernel_ns=2562888.0 gbps=1.7528 freq_khz=1600000
+AB pass=2 round=3 side=m1_wholeLMUL kernel_ns=2878366.3 gbps=1.5467 freq_khz=1600000
+AB pass=2 round=4 side=narrow_hl8  kernel_ns=3481996.5 gbps=1.2850 freq_khz=1600000
+AB pass=2 round=4 side=wide_hl16   kernel_ns=2572692.0 gbps=1.7133 freq_khz=1600000
+AB pass=2 round=4 side=m1_wholeLMUL kernel_ns=2889402.2 gbps=1.5487 freq_khz=1600000
+AB pass=2 round=5 side=narrow_hl8  kernel_ns=3503092.6 gbps=1.2673 freq_khz=1600000
+AB pass=2 round=5 side=wide_hl16   kernel_ns=2541031.0 gbps=1.7306 freq_khz=1600000
+AB pass=2 round=5 side=m1_wholeLMUL kernel_ns=2885249.6 gbps=1.5711 freq_khz=1600000
+AB pass=2 round=6 side=narrow_hl8  kernel_ns=3485767.5 gbps=1.2557 freq_khz=1600000
+AB pass=2 round=6 side=wide_hl16   kernel_ns=2563158.3 gbps=1.7116 freq_khz=1600000
+AB pass=2 round=6 side=m1_wholeLMUL kernel_ns=2872296.6 gbps=1.5513 freq_khz=1600000
+AB pass=2 round=7 side=narrow_hl8  kernel_ns=3475451.9 gbps=1.2733 freq_khz=1600000
+AB pass=2 round=7 side=wide_hl16   kernel_ns=2587317.5 gbps=1.7153 freq_khz=1600000
+AB pass=2 round=7 side=m1_wholeLMUL kernel_ns=2865248.9 gbps=1.5424 freq_khz=1600000
+AB pass=2 round=8 side=narrow_hl8  kernel_ns=3490208.6 gbps=1.2478 freq_khz=1600000
+AB pass=2 round=8 side=wide_hl16   kernel_ns=2591965.4 gbps=1.7155 freq_khz=1600000
+AB pass=2 round=8 side=m1_wholeLMUL kernel_ns=2894162.9 gbps=1.5483 freq_khz=1600000
+AB pass=2 round=9 side=narrow_hl8  kernel_ns=3512180.4 gbps=1.2760 freq_khz=1600000
+AB pass=2 round=9 side=wide_hl16   kernel_ns=2595675.8 gbps=1.7381 freq_khz=1600000
+AB pass=2 round=9 side=m1_wholeLMUL kernel_ns=2904071.8 gbps=1.5468 freq_khz=1600000
+AB pass=2 round=10 side=narrow_hl8  kernel_ns=3508540.3 gbps=1.2709 freq_khz=1600000
+AB pass=2 round=10 side=wide_hl16   kernel_ns=2556935.2 gbps=1.7282 freq_khz=1600000
+AB pass=2 round=10 side=m1_wholeLMUL kernel_ns=2864245.0 gbps=1.5455 freq_khz=1600000
+AB pass=2 round=11 side=narrow_hl8  kernel_ns=3509976.5 gbps=1.2842 freq_khz=1600000
+AB pass=2 round=11 side=wide_hl16   kernel_ns=2567432.9 gbps=1.7137 freq_khz=1600000
+AB pass=2 round=11 side=m1_wholeLMUL kernel_ns=2850409.4 gbps=1.5712 freq_khz=1600000
+AB pass=2 round=12 side=narrow_hl8  kernel_ns=3488182.7 gbps=1.2695 freq_khz=1600000
+AB pass=2 round=12 side=wide_hl16   kernel_ns=2548709.9 gbps=1.7452 freq_khz=1600000
+AB pass=2 round=12 side=m1_wholeLMUL kernel_ns=2883171.1 gbps=1.5645 freq_khz=1600000
+== DONE ==

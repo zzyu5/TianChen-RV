@@ -1,0 +1,24 @@
+=== [GAP-P1] board batch — q8_0 symmetric REPACK GEVM strip-width, per-format mf2-vs-m1 (task 三) ===
+board=k1-SpacemiT-X60 VLEN=256 clang-18.1.8-Bianbu march=rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs
+core=4 governor=performance freq_khz: 1600000 (span 0.00%)
+shape: K=2048 nc=2048  (weights ~4.45 MB => memory-bound decode regime)
+protocol: paired 3-way, cold-cache drop per round, 2 passes x 12 rounds => n=24 per side, best-of-5 internal
+PREFLIGHT OK (march-complete / libcall-free / VLEN256)
+VALUE-IDENTITY: cksum narrow=wide=m1=291414eeaad45f5a  ALL_IDENTICAL (byte/value-exact across all 3 cores)
+objdump: narrow/wide = e8,mf2 (fractional; hl8=two-strip, hl16=one-strip) ; m1 = e8,m1 (whole-LMUL, RVV0.7-form)
+
+narrow_hl8   (mf2, half_lanes 8 , two-strip, VLEN128-authored default) : median 1.2713 GB/s (3508 us) IQR 0.59%
+m1_wholeLMUL (integer_core_lmul m1, RVV0.7-form on RVV1.0)             : median 1.5485 GB/s (2882 us) IQR 1.23%
+wide_hl16    (mf2, half_lanes 16, one-strip, VLEN256 strip-width)      : median 1.7199 GB/s (2586 us) IQR 0.74%   <= FASTEST
+
+RATIOS:  wide/m1 = 1.111x   |   wide/narrow = 1.353x   |   m1/narrow = 1.218x
+read-wall saturation (vs k1 4-core agg 4.260 GB/s): narrow 29.8% | m1 36.4% | wide 40.4%
+
+VERDICT: q8_0's best VLEN256 core = mf2 wide-strip (half_lanes 16). The whole-LMUL m1 form is 11% SLOWER
+  than the mf2 wide-strip => the ledger fact "q8_0 mf2 faster than m1" is CONFIRMED on k1. The [GAP-P1]
+  decision to deliberately NOT widen q8_0 to m1 is VINDICATED: per-format key for q8_0 = mf2 (keep wide-strip,
+  do NOT widen to whole-LMUL). "别一刀切" confirmed — q4_0 GEMM and q8_0 GEVM BOTH regress under the
+  whole-LMUL/m1 direction; the VLEN-widen-to-m1 premise is wrong for both.
+reachability note: this is a KERNEL-micro A/B. At VLEN256 the production q8_0 decode path declines to
+  block-dot (fact-3), so the repack-GEVM strip-width core is off the production path; the result confirms the
+  ledger + the non-widen decision at the kernel level, it is NOT an e2e claim.

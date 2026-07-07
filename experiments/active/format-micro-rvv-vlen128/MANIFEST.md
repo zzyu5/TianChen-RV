@@ -204,6 +204,31 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 - `gapsb_family_validate/raw/disasm_iq2_s_POST.txt` — iq2_s disasm POST (gather 8, AVL=2 9).
 - (`objdir_{PRE,POST}/*.o` + `raw/stage1_paired_harness.log` = gitignored scratch, regenerable, not durable.)
 
+### gaprp_tq2_0 — [GAP-RP] tq2_0 REGISTER-SPILL-fix board A/B (裁决二.4; PRE 0ad9cf6d → POST 3186919d) — DATA ONLY
+- `gaprp_tq2_0/gaprp_cell.md` — the writeup. VERDICT: spill elimination ~DOUBLES throughput. objdump (gcc-15.2.0 -O3,
+  the faithful backend): PRE 97 insns / **4 whole-reg spills** (vs2r.v/vl2r.v to (sp),(a4),(a0)) → POST 80 insns / **0
+  spills** (vwredsum 2→1 merged reduce; vwmul/vwmacc 8/8 UNCHANGED = byte-exact core). A/B(PRE/POST) ≈ 1.92× isolated /
+  2.2–2.3× 3-way (POST 250–298 ns vs PRE 554–568 ns; cold wset256MiB>3×L3; N=16). vs-generic: ours-POST 3.9× FASTER than
+  ggml scalar generic (WIN), PRE already 1.75×. PRE==POST==GENERIC FNV identical ⇒ ULP=0 on hardware. [NG-4] internal
+  metric; vs the SIMD-dispatch factory (batch2c 4.33× slower) the fix halves the gap but tq2_0 still LOSES to SIMD.
+- `gaprp_tq2_0/provenance.txt` — pinned commits, baseline.sh cached build, export + EmitC-C capture + gcc-15.2.0 -O3
+  timed-object recipe + generic recipe + driver/run, .o sha256, cache-hygiene.
+- `gaprp_tq2_0/raw/board_ab.txt` — durable board output: objdump spill table + 2-way + 3-way A/B medians + vs-generic + FNVs.
+- `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` — captured EmitC C @PRE (the timed source; 4 vmv_v_x_i16m4 / 8 vsetvl_e16m4 / 4 vwredsum = 2-chunk overlap).
+- `gaprp_tq2_0/raw/tq2_0_POST.kernel.c` — captured EmitC C @POST (2 / 4 / 2 = single serial m4 accumulator + one merged reduce).
+- `gaprp_tq2_0/raw/tq2_0_PRE_gcc15.objdump.txt` — gcc-15.2.0 -O3 disasm (llvm-objdump-20) @PRE: 97 insns, the 4 whole-reg spills.
+- `gaprp_tq2_0/raw/tq2_0_POST_gcc15.objdump.txt` — gcc-15.2.0 -O3 disasm @POST: 80 insns, 0 spills.
+- `gaprp_tq2_0/raw/tq2_0_PRE.objdump.txt` — tcrv-translate-export disasm @PRE (0 spills — the export codegen does not spill).
+- `gaprp_tq2_0/raw/tq2_0_POST.objdump.txt` — tcrv-translate-export disasm @POST (0 spills; confirms the spill is a gcc-15.2.0 -O3 artifact).
+- (`objdir_{PRE,POST}/tq2_0.o` + `raw/*.o` = gitignored scratch, regenerable, not durable.)
+
+### gapnum_relaxed_not_materialized.md — [GAP-NUM] iq4_xs/tq1_0 relaxed tier (裁决二.2): BLOCKED, board-free finding
+- `gapnum_relaxed_not_materialized.md` — the relaxed numerics tier (§5 reassociation) has **no materialized body**
+  for iq4_xs (grid-codebook) or tq1_0 (ternary): RVVToEmitCBlockQuantLinear.cpp:7182-7188 fail-closes a relaxed
+  request on every path except q8_0, and the two emitters that produce these formats have 0 relaxed references. So
+  there is NO relaxed-vs-strict "numeric tax" or per-cell ULP bound to measure for these formats — the blocker is
+  structural (emitter maturity / construction-queue), code-verifiable, needs no hardware. No board run was spent.
+
 ## scratch (gitignored, rides with cell, not durable)
 - `exported_objects/*.o` — the 6 pinned-HEAD RISC-V objects (evidence the export path works; regenerable).
 

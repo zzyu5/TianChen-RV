@@ -1,0 +1,61 @@
+# G2 [FUSE] rms_norm->mul — BOARD PAIRED MEASURE raw output (rvv/VLEN128), 2026-07-07
+# board: ssh rvv = riscv64 6.12.66, VLEN128, 64c, L1d 64K/core, L2 2MiB/4c, L3 64MiB (1 instance),
+#        isa rv64gcv + zvfh/zvfhmin/zba/zbb/zbc/zbs/... ; governor=performance, freq LOCKED 2.6GHz.
+# pinned core 8 (taskset -c 8). main tree + build/ UNTOUCHED; nothing committed; no git stash.
+# driver: tools/e2e-harness/board/g2_fuse_driver.c  (faithful reconstruction of the emit census:
+#   experiments/active/g2-fuse-rms-norm-mul/emit_census.txt, tcrv-opt --tcrv-rvv-lower-to-emitc @HEAD 0ad9cf6d).
+# BOTH kernels compiled from ONE file: clang-17.0.6 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d
+#   (no -ffast-math => the scalar double Sx^2 reduce stays serial, matching the byte-exact emit).
+# PREFLIGHT(0) toolchain symmetry = TRIVIALLY PASS: fused & unfused are the SAME source, SAME compiler,
+#   SAME flags, SAME march (the only textual difference is one-pass splice vs two-pass y[] materialization).
+# ROWS=8192 NEMB=4096 EPS=1e-5 => each tensor (X,Y,Z) = 8192*4096*4 = 128.0 MiB;
+#   working set X+Y+Z = 384 MiB > 3xL3 (192 MiB) => DRAM-cold (hygiene PASS). W (16 KiB) hot in both.
+
+## ---- correctness (on-hardware value equality; beyond the cell's emit-level byte-exact) ----
+# ROWS=1024:  VERIFY fused_vs_unfused ndiff=0/4194304 max_ulp=0 fold_fused=0x1ddcaad2876ecd3c fold_unfused=0x1ddcaad2876ecd3c
+# ROWS=8192 paired: fold_fused=0xb6533448dbf94a01 fold_unfused=0xb6533448dbf94a01 values_equal=YES
+#   => fused == unfused BIT-FOR-BIT on silicon (the register-kept vy equals the stored-then-reloaded y).
+
+## ---- COLD PAIRED, N=12 rounds, interleaved [fused, unfused, fused-sentinel] per round ----
+round  0  fused=165.081ms  unfused=216.132ms  sentinel=167.963ms
+round  1  fused=165.094ms  unfused=215.960ms  sentinel=167.874ms
+round  2  fused=165.162ms  unfused=215.990ms  sentinel=167.860ms
+round  3  fused=165.100ms  unfused=216.095ms  sentinel=167.840ms
+round  4  fused=165.181ms  unfused=215.997ms  sentinel=167.848ms
+round  5  fused=165.179ms  unfused=216.148ms  sentinel=167.956ms
+round  6  fused=165.221ms  unfused=215.967ms  sentinel=167.926ms
+round  7  fused=165.155ms  unfused=215.947ms  sentinel=167.815ms
+round  8  fused=165.216ms  unfused=215.987ms  sentinel=167.886ms
+round  9  fused=165.218ms  unfused=215.932ms  sentinel=167.915ms
+round 10  fused=165.289ms  unfused=216.058ms  sentinel=167.833ms
+round 11  fused=165.217ms  unfused=216.034ms  sentinel=167.829ms
+PAIRED rounds=12 rows=8192 nemb=4096 tensor_MiB=128.0 workingset_MiB=384.0 L3_MiB=64.0 hygiene=COLD(ws>3xL3)
+PAIRED fused_ms   median=165.180 iqr=0.063 min=165.081 iqr_pct=0.038
+PAIRED unfused_ms median=215.993 iqr=0.127 min=215.932 iqr_pct=0.059
+PAIRED sentinel_ms median=167.867 iqr=0.085 min=167.815 (fused repeat)
+PAIRED speedup_unfused_over_fused=1.3076 drift_sentinel=1.0163 gbps_fused=1.625 gbps_unfused=2.486
+PAIRED fold_fused=0xb6533448dbf94a01 fold_unfused=0xb6533448dbf94a01 values_equal=YES
+
+## ---- perf-stat DRAM-byte + cycle counters (taskset -c 8 perf stat), same ROWS/NEMB ----
+## RUN 1 (3 iters each; delta cancels the identical init/memset => pure kernel signal)
+# fused 3:   cycles 3,474,987,387  instr 913,871,785  L1-dcache-loads 126,033,103  L1-dcache-stores 84,105,385  LLC-load-misses 6,512,647   LLC-store-misses 14,030,210
+# unfused 3: cycles 3,832,805,845  instr 929,776,938  L1-dcache-loads 150,979,499  L1-dcache-stores 109,372,718 LLC-load-misses 12,802,131  LLC-store-misses 20,320,202
+#   LLC-load-miss  delta = 6,289,484 /3 = 2,096,495 lines/iter x64B = 127.96 MiB/iter  (= the y[] RELOAD)
+#   LLC-store-miss delta = 6,289,992 /3 = 2,096,664 lines/iter x64B = 127.97 MiB/iter  (= the y[] STORE)
+#   TOTAL DRAM eliminated = 255.93 MiB/iter  vs  predicted 8*n*rows = 268,435,456 B = 256.00 MiB  => 99.97%
+#   cycles delta = 357,818,458 /3 = 119.27 Mcyc/iter /2.6GHz = 45.9 ms/iter (init-diluted at 3 iters)
+## RUN 2 (5 iters each; init diluted less => cycle delta tightens onto the wall delta)
+# fused 5:   cycles 4,318,145,508  LLC-load-misses 10,746,350  LLC-store-misses 18,223,220
+# unfused 5: cycles 4,971,047,362  LLC-load-misses 21,253,584  LLC-store-misses 28,710,348
+#   LLC-load-miss  delta = 10,507,234 /5 = 2,101,447 lines/iter x64B = 128.25 MiB/iter
+#   LLC-store-miss delta = 10,487,128 /5 = 2,097,426 lines/iter x64B = 127.97 MiB/iter
+#   TOTAL DRAM eliminated = 256.22 MiB/iter  vs predicted 256.00 MiB => 100.1%
+#   cycles delta = 652,901,854 /5 = 130.58 Mcyc/iter /2.6GHz = 50.22 ms/iter  ~= wall delta 50.81 ms/iter (1.2%)
+
+## ---- reproduce (read-only; no rebuild of main tree; nothing committed) ----
+# scp tools/e2e-harness/board/g2_fuse_driver.c rvv:/tmp/g2fuse/
+# ssh rvv 'cd /tmp/g2fuse && clang-17 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -o g2 g2_fuse_driver.c -lm'
+# ssh rvv 'cd /tmp/g2fuse && ROWS=8192 NEMB=4096 taskset -c 8 ./g2 paired 12'
+# ssh rvv 'cd /tmp/g2fuse && ROWS=8192 NEMB=4096 taskset -c 8 perf stat -e cycles,LLC-load-misses,LLC-store-misses ./g2 fused 5'
+# ssh rvv 'cd /tmp/g2fuse && ROWS=8192 NEMB=4096 taskset -c 8 perf stat -e cycles,LLC-load-misses,LLC-store-misses ./g2 unfused 5'
+# ssh rvv 'cd /tmp/g2fuse && ROWS=8192 NEMB=4096 taskset -c 8 ./g2 verify'

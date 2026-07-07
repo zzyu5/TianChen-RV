@@ -1,0 +1,39 @@
+{
+  "cell": "p1-gemm-vlen256-fix-confirm",
+  "campaign": "repack (GAP-P1 fix confirmation board batch, 裁决二.1)",
+  "board": "k1-SpacemiT-X60-VLEN256-clang18.1.8-Bianbu-glibc-gov=perf-1.6GHz",
+  "board_fp": "k1-VLEN256-clang18.1.8-rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs-gov=perf-1.6GHz-span0.00%",
+  "fix_commit": "828d98145c5d98a603eb4f068822ed91b56d7ecf",
+  "pre_fix_parent": "685ab5a1b52d5a77a62c62e886cf2129c580223f",
+  "export": "byte-exact-baseline.sh cached tcrv-opt (pre=685ab5a1, post=828d9814) + mlir-translate llvm-20; NO main-tree build touched, NO git stash",
+  "q4_0_prefill_gemm": {
+    "role": "the reachable [GAP-P1] cell (fact-3: only PREFILL GEMM reached at VLEN256)",
+    "input_mlir": "test/Target/RVV/q4-0-q8-0-repack-gemm-full-pipeline-export-e2e.mlir",
+    "march": "rv64gcv_zvl256b",
+    "shape": "K=2048 nr=128 nc=256",
+    "n_per_side": 24,
+    "value_identity": "byte-exact (cksum 8233895bde360531 both sides)",
+    "pre_fix_mf2_gmacs_median": 6.8904,
+    "post_fix_m1_gmacs_median": 2.5316,
+    "ratio_post_over_pre": 0.3674,
+    "regression_x": 2.72,
+    "compute_wall_saturation_pct": {"pre_mf2": 27.0, "post_m1": 9.9, "int8_peak_gmacs": 25.51},
+    "shape_sweep_ratio_range": [0.365, 0.411],
+    "verdict": "FIX_NOT_CONFIRMED_REGRESSION",
+    "triage": "misselection (键对核不优, reversed) — mf2 fractional core is the better schedule; do NOT deploy post-fix m1 for q4_0 GEMM"
+  },
+  "q8_0_gevm_strip_width": {
+    "role": "task 三 per-format mf2-vs-m1 (kernel-micro; off VLEN256 production path per fact-3)",
+    "input_mlir": "test/Conversion/RVV/rvv-to-emitc-repack-gemv-q8-0-q8-0.mlir",
+    "shape": "K=2048 nc=2048",
+    "n_per_side": 24,
+    "value_identity": "byte-exact (cksum 291414eeaad45f5a all three)",
+    "narrow_hl8_gbps_median": 1.2713,
+    "m1_wholeLMUL_gbps_median": 1.5485,
+    "wide_hl16_gbps_median": 1.7199,
+    "ratio_wide_over_m1": 1.111,
+    "verdict": "mf2_wide_strip_fastest — q8_0 mf2 > m1 CONFIRMED (ledger vindicated); do NOT widen q8_0 to m1",
+    "read_wall_saturation_pct": {"narrow": 29.8, "m1": 36.4, "wide": 40.4, "agg4c_gbps": 4.260}
+  },
+  "headline": "[GAP-P1] mechanistic projection (78%->91%, wide=fully-fed=faster) FALSIFIED on k1: the whole-LMUL/m1 direction REGRESSES q4_0 prefill GEMM 2.72x and is 11% slower for q8_0 GEVM; the fractional mf2 core is faster for BOTH. Recommend revert/hold the q4_0 VLEN256->m1 selection."
+}

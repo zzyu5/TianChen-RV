@@ -1,0 +1,91 @@
+
+experiments/active/format-micro-rvv-vlen128/gaprp_tq2_0/objdir_PRE/tq2_0.o:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000000000000 <tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot>:
+       0: 00855713     	srli	a4, a0, 0x8
+       4: 00070063     	beqz	a4, 0x4 <tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot+0x4>
+       8: 02000813     	li	a6, 0x20
+       c: cd00f057     	vsetivli	zero, 0x1, e32, m1, ta, ma
+      10: 42006457     	vmv.s.x	v8, zero
+      14: 0e468693     	addi	a3, a3, 0xe4
+      18: 02060613     	addi	a2, a2, 0x20
+      1c: 04200793     	li	a5, 0x42
+      20: 0ca87057     	vsetvli	zero, a6, e16, m4, ta, ma
+      24: 02f70733     	mul	a4, a4, a5
+      28: 5e003657     	vmv.v.i	v12, 0x0
+      2c: 9732         	add	a4, a4, a2
+      2e: f00007d3     	fmv.w.x	fa5, zero
+      32: fe060793     	addi	a5, a2, -0x20
+      36: f2068513     	addi	a0, a3, -0xe0
+      3a: 0c187057     	vsetvli	zero, a6, e8, m2, ta, ma
+      3e: 9ec1b857     	vmv4r.v	v16, v12
+      42: 02060c07     	vle8.v	v24, (a2)
+      46: 02078507     	vle8.v	v10, (a5)
+      4a: fa068793     	addi	a5, a3, -0x60
+      4e: 02078d07     	vle8.v	v26, (a5)
+      52: f4068793     	addi	a5, a3, -0xc0
+      56: 9ec1ba57     	vmv4r.v	v20, v12
+      5a: 2781be57     	vand.vi	v28, v24, 0x3
+      5e: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      62: f7ae2a57     	vwmacc.vv	v20, v28, v26
+      66: 02050d07     	vle8.v	v26, (a0)
+      6a: fc068513     	addi	a0, a3, -0x40
+      6e: 26a1be57     	vand.vi	v28, v10, 0x3
+      72: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      76: f7ae2857     	vwmacc.vv	v16, v28, v26
+      7a: 02050d07     	vle8.v	v26, (a0)
+      7e: f6068513     	addi	a0, a3, -0xa0
+      82: a3813e57     	vsrl.vi	v28, v24, 0x2
+      86: 27c1be57     	vand.vi	v28, v28, 0x3
+      8a: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      8e: f7ae2a57     	vwmacc.vv	v20, v28, v26
+      92: 02078d07     	vle8.v	v26, (a5)
+      96: fe068793     	addi	a5, a3, -0x20
+      9a: a2a13e57     	vsrl.vi	v28, v10, 0x2
+      9e: 27c1be57     	vand.vi	v28, v28, 0x3
+      a2: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      a6: f7ae2857     	vwmacc.vv	v16, v28, v26
+      aa: 02078d07     	vle8.v	v26, (a5)
+      ae: a3823e57     	vsrl.vi	v28, v24, 0x4
+      b2: 27c1be57     	vand.vi	v28, v28, 0x3
+      b6: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      ba: f7ae2a57     	vwmacc.vv	v20, v28, v26
+      be: 02050d07     	vle8.v	v26, (a0)
+      c2: a2a23e57     	vsrl.vi	v28, v10, 0x4
+      c6: 27c1be57     	vand.vi	v28, v28, 0x3
+      ca: 03cfbe57     	vadd.vi	v28, v28, -0x1
+      ce: f7ae2857     	vwmacc.vv	v16, v28, v26
+      d2: 02068d07     	vle8.v	v26, (a3)
+      d6: a3833c57     	vsrl.vi	v24, v24, 0x6
+      da: 2781bc57     	vand.vi	v24, v24, 0x3
+      de: 038fbc57     	vadd.vi	v24, v24, -0x1
+      e2: f7ac2a57     	vwmacc.vv	v20, v24, v26
+      e6: f8068513     	addi	a0, a3, -0x80
+      ea: f1c6a707     	flw	fa4, -0xe4(a3)
+      ee: 02061687     	flh	fa3, 0x20(a2)
+      f2: 02050c07     	vle8.v	v24, (a0)
+      f6: a2a33557     	vsrl.vi	v10, v10, 0x6
+      fa: 26a1b557     	vand.vi	v10, v10, 0x3
+      fe: 02afb557     	vadd.vi	v10, v10, -0x1
+     102: f7852857     	vwmacc.vv	v16, v10, v24
+     106: 04260613     	addi	a2, a2, 0x42
+     10a: 402686d3     	fcvt.s.h	fa3, fa3
+     10e: 10d77753     	fmul.s	fa4, fa4, fa3
+     112: 0ca07057     	vsetvli	zero, zero, e16, m4, ta, ma
+     116: c74404d7     	vwredsum.vs	v9, v20, v8
+     11a: c7040557     	vwredsum.vs	v10, v16, v8
+     11e: 0d307057     	vsetvli	zero, zero, e32, m8, ta, ma
+     122: 42902557     	vmv.x.s	a0, v9
+     126: 42a027d7     	vmv.x.s	a5, v10
+     12a: 953e         	add	a0, a0, a5
+     12c: d00576d3     	fcvt.s.w	fa3, a0
+     130: 78e6f7c3     	fmadd.s	fa5, fa3, fa4, fa5
+     134: 12468693     	addi	a3, a3, 0x124
+     138: 00e61063     	bne	a2, a4, 0x138 <tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot+0x138>
+     13c: 00f5a027     	fsw	fa5, 0x0(a1)
+     140: 8082         	ret
+     142: f00007d3     	fmv.w.x	fa5, zero
+     146: 00f5a027     	fsw	fa5, 0x0(a1)
+     14a: 8082         	ret

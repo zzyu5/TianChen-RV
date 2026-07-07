@@ -1,0 +1,107 @@
+
+experiments/active/format-micro-rvv-vlen128/gaprp_tq2_0/raw/tq2_PRE_gcc.o:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000000000000 <tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot>:
+       0: 8121         	srli	a0, a0, 0x8
+       2: 16050663     	beqz	a0, 0x16e <.L4>
+       6: 02000793     	li	a5, 0x20
+       a: 0ca7f7d7     	vsetvli	a5, a5, e16, m4, ta, ma
+       e: 5e003a57     	vmv.v.i	v20, 0x0
+      12: c22022f3     	csrr	t0, vlenb
+      16: 00551813     	slli	a6, a0, 0x5
+      1a: cd00f057     	vsetivli	zero, 0x1, e32, m1, ta, ma
+      1e: f0000753     	fmv.w.x	fa4, zero
+      22: 00229313     	slli	t1, t0, 0x2
+      26: 982a         	add	a6, a6, a0
+      28: 420060d7     	vmv.s.x	v1, zero
+      2c: 40610133     	sub	sp, sp, t1
+      30: 02468693     	addi	a3, a3, 0x24
+      34: 20c82833     	sh1add	a6, a6, a2
+
+0000000000000038 <.L3>:
+      38: 0c17f057     	vsetvli	zero, a5, e8, m2, ta, ma
+      3c: 02060713     	addi	a4, a2, 0x20
+      40: 02070407     	vle8.v	v8, (a4)
+      44: 06068713     	addi	a4, a3, 0x60
+      48: 02070f07     	vle8.v	v30, (a4)
+      4c: fe068713     	addi	a4, a3, -0x20
+      50: 02070e07     	vle8.v	v28, (a4)
+      54: 08068713     	addi	a4, a3, 0x80
+      58: 02070207     	vle8.v	v4, (a4)
+      5c: c2202573     	csrr	a0, vlenb
+      60: 20252733     	sh1add	a4, a0, sp
+      64: 02060107     	vle8.v	v2, (a2)
+      68: 2681bc57     	vand.vi	v24, v8, 0x3
+      6c: a2813857     	vsrl.vi	v16, v8, 0x2
+      70: 22870227     	vs2r.v	v4, (a4)
+      74: 038fbc57     	vadd.vi	v24, v24, -0x1
+      78: 20252533     	sh1add	a0, a0, sp
+      7c: 2621b957     	vand.vi	v18, v2, 0x3
+      80: 2701b857     	vand.vi	v16, v16, 0x3
+      84: a2213757     	vsrl.vi	v14, v2, 0x2
+      88: 02068307     	vle8.v	v6, (a3)
+      8c: 032fb957     	vadd.vi	v18, v18, -0x1
+      90: 030fb857     	vadd.vi	v16, v16, -0x1
+      94: 26e1b757     	vand.vi	v14, v14, 0x3
+      98: a2823657     	vsrl.vi	v12, v8, 0x4
+      9c: a2223557     	vsrl.vi	v10, v2, 0x4
+      a0: 22810327     	vs2r.v	v6, (sp)
+      a4: 9f41b257     	vmv4r.v	v4, v20
+      a8: 0a068713     	addi	a4, a3, 0xa0
+      ac: 02efb757     	vadd.vi	v14, v14, -0x1
+      b0: f7ec2257     	vwmacc.vv	v4, v24, v30
+      b4: 9f41bc57     	vmv4r.v	v24, v20
+      b8: 26c1b657     	vand.vi	v12, v12, 0x3
+      bc: 26a1b557     	vand.vi	v10, v10, 0x3
+      c0: f7c92c57     	vwmacc.vv	v24, v18, v28
+      c4: 22850e07     	vl2r.v	v28, (a0)
+      c8: 02070907     	vle8.v	v18, (a4)
+      cc: 02068713     	addi	a4, a3, 0x20
+      d0: a2833457     	vsrl.vi	v8, v8, 0x6
+      d4: a2233157     	vsrl.vi	v2, v2, 0x6
+      d8: 02cfb657     	vadd.vi	v12, v12, -0x1
+      dc: f7c82257     	vwmacc.vv	v4, v16, v28
+      e0: 22810e07     	vl2r.v	v28, (sp)
+      e4: 02070807     	vle8.v	v16, (a4)
+      e8: 0c068713     	addi	a4, a3, 0xc0
+      ec: 02afb557     	vadd.vi	v10, v10, -0x1
+      f0: 2681b457     	vand.vi	v8, v8, 0x3
+      f4: 2621b157     	vand.vi	v2, v2, 0x3
+      f8: f7c72c57     	vwmacc.vv	v24, v14, v28
+      fc: 02070707     	vle8.v	v14, (a4)
+     100: 04068713     	addi	a4, a3, 0x40
+     104: 02070e07     	vle8.v	v28, (a4)
+     108: f7262257     	vwmacc.vv	v4, v12, v18
+     10c: f7052c57     	vwmacc.vv	v24, v10, v16
+     110: 028fb457     	vadd.vi	v8, v8, -0x1
+     114: 022fb157     	vadd.vi	v2, v2, -0x1
+     118: 04061787     	flh	fa5, 0x40(a2)
+     11c: f6e42257     	vwmacc.vv	v4, v8, v14
+     120: f7c12c57     	vwmacc.vv	v24, v2, v28
+     124: 0ca07057     	vsetvli	zero, zero, e16, m4, ta, ma
+     128: fdc6a687     	flw	fa3, -0x24(a3)
+     12c: c6408257     	vwredsum.vs	v4, v4, v1
+     130: c7808c57     	vwredsum.vs	v24, v24, v1
+     134: 402787d3     	fcvt.s.h	fa5, fa5
+     138: cd007057     	vsetivli	zero, 0x0, e32, m1, ta, ma
+     13c: 04260613     	addi	a2, a2, 0x42
+     140: 10d7f7d3     	fmul.s	fa5, fa5, fa3
+     144: 12468693     	addi	a3, a3, 0x124
+     148: 42402557     	vmv.x.s	a0, v4
+     14c: 43802757     	vmv.x.s	a4, v24
+     150: 9f29         	addw	a4, a4, a0
+     152: d00776d3     	fcvt.s.w	fa3, a4
+     156: 70f6f743     	fmadd.s	fa4, fa3, fa5, fa4
+     15a: ecc81fe3     	bne	a6, a2, 0x38 <.L3>
+     15e: c22022f3     	csrr	t0, vlenb
+     162: 00e5a027     	fsw	fa4, 0x0(a1)
+     166: 00229313     	slli	t1, t0, 0x2
+     16a: 911a         	add	sp, sp, t1
+     16c: 8082         	ret
+
+000000000000016e <.L4>:
+     16e: f0000753     	fmv.w.x	fa4, zero
+     172: 00e5a027     	fsw	fa4, 0x0(a1)
+     176: 8082         	ret

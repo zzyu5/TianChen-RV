@@ -1,0 +1,48 @@
+# [GAP-RP] tq2_0 register-spill-fix — BOARD A/B + vs-generic raw (rvv/VLEN128), 2026-07-07 裁决二.4
+# board: ssh rvv riscv64 6.12.66 VLEN128 64c, L1d 64K/core L2 2MiB/4c L3 64MiB, gov=performance 2.6GHz, core8.
+# PRE = tq2_0 @0ad9cf6d (has spill), POST = @3186919d (spill-fix). ours via tools/bench/byte-exact-baseline.sh
+#   cached detached-worktree tcrv-opt/tcrv-translate (main tree + build/ UNTOUCHED; no git stash; nothing committed).
+# EmitC C captured: tcrv-opt <front-door-materialize> --tcrv-rvv-lower-to-emitc | mlir-translate(llvm-20) --mlir-to-cpp
+# TIMED kernels compiled gcc-15.2.0 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -mabi=lp64d (the SAME backend that
+#   produced the batch2c spill; NOT the tcrv-translate export codegen, which does not spill — see below). Driver
+#   clang-17; both ours .o symbol-renamed via objcopy (_PRE/_POST). Generic = ggml_vec_dot_tq2_0_q8_K_generic from
+#   /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c (clang-17 -O2 same march, -ffunction-sections + --gc-sections,
+#   objcopy-renamed). Driver tools/e2e-harness/board/tq2_0_ab_driver.c. Cache-cold: wset 256MiB > 3xL3=192MiB.
+
+## ---- objdump (gcc-15.2.0 -O3, faithful backend; llvm-objdump-20 host disasm of the board .o) ----
+# PRE  (0ad9cf6d): 97 insns | 4 whole-reg vector spills | 2 (sp) stack accesses | 2 vwredsum | 8 vwmul/vwmacc
+#   spill sites:  70: vs2r.v v4,(a4)   a0: vs2r.v v6,(sp)   c4: vl2r.v v28,(a0)   e0: vl2r.v v28,(sp)
+#   = the 病灶: i16m4 accumulator x2 pipelined chunk + hoisted m4 seed => 2 e8m2 q8 strips (v4-v7) spill = 4 DRAM round-trips/super-block iter.
+# POST (3186919d): 80 insns | 0 whole-reg spills | 0 (sp) access | 1 vwredsum | 8 vwmul/vwmacc
+#   Path 3 fix: keep m4, kill overlap, serialize the 2 chunks => single-live i16m4 accumulator + one super-block reduce.
+#   vwmul/vwmacc 8/8 UNCHANGED = integer gearbox byte-exact-preserved (only schedule/live-range changed).
+# NOTE: tcrv-translate --tcrv-export-target-artifact codegen shows 0 spills at BOTH PRE(85 insns)/POST(81) — the spill
+#   is a gcc-15.2.0 -O3 register-allocation artifact on the emitted C, which is exactly the batch2c timed path.
+
+## ---- A/B (isolated PRE-vs-POST, NO_GENERIC build; 2-way interleave, cleanest) ----
+# run1: PRE=567.997 ns/blk (iqr16.995)  POST=292.483 (iqr10.916)  A/B(PRE/POST)=1.9420  fnv PRE==POST 0xeffb9951f963a9d6
+# run2: PRE=562.292        (iqr20.384)  POST=297.576 (iqr6.296)   A/B=1.8896            fnv PRE==POST
+#   wset_MiB=256.0 pool_blocks=749819 rounds=16 hygiene=COLD(ws>3xL3). => ISOLATED A/B ~= 1.92x (spill消 => 加速 YES).
+
+## ---- A/B + vs-generic (3-way interleave: PRE / POST / ggml-generic) ----
+# run1: PRE=553.889 (iqr29.022) POST=249.582 (iqr9.773) GENERIC=969.326 (iqr40.974)
+#       A/B(PRE/POST)=2.2193  vs-generic(GEN/POST)=3.8838  vs-generic(GEN/PRE)=1.7500  fnv PRE==POST==GENERIC 0xeffb9951f963a9d6
+# run2: PRE=570.732 (iqr39.618) POST=249.664 (iqr14.101) GENERIC=988.988 (iqr36.337)
+#       A/B=2.2860  GEN/POST=3.9613  GEN/PRE=1.7328  fnv all ==
+#   => spill-fix A/B robustly ~1.9x-2.3x (the 4-spill elimination ~doubles throughput; spill was on the critical path
+#      of this latency/compute-bound ternary kernel). ours-POST beats the ggml GENERIC scalar ref 3.88-3.96x (WIN);
+#      even the spilling PRE was already 1.73-1.75x faster than generic. PRE==POST==GENERIC bit-for-bit => ULP=0 on hardware.
+
+## ---- honest framing ([NG-4]) ----
+# A/B = isolated internal metric (spill-fix delta). vs-generic = ours beats the ggml scalar reference (WIN, byte-exact).
+# vs the ggml SIMD-DISPATCH factory (batch2c: tq2_0 0.2311x = ours 4.33x slower, measured at ffcfcf80 = the SPILLING
+# version): the spill-fix roughly halves that gap (~4.33/1.9 ~= 2.3x slower => ~0.44x) but tq2_0 ours still LOSES to the
+# hand-tuned SIMD dispatch. No e2e [PERF-1] eight-gate. KERNEL-micro only.
+
+## ---- reproduce ----
+# export: git show <sha>:test/Target/RVV/tq2-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir > in.mlir
+#   .worktrees/cache/<sha>/tcrv-opt in.mlir --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door \
+#     --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp > tq2_0_<stage>.kernel.c
+# board: g++-15.2.0 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -c tq2_0_<stage>.kernel.c -o tq2_<stage>_gcc.o
+#   objcopy --redefine-sym <kernel_sym>=tcrv_tq2_0_block_dot_<STAGE> ; clang-17 -no-pie driver.o PRE.o POST.o [generic.o] -lm
+#   WSET_MIB=256 ROUNDS=16 taskset -c 8 ./tq2ab[_g]

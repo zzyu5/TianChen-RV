@@ -1,7 +1,14 @@
 # cell MANIFEST — g2-fuse-rms-norm-mul
 
 - **campaign**: fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis)
-- **status**: ACTIVE (design-review tracer; 2026-07-07; STOP-at-贯通, no fan-out)
+- **status**: ACTIVE — **BOARD-MEASURED (裁决二.5, 2026-07-07, rvv/VLEN128)**: paired fused-vs-unfused
+  cold N=12 => **1.308× wall speedup** (fused 165.18ms vs unfused 215.99ms; IQR 0.04–0.06%
+  non-overlapping; noise floor 1.63% => ~19× floor => T-N PASS) + **measured DRAM bytes eliminated =
+  256.2 MiB/iter = 100.1% of the predicted y[] round trip 8·n·rows (256.0 MiB)** via LLC load/store-miss
+  deltas (cycle cross-check 50.2ms/iter ≈ wall delta 50.8ms/iter). On-hardware value equality ULP=0.
+  **★ 铺量触发 (rollout-trigger) SATISFIED.** [NG-4] isolated A/B on the memory axis — NOT a ggml beat,
+  NOT an e2e [PERF-1] eight-gate; rollout立项 stays the user's. Prior leg: design-review tracer
+  (STOP-at-贯通, emit-level byte accounting).
 - **role**: G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The
   producer tcrv_rvv.elementwise_rms_norm_reduce_core carries an OPTIONAL single-block $epilogue
   region (L1 chained declaration) holding a tcrv_rvv.elementwise_mul_map consumer brick; the
@@ -29,9 +36,17 @@
 - `emit_census.txt`      — empirical call_opaque memory-op census (FUSED 2 vle32 / 1 vse32 vs UNFUSED
   producer) + fused strip intrinsic trace + tracer lit verdicts, reproduced READ-ONLY from the
   already-built build/bin/tcrv-opt (no rebuild, no git write).
+- `board_measured.md`    — ★ BOARD PAIRED MEASURE (裁决二.5): pre-registration, faithful-to-census setup,
+  on-hardware ULP=0, cold N=12 wall speedup 1.308× (T-N PASS), measured DRAM bytes = 100.1% of the 8·n
+  prediction (dual evidence cycles+LLC-miss), 铺量触发 verdict, [NG-4] framing discipline.
+- `board_raw.txt`        — raw board output: correctness verify, N=12 paired rounds + median/IQR, the two
+  perf-stat counter runs (cycles + LLC load/store-misses), byte-delta arithmetic, reproduce commands.
+  Driver CODE lives at `tools/e2e-harness/board/g2_fuse_driver.c` (+ `g2_fuse_paired.sh`) — data cell holds data only.
 
-## note — STOP-at-贯通 (data-only cell)
-This is a data/evidence cell (design-review pack). No perf number is a beat; every quantity is an
-emit-level structural byte count — real DRAM bandwidth benefit is pending-board ([NG-4], [PERF-1]
-八门 not entered). Nothing here was committed / git add-ed. Fan-out to other fusion pairs and
-[FMT-PROP] format negotiation are explicitly OUT of scope until the user greenlights 立项.
+## note — data-only cell (mechanism→board, honest scope)
+This is a data/evidence cell. The tracer leg is emit-level structural byte counts; the board leg
+(裁决二.5) now measures the real DRAM benefit on rvv/VLEN128 — the pending-board caveat is CLOSED for
+this pair. Discipline unchanged: the 1.308× is an **isolated A/B on the memory axis** ([NG-4] internal
+metric, same category as [GAP-SB] A/B), **NOT** a ggml beat and **NOT** an e2e [PERF-1] eight-gate.
+Nothing here was committed / git add-ed. Fan-out to other fusion pairs and [FMT-PROP] format
+negotiation are on evidence but remain OUT of scope until the user greenlights 立项.

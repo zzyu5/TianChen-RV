@@ -1,0 +1,46 @@
+# [GAP-RP] tq2_0 register-spill-fix cell — provenance (session 2026-07-07 裁决二.4; NOT committed — user commits)
+# board: ssh rvv openEuler-derived riscv64 6.12.66 VLEN128 64c, L1d 64K/core L2 2MiB/4c L3 64MiB, gov=perf 2.6GHz, core8.
+# main tree + build/ UNTOUCHED; no git stash. ours via tools/bench/byte-exact-baseline.sh cached detached-worktree.
+
+## commits (isolation)
+PRE  = 0ad9cf6d048987d16dbc7a44e40efa9cdbe0747f  (parent of the spill-fix; has the LMUL-over-widen regfile spill)
+POST = 3186919d0a41f4862c66cd50c681b2f348a781cd  (裁决三-[GAP-RP]: tq2_0 spill 消除; Path 3 serialize chunks, byte-exact)
+PRE->POST touches only lib/Conversion/RVV/RVVToEmitCTernaryBinary.cpp (+ tq2_0 test/scaffold) => isolates the spill delta.
+
+## pinned-base build (cached; main tree untouched)
+tools/bench/byte-exact-baseline.sh 0ad9cf6d tcrv-opt        (+ tcrv-translate)
+tools/bench/byte-exact-baseline.sh 3186919d tcrv-opt        (+ tcrv-translate)
+  => .worktrees/cache/<sha>/{tcrv-opt,tcrv-translate}  (prebuilt LLVM-20; only project sources compile; ~fast).
+
+## export .o (tcrv-translate route; NOTE this codegen does NOT spill — 0 spill both PRE/POST; kept as existence evidence)
+git show <sha>:test/Target/RVV/tq2-0-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir > in.mlir
+<cache>/<sha>/tcrv-opt in.mlir --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door \
+  --tcrv-materialize-emission-plans | <cache>/<sha>/tcrv-translate --tcrv-export-target-artifact > objdir_<stage>/tq2_0.o
+  objdir_PRE/tq2_0.o  sha256 136aa55362c3de58...  size 1728B
+  objdir_POST/tq2_0.o sha256 5591705b306a1d7a...  size 1712B
+
+## EmitC C capture (the TIMED path; this is where the gcc-15.2.0 -O3 spill appears)
+<cache>/<sha>/tcrv-opt in.mlir --tcrv-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door \
+  --tcrv-materialize-emission-plans --tcrv-rvv-lower-to-emitc | /usr/lib/llvm-20/bin/mlir-translate --mlir-to-cpp > raw/tq2_0_<stage>.kernel.c
+  PRE.kernel.c 192 lines / POST.kernel.c 175 lines. Intrinsic-count diff (the fix): PRE 4x vmv_v_x_i16m4 / 8x vsetvl_e16m4 /
+  4x vwredsum -> POST 2 / 4 / 2 (2-chunk overlap merged to single serial accumulator + one super-block reduce).
+
+## timed kernels (gcc-15.2.0 -O3 = the faithful backend where the spill/loss was measured; batch2c toolchain)
+/opt/tcrv-toolchains/gcc-15.2.0/bin/riscv64-unknown-linux-gnu-g++ -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -mabi=lp64d \
+  -c raw/tq2_0_<stage>.kernel.c -o raw/tq2_<stage>_gcc.o
+  raw/tq2_PRE_gcc.o  sha256 a993431eed489a0e...
+  raw/tq2_POST_gcc.o sha256 72a01dc440cb41ff...
+objcopy --redefine-sym tcrv_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot=tcrv_tq2_0_block_dot_<STAGE>
+objdump (host llvm-objdump-20 --mattr=+v,+zvfh) => raw/tq2_0_<stage>_gcc15.objdump.txt : PRE 4 whole-reg spills, POST 0.
+
+## generic (vs-generic leg)
+ggml_vec_dot_tq2_0_q8_K_generic @ /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c, clang-17 -O2
+  -march=rv64gcv_zfh_zvfh_zba_zbb_zbs -ffunction-sections -fdata-sections; link -Wl,--gc-sections;
+  objcopy --redefine-sym ggml_vec_dot_tq2_0_q8_K_generic=vecdot_tq2_0_generic.
+
+## driver + run
+tools/e2e-harness/board/tq2_0_ab_driver.c  (portable C; PRE/POST/generic three-way; -DNO_GENERIC for isolated A/B).
+clang-17 -no-pie [-DNO_GENERIC] driver.o PRE.o POST.o [generic.o] -lm ; WSET_MIB=256 ROUNDS=16 taskset -c 8 ./tq2ab[_g]
+cache-cold: pool_blocks=749819, wset 256MiB > 3xL3=192MiB (COLD). Results: raw/board_ab.txt.
+
+## scratch (gitignored, regenerable, not durable): objdir_*/tq2_0.o + raw/*.o (matched by the cell .gitignore *.o rule).

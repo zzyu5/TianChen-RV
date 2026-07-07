@@ -1,0 +1,100 @@
+== ENV FINGERPRINT ==
+uname=Linux bianbu 6.6.63 #2.2.7.2 SMP PREEMPT Fri Aug 15 12:32:44 UTC 2025 riscv64 riscv64 riscv64 GNU/Linux
+clang=/usr/bin/clang-18  Bianbu clang version 18.1.8 (11bb4)
+march=rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs  flags=-O2 -march=rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs -mabi=lp64d -ffp-contract=on
+nproc=8  pinned_core=4
+governor=performance
+cpu_max_khz=1600000
+isa=isa		: rv64imafdcv_zicbom_zicboz_zicntr_zicond_zicsr_zifencei_zihintpause_zihpm_zfh_zfhmin_zca_zcd_zba_zbb_zbc_zbs_zkt_zve32f_zve32x_zve64d_zve64f_zve64x_zvfh_zvfhmin_zvkt_sscofpmf_sstc_svinval_svnapot_svpbmt_ime
+shape: K=2048 nr=128 nc=256 iters=40 seed=0xBEEF01 rounds=12
+== COMPILE ==
+k_pre.o(mf2) OK
+k_post.o(m1) OK
+driver.o OK
+gemm_pre OK
+gemm_post OK
+== PREFLIGHT (fail-closed 4-gate) ==
+PREFLIGHT(1) march-complete: OK
+PREFLIGHT(2) libcall-free: OK (both sides hardware fp16)
+PREFLIGHT(3) same-compiler: OK (Bianbu clang version 18.1.8 (11bb4))
+PREFLIGHT(4) fingerprint<->T-cell: OK (board VLEN=256 == target 256)
+== PREFLIGHT PASS (4/4) ==
+== OBJDUMP SEAL pre(mf2) vsetvli+vle8 ==
+      62:      	vsetvli	zero, zero, e16, m1, ta, ma
+      d4:      	vsetvli	zero, zero, e32, m2, ta, ma
+     16c:      	vsetvli	zero, zero, e8, mf2, ta, ma
+     170:      	vle8.v	v27, (s9)
+     1c8:      	vsetvli	zero, zero, e16, m1, ta, ma
+     1e4:      	vfwmul.vf	v20, v24, fa5
+     1e8:      	vsetvli	zero, zero, e32, m2, ta, ma
+     1f4:      	vfmacc.vv	v18, v20, v22
+     1f8:      	vsetvli	zero, zero, e16, m1, ta, ma
+     1fc:      	vfwmul.vf	v20, v24, fa5
+     200:      	vsetvli	zero, zero, e32, m2, ta, ma
+     20c:      	vfmacc.vv	v16, v20, v22
+== OBJDUMP SEAL post(m1) vsetvli+vle8 ==
+      78:      	vsetvli	zero, zero, e16, m2, ta, ma
+     106:      	vsetvli	zero, zero, e32, m4, ta, ma
+     176:      	vsetvli	zero, zero, e8, m1, ta, ma
+     17a:      	vle8.v	v22, (a0)
+     1a2:      	vsetvli	zero, zero, e16, m2, ta, ma
+     1b2:      	vfwmul.vf	v28, v22, fa5
+     1b6:      	vsetvli	zero, zero, e32, m4, ta, ma
+     1be:      	vfmacc.vv	v16, v28, v20
+     21a:      	vsetvli	zero, zero, e8, m1, ta, ma
+     21e:      	vle8.v	v22, (a4)
+     246:      	vsetvli	zero, zero, e16, m2, ta, ma
+     256:      	vfwmul.vf	v28, v22, fa5
+== VALUE-IDENTITY ==
+cksum pre(mf2)=8233895bde360531  post(m1)=8233895bde360531  IDENTICAL
+== ABPASS 1 ==
+AB pass=1 round=1 side=pre_mf2  kernel_ns=9714307.2 gmacs=6.9365 freq_khz=1600000
+AB pass=1 round=1 side=post_m1  kernel_ns=26506351.6 gmacs=2.5304 freq_khz=1600000
+AB pass=1 round=2 side=pre_mf2  kernel_ns=9707353.8 gmacs=6.8367 freq_khz=1600000
+AB pass=1 round=2 side=post_m1  kernel_ns=26497720.5 gmacs=2.5275 freq_khz=1600000
+AB pass=1 round=3 side=pre_mf2  kernel_ns=9747149.9 gmacs=6.8898 freq_khz=1600000
+AB pass=1 round=3 side=post_m1  kernel_ns=26519890.8 gmacs=2.5307 freq_khz=1600000
+AB pass=1 round=4 side=pre_mf2  kernel_ns=9752476.1 gmacs=6.9172 freq_khz=1600000
+AB pass=1 round=4 side=post_m1  kernel_ns=26505731.9 gmacs=2.5314 freq_khz=1600000
+AB pass=1 round=5 side=pre_mf2  kernel_ns=9823845.1 gmacs=6.9283 freq_khz=1600000
+AB pass=1 round=5 side=post_m1  kernel_ns=26515554.3 gmacs=2.5326 freq_khz=1600000
+AB pass=1 round=6 side=pre_mf2  kernel_ns=9826830.9 gmacs=6.8689 freq_khz=1600000
+AB pass=1 round=6 side=post_m1  kernel_ns=26523917.9 gmacs=2.5315 freq_khz=1600000
+AB pass=1 round=7 side=pre_mf2  kernel_ns=9677931.5 gmacs=6.9378 freq_khz=1600000
+AB pass=1 round=7 side=post_m1  kernel_ns=26500240.3 gmacs=2.5317 freq_khz=1600000
+AB pass=1 round=8 side=pre_mf2  kernel_ns=9779921.2 gmacs=6.8739 freq_khz=1600000
+AB pass=1 round=8 side=post_m1  kernel_ns=26492765.1 gmacs=2.5328 freq_khz=1600000
+AB pass=1 round=9 side=pre_mf2  kernel_ns=9665330.9 gmacs=6.8644 freq_khz=1600000
+AB pass=1 round=9 side=post_m1  kernel_ns=26510128.9 gmacs=2.5309 freq_khz=1600000
+AB pass=1 round=10 side=pre_mf2  kernel_ns=9773544.5 gmacs=6.8525 freq_khz=1600000
+AB pass=1 round=10 side=post_m1  kernel_ns=26510335.0 gmacs=2.5322 freq_khz=1600000
+AB pass=1 round=11 side=pre_mf2  kernel_ns=9775672.6 gmacs=6.9403 freq_khz=1600000
+AB pass=1 round=11 side=post_m1  kernel_ns=26519368.2 gmacs=2.5316 freq_khz=1600000
+AB pass=1 round=12 side=pre_mf2  kernel_ns=9769176.8 gmacs=6.9242 freq_khz=1600000
+AB pass=1 round=12 side=post_m1  kernel_ns=26512309.0 gmacs=2.5333 freq_khz=1600000
+== ABPASS 2 ==
+AB pass=2 round=1 side=pre_mf2  kernel_ns=9681938.3 gmacs=6.8911 freq_khz=1600000
+AB pass=2 round=1 side=post_m1  kernel_ns=26509429.9 gmacs=2.5327 freq_khz=1600000
+AB pass=2 round=2 side=pre_mf2  kernel_ns=9673739.7 gmacs=6.8648 freq_khz=1600000
+AB pass=2 round=2 side=post_m1  kernel_ns=26510638.7 gmacs=2.5294 freq_khz=1600000
+AB pass=2 round=3 side=pre_mf2  kernel_ns=9686421.3 gmacs=6.8641 freq_khz=1600000
+AB pass=2 round=3 side=post_m1  kernel_ns=26502640.7 gmacs=2.5315 freq_khz=1600000
+AB pass=2 round=4 side=pre_mf2  kernel_ns=9747544.1 gmacs=6.8604 freq_khz=1600000
+AB pass=2 round=4 side=post_m1  kernel_ns=26489852.8 gmacs=2.5315 freq_khz=1600000
+AB pass=2 round=5 side=pre_mf2  kernel_ns=9769265.1 gmacs=6.9001 freq_khz=1600000
+AB pass=2 round=5 side=post_m1  kernel_ns=26486513.0 gmacs=2.5341 freq_khz=1600000
+AB pass=2 round=6 side=pre_mf2  kernel_ns=9768535.4 gmacs=6.9349 freq_khz=1600000
+AB pass=2 round=6 side=post_m1  kernel_ns=26495030.1 gmacs=2.5319 freq_khz=1600000
+AB pass=2 round=7 side=pre_mf2  kernel_ns=9740337.9 gmacs=6.8758 freq_khz=1600000
+AB pass=2 round=7 side=post_m1  kernel_ns=26518560.2 gmacs=2.5329 freq_khz=1600000
+AB pass=2 round=8 side=pre_mf2  kernel_ns=9696066.8 gmacs=6.8936 freq_khz=1600000
+AB pass=2 round=8 side=post_m1  kernel_ns=26495467.2 gmacs=2.5316 freq_khz=1600000
+AB pass=2 round=9 side=pre_mf2  kernel_ns=9673049.1 gmacs=6.9382 freq_khz=1600000
+AB pass=2 round=9 side=post_m1  kernel_ns=26492724.4 gmacs=2.5322 freq_khz=1600000
+AB pass=2 round=10 side=pre_mf2  kernel_ns=9755892.1 gmacs=6.8884 freq_khz=1600000
+AB pass=2 round=10 side=post_m1  kernel_ns=26516832.7 gmacs=2.5309 freq_khz=1600000
+AB pass=2 round=11 side=pre_mf2  kernel_ns=9683398.6 gmacs=6.9270 freq_khz=1600000
+AB pass=2 round=11 side=post_m1  kernel_ns=26504903.9 gmacs=2.5331 freq_khz=1600000
+AB pass=2 round=12 side=pre_mf2  kernel_ns=9789780.4 gmacs=6.8647 freq_khz=1600000
+AB pass=2 round=12 side=post_m1  kernel_ns=26525075.6 gmacs=2.5324 freq_khz=1600000
+== DONE ==

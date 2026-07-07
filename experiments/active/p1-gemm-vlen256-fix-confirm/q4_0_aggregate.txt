@@ -1,0 +1,21 @@
+=== [GAP-P1] board batch — q4_0 PREFILL REPACK GEMM, mf2(pre-fix) vs m1(post-fix) A/B ===
+board=k1-SpacemiT-X60 VLEN=256 clang-18.1.8-Bianbu march=rv64gcv_zfh_zvfhmin_zvfh_zba_zbb_zbs
+core=4 (taskset) governor=performance freq_khz: 1600000 (span 0.00% — DVFS guard PASS)
+shape: K=2048 nr=128 nc=256  (mirrors pp128 prefill; robust across a 6-shape sweep, ratio 0.365–0.411)
+protocol: paired, cold-cache drop per round, 2 passes x 12 rounds => n=24 per side, best-of-5 internal
+PREFLIGHT 4/4 PASS (march-complete / libcall-free-hw-fp16 / same-compiler / VLEN256==target)
+VALUE-IDENTITY: cksum pre(mf2)=8233895bde360531  post(m1)=8233895bde360531  IDENTICAL (byte/value-exact)
+
+pre-fix  (mf2, i8mf2 -> i16m1 -> i32m2 -> f32m2 ; columnsPerPass 4) : median 6.8904 GMAC/s (min 6.8367 max 6.9403 IQR 0.90%)
+post-fix (m1 , i8m1  -> i16m2 -> i32m4 -> f32m4 ; columnsPerPass 1) : median 2.5316 GMAC/s (min 2.5275 max 2.5341 IQR 0.05%)
+
+RATIO post_m1 / pre_mf2 = 0.3674x   =>   the [GAP-P1] fix REGRESSES q4_0 prefill GEMM by 2.72x (1/0.3674).
+compute-wall saturation (vs k1 int8 peak 25.51 GMACs, roofline cell): pre_mf2 = 27.0%  |  post_m1 = 9.9%
+=> the "wide m1 = fully-fed" projection is FALSIFIED: the m1 whole-LMUL core saturates LESS, not more.
+
+VERDICT: fix NOT confirmed. The capability key steered the within-repack core to the WRONG variant at VLEN256
+  for q4_0 GEMM. The mf2 fractional core is the better schedule (higher ILP / lower f32m4-LMUL4 register
+  pressure); the wide m1 core is a strict, robust, byte-exact-identical slowdown. Triage = MISSELECTION
+  (键对核不优), reversed direction. Do NOT deploy the post-fix m1 core for q4_0 prefill GEMM.
+context: the prior e2e P1 cell row measured the pre-fix mf2 prefill GEMM at 1.0022x PARITY vs stock; a 2.72x
+  slower kernel would move e2e prefill from parity toward regression (e2e washes some, direction still bad).
