@@ -11,6 +11,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <optional>
@@ -1481,6 +1482,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     llvm::StringRef opName = deqOp.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = deqOp.getTCRVEmitCLowerableSourceRole();
 
+    // The EXTENDED formats (K-quant super-blocks / FP4 codebooks / ternary /
+    // iq4_nl) each route to their own hand-written scalar super-block decode
+    // (byte-exact to ggml's reference dequantize_row_<format>, reusing that
+    // format's already-constructed vec_dot block-decode facts). The extended
+    // dispatch returns a plain match failure (no ops emitted) for a legacy
+    // format, so the legacy nibble/int8 chain below still owns q4_0..q8_0.
+    if (mlir::succeeded(emitGgmlDequantizeRowExtended(
+            rewriter, loc, deqOp, input, output, avlArg, sizeType, opName, role)))
+      return mlir::success();
+
     // Per-format AoS block layout facts (ggml-common.h + QK*_0/1 = 32). offsets are
     // byte offsets into the AoS block; qsElem is the qs element ctype (int8 for the
     // bare-scale q8_0, uint8 nibble carrier otherwise). `sub` = the pre-scale bias
@@ -1780,6 +1791,1157 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
 
     return mlir::success();
   }
+
+// The EXTENDED dequantize_row decode: K-quant super-blocks, FP4 codebooks,
+// ternary, and iq4_nl. Each body is a hand-written scalar AoS super-block loop
+// reproducing ggml's reference dequantize_row_<format> byte-exactly (quants.c),
+// reusing the SAME per-format block-decode facts already constructed for that
+// format's block-dot vec_dot (the fp16 seam, the E8M0/UE4M3 scale, the
+// get_scale_min_k4 6-bit unpack, the q3_K aux 6-bit scale shuffle, the base-3
+// tq1_0 unpack, the 16-entry codebook gather). [L-6] wiring != construction.
+mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::GgmlDequantizeRowOp deqOp, mlir::Value input, mlir::Value output,
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role) const {
+  llvm::StringRef format = deqOp.getFormat();
+
+  enum Fmt {
+    Q2K, Q3K, Q4K, Q5K, Q6K, MXFP4, NVFP4, TQ1, TQ2, IQ4NL,
+    // The 8 IQ grid-table formats (each reuses its block-dot vec_dot grid decl).
+    IQ2XXS, IQ2XS, IQ2S, IQ3XXS, IQ3S, IQ1S, IQ1M, IQ4XS, NONE
+  };
+  Fmt fmt = llvm::StringSwitch<Fmt>(format)
+                .Case("q2_K", Q2K)
+                .Case("q3_K", Q3K)
+                .Case("q4_K", Q4K)
+                .Case("q5_K", Q5K)
+                .Case("q6_K", Q6K)
+                .Case("mxfp4", MXFP4)
+                .Case("nvfp4", NVFP4)
+                .Case("tq1_0", TQ1)
+                .Case("tq2_0", TQ2)
+                .Case("iq4_nl", IQ4NL)
+                .Case("iq2_xxs", IQ2XXS)
+                .Case("iq2_xs", IQ2XS)
+                .Case("iq2_s", IQ2S)
+                .Case("iq3_xxs", IQ3XXS)
+                .Case("iq3_s", IQ3S)
+                .Case("iq1_s", IQ1S)
+                .Case("iq1_m", IQ1M)
+                .Case("iq4_xs", IQ4XS)
+                .Default(NONE);
+  // Plain failure (NO ops emitted yet) so the caller falls back to the legacy
+  // q4_0..q8_0 chain for the formats this function does not own.
+  if (fmt == NONE)
+    return mlir::failure();
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+  mlir::Type uintType = emitc::OpaqueType::get(ctx, "uint32_t");
+  mlir::Type boolType = rewriter.getI1Type();
+  mlir::Type indexType = rewriter.getIndexType();
+  mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+  mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+  mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+  mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+  mlir::Type floatPtrType = emitc::PointerType::get(floatType);
+  mlir::Type inputPtrType = input.getType();   // const uint8_t *
+  mlir::Type outputPtrType = output.getType(); // float *
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto intLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
+  };
+  auto idxLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, indexType, std::to_string(v));
+  };
+  auto floatLit = [&](llvm::StringRef s) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, floatType, s);
+  };
+  auto addSz = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::AddOp>(loc, sizeType, a, b).getResult();
+  };
+  auto mulSz = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::MulOp>(loc, sizeType, a, b).getResult();
+  };
+  // Integer-domain arithmetic (all in C `int`, matching ggml's promoted decode).
+  auto iAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseAndOp>(loc, intType, a, b).getResult();
+  };
+  auto iOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseOrOp>(loc, intType, a, b).getResult();
+  };
+  auto iShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, intType, a, b)
+        .getResult();
+  };
+  auto iShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseRightShiftOp>(loc, intType, a, b)
+        .getResult();
+  };
+  auto iSub = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::SubOp>(loc, intType, a, b).getResult();
+  };
+  auto iAdd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::AddOp>(loc, intType, a, b).getResult();
+  };
+  auto fMul = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::MulOp>(loc, floatType, a, b).getResult();
+  };
+  auto fSub = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::SubOp>(loc, floatType, a, b).getResult();
+  };
+  auto i2f = [&](mlir::Value v) -> mlir::Value {
+    return rewriter.create<emitc::CastOp>(loc, floatType, v).getResult();
+  };
+  auto i2sz = [&](mlir::Value v) -> mlir::Value {
+    return rewriter.create<emitc::CastOp>(loc, sizeType, v).getResult();
+  };
+  auto sz2i = [&](mlir::Value v) -> mlir::Value {
+    return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+  };
+  // Load *(base + off) (a byte cursor advanced by the size_t `off`) and widen to
+  // `int`: a const uint8_t elem zero-extends, a const int8_t elem sign-extends
+  // (the proven pointer-advance + subscript[0] idiom, no runtime subscript).
+  auto loadIntAt = [&](mlir::Value base, mlir::Type basePtrTy, mlir::Value off,
+                       mlir::Type elemTy) -> mlir::Value {
+    mlir::Value p =
+        rewriter.create<emitc::AddOp>(loc, basePtrTy, base, off).getResult();
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(p),
+                idxLit(0))
+            .getResult();
+    mlir::Value v =
+        rewriter.create<emitc::LoadOp>(loc, elemTy, elem).getResult();
+    return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+  };
+  // *(ybFloat + off) = value  (store one f32 through the float* row cursor).
+  auto storeF32At = [&](mlir::Value ybFloat, mlir::Value off,
+                        mlir::Value value) {
+    mlir::Value p =
+        rewriter.create<emitc::AddOp>(loc, floatPtrType, ybFloat, off)
+            .getResult();
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(p),
+                idxLit(0))
+            .getResult();
+    rewriter.create<emitc::AssignOp>(loc, elem, value);
+  };
+  auto fp16ReadAt = [&](mlir::Value xb, int64_t off) -> mlir::Value {
+    mlir::Value addr =
+        off == 0 ? xb
+                 : rewriter.create<emitc::AddOp>(loc, inputPtrType, xb,
+                                                 sizeLit(off))
+                       .getResult();
+    return emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                          mlir::ValueRange{addr}, opName, role,
+                          llvm::StringRef("fcvt.s.h"));
+  };
+  // kvalues[idx] scalar codebook gather: the table is a function-local static
+  // decl; index it via the same pointer-advance + subscript[0] idiom, then
+  // sign-extend the int8 entry to int.
+  auto codebookLoad = [&](llvm::StringRef tableName,
+                          mlir::Value idxInt) -> mlir::Value {
+    mlir::Value tbl =
+        rewriter.create<emitc::LiteralOp>(loc, i8PtrType, tableName)
+            .getResult();
+    return loadIntAt(tbl, i8PtrType, i2sz(idxInt), constI8Type);
+  };
+  auto emitCodebookDecl = [&](llvm::StringRef name,
+                              llvm::ArrayRef<int> entries) {
+    std::string decl = "static const int8_t " + name.str() + "[16] = {";
+    for (size_t i = 0; i < entries.size(); ++i) {
+      if (i)
+        decl += ", ";
+      decl += std::to_string(entries[i]);
+    }
+    decl += "};";
+    rewriter.create<emitc::VerbatimOp>(loc, decl);
+  };
+  // The nvfp4 per-sub-block UE4M3 fp8 -> fp32 HALF scale (ggml_ue4m3_to_fp32,
+  // ggml-impl.h): e==0||e==0x7F -> 0; exp=(e>>3)&0xF, man=e&7; raw = exp==0 ?
+  // ldexpf(man,-9) : ldexpf(1+man/8, exp-7); result = raw*0.5f. Structured emitc.
+  auto ue4m3ScaleAt = [&](mlir::Value xb, mlir::Value off) -> mlir::Value {
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "ue4m3_scale"));
+    mlir::Value p =
+        rewriter.create<emitc::AddOp>(loc, u8PtrType, xb, off).getResult();
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(p),
+                idxLit(0))
+            .getResult();
+    mlir::Value e =
+        rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+    mlir::Value e32 =
+        rewriter.create<emitc::CastOp>(loc, uintType, e).getResult();
+    auto uLit = [&](llvm::StringRef s) {
+      return rewriter.create<emitc::LiteralOp>(loc, uintType, s).getResult();
+    };
+    mlir::Value expShift =
+        rewriter
+            .create<emitc::BitwiseRightShiftOp>(loc, uintType, e32, uLit("3"))
+            .getResult();
+    mlir::Value expU =
+        rewriter
+            .create<emitc::BitwiseAndOp>(loc, uintType, expShift, uLit("0xF"))
+            .getResult();
+    mlir::Value manU =
+        rewriter
+            .create<emitc::BitwiseAndOp>(loc, uintType, e32, uLit("0x7"))
+            .getResult();
+    mlir::Value expInt =
+        rewriter.create<emitc::CastOp>(loc, intType, expU).getResult();
+    mlir::Value manFloat =
+        i2f(rewriter.create<emitc::CastOp>(loc, intType, manU).getResult());
+    mlir::Value denormRaw =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                         "ldexpf",
+                                         mlir::ValueRange{manFloat, intLit(-9)})
+            .getResult(0);
+    mlir::Value normMant = rewriter.create<emitc::AddOp>(
+        loc, floatType, floatLit("1.0f"),
+        rewriter.create<emitc::DivOp>(loc, floatType, manFloat,
+                                      floatLit("8.0f")));
+    mlir::Value normExp =
+        rewriter.create<emitc::SubOp>(loc, intType, expInt, intLit(7));
+    mlir::Value normRaw =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
+                                         "ldexpf",
+                                         mlir::ValueRange{normMant, normExp})
+            .getResult(0);
+    mlir::Value isDenorm =
+        rewriter
+            .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, expU,
+                                  uLit("0"))
+            .getResult();
+    mlir::Value raw =
+        rewriter
+            .create<emitc::ConditionalOp>(loc, floatType, isDenorm, denormRaw,
+                                          normRaw)
+            .getResult();
+    mlir::Value scaled = fMul(raw, floatLit("0.5f"));
+    mlir::Value isZero =
+        rewriter
+            .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, e32,
+                                  uLit("0"))
+            .getResult();
+    mlir::Value isSpec =
+        rewriter
+            .create<emitc::CmpOp>(loc, boolType, emitc::CmpPredicate::eq, e32,
+                                  uLit("0x7F"))
+            .getResult();
+    mlir::Value special =
+        rewriter.create<emitc::LogicalOrOp>(loc, boolType, isZero, isSpec)
+            .getResult();
+    return rewriter
+        .create<emitc::ConditionalOp>(loc, floatType, special,
+                                      floatLit("0.0f"), scaled)
+        .getResult();
+  };
+
+  // --- IQ grid/signs decode helpers (shared by the 8 IQ grid-table formats;
+  // each reuses the SAME canonical grid/signs table decl the block-dot vec_dot
+  // lowering emits, then a scalar AoS super-block loop byte-exact to ggml's
+  // reference dequantize_row_iq*). [L-6] wiring != construction. ---
+  mlir::Type i64PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int64_t"));
+  mlir::Type u32PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint32_t"));
+  mlir::Type u64PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint64_t"));
+  auto iMul = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::MulOp>(loc, intType, a, b).getResult();
+  };
+  auto fAdd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::AddOp>(loc, floatType, a, b).getResult();
+  };
+  auto uLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, uintType,
+                                             std::to_string(v) + "u");
+  };
+  auto uAnd = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseAndOp>(loc, uintType, a, b).getResult();
+  };
+  auto uOr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseOrOp>(loc, uintType, a, b).getResult();
+  };
+  auto uShl = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseLeftShiftOp>(loc, uintType, a, b)
+        .getResult();
+  };
+  auto uShr = [&](mlir::Value a, mlir::Value b) -> mlir::Value {
+    return rewriter.create<emitc::BitwiseRightShiftOp>(loc, uintType, a, b)
+        .getResult();
+  };
+  auto u2i = [&](mlir::Value v) -> mlir::Value {
+    return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+  };
+  // Load one uint8 byte at (base + off) and ZERO-extend to uint32_t.
+  auto loadU8AsUint = [&](mlir::Value base, mlir::Type basePtrTy,
+                          mlir::Value off) -> mlir::Value {
+    mlir::Value p =
+        rewriter.create<emitc::AddOp>(loc, basePtrTy, base, off).getResult();
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(p),
+                idxLit(0))
+            .getResult();
+    mlir::Value v =
+        rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+    return rewriter.create<emitc::CastOp>(loc, uintType, v).getResult();
+  };
+  // uint16 assembled little-endian from 2 bytes at (base + off) (ggml's memcpy /
+  // aligned uint16 read; assembled to be alignment/endianness-safe).
+  auto u16ReadAt = [&](mlir::Value base, mlir::Type basePtrTy,
+                       mlir::Value off) -> mlir::Value {
+    mlir::Value b0 = loadU8AsUint(base, basePtrTy, off);
+    mlir::Value b1 = loadU8AsUint(base, basePtrTy, addSz(off, sizeLit(1)));
+    return uOr(b0, uShl(b1, uLit(8)));
+  };
+  // uint32 assembled little-endian from 4 bytes at (base + off) (ggml's memcpy
+  // into aux32; assembled to be alignment/endianness-safe).
+  auto u32ReadAt = [&](mlir::Value base, mlir::Type basePtrTy,
+                       mlir::Value off) -> mlir::Value {
+    mlir::Value b0 = loadU8AsUint(base, basePtrTy, off);
+    mlir::Value b1 = loadU8AsUint(base, basePtrTy, addSz(off, sizeLit(1)));
+    mlir::Value b2 = loadU8AsUint(base, basePtrTy, addSz(off, sizeLit(2)));
+    mlir::Value b3 = loadU8AsUint(base, basePtrTy, addSz(off, sizeLit(3)));
+    return uOr(uOr(uOr(b0, uShl(b1, uLit(8))), uShl(b2, uLit(16))),
+               uShl(b3, uLit(24)));
+  };
+  // A `(const int8_t *)<gridArray>` byte view of a non-int8 grid table (int64 /
+  // uint32 / uint64), created via a name literal + emitc pointer cast -- exactly
+  // ggml's `(const uint8_t *)(grid + idx)` byte read (all grid bytes < 128 so the
+  // int8 sign-extending read equals ggml's uint8 read).
+  auto castI8Base = [&](llvm::StringRef nm, mlir::Type declPtrTy) -> mlir::Value {
+    mlir::Value lit =
+        rewriter.create<emitc::LiteralOp>(loc, declPtrTy, nm).getResult();
+    return rewriter.create<emitc::CastOp>(loc, i8PtrType, lit).getResult();
+  };
+  // A name literal at a given pointer type (int8/uint8 tables decay directly).
+  auto plainBase = [&](llvm::StringRef nm, mlir::Type ptrTy) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, ptrTy, nm).getResult();
+  };
+  // Read grid/signs byte (sign-extended int8 -> int) at flat int index fi.
+  auto tableByteAtInt = [&](mlir::Value i8base,
+                            mlir::Value fiInt) -> mlir::Value {
+    return loadIntAt(i8base, i8PtrType, i2sz(fiInt), constI8Type);
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // ggml FP4 e2m1 / iq4_nl non-linear codebooks (ggml-common.h). Emitted ONCE as
+  // function-local static decls above the super-block loop.
+  static const int kvaluesMxfp4[16] = {0, 1, 2, 3,  4,  6,  8,  12,
+                                       0, -1, -2, -3, -4, -6, -8, -12};
+  static const int kvaluesIq4nl[16] = {-127, -104, -83, -65, -49, -35,
+                                        -22,  -10,  1,   13,  25,  38,
+                                        53,   69,   89,  113};
+  llvm::StringRef codebookName;
+  if (fmt == MXFP4) {
+    codebookName = "tcrv_dequant_mxfp4_kvalues";
+    emitCodebookDecl(codebookName, kvaluesMxfp4);
+  } else if (fmt == NVFP4) {
+    codebookName = "tcrv_dequant_nvfp4_kvalues";
+    emitCodebookDecl(codebookName, kvaluesMxfp4);
+  } else if (fmt == IQ4NL) {
+    codebookName = "tcrv_dequant_iq4nl_kvalues";
+    emitCodebookDecl(codebookName, kvaluesIq4nl);
+  }
+  if (fmt == TQ1) {
+    rewriter.create<emitc::VerbatimOp>(
+        loc, "static const uint8_t tcrv_dequant_tq1_0_pow3[6] = "
+             "{1, 3, 9, 27, 81, 243};");
+  }
+
+  // The IQ grid/signs codebook table decls (function-local statics), emitted from
+  // the SAME canonical grid/signs anchors the block-dot vec_dot lowerings render
+  // (byte-identical). iq4_xs reuses the 16-entry iq4_nl codebook.
+  switch (fmt) {
+  case IQ2XXS:
+    emitIQ2XXSCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2XXSCanonicalSigns64TableDecl(rewriter, loc);
+    break;
+  case IQ2XS:
+    emitIQ2XSCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2XSCanonicalSigns64TableDecl(rewriter, loc);
+    break;
+  case IQ2S:
+    emitIQ2SCanonicalGridTableDecl(rewriter, loc);
+    emitIQ2SCanonicalSigns256TableDecl(rewriter, loc);
+    break;
+  case IQ3XXS:
+    emitIQ3XXSCanonicalGridTableDecl(rewriter, loc);
+    emitIQ3XXSCanonicalKsignsTableDecl(rewriter, loc);
+    break;
+  case IQ3S:
+    emitIQ3SCanonicalGridTableDecl(rewriter, loc);
+    break;
+  case IQ1S:
+    emitIQ1SCanonicalGridTableDecl(rewriter, loc);
+    break;
+  case IQ1M:
+    emitIQ1MCanonicalGridTableDecl(rewriter, loc);
+    break;
+  case IQ4XS:
+    codebookName = "tcrv_dequant_iq4nl_kvalues";
+    emitCodebookDecl(codebookName, kvaluesIq4nl);
+    break;
+  default: break;
+  }
+
+  // Per-format super-block geometry (element_count = k; qk = elements/super-block,
+  // stride = super-block byte size). nb = k / qk. All IQ K-quant super-blocks are
+  // QK_K = 256 (qk default); strides are the ggml block_iqX AoS byte sizes.
+  int64_t qk = 256, stride = 0;
+  switch (fmt) {
+  case Q2K: stride = 84; break;
+  case Q3K: stride = 110; break;
+  case Q4K: stride = 144; break;
+  case Q5K: stride = 176; break;
+  case Q6K: stride = 210; break;
+  case MXFP4: qk = 32; stride = 17; break;
+  case NVFP4: qk = 64; stride = 36; break;
+  case TQ1: stride = 54; break;
+  case TQ2: stride = 66; break;
+  case IQ4NL: qk = 32; stride = 18; break;
+  case IQ2XXS: stride = 66; break;
+  case IQ2XS: stride = 74; break;
+  case IQ2S: stride = 82; break;
+  case IQ3XXS: stride = 98; break;
+  case IQ3S: stride = 110; break;
+  case IQ1S: stride = 50; break;
+  case IQ1M: stride = 56; break;
+  case IQ4XS: stride = 136; break;
+  default: break;
+  }
+
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "super_block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb, sizeLit(1),
+                                                /*bodyBuilder=*/nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    // const uint8_t *xb = x + ib*stride;   float *yb = y + ib*qk;
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "xb"));
+    mlir::Value xb = rewriter
+                         .create<emitc::AddOp>(loc, inputPtrType, input,
+                                               mulSz(ib, sizeLit(stride)))
+                         .getResult();
+    mlir::Value ybRaw = rewriter
+                            .create<emitc::AddOp>(loc, outputPtrType, output,
+                                                  mulSz(ib, sizeLit(qk)))
+                            .getResult();
+    mlir::Value yb =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // A small helper: emit an inner element loop `for (size_t v = 0; v < n; ++v)`.
+    auto elemLoop = [&](int64_t n,
+                        llvm::function_ref<void(mlir::Value)> body) {
+      auto f = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(n),
+                                             sizeLit(1), /*bodyBuilder=*/nullptr);
+      mlir::OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(f.getBody());
+      body(f.getInductionVar());
+    };
+
+    if (fmt == IQ4NL || fmt == MXFP4) {
+      // qk=32 nibble codebook: y[j] = d*kv[qs[j]&0xF]; y[j+16] = d*kv[qs[j]>>4].
+      int64_t dOff = 0, qsOff = 2;
+      mlir::Value d;
+      if (fmt == MXFP4) {
+        qsOff = 1;
+        d = emitE8M0HalfScale(rewriter, loc, xb, opName, role);
+      } else {
+        d = fp16ReadAt(xb, dOff);
+      }
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "codebook_nibble_decode"));
+      elemLoop(qk / 2, [&](mlir::Value j) {
+        mlir::Value qsAddr = addSz(sizeLit(qsOff), j);
+        mlir::Value qi = loadIntAt(xb, inputPtrType, qsAddr, constU8Type);
+        mlir::Value nlo = iAnd(qi, intLit(0x0F));
+        mlir::Value nhi = iShr(qi, intLit(4));
+        mlir::Value v0 = i2f(codebookLoad(codebookName, nlo));
+        mlir::Value v1 = i2f(codebookLoad(codebookName, nhi));
+        storeF32At(yb, j, fMul(v0, d));
+        storeF32At(yb, addSz(j, sizeLit(qk / 2)), fMul(v1, d));
+      });
+    } else if (fmt == NVFP4) {
+      // Four 16-element UE4M3-scaled sub-blocks; codebook nibble split per sub.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "nvfp4_sub_decode"));
+      for (int64_t s = 0; s < 4; ++s) {
+        mlir::Value d = ue4m3ScaleAt(xb, sizeLit(s)); // d[s] at offset s
+        int64_t subOut = s * 16;                      // yb + s*16
+        int64_t subQs = 4 + s * 8;                    // qs at +4, 8 bytes/sub
+        elemLoop(8, [&](mlir::Value j) {
+          mlir::Value qi =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(subQs), j), constU8Type);
+          mlir::Value v0 = i2f(codebookLoad(codebookName, iAnd(qi, intLit(0x0F))));
+          mlir::Value v1 = i2f(codebookLoad(codebookName, iShr(qi, intLit(4))));
+          storeF32At(yb, addSz(sizeLit(subOut), j), fMul(v0, d));
+          storeF32At(yb, addSz(sizeLit(subOut + 8), j), fMul(v1, d));
+        });
+      }
+    } else if (fmt == TQ2) {
+      // 2-bit ternary: q=(qs[j+m]>>(2l))&3; y=(q-1)*d. j in {0,32}, l 0..4, m 0..32.
+      mlir::Value d = fp16ReadAt(xb, 64);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "tq2_0_decode"));
+      for (int64_t jb = 0; jb < 2; ++jb) {
+        for (int64_t l = 0; l < 4; ++l) {
+          int64_t outBase = jb * 128 + l * 32;
+          int64_t qsBase = jb * 32;
+          elemLoop(32, [&](mlir::Value m) {
+            mlir::Value qi = loadIntAt(xb, inputPtrType,
+                                       addSz(sizeLit(qsBase), m), constU8Type);
+            mlir::Value q = iAnd(iShr(qi, intLit(2 * l)), intLit(3));
+            mlir::Value val = fMul(i2f(iSub(q, intLit(1))), d);
+            storeF32At(yb, addSz(sizeLit(outBase), m), val);
+          });
+        }
+      }
+    } else if (fmt == TQ1) {
+      // 1.6-bit ternary base-3: q=qs*pow3[n] (mod 256); xi=((q*3)>>8); y=(xi-1)*d.
+      mlir::Value d = fp16ReadAt(xb, 52);
+      llvm::StringRef pow3 = "tcrv_dequant_tq1_0_pow3";
+      mlir::Value pow3Base =
+          rewriter.create<emitc::LiteralOp>(loc, u8PtrType, pow3).getResult();
+      // xi = ((uint8_t)(qs*pow3n) * 3) >> 8; store (xi-1)*d at outIdx.
+      auto tq1Decode = [&](mlir::Value qbyteInt, mlir::Value pow3n,
+                           mlir::Value outIdx) {
+        mlir::Value prod = rewriter
+                               .create<emitc::MulOp>(loc, intType, qbyteInt,
+                                                     pow3n)
+                               .getResult();
+        mlir::Value qmod = iAnd(prod, intLit(0xFF)); // uint8_t truncation
+        mlir::Value xi = iShr(rewriter.create<emitc::MulOp>(loc, intType, qmod,
+                                                            intLit(3))
+                                  .getResult(),
+                              intLit(8));
+        storeF32At(yb, outIdx, fMul(i2f(iSub(xi, intLit(1))), d));
+      };
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "tq1_0_qs_full"));
+      // Section 1: qs[0..31], n 0..4, m 0..31 -> out n*32+m.
+      for (int64_t n = 0; n < 5; ++n) {
+        mlir::Value pow3n = loadIntAt(pow3Base, u8PtrType, sizeLit(n),
+                                      constU8Type);
+        int64_t base = n * 32;
+        elemLoop(32, [&](mlir::Value m) {
+          mlir::Value qb = loadIntAt(xb, inputPtrType, m, constU8Type);
+          tq1Decode(qb, pow3n, addSz(sizeLit(base), m));
+        });
+      }
+      // Section 2: qs[32..47], n 0..4, m 0..15 -> out 160 + n*16+m.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "tq1_0_qs_tail"));
+      for (int64_t n = 0; n < 5; ++n) {
+        mlir::Value pow3n = loadIntAt(pow3Base, u8PtrType, sizeLit(n),
+                                      constU8Type);
+        int64_t base = 160 + n * 16;
+        elemLoop(16, [&](mlir::Value m) {
+          mlir::Value qb =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(32), m), constU8Type);
+          tq1Decode(qb, pow3n, addSz(sizeLit(base), m));
+        });
+      }
+      // Section 3: qh[0..3] at +48, n 0..3, j 0..3 -> out 240 + n*4+j.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "tq1_0_qh"));
+      for (int64_t n = 0; n < 4; ++n) {
+        mlir::Value pow3n = loadIntAt(pow3Base, u8PtrType, sizeLit(n),
+                                      constU8Type);
+        int64_t base = 240 + n * 4;
+        elemLoop(4, [&](mlir::Value j) {
+          mlir::Value qb =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(48), j), constU8Type);
+          tq1Decode(qb, pow3n, addSz(sizeLit(base), j));
+        });
+      }
+    } else if (fmt == Q2K) {
+      // scales[16]@0, qs[64]@16, d@80, dmin@82. y = dl*((q>>shift)&3) - ml.
+      mlir::Value d = fp16ReadAt(xb, 80);
+      mlir::Value dmin = fp16ReadAt(xb, 82);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "q2_K_decode"));
+      elemLoop(2, [&](mlir::Value nn) {
+        mlir::Value nn8 = mulSz(nn, sizeLit(8));
+        mlir::Value qBlk = addSz(sizeLit(16), mulSz(nn, sizeLit(32)));
+        mlir::Value outBlk = mulSz(nn, sizeLit(128));
+        elemLoop(4, [&](mlir::Value j) {
+          mlir::Value shift = iShl(sz2i(j), intLit(1)); // 2*j
+          mlir::Value is0 = addSz(nn8, mulSz(j, sizeLit(2)));
+          mlir::Value outJ = addSz(outBlk, mulSz(j, sizeLit(32)));
+          for (int64_t half = 0; half < 2; ++half) {
+            mlir::Value sc =
+                loadIntAt(xb, inputPtrType, addSz(is0, sizeLit(half)),
+                          constU8Type);
+            mlir::Value dl = fMul(d, i2f(iAnd(sc, intLit(0xF))));
+            mlir::Value ml = fMul(dmin, i2f(iShr(sc, intLit(4))));
+            mlir::Value qHalf = addSz(qBlk, sizeLit(half * 16));
+            mlir::Value outHalf = addSz(outJ, sizeLit(half * 16));
+            elemLoop(16, [&](mlir::Value l) {
+              mlir::Value q =
+                  loadIntAt(xb, inputPtrType, addSz(qHalf, l), constU8Type);
+              mlir::Value qv = iAnd(iShr(q, shift), intLit(3));
+              storeF32At(yb, addSz(outHalf, l), fSub(fMul(dl, i2f(qv)), ml));
+            });
+          }
+        });
+      });
+    } else if (fmt == Q3K) {
+      // hmask[32]@0, qs[64]@32, scales[12]@96, d@108; 6-bit signed scales via aux.
+      mlir::Value dAll = fp16ReadAt(xb, 108);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "q3_K_decode"));
+      // The derived 6-bit scale for compile-time index `is` (0..15), from the 12
+      // packed scale bytes at +96 (ggml's aux kmask1/kmask2 shuffle, byte-exact).
+      auto q3Scale = [&](int is) -> mlir::Value {
+        int group = is / 4, b = is % 4;
+        auto sb = [&](int k) {
+          return loadIntAt(xb, inputPtrType, sizeLit(96 + k), constU8Type);
+        };
+        mlir::Value lowNib, hiPart;
+        if (group == 0) {
+          lowNib = iAnd(sb(b), intLit(0x0F));
+          hiPart = iShl(iAnd(sb(8 + b), intLit(0x03)), intLit(4));
+        } else if (group == 1) {
+          lowNib = iAnd(sb(4 + b), intLit(0x0F));
+          hiPart = iShl(iAnd(iShr(sb(8 + b), intLit(2)), intLit(0x03)),
+                        intLit(4));
+        } else if (group == 2) {
+          lowNib = iAnd(iShr(sb(b), intLit(4)), intLit(0x0F));
+          hiPart = iShl(iAnd(iShr(sb(8 + b), intLit(4)), intLit(0x03)),
+                        intLit(4));
+        } else {
+          lowNib = iAnd(iShr(sb(4 + b), intLit(4)), intLit(0x0F));
+          hiPart = iShl(iAnd(iShr(sb(8 + b), intLit(6)), intLit(0x03)),
+                        intLit(4));
+        }
+        return iOr(lowNib, hiPart);
+      };
+      for (int64_t nn = 0; nn < 2; ++nn) {
+        int64_t qBlk = 32 + nn * 32; // qs@32, +32 per n
+        int64_t outBlk = nn * 128;
+        for (int64_t j = 0; j < 4; ++j) {
+          int64_t shift = 2 * j;
+          int64_t mbit = nn * 4 + j; // hmask bit tested for the high term
+          int64_t outJ = outBlk + j * 32;
+          for (int64_t half = 0; half < 2; ++half) {
+            int is = (int)(nn * 8 + 2 * j + half);
+            mlir::Value dl = fMul(dAll, i2f(iSub(q3Scale(is), intLit(32))));
+            int64_t qHalf = qBlk + half * 16;   // q[l] / q[l+16]
+            int64_t hmHalf = half * 16;         // hmask[l] / hmask[l+16]
+            int64_t outHalf = outJ + half * 16;
+            elemLoop(16, [&](mlir::Value l) {
+              mlir::Value q = loadIntAt(xb, inputPtrType,
+                                        addSz(sizeLit(qHalf), l), constU8Type);
+              mlir::Value hm = loadIntAt(xb, inputPtrType,
+                                         addSz(sizeLit(hmHalf), l), constU8Type);
+              mlir::Value qbits = iAnd(iShr(q, intLit(shift)), intLit(3));
+              // (hm & (1<<mbit)) ? 0 : 4  ==  (1 - bit) << 2, bit in {0,1}.
+              mlir::Value bit = iAnd(iShr(hm, intLit(mbit)), intLit(1));
+              mlir::Value term = iShl(iSub(intLit(1), bit), intLit(2));
+              mlir::Value qdec = iSub(qbits, term);
+              storeF32At(yb, addSz(sizeLit(outHalf), l), fMul(dl, i2f(qdec)));
+            });
+          }
+        }
+      }
+    } else if (fmt == Q4K || fmt == Q5K) {
+      // d@0, dmin@2, scales[12]@4; q4_K qs@16; q5_K qh@16, qs@48. get_scale_min_k4.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value dmin = fp16ReadAt(xb, 2);
+      bool isQ5 = (fmt == Q5K);
+      int64_t qsOff = isQ5 ? 48 : 16;
+      rewriter.create<emitc::VerbatimOp>(
+          loc,
+          stepComment(opName, role, isQ5 ? "q5_K_decode" : "q4_K_decode"));
+      // get_scale_min_k4(j) for compile-time j (0..7), scales at +4.
+      auto scaleMin = [&](int j, mlir::Value &scOut, mlir::Value &mOut) {
+        auto sc = [&](int k) {
+          return loadIntAt(xb, inputPtrType, sizeLit(4 + k), constU8Type);
+        };
+        if (j < 4) {
+          scOut = iAnd(sc(j), intLit(63));
+          mOut = iAnd(sc(j + 4), intLit(63));
+        } else {
+          scOut = iOr(iAnd(sc(j + 4), intLit(0x0F)),
+                      iShl(iShr(sc(j - 4), intLit(6)), intLit(4)));
+          mOut = iOr(iShr(sc(j + 4), intLit(4)),
+                     iShl(iShr(sc(j), intLit(6)), intLit(4)));
+        }
+      };
+      for (int64_t jj = 0; jj < 4; ++jj) {
+        mlir::Value sc0, m0, sc1, m1v;
+        scaleMin((int)(2 * jj), sc0, m0);
+        mlir::Value d1 = fMul(d, i2f(sc0));
+        mlir::Value ml1 = fMul(dmin, i2f(m0));
+        scaleMin((int)(2 * jj + 1), sc1, m1v);
+        mlir::Value d2 = fMul(d, i2f(sc1));
+        mlir::Value ml2 = fMul(dmin, i2f(m1v));
+        int64_t qBlk = qsOff + jj * 32; // ql advances 32/super-sub
+        int64_t outBlk = jj * 64;
+        // low half (32): d1*((ql&0xF)[+qh bit]) - ml1
+        elemLoop(32, [&](mlir::Value l) {
+          mlir::Value ql =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(qBlk), l), constU8Type);
+          mlir::Value v = iAnd(ql, intLit(0x0F));
+          if (isQ5) {
+            mlir::Value qh = loadIntAt(xb, inputPtrType, addSz(sizeLit(16), l),
+                                       constU8Type); // qh@16
+            mlir::Value hb =
+                iShl(iAnd(iShr(qh, intLit((int)(2 * jj))), intLit(1)), intLit(4));
+            v = iAdd(v, hb);
+          }
+          storeF32At(yb, addSz(sizeLit(outBlk), l), fSub(fMul(d1, i2f(v)), ml1));
+        });
+        // high half (32): d2*((ql>>4)[+qh bit]) - ml2
+        elemLoop(32, [&](mlir::Value l) {
+          mlir::Value ql =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(qBlk), l), constU8Type);
+          mlir::Value v = iShr(ql, intLit(4));
+          if (isQ5) {
+            mlir::Value qh = loadIntAt(xb, inputPtrType, addSz(sizeLit(16), l),
+                                       constU8Type);
+            mlir::Value hb = iShl(
+                iAnd(iShr(qh, intLit((int)(2 * jj + 1))), intLit(1)), intLit(4));
+            v = iAdd(v, hb);
+          }
+          storeF32At(yb, addSz(sizeLit(outBlk + 32), l),
+                     fSub(fMul(d2, i2f(v)), ml2));
+        });
+      }
+    } else if (fmt == Q6K) {
+      // ql[128]@0, qh[64]@128, scales[16]@192 (int8), d@208.
+      mlir::Value d = fp16ReadAt(xb, 208);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "q6_K_decode"));
+      mlir::Value xbI8 =
+          rewriter.create<emitc::CastOp>(loc, i8PtrType, xb).getResult();
+      for (int64_t nn = 0; nn < 2; ++nn) {
+        int64_t qlBlk = nn * 64;    // ql@0, +64
+        int64_t qhBlk = 128 + nn * 32; // qh@128, +32
+        int64_t scBlk = 192 + nn * 8;  // scales@192 (int8), +8
+        int64_t outBlk = nn * 128;
+        elemLoop(32, [&](mlir::Value l) {
+          mlir::Value is =
+              rewriter.create<emitc::DivOp>(loc, sizeType, l, sizeLit(16))
+                  .getResult(); // l/16 in {0,1}
+          mlir::Value ql0 =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(qlBlk), l), constU8Type);
+          mlir::Value ql32 = loadIntAt(xb, inputPtrType,
+                                       addSz(sizeLit(qlBlk + 32), l),
+                                       constU8Type);
+          mlir::Value qh =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(qhBlk), l), constU8Type);
+          // q1..q4 = ((low|high2<<4)) - 32 (all values are 0..63, so int8-safe).
+          mlir::Value q1 =
+              iSub(iOr(iAnd(ql0, intLit(0x0F)),
+                       iShl(iAnd(iShr(qh, intLit(0)), intLit(3)), intLit(4))),
+                   intLit(32));
+          mlir::Value q2 =
+              iSub(iOr(iAnd(ql32, intLit(0x0F)),
+                       iShl(iAnd(iShr(qh, intLit(2)), intLit(3)), intLit(4))),
+                   intLit(32));
+          mlir::Value q3 =
+              iSub(iOr(iShr(ql0, intLit(4)),
+                       iShl(iAnd(iShr(qh, intLit(4)), intLit(3)), intLit(4))),
+                   intLit(32));
+          mlir::Value q4 =
+              iSub(iOr(iShr(ql32, intLit(4)),
+                       iShl(iAnd(iShr(qh, intLit(6)), intLit(3)), intLit(4))),
+                   intLit(32));
+          auto scLd = [&](int64_t k) {
+            // scales[is + k], scales int8 at byte offset scBlk (= 192 + nn*8).
+            return loadIntAt(xbI8, i8PtrType, addSz(sizeLit(scBlk + k), is),
+                             constI8Type);
+          };
+          // y[l], y[l+32], y[l+64], y[l+96] = d * sc[is+{0,2,4,6}] * q{1..4}.
+          mlir::Value o = addSz(sizeLit(outBlk), l);
+          storeF32At(yb, o, fMul(fMul(d, i2f(scLd(0))), i2f(q1)));
+          storeF32At(yb, addSz(o, sizeLit(32)),
+                     fMul(fMul(d, i2f(scLd(2))), i2f(q2)));
+          storeF32At(yb, addSz(o, sizeLit(64)),
+                     fMul(fMul(d, i2f(scLd(4))), i2f(q3)));
+          storeF32At(yb, addSz(o, sizeLit(96)),
+                     fMul(fMul(d, i2f(scLd(6))), i2f(q4)));
+        });
+      }
+    } else if (fmt == IQ4XS) {
+      // d@0, scales_h(u16)@2, scales_l[4]@4, qs[128]@8. Per ib (8 sub-blocks):
+      // 6-bit ls from a scales_l nibble + a scales_h 2-bit; dl = d*(ls-32); the
+      // 16-entry iq4_nl codebook nibble decode (byte-exact dequantize_row_iq4_xs).
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value sh = u16ReadAt(xb, inputPtrType, sizeLit(2)); // scales_h once
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq4_xs_decode"));
+      for (int64_t ib = 0; ib < 8; ++ib) {
+        mlir::Value scl =
+            loadIntAt(xb, inputPtrType, sizeLit(4 + ib / 2), constU8Type);
+        mlir::Value low = iAnd(iShr(scl, intLit(4 * (ib % 2))), intLit(0xF));
+        mlir::Value hi =
+            iShl(u2i(uAnd(uShr(sh, uLit(2 * ib)), uLit(3))), intLit(4));
+        mlir::Value dl = fMul(d, i2f(iSub(iOr(low, hi), intLit(32))));
+        int64_t qsBase = 8 + ib * 16, outBase = ib * 32;
+        elemLoop(16, [&](mlir::Value j) {
+          mlir::Value qb =
+              loadIntAt(xb, inputPtrType, addSz(sizeLit(qsBase), j),
+                        constU8Type);
+          mlir::Value lo = i2f(codebookLoad(codebookName, iAnd(qb, intLit(0xF))));
+          mlir::Value hg = i2f(codebookLoad(codebookName, iShr(qb, intLit(4))));
+          storeF32At(yb, addSz(sizeLit(outBase), j), fMul(dl, lo));
+          storeF32At(yb, addSz(sizeLit(outBase + 16), j), fMul(dl, hg));
+        });
+      }
+    } else if (fmt == IQ1S) {
+      // d@0, qs[32]@2, qh(u16)[8]@34. iq1s_grid ternary (int8), delta = +-0.125.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq1s_grid", u64PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq1_s_decode"));
+      for (int64_t ib = 0; ib < 8; ++ib) {
+        mlir::Value qhv = u16ReadAt(xb, inputPtrType, sizeLit(34 + ib * 2));
+        // dl = d * (2*((qh>>12)&7) + 1).
+        mlir::Value g3 = u2i(uAnd(uShr(qhv, uLit(12)), uLit(7)));
+        mlir::Value dl =
+            fMul(d, i2f(iAdd(iMul(intLit(2), g3), intLit(1))));
+        // delta = (qh & 0x8000) ? -IQ1S_DELTA : IQ1S_DELTA.
+        mlir::Value dbit = u2i(uShr(uAnd(qhv, uLit(0x8000)), uLit(15)));
+        mlir::Value delta = fMul(i2f(iSub(intLit(1), iMul(intLit(2), dbit))),
+                                 floatLit("0.125f"));
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value qsb = loadIntAt(xb, inputPtrType,
+                                      sizeLit(2 + ib * 4 + l), constU8Type);
+          // idx = qs[l] | (((qh >> 3l) & 7) << 8).
+          mlir::Value hb =
+              iShl(u2i(uAnd(uShr(qhv, uLit(3 * l)), uLit(7))), intLit(8));
+          mlir::Value base8 = iMul(iOr(qsb, hb), intLit(8));
+          int64_t outBase = ib * 32 + l * 8;
+          elemLoop(8, [&](mlir::Value j) {
+            mlir::Value g = tableByteAtInt(grid, iAdd(base8, sz2i(j)));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(dl, fAdd(i2f(g), delta)));
+          });
+        }
+      }
+    } else if (fmt == IQ1M) {
+      // qs[32]@0, qh[16]@32, scales(u16)[4]@48. NO d field -- the super-block d is
+      // the packed iq1m_scale fp16 reconstructed from the 4 scale words then read
+      // AS _Float16 (bit reinterpret via a uint16 lvalue + address-of, the SAME
+      // idiom the iq1_m block-dot vec_dot uses). iq1s_grid ternary, delta=+-0.125.
+      mlir::Type u16Type = emitc::OpaqueType::get(ctx, "uint16_t");
+      mlir::Type u16LValuePtrType = emitc::PointerType::get(u16Type);
+      mlir::Value grid = castI8Base("tcrv_iq1m_grid", u64PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq1m_scale_reconstruct"));
+      mlir::Value sc0 = u16ReadAt(xb, inputPtrType, sizeLit(48));
+      mlir::Value sc1 = u16ReadAt(xb, inputPtrType, sizeLit(50));
+      mlir::Value sc2 = u16ReadAt(xb, inputPtrType, sizeLit(52));
+      mlir::Value sc3 = u16ReadAt(xb, inputPtrType, sizeLit(54));
+      // scbits = (sc0>>12)|((sc1>>8)&0xf0)|((sc2>>4)&0xf00)|(sc3&0xf000).
+      mlir::Value scbits =
+          uOr(uOr(uOr(uShr(sc0, uLit(12)), uAnd(uShr(sc1, uLit(8)), uLit(0xf0))),
+                  uAnd(uShr(sc2, uLit(4)), uLit(0xf00))),
+              uAnd(sc3, uLit(0xf000)));
+      auto scbitsVar = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(u16Type),
+          emitc::OpaqueAttr::get(ctx, ""));
+      mlir::Value scbitsU16 =
+          rewriter.create<emitc::CastOp>(loc, u16Type, scbits).getResult();
+      rewriter.create<emitc::AssignOp>(loc, scbitsVar, scbitsU16);
+      mlir::Value scbitsAddr =
+          rewriter
+              .create<emitc::ApplyOp>(loc, u16LValuePtrType,
+                                      rewriter.getStringAttr("&"), scbitsVar)
+              .getResult();
+      mlir::Value d = rewriter
+                          .create<emitc::CallOpaqueOp>(
+                              loc, mlir::TypeRange{floatType}, fp16ReadCallee,
+                              mlir::ValueRange{scbitsAddr})
+                          .getResult(0);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq1_m_decode"));
+      mlir::Value scInt[4] = {u2i(sc0), u2i(sc1), u2i(sc2), u2i(sc3)};
+      auto deltaOf = [&](mlir::Value qhByte, int64_t bit) -> mlir::Value {
+        mlir::Value b = iAnd(iShr(qhByte, intLit(bit)), intLit(1));
+        return fMul(i2f(iSub(intLit(1), iMul(intLit(2), b))),
+                    floatLit("0.125f"));
+      };
+      for (int64_t ib = 0; ib < 8; ++ib) {
+        mlir::Value scv = scInt[ib / 2];
+        int64_t sh0 = 6 * (ib % 2) + 0, sh3 = 6 * (ib % 2) + 3;
+        mlir::Value dl1 = fMul(
+            d, i2f(iAdd(iMul(intLit(2), iAnd(iShr(scv, intLit(sh0)), intLit(7))),
+                        intLit(1))));
+        mlir::Value dl2 = fMul(
+            d, i2f(iAdd(iMul(intLit(2), iAnd(iShr(scv, intLit(sh3)), intLit(7))),
+                        intLit(1))));
+        mlir::Value qh0 = loadIntAt(xb, inputPtrType, sizeLit(32 + 2 * ib + 0),
+                                    constU8Type);
+        mlir::Value qh1 = loadIntAt(xb, inputPtrType, sizeLit(32 + 2 * ib + 1),
+                                    constU8Type);
+        mlir::Value qsb[4] = {
+            loadIntAt(xb, inputPtrType, sizeLit(4 * ib + 0), constU8Type),
+            loadIntAt(xb, inputPtrType, sizeLit(4 * ib + 1), constU8Type),
+            loadIntAt(xb, inputPtrType, sizeLit(4 * ib + 2), constU8Type),
+            loadIntAt(xb, inputPtrType, sizeLit(4 * ib + 3), constU8Type)};
+        // idx[l] = qs[l] | ((qh_hi << shift) & 0x700).
+        mlir::Value idx[4] = {
+            iOr(qsb[0], iAnd(iShl(qh0, intLit(8)), intLit(0x700))),
+            iOr(qsb[1], iAnd(iShl(qh0, intLit(4)), intLit(0x700))),
+            iOr(qsb[2], iAnd(iShl(qh1, intLit(8)), intLit(0x700))),
+            iOr(qsb[3], iAnd(iShl(qh1, intLit(4)), intLit(0x700)))};
+        mlir::Value delta[4] = {deltaOf(qh0, 3), deltaOf(qh0, 7),
+                                deltaOf(qh1, 3), deltaOf(qh1, 7)};
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value dl = (l < 2) ? dl1 : dl2;
+          mlir::Value base8 = iMul(idx[l], intLit(8));
+          mlir::Value dlt = delta[l];
+          int64_t outBase = ib * 32 + l * 8;
+          elemLoop(8, [&](mlir::Value j) {
+            mlir::Value g = tableByteAtInt(grid, iAdd(base8, sz2i(j)));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(dl, fAdd(i2f(g), dlt)));
+          });
+        }
+      }
+    } else if (fmt == IQ2XXS) {
+      // d@0, qs(u16)[32]@2 (= aux). grid-of-8 (int64) + signs64 (+-1). The 8-byte
+      // aux group per ib32: aux8[l] = grid index byte, aux32[1] = scale + sign
+      // selectors. Byte-exact to dequantize_row_iq2_xxs.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq2xxs_grid", i64PtrType);
+      mlir::Value signs = plainBase("tcrv_iq2xxs_signs64", i8PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq2_xxs_decode"));
+      for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
+        int64_t auxBase = 2 + 8 * ib32;
+        mlir::Value aux1 = u32ReadAt(xb, inputPtrType, sizeLit(auxBase + 4));
+        // db = d * (0.5 + (aux1>>28)) * 0.25.
+        mlir::Value db = fMul(fMul(d, fAdd(floatLit("0.5f"),
+                                           i2f(u2i(uShr(aux1, uLit(28)))))),
+                              floatLit("0.25f"));
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value a = loadIntAt(xb, inputPtrType, sizeLit(auxBase + l),
+                                    constU8Type);
+          mlir::Value sel = u2i(uAnd(uShr(aux1, uLit(7 * l)), uLit(127)));
+          mlir::Value gBase = iMul(a, intLit(8));
+          mlir::Value sBase = iMul(sel, intLit(8));
+          int64_t outBase = ib32 * 32 + l * 8;
+          elemLoop(8, [&](mlir::Value j) {
+            mlir::Value ji = sz2i(j);
+            mlir::Value g = tableByteAtInt(grid, iAdd(gBase, ji));
+            mlir::Value sg = tableByteAtInt(signs, iAdd(sBase, ji));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(fMul(db, i2f(g)), i2f(sg)));
+          });
+        }
+      }
+    } else if (fmt == IQ2XS) {
+      // d@0, qs(u16)[32]@2, scales[8]@66. grid-512 (int64) + signs64. Byte-exact
+      // to dequantize_row_iq2_xs.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq2xs_grid", i64PtrType);
+      mlir::Value signs = plainBase("tcrv_iq2xs_signs64", i8PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq2_xs_decode"));
+      for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
+        mlir::Value sc =
+            loadIntAt(xb, inputPtrType, sizeLit(66 + ib32), constU8Type);
+        mlir::Value db0 =
+            fMul(fMul(d, fAdd(floatLit("0.5f"), i2f(iAnd(sc, intLit(0xf))))),
+                 floatLit("0.25f"));
+        mlir::Value db1 =
+            fMul(fMul(d, fAdd(floatLit("0.5f"), i2f(iShr(sc, intLit(4))))),
+                 floatLit("0.25f"));
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value q =
+              u16ReadAt(xb, inputPtrType, sizeLit(2 + (4 * ib32 + l) * 2));
+          mlir::Value gBase = iMul(u2i(uAnd(q, uLit(511))), intLit(8));
+          mlir::Value sBase = iMul(u2i(uShr(q, uLit(9))), intLit(8));
+          mlir::Value dbl = (l < 2) ? db0 : db1;
+          int64_t outBase = ib32 * 32 + l * 8;
+          elemLoop(8, [&](mlir::Value j) {
+            mlir::Value ji = sz2i(j);
+            mlir::Value g = tableByteAtInt(grid, iAdd(gBase, ji));
+            mlir::Value sg = tableByteAtInt(signs, iAdd(sBase, ji));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(fMul(dbl, i2f(g)), i2f(sg)));
+          });
+        }
+      }
+    } else if (fmt == IQ2S) {
+      // d@0, qs[64]@2, qh[8]@66, scales[8]@74; explicit sign region @34 (=qs+32).
+      // grid-1024 (int64) + signs256 (indexed by the raw sign byte). Byte-exact to
+      // dequantize_row_iq2_s.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq2s_grid", i64PtrType);
+      mlir::Value signs = plainBase("tcrv_iq2s_signs256", i8PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq2_s_decode"));
+      for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
+        mlir::Value sc =
+            loadIntAt(xb, inputPtrType, sizeLit(74 + ib32), constU8Type);
+        mlir::Value db0 =
+            fMul(fMul(d, fAdd(floatLit("0.5f"), i2f(iAnd(sc, intLit(0xf))))),
+                 floatLit("0.25f"));
+        mlir::Value db1 =
+            fMul(fMul(d, fAdd(floatLit("0.5f"), i2f(iShr(sc, intLit(4))))),
+                 floatLit("0.25f"));
+        mlir::Value qhv =
+            loadIntAt(xb, inputPtrType, sizeLit(66 + ib32), constU8Type);
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value qsb = loadIntAt(xb, inputPtrType,
+                                      sizeLit(2 + 4 * ib32 + l), constU8Type);
+          // idx = qs[l] | ((qh[ib32] << (8-2l)) & 0x300).
+          mlir::Value hb =
+              iAnd(iShl(qhv, intLit(8 - 2 * l)), intLit(0x300));
+          mlir::Value gBase = iMul(iOr(qsb, hb), intLit(8));
+          mlir::Value sByte = loadIntAt(xb, inputPtrType,
+                                        sizeLit(34 + 4 * ib32 + l), constU8Type);
+          mlir::Value sBase = iMul(sByte, intLit(8));
+          mlir::Value dbl = (l < 2) ? db0 : db1;
+          int64_t outBase = ib32 * 32 + l * 8;
+          elemLoop(8, [&](mlir::Value j) {
+            mlir::Value ji = sz2i(j);
+            mlir::Value g = tableByteAtInt(grid, iAdd(gBase, ji));
+            mlir::Value sg = tableByteAtInt(signs, iAdd(sBase, ji));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(fMul(dbl, i2f(g)), i2f(sg)));
+          });
+        }
+      }
+    } else if (fmt == IQ3XXS) {
+      // d@0, qs[96]@2, scales_and_signs @66 (=qs+64). grid-of-4 (uint32) + the
+      // ksigns selector table. Byte-exact to dequantize_row_iq3_xxs.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq3xxs_grid", u32PtrType);
+      mlir::Value ksigns = plainBase("tcrv_iq3xxs_ksigns", u8PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq3_xxs_decode"));
+      for (int64_t ib32 = 0; ib32 < 8; ++ib32) {
+        mlir::Value aux = u32ReadAt(xb, inputPtrType, sizeLit(66 + 4 * ib32));
+        mlir::Value db = fMul(fMul(d, fAdd(floatLit("0.5f"),
+                                           i2f(u2i(uShr(aux, uLit(28)))))),
+                              floatLit("0.5f"));
+        int64_t qsBase = 2 + 8 * ib32;
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value sel = u2i(uAnd(uShr(aux, uLit(7 * l)), uLit(127)));
+          // signByte = ksigns[sel] (0..255).
+          mlir::Value signByte =
+              loadIntAt(ksigns, u8PtrType, i2sz(sel), constU8Type);
+          mlir::Value g1Base = iMul(loadIntAt(xb, inputPtrType,
+                                              sizeLit(qsBase + 2 * l + 0),
+                                              constU8Type),
+                                    intLit(4));
+          mlir::Value g2Base = iMul(loadIntAt(xb, inputPtrType,
+                                              sizeLit(qsBase + 2 * l + 1),
+                                              constU8Type),
+                                    intLit(4));
+          int64_t outBase = ib32 * 32 + l * 8;
+          elemLoop(4, [&](mlir::Value j) {
+            mlir::Value ji = sz2i(j);
+            // grid1[j] * sign(bit j); grid2[j] * sign(bit j+4).
+            mlir::Value gv1 = tableByteAtInt(grid, iAdd(g1Base, ji));
+            mlir::Value b0 = iAnd(iShr(signByte, ji), intLit(1));
+            mlir::Value s0 = iSub(intLit(1), iMul(intLit(2), b0));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(fMul(db, i2f(gv1)), i2f(s0)));
+            mlir::Value gv2 = tableByteAtInt(grid, iAdd(g2Base, ji));
+            mlir::Value b1 =
+                iAnd(iShr(signByte, iAdd(ji, intLit(4))), intLit(1));
+            mlir::Value s1 = iSub(intLit(1), iMul(intLit(2), b1));
+            storeF32At(yb, addSz(sizeLit(outBase + 4), j),
+                       fMul(fMul(db, i2f(gv2)), i2f(s1)));
+          });
+        }
+      }
+    } else if (fmt == IQ3S) {
+      // d@0, qs[64]@2, qh[8]@66, signs[32]@74, scales[4]@106. grid-of-4 (uint32,
+      // 512) with a 9th index bit from qh; explicit sign bytes. Each outer group
+      // g (0..3) runs TWO passes (qh[0] then qh[1]). Byte-exact to
+      // dequantize_row_iq3_s.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value grid = castI8Base("tcrv_iq3s_grid", u32PtrType);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "iq3_s_decode"));
+      auto pass = [&](mlir::Value qhByte, mlir::Value db, int64_t qsBase,
+                      int64_t signsBase, int64_t outStart) {
+        for (int64_t l = 0; l < 4; ++l) {
+          mlir::Value q1 = loadIntAt(xb, inputPtrType,
+                                     sizeLit(qsBase + 2 * l + 0), constU8Type);
+          mlir::Value q2 = loadIntAt(xb, inputPtrType,
+                                     sizeLit(qsBase + 2 * l + 1), constU8Type);
+          // grid1 idx = q1 | ((qh << (8-2l)) & 256); grid2 idx uses (7-2l).
+          mlir::Value g1Base = iMul(
+              iOr(q1, iAnd(iShl(qhByte, intLit(8 - 2 * l)), intLit(256))),
+              intLit(4));
+          mlir::Value g2Base = iMul(
+              iOr(q2, iAnd(iShl(qhByte, intLit(7 - 2 * l)), intLit(256))),
+              intLit(4));
+          mlir::Value signByte = loadIntAt(xb, inputPtrType,
+                                           sizeLit(signsBase + l), constU8Type);
+          int64_t outBase = outStart + l * 8;
+          elemLoop(4, [&](mlir::Value j) {
+            mlir::Value ji = sz2i(j);
+            mlir::Value gv1 = tableByteAtInt(grid, iAdd(g1Base, ji));
+            mlir::Value b0 = iAnd(iShr(signByte, ji), intLit(1));
+            mlir::Value s0 = iSub(intLit(1), iMul(intLit(2), b0));
+            storeF32At(yb, addSz(sizeLit(outBase), j),
+                       fMul(fMul(db, i2f(gv1)), i2f(s0)));
+            mlir::Value gv2 = tableByteAtInt(grid, iAdd(g2Base, ji));
+            mlir::Value b1 =
+                iAnd(iShr(signByte, iAdd(ji, intLit(4))), intLit(1));
+            mlir::Value s1 = iSub(intLit(1), iMul(intLit(2), b1));
+            storeF32At(yb, addSz(sizeLit(outBase + 4), j),
+                       fMul(fMul(db, i2f(gv2)), i2f(s1)));
+          });
+        }
+      };
+      for (int64_t g = 0; g < 4; ++g) {
+        mlir::Value scByte =
+            loadIntAt(xb, inputPtrType, sizeLit(106 + g), constU8Type);
+        mlir::Value db1 =
+            fMul(d, i2f(iAdd(intLit(1),
+                             iMul(intLit(2), iAnd(scByte, intLit(0xf))))));
+        mlir::Value db2 =
+            fMul(d, i2f(iAdd(intLit(1),
+                             iMul(intLit(2), iShr(scByte, intLit(4))))));
+        mlir::Value qh0 = loadIntAt(xb, inputPtrType, sizeLit(66 + 2 * g + 0),
+                                    constU8Type);
+        mlir::Value qh1 = loadIntAt(xb, inputPtrType, sizeLit(66 + 2 * g + 1),
+                                    constU8Type);
+        pass(qh0, db1, 2 + 16 * g, 74 + 8 * g, g * 64);
+        pass(qh1, db2, 2 + 16 * g + 8, 74 + 8 * g + 4, g * 64 + 32);
+      }
+    }
+  }
+
+  return mlir::success();
+}
 
 } // namespace detail
 } // namespace rvv

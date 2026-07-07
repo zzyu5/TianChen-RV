@@ -294,110 +294,128 @@
     {
       "op": "dequantize_row",
       "format": "q2_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q2_K\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_q2_K: fp16 d/dmin seam, 4-bit packed scale/min sc&0xF|sc>>4, 2-bit quant (q>>shift)&3 folded dl*q - ml); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q2-k.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q2_K super-block decode REUSES the block-decode facts already built for the q2_K block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q2_K (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "q3_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q3_K\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_q3_K: fp16 d_all seam, 6-bit signed scales reconstructed from packed scales[12] via ggml's aux kmask1/kmask2 shuffle, 2-bit quant merged with the hmask high-bit term, -32 bias, folded dl*q); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q3-k.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q3_K aux 6-bit scale shuffle + hmask decode REUSES the block-decode facts already built for the q3_K block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q3_K (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "q4_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q4_K\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_q4_K: fp16 d/dmin seam, get_scale_min_k4 6-bit scale/min unpack, nibble quant (q&0xF, q>>4) folded d1*q - m1); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q4-k.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q4_K get_scale_min_k4 6-bit unpack + nibble decode REUSES the block-decode facts already built for the q4_K block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q4_K (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "q5_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q5_K\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_q5_K: fp16 d/dmin seam, get_scale_min_k4 6-bit scale/min unpack, nibble quant plus the qh 5th-bit merge folded d1*q - m1); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q5-k.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q5_K get_scale_min_k4 6-bit unpack + nibble/qh-bit decode REUSES the block-decode facts already built for the q5_K block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q5_K (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "q6_K",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q6_K\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_q6_K: fp16 d seam, SIGNED int8 scales[16] sign-extending loads, 6-bit quant assembly ((ql&0xF)|((qh>>s)&3)<<4) - 32 folded d*sc*q); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q6-k.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q6_K signed-scale + 6-bit quant assembly decode REUSES the block-decode facts already built for the q6_K block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q6_K (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq1_s",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq1_s\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq1_s: 2048-entry ternary int8 grid indexed qs | (((qh>>3l)&7)<<8), dl=d*(2*((qh>>12)&7)+1), +-IQ1S_DELTA(0.125) grid bias); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq1-s.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq1_s grid-table decode REUSES the iq1_s grid block-decode facts already built for the iq1_s block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq1_s (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq1_m",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq1_m\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq1_m: 2048-entry ternary grid with NO d field -- the super-block scale is the packed iq1m_scale fp16 reconstructed from the 4 scale words then read AS _Float16 (bit reinterpret), dl1/dl2 3-bit sub-scales, +-0.125 grid bias); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq1-m.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq1_m grid-table decode REUSES the iq1_m grid block-decode facts already built for the iq1_m block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq1_m (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq2_xxs",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq2_xxs\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq2_xxs: grid-of-8 int64 codebook + derived signs64 (+-1) sign plane, per-ib32 aux scale d*(0.5+(aux32[1]>>28))*0.25 with 7-bit ksigns sign selectors); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq2-xxs.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq2_xxs grid-table decode REUSES the iq2_xxs grid + signs64 block-decode facts already built for the iq2_xxs block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq2_xxs (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq2_xs",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq2_xs\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq2_xs: 512-entry int64 grid (9-bit index qs&511) + derived signs64 sign plane (selector qs>>9), per-ib32 4-bit scales d*(0.5+scale)*0.25); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq2-xs.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq2_xs grid-table decode REUSES the iq2_xs grid + signs64 block-decode facts already built for the iq2_xs block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq2_xs (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq2_s",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq2_s\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq2_s: 1024-entry int64 grid (qs | qh-derived high bits) + universal signs256 indexed by the explicit sign byte, per-ib32 4-bit scales); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq2-s.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq2_s grid-table decode REUSES the iq2_s grid + signs256 block-decode facts already built for the iq2_s block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq2_s (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq3_xxs",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq3_xxs\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq3_xxs: grid-of-4 uint32 codebook + ksigns selector plane (per-lane bit-tested), per-ib32 aux scale d*(0.5+(aux32>>28))*0.5); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-xxs.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq3_xxs grid-table decode REUSES the iq3_xxs grid + ksigns block-decode facts already built for the iq3_xxs block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq3_xxs (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq3_s",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq3_s\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq3_s: 512-entry uint32 grid-of-4 with a 9th index bit merged from qh, explicit per-lane sign bytes bit-tested, two-pass (qh0/qh1) per scale group db=d*(1+2*scale)); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq3-s.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq3_s grid-table decode REUSES the iq3_s grid block-decode facts already built for the iq3_s block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq3_s (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq4_nl",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq4_nl\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS block loop reproducing ggml dequantize_row_iq4_nl: fp16 d seam, 16-entry non-linear codebook gather kvalues_iq4nl[qs&0xF]/[qs>>4] scaled by d); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq4-nl.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq4_nl 16-entry codebook decode REUSES the codebook block-decode facts already built for the iq4_nl block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_iq4_nl (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "iq4_xs",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"iq4_xs\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_iq4_xs: 16-entry iq4_nl non-linear codebook nibble decode, 6-bit ls from a scales_l nibble | a scales_h 2-bit, dl=d*(ls-32)); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-iq4-xs.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The iq4_xs grid-table decode REUSES the iq4_nl codebook block-decode facts already built for the iq4_xs block-dot vec_dot (byte-identical canonical grid/signs table decl). Byte-exact to ggml's reference dequantize_row_iq4_xs (verified vs ggml on random blocks: 0 mismatches; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "mxfp4",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"mxfp4\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS block loop reproducing ggml dequantize_row_mxfp4: E8M0 block scale via ggml's exact bit construction reusing emitE8M0HalfScale, 16-entry FP4 e2m1 codebook gather kvalues_mxfp4[qs&0xF]/[qs>>4] scaled by d); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-mxfp4.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The mxfp4 E8M0 scale + FP4 codebook decode REUSES the codebook + E8M0 block-decode facts already built for the mxfp4 block-dot vec_dot (emitE8M0HalfScale). NOTE this is a distinct op row from the mxfp4 block-dot vec_dot (still the E5 not-strong discriminator; unaffected). Byte-exact to ggml's reference dequantize_row_mxfp4 (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "nvfp4",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"nvfp4\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS block loop reproducing ggml dequantize_row_nvfp4: four per-16-element UE4M3 sub-block scales via ggml_ue4m3_to_fp32 ldexpf HALF form, 16-entry FP4 codebook gather per sub-block); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-nvfp4.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The nvfp4 four-sub-block UE4M3 scale + FP4 codebook decode REUSES the codebook + UE4M3 block-decode facts already built for the nvfp4 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_nvfp4 (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "tq1_0",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"tq1_0\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_tq1_0: fp16 d seam, base-3 unpack q=(qs*pow3[n])&0xFF, xi=((q*3)>>8), y=(xi-1)*d over the qs 160+80 and qh 16 sections); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-tq1-0.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The tq1_0 base-3 unpack decode REUSES the block-decode facts already built for the tq1_0 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_tq1_0 (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "tq2_0",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"tq2_0\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, extended format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRowExtended (hand-written AoS super-block loop reproducing ggml dequantize_row_tq2_0: fp16 d seam, 2-bit ternary unpack q=(qs>>(2l))&3, y=(q-1)*d); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-tq2-0.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format super-block monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The tq2_0 2-bit ternary decode REUSES the block-decode facts already built for the tq2_0 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_tq2_0 (verified vs ggml on random blocks; scalar AoS loop, no reduction)."
     },
     {
       "op": "gemm_tile",

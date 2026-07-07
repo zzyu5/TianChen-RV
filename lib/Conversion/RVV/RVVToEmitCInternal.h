@@ -3581,6 +3581,25 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// Emit the DISPATCH-WIRED dequantize_row body for the EXTENDED (non-legacy)
+  /// bounded `format`s: the K-quant super-blocks (q2_K/q3_K/q4_K/q5_K/q6_K), the
+  /// FP4 codebooks (mxfp4/nvfp4), the ternary formats (tq1_0/tq2_0), and the
+  /// 16-entry non-linear codebook (iq4_nl). Each `format` selects a hand-written
+  /// scalar AoS super-block loop reproducing ggml's reference
+  /// dequantize_row_<format> byte-exactly, reusing the SAME per-format block-decode
+  /// facts already constructed for that format's block-dot vec_dot (the fp16 seam,
+  /// the E8M0/UE4M3 scale reconstruction, the get_scale_min_k4 6-bit unpack, the
+  /// q3_K aux 6-bit scale shuffle, the base-3 tq1_0 unpack, the codebook gather).
+  /// Hand-written monolith body (wiring, not construction: no typed loop brick).
+  /// Returns success iff `deqOp.getFormat()` is one of the extended formats and
+  /// its body was emitted; a legacy/unwired format yields a match failure so the
+  /// caller falls back to the legacy chain.
+  mlir::LogicalResult emitGgmlDequantizeRowExtended(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::GgmlDequantizeRowOp deqOp, mlir::Value input, mlir::Value output,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the

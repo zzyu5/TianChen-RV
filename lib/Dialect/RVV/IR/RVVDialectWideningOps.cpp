@@ -9013,7 +9013,19 @@ mlir::LogicalResult GgmlGeluF32Op::verify() {
 // row can claim dispatch-wired without a real decode behind it (fail-closed, I7).
 static bool isWiredDequantizeRowFormat(llvm::StringRef format) {
   return format == "q4_0" || format == "q4_1" || format == "q5_0" ||
-         format == "q5_1" || format == "q8_0";
+         format == "q5_1" || format == "q8_0" ||
+         // K-quant super-blocks (get_scale_min_k4 / aux 6-bit scale shuffle).
+         format == "q2_K" || format == "q3_K" || format == "q4_K" ||
+         format == "q5_K" || format == "q6_K" ||
+         // FP4 codebooks (E8M0 / UE4M3 scale + kvalues_mxfp4 gather).
+         format == "mxfp4" || format == "nvfp4" ||
+         // Ternary (base-3 tq1_0 / 2-bit tq2_0) + 16-entry non-linear codebook.
+         format == "tq1_0" || format == "tq2_0" || format == "iq4_nl" ||
+         // IQ grid-table super-blocks (2/3-bit grid codebooks + sign planes;
+         // each reuses its block-dot vec_dot canonical grid/signs decl).
+         format == "iq2_xxs" || format == "iq2_xs" || format == "iq2_s" ||
+         format == "iq3_xxs" || format == "iq3_s" || format == "iq1_s" ||
+         format == "iq1_m" || format == "iq4_xs";
 }
 
 mlir::LogicalResult GgmlDequantizeRowOp::verify() {
@@ -9042,9 +9054,12 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
     return emitOpError()
            << "format '" << getFormat()
            << "' is not a wired dequantize_row decode; the dispatch-wired "
-              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (the legacy quants). An "
-              "unwired format has no hand-written decode body and must stay "
-              "absent in the six-state ledger";
+              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (legacy) + "
+              "q2_K/q3_K/q4_K/q5_K/q6_K (K-quant) + mxfp4/nvfp4 (FP4) + "
+              "tq1_0/tq2_0 (ternary) + iq4_nl (codebook) + "
+              "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m/iq4_xs (IQ "
+              "grid-table). An unwired format has no hand-written decode body and "
+              "must stay absent in the six-state ledger";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
