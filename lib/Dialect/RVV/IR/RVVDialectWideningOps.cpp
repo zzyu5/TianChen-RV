@@ -3563,6 +3563,394 @@ mlir::LogicalResult GgmlRepackGemmQ5KQ8KOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlRepackGemvQ6KQ8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // q6_K is the LARGEST K-quant structural delta: 6-bit ql|qh signed weights, 16
+  // SIGNED int8 scales, and NO min term. The op carries the K-quant super-block
+  // mirror attrs but WITHOUT a weight_dmin_byte_offset (single super-block d, no
+  // dmin) and WITHOUT an activation_bsums_byte_offset (single accumulator, no min
+  // correction). Anything else -- a forbidden local element_count/SEW/LMUL/policy
+  // attr, a dmin/bsums offset (which would contradict the no-min structure), or an
+  // unexpected name -- is rejected fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "weight_scales_byte_offset" ||
+           name == "weight_qh_byte_offset" || name == "n_subblocks" ||
+           name == "weight_interleave" || name == "half_lanes" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemv_q6_K_q8_K keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/nc in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml Q6_K x Q8_K 16x1-repacked GEMV "
+                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'weight_scales_byte_offset', "
+                "'weight_qh_byte_offset', 'n_subblocks', 'weight_interleave', "
+                "'half_lanes', and 'integer_core_lmul' (NO weight_dmin_byte_offset "
+                "/ activation_bsums_byte_offset -- q6_K has a single super-block d "
+                "and NO min term); unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_repack_gemv_q6_K_q8_K")
+    return emitOpError()
+           << "currently supports only kind \"ggml_repack_gemv_q6_K_q8_K\" for "
+              "the bounded ggml Q6_K x Q8_K 16x1-repacked GEMV typed surface";
+  if (getScaleModel() !=
+      "superblock-d.fp16-signed8-scale-16-subblocks-6bit-nomin")
+    return emitOpError()
+           << "requires scale_model "
+              "\"superblock-d.fp16-signed8-scale-16-subblocks-6bit-nomin\" for the "
+              "ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+
+  // The 16x1 repacked q6_K decode ABI (pinned fail-closed I7): QK_K == 256,
+  // block_q6_Kx16 weight stride 3360 (16 inline fp16 d + 256 signed int8 scales +
+  // 1024 qh high-2-bit-plane bytes + 2048 ql low-4-bit-plane bytes), block_q8_K
+  // activation stride 292 (the PLAIN single-column stream, IDENTICAL to q4_K/q5_K;
+  // q6_K reads NO bsums), weight quants (ql) at byte offset +1312 (after the 32 d +
+  // 256 scales + 1024 qh), the qh high-2-bit plane at +288 (after the 32 d + 256
+  // scales), the signed scales region at +32, activation quants at +4, 16 sub-blocks
+  // of 16, 16 weight columns per group, and the VLEN-derived strip width.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml Q6_K x Q8_K "
+                            "16x1-repacked GEMV route";
+  if (getWeightBlockStride() != 3360)
+    return emitOpError()
+           << "requires weight_block_stride == 3360 (sizeof block_q6_Kx16: 16 fp16 "
+              "d + 256 signed int8 scales + 1024 qh high-2-bit bytes + 2048 ql "
+              "low-4-bit bytes) for the ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (getActivationBlockStride() != 292)
+    return emitOpError()
+           << "requires activation_block_stride == 292 (sizeof block_q8_K: fp32 d "
+              "+ 256 int8 quants + 16 int16 bsums, the plain single-column q8_K "
+              "activation stream) for the ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (getWeightQuantByteOffset() != 1312)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 1312 (the 16 inline fp16 d + "
+              "256 signed int8 scales + 1024 qh high-2-bit bytes precede the "
+              "interleaved ql low-4-bit bytes) for the ggml Q6_K x Q8_K "
+              "16x1-repacked GEMV route";
+  if (getWeightQhByteOffset() != 288)
+    return emitOpError()
+           << "requires weight_qh_byte_offset == 288 (the 1024-byte qh high-2-bit "
+              "plane -- 16 columns x 64 QK_K/4 bytes -- follows the 16 fp16 d + 256 "
+              "signed int8 scales) for the ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (getWeightScalesByteOffset() != 32)
+    return emitOpError()
+           << "requires weight_scales_byte_offset == 32 (the 256-byte signed int8 "
+              "per-sub-block scales region -- 16 columns x 16 scales -- follows the "
+              "16 inline fp16 super-block d) for the ggml Q6_K x Q8_K 16x1-repacked "
+              "GEMV route";
+  if (getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 4 (the fp32 delta d "
+              "precedes the int8 quants) for the ggml Q6_K x Q8_K 16x1-repacked "
+              "GEMV route";
+  if (getNSubblocks() != 16)
+    return emitOpError()
+           << "requires n_subblocks == 16 (the q6_K super-block of 256 elements "
+              "splits into 16 sub-blocks of 16, one signed scale each) for the ggml "
+              "Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (getWeightInterleave() != 16)
+    return emitOpError() << "requires weight_interleave == 16 (the 16x1 "
+                            "block-as-lane repack width) for the ggml Q6_K x "
+                            "Q8_K 16x1-repacked GEMV route";
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} (the resource-aware strip width: 8 "
+              "at VLEN=128 -> two 8-lane halves, 16 at VLEN=256 -> one 16-lane "
+              "strip) for the ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) so the "
+              "16-block-as-lane group tiles into whole strips for the ggml Q6_K "
+              "x Q8_K 16x1-repacked GEMV route";
+
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} (the RVV1.0 "
+                "fractional core anchor or the RVV0.7.1 whole-LMUL core anchor) "
+                "for the ggml Q6_K x Q8_K 16x1-repacked GEMV route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" "
+                "(the whole-LMUL strip is 16 lanes, tiling the 16-block-as-lane "
+                "group into exactly ONE 16-lane strip) for the ggml Q6_K x Q8_K "
+                "16x1-repacked GEMV route";
+  }
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one repacked weight base pointer, one plain activation "
+              "base pointer, one output pointer, one runtime element-count, one "
+              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q6_Kx16 repacked weight "
+              "byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_K plain "
+              "activation byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination, nc outputs)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc, the number of weight columns)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q6_K x Q8_K 16x1-repacked GEMV route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q6_K x Q8_K 16x1-repacked GEMV";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult GgmlRepackGemmQ6KQ8KOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // q6_K PREFILL: the SAME 6-bit ql|qh signed-weight + signed-int8-scale + no-min
+  // structure as the GEVM, with the interleaved block_q8_Kx4 activation. NO
+  // weight_dmin_byte_offset / activation_bsums_byte_offset (single accumulator, no
+  // min). The runtime nr/nc counts and output row stride are RUNTIME ABI operands.
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "weight_scales_byte_offset" ||
+           name == "weight_qh_byte_offset" || name == "n_subblocks" ||
+           name == "weight_interleave" || name == "activation_interleave" ||
+           name == "half_lanes" || name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemm_q6_K_q8_K keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/nr/nc/bs in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml Q6_K x Q8_K 16x1-repacked GEMM "
+                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'weight_scales_byte_offset', "
+                "'weight_qh_byte_offset', 'n_subblocks', 'weight_interleave', "
+                "'activation_interleave', 'half_lanes', and 'integer_core_lmul' "
+                "(NO weight_dmin_byte_offset / activation_bsums_byte_offset -- q6_K "
+                "has a single super-block d and NO min term); unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_repack_gemm_q6_K_q8_K")
+    return emitOpError()
+           << "currently supports only kind \"ggml_repack_gemm_q6_K_q8_K\" for "
+              "the bounded ggml Q6_K x Q8_K 16x1-repacked GEMM typed surface";
+  if (getScaleModel() !=
+      "superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin")
+    return emitOpError()
+           << "requires scale_model "
+              "\"superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin\" "
+              "for the ggml Q6_K x Q8_K 16x1-repacked GEMM route";
+
+  // The 16x1 repacked q6_K prefill ABI (pinned fail-closed I7): QK_K == 256,
+  // block_q6_Kx16 weight stride 3360 (the SAME weight ABI as the GEVM), block_q8_Kx4
+  // activation stride 1168 (the INTERLEAVED x4 prefill activation), weight ql at
+  // +1312, qh at +288, signed scales at +32, interleaved activation quants at +16,
+  // 16 sub-blocks of 16, 16 weight columns / 4 activation columns per group.
+  if (getQk() != 256)
+    return emitOpError() << "requires qk == 256 (QK_K) for the ggml Q6_K x Q8_K "
+                            "16x1-repacked GEMM route";
+  if (getWeightBlockStride() != 3360)
+    return emitOpError()
+           << "requires weight_block_stride == 3360 (sizeof block_q6_Kx16: 16 fp16 "
+              "d + 256 signed int8 scales + 1024 qh high-2-bit bytes + 2048 ql "
+              "low-4-bit bytes) for the ggml Q6_K x Q8_K 16x1-repacked GEMM route";
+  if (getActivationBlockStride() != 1168)
+    return emitOpError()
+           << "requires activation_block_stride == 1168 (sizeof block_q8_Kx4: 4 "
+              "fp32 d + 1024 int8 quants + 64 int16 bsums, the 4-column interleaved "
+              "q8_K prefill activation stream) for the ggml Q6_K x Q8_K "
+              "16x1-repacked GEMM route";
+  if (getWeightQuantByteOffset() != 1312)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 1312 (the 16 inline fp16 d + "
+              "256 signed int8 scales + 1024 qh high-2-bit bytes precede the "
+              "interleaved ql low-4-bit bytes) for the ggml Q6_K x Q8_K "
+              "16x1-repacked GEMM route";
+  if (getWeightQhByteOffset() != 288)
+    return emitOpError()
+           << "requires weight_qh_byte_offset == 288 (the 1024-byte qh high-2-bit "
+              "plane -- 16 columns x 64 QK_K/4 bytes -- follows the 16 fp16 d + 256 "
+              "signed int8 scales) for the ggml Q6_K x Q8_K 16x1-repacked GEMM route";
+  if (getWeightScalesByteOffset() != 32)
+    return emitOpError()
+           << "requires weight_scales_byte_offset == 32 (the 256-byte signed int8 "
+              "per-sub-block scales region -- 16 columns x 16 scales -- follows the "
+              "16 inline fp16 super-block d) for the ggml Q6_K x Q8_K 16x1-repacked "
+              "GEMM route";
+  if (getActivationQuantByteOffset() != 16)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 16 (the 4 fp32 delta d "
+              "precede the 4-column interleaved int8 quants) for the ggml Q6_K x "
+              "Q8_K 16x1-repacked GEMM route";
+  if (getNSubblocks() != 16)
+    return emitOpError()
+           << "requires n_subblocks == 16 (the q6_K super-block of 256 elements "
+              "splits into 16 sub-blocks of 16, one signed scale each) for the ggml "
+              "Q6_K x Q8_K 16x1-repacked GEMM route";
+  if (getWeightInterleave() != 16)
+    return emitOpError() << "requires weight_interleave == 16 (the 16x1 "
+                            "block-as-lane repack width) for the ggml Q6_K x "
+                            "Q8_K 16x1-repacked GEMM route";
+  if (getActivationInterleave() != 4)
+    return emitOpError() << "requires activation_interleave == 4 (the q8_Kx4 "
+                            "activation-column group width) for the ggml Q6_K x "
+                            "Q8_K 16x1-repacked GEMM route";
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} (the resource-aware strip width: 8 "
+              "at VLEN=128 -> two 8-lane halves, 16 at VLEN=256 -> one 16-lane "
+              "strip) for the ggml Q6_K x Q8_K 16x1-repacked GEMM route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) so the "
+              "16-block-as-lane group tiles into whole strips for the ggml Q6_K "
+              "x Q8_K 16x1-repacked GEMM route";
+
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} (the RVV1.0 "
+                "fractional core anchor or the RVV0.7.1 whole-LMUL core anchor) "
+                "for the ggml Q6_K x Q8_K 16x1-repacked GEMM route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" "
+                "(the whole-LMUL strip is 16 lanes, tiling the 16-block-as-lane "
+                "group into exactly ONE 16-lane strip) for the ggml Q6_K x Q8_K "
+                "16x1-repacked GEMM route";
+  }
+
+  if (op->getNumOperands() != 8 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one repacked weight base pointer, one repacked "
+              "activation base pointer, one output pointer, one runtime "
+              "element-count, one runtime row-count, one runtime column-count, "
+              "one output-row float-stride runtime ABI operand, one "
+              "!tcrv_rvv.vl operand, and one i32 LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_q6_Kx16 repacked weight "
+              "byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_Kx4 repacked "
+              "activation byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination, nr x nc outputs)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getRowCount().getType()))
+    return emitOpError()
+           << "requires the row-count operand to be a runtime index value (nr, "
+              "the number of activation rows)";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc, the number of weight columns)";
+  if (!llvm::isa<mlir::IndexType>(getOutputRowStride().getType()))
+    return emitOpError()
+           << "requires the output-row-stride operand to be a runtime index "
+              "value (bs, the per-output-row float stride)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml Q6_K x Q8_K 16x1-repacked GEMM route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml Q6_K x Q8_K 16x1-repacked GEMM";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlRepackGemvQ41Q81Op::verify() {
   mlir::Operation *op = getOperation();
 
