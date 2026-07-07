@@ -253,32 +253,37 @@
     {
       "op": "dequantize_row",
       "format": "q4_0",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q4_0\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRow (hand-written AoS block loop reproducing ggml dequantize_row_q4_0: fp16 d via (float)*(const _Float16 *) seam, nibble unpack (qs[j]&0xF)-8 -> y[j] and (qs[j]>>4)-8 -> y[j+16]); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q4-0.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written per-format monolith decode, NOT a typed_flat_block_dot brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q4_0 nibble decode REUSES the block-decode already built for the q4_0 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q4_0 (scalar AoS loop, no reduction)."
     },
     {
       "op": "dequantize_row",
       "format": "q4_1",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q4_1\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRow (hand-written AoS block loop reproducing ggml dequantize_row_q4_1: fp16 d + fp16 m via the (float)*(const _Float16 *) seam, nibble unpack (qs[j]&0xF)*d+m -> y[j] and (qs[j]>>4)*d+m -> y[j+16]); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q4-1.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q4_1 nibble+min decode REUSES the block-decode already built for the q4_1 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q4_1."
     },
     {
       "op": "dequantize_row",
       "format": "q5_0",
       "state": "dispatch-wired",
-      "anchor": "dequantize_row_q5_0 referenced"
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q5_0\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRow (hand-written AoS block loop reproducing ggml dequantize_row_q5_0: fp16 d seam, byte-assembled uint32 qh 5th-bit plane, ((qs[j]&0xF)|xh0)-16 -> y[j] and ((qs[j]>>4)|xh1)-16 -> y[j+16]); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q5-0.mlir",
+      "note": "WIRING not construction ([L-6]): UPGRADED from the prior thin 'referenced' anchor (q5_0 dequant was only implicit inside the repack-gemv q5_0 op) to a REAL dedicated dequantize_row op+emitter+lit. Hand-written per-format decode, NOT a typed loop brick -- feeds C_dispatch. The q5_0 qh 5th-bit merge REUSES the block-decode already built for the q5_0 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q5_0."
     },
     {
       "op": "dequantize_row",
       "format": "q5_1",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q5_1\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRow (hand-written AoS block loop reproducing ggml dequantize_row_q5_1: fp16 d + fp16 m seam, byte-assembled uint32 qh 5th-bit plane, ((qs[j]&0xF)|xh0)*d+m -> y[j] and ((qs[j]>>4)|xh1)*d+m -> y[j+16]); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q5-1.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q5_1 qh+min decode REUSES the block-decode already built for the q5_1 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q5_1."
     },
     {
       "op": "dequantize_row",
       "format": "q8_0",
-      "state": "absent",
-      "anchor": "no in-code op"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlDequantizeRowOp (tcrv_rvv.dequantize_row, format=\"q8_0\", hasVerifier) -> RVVDialectWideningOps.cpp GgmlDequantizeRowOp::verify (fail-closed I7, format allowlist) -> RVVToEmitC.cpp isGgmlDequantizeRowBody dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlDequantizeRow (hand-written AoS block loop reproducing ggml dequantize_row_q8_0: fp16 d seam, bare signed-int8 scale y[j]=qs[j]*d over all 32 lanes, sign-extending load); lit test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q8-0.mlir",
+      "note": "WIRING not construction ([L-6]): hand-written per-format monolith decode, NOT a typed loop brick / pattern-library primitive -- feeds C_dispatch, not C_construct. The q8_0 int8 scale REUSES the block-decode already built for the q8_0 block-dot vec_dot. Byte-exact to ggml's reference dequantize_row_q8_0."
     },
     {
       "op": "dequantize_row",
@@ -640,26 +645,30 @@
     {
       "op": "gelu",
       "format": "f32",
-      "state": "absent",
-      "anchor": "no dedicated Ggml op in-code"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlGeluF32Op (tcrv_rvv.gelu_f32, hasVerifier) -> RVVDialectWideningOps.cpp GgmlGeluF32Op::verify (fail-closed I7) -> RVVToEmitC.cpp isGgmlForwardElementwiseF32Body dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlForwardElementwiseF32 (hand-written SCALAR per-element tanh gelu loop: ggml_gelu_f32 0.5*x*(1+tanhf(SQRT_2_OVER_PI*x*(1+GELU_COEF_A*x*x))), tanhf the scalar-libm opaque seam); lit test/Conversion/RVV/rvv-to-emitc-ggml-gelu-f32.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written monolith emitter, NOT a typed_elementwise_loop_body brick / pattern-library primitive -- this row feeds C_dispatch, not C_construct. Bit-exactness to ggml's DEPLOYED f16-table gelu is pending-hardware (thin body emits the reference tanh gelu that seeds the table)."
     },
     {
       "op": "add",
       "format": "f32",
-      "state": "absent",
-      "anchor": "no dedicated Ggml op in-code"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlVecAddF32Op (tcrv_rvv.vec_add_f32, hasVerifier) -> RVVDialectWideningOps.cpp GgmlVecAddF32Op::verify (fail-closed I7) -> RVVToEmitC.cpp isGgmlForwardElementwiseF32Body dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlForwardElementwiseF32 (hand-written m8 strip loop: vsetvl_e32m8 / vle32 x2 / vfadd_vv / vse32); lit test/Conversion/RVV/rvv-to-emitc-ggml-vec-add-f32.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written monolith emitter, NOT a typed loop brick -- feeds C_dispatch, not C_construct. z[i]=x[i]+y[i] is a bare per-lane fp32 add (no reduction), byte-exact at the m8 anchor."
     },
     {
       "op": "mul",
       "format": "f32",
-      "state": "absent",
-      "anchor": "no dedicated Ggml op in-code"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlVecMulF32Op (tcrv_rvv.vec_mul_f32, hasVerifier) -> RVVDialectWideningOps.cpp GgmlVecMulF32Op::verify (fail-closed I7) -> RVVToEmitC.cpp isGgmlForwardElementwiseF32Body dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlForwardElementwiseF32 (hand-written m8 strip loop: vsetvl_e32m8 / vle32 x2 / vfmul_vv / vse32); lit test/Conversion/RVV/rvv-to-emitc-ggml-vec-mul-f32.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written monolith emitter, NOT a typed loop brick -- feeds C_dispatch, not C_construct. z[i]=x[i]*y[i] is a bare per-lane fp32 multiply (no reduction), byte-exact at the m8 anchor."
     },
     {
       "op": "cpy",
       "format": "f32",
-      "state": "absent",
-      "anchor": "no dedicated Ggml op in-code"
+      "state": "dispatch-wired",
+      "anchor": "monolith dispatch-wired: RVVOps.td GgmlVecCpyF32Op (tcrv_rvv.vec_cpy_f32, hasVerifier) -> RVVDialectWideningOps.cpp GgmlVecCpyF32Op::verify (fail-closed I7) -> RVVToEmitC.cpp isGgmlForwardElementwiseF32Body dispatch -> RVVToEmitCForwardElementwise.cpp emitGgmlForwardElementwiseF32 (hand-written m8 strip loop: vsetvl_e32m8 / vle32 / vse32, pure load->store copy); lit test/Conversion/RVV/rvv-to-emitc-ggml-vec-cpy-f32.mlir",
+      "note": "WIRING not construction ([L-6]): the body is the hand-written monolith emitter, NOT a typed loop brick -- feeds C_dispatch, not C_construct. y[i]=x[i] moves the f32 bit pattern unchanged (byte-exact)."
     },
     {
       "op": "flash_attn",

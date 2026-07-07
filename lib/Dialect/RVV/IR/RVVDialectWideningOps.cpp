@@ -8859,6 +8859,236 @@ mlir::LogicalResult ElementwiseRopeRotateCoreOp::verify() {
   return mlir::success();
 }
 
+// Shared fail-closed (I7) checks for the four forward-elementwise f32 support ops
+// (add/mul/cpy/gelu): the op carries ONLY its bounded `kind` mirror attr (no
+// forbidden dataflow SEW/LMUL/policy/element_count knob), its result is the f32
+// LMUL m1 store-boundary token, its VL operand is the active !tcrv_rvv.vl, and it
+// is nested under a policy-carrying tcrv_rvv.with_vl whose VL it consumes. The
+// per-op verify() checks the operand ABI ctypes + the exact `kind` first, then
+// defers the common shape here.
+static mlir::LogicalResult
+verifyForwardElementwiseF32Common(mlir::Operation *op, mlir::Value result,
+                                  mlir::Value vl) {
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return op->emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; the forward-elementwise f32 support op keeps SEW/LMUL/policy "
+                "on setvl/with_vl and runtime n/AVL/VL in the surrounding "
+                "control-plane IR";
+    if (attrName != "kind")
+      return op->emitOpError()
+             << "only accepts the bounded 'kind' attribute; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+  if (!isGenericRVVVectorF32M1(result.getType()))
+    return op->emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, \"m1\"> "
+              "for the forward-elementwise f32 store boundary";
+  if (!llvm::isa<VLType>(vl.getType()))
+    return op->emitOpError() << "requires runtime VL operand to have "
+                                "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, vl)))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the forward-elementwise f32 support op";
+  return mlir::success();
+}
+
+mlir::LogicalResult GgmlVecAddF32Op::verify() {
+  mlir::Operation *op = getOperation();
+  if (getKind() != "ggml_vec_add_f32")
+    return emitOpError() << "currently supports only kind \"ggml_vec_add_f32\" "
+                            "for the bounded ggml f32 binary-add typed surface";
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two read-only f32 input pointers (lhs/rhs), one f32 "
+              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
+              "operand, and one f32 LMUL m1 result";
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const float *")
+    return emitOpError() << "requires the lhs operand to bind a runtime ABI value "
+                            "of C type 'const float *' (ggml's x[])";
+  if (!rhsBinding || rhsBinding.getCType() != "const float *")
+    return emitOpError() << "requires the rhs operand to bind a runtime ABI value "
+                            "of C type 'const float *' (ggml's y[])";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError() << "requires the output operand to bind a runtime ABI "
+                            "value of C type 'float *' (ggml's z[])";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError() << "requires the element-count operand to be the runtime "
+                            "n index value feeding the enclosing setvl";
+  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
+}
+
+mlir::LogicalResult GgmlVecMulF32Op::verify() {
+  mlir::Operation *op = getOperation();
+  if (getKind() != "ggml_vec_mul_f32")
+    return emitOpError() << "currently supports only kind \"ggml_vec_mul_f32\" "
+                            "for the bounded ggml f32 binary-multiply typed "
+                            "surface";
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires two read-only f32 input pointers (lhs/rhs), one f32 "
+              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
+              "operand, and one f32 LMUL m1 result";
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const float *")
+    return emitOpError() << "requires the lhs operand to bind a runtime ABI value "
+                            "of C type 'const float *' (ggml's x[])";
+  if (!rhsBinding || rhsBinding.getCType() != "const float *")
+    return emitOpError() << "requires the rhs operand to bind a runtime ABI value "
+                            "of C type 'const float *' (ggml's y[])";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError() << "requires the output operand to bind a runtime ABI "
+                            "value of C type 'float *' (ggml's z[])";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError() << "requires the element-count operand to be the runtime "
+                            "n index value feeding the enclosing setvl";
+  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
+}
+
+mlir::LogicalResult GgmlVecCpyF32Op::verify() {
+  mlir::Operation *op = getOperation();
+  if (getKind() != "ggml_vec_cpy_f32")
+    return emitOpError() << "currently supports only kind \"ggml_vec_cpy_f32\" "
+                            "for the bounded ggml f32 copy typed surface";
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only f32 input pointer, one f32 output pointer, "
+              "one runtime element-count, one !tcrv_rvv.vl operand, and one f32 "
+              "LMUL m1 result";
+  RuntimeABIValueOp inBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inBinding || inBinding.getCType() != "const float *")
+    return emitOpError() << "requires the input operand to bind a runtime ABI "
+                            "value of C type 'const float *' (ggml's x[])";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError() << "requires the output operand to bind a runtime ABI "
+                            "value of C type 'float *' (ggml's y[])";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError() << "requires the element-count operand to be the runtime "
+                            "n index value feeding the enclosing setvl";
+  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
+}
+
+mlir::LogicalResult GgmlGeluF32Op::verify() {
+  mlir::Operation *op = getOperation();
+  if (getKind() != "ggml_gelu_f32")
+    return emitOpError() << "currently supports only kind \"ggml_gelu_f32\" for "
+                            "the bounded ggml tanh-approximation gelu typed "
+                            "surface";
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only f32 input pointer, one f32 output pointer, "
+              "one runtime element-count, one !tcrv_rvv.vl operand, and one f32 "
+              "LMUL m1 result";
+  RuntimeABIValueOp inBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inBinding || inBinding.getCType() != "const float *")
+    return emitOpError() << "requires the input operand to bind a runtime ABI "
+                            "value of C type 'const float *' (ggml's x[])";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError() << "requires the output operand to bind a runtime ABI "
+                            "value of C type 'float *' (ggml's y[])";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError() << "requires the element-count operand to be the runtime "
+                            "n index value feeding the enclosing setvl";
+  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
+}
+
+// The wired dequantize_row format allowlist. ONE parameterized op stands in for
+// the family; only formats whose per-format decode is actually emitted (a real
+// hand-written monolith body + a conversion lit) are accepted, so no six-state
+// row can claim dispatch-wired without a real decode behind it (fail-closed, I7).
+static bool isWiredDequantizeRowFormat(llvm::StringRef format) {
+  return format == "q4_0" || format == "q4_1" || format == "q5_0" ||
+         format == "q5_1" || format == "q8_0";
+}
+
+mlir::LogicalResult GgmlDequantizeRowOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded `format` mirror attr (I4): no forbidden
+  // dataflow SEW/LMUL/policy/element_count knob, and no unexpected name. The
+  // per-format AoS block facts (qk / stride / offsets) are ggml ABI constants the
+  // emitter hard-codes off `format`, NOT tunable op attrs.
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.dequantize_row keeps SEW/LMUL/policy on "
+                "setvl/with_vl and runtime k/AVL/VL in the surrounding "
+                "control-plane IR";
+    if (attrName != "format")
+      return emitOpError()
+             << "only accepts the bounded 'format' attribute; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isWiredDequantizeRowFormat(getFormat()))
+    return emitOpError()
+           << "format '" << getFormat()
+           << "' is not a wired dequantize_row decode; the dispatch-wired "
+              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (the legacy quants). An "
+              "unwired format has no hand-written decode body and must stay "
+              "absent in the six-state ledger";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one read-only quantized-weight byte pointer, one f32 "
+              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
+              "operand, and one f32 LMUL m1 result";
+
+  // ggml's dequantize_row_<format> reads the AoS block buffer (const block_qX *,
+  // taken as a const uint8_t * byte cursor) and writes the f32 y[] row.
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const uint8_t *' (the ggml block_qX AoS byte buffer decoded to "
+              "f32)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml y[] dequantized row)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError() << "requires the element-count operand to be the "
+                            "runtime k index value feeding the enclosing setvl";
+
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<f32, \"m1\"> "
+              "for the dequantize_row store boundary";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have !tcrv_rvv.vl "
+                            "type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the dequantize_row support op";
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
   mlir::Operation *op = getOperation();
 

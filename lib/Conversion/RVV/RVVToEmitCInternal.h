@@ -531,6 +531,22 @@ private:
   /// vfncvt/vncvt narrowing chain.
   static bool isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope);
 
+  /// True iff the with_vl body is EXACTLY one forward-elementwise f32 support op
+  /// (tcrv_rvv.vec_add_f32 | tcrv_rvv.vec_mul_f32 | tcrv_rvv.vec_cpy_f32 |
+  /// tcrv_rvv.gelu_f32). DISPATCH-WIRED: the op identity is the dispatch key; the
+  /// emitter owns the hand-written monolith body (an m8 strip loop for add/mul/cpy,
+  /// a scalar tanhf loop for gelu). NOT constructed ([L-6] wiring != construction:
+  /// no typed_elementwise_loop_body brick, no pattern-library primitive).
+  static bool isGgmlForwardElementwiseF32Body(tcrvrvv::WithVLOp scope);
+
+  /// True iff the with_vl body is EXACTLY one tcrv_rvv.dequantize_row op.
+  /// DISPATCH-WIRED: the op identity (+ its bounded `format`) is the dispatch key;
+  /// the emitter owns the hand-written per-format monolith decode body (an AoS
+  /// block loop reproducing ggml's reference dequantize_row_<format>). NOT
+  /// constructed ([L-6] wiring != construction: no typed loop brick, no
+  /// pattern-library primitive).
+  static bool isGgmlDequantizeRowBody(tcrvrvv::WithVLOp scope);
+
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope);
 
   /// Emit one product/reduce slice into the function-scoped accumulator variable
@@ -3536,6 +3552,31 @@ private:
   /// matching ggml's exact path -- never synthesized (a _rm/_tu suffix would
   /// change the rounding mode or fail to compile).
   mlir::LogicalResult emitGgmlQuantizeRowQ80(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the DISPATCH-WIRED forward-elementwise f32 support body for the single
+  /// tcrv_rvv.{vec_add_f32|vec_mul_f32|vec_cpy_f32|gelu_f32} op nested under
+  /// `scope`. add/mul/cpy lower to a byte-exact m8 strip loop (vsetvl_e32m8 / vle32
+  /// (x2 for the binary add/mul, x1 for cpy) / vfadd_vv|vfmul_vv (none for cpy) /
+  /// vse32); gelu lowers to a SCALAR per-element loop computing ggml's tanh gelu
+  /// (0.5*x*(1+tanhf(SQRT_2_OVER_PI*x*(1+GELU_COEF_A*x*x)))) with one `tanhf`
+  /// opaque-seam call per element. Hand-written monolith body (wiring, not
+  /// construction: no typed loop brick).
+  mlir::LogicalResult emitGgmlForwardElementwiseF32(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the DISPATCH-WIRED dequantize_row body for the single
+  /// tcrv_rvv.dequantize_row op nested under `scope`. The op's bounded `format`
+  /// selects the per-format AoS block-decode: a scalar block loop reproducing
+  /// ggml's reference dequantize_row_<format> byte-exactly -- the fp16 block scale
+  /// via the `(float)*(const _Float16 *)` seam, then the nibble unpack (q4_0/q4_1),
+  /// the 5th-bit qh merge (q5_0/q5_1), or the bare int8 scale (q8_0). Hand-written
+  /// monolith body (wiring, not construction: no typed loop brick).
+  mlir::LogicalResult emitGgmlDequantizeRow(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

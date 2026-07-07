@@ -1237,6 +1237,550 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     return mlir::success();
   }
 
+mlir::LogicalResult VariantToEmitCFunc::emitGgmlForwardElementwiseF32(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // The DISPATCH-WIRED forward-elementwise f32 support body (add/mul/cpy/gelu):
+    // a hand-written monolith emit, NOT a constructed typed loop brick ([L-6]
+    // wiring != construction). The recognizer guarantees the with_vl body is
+    // EXACTLY one of the four ops; find it and route by op identity.
+    mlir::Operation *fwd = nullptr;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlVecAddF32Op, tcrvrvv::GgmlVecMulF32Op,
+                    tcrvrvv::GgmlVecCpyF32Op, tcrvrvv::GgmlGeluF32Op>(op))
+        fwd = &op;
+    }
+    if (!fwd)
+      return rewriter.notifyMatchFailure(
+          scope, "forward-elementwise body missing the op");
+
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type constFloatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+    mlir::Type indexType = rewriter.getIndexType();
+
+    // The support ops pin the m8 strip anchor ggml's apply path uses. The bare
+    // per-lane add/mul/cpy are byte-exact at any LMUL (no reduction), so m8 is a
+    // fixed resource fact, not a knob (matching silu/quantize precedent).
+    llvm::StringRef lmul = "m8";
+    mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
+    std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
+    std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
+    std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
+
+    // The vectorized m8 strip loop for the bare per-lane maps (add/mul/cpy): load
+    // each input strip, combine (or pass through, for cpy), store the output
+    // strip. `binaryCallee` is empty for cpy (a pure load->store copy).
+    auto emitVectorStrip =
+        [&](mlir::ValueRange inputs, mlir::Value output, llvm::StringRef opName,
+            llvm::StringRef role,
+            llvm::StringRef binaryCallee) -> mlir::LogicalResult {
+      rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+      // size_t vlmax = __riscv_vsetvl_e32m8(n);
+      mlir::Value vlmax = emitOpaqueCall(rewriter, loc, sizeType, setvlCallee,
+                                         mlir::ValueRange{avlArg}, opName, role);
+      // for (size_t i = 0; i < n; i += vlmax) { ... }
+      mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+      auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
+                                                 /*bodyBuilder=*/nullptr);
+      mlir::Value iv = forOp.getInductionVar();
+      {
+        mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+        rewriter.setInsertionPointToStart(forOp.getBody());
+
+        // size_t vl = __riscv_vsetvl_e32m8(n - i);
+        mlir::Value bodyVL = emitOpaqueCallBuilt(
+            rewriter, loc, sizeType, setvlCallee, opName, role,
+            [&](mlir::OpBuilder &b,
+                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+              mlir::Value remaining =
+                  b.create<emitc::SubOp>(l, sizeType, avlArg, iv);
+              return {remaining};
+            });
+
+        // vfloat32m8_t v_k = __riscv_vle32_v_f32m8((const float *)(in_k + i), vl);
+        llvm::SmallVector<mlir::Value> loaded;
+        for (mlir::Value in : inputs) {
+          mlir::Value pRaw =
+              rewriter.create<emitc::AddOp>(loc, in.getType(), in, iv);
+          mlir::Value p =
+              rewriter.create<emitc::CastOp>(loc, constFloatPtrType, pRaw)
+                  .getResult();
+          loaded.push_back(emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
+                                          mlir::ValueRange{p, bodyVL}, opName,
+                                          role));
+        }
+
+        // v_out = __riscv_vfadd_vv_f32m8 | __riscv_vfmul_vv_f32m8 (or the loaded
+        // strip itself for the copy).
+        mlir::Value result;
+        if (binaryCallee.empty()) {
+          result = loaded.front();
+        } else {
+          result = emitOpaqueCall(
+              rewriter, loc, f32VecType, binaryCallee,
+              mlir::ValueRange{loaded[0], loaded[1], bodyVL}, opName, role);
+        }
+
+        // __riscv_vse32_v_f32m8((float *)(out + i), v_out, vl);
+        mlir::Value oRaw =
+            rewriter.create<emitc::AddOp>(loc, output.getType(), output, iv);
+        mlir::Value o =
+            rewriter.create<emitc::CastOp>(loc, floatPtrType, oRaw).getResult();
+        emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                           mlir::ValueRange{o, result, bodyVL}, opName, role);
+      }
+      return mlir::success();
+    };
+
+    if (auto addOp = llvm::dyn_cast<tcrvrvv::GgmlVecAddF32Op>(fwd)) {
+      mlir::Value lhs = valueMap.lookup(addOp.getLhs());
+      mlir::Value rhs = valueMap.lookup(addOp.getRhs());
+      mlir::Value output = valueMap.lookup(addOp.getOutput());
+      if (!lhs || !rhs || !output)
+        return rewriter.notifyMatchFailure(addOp, "vec_add ABI operand unmapped");
+      return emitVectorStrip({lhs, rhs}, output,
+                             addOp.getTCRVEmitCLowerableSourceOpName(),
+                             addOp.getTCRVEmitCLowerableSourceRole(),
+                             riscvIntrinsicName("vfadd", 32, lmul, "f32"));
+    }
+    if (auto mulOp = llvm::dyn_cast<tcrvrvv::GgmlVecMulF32Op>(fwd)) {
+      mlir::Value lhs = valueMap.lookup(mulOp.getLhs());
+      mlir::Value rhs = valueMap.lookup(mulOp.getRhs());
+      mlir::Value output = valueMap.lookup(mulOp.getOutput());
+      if (!lhs || !rhs || !output)
+        return rewriter.notifyMatchFailure(mulOp, "vec_mul ABI operand unmapped");
+      return emitVectorStrip({lhs, rhs}, output,
+                             mulOp.getTCRVEmitCLowerableSourceOpName(),
+                             mulOp.getTCRVEmitCLowerableSourceRole(),
+                             riscvIntrinsicName("vfmul", 32, lmul, "f32"));
+    }
+    if (auto cpyOp = llvm::dyn_cast<tcrvrvv::GgmlVecCpyF32Op>(fwd)) {
+      mlir::Value input = valueMap.lookup(cpyOp.getInput());
+      mlir::Value output = valueMap.lookup(cpyOp.getOutput());
+      if (!input || !output)
+        return rewriter.notifyMatchFailure(cpyOp, "vec_cpy ABI operand unmapped");
+      return emitVectorStrip({input}, output,
+                             cpyOp.getTCRVEmitCLowerableSourceOpName(),
+                             cpyOp.getTCRVEmitCLowerableSourceRole(),
+                             /*binaryCallee=*/"");
+    }
+
+    // gelu: the SCALAR per-element tanh gelu loop. tanhf is the sanctioned
+    // scalar-libm opaque seam (the sibling of rope's cosf/sinf, rms_norm's sqrtf),
+    // so the faithful thin body is ggml's reference formula, one call per element.
+    auto geluOp = llvm::cast<tcrvrvv::GgmlGeluF32Op>(fwd);
+    mlir::Value input = valueMap.lookup(geluOp.getInput());
+    mlir::Value output = valueMap.lookup(geluOp.getOutput());
+    if (!input || !output)
+      return rewriter.notifyMatchFailure(geluOp, "gelu ABI operand unmapped");
+    llvm::StringRef opName = geluOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = geluOp.getTCRVEmitCLowerableSourceRole();
+    mlir::Type inputPtrType = input.getType();
+    mlir::Type outputPtrType = output.getType();
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // for (size_t i = 0; i < n; i += 1) { y[i] = gelu(x[i]); }
+    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+    auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, one,
+                                               /*bodyBuilder=*/nullptr);
+    mlir::Value iv = forOp.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(forOp.getBody());
+
+      // const float *xp = (const float *)(x + i);  float x_i = xp[0];
+      mlir::Value xpRaw =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, iv);
+      auto xp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xpRaw)
+              .getResult());
+      mlir::Value idx0 = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+      emitc::SubscriptOp xSub =
+          rewriter.create<emitc::SubscriptOp>(loc, xp, idx0);
+      auto xLValueType =
+          llvm::cast<emitc::LValueType>(xSub.getResult().getType());
+      mlir::Value xv =
+          rewriter
+              .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
+                                     xSub.getResult())
+              .getResult();
+
+      // The ggml reference tanh gelu (ggml_gelu_f32):
+      //   0.5f*x*(1.0f + tanhf(SQRT_2_OVER_PI*x*(1.0f + GELU_COEF_A*x*x)))
+      mlir::Value oneF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+      mlir::Value halfF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
+      mlir::Value coefA =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.044715f");
+      mlir::Value sqrt2pi = rewriter.create<emitc::LiteralOp>(
+          loc, floatType, "0.79788456080286535587989211986876f");
+      mlir::Value x2 = rewriter.create<emitc::MulOp>(loc, floatType, xv, xv);
+      mlir::Value coefX2 =
+          rewriter.create<emitc::MulOp>(loc, floatType, coefA, x2);
+      mlir::Value innerA =
+          rewriter.create<emitc::AddOp>(loc, floatType, oneF, coefX2);
+      mlir::Value sqrtX =
+          rewriter.create<emitc::MulOp>(loc, floatType, sqrt2pi, xv);
+      mlir::Value inner =
+          rewriter.create<emitc::MulOp>(loc, floatType, sqrtX, innerA);
+      mlir::Value tanhV = emitOpaqueCall(rewriter, loc, floatType, "tanhf",
+                                         mlir::ValueRange{inner}, opName, role);
+      mlir::Value onePlusTanh =
+          rewriter.create<emitc::AddOp>(loc, floatType, oneF, tanhV);
+      mlir::Value halfX =
+          rewriter.create<emitc::MulOp>(loc, floatType, halfF, xv);
+      mlir::Value gv =
+          rewriter.create<emitc::MulOp>(loc, floatType, halfX, onePlusTanh);
+
+      // float *yp = (float *)(y + i);  yp[0] = gelu(x_i);
+      mlir::Value ypRaw =
+          rewriter.create<emitc::AddOp>(loc, outputPtrType, output, iv);
+      auto yp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, ypRaw).getResult());
+      mlir::Value idx0y = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+      emitc::SubscriptOp ySub =
+          rewriter.create<emitc::SubscriptOp>(loc, yp, idx0y);
+      rewriter.create<emitc::AssignOp>(loc, ySub.getResult(), gv);
+    }
+
+    return mlir::success();
+  }
+
+mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // The DISPATCH-WIRED dequantize_row family body: the single
+    // tcrv_rvv.dequantize_row op's bounded `format` routes to a hand-written AoS
+    // block-decode ([L-6] wiring != construction). The decode is byte-exact to
+    // ggml's reference dequantize_row_<format> (a scalar block loop); the per-strip
+    // f32 stores need no reduction, so LMUL/strip-count are correctness-free.
+    tcrvrvv::GgmlDequantizeRowOp deqOp;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (auto d = llvm::dyn_cast<tcrvrvv::GgmlDequantizeRowOp>(op))
+        deqOp = d;
+    }
+    if (!deqOp)
+      return rewriter.notifyMatchFailure(scope, "dequant body missing the op");
+
+    mlir::Value input = valueMap.lookup(deqOp.getInput());
+    mlir::Value output = valueMap.lookup(deqOp.getOutput());
+    if (!input || !output)
+      return rewriter.notifyMatchFailure(deqOp, "dequant ABI operand unmapped");
+
+    llvm::StringRef format = deqOp.getFormat();
+    llvm::StringRef opName = deqOp.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = deqOp.getTCRVEmitCLowerableSourceRole();
+
+    // Per-format AoS block layout facts (ggml-common.h + QK*_0/1 = 32). offsets are
+    // byte offsets into the AoS block; qsElem is the qs element ctype (int8 for the
+    // bare-scale q8_0, uint8 nibble carrier otherwise). `sub` = the pre-scale bias
+    // subtracted from the nibble (8 for q4_0, 16 for q5_0), 0 when a min is added
+    // instead. hasMin / hasQh gate the q4_1/q5_1 min and the q5_0/q5_1 5th bit.
+    int64_t qk = 32;
+    int64_t stride = 0, dOff = 0, mOff = 0, qhOff = 0, qsOff = 0, sub = 0;
+    bool hasMin = false, hasQh = false, bareInt8 = false;
+    if (format == "q4_0") {
+      stride = 18; dOff = 0; qsOff = 2; sub = 8;
+    } else if (format == "q4_1") {
+      stride = 20; dOff = 0; mOff = 2; qsOff = 4; hasMin = true;
+    } else if (format == "q5_0") {
+      stride = 22; dOff = 0; qhOff = 2; qsOff = 6; sub = 16; hasQh = true;
+    } else if (format == "q5_1") {
+      stride = 24; dOff = 0; mOff = 2; qhOff = 4; qsOff = 8;
+      hasMin = true; hasQh = true;
+    } else if (format == "q8_0") {
+      stride = 34; dOff = 0; qsOff = 2; bareInt8 = true;
+    } else {
+      return rewriter.notifyMatchFailure(deqOp,
+                                         "unwired dequantize_row format");
+    }
+
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type inputPtrType = input.getType();
+    mlir::Type outputPtrType = output.getType();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+    mlir::Type uintType = emitc::OpaqueType::get(ctx, "uint32_t");
+    mlir::Type indexType = rewriter.getIndexType();
+    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
+    mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
+    mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+    mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+    mlir::Type floatPtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+    auto intLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
+    };
+    auto uintLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, uintType,
+                                               std::to_string(v) + "u");
+    };
+    auto idxLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, indexType,
+                                               std::to_string(v));
+    };
+    // Load *elemPtr (an ALREADY pointer-advanced typed pointer, so the address is
+    // `base + j` -- the proven gelu idiom of pointer arithmetic + subscript[0],
+    // avoiding an induction-var subscript) and widen to `int` (signed int8
+    // sign-extends, uint8 zero-extends).
+    auto loadElemAsInt = [&](mlir::Value elemPtr,
+                             mlir::Type elemType) -> mlir::Value {
+      mlir::Value elem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc,
+                  llvm::cast<mlir::TypedValue<emitc::PointerType>>(elemPtr),
+                  idxLit(0))
+              .getResult();
+      mlir::Value v =
+          rewriter.create<emitc::LoadOp>(loc, elemType, elem).getResult();
+      return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+    };
+    auto loadByteAsUint = [&](mlir::Value ptr, int64_t i) -> mlir::Value {
+      mlir::Value elem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(ptr),
+                  idxLit(i))
+              .getResult();
+      mlir::Value v =
+          rewriter.create<emitc::LoadOp>(loc, constU8Type, elem).getResult();
+      return rewriter.create<emitc::CastOp>(loc, uintType, v).getResult();
+    };
+    // *elemPtr = value  (store one f32 through an ALREADY pointer-advanced float*).
+    auto storeF32 = [&](mlir::Value elemPtr, mlir::Value value) {
+      mlir::Value elem =
+          rewriter
+              .create<emitc::SubscriptOp>(
+                  loc,
+                  llvm::cast<mlir::TypedValue<emitc::PointerType>>(elemPtr),
+                  idxLit(0))
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, elem, value);
+    };
+
+    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+    // size_t nb = k / 32;  (ggml's `const int nb = k / qk`; k % qk == 0 is a ggml
+    // contract, no tail).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "block_count"));
+    mlir::Value nb =
+        rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+    // for (size_t ib = 0; ib < nb; ib += 1) { ... }  -- the AoS block loop.
+    mlir::Value zero = sizeLit(0);
+    mlir::Value one = sizeLit(1);
+    auto blockFor = rewriter.create<emitc::ForOp>(loc, zero, nb, one,
+                                                  /*bodyBuilder=*/nullptr);
+    mlir::Value ib = blockFor.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+      rewriter.setInsertionPointToStart(blockFor.getBody());
+
+      // const uint8_t *xb = x + ib*stride;  (the AoS block byte cursor).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "x_block"));
+      mlir::Value xOff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+      mlir::Value xb =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, xOff);
+
+      // float *yb = y + ib*32;  (the f32 output row block).
+      mlir::Value yOff =
+          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk));
+      mlir::Value ybRaw =
+          rewriter.create<emitc::AddOp>(loc, outputPtrType, output, yOff);
+      mlir::Value yb =
+          rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+      // float d = (float)*(const _Float16 *)(xb + dOff);  (the fp16 block scale;
+      // the board is __riscv_zfhmin so this is fcvt.s.h).
+      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
+      mlir::Value dAddr = xb;
+      if (dOff != 0)
+        dAddr = rewriter.create<emitc::AddOp>(loc, inputPtrType, xb,
+                                              sizeLit(dOff));
+      mlir::Value d = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                     mlir::ValueRange{dAddr}, opName, role,
+                                     llvm::StringRef("fcvt.s.h"));
+
+      // float m = (float)*(const _Float16 *)(xb + mOff);  (q4_1/q5_1 min).
+      mlir::Value m;
+      if (hasMin) {
+        mlir::Value mAddr =
+            rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(mOff));
+        m = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                           mlir::ValueRange{mAddr}, opName, role,
+                           llvm::StringRef("fcvt.s.h"));
+      }
+
+      // uint32_t qh = qh[0] | qh[1]<<8 | qh[2]<<16 | qh[3]<<24;  (q5_0/q5_1 5th-bit
+      // plane; the byte-assembled little-endian load matches ggml's memcpy(&qh)).
+      mlir::Value qh;
+      if (hasQh) {
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "qh"));
+        mlir::Value qhBaseRaw =
+            rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qhOff));
+        mlir::Value qhBase =
+            rewriter.create<emitc::CastOp>(loc, u8PtrType, qhBaseRaw)
+                .getResult();
+        mlir::Value b0 = loadByteAsUint(qhBase, 0);
+        mlir::Value b1 = loadByteAsUint(qhBase, 1);
+        mlir::Value b2 = loadByteAsUint(qhBase, 2);
+        mlir::Value b3 = loadByteAsUint(qhBase, 3);
+        mlir::Value s1 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+            loc, uintType, b1, uintLit(8));
+        mlir::Value s2 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+            loc, uintType, b2, uintLit(16));
+        mlir::Value s3 = rewriter.create<emitc::BitwiseLeftShiftOp>(
+            loc, uintType, b3, uintLit(24));
+        qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, b0, s1)
+                 .getResult();
+        qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, qh, s2)
+                 .getResult();
+        qh = rewriter.create<emitc::BitwiseOrOp>(loc, uintType, qh, s3)
+                 .getResult();
+      }
+
+      // const int8_t/uint8_t *qs = (const .. *)(xb + qsOff);  (the packed quants).
+      mlir::Value qsBaseRaw =
+          rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff));
+      mlir::Value qsBase =
+          rewriter
+              .create<emitc::CastOp>(loc, bareInt8 ? i8PtrType : u8PtrType,
+                                     qsBaseRaw)
+              .getResult();
+
+      if (bareInt8) {
+        // q8_0: for (j = 0; j < 32; ++j) y[j] = qs[j] * d;  (bare signed-int8
+        // scale; the load sign-extends).
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(opName, role, "q8_scale"));
+        auto qFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(qk),
+                                                  sizeLit(1),
+                                                  /*bodyBuilder=*/nullptr);
+        mlir::Value j = qFor.getInductionVar();
+        {
+          mlir::OpBuilder::InsertionGuard qGuard(rewriter);
+          rewriter.setInsertionPointToStart(qFor.getBody());
+          // const int8_t *qp = qs + j;  float *yp = yb + j;
+          mlir::Value qp =
+              rewriter.create<emitc::AddOp>(loc, i8PtrType, qsBase, j);
+          mlir::Value qi = loadElemAsInt(qp, constI8Type);
+          mlir::Value qf =
+              rewriter.create<emitc::CastOp>(loc, floatType, qi).getResult();
+          mlir::Value yv =
+              rewriter.create<emitc::MulOp>(loc, floatType, qf, d);
+          mlir::Value yp =
+              rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, j);
+          storeF32(yp, yv);
+        }
+        return mlir::success();
+      }
+
+      // The 4-bit nibble formats (q4_0/q4_1/q5_0/q5_1): for (j = 0; j < 16; ++j)
+      // decode the low nibble -> y[j] and the high nibble -> y[j+16].
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "nibble_decode"));
+      auto nFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(qk / 2),
+                                                sizeLit(1),
+                                                /*bodyBuilder=*/nullptr);
+      mlir::Value j = nFor.getInductionVar();
+      {
+        mlir::OpBuilder::InsertionGuard nGuard(rewriter);
+        rewriter.setInsertionPointToStart(nFor.getBody());
+
+        // int qi = qs[j];  int nlo = qi & 0x0F;  int nhi = qi >> 4;
+        mlir::Value qp =
+            rewriter.create<emitc::AddOp>(loc, u8PtrType, qsBase, j);
+        mlir::Value qi = loadElemAsInt(qp, constU8Type);
+        mlir::Value nlo =
+            rewriter.create<emitc::BitwiseAndOp>(loc, intType, qi, intLit(15))
+                .getResult();
+        mlir::Value nhi =
+            rewriter.create<emitc::BitwiseRightShiftOp>(loc, intType, qi,
+                                                        intLit(4))
+                .getResult();
+
+        // The 5th-bit merge (q5_0/q5_1): xh0 = ((qh >> j) << 4) & 0x10;
+        // xh1 = ((qh >> (j+12))) & 0x10;  then OR into the nibbles (int domain).
+        if (hasQh) {
+          // (uint32_t)j is the little-endian bit index into qh (ggml's j).
+          mlir::Value jInt =
+              rewriter.create<emitc::CastOp>(loc, uintType, j).getResult();
+          mlir::Value jInt12 = rewriter.create<emitc::AddOp>(loc, uintType, jInt,
+                                                             uintLit(12));
+          mlir::Value r0 = rewriter.create<emitc::BitwiseRightShiftOp>(
+              loc, uintType, qh, jInt).getResult();
+          mlir::Value r0s = rewriter.create<emitc::BitwiseLeftShiftOp>(
+              loc, uintType, r0, uintLit(4)).getResult();
+          mlir::Value xh0u = rewriter.create<emitc::BitwiseAndOp>(
+              loc, uintType, r0s, uintLit(16)).getResult();
+          mlir::Value r1 = rewriter.create<emitc::BitwiseRightShiftOp>(
+              loc, uintType, qh, jInt12).getResult();
+          mlir::Value xh1u = rewriter.create<emitc::BitwiseAndOp>(
+              loc, uintType, r1, uintLit(16)).getResult();
+          mlir::Value xh0 =
+              rewriter.create<emitc::CastOp>(loc, intType, xh0u).getResult();
+          mlir::Value xh1 =
+              rewriter.create<emitc::CastOp>(loc, intType, xh1u).getResult();
+          nlo = rewriter.create<emitc::BitwiseOrOp>(loc, intType, nlo, xh0)
+                    .getResult();
+          nhi = rewriter.create<emitc::BitwiseOrOp>(loc, intType, nhi, xh1)
+                    .getResult();
+        }
+
+        // The pre-scale bias: q4_0 -8, q5_0 -16 (subtracted); q4_1/q5_1 add m.
+        if (sub != 0) {
+          nlo = rewriter.create<emitc::SubOp>(loc, intType, nlo, intLit(sub))
+                    .getResult();
+          nhi = rewriter.create<emitc::SubOp>(loc, intType, nhi, intLit(sub))
+                    .getResult();
+        }
+
+        mlir::Value nloF =
+            rewriter.create<emitc::CastOp>(loc, floatType, nlo).getResult();
+        mlir::Value nhiF =
+            rewriter.create<emitc::CastOp>(loc, floatType, nhi).getResult();
+        mlir::Value y0 = rewriter.create<emitc::MulOp>(loc, floatType, nloF, d);
+        mlir::Value y1 = rewriter.create<emitc::MulOp>(loc, floatType, nhiF, d);
+        if (hasMin) {
+          y0 = rewriter.create<emitc::AddOp>(loc, floatType, y0, m).getResult();
+          y1 = rewriter.create<emitc::AddOp>(loc, floatType, y1, m).getResult();
+        }
+
+        // float *yp0 = yb + j;  float *yp1 = yb + j + 16;  y[j]=y0; y[j+16]=y1;
+        mlir::Value yp0 =
+            rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, j);
+        mlir::Value yp1 =
+            rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, j);
+        yp1 = rewriter.create<emitc::AddOp>(loc, floatPtrType, yp1,
+                                            sizeLit(qk / 2));
+        storeF32(yp0, y0);
+        storeF32(yp1, y1);
+      }
+    }
+
+    return mlir::success();
+  }
+
 } // namespace detail
 } // namespace rvv
 } // namespace conversion

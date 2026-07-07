@@ -561,6 +561,35 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
+    // The four forward-elementwise f32 SUPPORT ops (add/mul/cpy/gelu) are
+    // DISPATCH-WIRED (not constructed): the op identity routes to a hand-written
+    // monolith emitter body -- an m8 strip loop (vsetvl_e32m8 / vle32 / vfadd_vv |
+    // vfmul_vv | copy / vse32) for the bare per-lane add/mul/cpy, or a scalar
+    // per-element tanhf loop for gelu. Void-return, like the quantize bridge above.
+    // Marker: the op identity ([L-6] wiring != construction).
+    if (isGgmlForwardElementwiseF32Body(scope)) {
+      if (mlir::failed(emitGgmlForwardElementwiseF32(rewriter, loc, scope, avlArg,
+                                                     sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
+    // The dequantize_row family (block_qX -> f32 row) is DISPATCH-WIRED (not
+    // constructed): the op identity + its bounded `format` route to a hand-written
+    // per-format monolith decode (an AoS block loop reproducing ggml's reference
+    // dequantize_row_<format>). Void-return, like the forward/quantize bridges
+    // above. Marker: the op identity ([L-6] wiring != construction).
+    if (isGgmlDequantizeRowBody(scope)) {
+      if (mlir::failed(emitGgmlDequantizeRow(rewriter, loc, scope, avlArg,
+                                             sizeType, valueMap)))
+        return mlir::failure();
+      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+      rewriter.eraseOp(variant);
+      return mlir::success();
+    }
+
     // NOTE: the monolith forward-pass F6 kernel {isGgmlRopeNormF32Body,
     // emitGgmlRopeNormF32} was RETIRED at the rope flip (C_construct 32->33, the
     // FIRST (and only) forward ROTATE operator constructed): the constructed body
@@ -1598,6 +1627,42 @@ bool VariantToEmitCFunc::isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawQuantize;
+  }
+
+bool VariantToEmitCFunc::isGgmlForwardElementwiseF32Body(
+    tcrvrvv::WithVLOp scope) {
+    // DISPATCH-WIRED marker: the body is EXACTLY one forward-elementwise f32
+    // support op (add/mul/cpy/gelu). The op identity is the dispatch key; the
+    // emitter owns the hand-written monolith body (NOT a typed loop brick).
+    bool sawForward = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlVecAddF32Op, tcrvrvv::GgmlVecMulF32Op,
+                    tcrvrvv::GgmlVecCpyF32Op, tcrvrvv::GgmlGeluF32Op>(op)) {
+        if (sawForward)
+          return false;
+        sawForward = true;
+      } else {
+        return false;
+      }
+    }
+    return sawForward;
+  }
+
+bool VariantToEmitCFunc::isGgmlDequantizeRowBody(tcrvrvv::WithVLOp scope) {
+    // DISPATCH-WIRED marker: the body is EXACTLY one tcrv_rvv.dequantize_row op.
+    // The op identity (+ its bounded `format`) is the dispatch key; the emitter
+    // owns the hand-written per-format decode body (NOT a typed loop brick).
+    bool sawDequant = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlDequantizeRowOp>(op)) {
+        if (sawDequant)
+          return false;
+        sawDequant = true;
+      } else {
+        return false;
+      }
+    }
+    return sawDequant;
   }
 
 bool VariantToEmitCFunc::isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {

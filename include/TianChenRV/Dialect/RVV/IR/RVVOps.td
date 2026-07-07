@@ -8821,6 +8821,162 @@ def ElementwiseRopeRotateCoreOp
   let hasVerifier = 1;
 }
 
+// The four forward-elementwise f32 support ops (add / mul / cpy / gelu) are the
+// non-headline forward-pass support family: each is ONE bounded generic
+// plugin-local typed RVV op nested directly under tcrv_rvv.with_vl, DISPATCH-WIRED
+// (production recognizer + hand-written monolith emitter body + lit), NOT
+// constructed ([L-6] wiring != construction: no typed_elementwise_loop_body brick,
+// no pattern-library primitive). They exist to move add/cpy/gelu/mul from `absent`
+// to `dispatch-wired` in the six-state ledger (C_dispatch). The bounded surface
+// `kind` pins the ggml operator; the emitter owns the m8 strip-loop (add/mul/cpy)
+// or the scalar tanhf loop (gelu). Route ids / helper names / ABI strings / status
+// fields must not infer or choose these ops' semantics.
+
+def GgmlVecAddF32Op
+    : TCRVRVV_Op<"vec_add_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml ggml_vec_add_f32 forward-pass op (z[i]=x[i]+y[i])";
+  let description = [{
+    Records the ggml `ggml_vec_add_f32` forward-pass op (the per-lane f32 binary
+    add `z[i] = x[i] + y[i]`; vec.h) as ONE bounded generic plugin-local typed RVV
+    dataflow step, DISPATCH-WIRED (not constructed). The op is nested directly
+    under tcrv_rvv.with_vl and consumes three runtime ABI value operands -- the two
+    read-only f32 input base pointers `lhs`/`rhs` (`const float *`, ggml's x[]/y[]),
+    the written f32 output base pointer `output` (`float *`, ggml's z[]), the
+    runtime element count `element_count` (= ggml's n) -- plus the active
+    !tcrv_rvv.vl token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector token (the
+    per-strip store boundary). BYTE-EXACTNESS is UNCONDITIONAL: `z[i] = x[i]+y[i]`
+    is a bare per-lane fp32 add (no reduction, so the LMUL/tail/strip-count are
+    correctness-free resource knobs); the m8 strip-loop the emitter writes
+    (`vsetvl_e32m8` / `vle32` x2 / `vfadd_vv` / `vse32`) is exact at any anchor. The
+    bounded surface `kind` is limited to "ggml_vec_add_f32".
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($lhs) `,` type($rhs) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlVecMulF32Op
+    : TCRVRVV_Op<"vec_mul_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml ggml_vec_mul_f32 forward-pass op (z[i]=x[i]*y[i])";
+  let description = [{
+    Records the ggml `ggml_vec_mul_f32` forward-pass op (the per-lane f32 binary
+    multiply `z[i] = x[i] * y[i]`; vec.h) as ONE bounded generic plugin-local typed
+    RVV dataflow step, DISPATCH-WIRED (not constructed). The ABI mirrors
+    tcrv_rvv.vec_add_f32 (two `const float *` inputs `lhs`/`rhs`, one `float *`
+    output, the runtime element count, the !tcrv_rvv.vl token; one f32 m1 result).
+    BYTE-EXACTNESS is UNCONDITIONAL: `z[i] = x[i]*y[i]` is a bare per-lane fp32
+    multiply (no reduction), exact at any LMUL; the emitter writes the m8 strip-loop
+    (`vsetvl_e32m8` / `vle32` x2 / `vfmul_vv` / `vse32`). The bounded surface `kind`
+    is limited to "ggml_vec_mul_f32".
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($lhs) `,` type($rhs) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlVecCpyF32Op
+    : TCRVRVV_Op<"vec_cpy_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml ggml_vec_cpy_f32 forward-pass op (y[i]=x[i])";
+  let description = [{
+    Records the ggml `ggml_vec_cpy_f32` forward-pass op (the per-lane f32 copy
+    `y[i] = x[i]`; vec.h / the f32->f32 `ggml_compute_forward_dup` case) as ONE
+    bounded generic plugin-local typed RVV dataflow step, DISPATCH-WIRED (not
+    constructed). The op consumes the read-only f32 input base pointer `input`
+    (`const float *`, ggml's x[]), the written f32 output base pointer `output`
+    (`float *`, ggml's y[]), the runtime element count `element_count`, plus the
+    active !tcrv_rvv.vl token; it produces ONE f32 LMUL m1 result. BYTE-EXACTNESS is
+    UNCONDITIONAL: the copy moves the f32 bit pattern unchanged; the emitter writes
+    the m8 strip-loop (`vsetvl_e32m8` / `vle32` / `vse32`). The bounded surface
+    `kind` is limited to "ggml_vec_cpy_f32".
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlGeluF32Op
+    : TCRVRVV_Op<"gelu_f32",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml gelu forward-pass op (y[i]=gelu(x[i]))";
+  let description = [{
+    Records the ggml gelu forward-pass op (`y[i] = gelu(x[i])`; the tanh-
+    approximation `ggml_gelu_f32` that SEEDS ggml's f16 gelu table:
+    `0.5*x*(1 + tanhf(SQRT_2_OVER_PI*x*(1 + GELU_COEF_A*x*x)))`,
+    GELU_COEF_A = 0.044715f, SQRT_2_OVER_PI = 0.79788456080286535587989211986876f)
+    as ONE bounded generic plugin-local typed RVV dataflow step, DISPATCH-WIRED
+    (not constructed). The op consumes the read-only f32 input base pointer `input`
+    (`const float *`), the written f32 output base pointer `output` (`float *`), the
+    runtime element count `element_count`, plus the active !tcrv_rvv.vl token; it
+    produces ONE f32 LMUL m1 result. Unlike the bare add/mul/cpy strips, gelu is a
+    SCALAR per-element loop: `tanhf` is the sanctioned scalar-libm opaque seam (the
+    sibling of rope's cosf/sinf and rms_norm's sqrtf), so the faithful thin body is
+    ggml's scalar formula, one `tanhf` call per element. Bit-exactness to ggml's
+    DEPLOYED f16-table gelu path is pending-hardware (this thin dispatch-wired body
+    emits the reference tanh gelu, not the 65536-entry table lookup). The bounded
+    surface `kind` is limited to "ggml_gelu_f32".
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlQuantizeRowQ80Op
     : TCRVRVV_Op<"quantize_row_q8_0",
     [TCRVEmitCLowerableOpInterface]> {
@@ -8898,6 +9054,57 @@ def GgmlQuantizeRowQ80Op
     I64Attr:$block_stride,
     I64Attr:$scale_byte_offset,
     I64Attr:$quant_byte_offset
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $output `,` $element_count `,` $vl "
+    "attr-dict `:` type($input) `,` type($output) `,` "
+    "type($element_count) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlDequantizeRowOp
+    : TCRVRVV_Op<"dequantize_row",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml dequantize_row family op (block_qX -> f32 row)";
+  let description = [{
+    Records the ggml `dequantize_row_<format>` support op (the block-quant DECODE
+    that unpacks ONE quantized weight row back to f32; ggml-cpu quants.c) as ONE
+    bounded generic plugin-local typed RVV dataflow step, DISPATCH-WIRED (not
+    constructed: [L-6] wiring != construction; the emitter owns a hand-written
+    monolith decode body, NOT a typed_flat_block_dot / pattern-library primitive).
+    ONE parameterized op stands in for the whole dequantize_row family: the bounded
+    `format` mirror attr pins WHICH ggml quant the block-decode targets, and the
+    emitter routes on it to the per-format scalar reference decode.
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes three runtime ABI
+    value operands -- the read-only quantized weight base pointer `input`
+    (`const uint8_t *`, ggml's `const block_qX * x` taken as a byte cursor over the
+    AoS block buffer), the written f32 output base pointer `output` (`float *`,
+    ggml's y[]), the runtime element count `element_count` (= ggml's k) -- plus the
+    active !tcrv_rvv.vl token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector token
+    (the per-strip store boundary).
+
+    The per-format DECODE reuses the SAME block-decode already constructed for that
+    format's block-dot vec_dot: the fp16 block scale via the `(float)*(const
+    _Float16 *)` seam (the board is __riscv_zfhmin), the nibble unpack (q4_0/q4_1),
+    the 5th-bit qh merge (q5_0/q5_1), the bare int8 scale (q8_0). BYTE-EXACTNESS is
+    to ggml's reference `dequantize_row_<format>` (a scalar AoS block loop; no
+    reduction, so LMUL/strip-count are correctness-free). The bounded surface
+    `format` is limited to the wired allowlist (currently the legacy quants
+    q4_0/q4_1/q5_0/q5_1/q8_0); an unwired format is rejected fail-closed (I7) so no
+    six-state row can claim dispatch-wired without a real decode. Route ids / helper
+    names / ABI strings / status fields must not infer or choose these semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$vl,
+    StrAttr:$format
   );
   let results = (outs AnyType:$result);
 
