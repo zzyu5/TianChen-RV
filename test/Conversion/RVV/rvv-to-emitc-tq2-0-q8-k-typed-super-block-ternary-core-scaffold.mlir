@@ -113,7 +113,7 @@ module {
 // EMIT: local_variable=sumi
 // EMIT: !emitc.lvalue<!emitc.opaque<"int">>
 // The FUSED 2-bit TERNARY dot (ggml's _vl128 lane structure): a wide i16m4 plane accumulator
-// zeroed per 32-byte chunk, the 32-byte qs chunk loaded ONCE at e8m2, then 4 planes each
+// zeroed ONCE for the super-block, each 32-byte qs chunk loaded at e8m2, then 4 planes each
 // unpacking 32 ternary lanes (vsrl/vand over {0,2,4,6}, u8->i8 reinterpret, the per-element
 // `-1` bias via vsub in the i8 domain) and vwmacc'd DIRECTLY against the matching 32 q8 lanes
 // -- the load-bearing decode `((qs>>shift)&3) - 1` fused into one widening MAC, NO vse8 spill.
@@ -138,8 +138,8 @@ module {
 // EMIT-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
 // EMIT-NOT: call_opaque "__riscv_vluxei16
 // EMIT-NOT: call_opaque "__riscv_vrgather
-// ONE wide widening reduce per chunk (i16m4 -> i32m1 -> scalar), summed into sumi (NO
-// per-sub-block scale multiply -- tq2_0 has no scales).
+// ONE wide widening reduce for the WHOLE super-block (i16m4 -> i32m1 -> scalar), summed
+// into sumi (NO per-sub-block scale multiply -- tq2_0 has no scales).
 // EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMIT: call_opaque "__riscv_vmv_x_s_i32m1_i32"
 // The SINGLE-SCALE SCALAR fp32 fold: dy (fp32 q8_K scale) loaded once, dx via the fp16 read

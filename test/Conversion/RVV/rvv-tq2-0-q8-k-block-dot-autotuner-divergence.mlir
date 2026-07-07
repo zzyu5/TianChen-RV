@@ -12,7 +12,8 @@
 // The ternary-core brick below carries NO integer_core_lmul knob -- the compiler must
 // compute it. tq2_0's fused ternary dot is ALWAYS one 32-lane plane body (load the 32-byte
 // qs chunk once, 4 2-bit planes each vwmacc 32 ternary*q8 lanes into a wide i16
-// accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32) cover is
+// accumulator zeroed ONCE, ONE vwredsum for the whole super-block). The single
+// vsetvl_e8<anchor>(32) cover is
 // correct ONLY at the whole-LMUL anchor whose i8 strip VLMAX spans the 32-element
 // plane at the derived minimum VLEN. WHICH anchor that is MOVES with VLEN:
 //

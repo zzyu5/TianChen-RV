@@ -1717,37 +1717,42 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
           loc, sumiVar,
           rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult());
 
-      // For each 32-byte qs chunk (chunk in 0..numChunks-1), ggml's FUSED dot:
-      // the 32-byte qs chunk loads ONCE, the 4 2-bit planes {0,2,4,6} each unpack
-      // 32 ternary lanes (vand/vsrl + vsub -1) and vwmacc DIRECTLY against the
-      // matching 32 q8 lanes at y[i].qs[chunk*128 + plane*32] into ONE wide i16
-      // accumulator, then ONE vwredsum (i16->i32m1) per chunk. The element
-      // pairing matches _generic exactly: ternary lane l of plane (chunk,j)
-      // pairs with q8[chunk*128 + j*32 + l]. NO aux8 scratch, NO 16x reductions.
+      // ggml's FUSED dot over the WHOLE super-block. The wide i16 plane accumulator
+      // is zeroed ONCE (NOT per chunk); BOTH 32-byte qs chunks then vwmacc into the
+      // SAME accumulator, and ONE vwredsum (i16->i32m1) folds the whole super-block.
+      // Integer add is order-free, so a single 32-lane accumulator carried across
+      // both chunks then reduced is byte-identical to the per-chunk partial sums:
+      //   vacc16[l] = Σ_{chunk,j} (ternary(chunk,j)[l] * q8[chunk*128 + j*32 + l]),
+      // and vwredsum(Σ over lanes) = reduce(chunk0) + reduce(chunk1) = the same sumi.
+      // REGISTER-PRESSURE FIX (byte-exact, LMUL UNCHANGED): the retired per-chunk
+      // form left THREE live i16<wide> groups the -O3 scheduler overlaps -- the two
+      // per-chunk accumulators + the CSE-hoisted zero-seed -- which at VLEN128 (m4,
+      // 4 vregs each = 12/32) forced the q8 e8m2 strips to spill (vs2r.v/vl2r.v round
+      // trips). Fusing to ONE accumulator collapses those 3 groups to 1, so the strips
+      // stay in the regfile and the whole-reg spills vanish. The element pairing +
+      // every intrinsic/width is unchanged. |vacc16| <= 8 planes * 2 * 127 = 2032 <<
+      // 32767, so the i16 accumulator still never overflows across both chunks.
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "chunk_dot"));
+      std::string accSetvl = ("__riscv_vsetvl_e16" + wideLmul).str();
+      mlir::Value vlAcc = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, accSetvl, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(planeLanes)};
+          });
+      std::string accInitCallee = ("__riscv_vmv_v_x_i16" + wideLmul).str();
+      mlir::Value vacc16 = emitOpaqueCallBuilt(
+          rewriter, loc, i16WideType, accInitCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value accZero =
+                rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0");
+            return {accZero, vlAcc};
+          });
+
       for (int64_t chunk = 0; chunk < numChunks; ++chunk) {
         int64_t qsChunk = chunk * chunkBytes; // qs advances 32 bytes per chunk.
-        // vint16<wide> vacc16 = vmv_v_x(0);  (the wide i16 plane accumulator).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, "chunk_dot"));
-        std::string accSetvl =
-            ("__riscv_vsetvl_e16" + wideLmul).str();
-        mlir::Value vlAcc = emitOpaqueCallBuilt(
-            rewriter, loc, sizeType, accSetvl, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(planeLanes)};
-            });
-        std::string accInitCallee =
-            ("__riscv_vmv_v_x_i16" + wideLmul).str();
-        mlir::Value vacc16 = emitOpaqueCallBuilt(
-            rewriter, loc, i16WideType, accInitCallee, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              mlir::Value accZero =
-                  rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0");
-              return {accZero, vlAcc};
-            });
-
         // size_t vl = vsetvl_e8<core>(32);  (the 32-lane plane strip).
         std::string planeSetvl =
             ("__riscv_vsetvl_e8" + coreLmul).str();
@@ -1824,44 +1829,45 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
                                   mlir::ValueRange{vacc16, vq, vy, vl}, opName,
                                   role);
         }
-
-        // sumi += vmv_x_s(vwredsum_i16<wide>_i32m1(vacc16, 0, 32));  (ONE wide
-        // reduce of the chunk's i16 accumulator; integer / order-free).
-        mlir::Value vlRed = emitOpaqueCallBuilt(
-            rewriter, loc, sizeType, accSetvl, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(planeLanes)};
-            });
-        std::string seedCallee = "__riscv_vmv_v_x_i32m1";
-        mlir::Value seed = emitOpaqueCallBuilt(
-            rewriter, loc, i32m1Type, seedCallee, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              mlir::Value zeroImm =
-                  rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0");
-              return {zeroImm, sizeLit(1)};
-            });
-        std::string reduceCallee =
-            ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
-        mlir::Value red =
-            emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
-                           mlir::ValueRange{vacc16, seed, vlRed}, opName, role);
-        std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
-        mlir::Value isuml =
-            emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
-                           mlir::ValueRange{red}, opName, role);
-
-        // sumi += isuml;  (integer, order-free).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, "sumi_accumulate"));
-        mlir::Value sumiCur =
-            rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
-        mlir::Value sumiNext =
-            rewriter.create<emitc::AddOp>(loc, i32Type, sumiCur, isuml)
-                .getResult();
-        rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
       }
+
+      // sumi += vmv_x_s(vwredsum_i16<wide>_i32m1(vacc16, 0, 32));  (ONE wide reduce
+      // of the WHOLE super-block's merged i16 accumulator; integer / order-free, so
+      // the single reduce equals reduce(chunk0) + reduce(chunk1)).
+      mlir::Value vlRed = emitOpaqueCallBuilt(
+          rewriter, loc, sizeType, accSetvl, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {sizeLit(planeLanes)};
+          });
+      std::string seedCallee = "__riscv_vmv_v_x_i32m1";
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m1Type, seedCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zeroImm =
+                rewriter.create<emitc::LiteralOp>(loc, i32ImmType, "0");
+            return {zeroImm, sizeLit(1)};
+          });
+      std::string reduceCallee =
+          ("__riscv_vwredsum_vs_i16" + wideLmul + "_i32m1").str();
+      mlir::Value red =
+          emitOpaqueCall(rewriter, loc, i32m1Type, reduceCallee,
+                         mlir::ValueRange{vacc16, seed, vlRed}, opName, role);
+      std::string extractCallee = "__riscv_vmv_x_s_i32m1_i32";
+      mlir::Value isuml =
+          emitOpaqueCall(rewriter, loc, i32Type, extractCallee,
+                         mlir::ValueRange{red}, opName, role);
+
+      // sumi += isuml;  (integer, order-free; a SINGLE per-super-block reduce).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "sumi_accumulate"));
+      mlir::Value sumiCur =
+          rewriter.create<emitc::LoadOp>(loc, i32Type, sumiVar).getResult();
+      mlir::Value sumiNext =
+          rewriter.create<emitc::AddOp>(loc, i32Type, sumiCur, isuml)
+              .getResult();
+      rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
 
       // ---- (C) the SINGLE-SCALE SCALAR fp32 fold: sumf += (float)sumi * d ----
       // float dy = *(const float *)(yb + 0);  -- the fp32 q8_K activation scale.
