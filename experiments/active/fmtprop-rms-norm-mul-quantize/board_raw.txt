@@ -1,0 +1,46 @@
+FMT-PROP rms_norm->mul->quantize(q8_0) board paired measure — rvv/VLEN128, core 8, 2.6 GHz perf gov
+driver: tools/e2e-harness/board/fmtprop_driver.c  (+ fmtprop_paired.sh)
+compile: clang-17 -O3 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d  (single source, both sides)
+board vlenb=16 (VLEN=128); libcall-free (hardware fp16, no __truncsfhf2/__extendhfsf2)
+shape: ROWS=8192 NEMB=4096  => tensor=128.0 MiB each (X, Z), qout=34.0 MiB, workingset(unfused)=290.0 MiB > 3xL3(64) = COLD
+
+=== VERIFY (on-hardware byte-exact q8_0; ROWS=1024) ===
+VERIFY fused_vs_unfused q8_0 ndiff_bytes=0/4456448 firstdiff=-1 byte_exact=YES fold_fused=0xff413ba2f1d1274c fold_unfused=0xff413ba2f1d1274c
+
+=== COLD PAIRED N=12 (interleaved fused / unfused / fused-sentinel, cold-cache flush each region) ===
+round  0  fused=218.114ms  unfused=248.329ms  sentinel=219.142ms
+round  1  fused=218.252ms  unfused=248.465ms  sentinel=219.370ms
+round  2  fused=218.196ms  unfused=248.523ms  sentinel=219.421ms
+round  3  fused=218.165ms  unfused=248.533ms  sentinel=219.174ms
+round  4  fused=218.293ms  unfused=248.533ms  sentinel=219.122ms
+round  5  fused=218.364ms  unfused=248.526ms  sentinel=219.186ms
+round  6  fused=218.195ms  unfused=248.291ms  sentinel=219.204ms
+round  7  fused=218.054ms  unfused=248.642ms  sentinel=219.289ms
+round  8  fused=218.091ms  unfused=248.428ms  sentinel=219.227ms
+round  9  fused=218.139ms  unfused=248.454ms  sentinel=219.191ms
+round 10  fused=218.371ms  unfused=248.613ms  sentinel=219.207ms
+round 11  fused=218.105ms  unfused=248.485ms  sentinel=219.139ms
+PAIRED rounds=12 rows=8192 nemb=4096 tensor_MiB=128.0 qout_MiB=34.0 workingset_MiB=290.0 L3_MiB=64.0 hygiene=COLD(ws>3xL3)
+PAIRED fused_ms   median=218.180 iqr=0.179 min=218.054 iqr_pct=0.082
+PAIRED unfused_ms median=248.504 iqr=0.079 min=248.291 iqr_pct=0.032
+PAIRED sentinel_ms median=219.197 iqr=0.116 min=219.122 (fused repeat)
+PAIRED speedup_unfused_over_fused=1.1390 drift_sentinel=1.0047 predicted_elim_MiB=256.0 wall_delta_ms=30.324
+PAIRED fold_fused=0x87ec3c1a2de2847d fold_unfused=0x87ec3c1a2de2847d values_equal=YES
+
+=== PERF fused (6 iters) ===
+     5,182,544,065      cycles:u
+        16,207,412      LLC-load-misses:u
+         6,328,530      LLC-store-misses:u
+=== PERF unfused (6 iters) ===
+     5,650,728,540      cycles:u
+        28,771,222      LLC-load-misses:u
+        18,908,334      LLC-store-misses:u
+
+=== DERIVED (per-iter deltas; cacheline = 64 B) ===
+LLC-load-miss  delta = (28,771,222 - 16,207,412)/6 = 2,093,968.3 * 64 = 134,013,973 B = 127.80 MiB  (=> z[] RELOAD eliminated; 99.8% of 128.0 MiB)
+LLC-store-miss delta = (18,908,334 -  6,328,530)/6 = 2,096,634.0 * 64 = 134,184,576 B = 127.97 MiB  (=> z[] STORE  eliminated; 100.0% of 128.0 MiB)
+TOTAL DRAM bytes eliminated = 127.80 + 127.97 = 255.77 MiB/iter  vs predicted 2*n*4*rows = 256.0 MiB  => 99.9%
+cycles delta = (5,650,728,540 - 5,182,544,065)/6 = 78,030,745.8 cyc/iter / 2.6e9 Hz = 30.01 ms/iter  ~= wall delta 30.324 ms/iter (99.0%)
+
+reproduce: BOARD=rvv ROWS=8192 NEMB=4096 ROUNDS=12 CORE=8 bash tools/e2e-harness/board/fmtprop_paired.sh
+restore: nothing (main tree + build/ untouched; scratch /tmp/fmtprop on board).

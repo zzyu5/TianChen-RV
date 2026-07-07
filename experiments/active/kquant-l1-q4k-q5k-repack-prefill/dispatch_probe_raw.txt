@@ -1,0 +1,39 @@
+[KQUANT-L1] opponent dispatch probe — rvv/VLEN128, core 8
+probe: tools/e2e-harness/board/kquant_dispatch_probe.c (replicates ggml get_tensor_traits RISC-V branch verbatim, run at LIVE __riscv_vlenb())
+opponent ggml: /home/ubuntu/llama.cpp-upstream-native  tag=b9692 commit=f3e1828
+source anchor: ggml/src/ggml-cpu/repack.cpp :: ggml::cpu::repack::get_tensor_traits()
+  Q4_0 selector line 4573; Q4_K line 4600; Q5_K line 4644.
+
+=== ggml repack dispatch probe (LIVE __riscv_vlenb()*8 = 128) ===
+  Q4_0    ne1%16==0 -> NULLPTR(block-dot fallback) [case 128 = TODO no-op]
+  Q4_K    ne1%16==0 -> NULLPTR(block-dot fallback) [case 128 = TODO no-op]
+  Q5_K    ne1%16==0 -> NULLPTR(block-dot fallback) [no riscv branch in selector]
+  Q6_K    ne1%16==0 -> NULLPTR(block-dot fallback) [no riscv branch in selector]
+  Q2_K    ne1%16==0 -> NULLPTR(block-dot fallback) [case 128 = TODO no-op]
+  Q8_0    ne1%16==0 -> NULLPTR(block-dot fallback) [case 128 = TODO no-op]
+  IQ4_NL  ne1%16==0 -> NULLPTR(block-dot fallback) [case 128 = TODO no-op]
+VERDICT: at VLEN=128, Q4_K and Q5_K both select NULLPTR => opponent has NO working
+         repack path; prefill mul_mat falls back to block-dot ggml_vec_dot_q4_K/q5_K_q8_K.
+
+=== VERBATIM SOURCE (repack.cpp get_tensor_traits) — the decision the probe replicates ===
+Q4_K (lines 4616-4624):
+    if (ggml_cpu_has_riscv_v()) {
+        #if defined __riscv_zvfh
+        switch (__riscv_vlenb() * 8) {
+            case 128:  { break; } // TODO        <-- VLEN128: no return -> falls through to nullptr
+            case 256:  { if (cur->ne[1] % 16 == 0) { return &q4_K_16x1_q8_K; } break; }
+            case 512:  { break; } // TODO
+            case 1024: { break; } // TODO
+            default:   { return nullptr; }
+        }
+        #endif
+    }
+Q5_K (line 4644+): only ggml_cpu_has_neon()&&matmul_int8 / neon&&dotprod branches — NO
+    ggml_cpu_has_riscv_v() branch at all => on RISC-V the q5_K selector returns nullptr at EVERY VLEN.
+
+=== opponent block-dot tuning asymmetry (nm libggml-cpu.so) ===
+ggml_vec_dot_q4_K_q8_K            T   (public)  -> ggml_vec_dot_q4_K_q8_K_vl128.isra.0  (HAND-TUNED VLEN128 variant)
+                                              -> ggml_vec_dot_q4_K_q8_K_vl256.isra.0
+ggml_vec_dot_q5_K_q8_K            T   (public)  -> ggml_vec_dot_q5_K_q8_K_generic       (GENERIC only; NO vl128 variant)
+
+=> the q4_K fallback is a VLEN128-TUNED block-dot; the q5_K fallback is the generic block-dot.

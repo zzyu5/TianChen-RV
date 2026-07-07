@@ -1,0 +1,8 @@
+scope,quantity,bytes_per_row,total_MiB_at_8192x4096,measured_MiB_per_iter,measured_over_predicted_pct,evidence
+z_f32_store_eliminated,4*n,16384,128.0,127.97,100.0,LLC-store-miss delta *64B
+z_f32_reload_eliminated,4*n,16384,128.0,127.80,99.8,LLC-load-miss delta *64B
+total_activation_roundtrip_eliminated,2*n*4,32768,256.0,255.77,99.9,load+store miss deltas
+fused_traffic_per_row,4n_x_read + ~1.06n_q_write,~20648,,,,structural (X read + q8_0 write)
+unfused_traffic_per_row,4n_x + 4n_z_store + 4n_z_reload + ~1.06n_q,~53416,,,,structural (adds z[] roundtrip)
+wall_delta,unfused-fused,,,30.324,,PAIRED median delta ms/iter
+cycle_delta_at_2.6GHz,unfused-fused,,,30.01,99.0,cycles delta / freq (cross-check vs wall)

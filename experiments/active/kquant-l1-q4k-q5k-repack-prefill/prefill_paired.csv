@@ -1,0 +1,7 @@
+fmt,K,nr,nc,ours_gmacs,opp_gmacs,ratio_ours_over_opp,opponent_path,note
+q4_K,2048,16,512,4.2482,4.4256,0.960,ggml_vec_dot_q4_K_q8_K_vl128 (tuned block-dot),parity
+q4_K,2048,64,512,4.2415,4.3710,0.970,ggml_vec_dot_q4_K_q8_K_vl128 (tuned block-dot),parity
+q4_K,2048,256,512,4.2083,4.4718,0.941,ggml_vec_dot_q4_K_q8_K_vl128 (tuned block-dot),parity
+q5_K,2048,16,512,2.1942,1.4652,1.498,ggml_vec_dot_q5_K_q8_K_generic (untuned block-dot),ours-faster
+q5_K,2048,64,512,2.1941,1.3508,1.624,ggml_vec_dot_q5_K_q8_K_generic (untuned block-dot),ours-faster
+q5_K,2048,256,512,2.1574,1.3433,1.606,ggml_vec_dot_q5_K_q8_K_generic (untuned block-dot),ours-faster

@@ -23,9 +23,14 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 | L1-1 | q4_0 repack GEMM prefill 路由赢（VLEN128） | **e2e prefill 5.9195×** [5.91,5.934] IQR0.25%（>200× T-N 地板）vs stock ggml block-dot | `T8:q4_0-repack-gemm-rvv-vlen128-prefill-5.92x`（win_type C，**5/8 门 PASS**）；`T3_A` 镜像行；sealed cell `experiments/sealed/repack/rvv-vlen128-q4_0-gemm-constructed-sealed/`；八门台账 `T-PERF1_q4_0_vlen128_prefill_8gate.md` | **board-proven（e2e，VLEN128-conditional）** | **未封普适 beat**：②VLEN256-flip-lit ③k1/VLEN256-objdump-seal ④micro↔e2e-Amdahl 未闭；门①=FMA-fold **bounded-ULP**（非 byte-exact）；beat 措辞 LOCKED |
 | L1-2 | 同栈 decode 伴随赢（VLEN128） | **e2e decode tg32 1.9102×** [1.904,1.9196] 带宽饱和（ceiling-bounded） | 同上 `T8:...-5.92x` 行内伴随；`T-N` q4_0-decode-tg32 行 | **board-proven（e2e，VLEN128）** | 机制=packed-weight 连续流式→memory locality，非更快 codegen |
 | L1-3 | VLEN-flip 诚实反面（k1/VLEN256） | prefill **PARITY 1.0022×**（compute-bound）; decode **0.854× LOSS**（bandwidth-bound，未吃满 78% vs 对手 91%） | `T8:q4_0-gemm-k1-vlen256-prefill-parity` + `T8:q4_0-gevm-k1-vlen256-decode-P1-roofline-GAP`；`T3_B` lineA 行 | **board-proven（e2e，k1/VLEN256）** | 赢是 **VLEN128-conditional**；VLEN256 是 VLEN-flip MIRROR；诚实登记为 real GAP（misselection），非 confound |
+| L1-4 | q4_K repack GEMM prefill 路由**候选**（VLEN128；opponent-absence 已证） | **结构 path-win 候选 CONFIRMED**；吞吐 **PARITY 0.94–0.97×**（ours 略慢 vs ggml `_vl128`-tuned block-dot） | `T8:q4_K-repack-gemm-rvv-vlen128-prefill-L1-candidate`（win_type C；**opponent-absence PROVEN 2-ways**：源码 `repack.cpp:4616 case128=TODO no-op` + LIVE vlenb=128 探针 NULLPTR；8 门未走）；`T3_A` 镜像行；cell `experiments/active/kquant-l1-q4k-q5k-repack-prefill/`（opponent_probe.md + dispatch_probe_raw.txt + prefill_paired.csv + kernels_objdump_seal.objdump） | **candidate（board-probed opponent-absence + kernel-prefill 吞吐；八门未走）** | **禁 beat**：opponent 无 working repack@128 已证，但八门未走、单核、opponent=单线程 block-dot loop（kernel-axis proxy，非 threaded mul_mat）、吞吐-only 未复验数值；结构 path-win **≠ 吞吐 win**（q4_K 是 parity，ggml block-dot 已 VLEN128-调优）；⚠ memory 纠正：旧「ggml q4_K repack@256 hardcode/opponent@128 事实错」refine 为「`ggml_gemm_q4_K_16x1_q8_K` 存在但 VLEN256-gated」，「无 WORKING repack@128」仍成立 |
+| L1-5 | q5_K repack GEMM prefill 路由**候选**（VLEN128；opponent 全 VLEN 无 repack） | **结构 path-win 候选 CONFIRMED**；ours **~1.50–1.62× faster** vs opponent **UNTUNED** generic block-dot | `T8:q5_K-repack-gemm-rvv-vlen128-prefill-L1-candidate`（win_type C；opponent q5_K **零** RISC-V repack：`repack.cpp:4644` 仅 neon 子分支；8 门未走）；`T3_A` 镜像行；同 cell | **candidate（board-probed opponent-absence + kernel-prefill 吞吐；八门未走）** | **禁 beat（即便 ours 更快）**：opponent=UNTUNED generic block-dot（最软基线，无 `_vl128` 变体）；八门未走、单核、单线程 proxy、吞吐-only 未复验；~1.5× 是**争夺格候选数**非封印 win |
 
 > L1 一句话：路径选择（option-2）在 VLEN128 上兑现 e2e 5.9× prefill / 1.91× decode（board-proven，但 5/8 门、
 > beat 措辞锁）；在 VLEN256 上 prefill 打平、decode 反成 GAP —— 赢有明确 VLEN 边界，反面同表登记。
+> **新增 q4_K/q5_K（board-harvest2 增补二）**：两者 opponent 都无 working repack@VLEN128（q4_K `case128=TODO`、
+> q5_K 全 VLEN 无 riscv 分支，源码+LIVE 探针双证）→ 结构 path-win **候选** CONFIRMED（同 q4_0 先例）；但吞吐
+> q4_K=PARITY、q5_K=~1.5×-vs-UNTUNED，**八门未走 → 禁 beat，仅 candidate 数**（结构 path-win ≠ 吞吐 win）。
 
 ---
 
@@ -50,10 +55,12 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 | # | 主张 | headline | 表行指针 | 成色 | [NG-4] 边界 |
 |---|---|---|---|---|---|
 | L3-1 | **G2 rms_norm→mul 融合首个 L3 字节实测** | wall **1.308×**（T-N PASS，~19× 地板，IQR 不重叠）；**实测 DRAM 消除 256.22 MiB = 预测 y[] 往返 8·n·rows 的 100.1%**；ndiff=0/ULP0 | `T8:g2-fuse-rms-norm-mul-rvv-vlen128-memory-axis`；`T3_A` fused-epilogue 行；cell `g2-fuse-rms-norm-mul/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟），**非 ggml beat、非 e2e 八门**；whole-model e2e（65 norms/token≈2.03 MiB/token）是 projection（`pending`） |
+| L3-2 | **[FMT-PROP] rms_norm→mul→quantize(q8_0) 融合** — 第二条 L3 字节腿（把下游激活量化 pass 折进 epilogue） | wall **1.139×**（T-N PASS，~30× 地板，IQR 0.082/0.032% 不重叠）；**实测 DRAM 消除 255.8 MiB = 预测 f32 激活往返 2·n·4·rows 的 99.9%**（双计数器：store-miss 127.97=z[]store 100.0% + load-miss 127.80=z[]reload 99.8%）；cycles Δ 30.01≈wall Δ 30.32 ms/iter（99.0%）；ndiff=0/4.46M（byte-exact fused≡unfused） | `T8:fmtprop-rms-norm-mul-quantize-q8_0-rvv-vlen128-memory-axis`；`T3_A` fused-quantize-epilogue 行；cell `fmtprop-rms-norm-mul-quantize/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）；铺量-phase1 board-proven COMPLETE** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟：fused-mul + 独立 `quantize_row_q8_0`），**非 ggml beat、非 e2e 八门**；**比 g2-fuse 1.308× 小且诚实**（FMT-PROP unfused 基线多做整趟 quantize → 同 256 MiB 消除占总流量比例更小；载重主张=消除**量级**复现非 wall 比值）；whole-model e2e 是 projection（`pending`） |
 
-> L3 一句话：融合的机理（省掉 y[] 往返 = 8·n·rows）**精确传导到硅**（cycles Δ≈wall Δ≈256MiB@5.2GB/s 墙），
-> 是首个 board-proven 的内存轴数字；框架守住 [NG-4]（内部 A/B、非 beat）。这是 L1/L2 的 compute/latency 轴
-> 之外，编译器变换在 **memory 轴** 上真赢 wall 的病例。
+> L3 一句话：融合的机理（省掉激活往返：G2 是 y[]=8·n·rows，FMT-PROP 是 f32 激活 z[]=2·n·4·rows≈256MiB）
+> **精确传导到硅**（两腿都 cycles Δ≈wall Δ、双计数器字节归因到 99–100%），是 board-proven 的内存轴数字；框架守住
+> [NG-4]（内部 A/B、非 beat）。这是 L1/L2 的 compute/latency 轴之外，编译器变换在 **memory 轴** 上真赢 wall 的
+> 病例族——两条腿（rms→mul、rms→mul→quantize）都复现了「消除一趟激活往返≈256MiB」的载重量级；铺量 phase1 board-proven 完成。
 
 ---
 
@@ -89,7 +96,9 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 ## 待闭 / pending 清单（诚实缺口）
 
 - L1 八门 ②③④（VLEN256-flip-lit / k1-objdump-seal / micro↔e2e-Amdahl）— beat 措辞锁到闭合。
+- L1-4/L1-5 q4_K/q5_K：opponent-absence 已 board-probed 双证，但**八门整体未走**（kernel-prefill 单核 proxy、吞吐-only 未复验数值）— `candidate`，beat 措辞锁；q4_K 吞吐=PARITY、q5_K=~1.5×-vs-UNTUNED（争夺格候选数非 win）。
 - L3 G2 whole-model e2e（65 norms/token 投影）未跑板 — `pending`。
+- L3-2 FMT-PROP whole-model e2e（激活量化 epilogue，逐 token 投影）未跑板 — `pending`（isolated A/B 已 board-proven，铺量 phase1 完成）。
 - L2-5 iq4_xs/tq1_0 relaxed body 未建 — `structural-block`（双档税账仅 q8_0 可算）。
 - 缺口余项：tq2_0 vs-SIMD-factory 仍 LOSS；tq1_0 同 spill 类未修 — construction-queue。
 - 所有 kernel-only 项：e2e 传导多半 washes（compute/latency-bound），永远 kernel 与 e2e 分开报。

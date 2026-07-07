@@ -1,0 +1,25 @@
+# objdump seal — OUR exported q4_K / q5_K repack GEMM kernels, compiled on rvv/VLEN128
+# clang-17 -O2 -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on -x c++ <kernel>.kernel.c -c
+# both objects: libcall-free (fp16_libcalls=0, i.e. NO __truncsfhf2/__extendhfsf2/__gnu_*), vectorized.
+#   gemm_q4_K_q8_K.o : 25536 B, vsetvl_count=53
+#   gemm_q5_K_q8_K.o : 39824 B, vsetvl_count=53
+# The KEY VLEN128-correctness fingerprint: the output accumulator + store run at e32,m2 (f32m2 = 8
+# lanes at VLEN128) and the 16 interleaved weight columns are emitted as TWO disjoint 8-lane strips
+# (half_lanes=8), so the kernel is correct at VLEN128. Contrast ggml's arch/riscv/repack.cpp
+# ggml_gemm_q4_K_16x1_q8_K which hardcodes vfmv_v_f_f32m2(...,16): 16 > VLMAX(8) at VLEN128 => that
+# ggml kernel would be WRONG at VLEN128, which is exactly why ggml gates it to case 256 only.
+
+--- gemm_q4_K_q8_K.o ---
+      8a:  vsetvli  zero,zero,e16,m1,ta,ma
+      fe:  vsetvli  zero,zero,e32,m2,ta,ma        # f32m2 = 8 lanes @ VLEN128 (two-strip / half_lanes=8)
+     282:  vsetvli  zero,zero,e16,m1,ta,ma
+     286:  vle16.v  v8,(t6)                        # fp16 d/dmin superblock strip
+     28a:  vle16.v  v9,(s0)
+     306:  vle8.v   v8,(a4)                        # 4-bit nibble weight quants
+
+--- gemm_q5_K_q8_K.o ---
+      86:  vsetvli  zero,zero,e16,m1,ta,ma
+      fa:  vsetvli  zero,zero,e32,m2,ta,ma        # f32m2 = 8 lanes @ VLEN128
+     26c:  vsetvli  zero,zero,e16,m1,ta,ma
+     270:  vle16.v  v9,(t6)
+     2f0:  vle8.v   v9,(a4)                        # qs + separate qh 5th-bit strip
