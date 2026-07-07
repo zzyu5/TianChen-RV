@@ -1798,18 +1798,21 @@ llvm::Error compileRVVGeneratedSourceToObjectWithMarch(llvm::StringRef source,
   return llvm::Error::success();
 }
 
-// The baseline RVV object packager (rv64gcv): every existing selected-body /
-// monolithic block-dot route uses this -- byte-identical to before the march was
-// parameterized.
+// The baseline RVV object packager (rv64gcv): the decomposed selected-body route
+// uses this -- byte-identical to before the march was parameterized. (The
+// monolithic block-dot / repack families now package under the Zvfh variant
+// below, because every one of them folds per-block fp16 scales.)
 llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
                                               llvm::raw_ostream &os) {
   return compileRVVGeneratedSourceToObjectWithMarch(source, os,
                                                     "-march=rv64gcv");
 }
 
-// The repacked-GEVM object packager (rv64gcv_zvfh): the repack dual-fp16 scale
-// fold emits Zvfh fp16 vector loads (vle16_v_f16m1), so its object needs the Zvfh
-// extension enabled at the clang march.
+// The Zvfh object packager (rv64gcv_zvfh): used by every monolithic block-dot /
+// repack family. The repack dual-fp16 scale fold emits Zvfh fp16 vector loads
+// (vle16_v_f16m1), and the block-dot families fold each block's scalar fp16 scale
+// d; enabling Zvfh (which implies Zfhmin) lets clang hardware-ize the fp16->fp32
+// conversion (fcvt.s.h) instead of emitting a __extendhfsf2 softfloat libcall.
 llvm::Error compileRVVGeneratedSourceToObjectZvfh(llvm::StringRef source,
                                                   llvm::raw_ostream &os) {
   return compileRVVGeneratedSourceToObjectWithMarch(source, os,
@@ -2210,12 +2213,18 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
   config.headerRouteID = fc.headerRouteID;
   config.metadataEvidence = *evidence;
   config.selectedObjectDescription = objectDescription;
-  // The repacked GEVM/GEMM emit Zvfh fp16 vector loads (vle16_v_f16m1) for their
-  // dual-fp16 scale fold, so they package under rv64gcv_zvfh; the block-dot
-  // families stay on the baseline rv64gcv packager (byte-identical).
-  if (family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv ||
-      family == plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm)
-    config.objectPackagerFn = compileRVVGeneratedSourceToObjectZvfh;
+  // Every monolithic family carries per-block fp16 scales: the repacked GEVM/GEMM
+  // emit Zvfh fp16 vector loads (vle16_v_f16m1) for their dual-fp16 scale fold,
+  // and the block-dot families (super-block / flat) fold each block's scalar fp16
+  // scale d (a (float)*(const _Float16 *) read). Packaging under rv64gcv_zvfh
+  // (which implies Zfhmin) hardware-izes that fp16->fp32 conversion (fcvt.s.h)
+  // instead of degrading each block-scale read to a __extendhfsf2 softfloat
+  // libcall -- the libcall both blocks format-micro linking and one-sidedly
+  // pollutes the perf ratio vs the factory (hardware fcvt.s.h) baseline. So all
+  // four monolithic block-dot / repack families package under rv64gcv_zvfh; only
+  // the decomposed selected-body route (getRVVSelectedBodyArtifactAdapterConfig,
+  // above) keeps the baseline rv64gcv packager.
+  config.objectPackagerFn = compileRVVGeneratedSourceToObjectZvfh;
   return config;
 }
 
