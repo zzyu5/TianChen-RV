@@ -592,15 +592,15 @@
    "op": "gemm_tile",
    "format": "tq1_0",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv tq1_0 (GgmlRepackGem{v,m}TQ10Q8KOp + verifier + dispatch + real base-3 5-trit/byte block-as-lane emitter (q*3)>>8-1 reusing ternary vec_dot formula, linear no-min + 4 lit + oracle byte-exact-integer GREEN)"
   },
   {
    "op": "gemm_tile",
    "format": "tq2_0",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv tq2_0 (GgmlRepackGem{v,m}TQ20Q8KOp + fail-closed verifier + isRepackGem{v,m}TQ20Q8KBody dispatch + real ternary block-as-lane emitter: vand 0x03 + vsub-1 trit decode reusing RVVToEmitCTernaryBinary vec_dot formula, linear no-min + 4 lit + independent oracle byte-exact-integer GREEN)"
   },
   {
    "op": "gemm_tile",
