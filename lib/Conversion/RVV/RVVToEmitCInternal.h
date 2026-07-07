@@ -381,6 +381,19 @@ private:
   /// signed-scale no-min accumulator.
   static bool isRepackGemmQ6KQ8KBody(tcrvrvv::WithVLOp scope);
 
+  /// The K-quant (super-block) 16x1-REPACKED single-output-column GEVM (decode)
+  /// recognizer for q2_K: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_q2_K_q8_K. The emitter owns the block-as-lane single-column
+  /// expansion with the q2_K 2-bit-4-lanes weight assembly + 4-bit packed scale/min
+  /// + the reused q4_K/q5_K dual d/dmin + bsums-min fold.
+  static bool isRepackGemvQ2KQ8KBody(tcrvrvv::WithVLOp scope);
+  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
+  /// recognizer for q2_K: a with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemm_q2_K_q8_K. The emitter shares the q2_K 2-bit decode +
+  /// 4-bit scale/min unpack (amortized across the 4 interleaved activation columns)
+  /// with the dual d/dmin + bsums-min fold.
+  static bool isRepackGemmQ2KQ8KBody(tcrvrvv::WithVLOp scope);
+
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
   /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
   /// block loop with a SSA loop-carried f32 accumulator). Routed through the
@@ -1498,6 +1511,29 @@ private:
   /// + signed-scale single-accumulator no-min fold, with the weight decode AMORTIZED
   /// across the 4 interleaved block_q8_Kx4 activation columns.
   mlir::LogicalResult emitRepackGemmQ6KQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml q2_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_q2_K_q8_K op. q2_K is the LOWEST-bit K-quant and
+  /// the MIN-TERM regression: it reuses the q4_K/q5_K DUAL super-block d/dmin +
+  /// bsums-min fold (NOT q6_K's single no-min accumulator), with a 2-BIT weight (4
+  /// lanes per byte peeled by vsrl 0/2/4/6 + vand 0x03, UNSIGNED, NO offset-binary
+  /// bias) and a q2_K 4-bit packed scale/min (vand 0x0F scale / vsrl 4 min, ONE byte
+  /// per sub-block), over 16 sub-blocks of 16 (a SINGLE bsum per sub-block, no
+  /// 2x16 k-chunk split). LANE-WISE vwmacc, VLEN 8/16-lane strips, i32->f32 fold.
+  mlir::LogicalResult emitRepackGemvQ2KQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml q2_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_q2_K_q8_K op. The q2_K prefill sibling of
+  /// emitRepackGemvQ2KQ8K: the SAME 2-bit-4-lanes weight assembly + 4-bit packed
+  /// scale/min + dual d/dmin + bsums-min fold, with the weight decode + scale/min
+  /// unpack AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns.
+  mlir::LogicalResult emitRepackGemmQ2KQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
