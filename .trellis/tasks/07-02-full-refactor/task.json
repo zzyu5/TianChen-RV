@@ -23,7 +23,10 @@
     "07-07-line-C-coverage",
     "07-07-line-D-evidence",
     "07-07-fix-blockdot-zfh-packager",
-    "07-07-retire-q1_0-monolith"
+    "07-07-retire-q1_0-monolith",
+    "07-07-wire-opponent-facts-pin-ci",
+    "07-07-retire-residual-gate-whitelist",
+    "07-07-dir-hygiene-lints-ci-clean-red"
   ],
   "parent": null,
   "relatedFiles": [],
