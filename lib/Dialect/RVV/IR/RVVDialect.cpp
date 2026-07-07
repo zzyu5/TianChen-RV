@@ -2857,6 +2857,18 @@ bool isGenericRVVVectorF32M1(mlir::Type type) {
   return vector.getElementType().isF32() && vector.getLmul() == getRVVLMULM1();
 }
 
+bool isGenericRVVVectorF64M1(mlir::Type type) {
+  // The SEW=64 double-precision m1 rung -- the forward-elementwise REDUCE model's
+  // loop-carried WIDENING accumulator (soft_max's vfloat64m1_t vsum, the
+  // vfwredusum_vs_f32m2_f64m1 destination). Only f64/m1 is in scope (matching
+  // getGenericRVVVectorLMUL's f64/m1 rung + the converter's f64 type-converter
+  // rung).
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return false;
+  return vector.getElementType().isF64() && vector.getLmul() == getRVVLMULM1();
+}
+
 mlir::LogicalResult verifyDequantizeResultVectorForWithVL(
     mlir::Operation *op, mlir::Value value, llvm::StringRef role) {
   auto vector =

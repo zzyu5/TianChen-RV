@@ -789,8 +789,11 @@ _MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map|elementwise_silu_map)")
 # reduce-fold-family primitive (the reduce sibling of the _MAP_PRIMITIVE_RE map
 # family). This whitelist is deliberately NARROW (a bare "reduce" substring is NOT
 # admitted -- the token must be a forward reduce-fold brick; an opaque monolith
-# still trips the opaque gate), so the check stays discriminating.
-_REDUCE_FOLD_PRIMITIVE_RE = re.compile(r"(elementwise_rms_norm_reduce_core)")
+# still trips the opaque gate), so the check stays discriminating. soft_max's
+# exp-sum-reduce brick (elementwise_soft_max_reduce_core) joins it: the SAME reduce
+# model reused, EXCEPT the loop-carried accumulator is the f64m1 WIDENING vector
+# (vfwredusum Σe^x) not a scalar double.
+_REDUCE_FOLD_PRIMITIVE_RE = re.compile(r"(elementwise_rms_norm_reduce_core|elementwise_soft_max_reduce_core)")
 
 
 def _leading_ws(line):
@@ -1145,6 +1148,38 @@ module {
         ^bb0(%i: index, %acc: f64):
           %acc_next = tcrv_rvv.elementwise_rms_norm_reduce_core %x, %y, %eps, %n strip %i acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f64 -> f64
           tcrv_rvv.typed_elementwise_loop_yield %acc_next : f64
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# M-FLAT forward-elementwise REDUCE ground truth #2 (line C, G1-tail): the
+# CONSTRUCTED soft_max realized body -- the SAME typed elementwise strip-loop op,
+# reduce_map_model "reduce", carrying the NEW elementwise_soft_max_reduce_core
+# exp-sum-reduce core brick + the acc-carrying yield. It REUSES the reduce model
+# rms_norm built, EXCEPT the loop-carried accumulator is the f64m1 WIDENING vector
+# (ggml's vfloat64m1_t vsum, the vfwredusum_vs_f32m2_f64m1 destination), NOT a
+# scalar double. Like rms_norm it has NO product AND NO map primitive; its
+# reduce-fold brick satisfies the decomposed conjunct via the THIRD branch
+# (has_reduce_fold, elementwise_soft_max_reduce_core joined _REDUCE_FOLD_PRIMITIVE_RE).
+# The discriminator is the reduce-fold-FAMILY primitive, not a bare "reduce"
+# substring.
+_GT_ELEMENTWISE_SOFTMAX_REDUCE = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %max = tcrv_rvv.runtime_abi_value {c_name = "max"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+        ^bb0(%i: index, %acc: !tcrv_rvv.vector<f64, "m1">):
+          %acc_next = tcrv_rvv.elementwise_soft_max_reduce_core %y, %x, %max, %n strip %i acc %acc {kind = "elementwise_soft_max_reduce_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vector<f64, "m1"> -> !tcrv_rvv.vector<f64, "m1">
+          tcrv_rvv.typed_elementwise_loop_yield %acc_next : !tcrv_rvv.vector<f64, "m1">
         } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
@@ -1590,6 +1625,32 @@ def cmd_self_test(_args):
     # stays weak (the reduce-fold-family primitive is the ONLY thing that flips it).
     assert ew_rms["derived_state"] != scale["derived_state"]
 
+    # M-FLAT forward-elementwise REDUCE ground truth #2: the CONSTRUCTED soft_max
+    # realized body (the SAME typed_elementwise_loop_body, reduce_map_model "reduce",
+    # carrying the NEW elementwise_soft_max_reduce_core exp-sum-reduce core brick +
+    # the acc-carrying yield). It REUSES the reduce model rms_norm built, EXCEPT the
+    # loop-carried accumulator is the f64m1 WIDENING vector (vfwredusum Σe^x). Its
+    # reduce-fold brick satisfies the decomposed conjunct via the THIRD branch
+    # (has_reduce_fold, elementwise_soft_max_reduce_core joining _REDUCE_FOLD_PRIMITIVE_RE).
+    ew_softmax = derive(parse_realized_body(_GT_ELEMENTWISE_SOFTMAX_REDUCE))
+    assert ew_softmax["manifest"] == [
+        "tcrv_rvv.typed_elementwise_loop_body",
+        "tcrv_rvv.elementwise_soft_max_reduce_core",
+        "tcrv_rvv.typed_elementwise_loop_yield",
+    ], ew_softmax["manifest"]
+    assert ew_softmax["has_opaque"] is False, ew_softmax
+    assert ew_softmax["has_product"] is False, ew_softmax
+    assert ew_softmax["has_map"] is False, ew_softmax
+    assert ew_softmax["has_reduce_fold"] is True, ew_softmax
+    assert ew_softmax["decomposed"] is True, ew_softmax
+    assert ew_softmax["derived_state"] == "constructed", ew_softmax
+    # soft_max REUSES the SAME reduce model as rms_norm and derives the SAME strong
+    # state (the reduce-fold model is shared; only the fold TYPE differs -- f64m1
+    # widening vector vs scalar double), and stays distinct from the scale-only
+    # negative control.
+    assert ew_softmax["derived_state"] == ew_rms["derived_state"]
+    assert ew_softmax["derived_state"] != scale["derived_state"]
+
     # Super-block ground truth (q4_K milestone-3): the 5 q4_K bricks decompose the
     # super-block dot; the FUSED per-sub-block q4_k_scaled_dot satisfies BOTH the
     # product AND reduce conjunct (the vwmacc reduction is fused into the product),
@@ -1817,7 +1878,8 @@ def cmd_self_test(_args):
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate) / "
           "forward-elementwise MAP(elementwise_scale_map)=constructed (reduce/MAP model branch) / "
           "forward-elementwise MAP(elementwise_silu_map)=constructed (SAME scaffold reused, C2 payoff) / "
-          "forward-elementwise REDUCE(elementwise_rms_norm_reduce_core)=constructed (reduce model built, has_reduce_fold branch)")
+          "forward-elementwise REDUCE(elementwise_rms_norm_reduce_core)=constructed (reduce model built, has_reduce_fold branch) / "
+          "forward-elementwise REDUCE(elementwise_soft_max_reduce_core)=constructed (SAME reduce model reused, f64m1 widening acc, C2 payoff)")
     return 0
 
 

@@ -644,27 +644,57 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(
     return mlir::success();
   }
 
-mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitGgmlVecSoftMaxF32(
+mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitElementwiseSoftMaxReduceStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlVecSoftMaxF32Op softMaxOp;
+    // The CONSTRUCTED soft_max reduce-model body, the exp-sum-reduce sibling of
+    // the rms_norm Σx² reduce (emitElementwiseRmsNormReduceStrip) and of the
+    // scale/silu map paths. The outer loop op owns the reduce shape
+    // (reduce_map_model "reduce": a loop-carried f64m1 WIDENING accumulator region
+    // arg + the yield that carries it back); this re-emit sources the WHOLE
+    // soft_max ABI + the byte-exact fused exp-store-widening-reduce strip from the
+    // region's reduce core brick (anti-bypass). BYTE-EXACT to the retired monolith
+    // tcrv_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op provenance
+    // token. Returns the f64 sum value (the dispatch wraps it in the function's
+    // `return`).
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto s = llvm::dyn_cast<tcrvrvv::GgmlVecSoftMaxF32Op>(op))
-        softMaxOp = s;
+      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopBodyOp>(op))
+        loopBody = lb;
     }
-    if (!softMaxOp)
-      return rewriter.notifyMatchFailure(scope, "soft_max body missing the op");
+    if (!loopBody)
+      return rewriter.notifyMatchFailure(
+          scope, "soft_max reduce body missing the typed elementwise loop op");
+    tcrvrvv::ElementwiseSoftMaxReduceCoreOp softMaxCore;
+    loopBody.getBody().walk(
+        [&](tcrvrvv::ElementwiseSoftMaxReduceCoreOp o) { softMaxCore = o; });
+    if (!softMaxCore)
+      return rewriter.notifyMatchFailure(
+          loopBody, "soft_max reduce-model body requires the soft_max reduce "
+                    "core brick (elementwise_soft_max_reduce_core)");
 
-    mlir::Value outputBuf = valueMap.lookup(softMaxOp.getOutput());
-    mlir::Value input = valueMap.lookup(softMaxOp.getInput());
-    mlir::Value maxArg = valueMap.lookup(softMaxOp.getMax());
+    // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
+    // variable (region arg 0) and its acc MUST be the loop-carried accumulator
+    // (region arg 1); the verifier pins both, checked here fail-closed too.
+    mlir::Block &block = loopBody.getBody().front();
+    if (block.getNumArguments() < 2 ||
+        softMaxCore.getStripIndex() != block.getArgument(0) ||
+        softMaxCore.getAcc() != block.getArgument(1))
+      return rewriter.notifyMatchFailure(
+          softMaxCore, "the soft_max reduce core brick's strip_index / acc must "
+                       "be the loop induction variable / loop-carried "
+                       "accumulator (region args 0 / 1)");
+
+    mlir::Value outputBuf = valueMap.lookup(softMaxCore.getOutput());
+    mlir::Value input = valueMap.lookup(softMaxCore.getInput());
+    mlir::Value maxArg = valueMap.lookup(softMaxCore.getMax());
     if (!outputBuf || !input || !maxArg)
-      return rewriter.notifyMatchFailure(softMaxOp,
+      return rewriter.notifyMatchFailure(softMaxCore,
                                          "soft_max ABI operand unmapped");
 
-    llvm::StringRef opName = softMaxOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = softMaxOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = softMaxCore.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = softMaxCore.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = outputBuf.getType();

@@ -506,16 +506,21 @@ private:
   /// compute op is a tcrv_rvv.typed_elementwise_loop_body (the constructed typed
   /// strip-loop op that replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32).
   /// The loop op identity is the dispatch key; emitTypedElementwiseLoopBody owns
-  /// the byte-exact f32 strip-loop expansion driven by the region's map core
-  /// brick (tcrv_rvv.elementwise_scale_map).
+  /// the byte-exact f32 strip-loop expansion driven by the region's map/reduce
+  /// core brick (tcrv_rvv.elementwise_scale_map / _silu_map / _rms_norm_reduce_core).
+  /// EXCLUDES the soft_max reduce body (it RETURNS the f64 sum, so it is dispatched
+  /// by its own return-carrying branch, NOT this void-return table entry).
   static bool isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.ggml_vec_soft_max_f32
-  /// (the F5b f32 soft_max: y[i] = e^{x[i]-max}, returning the f64 sum via the
-  /// widening reduce). The op identity is the dispatch key; the emitter owns the
-  /// structured m2 strip loop with the shared exp polynomial + the loop-carried
-  /// f64m1 vfwredusum accumulator + the f64 scalar return.
-  static bool isGgmlVecSoftMaxF32Body(tcrvrvv::WithVLOp scope);
+  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.typed_elementwise_loop_body
+  /// (reduce_map_model "reduce") carrying the tcrv_rvv.elementwise_soft_max_reduce_core
+  /// brick (the CONSTRUCTED F5b f32 soft_max: y[i] = e^{x[i]-max}, RETURNING the
+  /// f64 sum via the loop-carried f64m1 vfwredusum widening accumulator). This is
+  /// the constructed replacement for the retired monolith tcrv_rvv.ggml_vec_soft_max_f32.
+  /// It is dispatched OUTSIDE the void-return kernel table (soft_max is the only
+  /// forward-pass op whose function RETURNS a scalar): the branch keys the double
+  /// result type + wraps emitElementwiseSoftMaxReduceStrip's f64 sum in `return`.
+  static bool isTypedElementwiseSoftMaxReduceLoopBody(tcrvrvv::WithVLOp scope);
 
   /// True iff the with_vl body is EXACTLY a single tcrv_rvv.quantize_row_q8_0
   /// (the F4 f32->block_q8_0 activation quantizer: per-32-block amax reduction +
@@ -3460,11 +3465,16 @@ private:
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_soft_max_f32 forward-pass op (F5b: the
-  /// attention softmax core y[i] = e^{x[i]-max}, RETURNING the f64 sum
-  /// Sum_i e^{x[i]-max}; vec.cpp:531 + the __riscv_v path vec.cpp:584-592) as
+  /// Emit the CONSTRUCTED ggml ggml_vec_soft_max_f32 reduce-model body (F5b: the
+  /// attention softmax exp-sum-reduce core y[i] = e^{x[i]-max}, RETURNING the f64
+  /// sum Sum_i e^{x[i]-max}; vec.cpp:531 + the __riscv_v path vec.cpp:584-592) as
   /// fully STRUCTURED emitc nodes (I5; no verbatim C blob -- every value is a
   /// node). Faithful to ggml's BARE function: `max` is an INPUT, no normalize.
+  /// The outer loop op owns the reduce shape (reduce_map_model "reduce": a
+  /// loop-carried f64m1 WIDENING accumulator region arg + the yield that carries
+  /// it back); this re-emit sources the whole soft_max ABI + the byte-exact fused
+  /// strip from the region's tcrv_rvv.elementwise_soft_max_reduce_core brick
+  /// (anti-bypass: its strip_index is region arg 0 and its acc is region arg 1):
   ///   vfloat64m1_t vsum = __riscv_vfmv_v_f_f64m1(0, 1);
   ///   for (size_t i = 0; i < n; i += vlmax) {
   ///     size_t vl = __riscv_vsetvl_e32m2(n - i);
@@ -3483,9 +3493,11 @@ private:
   /// iter_args), exactly as F3 carries its scalar double `sum`, but the value
   /// type is the opaque vector vfloat64m1_t. exp(x-max) reuses the SHARED
   /// node-for-node ggml_v_expf_m2 chain (emitGgmlVExpfM2), so y[] and each val
-  /// are bit-identical to ggml's silu/soft_max. Returns the f64 sum value (the
-  /// dispatch wraps it in the function's `return`).
-  mlir::FailureOr<mlir::Value> emitGgmlVecSoftMaxF32(
+  /// are bit-identical to ggml's silu/soft_max. This is BYTE-EXACT to the retired
+  /// monolith tcrv_rvv.ggml_vec_soft_max_f32 emit modulo ONLY the source-op
+  /// provenance token. Returns the f64 sum value (the dispatch wraps it in the
+  /// function's `return`).
+  mlir::FailureOr<mlir::Value> emitElementwiseSoftMaxReduceStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

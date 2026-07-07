@@ -8331,10 +8331,20 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
     return emitOpError()
            << "requires the first region argument (strip_index) to be "
               "index-typed (the strip induction variable)";
-  if (isReduceModel && !block.getArgument(1).getType().isF64())
-    return emitOpError()
-           << "requires the reduce model's second region argument to be the "
-              "f64 loop-carried accumulator";
+  // The reduce model's loop-carried accumulator (region arg 1) is EITHER the f64
+  // scalar (rms_norm's Σx² scalar-double ascending fold) OR the
+  // !tcrv_rvv.vector<f64, "m1"> WIDENING accumulator (soft_max's
+  // vfwredusum_vs_f32m2_f64m1 Σe^x fold, ggml's vfloat64m1_t vsum). Any other
+  // type fails closed (I7).
+  if (isReduceModel) {
+    mlir::Type accType = block.getArgument(1).getType();
+    if (!accType.isF64() && !isGenericRVVVectorF64M1(accType))
+      return emitOpError()
+             << "requires the reduce model's second region argument to be the "
+                "loop-carried accumulator: the f64 scalar (rms_norm's Σx² "
+                "ascending fold) or the !tcrv_rvv.vector<f64, \"m1\"> widening "
+                "accumulator (soft_max's vfwredusum Σe^x fold)";
+  }
 
   TypedElementwiseLoopYieldOp yield =
       block.empty()
@@ -8367,10 +8377,17 @@ mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
     return mlir::success();
   const bool isReduceModel = parent.getReduceMapModel() == "reduce";
   if (isReduceModel) {
-    if (getAccNext().size() != 1 || !getAccNext()[0].getType().isF64())
+    // The carried accumulator is the f64 scalar (rms_norm) OR the
+    // !tcrv_rvv.vector<f64, "m1"> widening accumulator (soft_max), matching the
+    // loop-body op's region-arg type.
+    if (getAccNext().size() != 1 ||
+        (!getAccNext()[0].getType().isF64() &&
+         !isGenericRVVVectorF64M1(getAccNext()[0].getType())))
       return emitOpError()
-             << "reduce model requires the yield to carry exactly one f64 "
-                "loop-carried accumulator operand";
+             << "reduce model requires the yield to carry exactly one "
+                "loop-carried accumulator operand: the f64 scalar (rms_norm) or "
+                "the !tcrv_rvv.vector<f64, \"m1\"> widening accumulator "
+                "(soft_max)";
   } else if (!getAccNext().empty()) {
     return emitOpError()
            << "map model requires the yield to carry no operand (the per-strip "
@@ -8623,51 +8640,40 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult GgmlVecSoftMaxF32Op::verify() {
+mlir::LogicalResult ElementwiseSoftMaxReduceCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // The op carries ONLY its bounded mirror attr (I4): the operation kind. There
-  // is no resource/scheduling knob this cut -- the strip loop and the exp
-  // polynomial are fixed at m2 (matching ggml's vsetvl_e32m2 path and the
-  // m2-tied mask/reinterpret types), and the f64 widening-reduce accumulator is
-  // f64m1 to match ggml's vfwredusum_vs_f32m2_f64m1 fold exactly. Anything else
-  // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
-  // name -- is rejected fail-closed (I7).
-  auto isAllowedSoftMaxAttr = [](llvm::StringRef name) {
-    return name == "kind";
-  };
+  // Bounded mirror attrs only (I4): the operation kind. soft_max is m2-pinned
+  // (the exp polynomial's mask/reinterpret types are m2-tied) and the reduce is
+  // f64m1 (the vfwredusum destination), so there is NO resource/scheduling
+  // strip_lmul knob this reduce -- the ONLY allowed attr is "kind" (matching
+  // silu's precedent). A forbidden local element_count/SEW/LMUL/policy attr or an
+  // unexpected name fails closed (I7).
+  auto isAllowedSoftMaxAttr = [](llvm::StringRef name) { return name == "kind"; };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.ggml_vec_soft_max_f32 keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
+             << "'; tcrv_rvv.elementwise_soft_max_reduce_core keeps SEW/LMUL/"
+                "policy on setvl/with_vl and rejects deleted local element_count "
                 "metadata";
     if (!isAllowedSoftMaxAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded f32 soft_max attribute 'kind'; "
+             << "only accepts the bounded soft_max reduce-core attribute 'kind'; "
                 "unexpected attribute '"
              << attr.getName() << "'";
   }
 
-  if (getKind() != "ggml_vec_soft_max_f32")
+  if (getKind() != "elementwise_soft_max_reduce_core")
     return emitOpError()
-           << "currently supports only kind \"ggml_vec_soft_max_f32\" for the "
-              "bounded ggml f32 soft_max (reduction + vectorized-transcendental) "
-              "typed surface";
+           << "currently supports only kind "
+              "\"elementwise_soft_max_reduce_core\" for the bounded f32 soft_max "
+              "exp-sum-reduce core brick";
 
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one f32 output pointer, one read-only f32 input "
-              "pointer, one runtime f32 max, one runtime element-count runtime "
-              "ABI operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
-
-  // ggml's ggml_vec_soft_max_f32 writes y[i] = e^{x[i]-max} (out), reads x[]
-  // (in), takes the scalar max (in), and returns the f64 sum. The output is
-  // written (float *), the input is read-only (const float *), max binds a
-  // runtime f32. The byte-exactness depends on the exp polynomial running on
+  // The output is written (float *), the input is read-only (const float *), max
+  // binds a runtime f32. ggml's bare ggml_vec_soft_max_f32 writes y[i]=e^{x[i]-max}
+  // and reads x[]; the byte-exactness depends on the exp polynomial running on
   // real f32 lanes and the f64 widening reduce, so x must be a real f32 buffer.
   RuntimeABIValueOp outputBinding =
       getOutput().getDefiningOp<RuntimeABIValueOp>();
@@ -8685,28 +8691,48 @@ mlir::LogicalResult GgmlVecSoftMaxF32Op::verify() {
     return emitOpError()
            << "requires the max operand to bind a runtime ABI value of C type "
               "'float' (the ggml runtime row max subtracted before exp)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
     return emitOpError()
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  if (!isGenericRVVVectorF32M1(getResult().getType()))
+  // The loop-carried accumulator (in and out) is the f64m1 WIDENING accumulator
+  // (ggml's vfloat64m1_t vsum, the vfwredusum_vs_f32m2_f64m1 destination), NOT a
+  // scalar double: matching THAT exact fold is the byte-exactness crux for the
+  // returned sum.
+  if (!isGenericRVVVectorF64M1(getAcc().getType()))
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
-              "\"m1\"> for the ggml f32 soft_max route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
+           << "requires the acc operand to have type !tcrv_rvv.vector<f64, "
+              "\"m1\"> (the ggml vfloat64m1_t vsum widening accumulator)";
+  if (!isGenericRVVVectorF64M1(getAccNext().getType()))
+    return emitOpError()
+           << "requires the acc_next result to have type !tcrv_rvv.vector<f64, "
+              "\"m1\"> (the updated soft_max widening accumulator)";
 
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+  // ANTI-BYPASS (I7): the strip_index MUST be the enclosing loop op's region
+  // induction variable (region argument 0), and `acc` MUST be the loop-carried
+  // accumulator (region argument 1), so the emit provably folds the carried vsum
+  // at strip i, not a fresh zero at the loop-invariant strip 0.
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml f32 soft_max";
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  if (parent.getReduceMapModel() != "reduce")
+    return emitOpError()
+           << "requires the enclosing loop op to carry reduce_map_model "
+              "\"reduce\" (the loop-carried accumulator model)";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 2 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0), not the loop-invariant strip 0 "
+              "(anti-bypass)";
+  if (getAcc() != parentBlock.getArgument(1))
+    return emitOpError()
+           << "requires acc to be the enclosing loop's loop-carried accumulator "
+              "(region argument 1), so the emit folds the carried Σe^x vsum";
 
   return mlir::success();
 }

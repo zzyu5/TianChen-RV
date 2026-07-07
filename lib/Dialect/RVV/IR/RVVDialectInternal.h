@@ -1292,6 +1292,8 @@ bool isGenericRVVVectorI64M2(mlir::Type type);
 
 bool isGenericRVVVectorF32M1(mlir::Type type);
 
+bool isGenericRVVVectorF64M1(mlir::Type type);
+
 mlir::LogicalResult verifyDequantizeResultVectorForWithVL(
     mlir::Operation *op, mlir::Value value, llvm::StringRef role);
 

@@ -261,11 +261,13 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     // Every forward-pass / quant-dot kernel returns void (results = {}) EXCEPT
     // the F5b soft_max, which faithfully matches ggml's bare
     // `ggml_float ggml_vec_soft_max_f32(...)` signature: it RETURNS the f64 sum.
-    // Guard the result type tightly so every other body builds the function type
-    // byte-identically (additivity); only the soft_max body carries a `double`
-    // result, paired with the single `return (double)...;` emitted in its branch.
+    // The CONSTRUCTED soft_max body is the typed elementwise loop op carrying the
+    // elementwise_soft_max_reduce_core reduce brick (keyed here). Guard the result
+    // type tightly so every other body builds the function type byte-identically
+    // (additivity); only the soft_max body carries a `double` result, paired with
+    // the single `return (double)...;` emitted in its branch.
     llvm::SmallVector<mlir::Type, 1> resultTypes;
-    if (isGgmlVecSoftMaxF32Body(scope))
+    if (isTypedElementwiseSoftMaxReduceLoopBody(scope))
       resultTypes.push_back(emitc::OpaqueType::get(context, "double"));
     mlir::FunctionType functionType =
         rewriter.getFunctionType(paramTypes, resultTypes);
@@ -508,18 +510,24 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     // monolith emit modulo the source-op provenance token. The SHARED
     // emitGgmlVExpfM2 exp replication is UNCHANGED (soft_max F5b still consumes it).
 
-    // The forward-pass F5b op (tcrv_rvv.ggml_vec_soft_max_f32) COMBINES F5's
-    // vectorized transcendental (the SHARED exact ggml_v_expf_m2 polynomial) with
-    // a NEW reduction shape: y[i] = e^{x[i]-max} written per strip, and the f64
-    // sum accumulated via the WIDENING reduce vfwredusum_vs_f32m2_f64m1 into a
-    // loop-carried f64m1 accumulator (NOT F3's scalar-ascending fold) -- ggml's
-    // EXACT method (vec.cpp:584-592). It owns a dedicated routine and is the only
-    // forward-pass op whose function RETURNS a scalar (the f64 sum), so its
-    // branch emits its own `return (double)...` from the emitter's result value.
-    // Marker: the op identity.
-    if (isGgmlVecSoftMaxF32Body(scope)) {
-      mlir::FailureOr<mlir::Value> sum =
-          emitGgmlVecSoftMaxF32(rewriter, loc, scope, avlArg, sizeType, valueMap);
+    // The forward-pass F5b op (soft_max) COMBINES F5's vectorized transcendental
+    // (the SHARED exact ggml_v_expf_m2 polynomial) with a NEW reduction shape:
+    // y[i] = e^{x[i]-max} written per strip, and the f64 sum accumulated via the
+    // WIDENING reduce vfwredusum_vs_f32m2_f64m1 into a loop-carried f64m1
+    // accumulator (NOT F3's scalar-ascending fold) -- ggml's EXACT method
+    // (vec.cpp:584-592). It is now CONSTRUCTED through the reduce-model scaffold
+    // (the SAME typed_elementwise_loop_body rms_norm built, reduce_map_model
+    // "reduce", carrying the tcrv_rvv.elementwise_soft_max_reduce_core reduce
+    // brick; the monolith tcrv_rvv.ggml_vec_soft_max_f32 op + emitter + recognizer
+    // + verifier were RETIRED). Unlike the void-return map/reduce bodies handled
+    // by the kBlockDotKernels table above, soft_max is the ONLY forward-pass op
+    // whose function RETURNS a scalar (the f64 sum), so it is dispatched HERE
+    // (outside the void-return table): the branch wraps emitElementwiseSoftMaxReduceStrip's
+    // f64 sum in the function `return`. Marker: the loop op carrying the soft_max
+    // reduce brick (isTypedElementwiseLoopBody EXCLUDES it, so the table skips it).
+    if (isTypedElementwiseSoftMaxReduceLoopBody(scope)) {
+      mlir::FailureOr<mlir::Value> sum = emitElementwiseSoftMaxReduceStrip(
+          rewriter, loc, scope, avlArg, sizeType, valueMap);
       if (mlir::failed(sum))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, *sum);
@@ -1545,21 +1553,37 @@ bool VariantToEmitCFunc::isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope) {
         return false;
       }
     }
+    // EXCLUDE the soft_max reduce body: it RETURNS the f64 sum, so it is dispatched
+    // by its own return-carrying branch, NOT this void-return kBlockDotKernels
+    // table entry (which appends emitc.return with no operand). Every other
+    // map/reduce body (scale/silu/rms_norm) returns void and stays in the table.
+    if (sawLoopBody && isTypedElementwiseSoftMaxReduceLoopBody(scope))
+      return false;
     return sawLoopBody;
   }
 
-bool VariantToEmitCFunc::isGgmlVecSoftMaxF32Body(tcrvrvv::WithVLOp scope) {
-    bool sawSoftMax = false;
+bool VariantToEmitCFunc::isTypedElementwiseSoftMaxReduceLoopBody(
+    tcrvrvv::WithVLOp scope) {
+    // EXACTLY one tcrv_rvv.typed_elementwise_loop_body whose region carries a
+    // tcrv_rvv.elementwise_soft_max_reduce_core brick (the CONSTRUCTED soft_max
+    // exp-sum-reduce body that RETURNS the f64 sum). The reduce brick identity is
+    // the dispatch key.
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody;
     for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlVecSoftMaxF32Op>(op)) {
-        if (sawSoftMax)
+      if (auto lb = llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopBodyOp>(op)) {
+        if (loopBody)
           return false;
-        sawSoftMax = true;
+        loopBody = lb;
       } else {
         return false;
       }
     }
-    return sawSoftMax;
+    if (!loopBody)
+      return false;
+    bool sawSoftMaxCore = false;
+    loopBody.getBody().walk(
+        [&](tcrvrvv::ElementwiseSoftMaxReduceCoreOp) { sawSoftMaxCore = true; });
+    return sawSoftMaxCore;
   }
 
 bool VariantToEmitCFunc::isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope) {
@@ -5708,7 +5732,14 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // "reduce" (a loop-carried f64 accumulator). Its Σx² fold + rsqrt +
       // normalize are re-emitted by the loop op's reduce branch. The union stays
       // strictly MORE permissive (zero block-dot / map regression).
-      tcrv::rvv::ElementwiseRmsNormReduceCoreOp>(op);
+      tcrv::rvv::ElementwiseRmsNormReduceCoreOp,
+      // The SECOND forward-elementwise REDUCE core brick (soft_max), reusing the
+      // SAME loop op + terminator + validator + reduce_map_model "reduce", EXCEPT
+      // the loop-carried accumulator is the f64m1 WIDENING vector (vfwredusum Σe^x
+      // fold) not a scalar double. Its fused exp-store-widening-reduce strip is
+      // re-emitted by the soft_max return-carrying branch. The union stays
+      // strictly MORE permissive (zero block-dot / map / rms_norm regression).
+      tcrv::rvv::ElementwiseSoftMaxReduceCoreOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op
