@@ -2624,6 +2624,24 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// The BYTE-EXACT q1_0 x q8_0 BINARY-sign block-dot body, SHARED by (a) the
+  /// monolith GgmlBlockDotQ10Q80Op emitter and (b) the constructed
+  /// typed_flat_block_dot_loop_body q1_0 branch (fold_model
+  /// "flat_binary_two_level"). Both callers pass the SAME validated ABI values +
+  /// the SAME I4 facts, so the emit is byte-identical across the flip (modulo
+  /// only the source-op provenance token carried by opName/role). Emits the WHOLE
+  /// kernel (sumf accumulator, nb = n/qk super-block loop, the four unrolled q8_0
+  /// binary sign sub-blocks, the two-level fp32 fold, the scalar store) and
+  /// returns the final sumf SSA value.
+  mlir::Value emitQ1_0BlockDotBodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value weightBase, mlir::Value activationBase,
+      mlir::TypedValue<mlir::emitc::PointerType> outPointer, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t q8PerWeight, int64_t weightQuantOffset,
+      int64_t activationQuantOffset) const;
+
   /// Emit the ggml ggml_vec_dot_q6_K_q8_K INTEGER CORE (the K-quant K1
   /// increment) for one tcrv_rvv.q6_k_q8_k_aux32_partial op as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-control-flow blob). It reproduces the
