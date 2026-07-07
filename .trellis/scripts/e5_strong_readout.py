@@ -773,10 +773,24 @@ _FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_
 # strip-loop op). This whitelist is deliberately NARROW (a scale-only fp16
 # `block_fp16_scale_product` body is NOT a forward map primitive, so it stays the
 # constructed-weak negative control; an opaque monolith still trips the opaque
-# gate), so the check stays discriminating. The forward REDUCE model (rms_norm's
-# Σx², softmax's Σe^x) is a later step and would use the reduce conjunct on the
-# same loop op.
+# gate), so the check stays discriminating.
 _MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map|elementwise_silu_map)")
+
+# M-FLAT forward-elementwise scaffold REDUCE model (line C, G1-tail): the forward
+# REDUCE class (rms_norm's Σx², softmax's Σe^x) rides the SAME
+# tcrv_rvv.typed_elementwise_loop_body but under reduce_map_model "reduce" (a
+# loop-carried accumulator region arg + the yield that carries it back). Its core
+# brick is a self-contained fused fold: rms_norm's
+# `tcrv_rvv.elementwise_rms_norm_reduce_core` fuses the per-element square product
+# (x[i]*x[i]) INTO the scalar-double reduction, so there is NO separate
+# product-family primitive to pair with a reduce -- the contraction-shaped gate
+# would wrongly demote it. The REDUCE class satisfies the [L-8] "decomposed = built
+# from typed pattern-library primitives, no opaque helper" conjunct via this
+# reduce-fold-family primitive (the reduce sibling of the _MAP_PRIMITIVE_RE map
+# family). This whitelist is deliberately NARROW (a bare "reduce" substring is NOT
+# admitted -- the token must be a forward reduce-fold brick; an opaque monolith
+# still trips the opaque gate), so the check stays discriminating.
+_REDUCE_FOLD_PRIMITIVE_RE = re.compile(r"(elementwise_rms_norm_reduce_core)")
 
 
 def _leading_ws(line):
@@ -868,7 +882,11 @@ def derive(manifest):
     # M-FLAT reduce/MAP model: the forward-elementwise MAP class satisfies the
     # [L-8] decomposed conjunct via a MAP-family primitive (no product/reduce).
     has_map = any(_MAP_PRIMITIVE_RE.search(m) for m in mnemonics)
-    decomposed = (has_product and has_reduce) or has_map
+    # M-FLAT REDUCE model: the forward-elementwise REDUCE class satisfies the
+    # decomposed conjunct via a reduce-fold-family primitive (the Σx² square is
+    # fused into the scalar-double fold, so there is no separate product to pair).
+    has_reduce_fold = any(_REDUCE_FOLD_PRIMITIVE_RE.search(m) for m in mnemonics)
+    decomposed = (has_product and has_reduce) or has_map or has_reduce_fold
     derived_state = (
         "constructed" if (non_empty and not has_opaque and decomposed)
         else "constructed-weak"
@@ -880,6 +898,7 @@ def derive(manifest):
         "has_product": has_product,
         "has_reduce": has_reduce,
         "has_map": has_map,
+        "has_reduce_fold": has_reduce_fold,
         "decomposed": decomposed,
         "derived_state": derived_state,
     }
@@ -1094,6 +1113,38 @@ module {
         ^bb0(%i: index):
           tcrv_rvv.elementwise_silu_map %x, %y, %n strip %i : index {kind = "elementwise_silu_map"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
           tcrv_rvv.typed_elementwise_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# M-FLAT forward-elementwise REDUCE ground truth (line C, G1-tail): the CONSTRUCTED
+# rms_norm realized body -- the SAME typed elementwise strip-loop op, now under
+# reduce_map_model "reduce" (a SECOND region arg = the loop-carried f64 accumulator
+# + the yield that carries it back), carrying the per-element
+# elementwise_rms_norm_reduce_core reduce core brick (the Σx² fold). Unlike the MAP
+# rows it has NO product AND NO map primitive, but its reduce-fold brick satisfies
+# the decomposed conjunct via the THIRD branch: `has_reduce_fold` (elementwise_rms_norm_reduce_core
+# joined _REDUCE_FOLD_PRIMITIVE_RE). This is the reduce model made machine-checkable
+# (softmax's Σe^x reuses the SAME loop-carried-accumulator shape with a vfwredusum
+# reduce brick); the discriminator is the reduce-fold-FAMILY primitive, not a bare
+# "reduce" substring.
+_GT_ELEMENTWISE_RMS_REDUCE = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %eps = tcrv_rvv.runtime_abi_value {c_name = "eps"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+        ^bb0(%i: index, %acc: f64):
+          %acc_next = tcrv_rvv.elementwise_rms_norm_reduce_core %x, %y, %eps, %n strip %i acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f64 -> f64
+          tcrv_rvv.typed_elementwise_loop_yield %acc_next : f64
         } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
@@ -1515,6 +1566,30 @@ def cmd_self_test(_args):
     # state (the reduce/MAP model is shared; only the map-family primitive differs).
     assert ew_silu["derived_state"] == ew_map["derived_state"]
 
+    # M-FLAT forward-elementwise REDUCE ground truth: the CONSTRUCTED rms_norm
+    # realized body (the SAME typed_elementwise_loop_body, now reduce_map_model
+    # "reduce" with a loop-carried f64 accumulator, carrying the NEW
+    # elementwise_rms_norm_reduce_core reduce core brick + the acc-carrying yield).
+    # Unlike the MAP rows it has NO product AND NO map primitive; its reduce-fold
+    # brick satisfies the decomposed conjunct via the THIRD branch (has_reduce_fold,
+    # via elementwise_rms_norm_reduce_core joining _REDUCE_FOLD_PRIMITIVE_RE). This
+    # is the reduce model made machine-checkable (softmax's Σe^x reuses the shape).
+    ew_rms = derive(parse_realized_body(_GT_ELEMENTWISE_RMS_REDUCE))
+    assert ew_rms["manifest"] == [
+        "tcrv_rvv.typed_elementwise_loop_body",
+        "tcrv_rvv.elementwise_rms_norm_reduce_core",
+        "tcrv_rvv.typed_elementwise_loop_yield",
+    ], ew_rms["manifest"]
+    assert ew_rms["has_opaque"] is False, ew_rms
+    assert ew_rms["has_product"] is False, ew_rms
+    assert ew_rms["has_map"] is False, ew_rms
+    assert ew_rms["has_reduce_fold"] is True, ew_rms
+    assert ew_rms["decomposed"] is True, ew_rms
+    assert ew_rms["derived_state"] == "constructed", ew_rms
+    # Discrimination: the REDUCE model derives strong, the scale-only fp16 negative
+    # stays weak (the reduce-fold-family primitive is the ONLY thing that flips it).
+    assert ew_rms["derived_state"] != scale["derived_state"]
+
     # Super-block ground truth (q4_K milestone-3): the 5 q4_K bricks decompose the
     # super-block dot; the FUSED per-sub-block q4_k_scaled_dot satisfies BOTH the
     # product AND reduce conjunct (the vwmacc reduction is fused into the product),
@@ -1741,7 +1816,8 @@ def cmd_self_test(_args):
           "strong(repack GEMM prefill lane-wise dot fused reduce, grouped %r:4 parse)=constructed / "
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate) / "
           "forward-elementwise MAP(elementwise_scale_map)=constructed (reduce/MAP model branch) / "
-          "forward-elementwise MAP(elementwise_silu_map)=constructed (SAME scaffold reused, C2 payoff)")
+          "forward-elementwise MAP(elementwise_silu_map)=constructed (SAME scaffold reused, C2 payoff) / "
+          "forward-elementwise REDUCE(elementwise_rms_norm_reduce_core)=constructed (reduce model built, has_reduce_fold branch)")
     return 0
 
 

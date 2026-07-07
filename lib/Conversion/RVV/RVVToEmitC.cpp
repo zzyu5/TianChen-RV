@@ -238,7 +238,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         [&](tcrvrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp) {
           hasNvfp4CodebookCore = true;
         });
-    if (isGgmlRmsNormF32Body(scope) || isGgmlRopeNormF32Body(scope) ||
+    // rms_norm (now CONSTRUCTED through the reduce-model scaffold) still calls
+    // scalar libm (1/sqrtf(mean+eps)), so its constructed body -- a
+    // typed_elementwise_loop_body carrying the reduce core brick -- adds <math.h>
+    // exactly as the retired monolith did (byte-exact self-include behavior).
+    bool hasRmsNormReduceCore = false;
+    scope.getBody().walk([&](tcrvrvv::ElementwiseRmsNormReduceCoreOp) {
+      hasRmsNormReduceCore = true;
+    });
+    if (hasRmsNormReduceCore || isGgmlRopeNormF32Body(scope) ||
         hasNvfp4CodebookCore)
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
@@ -475,22 +483,18 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     // emitTypedElementwiseLoopBody} entry in kBlockDotKernels above (byte-exact to
     // the monolith emit modulo the source-op provenance token).
 
-    // The forward-pass F3 op (tcrv_rvv.ggml_rms_norm_f32) is the FIRST non-dot
-    // f32 REDUCTION op: the row Sx^2 scalar-double fold -> scalar 1/sqrtf -> the
-    // vectorized normalize y[i] = x[i] * scale. It owns a dedicated routine (a
-    // structured scalar-double accumulator loop + a scalar rsqrt + a single f32
-    // strip loop) -- a NEW shape vs the elementwise scale (F1) because the
-    // reduction must replicate ggml's scalar-double ascending fold for
-    // byte-exactness (a vectorized vfredusum would fold in f32 and a tree order).
-    // The structural marker is the tcrv_rvv.ggml_rms_norm_f32 op identity.
-    if (isGgmlRmsNormF32Body(scope)) {
-      if (mlir::failed(emitGgmlRmsNormF32(rewriter, loc, scope, avlArg,
-                                          sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
+    // NOTE: the monolith forward-pass F3 kernel {isGgmlRmsNormF32Body,
+    // emitGgmlRmsNormF32} was RETIRED at the rms_norm flip (C_construct 30->31,
+    // the FIRST forward REDUCE operator constructed): the constructed body is the
+    // typed elementwise strip-loop op (tcrv_rvv.typed_elementwise_loop_body,
+    // reduce_map_model "reduce") carrying the tcrv_rvv.elementwise_rms_norm_reduce_core
+    // reduce core brick (the loop-carried f64 accumulator model), dispatched via
+    // the {isTypedElementwiseLoopBody, emitTypedElementwiseLoopBody} entry in
+    // kBlockDotKernels above (which now resolves the scale/silu MAP bricks AND the
+    // rms_norm REDUCE brick). The reduce branch re-emits the byte-exact
+    // scalar-double Σx² fold + scalar 1/sqrtf + vectorized normalize strip via
+    // emitElementwiseRmsNormReduceStrip, byte-exact to the monolith emit modulo the
+    // source-op provenance token.
 
     // NOTE: the monolith forward-pass F5 kernel {isGgmlVecSiluF32Body,
     // emitGgmlVecSiluF32} was RETIRED at the silu flip (C_construct 29->30, the
@@ -1542,20 +1546,6 @@ bool VariantToEmitCFunc::isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawLoopBody;
-  }
-
-bool VariantToEmitCFunc::isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope) {
-    bool sawRmsNorm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRmsNormF32Op>(op)) {
-        if (sawRmsNorm)
-          return false;
-        sawRmsNorm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawRmsNorm;
   }
 
 bool VariantToEmitCFunc::isGgmlVecSoftMaxF32Body(tcrvrvv::WithVLOp scope) {
@@ -5712,7 +5702,13 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // loop op + terminator + validator above; only the per-strip map primitive
       // is new. The union stays strictly MORE permissive (zero block-dot
       // regression).
-      tcrv::rvv::ElementwiseSiluMapOp>(op);
+      tcrv::rvv::ElementwiseSiluMapOp,
+      // The FIRST forward-elementwise REDUCE core brick (rms_norm), reusing the
+      // SAME loop op + terminator + validator, now under reduce_map_model
+      // "reduce" (a loop-carried f64 accumulator). Its Σx² fold + rsqrt +
+      // normalize are re-emitted by the loop op's reduce branch. The union stays
+      // strictly MORE permissive (zero block-dot / map regression).
+      tcrv::rvv::ElementwiseRmsNormReduceCoreOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

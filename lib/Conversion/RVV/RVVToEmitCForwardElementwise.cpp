@@ -45,10 +45,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
       return rewriter.notifyMatchFailure(
           scope, "typed elementwise loop body missing the op");
 
-    // The current bounded surface is the "map" model whose core brick is a
-    // per-strip elementwise map: the scale map (elementwise_scale_map, y[i] *= v,
-    // in-place single buffer) or the silu map (elementwise_silu_map,
-    // y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map). Find the brick + yield.
+    // The "reduce" model carries a loop-carried accumulator: the FIRST forward
+    // REDUCE operator constructed through the scaffold is rms_norm (the Σx²
+    // scalar-double fold + the scalar rsqrt + the vectorized normalize strip),
+    // whose per-element fold rides the tcrv_rvv.elementwise_rms_norm_reduce_core
+    // reduce-core brick. Dispatch to its dedicated re-emit before the map path.
+    if (loopBody.getReduceMapModel() == "reduce") {
+      tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore;
+      loopBody.getBody().walk([&](tcrvrvv::ElementwiseRmsNormReduceCoreOp o) {
+        rmsCore = o;
+      });
+      if (!rmsCore)
+        return rewriter.notifyMatchFailure(
+            loopBody, "reduce-model elementwise loop body requires a recognized "
+                      "reduce core brick (elementwise_rms_norm_reduce_core)");
+      return emitElementwiseRmsNormReduceStrip(rewriter, loc, loopBody, rmsCore,
+                                               avlArg, sizeType, valueMap);
+    }
+
+    // The "map" model's core brick is a per-strip elementwise map: the scale map
+    // (elementwise_scale_map, y[i] *= v, in-place single buffer) or the silu map
+    // (elementwise_silu_map, y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map).
+    // Find the brick + yield.
     tcrvrvv::ElementwiseScaleMapOp mapOp;
     tcrvrvv::ElementwiseSiluMapOp siluOp;
     tcrvrvv::TypedElementwiseLoopYieldOp yieldOp;
@@ -159,27 +177,42 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     return mlir::success();
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
+    mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRmsNormF32Op rmsOp;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto r = llvm::dyn_cast<tcrvrvv::GgmlRmsNormF32Op>(op))
-        rmsOp = r;
-    }
-    if (!rmsOp)
-      return rewriter.notifyMatchFailure(scope, "rms_norm body missing the op");
+    // The CONSTRUCTED rms_norm reduce-model body, the reduce sibling of the map
+    // paths (scale/silu) and of the block-dot loop scaffold. The outer loop op
+    // owns the reduce shape (reduce_map_model "reduce": a loop-carried f64
+    // accumulator region arg + the yield that carries it back); this re-emit
+    // sources the WHOLE rms_norm ABI + the byte-exact scalar-double Σx² fold /
+    // scalar rsqrt / vectorized normalize strip from the region's reduce core
+    // brick (anti-bypass). BYTE-EXACT to the retired monolith
+    // tcrv_rvv.ggml_rms_norm_f32 emit modulo ONLY the source-op provenance token.
 
-    mlir::Value input = valueMap.lookup(rmsOp.getInput());
-    mlir::Value outputBuf = valueMap.lookup(rmsOp.getOutput());
-    mlir::Value eps = valueMap.lookup(rmsOp.getEps());
+    // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
+    // variable (region arg 0) and its acc MUST be the loop-carried accumulator
+    // (region arg 1); the verifier pins both, checked here fail-closed too.
+    mlir::Block &block = loopBody.getBody().front();
+    if (block.getNumArguments() < 2 ||
+        rmsCore.getStripIndex() != block.getArgument(0) ||
+        rmsCore.getAcc() != block.getArgument(1))
+      return rewriter.notifyMatchFailure(
+          rmsCore, "the rms_norm reduce core brick's strip_index / acc must be "
+                   "the loop induction variable / loop-carried accumulator "
+                   "(region args 0 / 1)");
+
+    mlir::Value input = valueMap.lookup(rmsCore.getInput());
+    mlir::Value outputBuf = valueMap.lookup(rmsCore.getOutput());
+    mlir::Value eps = valueMap.lookup(rmsCore.getEps());
     if (!input || !outputBuf || !eps)
-      return rewriter.notifyMatchFailure(rmsOp,
+      return rewriter.notifyMatchFailure(rmsCore,
                                          "rms_norm ABI operand unmapped");
 
-    llvm::StringRef opName = rmsOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = rmsOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = rmsCore.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = rmsCore.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = outputBuf.getType();
@@ -309,7 +342,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlRmsNormF32(
     // machinery F1 (scale) emits, except two-buffer (x in, y out) instead of
     // in-place: byte-identical (both one f32 multiply per lane), avoiding ggml's
     // memcpy+in-place-scale.
-    llvm::StringRef lmul = rmsOp.getStripLmul().value_or("m8");
+    llvm::StringRef lmul = rmsCore.getStripLmul().value_or("m8");
     std::string f32VecTypeName = ("vfloat32" + lmul + "_t").str();
     mlir::Type f32VecType = emitc::OpaqueType::get(ctx, f32VecTypeName);
 

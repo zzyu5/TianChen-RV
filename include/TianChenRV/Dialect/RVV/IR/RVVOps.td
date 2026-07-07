@@ -8403,20 +8403,26 @@ def TypedElementwiseLoopBodyOp
     names, status fields, exact intrinsic spellings, or op-name strings, and
     NEVER an opaque hand-written elementwise helper.
 
-    `reduce_map_model` fixes the loop SHAPE (region-invariant): "map" (the
-    current bounded surface) is the pure elementwise map -- NO loop-carried
-    accumulator, the region carries just the strip induction variable and the
-    per-strip core brick writes its result straight to the buffer (scale's
-    `y[i] *= v`, silu's `y[i] = x[i]*sigmoid(x[i])`); "reduce" (a later step)
-    carries a loop-carried scalar/vector accumulator for the row reductions
-    (rms_norm's Σx², softmax's Σe^x). The current surface admits only "map".
+    `reduce_map_model` fixes the loop SHAPE (region-invariant): "map" is the
+    pure elementwise map -- NO loop-carried accumulator, the region carries just
+    the strip induction variable and the per-strip core brick writes its result
+    straight to the buffer (scale's `y[i] *= v`, silu's
+    `y[i] = x[i]*sigmoid(x[i])`); "reduce" carries a loop-carried scalar/vector
+    accumulator for the row reductions (rms_norm's Σx², softmax's Σe^x): the
+    region carries a SECOND entry argument (the loop-carried accumulator value
+    at loop entry) and the yield names ONE operand (the updated accumulator),
+    exactly the loop-carried-acc modeling the sibling
+    tcrv_rvv.typed_flat_block_dot_loop_body uses for the block-dot `sumf`. The
+    current surface admits "map" and "reduce".
 
     The op consumes the forward operator's runtime ABI operands -- the in/out
     f32 buffer base pointer `buffer`, the runtime f32 `scalar` broadcast value,
     and the runtime element count `n` -- and owns one single-block region whose
-    entry argument is the `strip_index` induction variable (index). The region
-    is terminated by tcrv_rvv.typed_elementwise_loop_yield (no carried operand
-    for the map model). The bounded scheduling facts (`element_sew`, the
+    entry arguments are the `strip_index` induction variable (index) and, for
+    the "reduce" model, the loop-carried accumulator value. The region is
+    terminated by tcrv_rvv.typed_elementwise_loop_yield (no carried operand for
+    the map model; the updated accumulator for the reduce model). The bounded
+    scheduling facts (`element_sew`, the
     optional `strip_lmul`) are the byte-exact shape knobs the monolithic
     forward emit reads (the *how* -- SEW / strip width -- never the *what*): the
     map is a bare per-lane multiply (no FMA, no reduction), so it is byte-exact
@@ -8450,18 +8456,21 @@ def TypedElementwiseLoopYieldOp
      HasParent<"::tianchenrv::tcrv::rvv::TypedElementwiseLoopBodyOp">]> {
   let summary =
       "terminator of the typed elementwise strip-loop region (map model: no "
-      "carried operand)";
+      "carried operand; reduce model: the updated accumulator)";
   let description = [{
-    Terminates the tcrv_rvv.typed_elementwise_loop_body region. For the current
-    bounded "map" reduce_map_model the map writes its result straight to the
-    buffer per strip, so there is NO loop-carried value and the yield names no
-    operand (mirroring an emitc.for with no iter_args). It carries no compute,
-    dtype, memory, or route semantics.
+    Terminates the tcrv_rvv.typed_elementwise_loop_body region. For the "map"
+    reduce_map_model the map writes its result straight to the buffer per strip,
+    so there is NO loop-carried value and the yield names no operand (mirroring
+    an emitc.for with no iter_args). For the "reduce" reduce_map_model the yield
+    names ONE operand -- the updated loop-carried accumulator (the reduce core
+    brick's result), carried back to the loop-entry accumulator argument, the
+    same SSA-acc <-> emitc-variable modeling the block-dot loop yield uses. It
+    carries no compute, dtype, memory, or route semantics.
   }];
 
-  let arguments = (ins);
+  let arguments = (ins Variadic<AnyType>:$acc_next);
 
-  let assemblyFormat = "attr-dict";
+  let assemblyFormat = "($acc_next^ `:` type($acc_next))? attr-dict";
   let hasVerifier = 1;
 }
 
@@ -8574,74 +8583,69 @@ def ElementwiseSiluMapOp
   let hasVerifier = 1;
 }
 
-def GgmlRmsNormF32Op
-    : TCRVRVV_Op<"ggml_rms_norm_f32",
+def ElementwiseRmsNormReduceCoreOp
+    : TCRVRVV_Op<"elementwise_rms_norm_reduce_core",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =
-      "generic typed RVV ggml f32 rms_norm (Sx^2 reduce -> rsqrt -> scale) op";
+      "generic typed RVV per-row f32 rms_norm reduce core brick (Sx^2 fold -> "
+      "rsqrt -> normalize)";
   let description = [{
-    Records the COMPLETE ggml `ggml_compute_forward_rms_norm_f32` (non-fused, no
-    weight) forward-pass op for ONE row as a bounded generic plugin-local typed
-    RVV f32 dataflow step: the row reduction `mean = (Sum_i x[i]^2)/ne00`, the
-    scalar `scale = 1/sqrtf(mean + eps)`, and the per-lane normalize
-    `y[i] = x[i] * scale` over flat unit-stride f32 buffers. This is the FIRST
-    forward-pass REDUCTION op (F3 in research/forward-pass-scoping.md) -- a NEW
-    shape vs the elementwise scale (F1) and vs the block-quantized integer dot
-    ops: it brings in a cross-lane fold plus a scalar rsqrt before the
-    elementwise scale.
+    Records ONE strip's contribution to the ggml
+    `ggml_compute_forward_rms_norm_f32` (non-fused, no weight) row reduction --
+    the per-element `acc_next = acc + (double)(x[i]*x[i])` fold -- as ONE bounded
+    generic plugin-local typed RVV dataflow step: the FIRST reduce-family
+    primitive of the forward-elementwise scaffold (the reduce sibling of the
+    map-family tcrv_rvv.elementwise_scale_map / tcrv_rvv.elementwise_silu_map
+    bricks). It is carried inside the tcrv_rvv.typed_elementwise_loop_body region
+    (reduce_map_model "reduce") whose loop-carried accumulator argument feeds the
+    brick's `acc` operand and whose yield carries the brick's `acc_next` result
+    -- the genuine loop-carried-accumulator modeling the block-dot loop scaffold
+    uses for `sumf` (the emit realizes acc as a `double sum` emitc.variable
+    load-at-top / assign-at-bottom, since emitc.for has no iter_args).
 
-    BYTE-EXACTNESS hinges on matching ggml's EXACT accumulation method
-    (ops.cpp:3791-3798). ggml folds `Sum_i x[i]^2` in `ggml_float` (= double),
-    SCALAR, in strict ASCENDING index order (the source loop is explicitly NOT
-    vectorized -- "worth switching to explicit SIMD?"). The cast chain is
-    load-bearing: each product `x[i]*x[i]` rounds in f32 FIRST, is then WIDENED
-    to double, and accumulated in double -- NOT `(double)x[i]*(double)x[i]`. The
-    f32->double widen between the f32 product and the double add is also an FMA
-    barrier (multiply and add are different types, so -ffp-contract cannot fuse
-    them). Then `mean = (float)(sum / (double)ne00)` (divide in double, cast to
-    f32 AFTER), `scale = 1.0f / sqrtf(mean + eps)` (the add/sqrt/reciprocal all
-    in f32 -- sqrtf-then-reciprocal, NOT a hardware fast-rsqrt). A vectorized
-    f32 `vfredusum` reduction would NOT be byte-exact (it folds in f32 with a
-    tree order), so the reduction is emitted as STRUCTURED scalar emitc nodes
-    (variable/load/mul/cast/add/assign) replicating ggml's scalar double fold,
-    and only the final `y[i] = x[i] * scale` normalize is vectorized (a bare
-    per-lane vfmul_vf strip -- no FMA, no reduction, byte-exact at any LMUL).
+    The brick carries the WHOLE rms_norm ABI so the reduce-body emitter sources
+    every value from the region op (anti-bypass), NOT the loop op attrs: the
+    read-only f32 input base pointer `input` (the ggml x[] row), the written f32
+    output base pointer `output` (the ggml y[] buffer), the runtime f32 `eps`,
+    the runtime element count `n`, the loop's `strip_index` induction variable
+    (region argument 0), and the loop-carried f64 `acc` (region argument 1). The
+    reduce loop is the byte-exact SCALAR-DOUBLE ascending fold (NOT a vectorized
+    vfredusum, which folds in f32 + a tree order): the per-element square
+    `x[i]*x[i]` rounds in f32 FIRST, is WIDENED to double (the FMA barrier), then
+    added in double. The reduce-body emit closes with the scalar
+    `mean = (float)(sum/(double)n)`, `scale = 1.0f/sqrtf(mean+eps)` (sqrtf is the
+    one sanctioned scalar-libm opaque seam -- a true IEEE sqrt, NOT a hardware
+    fast-rsqrt), and the VECTORIZED normalize strip `y[i] = x[i]*scale` (a bare
+    per-lane vfmul_vf, byte-exact at any LMUL).
 
-    The op is nested directly under tcrv_rvv.with_vl and consumes FOUR runtime
-    ABI value operands -- the f32 input base pointer `x` (read-only), the f32
-    output base pointer `y` (written), the runtime f32 `eps`, the runtime
-    element count `ne00` -- plus the active !tcrv_rvv.vl token. It produces ONE
-    f32 LMUL m1 !tcrv_rvv.vector token whose lowering is the normalize strip
-    store. For the bounded surface `kind` is limited to "ggml_rms_norm_f32".
-    Route ids, helper names, ABI strings, artifact names, status fields, exact
-    intrinsic spellings, and common EmitC/export code must not infer or choose
-    f32 rms_norm semantics.
-
-    The optional `strip_lmul` attribute is a bounded resource/scheduling fact --
-    it selects the LMUL the NORMALIZE strip loop anchors at ("m1", "m2", "m4",
-    or "m8"; default "m8" to match ggml's `ggml_vec_scale_f32` apply path). It is
-    purely the *how* of the vectorized normalize (every lane multiplied by the
-    same scalar `scale`), never the *what* (the reduction stays scalar-double
-    regardless). It is named `strip_lmul`, not the with_vl/setvl `lmul` spelling,
-    so the op keeps no SEW/LMUL/policy dataflow-parameter attr at the I5 boundary
-    -- the sibling ops use the same convention.
+    The `strip_index` operand is the ANTI-BYPASS tie: it MUST be the loop
+    induction variable (region argument 0). The `acc` operand MUST be the
+    loop-carried accumulator (region argument 1), so the emit provably folds the
+    carried value, not a fresh zero. The bounded surface `kind` is limited to
+    "elementwise_rms_norm_reduce_core". The optional `strip_lmul` selects the f32
+    NORMALIZE strip anchor LMUL ("m1"|"m2"|"m4"|"m8", default "m8" to match
+    ggml's apply path) -- the *how* of the normalize, never the *what* (the
+    reduction stays scalar-double regardless). Route ids, helper names, ABI
+    strings, artifact names, status fields, and exact intrinsic spellings must
+    not infer or choose this reduce's semantics.
   }];
 
   let arguments = (ins
     AnyType:$input,
     AnyType:$output,
     AnyType:$eps,
-    AnyType:$element_count,
-    AnyType:$vl,
+    AnyType:$n,
+    Index:$strip_index,
+    F64:$acc,
     StrAttr:$kind,
     OptionalAttr<StrAttr>:$strip_lmul
   );
-  let results = (outs AnyType:$result);
+  let results = (outs F64:$acc_next);
 
   let assemblyFormat =
-    "$input `,` $output `,` $eps `,` $element_count `,` $vl "
+    "$input `,` $output `,` $eps `,` $n `strip` $strip_index `acc` $acc "
     "attr-dict `:` type($input) `,` type($output) `,` type($eps) `,` "
-    "type($element_count) `,` type($vl) `->` type($result)";
+    "type($n) `,` type($strip_index) `,` type($acc) `->` type($acc_next)";
   let hasVerifier = 1;
 }
 

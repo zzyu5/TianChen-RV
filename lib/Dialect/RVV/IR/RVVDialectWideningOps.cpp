@@ -8254,14 +8254,19 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
     return emitOpError()
            << "currently supports only kind \"typed_elementwise_loop_body\" for "
               "the bounded forward-pass elementwise strip-loop surface";
-  // reduce_map_model fixes the loop shape; the current bounded surface is the
-  // pure elementwise "map" (no loop-carried accumulator). "reduce" (rms_norm /
-  // softmax row folds) is a later step. Any other spelling fails closed (I7).
-  if (getReduceMapModel() != "map")
+  // reduce_map_model fixes the loop shape: "map" is the pure elementwise map (no
+  // loop-carried accumulator, region carries only the strip index); "reduce"
+  // carries a loop-carried accumulator (region carries strip index + acc, the
+  // yield names the updated acc) for the row folds (rms_norm's Σx²). Any other
+  // spelling fails closed (I7).
+  llvm::StringRef reduceMapModel = getReduceMapModel();
+  const bool isReduceModel = reduceMapModel == "reduce";
+  if (reduceMapModel != "map" && !isReduceModel)
     return emitOpError()
            << "currently supports only reduce_map_model \"map\" (the pure "
-              "elementwise per-lane map with no loop-carried accumulator); "
-              "\"reduce\" is a later step";
+              "elementwise per-lane map with no loop-carried accumulator) or "
+              "\"reduce\" (a loop-carried accumulator for the row folds); got \""
+           << reduceMapModel << "\"";
   // element_sew currently pins the f32 (SEW=32) strip; other widths are later.
   if (getElementSewAttr().getInt() != 32)
     return emitOpError()
@@ -8308,18 +8313,28 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
            << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  // Region structure: exactly one entry argument -- the strip_index induction
-  // variable (index) -- terminated by the typed elementwise loop yield (which
-  // names no operand for the map model).
+  // Region structure: the strip_index induction variable (index) is region
+  // argument 0 for BOTH models; the "reduce" model adds a SECOND argument -- the
+  // loop-carried f64 accumulator (region argument 1) -- and the yield names the
+  // updated accumulator. The map model carries only strip_index and a
+  // no-operand yield.
   mlir::Block &block = getBody().front();
-  if (block.getNumArguments() != 1)
+  const unsigned expectedArgs = isReduceModel ? 2 : 1;
+  if (block.getNumArguments() != expectedArgs)
     return emitOpError()
-           << "requires the region to carry exactly one entry argument: the "
-              "strip_index induction variable";
+           << "requires the region to carry exactly " << expectedArgs
+           << (isReduceModel
+                   ? " entry arguments: the strip_index induction variable and "
+                     "the loop-carried f64 accumulator"
+                   : " entry argument: the strip_index induction variable");
   if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
     return emitOpError()
-           << "requires the region argument (strip_index) to be index-typed "
-              "(the strip induction variable)";
+           << "requires the first region argument (strip_index) to be "
+              "index-typed (the strip induction variable)";
+  if (isReduceModel && !block.getArgument(1).getType().isF64())
+    return emitOpError()
+           << "requires the reduce model's second region argument to be the "
+              "f64 loop-carried accumulator";
 
   TypedElementwiseLoopYieldOp yield =
       block.empty()
@@ -8329,14 +8344,38 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
     return emitOpError()
            << "requires the region to be terminated by "
               "tcrv_rvv.typed_elementwise_loop_yield";
+  // The yield's carried-value cardinality tracks the model (the yield verifier
+  // pins the f64 acc type + the reduce-model tie).
+  const unsigned expectedYield = isReduceModel ? 1 : 0;
+  if (yield.getAccNext().size() != expectedYield)
+    return emitOpError()
+           << (isReduceModel
+                   ? "reduce model requires the loop yield to carry the updated "
+                     "accumulator (one operand)"
+                   : "map model requires the loop yield to carry no operand");
 
   return mlir::success();
 }
 
 mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
-  // The map model carries no loop-carried value, so the yield names no operand
-  // (structurally enforced by the ODS `arguments = (ins)`); the HasParent trait
-  // pins the enclosing loop op.
+  // The yield's carried-value cardinality tracks the enclosing loop op's model:
+  // the "map" model carries no loop-carried value (0 operands); the "reduce"
+  // model carries the updated f64 accumulator (1 operand). The HasParent trait
+  // pins the enclosing loop op; the loop-body verifier cross-checks the count.
+  auto parent = getOperation()->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return mlir::success();
+  const bool isReduceModel = parent.getReduceMapModel() == "reduce";
+  if (isReduceModel) {
+    if (getAccNext().size() != 1 || !getAccNext()[0].getType().isF64())
+      return emitOpError()
+             << "reduce model requires the yield to carry exactly one f64 "
+                "loop-carried accumulator operand";
+  } else if (!getAccNext().empty()) {
+    return emitOpError()
+           << "map model requires the yield to carry no operand (the per-strip "
+              "store is the sink)";
+  }
   return mlir::success();
 }
 
@@ -8482,16 +8521,15 @@ mlir::LogicalResult ElementwiseSiluMapOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult GgmlRmsNormF32Op::verify() {
+mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // The op carries ONLY its bounded mirror attrs (I4): the operation kind plus
-  // the optional resource/scheduling NORMALIZE strip-LMUL knob. Anything else --
-  // a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name
-  // -- is rejected fail-closed (I7). The knob is named "strip_lmul" (not the
-  // forbidden with_vl/setvl "lmul" spelling), exactly as the sibling f32 scale
-  // op, so the I5 boundary check stays untouched. The strip knob governs only
-  // the vectorized normalize tail; the Sx^2 reduction is always scalar-double.
+  // Bounded mirror attrs only (I4): the operation kind + the optional
+  // resource/scheduling NORMALIZE strip-LMUL knob. A forbidden local
+  // element_count/SEW/LMUL/policy attr or an unexpected name fails closed (I7).
+  // The knob is named "strip_lmul" (not the forbidden with_vl/setvl "lmul"
+  // spelling), exactly as the sibling scale map. The strip knob governs only
+  // the vectorized normalize tail; the Σx² reduction is always scalar-double.
   auto isAllowedRmsNormAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "strip_lmul";
   };
@@ -8500,42 +8538,36 @@ mlir::LogicalResult GgmlRmsNormF32Op::verify() {
     if (isForbiddenDataflowParameterAttr(attrName))
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.ggml_rms_norm_f32 keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime ne00/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
+             << "'; tcrv_rvv.elementwise_rms_norm_reduce_core keeps "
+                "SEW/LMUL/policy on setvl/with_vl and rejects deleted local "
+                "element_count metadata";
     if (!isAllowedRmsNormAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded f32 rms_norm attributes 'kind' and "
-                "'strip_lmul'; unexpected attribute '"
+             << "only accepts the bounded rms_norm reduce-core attributes 'kind' "
+                "and 'strip_lmul'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
-  if (getKind() != "ggml_rms_norm_f32")
+  if (getKind() != "elementwise_rms_norm_reduce_core")
     return emitOpError()
-           << "currently supports only kind \"ggml_rms_norm_f32\" for the "
-              "bounded ggml f32 rms_norm typed surface";
+           << "currently supports only kind "
+              "\"elementwise_rms_norm_reduce_core\" for the bounded f32 rms_norm "
+              "reduce-core brick";
 
   // The optional strip-LMUL is a bounded resource/scheduling fact: the NORMALIZE
   // strip loop (y[i] = x[i] * scale) anchors at m1/m2/m4/m8 (default m8). All are
   // byte-exact (every lane is multiplied by the same scalar scale; the runtime
-  // vsetvl_e32m<L>(ne00-i) re-strips correctly for any VLEN). The reduction is
+  // vsetvl_e32m<L>(n-i) re-strips correctly for any VLEN). The reduction is
   // scalar-double regardless of this knob. Any other spelling is rejected (I7).
   if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
     if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
         *stripLmul != "m8")
       return emitOpError()
              << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\" (the "
-                "bounded byte-exact f32-strip resource anchors for the ggml "
-                "f32 rms_norm normalize tail); got \""
+                "bounded byte-exact f32-strip resource anchors for the rms_norm "
+                "normalize tail); got \""
              << *stripLmul << "\"";
   }
-
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one read-only f32 input pointer, one f32 output "
-              "pointer, one runtime f32 eps, one runtime element-count runtime "
-              "ABI operand, one !tcrv_rvv.vl operand, and one f32 LMUL m1 result";
 
   // The input is read-only (const float *), the output is written (float *), eps
   // binds a runtime f32. ggml's rms_norm reads x and writes y (the non-fused,
@@ -8548,8 +8580,8 @@ mlir::LogicalResult GgmlRmsNormF32Op::verify() {
   if (!inputBinding || inputBinding.getCType() != "const float *")
     return emitOpError()
            << "requires the input operand to bind a runtime ABI value of C type "
-              "'const float *' (the ggml x[] row read for the Sx^2 reduction "
-              "and the normalize)";
+              "'const float *' (the ggml x[] row read for the Σx² reduction and "
+              "the normalize)";
   if (!outputBinding || outputBinding.getCType() != "float *")
     return emitOpError()
            << "requires the output operand to bind a runtime ABI value of C "
@@ -8558,28 +8590,35 @@ mlir::LogicalResult GgmlRmsNormF32Op::verify() {
     return emitOpError()
            << "requires the eps operand to bind a runtime ABI value of C type "
               "'float' (the ggml runtime eps)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
     return emitOpError()
-           << "requires the element-count operand to be the runtime ne00 index "
+           << "requires the element-count operand to be the runtime n index "
               "value feeding the enclosing setvl";
 
-  if (!isGenericRVVVectorF32M1(getResult().getType()))
+  // ANTI-BYPASS (I7): the strip_index MUST be the enclosing loop op's region
+  // induction variable (region argument 0), and `acc` MUST be the loop-carried
+  // accumulator (region argument 1), so the emit provably folds the carried
+  // value at strip i, not a fresh zero at the loop-invariant strip 0.
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
     return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
-              "\"m1\"> for the ggml f32 rms_norm route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
-
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  if (parent.getReduceMapModel() != "reduce")
     return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml f32 rms_norm";
+           << "requires the enclosing loop op to carry reduce_map_model "
+              "\"reduce\" (the loop-carried accumulator model)";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 2 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0), not the loop-invariant strip 0 "
+              "(anti-bypass)";
+  if (getAcc() != parentBlock.getArgument(1))
+    return emitOpError()
+           << "requires acc to be the enclosing loop's loop-carried accumulator "
+              "(region argument 1), so the emit folds the carried Σx² value";
 
   return mlir::success();
 }

@@ -510,13 +510,6 @@ private:
   /// brick (tcrv_rvv.elementwise_scale_map).
   static bool isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope);
 
-  /// The forward-pass F3 recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.ggml_rms_norm_f32 (the f32 row rms_norm: Sx^2 scalar-double
-  /// reduce -> scalar 1/sqrtf(mean+eps) -> vectorized y[i] = x[i]*scale). The op
-  /// identity is the dispatch key; the emitter owns the structured scalar-double
-  /// reduction + scalar rsqrt + f32 normalize strip-loop expansion.
-  static bool isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope);
-
   /// True iff the with_vl body is EXACTLY a single tcrv_rvv.ggml_vec_soft_max_f32
   /// (the F5b f32 soft_max: y[i] = e^{x[i]-max}, returning the f64 sum via the
   /// widening reduce). The op identity is the dispatch key; the emitter owns the
@@ -3368,9 +3361,13 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_compute_forward_rms_norm_f32 forward-pass op
-  /// (non-fused, no weight; ops.cpp:3758-3817) for ONE row as fully STRUCTURED
-  /// emitc nodes (I5; no verbatim C-string blob -- every value is a node):
+  /// Emit the CONSTRUCTED ggml rms_norm reduce-model body (the reduce sibling of
+  /// emitTypedElementwiseLoopBody's map paths) for ONE row as fully STRUCTURED
+  /// emitc nodes (I5; no verbatim C-string blob -- every value is a node). The
+  /// loop op owns the reduce shape (reduce_map_model "reduce": a loop-carried f64
+  /// accumulator region arg + the yield that carries it back); this re-emit
+  /// sources the whole rms_norm ABI + the byte-exact fold/rsqrt/normalize from
+  /// the region's tcrv_rvv.elementwise_rms_norm_reduce_core brick (anti-bypass):
   ///   double sum = 0.0;                          // ggml_float accumulator
   ///   for (size_t i = 0; i < ne00; ++i) {        // SCALAR ascending fold
   ///     float p = x[i] * x[i];                    // f32 product (one f32 round)
@@ -3395,10 +3392,14 @@ private:
   /// Only the final normalize is vectorized -- a bare per-lane vfmul_vf (no FMA,
   /// no reduction), byte-exact at any LMUL because every lane is multiplied by
   /// the same scalar `scale`. The reduction is emitted as STRUCTURED scalar emitc
-  /// nodes (variable/load/mul/cast/add/assign), NOT a raw string.
-  mlir::LogicalResult emitGgmlRmsNormF32(
+  /// nodes (variable/load/mul/cast/add/assign), NOT a raw string. This is
+  /// BYTE-EXACT to the retired monolith emit modulo the source-op provenance
+  /// token (tcrv_rvv.ggml_rms_norm_f32 -> tcrv_rvv.elementwise_rms_norm_reduce_core).
+  mlir::LogicalResult emitElementwiseRmsNormReduceStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseRmsNormReduceCoreOp rmsCore, mlir::Value avlArg,
+      mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit ggml's EXACT vectorized minimax exp polynomial `ggml_v_expf_m2`
