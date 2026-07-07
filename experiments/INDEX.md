@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**26 cells** (active=11, sealed=10, archive=5).
+**27 cells** (active=12, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -17,6 +17,7 @@
 | active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
 | active | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
 | active | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
+| active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
 | active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 3 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |

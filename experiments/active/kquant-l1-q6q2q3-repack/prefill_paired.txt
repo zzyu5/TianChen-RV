@@ -1,0 +1,13 @@
+# KQUANT-L1 prefill paired: OURS repack GEMM (emitted @924dc31f) vs OPPONENT ggml_vec_dot_qX_K_q8_K (board libggml-cpu.so, commit f3e1828)
+# protocol: PAIRED interleaved A/B, N=10 reps, cold-flush 224MiB(>3xL3=64MiB) before each timed region, single full-GEMM call, best+median, core8 governor=performance 2.6GHz VLEN128
+# [NG-4]: L1 path CANDIDATE datapoint, NOT a beat (single-core, opponent=single-thread block-dot loop kernel-axis proxy, eight [PERF-1] gates NOT walked)
+
+KQGEMM fmt=q6_K VLEN=128 K=2048 nr=16 nc=512 reps=10 noisefloor_ns=40 | OURS best_ns=25724366 med_ns=25832107 best_gmacs=0.6522 | OPP best_ns=4970421 med_ns=4993820 best_gmacs=3.3754 | ratio_best=0.193 ratio_med=0.193 sink=nan
+KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=10 noisefloor_ns=240 | OURS best_ns=99522250 med_ns=99712270 best_gmacs=0.6743 | OPP best_ns=18097694 med_ns=18171094 best_gmacs=3.7081 | ratio_best=0.182 ratio_med=0.182 sink=5228408682.7
+KQGEMM fmt=q6_K VLEN=128 K=2048 nr=256 nc=512 reps=10 noisefloor_ns=240 | OURS best_ns=396099229 med_ns=396913152 best_gmacs=0.6777 | OPP best_ns=71240033 med_ns=71351474 best_gmacs=3.7680 | ratio_best=0.180 ratio_med=0.180 sink=2111668558.1
+KQGEMM fmt=q2_K VLEN=128 K=2048 nr=16 nc=512 reps=10 noisefloor_ns=280 | OURS best_ns=18191435 med_ns=18460636 best_gmacs=0.9223 | OPP best_ns=3674336 med_ns=3703055 best_gmacs=4.5661 | ratio_best=0.202 ratio_med=0.201 sink=6047447274.0
+KQGEMM fmt=q2_K VLEN=128 K=2048 nr=64 nc=512 reps=10 noisefloor_ns=280 | OURS best_ns=70418350 med_ns=70733351 best_gmacs=0.9530 | OPP best_ns=15046422 med_ns=15070441 best_gmacs=4.4601 | ratio_best=0.214 ratio_med=0.213 sink=10408246720.5
+KQGEMM fmt=q2_K VLEN=128 K=2048 nr=256 nc=512 reps=10 noisefloor_ns=260 | OURS best_ns=278663146 med_ns=279479450 best_gmacs=0.9633 | OPP best_ns=58125620 med_ns=58197719 best_gmacs=4.6182 | ratio_best=0.209 ratio_med=0.208 sink=nan
+KQGEMM fmt=q3_K VLEN=128 K=2048 nr=16 nc=512 reps=10 noisefloor_ns=120 | OURS best_ns=28144115 med_ns=28304536 best_gmacs=0.5961 | OPP best_ns=4958880 med_ns=4988560 best_gmacs=3.3833 | ratio_best=0.176 ratio_med=0.176 sink=nan
+KQGEMM fmt=q3_K VLEN=128 K=2048 nr=64 nc=512 reps=10 noisefloor_ns=240 | OURS best_ns=108922828 med_ns=109245990 best_gmacs=0.6161 | OPP best_ns=19166359 med_ns=19203099 best_gmacs=3.5014 | ratio_best=0.176 ratio_med=0.176 sink=nan
+KQGEMM fmt=q3_K VLEN=128 K=2048 nr=256 nc=512 reps=10 noisefloor_ns=120 | OURS best_ns=432697440 med_ns=433484742 best_gmacs=0.6204 | OPP best_ns=76057513 med_ns=76125933 best_gmacs=3.5294 | ratio_best=0.176 ratio_med=0.176 sink=nan

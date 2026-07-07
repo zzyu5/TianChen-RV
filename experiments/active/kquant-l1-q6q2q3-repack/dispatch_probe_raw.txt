@@ -1,0 +1,64 @@
+=== ggml repack dispatch probe q6_K/q2_K/q3_K (LIVE __riscv_vlenb()*8 = 128) ===
+  Q6_K   ne1%16==0 -> NULLPTR(block-dot fallback) [NO riscv_v branch in selector; NEON-only]
+  Q2_K   ne1%16==0 -> NULLPTR(block-dot fallback) [riscv branch present, case 128 = TODO no-op]
+  Q3_K   ne1%16==0 -> NULLPTR(block-dot fallback) [NO Q3_K case in selector; no q3_K repack exists]
+VERDICT: at VLEN=128, Q6_K / Q2_K / Q3_K ALL select NULLPTR => opponent has NO
+         working repack path; prefill mul_mat falls back to block-dot
+         ggml_vec_dot_q{6,2,3}_K_q8_K. (q2_K: case-128 TODO; q6_K: NEON-only,
+         no riscv branch; q3_K: no selector case + no repack impl at all.)
+
+=== VERBATIM board source (llama.cpp-upstream-native commit f3e1828, repack.cpp get_tensor_traits) ===
+--- Q2_K branch (has riscv_v, case 128 = TODO) ---
+    } else if (cur->type == GGML_TYPE_Q2_K) {
+        if (ggml_cpu_has_avx512()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q2_K_8x8_q8_K;
+            }
+        }
+        if (ggml_cpu_has_riscv_v()) {
+            #if defined __riscv_zvfh
+            switch (__riscv_vlenb() * 8) {
+                case 128:  { break; } // TODO
+                case 256:  { if (cur->ne[1] % 16 == 0) { return &q2_K_16x1_q8_K; } break; }
+                case 512:  { break; } // TODO
+                case 1024: { break; } // TODO
+                default:   { return nullptr; }
+            }
+            #endif
+        }
+    } else if (cur->type == GGML_TYPE_Q5_K) {
+        if (ggml_cpu_has_neon() && ggml_cpu_has_matmul_int8()) {
+--- Q6_K branch (NEON-only, NO riscv_v) ---
+                return &q6_K_8x8_q8_K;
+            }
+        }
+        if (ggml_cpu_has_neon() && ggml_cpu_has_dotprod()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &q6_K_8x4_q8_K;
+            }
+        }
+    } else if (cur->type == GGML_TYPE_IQ4_NL) {
+        if (ggml_cpu_has_avx2()) {
+            if (cur->ne[1] % 8 == 0) {
+                return &iq4_nl_8x8_q8_0;
+            }
+--- Q3_K: grep proves NO selector case + NO repack kernel ---
+  q3_K occurrences in repack.cpp = 0
+--- riscv arch repack.cpp: only q4_K/q2_K 16x1 exist (q6_K/q3_K/q5_K absent) ---
+260:void ggml_gemv_q4_K_16x1_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
+497:void ggml_gemv_q2_K_16x1_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
+983:void ggml_gemm_q4_K_16x1_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
+1406:void ggml_gemm_q2_K_16x1_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
+--- opponent block-dot symbols in libggml-cpu.so ---
+0000000000092316 T ggml_vec_dot_q2_K_q8_K
+0000000000051724 T ggml_vec_dot_q2_K_q8_K_generic
+0000000000091cb6 T ggml_vec_dot_q2_K_q8_K_vl128
+0000000000091ff8 T ggml_vec_dot_q2_K_q8_K_vl256
+00000000000930a6 T ggml_vec_dot_q3_K_q8_K
+0000000000051bc4 T ggml_vec_dot_q3_K_q8_K_generic
+0000000000092d34 T ggml_vec_dot_q3_K_q8_K_vl1024
+000000000009232c T ggml_vec_dot_q3_K_q8_K_vl128
+0000000000092634 T ggml_vec_dot_q3_K_q8_K_vl256
+00000000000929c2 T ggml_vec_dot_q3_K_q8_K_vl512
+00000000000935de T ggml_vec_dot_q6_K_q8_K
+00000000000538aa T ggml_vec_dot_q6_K_q8_K_generic

@@ -1,0 +1,10 @@
+fmt,K,nr,nc,reps,noisefloor_ns,ours_best_ns,ours_med_ns,ours_best_gmacs,opp_best_ns,opp_med_ns,opp_best_gmacs,ratio_best_ours_over_opp,ratio_med,opponent_path
+q6_K,2048,16,512,10,40,25724366,25832107,0.6522,4970421,4993820,3.3754,0.193,0.193,"block-dot ggml_vec_dot_q6_K_q8_K (repack=nullptr@128; NEON-only no riscv branch)"
+q6_K,2048,64,512,10,240,99522250,99712270,0.6743,18097694,18171094,3.7081,0.182,0.182,"block-dot ggml_vec_dot_q6_K_q8_K (repack=nullptr@128; NEON-only no riscv branch)"
+q6_K,2048,256,512,10,240,396099229,396913152,0.6777,71240033,71351474,3.7680,0.180,0.180,"block-dot ggml_vec_dot_q6_K_q8_K (repack=nullptr@128; NEON-only no riscv branch)"
+q2_K,2048,16,512,10,280,18191435,18460636,0.9223,3674336,3703055,4.5661,0.202,0.201,"block-dot ggml_vec_dot_q2_K_q8_K (repack=nullptr@128; case-128 TODO; has _vl128 tuned)"
+q2_K,2048,64,512,10,280,70418350,70733351,0.9530,15046422,15070441,4.4601,0.214,0.213,"block-dot ggml_vec_dot_q2_K_q8_K (repack=nullptr@128; case-128 TODO; has _vl128 tuned)"
+q2_K,2048,256,512,10,260,278663146,279479450,0.9633,58125620,58197719,4.6182,0.209,0.208,"block-dot ggml_vec_dot_q2_K_q8_K (repack=nullptr@128; case-128 TODO; has _vl128 tuned)"
+q3_K,2048,16,512,10,120,28144115,28304536,0.5961,4958880,4988560,3.3833,0.176,0.176,"block-dot ggml_vec_dot_q3_K_q8_K (repack=nullptr@128; no selector case; has _vl128 tuned)"
+q3_K,2048,64,512,10,240,108922828,109245990,0.6161,19166359,19203099,3.5014,0.176,0.176,"block-dot ggml_vec_dot_q3_K_q8_K (repack=nullptr@128; no selector case; has _vl128 tuned)"
+q3_K,2048,256,512,10,120,432697440,433484742,0.6204,76057513,76125933,3.5294,0.176,0.176,"block-dot ggml_vec_dot_q3_K_q8_K (repack=nullptr@128; no selector case; has _vl128 tuned)"

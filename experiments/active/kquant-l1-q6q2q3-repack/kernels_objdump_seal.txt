@@ -1,0 +1,13 @@
+== g6.o (our GEMM) ==
+  vsetvl count: 21
+== g2.o (our GEMM) ==
+  vsetvl count: 77
+== g3.o (our GEMM) ==
+  vsetvl count: 13
+
+fp16 libcall check (all our kernels):
+  g6.o fp16-hw libcall-free
+  g2.o fp16-hw libcall-free
+  g3.o fp16-hw libcall-free
+  kgemm.o fp16-hw libcall-free
+  kgemv.o fp16-hw libcall-free
