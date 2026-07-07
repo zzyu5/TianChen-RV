@@ -1,0 +1,42 @@
+# [GAP-SB] family de-risk — board paired medians (durable extract of the gitignored stage1_paired_harness.log)
+# board rvv VLEN128 core8 pool256MiB N4096 rounds16, cache-cold(wset~256MiB>=3xL3=192MiB), 2026-07-07
+# march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause  ours=clang-20 codegen-export  factory=ggml-generic clang-17 -O2
+# A/B = ours-PRE-median / ours-POST-median (isolated [GAP-SB]);  vsG = factory-generic-median / ours-median (>1 => ours faster => WIN)
+# ALL 4 targets byte-exact ULP0 (ours FNV == factory FNV == PRE FNV).  drift sentinel (factory PRE-run/POST-run) ~1.00 => runs comparable.
+
+## raw median lines (ns/block), targets only:
+POST    RAW ours    : MICRO fmt=iq3_s side=ours n=4096 rounds=16 ns_per_block_median=1220.102 ns_per_block_iqr=7.777 ns_per_block_min=1206.296 achieved_GBs=0.330 fingerprint=0xa85c748fb3a79283
+POST    RAW factory : MICRO fmt=iq3_s side=factory n=4096 rounds=16 ns_per_block_median=682.804 ns_per_block_iqr=28.586 ns_per_block_min=631.351 achieved_GBs=0.595 fingerprint=0xa85c748fb3a79283
+POST    RAW ours    : MICRO fmt=iq2_s side=ours n=4096 rounds=16 ns_per_block_median=343.996 ns_per_block_iqr=3.845 ns_per_block_min=341.911 achieved_GBs=1.084 fingerprint=0x31d90cd38e983e43
+POST    RAW factory : MICRO fmt=iq2_s side=factory n=4096 rounds=16 ns_per_block_median=749.884 ns_per_block_iqr=1.153 ns_per_block_min=747.975 achieved_GBs=0.499 fingerprint=0x31d90cd38e983e43
+POST    RAW ours    : MICRO fmt=iq2_xs side=ours n=4096 rounds=16 ns_per_block_median=319.100 ns_per_block_iqr=5.728 ns_per_block_min=311.363 achieved_GBs=1.151 fingerprint=0xcc76d8a513f67633
+POST    RAW factory : MICRO fmt=iq2_xs side=factory n=4096 rounds=16 ns_per_block_median=481.397 ns_per_block_iqr=0.635 ns_per_block_min=479.918 achieved_GBs=0.761 fingerprint=0xcc76d8a513f67633
+POST    RAW ours    : MICRO fmt=iq3_xxs side=ours n=4096 rounds=16 ns_per_block_median=1612.323 ns_per_block_iqr=22.853 ns_per_block_min=1585.044 achieved_GBs=0.243 fingerprint=0x14b95a5ee2d9e683
+POST    RAW factory : MICRO fmt=iq3_xxs side=factory n=4096 rounds=16 ns_per_block_median=618.064 ns_per_block_iqr=1.006 ns_per_block_min=616.660 achieved_GBs=0.631 fingerprint=0x14b95a5ee2d9e683
+PRE    RAW ours    : MICRO fmt=iq3_s side=ours n=4096 rounds=16 ns_per_block_median=1570.162 ns_per_block_iqr=5.755 ns_per_block_min=1562.952 achieved_GBs=0.256 fingerprint=0xa85c748fb3a79283
+PRE    RAW factory : MICRO fmt=iq3_s side=factory n=4096 rounds=16 ns_per_block_median=661.983 ns_per_block_iqr=24.625 ns_per_block_min=621.809 achieved_GBs=0.609 fingerprint=0xa85c748fb3a79283
+PRE    RAW ours    : MICRO fmt=iq2_s side=ours n=4096 rounds=16 ns_per_block_median=376.260 ns_per_block_iqr=3.581 ns_per_block_min=371.006 achieved_GBs=0.992 fingerprint=0x31d90cd38e983e43
+PRE    RAW factory : MICRO fmt=iq2_s side=factory n=4096 rounds=16 ns_per_block_median=754.646 ns_per_block_iqr=1.288 ns_per_block_min=753.489 achieved_GBs=0.495 fingerprint=0x31d90cd38e983e43
+PRE    RAW ours    : MICRO fmt=iq2_xs side=ours n=4096 rounds=16 ns_per_block_median=352.927 ns_per_block_iqr=3.750 ns_per_block_min=349.264 achieved_GBs=1.035 fingerprint=0xcc76d8a513f67633
+PRE    RAW factory : MICRO fmt=iq2_xs side=factory n=4096 rounds=16 ns_per_block_median=482.600 ns_per_block_iqr=0.980 ns_per_block_min=481.383 achieved_GBs=0.759 fingerprint=0xcc76d8a513f67633
+PRE    RAW ours    : MICRO fmt=iq3_xxs side=ours n=4096 rounds=16 ns_per_block_median=1949.284 ns_per_block_iqr=23.512 ns_per_block_min=1922.532 achieved_GBs=0.201 fingerprint=0x14b95a5ee2d9e683
+PRE    RAW factory : MICRO fmt=iq3_xxs side=factory n=4096 rounds=16 ns_per_block_median=618.098 ns_per_block_iqr=2.114 ns_per_block_min=615.873 achieved_GBs=0.631 fingerprint=0x14b95a5ee2d9e683
+
+## derived (A/B + vs-generic + flip):
+fmt       PRE.ours POST.ours     A/B |  genPOST vsG.POST   genPRE  vsG.PRE | flip | POST.GBs bytexact
+iq3_s       1570.2    1220.1   1.29x |    682.8   0.560x    662.0   0.422x | LOSS->LOSS |   0.330 ULP0
+iq2_s        376.3     344.0   1.09x |    749.9   2.180x    754.6   2.006x | WIN->WIN  |   1.084 ULP0
+iq2_xs       352.9     319.1   1.11x |    481.4   1.509x    482.6   1.367x | WIN->WIN  |   1.151 ULP0
+iq3_xxs     1949.3    1612.3   1.21x |    618.1   0.383x    618.1   0.317x | LOSS->LOSS |   0.243 ULP0
+
+drift sentinel (factory-generic PRE-run/POST-run; ~1.00 => runs comparable):
+  iq3_s    PRErun=   662.0 POSTrun=   682.8 drift=0.9695
+  iq2_s    PRErun=   754.6 POSTrun=   749.9 drift=1.0064
+  iq2_xs   PRErun=   482.6 POSTrun=   481.4 drift=1.0025
+  iq3_xxs  PRErun=   618.1 POSTrun=   618.1 drift=1.0001
+
+roofline: board single-core seq-read ceiling ~6.35 GB/s (iq2_xxs cell). POST achieved GB/s vs ceiling:
+  iq3_s    0.330 GB/s = 5.2% of ceiling
+  iq2_s    1.084 GB/s = 17.1% of ceiling
+  iq2_xs   1.151 GB/s = 18.1% of ceiling
+  iq3_xxs  0.243 GB/s = 3.8% of ceiling

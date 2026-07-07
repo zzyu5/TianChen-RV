@@ -182,6 +182,28 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 - `gapsb_derisk_iq2xxs/raw/gcc15_factory_vl128_disasm.txt` — gcc-15 factory vl128 body (4 gathers/120 insns, confirms factory=4).
 - (`.o` objects + `*.log` = gitignored scratch, evidence-regenerable, not durable.)
 
+### gapsb_family_validate — [GAP-SB] FAMILY board de-risk (iq2_xs/iq2_s/iq3_xxs/iq3_s; PRE 0c64477c → POST 685ab5a1)
+- `gapsb_family_validate/derisk_cell.md` — the family de-risk writeup. VERDICT: the iq2_xxs LOSS→WIN flip does
+  NOT replicate. Mechanism lands on all 4 (A/B 1.09–1.29× faster; objdump gather 32→4/32→8; iq3 AVL=2 storm
+  46→0 / 129→6) but vs the ggml generic ref: iq3_s/iq3_xxs improve yet stay LOSS (0.56×/0.38×, grid-decode-bound);
+  iq2_s/iq2_xs were already WIN (2.18×/1.51×). All 4 byte-exact ULP0. PREFLIGHT 5/5. [NG-4] internal metric.
+- `gapsb_family_validate/objdump_pre_post.md` — real machine-code PRE→POST counts (gather 32→4/32→8, AVL=2 storm
+  iq3_s 46→0 / iq3_xxs 129→6, all-vset −61..−80%, vwmul/vwredsum UNCHANGED = byte-exact-preserved gearbox).
+- `gapsb_family_validate/provenance.txt` — pinned export commands, .o sha256 (PRE/POST), factory-generic recipe
+  (objcopy `_generic`→dispatched), board params + isolation rationale (0c64477c→685ab5a1).
+- `gapsb_family_validate/raw/board_medians.txt` — durable extract of the paired medians (A/B + vs-generic + drift
+  sentinel ~1.00 + roofline), targets iq3_s/iq2_s/iq2_xs/iq3_xxs, both PRE & POST stages, byte-exact FNVs.
+- `gapsb_family_validate/raw/objdump_counts.csv` — per-mnemonic PRE/POST counts, all 8 fmts (llvm-objdump-20).
+- `gapsb_family_validate/raw/disasm_iq3_s_PRE.txt` — iq3_s exported-.o disasm PRE (AVL=2 storm 46 audit).
+- `gapsb_family_validate/raw/disasm_iq3_s_POST.txt` — iq3_s exported-.o disasm POST (AVL=2 storm 0 audit).
+- `gapsb_family_validate/raw/disasm_iq3_xxs_PRE.txt` — iq3_xxs disasm PRE (AVL=2 129, gather 32).
+- `gapsb_family_validate/raw/disasm_iq3_xxs_POST.txt` — iq3_xxs disasm POST (AVL=2 6, gather 4).
+- `gapsb_family_validate/raw/disasm_iq2_xs_PRE.txt` — iq2_xs disasm PRE (gather 32, AVL=2 23).
+- `gapsb_family_validate/raw/disasm_iq2_xs_POST.txt` — iq2_xs disasm POST (gather 8, AVL=2 0).
+- `gapsb_family_validate/raw/disasm_iq2_s_PRE.txt` — iq2_s disasm PRE (gather 32, AVL=2 37).
+- `gapsb_family_validate/raw/disasm_iq2_s_POST.txt` — iq2_s disasm POST (gather 8, AVL=2 9).
+- (`objdir_{PRE,POST}/*.o` + `raw/stage1_paired_harness.log` = gitignored scratch, regenerable, not durable.)
+
 ## scratch (gitignored, rides with cell, not durable)
 - `exported_objects/*.o` — the 6 pinned-HEAD RISC-V objects (evidence the export path works; regenerable).
 

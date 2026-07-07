@@ -1,0 +1,59 @@
+# [GAP-SB] family de-risk cell — iq2_xs / iq2_s / iq3_xxs / iq3_s pair-batching: board A/B + vs-generic
+# session 2026-07-07 GAP-SB family board-validate batch (autonomous; NOT committed — user commits)
+# board: ssh rvv = openEuler-derived riscv64 6.12.66, VLEN128, 64c, L1d 64K / L2 2MiB / L3 64MiB (index3),
+#        isa rv64gcv + zvfh/zvfhmin/zba/zbb/zbc/zbs/zicbom/zicboz/zicond/... (see /proc/cpuinfo)
+# main tree + build/ UNTOUCHED; no git stash. all ours binaries via tools/bench/byte-exact-baseline.sh cached
+# (detached worktrees under .worktrees/, main working copy never touched).
+#
+# WHY these two commits (isolation): the [GAP-SB] mechanism entered at 169f0cc0 (iq2_xxs only), then the
+# family (iq2_xs/iq2_s/iq3_xxs/iq3_s) got pair-batching + the iq3 AVL=2 fix at 685ab5a1. 0c64477c is the last
+# commit BEFORE any pair-batching. So PRE(0c64477c)->POST(685ab5a1) isolates the [GAP-SB] family delta for
+# these 4 formats. (In the earlier iq2_xxs cell, the family .o were 0ca224f7 link-fillers with IDENTICAL
+# PRE/POST codegen — NOT a real A/B; this cell re-exports them at the correct PRE/POST shas.)
+
+## artifacts (this cell)
+- objdir_PRE/<fmt>.o    ours @ 0c64477c  (8 fmts; gitignored *.o — not durable)
+- objdir_POST/<fmt>.o   ours @ 685ab5a1  (8 fmts; gitignored)
+- raw/disasm_<fmt>_{PRE,POST}.txt   llvm-objdump-20 disasm of the 4 targets (durable evidence for the AVL=2 claim)
+- raw/objdump_counts.csv            per-mnemonic PRE/POST counts, all 8 fmts
+- raw/stage1_paired_harness.log     full board paired harness log (POST stage then PRE stage, one ssh session)
+- objdump_pre_post.md               machine-code proxy table + reading
+- derisk_cell.md                    A/B + vs-generic + roofline + PREFLIGHT writeup
+
+## sha256 (exported .o)
+PRE  iq3_s  36da7b91552e5a1a...  iq2_s  a8d0a243a82c0435...  iq2_xs a88f9ed93bf916af...  iq3_xxs 426f6923936e3f78...
+POST iq3_s  7fbb14f4c28fc740...  iq2_s  a1b104b8faccad21...  iq2_xs ac1bffdc6c06d986...  iq3_xxs 59b707fa65135a60...
+(full list: raw/objdump_counts.csv sizes + `sha256sum objdir_*/*.o`)
+
+## export command (per fmt; host, main tree untouched)
+FMTS: iq3_s iq2_s iq2_xs iq2_xxs iq3_xxs iq4_xs tq2_0 tq1_0   (8 = the harness FMTS array; 4 targets + 4 fillers)
+dashfmt: iq3_s->iq3-s, iq2_s->iq2-s, iq2_xs->iq2-xs, iq3_xxs->iq3-xxs (etc.)
+  git show <sha>:test/Target/RVV/<dashfmt>-q8-k-super-block-block-dot-full-pipeline-export-e2e.mlir > in.mlir
+  <cache>/<sha>/tcrv-opt in.mlir --tcrv-rvv-materialize-<dashfmt>-q8-k-block-dot-source-front-door \
+    --tcrv-materialize-emission-plans | <cache>/<sha>/tcrv-translate --tcrv-export-target-artifact > <fmt>.o
+(exact driver preserved at /tmp/gapsb_family_export_and_objdump.sh; a .sh is not a data-cell durable so it is
+ not kept in the cell — dir-lint [九.5]: harness/code lives under tools/, the cell holds data only.)
+
+## board micro (the A/B + vs-generic leg)
+- harness: tools/e2e-harness/board/format_micro_paired.sh (read-only; env-driven), driver format_micro_driver.c,
+  opponent tools/e2e-harness/board/format_micro_opponent.sh
+- params (identical to the iq2_xxs de-risk cell, for cross-cell comparability):
+  CORE=8 EXP_VLEN=128 POOL_MIB=256 ROUNDS=16 N=4096
+  MARCH=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause
+- cache hygiene: working_set ~256MiB cold-streamed, >= 3xL3(64MiB)=192MiB => measured (NOT cache-resident/STALE),
+  PREFLIGHT(5) OK.
+- A/B: two paired runs in ONE ssh session — STAGE1 POST (OURS_OBJDIR=objdir_POST) then STAGE1 PRE
+  (OURS_OBJDIR=objdir_PRE). A/B = ours-PRE-median / ours-POST-median (factory-independent; the factory column
+  is the cross-run drift sentinel — SAME factory_generic.o binary both runs).
+
+## factory (the vs-generic leg) — PREFLIGHT(0)-PASSING symmetric factory (matches the iq2_xxs cell recipe)
+- factory_generic.o = ggml GENERIC reference `ggml_vec_dot_<fmt>_q8_K_generic`, compiled from the board's pinned
+  tree /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/quants.c with clang-17 -O2
+  -march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs_zicbop_zihintpause -mabi=lp64d -ffunction-sections -fdata-sections
+  -fno-stack-protector, then `objcopy --redefine-sym ggml_vec_dot_<fmt>_q8_K_generic=ggml_vec_dot_<fmt>_q8_K`
+  for all 8 fmts. format_micro_opponent.sh locate => 8/8 FOUND.
+- PREFLIGHT(0) symmetry: OK. Both sides llvm; AXIS compiler = CAVEAT version-skew (ours clang-20 codegen-export
+  vs factory clang-17 -O2); AXIS march vector/base HARD = OK; SOFT CAVEAT ours_only={zvfhmin} factory_only={zfh,
+  zba,zbb,zbc,zbs}. Same symmetric-with-version-skew posture the iq2_xxs cell ran under. [NG-4]: generic is the
+  scalar-ish ggml reference (gate-PASSING), NOT the SIMD dispatch — vs-generic is a clean internal-vs-reference
+  metric, and the A/B is the pure [GAP-SB]-isolated metric.
