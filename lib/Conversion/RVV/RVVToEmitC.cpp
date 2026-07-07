@@ -246,8 +246,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
     scope.getBody().walk([&](tcrvrvv::ElementwiseRmsNormReduceCoreOp) {
       hasRmsNormReduceCore = true;
     });
-    if (hasRmsNormReduceCore || isGgmlRopeNormF32Body(scope) ||
-        hasNvfp4CodebookCore)
+    // rope (now CONSTRUCTED through the rotate-model scaffold) still calls scalar
+    // libm (cosf/sinf per dim-pair angle), so its constructed body -- a
+    // typed_elementwise_loop_body carrying the rope rotate core brick -- adds
+    // <math.h> exactly as the retired monolith did (byte-exact self-include).
+    bool hasRopeRotateCore = false;
+    scope.getBody().walk([&](tcrvrvv::ElementwiseRopeRotateCoreOp) {
+      hasRopeRotateCore = true;
+    });
+    if (hasRmsNormReduceCore || hasRopeRotateCore || hasNvfp4CodebookCore)
       headers.push_back("math.h");
     for (llvm::StringRef header : headers)
       rewriter.create<emitc::IncludeOp>(loc, header,
@@ -554,25 +561,18 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    // The forward-pass F6 op (tcrv_rvv.ggml_rope_norm_f32) is the COMPOSITION
-    // rung: ggml's NORMAL rope (rotary position embedding) for one head row. It
-    // owns a dedicated routine -- a SINGLE scalar per-pair loop that carries the
-    // iterative f32 angle recurrence (theta *= theta_scale), computes cosf/sinf
-    // per pair via scalar libm call_opaque (the sanctioned opaque seam, a
-    // DIFFERENT byte-exactness axis -- libm-linked, not a vectorized polynomial),
-    // and applies the f32 rotation y[2p]=x0*cos-x1*sin / y[2p+1]=x0*sin+x1*cos
-    // with each output's a*b-c*d GROUPED into ONE emitc.expression (token-
-    // identical to ggml's single C expression, so it contracts identically under
-    // every -ffp-contract mode -> byte-exact regardless of the build flag).
-    // Marker: the op identity.
-    if (isGgmlRopeNormF32Body(scope)) {
-      if (mlir::failed(emitGgmlRopeNormF32(rewriter, loc, scope, avlArg,
-                                           sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
+    // NOTE: the monolith forward-pass F6 kernel {isGgmlRopeNormF32Body,
+    // emitGgmlRopeNormF32} was RETIRED at the rope flip (C_construct 32->33, the
+    // FIRST (and only) forward ROTATE operator constructed): the constructed body
+    // is the typed elementwise strip-loop op (tcrv_rvv.typed_elementwise_loop_body,
+    // reduce_map_model "rotate") carrying the tcrv_rvv.elementwise_rope_rotate_core
+    // rotate core brick (the per-pair loop-carried f32 theta recurrence + the
+    // scalar cos/sin angle seam + the position-dependent 2x2 rotation), dispatched
+    // via the {isTypedElementwiseLoopBody, emitTypedElementwiseLoopBody} entry in
+    // kBlockDotKernels above (which now resolves the scale/silu MAP bricks, the
+    // rms_norm REDUCE brick, AND the rope ROTATE brick). The rotate branch re-emits
+    // the byte-exact scalar per-pair loop via emitElementwiseRopeRotateStrip,
+    // byte-exact to the monolith emit modulo the source-op provenance token.
 
     // The DEFERRED-WIDE / low-precision dequant-contraction family shares ONE
     // emitter signature (the variant + preLoopSetVL/vlmax/setvlCallee carried in,
@@ -1598,20 +1598,6 @@ bool VariantToEmitCFunc::isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawQuantize;
-  }
-
-bool VariantToEmitCFunc::isGgmlRopeNormF32Body(tcrvrvv::WithVLOp scope) {
-    bool sawRope = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRopeNormF32Op>(op)) {
-        if (sawRope)
-          return false;
-        sawRope = true;
-      } else {
-        return false;
-      }
-    }
-    return sawRope;
   }
 
 bool VariantToEmitCFunc::isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope) {
@@ -5739,7 +5725,14 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // fold) not a scalar double. Its fused exp-store-widening-reduce strip is
       // re-emitted by the soft_max return-carrying branch. The union stays
       // strictly MORE permissive (zero block-dot / map / rms_norm regression).
-      tcrv::rvv::ElementwiseSoftMaxReduceCoreOp>(op);
+      tcrv::rvv::ElementwiseSoftMaxReduceCoreOp,
+      // The FIRST forward-elementwise ROTATE core brick (rope), reusing the SAME
+      // loop op + terminator + validator, now under reduce_map_model "rotate" (a
+      // per-pair scalar loop with a loop-carried f32 theta recurrence). Its
+      // position-dependent 2x2 rotation + scalar cos/sin angle seam + theta
+      // recurrence are re-emitted by the loop op's rotate branch. The union stays
+      // strictly MORE permissive (zero block-dot / map / reduce regression).
+      tcrv::rvv::ElementwiseRopeRotateCoreOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

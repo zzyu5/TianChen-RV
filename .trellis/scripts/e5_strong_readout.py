@@ -795,6 +795,25 @@ _MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map|elementwise_silu_map)")
 # (vfwredusum Σe^x) not a scalar double.
 _REDUCE_FOLD_PRIMITIVE_RE = re.compile(r"(elementwise_rms_norm_reduce_core|elementwise_soft_max_reduce_core)")
 
+# M-FLAT forward-elementwise scaffold ROTATE model (line C, G1-tail): the forward
+# ROTATE class (rope's rotary position embedding) rides the SAME
+# tcrv_rvv.typed_elementwise_loop_body but under reduce_map_model "rotate" -- a
+# per-PAIR scalar loop with a loop-carried f32 theta RECURRENCE (theta *=
+# theta_scale), the SAME loop-carried-scalar region SHAPE the "reduce" model
+# pioneered EXCEPT the carried value is a data-INDEPENDENT recurrence, not a
+# reduction of the buffer. Its core brick `tcrv_rvv.elementwise_rope_rotate_core`
+# carries the position-dependent 2x2 rotation + the scalar-libm cos/sin angle seam
+# + the theta step -- NO product-family AND NO reduce-family primitive (rope is
+# neither a contraction nor a reduction), so the contraction-shaped gate would
+# wrongly demote it, exactly as the MAP class. The ROTATE class satisfies the
+# [L-8] "decomposed = built from typed pattern-library primitives, no opaque
+# helper" conjunct via this rotate-family primitive (the per-pair-recurrence
+# sibling of the _MAP_PRIMITIVE_RE map family and the _REDUCE_FOLD_PRIMITIVE_RE
+# reduce family). This whitelist is deliberately NARROW (a bare "rotate" substring
+# is NOT admitted -- the token must be the forward rope rotate brick; an opaque
+# monolith still trips the opaque gate), so the check stays discriminating.
+_ROTATE_PRIMITIVE_RE = re.compile(r"(elementwise_rope_rotate_core)")
+
 
 def _leading_ws(line):
     return len(line) - len(line.lstrip(" "))
@@ -889,7 +908,11 @@ def derive(manifest):
     # decomposed conjunct via a reduce-fold-family primitive (the Σx² square is
     # fused into the scalar-double fold, so there is no separate product to pair).
     has_reduce_fold = any(_REDUCE_FOLD_PRIMITIVE_RE.search(m) for m in mnemonics)
-    decomposed = (has_product and has_reduce) or has_map or has_reduce_fold
+    # M-FLAT ROTATE model: the forward-elementwise ROTATE class (rope) satisfies
+    # the decomposed conjunct via a rotate-family primitive (a per-pair recurrence,
+    # neither product/reduce contraction nor a MAP).
+    has_rotate = any(_ROTATE_PRIMITIVE_RE.search(m) for m in mnemonics)
+    decomposed = (has_product and has_reduce) or has_map or has_reduce_fold or has_rotate
     derived_state = (
         "constructed" if (non_empty and not has_opaque and decomposed)
         else "constructed-weak"
@@ -902,6 +925,7 @@ def derive(manifest):
         "has_reduce": has_reduce,
         "has_map": has_map,
         "has_reduce_fold": has_reduce_fold,
+        "has_rotate": has_rotate,
         "decomposed": decomposed,
         "derived_state": derived_state,
     }
@@ -1180,6 +1204,40 @@ module {
         ^bb0(%i: index, %acc: !tcrv_rvv.vector<f64, "m1">):
           %acc_next = tcrv_rvv.elementwise_soft_max_reduce_core %y, %x, %max, %n strip %i acc %acc {kind = "elementwise_soft_max_reduce_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vector<f64, "m1"> -> !tcrv_rvv.vector<f64, "m1">
           tcrv_rvv.typed_elementwise_loop_yield %acc_next : !tcrv_rvv.vector<f64, "m1">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# M-FLAT forward-elementwise ROTATE ground truth (line C, G1-tail): the CONSTRUCTED
+# rope realized body -- the SAME typed elementwise strip-loop op, now under
+# reduce_map_model "rotate" (a per-PAIR scalar loop with a loop-carried f32 theta
+# recurrence region arg + the yield that carries it back), carrying the NEW
+# elementwise_rope_rotate_core rotate core brick (the position-dependent 2x2
+# rotation + the scalar-libm cos/sin angle seam + the theta step). rope does NOT fit
+# the MAP model (a MAP is a vectorized i+=vlmax strip with NO carried state; rope is
+# scalar per-pair with a carried recurrence), so it lands its OWN model; unlike the
+# MAP/REDUCE rows it has NO product AND NO map AND NO reduce-fold primitive, but its
+# rotate brick satisfies the decomposed conjunct via the FOURTH branch: `has_rotate`
+# (elementwise_rope_rotate_core joined _ROTATE_PRIMITIVE_RE). The discriminator is
+# the rotate-FAMILY primitive, not a bare "rotate" substring.
+_GT_ELEMENTWISE_ROPE_ROTATE = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %tb = tcrv_rvv.runtime_abi_value {c_name = "theta_base"} : !tcrv_rvv.runtime_abi_value
+      %ts = tcrv_rvv.runtime_abi_value {c_name = "theta_scale"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "rotate", element_sew = 32 : i64} {
+        ^bb0(%p: index, %theta: f32):
+          %theta_next = tcrv_rvv.elementwise_rope_rotate_core %x, %y, %tb, %ts, %n pair %p theta %theta {kind = "elementwise_rope_rotate_core"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f32 -> f32
+          tcrv_rvv.typed_elementwise_loop_yield %theta_next : f32
         } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
@@ -1650,6 +1708,35 @@ def cmd_self_test(_args):
     # negative control.
     assert ew_softmax["derived_state"] == ew_rms["derived_state"]
     assert ew_softmax["derived_state"] != scale["derived_state"]
+
+    # M-FLAT forward-elementwise ROTATE ground truth: the CONSTRUCTED rope realized
+    # body (the SAME typed_elementwise_loop_body, now reduce_map_model "rotate",
+    # carrying the NEW elementwise_rope_rotate_core rotate core brick + the
+    # theta-carrying yield). rope does NOT fit the MAP model (scalar per-pair loop
+    # with a loop-carried f32 recurrence, not a vectorized strip), so it lands its
+    # OWN model. Unlike the MAP/REDUCE rows it has NO product AND NO map AND NO
+    # reduce-fold primitive; its rotate brick satisfies the decomposed conjunct via
+    # the FOURTH branch (has_rotate, elementwise_rope_rotate_core joining
+    # _ROTATE_PRIMITIVE_RE). The discriminator is the rotate-FAMILY primitive, not a
+    # bare "rotate" substring.
+    ew_rope = derive(parse_realized_body(_GT_ELEMENTWISE_ROPE_ROTATE))
+    assert ew_rope["manifest"] == [
+        "tcrv_rvv.typed_elementwise_loop_body",
+        "tcrv_rvv.elementwise_rope_rotate_core",
+        "tcrv_rvv.typed_elementwise_loop_yield",
+    ], ew_rope["manifest"]
+    assert ew_rope["has_opaque"] is False, ew_rope
+    assert ew_rope["has_product"] is False, ew_rope
+    assert ew_rope["has_map"] is False, ew_rope
+    assert ew_rope["has_reduce_fold"] is False, ew_rope
+    assert ew_rope["has_rotate"] is True, ew_rope
+    assert ew_rope["decomposed"] is True, ew_rope
+    assert ew_rope["derived_state"] == "constructed", ew_rope
+    # rope derives the SAME strong state as the other forward operators (its rotate
+    # model is a distinct SHAPE but still a decomposed pattern-library body), and
+    # stays distinct from the scale-only negative control.
+    assert ew_rope["derived_state"] == ew_softmax["derived_state"]
+    assert ew_rope["derived_state"] != scale["derived_state"]
 
     # Super-block ground truth (q4_K milestone-3): the 5 q4_K bricks decompose the
     # super-block dot; the FUSED per-sub-block q4_k_scaled_dot satisfies BOTH the

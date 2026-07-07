@@ -8261,11 +8261,14 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
   // spelling fails closed (I7).
   llvm::StringRef reduceMapModel = getReduceMapModel();
   const bool isReduceModel = reduceMapModel == "reduce";
-  if (reduceMapModel != "map" && !isReduceModel)
+  const bool isRotateModel = reduceMapModel == "rotate";
+  if (reduceMapModel != "map" && !isReduceModel && !isRotateModel)
     return emitOpError()
            << "currently supports only reduce_map_model \"map\" (the pure "
-              "elementwise per-lane map with no loop-carried accumulator) or "
-              "\"reduce\" (a loop-carried accumulator for the row folds); got \""
+              "elementwise per-lane map with no loop-carried accumulator), "
+              "\"reduce\" (a loop-carried accumulator for the row folds), or "
+              "\"rotate\" (a per-pair scalar loop with a loop-carried f32 "
+              "recurrence -- rope's theta); got \""
            << reduceMapModel << "\"";
   // element_sew currently pins the f32 (SEW=32) strip; other widths are later.
   if (getElementSewAttr().getInt() != 32)
@@ -8319,14 +8322,18 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
   // updated accumulator. The map model carries only strip_index and a
   // no-operand yield.
   mlir::Block &block = getBody().front();
-  const unsigned expectedArgs = isReduceModel ? 2 : 1;
+  const bool isCarriedModel = isReduceModel || isRotateModel;
+  const unsigned expectedArgs = isCarriedModel ? 2 : 1;
   if (block.getNumArguments() != expectedArgs)
     return emitOpError()
            << "requires the region to carry exactly " << expectedArgs
-           << (isReduceModel
-                   ? " entry arguments: the strip_index induction variable and "
-                     "the loop-carried f64 accumulator"
-                   : " entry argument: the strip_index induction variable");
+           << (isRotateModel
+                   ? " entry arguments: the pair_index induction variable and "
+                     "the loop-carried f32 theta recurrence"
+                   : isReduceModel
+                         ? " entry arguments: the strip_index induction variable "
+                           "and the loop-carried f64 accumulator"
+                         : " entry argument: the strip_index induction variable");
   if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
     return emitOpError()
            << "requires the first region argument (strip_index) to be "
@@ -8345,6 +8352,14 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
                 "ascending fold) or the !tcrv_rvv.vector<f64, \"m1\"> widening "
                 "accumulator (soft_max's vfwredusum Σe^x fold)";
   }
+  // The rotate model's loop-carried recurrence (region arg 1) is the f32 scalar
+  // theta (rope's `theta *= theta_scale` per-pair recurrence). Any other type
+  // fails closed (I7).
+  if (isRotateModel && !block.getArgument(1).getType().isF32())
+    return emitOpError()
+           << "requires the rotate model's second region argument to be the "
+              "loop-carried f32 theta recurrence (rope's scalar angle stepped "
+              "theta *= theta_scale per pair)";
 
   TypedElementwiseLoopYieldOp yield =
       block.empty()
@@ -8356,13 +8371,17 @@ mlir::LogicalResult TypedElementwiseLoopBodyOp::verify() {
               "tcrv_rvv.typed_elementwise_loop_yield";
   // The yield's carried-value cardinality tracks the model (the yield verifier
   // pins the f64 acc type + the reduce-model tie).
-  const unsigned expectedYield = isReduceModel ? 1 : 0;
+  const unsigned expectedYield = isCarriedModel ? 1 : 0;
   if (yield.getAccNext().size() != expectedYield)
     return emitOpError()
-           << (isReduceModel
-                   ? "reduce model requires the loop yield to carry the updated "
-                     "accumulator (one operand)"
-                   : "map model requires the loop yield to carry no operand");
+           << (isRotateModel
+                   ? "rotate model requires the loop yield to carry the updated "
+                     "f32 theta recurrence (one operand)"
+                   : isReduceModel
+                         ? "reduce model requires the loop yield to carry the "
+                           "updated accumulator (one operand)"
+                         : "map model requires the loop yield to carry no "
+                           "operand");
 
   return mlir::success();
 }
@@ -8376,6 +8395,7 @@ mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
   if (!parent)
     return mlir::success();
   const bool isReduceModel = parent.getReduceMapModel() == "reduce";
+  const bool isRotateModel = parent.getReduceMapModel() == "rotate";
   if (isReduceModel) {
     // The carried accumulator is the f64 scalar (rms_norm) OR the
     // !tcrv_rvv.vector<f64, "m1"> widening accumulator (soft_max), matching the
@@ -8388,6 +8408,14 @@ mlir::LogicalResult TypedElementwiseLoopYieldOp::verify() {
                 "loop-carried accumulator operand: the f64 scalar (rms_norm) or "
                 "the !tcrv_rvv.vector<f64, \"m1\"> widening accumulator "
                 "(soft_max)";
+  } else if (isRotateModel) {
+    // The carried recurrence is the f32 scalar theta (rope), matching the
+    // loop-body op's region-arg type.
+    if (getAccNext().size() != 1 || !getAccNext()[0].getType().isF32())
+      return emitOpError()
+             << "rotate model requires the yield to carry exactly one "
+                "loop-carried f32 theta recurrence operand (rope's stepped "
+                "angle theta *= theta_scale)";
   } else if (!getAccNext().empty()) {
     return emitOpError()
            << "map model requires the yield to carry no operand (the per-strip "
@@ -8737,6 +8765,100 @@ mlir::LogicalResult ElementwiseSoftMaxReduceCoreOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult ElementwiseRopeRotateCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind. rope is a scalar per-pair
+  // loop (cos/sin are scalar libm, one call per pair), so there is NO
+  // resource/scheduling strip_lmul knob this rotate -- the ONLY allowed attr is
+  // "kind" (matching silu's / soft_max's no-knob precedent). A forbidden local
+  // element_count/SEW/LMUL/policy attr or an unexpected name fails closed (I7).
+  auto isAllowedRopeAttr = [](llvm::StringRef name) { return name == "kind"; };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_rope_rotate_core keeps SEW/LMUL/policy "
+                "on setvl/with_vl and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedRopeAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded rope rotate-core attribute 'kind'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_rope_rotate_core")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_rope_rotate_core\" for "
+              "the bounded f32 NORMAL rope rotate-core brick";
+
+  // The input is read-only (const float *), the output is written (float *),
+  // theta_base / theta_scale bind runtime f32 values. ggml's rope reads x[] (one
+  // head row) and writes y[]; the byte-exactness of the rotation depends on the
+  // f32 inputs being real f32 buffers, so input/output must bind real f32
+  // pointers. theta_base (pos as f32) / theta_scale (powf(freq_base, -2/n_dims))
+  // are PRECOMPUTED runtime f32 inputs, so the kernel makes no powf call.
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp thetaBaseBinding =
+      getThetaBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp thetaScaleBinding =
+      getThetaScale().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] head row read for the rotation)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml y[] rotated output buffer)";
+  if (!thetaBaseBinding || thetaBaseBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the theta_base operand to bind a runtime ABI value of C "
+              "type 'float' (the ggml position pos as f32, the angle recurrence "
+              "seed)";
+  if (!thetaScaleBinding || thetaScaleBinding.getCType() != "float")
+    return emitOpError()
+           << "requires the theta_scale operand to bind a runtime ABI value of C "
+              "type 'float' (the ggml powf(freq_base, -2/n_dims) recurrence "
+              "ratio)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value (ggml's ne0, n % 2 == 0) feeding the enclosing setvl";
+
+  // ANTI-BYPASS (I7): the pair_index MUST be the enclosing loop op's region
+  // induction variable (region argument 0), and `theta` MUST be the loop-carried
+  // recurrence value (region argument 1), so the emit provably steps the carried
+  // angle at pair p, not a fresh seed at the loop-invariant pair 0.
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return emitOpError()
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  if (parent.getReduceMapModel() != "rotate")
+    return emitOpError()
+           << "requires the enclosing loop op to carry reduce_map_model "
+              "\"rotate\" (the per-pair loop-carried f32 recurrence model)";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 2 ||
+      getPairIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires pair_index to be the enclosing loop's induction "
+              "variable (region argument 0), not the loop-invariant pair 0 "
+              "(anti-bypass)";
+  if (getTheta() != parentBlock.getArgument(1))
+    return emitOpError()
+           << "requires theta to be the enclosing loop's loop-carried f32 "
+              "recurrence (region argument 1), so the emit steps the carried "
+              "theta";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
   mlir::Operation *op = getOperation();
 
@@ -8843,100 +8965,6 @@ mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for the ggml f32->q8_0 quantizer";
-
-  return mlir::success();
-}
-
-mlir::LogicalResult GgmlRopeNormF32Op::verify() {
-  mlir::Operation *op = getOperation();
-
-  // The op carries ONLY its bounded mirror attr (I4): the operation kind. There
-  // is no resource/scheduling knob this cut -- the per-pair rotation loop is
-  // scalar (cos/sin are scalar libm, one call per pair), matching silu's no-knob
-  // precedent. Anything else -- a forbidden local element_count/SEW/LMUL/policy
-  // attr, or an unexpected name -- is rejected fail-closed (I7).
-  auto isAllowedRopeAttr = [](llvm::StringRef name) { return name == "kind"; };
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.ggml_rope_norm_f32 keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n_dims/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-    if (!isAllowedRopeAttr(attrName))
-      return emitOpError()
-             << "only accepts the bounded f32 rope attribute 'kind'; unexpected "
-                "attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (getKind() != "ggml_rope_norm_f32")
-    return emitOpError()
-           << "currently supports only kind \"ggml_rope_norm_f32\" for the "
-              "bounded ggml f32 NORMAL rope typed surface";
-
-  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one read-only f32 input pointer, one f32 output "
-              "pointer, one runtime f32 theta_base, one runtime f32 theta_scale, "
-              "one runtime element-count runtime ABI operand, one !tcrv_rvv.vl "
-              "operand, and one f32 LMUL m1 result";
-
-  // ggml's rope reads x[] (const float *, one head row) and writes y[] (float *).
-  // theta_base (the position pos as f32) and theta_scale
-  // (powf(freq_base, -2/n_dims)) are PRECOMPUTED runtime f32 inputs, so the
-  // kernel makes no powf call -- the only libm calls are the per-pair cosf/sinf.
-  // The byte-exactness of the rotation depends on the f32 inputs being real f32
-  // buffers, so the input/output must bind real f32 pointers.
-  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp thetaBaseBinding =
-      getThetaBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp thetaScaleBinding =
-      getThetaScale().getDefiningOp<RuntimeABIValueOp>();
-  if (!inputBinding || inputBinding.getCType() != "const float *")
-    return emitOpError()
-           << "requires the input operand to bind a runtime ABI value of C type "
-              "'const float *' (the ggml x[] head row read for the rotation)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the ggml y[] rotated output buffer)";
-  if (!thetaBaseBinding || thetaBaseBinding.getCType() != "float")
-    return emitOpError()
-           << "requires the theta_base operand to bind a runtime ABI value of C "
-              "type 'float' (the ggml position pos as f32, the angle recurrence "
-              "seed)";
-  if (!thetaScaleBinding || thetaScaleBinding.getCType() != "float")
-    return emitOpError()
-           << "requires the theta_scale operand to bind a runtime ABI value of "
-              "C type 'float' (the ggml powf(freq_base, -2/n_dims) recurrence "
-              "ratio)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError()
-           << "requires the element-count operand to be the runtime n_dims index "
-              "value (ggml's ne0, n_dims % 2 == 0) feeding the enclosing setvl";
-
-  if (!isGenericRVVVectorF32M1(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, "
-              "\"m1\"> for the ggml f32 rope route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
-
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml f32 rope";
 
   return mlir::success();
 }

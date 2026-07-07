@@ -506,8 +506,9 @@ private:
   /// compute op is a tcrv_rvv.typed_elementwise_loop_body (the constructed typed
   /// strip-loop op that replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32).
   /// The loop op identity is the dispatch key; emitTypedElementwiseLoopBody owns
-  /// the byte-exact f32 strip-loop expansion driven by the region's map/reduce
-  /// core brick (tcrv_rvv.elementwise_scale_map / _silu_map / _rms_norm_reduce_core).
+  /// the byte-exact f32 strip-loop expansion driven by the region's map/reduce/
+  /// rotate core brick (tcrv_rvv.elementwise_scale_map / _silu_map /
+  /// _rms_norm_reduce_core / _rope_rotate_core).
   /// EXCLUDES the soft_max reduce body (it RETURNS the f64 sum, so it is dispatched
   /// by its own return-carrying branch, NOT this void-return table entry).
   static bool isTypedElementwiseLoopBody(tcrvrvv::WithVLOp scope);
@@ -529,13 +530,6 @@ private:
   /// loop with the vfredmax reduction, the d?1/d:0 conditional, and the
   /// vfncvt/vncvt narrowing chain.
   static bool isGgmlQuantizeRowQ80Body(tcrvrvv::WithVLOp scope);
-
-  /// The forward-pass F6 recognizer: a with_vl scope whose ONLY compute op is a
-  /// single tcrv_rvv.ggml_rope_norm_f32 (the f32 NORMAL rope: the iterative f32
-  /// angle recurrence + scalar libm cosf/sinf cache + the per-pair f32 rotation).
-  /// The op identity is the dispatch key; the emitter owns the structured scalar
-  /// per-pair loop expansion.
-  static bool isGgmlRopeNormF32Body(tcrvrvv::WithVLOp scope);
 
   static bool isDeferredWideDotReduceBody(tcrvrvv::WithVLOp scope);
 
@@ -3546,9 +3540,14 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml ggml_compute_forward_rope_f32 op for ONE head row,
-  /// the GGML_ROPE_TYPE_NORMAL variant (the rope llama-2 / LLM_ARCH_LLAMA uses),
-  /// as fully STRUCTURED emitc nodes (I5; no verbatim C-string blob):
+  /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
+  /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
+  /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the
+  /// rotate shape (reduce_map_model "rotate": a per-pair scalar loop with a
+  /// loop-carried f32 theta region arg + the yield that carries it back); this
+  /// re-emit sources the whole rope ABI + the byte-exact per-pair rotation from
+  /// the region's tcrv_rvv.elementwise_rope_rotate_core brick (anti-bypass: its
+  /// pair_index is region arg 0 and its theta is region arg 1):
   ///   float theta = theta_base;                        // the recurrence seed
   ///   size_t n_pairs = n_dims / 2;
   ///   for (size_t p = 0; p < n_pairs; ++p) {           // SCALAR per-pair loop
@@ -3556,8 +3555,8 @@ private:
   ///     const float *xp = (const float *)(x + 2*p);
   ///     float *yp = (float *)(y + 2*p);
   ///     float x0 = xp[0];  float x1 = xp[1];           // CONSECUTIVE pair
-  ///     yp[0] = x0*cos_t - x1*sin_t;                   // two SEPARATE muls then
-  ///     yp[1] = x0*sin_t + x1*cos_t;                   //   a sub/add (no FMA)
+  ///     yp[0] = x0*cos_t - x1*sin_t;                   // one emitc.expression
+  ///     yp[1] = x0*sin_t + x1*cos_t;                   //   each (FMA-fix)
   ///     theta = theta * theta_scale;                   // iterative f32 recurrence
   ///   }
   /// BYTE-EXACTNESS has TWO axes (both stated honestly in the result):
@@ -3582,9 +3581,13 @@ private:
   /// rotation (vectorizing would gather scalars into vectors with no exactness
   /// gain). The recurrence theta is a loop-carried emitc.variable lvalue +
   /// emitc.assign (emitc.for has no iter_args), exactly as F3's scalar-double sum.
-  mlir::LogicalResult emitGgmlRopeNormF32(
+  /// This is BYTE-EXACT to the retired monolith tcrv_rvv.ggml_rope_norm_f32 emit
+  /// modulo ONLY the source-op provenance token.
+  mlir::LogicalResult emitElementwiseRopeRotateStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
+      mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   mlir::LogicalResult emitPackedI4OffsetBinaryXI8Product(

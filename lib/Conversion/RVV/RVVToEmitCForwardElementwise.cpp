@@ -63,6 +63,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
                                                avlArg, sizeType, valueMap);
     }
 
+    // The "rotate" model is the per-PAIR scalar recurrence shape: the FIRST (and
+    // only) forward ROTATE operator constructed through the scaffold is rope
+    // (the position-dependent 2x2 rotation on consecutive pairs + the scalar-libm
+    // cos/sin angle seam + the f32 theta recurrence), whose per-pair work rides
+    // the tcrv_rvv.elementwise_rope_rotate_core rotate-core brick. Dispatch to its
+    // dedicated re-emit before the map path.
+    if (loopBody.getReduceMapModel() == "rotate") {
+      tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore;
+      loopBody.getBody().walk([&](tcrvrvv::ElementwiseRopeRotateCoreOp o) {
+        ropeCore = o;
+      });
+      if (!ropeCore)
+        return rewriter.notifyMatchFailure(
+            loopBody, "rotate-model elementwise loop body requires a recognized "
+                      "rotate core brick (elementwise_rope_rotate_core)");
+      return emitElementwiseRopeRotateStrip(rewriter, loc, loopBody, ropeCore,
+                                            avlArg, sizeType, valueMap);
+    }
+
     // The "map" model's core brick is a per-strip elementwise map: the scale map
     // (elementwise_scale_map, y[i] *= v, in-place single buffer) or the silu map
     // (elementwise_silu_map, y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map).
@@ -1010,27 +1029,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     return mlir::success();
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitGgmlRopeNormF32(
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseRopeRotateCoreOp ropeCore, mlir::Value avlArg,
+    mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRopeNormF32Op ropeOp;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto r = llvm::dyn_cast<tcrvrvv::GgmlRopeNormF32Op>(op))
-        ropeOp = r;
-    }
-    if (!ropeOp)
-      return rewriter.notifyMatchFailure(scope, "rope body missing the op");
+    // The CONSTRUCTED rope rotate-model body, the per-pair-recurrence sibling of
+    // the map paths (scale/silu) and the reduce paths (rms_norm/soft_max). The
+    // outer loop op owns the rotate shape (reduce_map_model "rotate": a per-pair
+    // scalar loop with a loop-carried f32 theta region arg + the yield that
+    // carries it back); this re-emit sources the WHOLE rope ABI + the byte-exact
+    // scalar cos/sin angle seam / position-dependent 2x2 rotation / f32 theta
+    // recurrence from the region's rotate core brick (anti-bypass). BYTE-EXACT to
+    // the retired monolith tcrv_rvv.ggml_rope_norm_f32 emit modulo ONLY the
+    // source-op provenance token.
 
-    mlir::Value input = valueMap.lookup(ropeOp.getInput());
-    mlir::Value output = valueMap.lookup(ropeOp.getOutput());
-    mlir::Value thetaBase = valueMap.lookup(ropeOp.getThetaBase());
-    mlir::Value thetaScale = valueMap.lookup(ropeOp.getThetaScale());
+    // Anti-bypass (I7): the brick's pair_index MUST be the loop induction variable
+    // (region arg 0) and its theta MUST be the loop-carried recurrence (region
+    // arg 1); the verifier pins both, checked here fail-closed too.
+    mlir::Block &block = loopBody.getBody().front();
+    if (block.getNumArguments() < 2 ||
+        ropeCore.getPairIndex() != block.getArgument(0) ||
+        ropeCore.getTheta() != block.getArgument(1))
+      return rewriter.notifyMatchFailure(
+          ropeCore, "the rope rotate core brick's pair_index / theta must be the "
+                    "loop induction variable / loop-carried recurrence (region "
+                    "args 0 / 1)");
+
+    mlir::Value input = valueMap.lookup(ropeCore.getInput());
+    mlir::Value output = valueMap.lookup(ropeCore.getOutput());
+    mlir::Value thetaBase = valueMap.lookup(ropeCore.getThetaBase());
+    mlir::Value thetaScale = valueMap.lookup(ropeCore.getThetaScale());
     if (!input || !output || !thetaBase || !thetaScale)
-      return rewriter.notifyMatchFailure(ropeOp, "rope ABI operand unmapped");
+      return rewriter.notifyMatchFailure(ropeCore, "rope ABI operand unmapped");
 
-    llvm::StringRef opName = ropeOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = ropeOp.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef opName = ropeCore.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = ropeCore.getTCRVEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
