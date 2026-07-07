@@ -1,23 +1,31 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "typed_elementwise_loop_body"/kind = "plain_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
+// RUN: sed 's/reduce_map_model = "map"/reduce_map_model = "fold"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMODEL
+// RUN: sed 's/element_sew = 32 : i64/element_sew = 16 : i64/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADSEW
 
-// INC-17 F5 — the COMPLETE ggml ggml_vec_silu_f32 forward-pass op
-// (y[i] = x[i]*sigmoid(x[i]), sigmoid(x) = 1/(1+e^{-x})) as STRUCTURED emitc IR
-// (I5; ZERO raw() strings). The single typed op tcrv_rvv.ggml_vec_silu_f32
-// lowers to ONE m2 f32 strip loop whose body is ggml's EXACT vectorized silu:
-//   neg_x = vfneg(x);  exp_neg_x = ggml_v_expf_m2(neg_x);
-//   y = vfdiv(x, vfadd(exp_neg_x, 1.0f));
-// where ggml_v_expf_m2 is a fully vectorized minimax exp polynomial replicated
-// node-for-node from vec.h:1324-1360 — a 0x1.8p23f round trick, a two-term
-// Cayley range reduction (vfnmsac x2), a degree-5 Estrin polynomial (vfmacc),
-// an integer exponent vsll<<23 + 0x3f800000 reinterpret, and the
-// overflow/underflow vmerge fixup. It makes NO libm expf call — every step is
-// an emitc.call_opaque node, so the result is BIT-IDENTICAL to ggml's
-// vectorized silu (the deployment oracle). ggml's `if (!vcpop_m(c))` is a pure
-// performance short-circuit (fast k+j*k == slow c-false lane k+k*j bit-for-bit),
-// so the slow-path vmerge value graph is emitted UNCONDITIONALLY (straight-line,
-// no data-dependent branch). Pinned at m2 (ggml's vsetvl_e32m2 path + the
-// m2-tied vbool16_t/vuint32m2_t types). Byte-exactness pinned by the ssh-rvv
-// artifact under .trellis/tasks/.../artifacts/inc17-forward-pass-f5/.
+// M-FLAT forward-elementwise scaffold (line C, ① 之后) — the CONSTRUCTED f32
+// forward-pass silu (y[i] = x[i]*sigmoid(x[i]), sigmoid(x) = 1/(1+e^{-x})), the
+// SECOND forward-elementwise operator flipped dispatch-wired -> constructed
+// (C_construct 29->30). This is a C2 marginal-cost payoff: it REUSES the typed
+// elementwise strip-loop SCAFFOLD scale landed — the SAME loop op
+// tcrv_rvv.typed_elementwise_loop_body (reduce_map_model "map"), the SAME yield
+// terminator, the SAME emitTypedElementwiseLoopBody outer-loop machinery + [L-8]
+// validator, and the SAME shared node-for-node ggml_v_expf_m2 exp polynomial
+// (which soft_max also consumes) — adding ONLY the per-strip
+// tcrv_rvv.elementwise_silu_map map core brick (its m2 exp decode). The monolith
+// tcrv_rvv.ggml_vec_silu_f32 op + emitGgmlVecSiluF32 opaque helper + recognizer +
+// verifier were RETIRED. The brick's strip_index MUST be the loop induction
+// variable (region arg 0, anti-bypass), so the emit provably addresses x + i /
+// y + i, not the loop-invariant strip 0.
+//
+// This is BYTE-EXACT to the retired monolith emit modulo ONLY the source-op
+// provenance token (tcrv_rvv.ggml_vec_silu_f32 -> tcrv_rvv.elementwise_silu_map):
+// ggml's `if (!vcpop_m(c))` is a pure perf short-circuit whose fast/slow paths are
+// bitwise-equal, so the slow-path vmerge value graph is emitted UNCONDITIONALLY.
+// Pinned at m2 (ggml's vsetvl_e32m2 path + the m2-tied vbool16_t/vuint32m2_t
+// mask/reinterpret types), so there is no strip_lmul knob. The emit is a
+// decomposed pattern-library map primitive with NO opaque hand helper ([L-8]
+// constructed-strong). Numerical bit-exact-vs-ggml is pending-hardware.
 
 module {
   tcrv.exec.kernel @ggml_vec_silu_f32_kernel {
@@ -28,7 +36,15 @@ module {
       %y = tcrv_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_silu_f32, sew = 32 : i64, source_kernel = "ggml_vec_silu_f32_kernel", status = "selected-lowering-boundary"} {
-        %silu = tcrv_rvv.ggml_vec_silu_f32 %x, %y, %n, %vl {kind = "ggml_vec_silu_f32"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
+        ^bb0(%strip_index: index):
+          // The per-strip silu map core brick: y[i..i+vl] = silu(x[i..i+vl]). Its
+          // strip_index is the loop induction variable (region arg 0), the
+          // anti-bypass tie. NO strip_lmul knob — silu is m2-pinned (the exp
+          // polynomial mask/reinterpret types are m2-tied).
+          tcrv_rvv.elementwise_silu_map %x, %y, %n strip %strip_index : index {kind = "elementwise_silu_map"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+          tcrv_rvv.typed_elementwise_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
     }
   }
@@ -37,11 +53,16 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_vec_silu_f32_kernel_ggml_vec_silu_f32(
-// The pre-loop VLMAX vsetvl and the m2 f32 strip loop.
+// The outer setvl config (scope frame) is unchanged: vsetvl_e32m1.
+// CHECK: call_opaque "__riscv_vsetvl_e32m1"
+// The pre-loop VLMAX vsetvl (the m2 silu strip anchor) and the m2 f32 strip loop.
 // CHECK: call_opaque "__riscv_vsetvl_e32m2"
 // CHECK: for %[[I:.*]] = %{{.*}} to %{{.*}} step
+// Remaining-AVL re-strip vsetvl inside the loop.
 // CHECK: sub %arg0, %[[I]]
 // CHECK: call_opaque "__riscv_vsetvl_e32m2"
+// In-place element pointer x + i (anti-bypass: addresses x + i, not strip 0).
+// CHECK: add %arg1, %[[I]]
 // CHECK: call_opaque "__riscv_vle32_v_f32m2"
 // silu = neg -> ggml_v_expf_m2 -> +1 -> div.
 // CHECK: call_opaque "__riscv_vfneg_v_f32m2"
@@ -87,6 +108,13 @@ module {
 // CHECK: call_opaque "__riscv_vfadd_vf_f32m2"
 // CHECK: call_opaque "__riscv_vfdiv_vv_f32m2"
 // CHECK: call_opaque "__riscv_vse32_v_f32m2"
-// Every value is a structured emitc node (for / call_opaque / literal / sub /
-// add / cast), NOT a raw C blob. The provenance verbatims are comment lines.
+// The provenance verbatims carry the constructed map brick's op identity, NOT the
+// retired monolith op, and NO opaque C blob leaks into the body.
+// CHECK-NOT: tcrv_rvv.ggml_vec_silu_f32
 // CHECK-NOT: emitc.verbatim {{.*}}__riscv
+
+// The bounded surface is fail-closed on the loop kind, the reduce_map_model fact,
+// and the element_sew fact (I7), enforced by the loop-body verifier.
+// BADKIND: currently supports only kind "typed_elementwise_loop_body"
+// BADMODEL: currently supports only reduce_map_model "map"
+// BADSEW: currently supports only element_sew 32

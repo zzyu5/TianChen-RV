@@ -8515,6 +8515,65 @@ def ElementwiseScaleMapOp
   let hasVerifier = 1;
 }
 
+def ElementwiseSiluMapOp
+    : TCRVRVV_Op<"elementwise_silu_map",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-strip f32 silu map brick (y[i] = x[i]*sigmoid(x[i]))";
+  let description = [{
+    Records ONE strip's f32 silu -- the per-strip CORE of ggml's
+    `ggml_vec_silu_f32` (`y[i] = x[i] * sigma(x[i])`, `sigma(x) = 1/(1+e^{-x})`;
+    vec.cpp:380 + `ggml_v_silu_m2` vec.h:1363) -- as ONE bounded generic
+    plugin-local typed RVV dataflow step: the SECOND map-family primitive of the
+    forward-elementwise scaffold (the sibling of tcrv_rvv.elementwise_scale_map).
+    It is carried inside the tcrv_rvv.typed_elementwise_loop_body region
+    (reduce_map_model "map") and lowers to the byte-exact m2 strip
+    (`vsetvl_e32m2(n-i)` / `vle32` / the node-for-node `ggml_v_expf_m2` polynomial
+    / `vfadd 1.0f` / `vfdiv` / `vse32`), node-identical to ggml's hand-written RVV
+    path. It reuses the SAME loop op + map model + emitter scaffold scale landed;
+    the ONLY new machinery is this per-strip silu decode (the exp polynomial).
+
+    BYTE-EXACTNESS hinges on replicating ggml's EXACT vectorized `ggml_v_expf_m2`
+    intrinsic chain (the SHARED node-for-node exp polynomial soft_max also
+    consumes): the `0x1.8p23f` round trick, the two-term Cayley range reduction
+    (`vfnmsac` x2), the degree-5 Estrin polynomial (`vfmacc`), the integer
+    exponent `vsll<<23 + 0x3f800000` reinterpret, and the overflow/underflow
+    `vmerge` fixup -- every step a `__riscv_v` intrinsic with a FIXED bit-pattern
+    constant, NO libm `expf` call. ggml's `if (!vcpop_m(c))` is a pure
+    performance short-circuit (the fast path `k + j*k` equals the slow path's
+    c-false lane bit-for-bit), so the lowering emits the slow-path `vmerge` value
+    graph UNCONDITIONALLY -- same output bits for every input, no data-dependent
+    branch. The strip + polynomial are pinned at m2 (ggml's `vsetvl_e32m2` path +
+    the m2-tied `vbool16_t`/`vuint32m2_t` mask/reinterpret types), so there is NO
+    `strip_lmul` knob this map -- silu carries only its `kind`.
+
+    The op consumes the read-only f32 input base pointer `input` (the ggml x[]
+    row), the written f32 output base pointer `output` (the ggml y[] buffer), the
+    runtime element count `n`, and the loop's `strip_index` induction variable
+    (region argument 0). It has NO result -- the per-strip output store is the
+    sink. The `strip_index` operand is the ANTI-BYPASS tie: it MUST be the loop
+    induction variable (region argument 0), so the per-strip pointers are
+    `input + strip_index` / `output + strip_index` -- the emit provably addresses
+    strip i, not the loop-invariant strip 0 (fail-closed otherwise). The bounded
+    surface `kind` is limited to "elementwise_silu_map". Route ids, helper names,
+    ABI strings, artifact names, status fields, and exact intrinsic spellings must
+    not infer or choose this map's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$n,
+    Index:$strip_index,
+    StrAttr:$kind
+  );
+
+  let assemblyFormat =
+    "$input `,` $output `,` $n `strip` $strip_index `:` type($strip_index) "
+    "attr-dict `:` type($input) `,` type($output) `,` type($n)";
+  let hasVerifier = 1;
+}
+
 def GgmlRmsNormF32Op
     : TCRVRVV_Op<"ggml_rms_norm_f32",
     [TCRVEmitCLowerableOpInterface]> {
@@ -8582,71 +8641,6 @@ def GgmlRmsNormF32Op
   let assemblyFormat =
     "$input `,` $output `,` $eps `,` $element_count `,` $vl "
     "attr-dict `:` type($input) `,` type($output) `,` type($eps) `,` "
-    "type($element_count) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
-
-def GgmlVecSiluF32Op
-    : TCRVRVV_Op<"ggml_vec_silu_f32",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml f32 silu (y[i] = x[i]*sigmoid(x[i])) op";
-  let description = [{
-    Records the COMPLETE ggml `ggml_vec_silu_f32` forward-pass op (the FFN
-    activation `y[i] = x[i] * sigma(x[i])`, `sigma(x) = 1/(1 + e^{-x})`;
-    vec.cpp:380 + `ggml_v_silu_m2` vec.h:1363) as ONE bounded generic
-    plugin-local typed RVV f32 dataflow step. This is the FIRST forward-pass
-    VECTORIZED TRANSCENDENTAL op (F5 in research/forward-pass-scoping.md) -- a
-    NEW shape vs the elementwise scale (F1) and the rms_norm reduction (F3): the
-    silu needs ggml's EXACT vectorized minimax exp polynomial (`ggml_v_expf_m2`,
-    vec.h:1324) replicated node-for-node, NOT a libm `expf` call.
-
-    BYTE-EXACTNESS hinges on replicating ggml's EXACT vectorized `ggml_v_expf_m2`
-    intrinsic chain. ggml computes `e^x` with a fully vectorized minimax
-    polynomial built ENTIRELY from `__riscv_v` intrinsics -- it makes NO libm
-    call. Every step (the `0x1.8p23f` round trick, the two-term Cayley range
-    reduction via `vfnmsac` x2, the degree-5 Estrin polynomial in `vfmacc`, the
-    integer exponent `vsll<<23 + 0x3f800000` reinterpret, and the
-    overflow/underflow `vmerge` fixup) is a vector intrinsic with a FIXED bit
-    pattern constant. Replicating that chain node-for-node -- with the identical
-    magic constants (`0x1.8p23f`, `0x1.715476p+0f`, `0x1.62e4p-1f`,
-    `0x1.7f7d1cp-20f`, the polynomial coefficients, `0x3f800000`, the
-    `126.0f`/`192.0f`/`0x82000000`/`0x7f000000` fixup) -- makes the result
-    BIT-IDENTICAL to ggml's vectorized silu. ggml's `if (!vcpop_m(c))` is a pure
-    performance short-circuit (the fast path `k + j*k` equals the slow path's
-    c-false lane `k + k*j` bit-for-bit by fp multiply commutativity, and RISC-V
-    yields the canonical NaN regardless of operand order), so the lowering emits
-    the slow path UNCONDITIONALLY as a straight-line `vmerge` value graph -- same
-    output bits for every input (normal, saturating, NaN/inf/denormal), no
-    data-dependent branch.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime
-    ABI value operands -- the f32 input base pointer `x` (read-only), the f32
-    output base pointer `y` (written), the runtime element count `n` -- plus the
-    active !tcrv_rvv.vl token. It produces ONE f32 LMUL m1 !tcrv_rvv.vector token
-    whose lowering is the per-strip silu store. The strip loop and the polynomial
-    are fixed at m2 (matching ggml's `vsetvl_e32m2` path and the m2-tied mask
-    `vbool16_t`/reinterpret `vuint32m2_t` types) -- silu is purely elementwise so
-    other LMULs would also be per-lane exact, but the op pins m2 to match the
-    oracle and avoid mask-width combinatorics; there is no `strip_lmul` knob this
-    cut. For the bounded surface `kind` is limited to "ggml_vec_silu_f32". Route
-    ids, helper names, ABI strings, artifact names, status fields, exact
-    intrinsic spellings, and common EmitC/export code must not infer or choose
-    f32 silu semantics.
-  }];
-
-  let arguments = (ins
-    AnyType:$input,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$vl,
-    StrAttr:$kind
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$input `,` $output `,` $element_count `,` $vl "
-    "attr-dict `:` type($input) `,` type($output) `,` "
     "type($element_count) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }

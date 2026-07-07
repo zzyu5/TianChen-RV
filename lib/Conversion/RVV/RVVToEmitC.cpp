@@ -492,23 +492,17 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    // The forward-pass F5 op (tcrv_rvv.ggml_vec_silu_f32) is the FIRST non-dot
-    // VECTORIZED TRANSCENDENTAL: the per-strip silu y[i] = x[i]*sigmoid(x[i])
-    // where sigmoid runs ggml's EXACT vectorized exp polynomial
-    // (ggml_v_expf_m2). It owns a dedicated routine (an m2 f32 strip loop whose
-    // body is the node-for-node ggml_v_expf_m2 intrinsic chain + the silu
-    // neg/exp/+1/div) -- a NEW shape vs F1/F3 because the exp polynomial must be
-    // replicated bit-for-bit (the slow-path vmerge value graph emitted
-    // unconditionally; ggml's vcpop short-circuit is a pure perf branch whose
-    // taken/not-taken paths are bitwise-equal). Marker: the op identity.
-    if (isGgmlVecSiluF32Body(scope)) {
-      if (mlir::failed(emitGgmlVecSiluF32(rewriter, loc, scope, avlArg,
-                                          sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
+    // NOTE: the monolith forward-pass F5 kernel {isGgmlVecSiluF32Body,
+    // emitGgmlVecSiluF32} was RETIRED at the silu flip (C_construct 29->30, the
+    // SECOND forward-elementwise operator constructed): the constructed body is
+    // the SAME typed elementwise strip-loop op (tcrv_rvv.typed_elementwise_loop_body,
+    // reduce_map_model "map") carrying the tcrv_rvv.elementwise_silu_map map core
+    // brick, dispatched via the {isTypedElementwiseLoopBody,
+    // emitTypedElementwiseLoopBody} entry in kBlockDotKernels above (which now
+    // resolves BOTH the scale and silu map bricks). The per-strip m2 exp
+    // polynomial is emitted by emitElementwiseSiluMapStrip, byte-exact to the
+    // monolith emit modulo the source-op provenance token. The SHARED
+    // emitGgmlVExpfM2 exp replication is UNCHANGED (soft_max F5b still consumes it).
 
     // The forward-pass F5b op (tcrv_rvv.ggml_vec_soft_max_f32) COMBINES F5's
     // vectorized transcendental (the SHARED exact ggml_v_expf_m2 polynomial) with
@@ -1562,20 +1556,6 @@ bool VariantToEmitCFunc::isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawRmsNorm;
-  }
-
-bool VariantToEmitCFunc::isGgmlVecSiluF32Body(tcrvrvv::WithVLOp scope) {
-    bool sawSilu = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlVecSiluF32Op>(op)) {
-        if (sawSilu)
-          return false;
-        sawSilu = true;
-      } else {
-        return false;
-      }
-    }
-    return sawSilu;
   }
 
 bool VariantToEmitCFunc::isGgmlVecSoftMaxF32Body(tcrvrvv::WithVLOp scope) {
@@ -5727,7 +5707,12 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // fires only on the elementwise loop op_kind.
       tcrv::rvv::TypedElementwiseLoopBodyOp,
       tcrv::rvv::TypedElementwiseLoopYieldOp,
-      tcrv::rvv::ElementwiseScaleMapOp>(op);
+      tcrv::rvv::ElementwiseScaleMapOp,
+      // The SECOND forward-elementwise map core brick (silu), reusing the SAME
+      // loop op + terminator + validator above; only the per-strip map primitive
+      // is new. The union stays strictly MORE permissive (zero block-dot
+      // regression).
+      tcrv::rvv::ElementwiseSiluMapOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

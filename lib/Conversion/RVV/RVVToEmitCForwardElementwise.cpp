@@ -45,21 +45,34 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
       return rewriter.notifyMatchFailure(
           scope, "typed elementwise loop body missing the op");
 
-    // The current bounded surface is the "map" model whose core brick is the
-    // per-strip scale map (elementwise_scale_map). Find the brick + the yield.
+    // The current bounded surface is the "map" model whose core brick is a
+    // per-strip elementwise map: the scale map (elementwise_scale_map, y[i] *= v,
+    // in-place single buffer) or the silu map (elementwise_silu_map,
+    // y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map). Find the brick + yield.
     tcrvrvv::ElementwiseScaleMapOp mapOp;
+    tcrvrvv::ElementwiseSiluMapOp siluOp;
     tcrvrvv::TypedElementwiseLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseScaleMapOp>(bodyOp))
         mapOp = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseSiluMapOp>(bodyOp))
+        siluOp = o;
       else if (auto o =
                    llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopYieldOp>(bodyOp))
         yieldOp = o;
     });
-    if (!mapOp || !yieldOp)
+    if (!yieldOp || (!mapOp && !siluOp))
       return rewriter.notifyMatchFailure(
-          loopBody, "map-model elementwise loop body requires the "
-                    "elementwise_scale_map core brick + the loop yield");
+          loopBody, "map-model elementwise loop body requires a recognized map "
+                    "core brick (elementwise_scale_map | elementwise_silu_map) + "
+                    "the loop yield");
+
+    // The SILU map reuses the SAME outer strip-loop op + map model, but its
+    // per-strip decode is the m2 exp polynomial over two buffers (x->y), so it
+    // owns a dedicated core-brick emit. Dispatch to it before the scale path.
+    if (siluOp)
+      return emitElementwiseSiluMapStrip(rewriter, loc, loopBody, siluOp, avlArg,
+                                         sizeType, valueMap);
 
     // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
     // variable (region arg 0), so the emit addresses buffer + i, not strip 0.
@@ -488,18 +501,24 @@ mlir::Value VariantToEmitCFunc::emitGgmlVExpfM2(mlir::ConversionPatternRewriter 
                  mlir::ValueRange{r1, s1Sq, overMask, bodyVL});
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitGgmlVecSiluF32(
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseSiluMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
+    mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlVecSiluF32Op siluOp;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto s = llvm::dyn_cast<tcrvrvv::GgmlVecSiluF32Op>(op))
-        siluOp = s;
-    }
-    if (!siluOp)
-      return rewriter.notifyMatchFailure(scope, "silu body missing the op");
+    // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
+    // variable (region arg 0), so the emit addresses x + i / y + i, not the
+    // loop-invariant strip 0 (fail-closed otherwise). Same tie the scale map + the
+    // flat/super-block per-block-source bricks enforce.
+    mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
+    if (siluOp.getStripIndex() != stripIndex)
+      return rewriter.notifyMatchFailure(
+          siluOp, "the elementwise_silu_map brick's strip_index must be the "
+                  "loop induction variable (region arg 0)");
 
+    // The ABI bases are sourced from the BRICK's operands (not the loop op), the
+    // same anti-bypass convention the flat block-dot + scale-map bricks use.
     mlir::Value input = valueMap.lookup(siluOp.getInput());
     mlir::Value outputBuf = valueMap.lookup(siluOp.getOutput());
     if (!input || !outputBuf)

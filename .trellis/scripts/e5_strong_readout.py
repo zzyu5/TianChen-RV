@@ -767,15 +767,16 @@ _FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_
 # reduce-family primitive, so the contraction-shaped decomposed gate above would
 # wrongly demote it to constructed-weak. The MAP class satisfies the [L-8]
 # "decomposed = built from typed pattern-library primitives, no opaque helper"
-# conjunct via a MAP-family primitive instead: the per-strip
-# `tcrv_rvv.elementwise_scale_map` map brick (carried inside the typed
-# `tcrv_rvv.typed_elementwise_loop_body` strip-loop op). This whitelist is
-# deliberately NARROW (a scale-only fp16 `block_fp16_scale_product` body is NOT a
-# forward map primitive, so it stays the constructed-weak negative control; an
-# opaque monolith still trips the opaque gate), so the check stays discriminating.
-# The forward REDUCE model (rms_norm's Σx², softmax's Σe^x) is a later step and
-# would use the reduce conjunct on the same loop op.
-_MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map)")
+# conjunct via a MAP-family primitive instead: the per-strip map brick (the
+# `tcrv_rvv.elementwise_scale_map` scale map OR the `tcrv_rvv.elementwise_silu_map`
+# silu map, carried inside the typed `tcrv_rvv.typed_elementwise_loop_body`
+# strip-loop op). This whitelist is deliberately NARROW (a scale-only fp16
+# `block_fp16_scale_product` body is NOT a forward map primitive, so it stays the
+# constructed-weak negative control; an opaque monolith still trips the opaque
+# gate), so the check stays discriminating. The forward REDUCE model (rms_norm's
+# Σx², softmax's Σe^x) is a later step and would use the reduce conjunct on the
+# same loop op.
+_MAP_PRIMITIVE_RE = re.compile(r"(elementwise_scale_map|elementwise_silu_map)")
 
 
 def _leading_ws(line):
@@ -1063,6 +1064,35 @@ module {
         tcrv_rvv.typed_elementwise_loop_body %y, %v, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64, strip_lmul = "m8"} {
         ^bb0(%i: index):
           tcrv_rvv.elementwise_scale_map %y, %v, %n strip %i : index {kind = "elementwise_scale_map", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+          tcrv_rvv.typed_elementwise_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+# M-FLAT forward-elementwise MAP ground truth #2 (line C, ① 之后): the CONSTRUCTED
+# silu (y[i]=x[i]*sigmoid(x[i])) realized body -- the SAME typed elementwise
+# strip-loop op REUSED, now carrying the per-strip elementwise_silu_map map brick
+# + the yield (a two-buffer x->y map). Like scale it has NO product/reduce (a pure
+# MAP), so it exercises the SAME reduce/MAP model branch: `has_map` (via the
+# elementwise_silu_map primitive that joined _MAP_PRIMITIVE_RE) satisfies the
+# decomposed conjunct and it derives constructed (STRONG). This is the C2
+# marginal-cost payoff made machine-checkable: the scaffold is reused, only the
+# per-op map primitive differs.
+_GT_ELEMENTWISE_SILU_MAP = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_elementwise_loop_body %x, %y, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64} {
+        ^bb0(%i: index):
+          tcrv_rvv.elementwise_silu_map %x, %y, %n strip %i : index {kind = "elementwise_silu_map"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
           tcrv_rvv.typed_elementwise_loop_yield
         } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
       } : !tcrv_rvv.vl
@@ -1462,6 +1492,29 @@ def cmd_self_test(_args):
     # stays weak (the map-family primitive is the ONLY thing that flips it).
     assert ew_map["derived_state"] != scale["derived_state"]
 
+    # M-FLAT forward-elementwise MAP ground truth #2: the CONSTRUCTED silu realized
+    # body (the SAME typed_elementwise_loop_body REUSED + the NEW elementwise_silu_map
+    # brick + yield). Like scale it has NO product/reduce (a pure MAP), so it
+    # exercises the SAME reduce/MAP model branch: `has_map` (via elementwise_silu_map,
+    # which joined _MAP_PRIMITIVE_RE) satisfies the decomposed conjunct and it derives
+    # constructed (STRONG). This is the C2 marginal-cost payoff made machine-checkable:
+    # the scaffold is reused, only the per-op map primitive differs.
+    ew_silu = derive(parse_realized_body(_GT_ELEMENTWISE_SILU_MAP))
+    assert ew_silu["manifest"] == [
+        "tcrv_rvv.typed_elementwise_loop_body",
+        "tcrv_rvv.elementwise_silu_map",
+        "tcrv_rvv.typed_elementwise_loop_yield",
+    ], ew_silu["manifest"]
+    assert ew_silu["has_opaque"] is False, ew_silu
+    assert ew_silu["has_product"] is False, ew_silu
+    assert ew_silu["has_reduce"] is False, ew_silu
+    assert ew_silu["has_map"] is True, ew_silu
+    assert ew_silu["decomposed"] is True, ew_silu
+    assert ew_silu["derived_state"] == "constructed", ew_silu
+    # The silu MAP reuses the SAME scaffold as scale and derives the SAME strong
+    # state (the reduce/MAP model is shared; only the map-family primitive differs).
+    assert ew_silu["derived_state"] == ew_map["derived_state"]
+
     # Super-block ground truth (q4_K milestone-3): the 5 q4_K bricks decompose the
     # super-block dot; the FUSED per-sub-block q4_k_scaled_dot satisfies BOTH the
     # product AND reduce conjunct (the vwmacc reduction is fused into the product),
@@ -1687,7 +1740,8 @@ def cmd_self_test(_args):
           "strong(repack GEVM lane-wise dot fused reduce, grouped %r:2 parse)=constructed / "
           "strong(repack GEMM prefill lane-wise dot fused reduce, grouped %r:4 parse)=constructed / "
           "weak(block-dot)=constructed-weak / scale-only=constructed-weak (decomposed gate) / "
-          "forward-elementwise MAP(elementwise_scale_map)=constructed (reduce/MAP model branch)")
+          "forward-elementwise MAP(elementwise_scale_map)=constructed (reduce/MAP model branch) / "
+          "forward-elementwise MAP(elementwise_silu_map)=constructed (SAME scaffold reused, C2 payoff)")
     return 0
 
 

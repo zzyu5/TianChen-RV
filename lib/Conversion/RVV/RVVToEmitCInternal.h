@@ -517,12 +517,6 @@ private:
   /// reduction + scalar rsqrt + f32 normalize strip-loop expansion.
   static bool isGgmlRmsNormF32Body(tcrvrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single tcrv_rvv.ggml_vec_silu_f32
-  /// (the f32 silu: y[i] = x[i]*sigmoid(x[i]), via ggml's EXACT vectorized exp
-  /// polynomial). The op identity is the dispatch key; the emitter owns the
-  /// structured strip-loop + the node-for-node ggml_v_expf_m2 intrinsic chain.
-  static bool isGgmlVecSiluF32Body(tcrvrvv::WithVLOp scope);
-
   /// True iff the with_vl body is EXACTLY a single tcrv_rvv.ggml_vec_soft_max_f32
   /// (the F5b f32 soft_max: y[i] = e^{x[i]-max}, returning the f64 sum via the
   /// widening reduce). The op identity is the dispatch key; the emitter owns the
@@ -3427,35 +3421,42 @@ private:
                               mlir::Value bodyVL, mlir::Type sizeType,
                               llvm::StringRef opName, llvm::StringRef role) const;
 
-  /// Emit the COMPLETE ggml ggml_vec_silu_f32 forward-pass op (the FFN
-  /// activation y[i] = x[i]*sigmoid(x[i]), sigmoid(x) = 1/(1+e^{-x});
-  /// vec.cpp:380 + ggml_v_silu_m2 vec.h:1363) as fully STRUCTURED emitc nodes
-  /// (I5; no verbatim C-string blob -- every value is a node):
+  /// Emit the M-FLAT forward-elementwise scaffold's per-strip SILU map (the
+  /// SECOND map-family core brick, reusing the SAME typed strip-loop op + map
+  /// model + outer-loop machinery scale landed) for ONE
+  /// tcrv_rvv.elementwise_silu_map brick as fully STRUCTURED emitc nodes (I5; no
+  /// verbatim C-string blob -- every value is a node):
+  ///   size_t vlmax = __riscv_vsetvl_e32m2(n);
   ///   for (size_t i = 0; i < n; i += vlmax) {
   ///     size_t vl = __riscv_vsetvl_e32m2(n - i);
   ///     vfloat32m2_t vx = __riscv_vle32_v_f32m2(x + i, vl);
   ///     vfloat32m2_t vy = ggml_v_silu_m2(vx, vl);     // expanded node-for-node
   ///     __riscv_vse32_v_f32m2(y + i, vy, vl);
   ///   }
-  /// silu = vfneg(x) -> ggml_v_expf_m2 -> vfadd 1.0f -> vfdiv(x, 1+exp).
+  /// silu = vfneg(x) -> ggml_v_expf_m2 -> vfadd 1.0f -> vfdiv(x, 1+exp). The outer
+  /// strip loop is owned by the loop-body op; the per-strip silu is re-emitted
+  /// from the region's tcrv_rvv.elementwise_silu_map core brick, whose strip_index
+  /// MUST be the loop induction variable (region arg 0, anti-bypass), so the emit
+  /// addresses x + i / y + i, not the loop-invariant strip 0. This is BYTE-EXACT
+  /// to the retired monolith tcrv_rvv.ggml_vec_silu_f32 emit modulo ONLY the
+  /// source-op provenance token.
   ///
   /// BYTE-EXACTNESS to ggml's REAL vectorized silu hinges on replicating
-  /// ggml_v_expf_m2 (vec.h:1324-1360) node-for-node -- a fully vectorized minimax
-  /// exp polynomial built ENTIRELY from __riscv_v intrinsics (NO libm expf). Each
-  /// intrinsic is one emitc.call_opaque node (the one sanctioned opaque seam, as
-  /// the dot kernels emit theirs) with the IDENTICAL magic-constant bit patterns
-  /// (0x1.8p23f, 0x1.715476p+0f, 0x1.62e4p-1f, 0x1.7f7d1cp-20f, the degree-5
-  /// polynomial coefficients, 0x3f800000, 0x82000000/0x7f000000/126.0f/192.0f).
-  /// ggml's `if (!vcpop_m(c))` is a pure performance short-circuit -- the fast
-  /// path k + j*k equals the slow path's c-false lane k + k*j bit-for-bit (fp
-  /// multiply commutes; RISC-V yields the canonical NaN regardless of operand
-  /// order) -- so the slow-path vmerge value graph is emitted UNCONDITIONALLY as
-  /// a straight-line chain: same output bits for every input (normal, saturating
-  /// tails, NaN/inf/denormal), no data-dependent branch. Pinned at m2 (matching
-  /// ggml's vsetvl_e32m2 path and the m2-tied vbool16_t/vuint32m2_t types).
-  mlir::LogicalResult emitGgmlVecSiluF32(
+  /// ggml_v_expf_m2 (vec.h:1324-1360) node-for-node via the SHARED emitGgmlVExpfM2
+  /// -- a fully vectorized minimax exp polynomial built ENTIRELY from __riscv_v
+  /// intrinsics (NO libm expf). Each intrinsic is one emitc.call_opaque node with
+  /// the IDENTICAL magic-constant bit patterns (0x1.8p23f, 0x1.715476p+0f,
+  /// 0x1.62e4p-1f, 0x1.7f7d1cp-20f, the degree-5 polynomial coefficients,
+  /// 0x3f800000, 0x82000000/0x7f000000/126.0f/192.0f). ggml's `if (!vcpop_m(c))`
+  /// is a pure performance short-circuit, so the slow-path vmerge value graph is
+  /// emitted UNCONDITIONALLY as a straight-line chain (same output bits for every
+  /// input, no data-dependent branch). Pinned at m2 (ggml's vsetvl_e32m2 path +
+  /// the m2-tied vbool16_t/vuint32m2_t types), so there is no strip_lmul knob.
+  mlir::LogicalResult emitElementwiseSiluMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseSiluMapOp siluOp, mlir::Value avlArg,
+      mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the COMPLETE ggml ggml_vec_soft_max_f32 forward-pass op (F5b: the
