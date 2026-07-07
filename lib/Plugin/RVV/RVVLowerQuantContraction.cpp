@@ -126,38 +126,6 @@ std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
   return std::min<std::int64_t>(vlenBits / 16, kWeightInterleave);
 }
 
-// The wide-vs-fractional integer-core CHOICE for the repacked GEMV/GEMM, keyed on
-// TWO capability facts (NEVER a board name / march string): the RVV ISA GENERATION
-// and the guaranteed minimum VLEN. Returns true iff the repack should use the
-// WHOLE-LMUL (m1) wide integer core (i8m1 -> i16m2 -> i32m4 -> f32m4, ONE 16-lane
-// strip, f32m4 accumulator) instead of the FRACTIONAL (mf2) default (i8mf2 ->
-// i16m1 -> i32m2 -> f32m2). The two forms read BYTE-IDENTICAL 16-way-interleaved
-// repacked data and are numerically identical (the strip-width materializer's
-// safety invariant); they differ ONLY in the LMUL rung the core rides.
-//
-// TWO capability regimes select the wide core:
-//   * RVV0.7.1 (deriveRVVVersion == RVV0p7): the pre-ratification generation has
-//     NO fractional LMUL at all (the XuanTie toolchain rejects i8mf2), so m1 is a
-//     CORRECTNESS requirement -- the historical, VLEN-INDEPENDENT trigger.
-//   * VLEN >= 256 on RVV1.0: the fractional mf2 register ALREADY holds a WHOLE
-//     16-block interleave-group in HALF the register file (i8mf2 spans VLEN/16 ==
-//     kWeightInterleave lanes at VLEN256), so the fractional core is UNDER-FED --
-//     the whole-LMUL m1 register (VLEN/8 lanes) spans TWICE the interleave-groups,
-//     the FULLY-FED wide variant. At VLEN128 the fractional strip is only 8 lanes
-//     (deriveRepackHalfLanes < kWeightInterleave) so it needs two disjoint halves
-//     to cover one group and the whole-LMUL register holds no more -- VLEN128
-//     RVV1.0 therefore STAYS on the byte-identical mf2 default.
-// The VLEN arm reads the capability-DERIVED half_lanes (== kWeightInterleave iff
-// the fractional strip already saturates the interleave, i.e. VLEN >= 256), so the
-// wide-vs-fractional axis is driven by the VLEN capability FACT alone -- never a
-// board name. numHalves stays 1 in BOTH wide regimes (one 16-lane strip). NOTE:
-// this is a WITHIN-repack LAYOUT variant selection (L2 schedule), orthogonal to the
-// repack-vs-block-dot ALGORITHM selection (selectContractionAlgorithm); it changes
-// the emitted core LMUL but is numerically equivalent by construction.
-bool selectsWholeLMULRepackCore(std::int64_t minVLEN, bool isRVV0p7) {
-  return isRVV0p7 || deriveRepackHalfLanes(minVLEN) == kWeightInterleave;
-}
-
 class RVVLowerQuantContractionPass final
     : public impl::RVVLowerQuantContractionBase<RVVLowerQuantContractionPass> {
 public:
@@ -244,12 +212,6 @@ private:
     std::int64_t halfLanes = deriveRepackHalfLanes(minVLEN);
     bool isRVV0p7 = pluginrvv::deriveRVVVersion(march, isaVectorHints) ==
                     pluginrvv::RVVVersion::RVV0p7;
-    // The wide-vs-fractional integer-core LAYOUT variant, keyed on the VLEN
-    // capability fact (VLEN >= 256 -> whole-LMUL wide core) AND the RVV0.7
-    // generation fact -- NEVER a board name. See selectsWholeLMULRepackCore. This
-    // is the L2 within-repack schedule choice: VLEN128 RVV1.0 keeps the
-    // byte-identical fractional mf2 default; VLEN256 rides the fully-fed m1 core.
-    bool isWideCore = selectsWholeLMULRepackCore(minVLEN, isRVV0p7);
     if (isRepack && halfLanes != 0) {
       // The m_regime committed WHAT axis chooses the repacked GRANULARITY: the
       // PREFILL (M-amortized) regime realizes the repack as the typed
@@ -261,8 +223,8 @@ private:
       // Both share the SAME capability gate (isRepack + a valid e16m1 strip
       // width); only the granularity differs.
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return lowerToRepackGemm(op, selection, halfLanes, isWideCore);
-      return lowerToRepackGemv(op, selection, halfLanes, isWideCore);
+        return lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
+      return lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
     }
 
     return lowerToBlockDot(op, selection);
@@ -288,12 +250,10 @@ private:
   // carries the SAME SSA weight pointer the abstract op carried (the IR cannot
   // tell a plain base from an x16 base; both are const uint8_t *) -- the contract
   // is the bridge's ASSERTION that some later layer (C3-C4) hands it x16 bytes.
-  // The whole-LMUL core anchor (integer_core_lmul = "m1") with its mandatory ONE
-  // 16-lane strip (half_lanes = 16, numHalves 1, f32m4 accumulator) is pinned
-  // whenever the wide core is selected (isWideCore): on RVV0.7.1 (no fractional
-  // LMUL -- correctness) AND on VLEN >= 256 RVV1.0 (the fully-fed wide layout
-  // variant). Otherwise -- VLEN128 RVV1.0 -- integer_core_lmul is left unset (the
-  // fractional mf2 default: half_lanes 8 -> two 8-lane strips, f32m2 accumulators).
+  // On RVV0.7.1 the whole-LMUL core anchor (integer_core_lmul = "m1") with its
+  // mandatory ONE 16-lane strip (half_lanes = 16, numHalves 1, f32m4 accumulator)
+  // is pinned; on RVV1.0 integer_core_lmul is left unset (the fractional mf2
+  // default: half_lanes 8 -> two 8-lane strips at VLEN128, f32m2 accumulators).
   //
   // SAFETY (NOT a latent miscompile): the emitted kernel reads x16 weights but
   // the abstract op carries PLAIN weights, so this emit is correct ONLY when the
@@ -305,21 +265,20 @@ private:
   mlir::LogicalResult
   lowerToRepackGemv(tcrvrvv::GgmlQuantContractionOp op,
                     const pluginrvv::ContractionSelection &selection,
-                    std::int64_t halfLanes, bool isWideCore) {
+                    std::int64_t halfLanes, bool isRVV0p7) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    // When the wide core is selected (isWideCore: RVV0.7.1 OR VLEN >= 256), the
-    // repack core is the WHOLE-LMUL chain (i8m1 -> i16m2 -> i32m4 -> f32m4), so the
-    // 16-block-as-lane group is ONE 16-lane strip (half_lanes 16, integer_core_lmul
-    // "m1", f32m4 accumulator). Otherwise -- VLEN128 RVV1.0 -- integer_core_lmul is
-    // left unset (the fractional mf2 default) with the capability-derived strip
-    // width (8 @VLEN128 -> two strips). numHalves == weight_interleave / half_lanes
-    // is the disjoint-strip count, and the region carries ONE per-strip vector
-    // accumulator per strip (1 for the wide one-strip form, 2 @VLEN128 mf2).
-    std::int64_t emittedHalfLanes = isWideCore ? kWeightInterleave : halfLanes;
-    bool isM1 = isWideCore;
+    // On RVV0.7.1 the repack core is the WHOLE-LMUL chain (i8m1 -> i16m2 ->
+    // i32m4 -> f32m4): no fractional LMUL, so the 16-block-as-lane group is ONE
+    // 16-lane strip (half_lanes 16, integer_core_lmul "m1", f32m4 accumulator).
+    // RVV1.0 leaves integer_core_lmul unset (the fractional mf2 default), with the
+    // capability-derived strip width (8 @VLEN128 -> two strips, 16 @VLEN256 ->
+    // one). numHalves == weight_interleave / half_lanes is the disjoint-strip
+    // count, and the region carries ONE per-strip vector accumulator per strip.
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
     std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
     // The per-strip accumulator + per-strip integer sumi share the ONE LMUL rung:
     // f32m4/i32m4 for the m1 whole-LMUL chain, f32m2/i32m2 for the mf2 fractional
@@ -480,12 +439,10 @@ private:
   // the mul_mat caller and carries only column_count); the bridge MATERIALIZES
   // those two runtime ABI values -- the honest "the compiler materializes the GEMM
   // ABI the internalized nest requires" story, exactly as it materializes the x16
-  // weight layout. The whole-LMUL core anchor (integer_core_lmul = "m1",
-  // half_lanes = 16, numHalves 1, f32m4, columnsPerPass 1) is pinned whenever the
-  // wide core is selected (isWideCore): RVV0.7.1 (no fractional LMUL) AND VLEN >=
-  // 256 RVV1.0 (the fully-fed wide layout variant). Otherwise -- VLEN128 RVV1.0 --
+  // weight layout. On RVV0.7.1 the whole-LMUL core anchor (integer_core_lmul = "m1",
+  // half_lanes = 16, numHalves 1, f32m4, columnsPerPass 1) is pinned; on RVV1.0
   // integer_core_lmul is unset (the fractional mf2 default: half_lanes 8 -> two
-  // 8-lane strips, f32m2, columnsPerPass 4).
+  // 8-lane strips at VLEN128, f32m2, columnsPerPass 4).
   //
   // SAFETY (NOT a latent miscompile): the emitted kernel reads x16 weights /
   // q8_0x4 activations but the abstract op carries PLAIN weights / q8_0, so this
@@ -497,20 +454,19 @@ private:
   mlir::LogicalResult
   lowerToRepackGemm(tcrvrvv::GgmlQuantContractionOp op,
                     const pluginrvv::ContractionSelection &selection,
-                    std::int64_t halfLanes, bool isWideCore) {
+                    std::int64_t halfLanes, bool isRVV0p7) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
 
-    // When the wide core is selected (isWideCore: RVV0.7.1 OR VLEN >= 256), the
-    // repack core is the WHOLE-LMUL chain (no fractional LMUL), so the
-    // 16-block-as-lane group is ONE 16-lane strip (half_lanes 16, integer_core_lmul
-    // "m1", f32m4 accumulator, columnsPerPass 1). Otherwise -- VLEN128 RVV1.0 --
-    // integer_core_lmul is unset (the fractional mf2 default) with the
-    // capability-derived strip width, folding all activation_interleave columns in
+    // On RVV0.7.1 the repack core is the WHOLE-LMUL chain (no fractional LMUL), so
+    // the 16-block-as-lane group is ONE 16-lane strip (half_lanes 16,
+    // integer_core_lmul "m1", f32m4 accumulator, columnsPerPass 1). RVV1.0 leaves
+    // integer_core_lmul unset (the fractional mf2 default) with the
+    // capability-derived strip width and folds all activation_interleave columns in
     // ONE pass (columnsPerPass 4). numHalves == weight_interleave / half_lanes.
-    std::int64_t emittedHalfLanes = isWideCore ? kWeightInterleave : halfLanes;
-    bool isM1 = isWideCore;
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
     llvm::StringRef accLmul = isM1 ? "m4" : "m2";
     mlir::Type f32AccType =
         tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
