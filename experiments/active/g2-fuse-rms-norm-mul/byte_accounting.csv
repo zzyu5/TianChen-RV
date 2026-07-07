@@ -1,0 +1,16 @@
+scope,item,unit,unfused,fused,eliminated,pct_of_scope,note
+intermediate_tensor_y,y_store_rms_norm_writes,bytes,4*n,0,4*n,,n=ne00=row_len=n_embd; f32=4B
+intermediate_tensor_y,y_reload_mul_reads,bytes,4*n,0,4*n,,the round-trip other half
+intermediate_tensor_y,TOTAL,bytes,8*n,0,8*n,100%,entire intermediate tensor traffic gone
+intermediate_tensor_y,y_scratch_footprint,bytes,4*n,0,4*n,,buffer never materialized (footprint not bandwidth)
+normalize_mul_stage,read_x,bytes,4*n,4*n,0,,
+normalize_mul_stage,write_y_intermediate,bytes,4*n,0,4*n,,
+normalize_mul_stage,read_y_intermediate,bytes,4*n,0,4*n,,
+normalize_mul_stage,read_w,bytes,4*n,4*n,0,,
+normalize_mul_stage,write_z,bytes,4*n,4*n,0,,
+normalize_mul_stage,STAGE_TOTAL,bytes,20*n,12*n,8*n,40%,excludes shared Sx2 reduce read of x
+full_kernel,INCL_Sx2_reduce_read_x,bytes,24*n,16*n,8*n,33%,Sx2 reduce reads x once in BOTH paths
+emit_op_census_per_strip,vle32_load,ops,3,2,1,,x+y+w -> x+w ; -1 = y reload (call_opaque only)
+emit_op_census_per_strip,vse32_store,ops,2,1,1,,y+z -> z ; -1 = y store (call_opaque only)
+illustrative_n_embd_4096,intermediate_eliminated_per_row,bytes,32768,0,32768,,8*4096=32 KiB per rms_norm->mul per token (NOT measured)
+illustrative_llama_32L,intermediate_eliminated_per_token,bytes,2129920,0,2129920,,65 norms/token x 32 KiB ~= 2.03 MiB/token (arithmetic projection [NG-4] pending-board)

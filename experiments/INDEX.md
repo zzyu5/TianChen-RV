@@ -5,12 +5,13 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**22 cells** (active=7, sealed=10, archive=5).
+**23 cells** (active=8, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
+| active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 3 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
 | active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
 | active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |

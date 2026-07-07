@@ -1,0 +1,35 @@
+# G2 [FUSE] rms_norm->mul — emit-level memory-op census (empirical, read-only)
+#
+# Produced read-only from the already-built binary (no rebuild, no git write):
+#   $B/tcrv-opt $T --tcrv-rvv-lower-to-emitc | grep 'call_opaque "__riscv_..."'
+# where B=build/bin, T=test/Conversion/RVV/rvv-to-emitc-typed-elementwise-rms-norm-mul-fused-epilogue-loop-body.mlir
+# tcrv-opt build/bin mtime:
+#   2026-07-07 21:14:45.998467624 +0800  /home/kingdom/phdworks/TianchenRV/build/bin/tcrv-opt
+#
+## FUSED kernel strip (call_opaque only) — ONE fused normalize+mul pass
+  vle32_v_f32m8 (load)      = 2   [x, w]
+  vse32_v_f32m8 (store)     = 1   [z only — the SINGLE fused store]
+  vfmul_vf_f32m8 (normalize)= 1   [vx*scale -> vy, register-kept]
+  vfmul_vv_f32m8 (fused mul)= 1   [vy*vw -> vz ; vy is FIRST operand]
+#
+## UNFUSED plain rms_norm PRODUCER strip (epilogue region stripped, re-emit) — kernel 1 of 2
+  vle32_v_f32m8 (load)      = 1   [x]
+  vse32_v_f32m8 (store)     = 1   [y — the INTERMEDIATE tensor store that fusion elides]
+  vfmul_vf_f32m8 (normalize)= 1
+  vfmul_vv_f32m8            = 0
+#
+# UNFUSED kernel 2 (the separate ggml_mul TU, NOT in the fused IR) does: vle32(y), vle32(w), vfmul_vv, vse32(z)
+# => the y[] reload (vle32) lives there. Fusion removes BOTH the y store (k1) and the y reload (k2).
+#
+## FUSED strip intrinsic trace (call_opaque, in emit order)
+  "__riscv_vle32_v_f32m8"
+  "__riscv_vfmul_vf_f32m8"
+  "__riscv_vle32_v_f32m8"
+  "__riscv_vfmul_vv_f32m8"
+  "__riscv_vse32_v_f32m8"
+#
+## tracer lit verdicts (read-only, tcrv-opt+FileCheck; see lit RUN header)
+  POSITIVE (fused dataflow + single store): PASS
+  NEG BADMULKIND (kind bound):        PASS (fail-closed)
+  NEG BADCHAINLMUL (LMUL tie):        PASS (fail-closed)
+  NEG BADOUTPUT (single fused dest):  PASS (fail-closed)

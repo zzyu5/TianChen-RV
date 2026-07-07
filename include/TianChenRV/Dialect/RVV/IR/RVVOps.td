@@ -8713,7 +8713,7 @@ def ElementwiseSiluMapOp
 
 def ElementwiseRmsNormReduceCoreOp
     : TCRVRVV_Op<"elementwise_rms_norm_reduce_core",
-    [TCRVEmitCLowerableOpInterface]> {
+    [NoTerminator, TCRVEmitCLowerableOpInterface]> {
   let summary =
       "generic typed RVV per-row f32 rms_norm reduce core brick (Sx^2 fold -> "
       "rsqrt -> normalize)";
@@ -8756,6 +8756,24 @@ def ElementwiseRmsNormReduceCoreOp
     reduction stays scalar-double regardless). Route ids, helper names, ABI
     strings, artifact names, status fields, and exact intrinsic spellings must
     not infer or choose this reduce's semantics.
+
+    OPTIONAL FUSED rms_norm->mul EPILOGUE: the brick carries an optional
+    single-block `$epilogue` region (0 blocks = plain rms_norm; 1 block = the
+    fused rms_norm->mul, llama's attn_norm / ffn_norm). When present, the block
+    carries ONE entry argument -- the per-strip normalized vector `vy` (an f32
+    RVV vector token at this brick's NORMALIZE strip LMUL) -- and ONE
+    tcrv_rvv.elementwise_mul_map brick that multiplies that vy by a loaded weight
+    strip and stores the fused result. The chain edge is a KERNEL-LEVEL declared
+    producer->consumer link (NOT a graph rewriter): the normalize strip's vy
+    flows STRAIGHT into the mul in the SAME emitted strip loop, so the
+    intermediate normalized row is NEVER stored to memory and NEVER reloaded (the
+    fused kernel elides the 2*n*4-byte normalize store + reload round-trip).
+    BYTE-EXACT: the register-kept vy is bit-identical to a store-then-reload of
+    the same f32 vector, and `vy * w[i]` is a bare per-lane fp32 multiply (no
+    FMA -- no add follows; no reduction). The entry-argument vy exists only in
+    the emitted C (the per-strip value is not a real SSA value at the typed-body
+    layer); the region is a declaration the reduce-body emitter splices into the
+    normalize strip.
   }];
 
   let arguments = (ins
@@ -8769,11 +8787,89 @@ def ElementwiseRmsNormReduceCoreOp
     OptionalAttr<StrAttr>:$strip_lmul
   );
   let results = (outs F64:$acc_next);
+  // The optional fused rms_norm->mul epilogue: 0 blocks (plain rms_norm, the
+  // unfused byte-identical path) or 1 block carrying the per-strip normalized
+  // vector entry argument + the tcrv_rvv.elementwise_mul_map consumer brick. The
+  // NoTerminator trait lets the block hold just the mul_map brick.
+  let regions = (region AnyRegion:$epilogue);
 
   let assemblyFormat =
     "$input `,` $output `,` $eps `,` $n `strip` $strip_index `acc` $acc "
     "attr-dict `:` type($input) `,` type($output) `,` type($eps) `,` "
-    "type($n) `,` type($strip_index) `,` type($acc) `->` type($acc_next)";
+    "type($n) `,` type($strip_index) `,` type($acc) `->` type($acc_next) "
+    "(`epilogue` $epilogue^)?";
+  let hasVerifier = 1;
+}
+
+def ElementwiseMulMapOp
+    : TCRVRVV_Op<"elementwise_mul_map",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-strip f32 mul epilogue brick (z[i] = vy[i] * w[i]); "
+      "the fused rms_norm->mul consumer";
+  let description = [{
+    Records ONE strip's f32 elementwise multiply of a producer's per-strip
+    NORMALIZED vector by a weight row -- the per-strip CORE of ggml's
+    `ggml_vec_mul_f32` (`z[i] = x[i] * y[i]`; vec.h) running as the EPILOGUE of a
+    fused rms_norm->mul (llama's attn_norm / ffn_norm: `ggml_rms_norm` followed
+    immediately by `ggml_mul` against the learned weight vector) -- as ONE bounded
+    generic plugin-local typed RVV dataflow step: the mul-family epilogue
+    primitive of the forward-elementwise scaffold (the consumer sibling of the
+    map-family tcrv_rvv.elementwise_scale_map / tcrv_rvv.elementwise_silu_map and
+    the reduce-family tcrv_rvv.elementwise_rms_norm_reduce_core bricks).
+
+    It is carried inside the OPTIONAL `$epilogue` region of the producer
+    tcrv_rvv.elementwise_rms_norm_reduce_core brick. The producer's VECTORIZED
+    normalize strip computes the per-strip normalized vector `vy = vx * scale`
+    (a bare per-lane vfmul_vf); this brick loads the weight strip `vw = w[i]` and
+    stores `z[i] = vy * w[i]`. The KEY fusion fact: the intermediate normalized
+    row is NEVER stored to memory and NEVER reloaded -- `vy` stays
+    register-resident and flows straight into this multiply in the SAME emitted
+    strip loop, so the fused kernel elides the producer's normalize store + the
+    consumer's reload (2*n*4 bytes of DRAM round-trip). BYTE-EXACTNESS is
+    UNCONDITIONAL: the register-kept `vy` is bit-identical to a store-then-reload
+    of the same f32 vector; `vy * w[i]` is a bare per-lane fp32 multiply (no FMA,
+    since no add follows -- so -ffp-contract cannot perturb it; no cross-lane
+    reduction, so the LMUL / tail / strip-count are correctness-free resource
+    knobs); and the mul runs at the SAME LMUL anchor as the producer's normalize
+    strip, so `vy` is consumed at its native width.
+
+    The `chain` operand is the ANTI-BYPASS chain tie: it MUST be the enclosing
+    `$epilogue` region's block argument 0 -- the per-strip normalized vector (an
+    f32 RVV vector token at the producer's strip LMUL, realized as the C `vy`
+    variable in the emitted strip loop; it does not exist as a real SSA value at
+    the typed-body layer because the per-strip value only lives inside the emitted
+    for-loop). Binding `chain` to that block arg proves the consumer eats the
+    producer's per-strip result, NOT a memory reload. The `strip_index` operand
+    is the SECOND anti-bypass tie: it MUST be the enclosing
+    tcrv_rvv.typed_elementwise_loop_body's induction variable (region argument 0),
+    so the emit addresses `weight + strip_index` / `output + strip_index`, not the
+    loop-invariant strip 0. The `output` operand MUST be the producer reduce
+    core's `output` (the single fused destination z[] buffer).
+
+    The op consumes the per-strip normalized vector `chain`, the read-only f32
+    weight base pointer `weight` (`const float *`, ggml's mul y[] = the learned
+    weight row), the written f32 output base pointer `output` (`float *`, ggml's
+    z[] fused result), the runtime element count `n`, and the loop's
+    `strip_index`. It has NO result -- the per-strip store is the sink. The
+    bounded surface `kind` is limited to "elementwise_mul_map". Route ids, helper
+    names, ABI strings, artifact names, status fields, and exact intrinsic
+    spellings must not infer or choose this map's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$chain,
+    AnyType:$weight,
+    AnyType:$output,
+    AnyType:$n,
+    Index:$strip_index,
+    StrAttr:$kind
+  );
+
+  let assemblyFormat =
+    "$chain `,` $weight `,` $output `,` $n `strip` $strip_index attr-dict `:` "
+    "type($chain) `,` type($weight) `,` type($output) `,` type($n) `,` "
+    "type($strip_index)";
   let hasVerifier = 1;
 }
 

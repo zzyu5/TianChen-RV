@@ -389,16 +389,39 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
             return {remaining};
           });
 
-      // const float *xp = x + i;  float *yp = y + i;
+      // FUSED rms_norm->mul EPILOGUE (L2 region splice): if the reduce core
+      // carries a tcrv_rvv.elementwise_mul_map brick in its $epilogue region, the
+      // normalized vy is multiplied by the weight strip and stored to the fused
+      // output z[] IN REGISTER -- the intermediate normalized row is NEVER stored
+      // to memory and NEVER reloaded (the producer's normalize store + the
+      // consumer's reload of norm[] are both elided; -2*n*4 bytes of DRAM
+      // round-trip). BYTE-EXACT: the register-kept vy is bit-identical to a
+      // store-then-reload of the same f32 vector, and `vy * w[i]` is a bare
+      // per-lane fp32 multiply at the SAME LMUL anchor (no FMA -- no add follows;
+      // no reduction). Detected up front so the UNFUSED path keeps the pre-fusion
+      // op ORDER byte-identical (the y[] store pointer is materialized in its
+      // original position, before the strip load).
+      tcrvrvv::ElementwiseMulMapOp mulMap;
+      rmsCore.getEpilogue().walk(
+          [&](tcrvrvv::ElementwiseMulMapOp o) { mulMap = o; });
+
+      // const float *xp = x + i;
       mlir::Value xPtr =
           rewriter.create<emitc::AddOp>(loc, inputPtrType, input, normIdx);
       mlir::Value xLoadPtr =
           rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xPtr)
               .getResult();
-      mlir::Value yPtr =
-          rewriter.create<emitc::AddOp>(loc, outputPtrType, outputBuf, normIdx);
-      mlir::Value yStorePtr =
-          rewriter.create<emitc::CastOp>(loc, floatPtrType, yPtr).getResult();
+
+      // UNFUSED plain rms_norm: float *yp = y + i; materialized HERE (byte-exact
+      // to the pre-fusion emit). The fused path never touches y[]; it computes
+      // its z[] store pointer after the multiply instead.
+      mlir::Value yStorePtr;
+      if (!mulMap) {
+        mlir::Value yPtr = rewriter.create<emitc::AddOp>(loc, outputPtrType,
+                                                         outputBuf, normIdx);
+        yStorePtr =
+            rewriter.create<emitc::CastOp>(loc, floatPtrType, yPtr).getResult();
+      }
 
       // vfloat32m<L>_t vx = __riscv_vle32_v_f32m<L>(xp, vl);
       std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
@@ -406,16 +429,56 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
                                       mlir::ValueRange{xLoadPtr, bodyVL}, opName,
                                       role);
 
-      // vfloat32m<L>_t vy = __riscv_vfmul_vf_f32m<L>(vx, scale, vl);
+      // vfloat32m<L>_t vy = __riscv_vfmul_vf_f32m<L>(vx, scale, vl);  normalize.
       std::string mulCallee = riscvIntrinsicName("vfmul_vf", 32, lmul, "f32");
       mlir::Value vy = emitOpaqueCall(rewriter, loc, f32VecType, mulCallee,
                                       mlir::ValueRange{vx, scale, bodyVL}, opName,
                                       role);
 
-      // __riscv_vse32_v_f32m<L>(yp, vy, vl);
       std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
-      emitOpaqueCallVoid(rewriter, loc, storeCallee,
-                         mlir::ValueRange{yStorePtr, vy, bodyVL}, opName, role);
+
+      if (mulMap) {
+        mlir::Value weight = valueMap.lookup(mulMap.getWeight());
+        mlir::Value zOut = valueMap.lookup(mulMap.getOutput());
+        if (!weight || !zOut)
+          return rewriter.notifyMatchFailure(
+              mulMap, "fused mul epilogue ABI operand unmapped");
+        llvm::StringRef mulOpName = mulMap.getTCRVEmitCLowerableSourceOpName();
+        llvm::StringRef mulRole = mulMap.getTCRVEmitCLowerableSourceRole();
+        rewriter.create<emitc::VerbatimOp>(
+            loc, routeSourceComment(mulOpName, mulRole));
+
+        // const float *wp = w + i;  vfloat32m<L>_t vw = __riscv_vle32(wp, vl);
+        mlir::Value wPtr = rewriter.create<emitc::AddOp>(loc, weight.getType(),
+                                                         weight, normIdx);
+        mlir::Value wLoadPtr =
+            rewriter.create<emitc::CastOp>(loc, constFloatPtrType, wPtr)
+                .getResult();
+        mlir::Value vw = emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
+                                        mlir::ValueRange{wLoadPtr, bodyVL},
+                                        mulOpName, mulRole);
+
+        // vfloat32m<L>_t vz = __riscv_vfmul_vv_f32m<L>(vy, vw, vl);  the fused
+        // multiply -- vy flows straight in, no memory round-trip.
+        std::string mulVVCallee = riscvIntrinsicName("vfmul", 32, lmul, "f32");
+        mlir::Value vz = emitOpaqueCall(rewriter, loc, f32VecType, mulVVCallee,
+                                        mlir::ValueRange{vy, vw, bodyVL},
+                                        mulOpName, mulRole);
+
+        // float *zp = z + i;  __riscv_vse32_v_f32m<L>(zp, vz, vl);
+        mlir::Value zPtr = rewriter.create<emitc::AddOp>(loc, zOut.getType(),
+                                                         zOut, normIdx);
+        mlir::Value zStorePtr =
+            rewriter.create<emitc::CastOp>(loc, floatPtrType, zPtr).getResult();
+        emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                           mlir::ValueRange{zStorePtr, vz, bodyVL}, mulOpName,
+                           mulRole);
+      } else {
+        // __riscv_vse32_v_f32m<L>(yp, vy, vl);  (plain rms_norm normalize store;
+        // byte-identical to the pre-fusion emit).
+        emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                           mlir::ValueRange{yStorePtr, vy, bodyVL}, opName, role);
+      }
     }
 
     return mlir::success();

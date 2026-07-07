@@ -5855,6 +5855,13 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // normalize are re-emitted by the loop op's reduce branch. The union stays
       // strictly MORE permissive (zero block-dot / map regression).
       tcrv::rvv::ElementwiseRmsNormReduceCoreOp,
+      // The fused rms_norm->mul EPILOGUE consumer brick, carried inside the
+      // rms_norm reduce core's optional $epilogue region. The reduce-body emitter
+      // splices its per-lane vfmul_vv into the normalize strip (the register-kept
+      // vy flows straight in; the intermediate normalized row never touches
+      // memory). The union stays strictly MORE permissive (zero block-dot / map /
+      // reduce regression).
+      tcrv::rvv::ElementwiseMulMapOp,
       // The SECOND forward-elementwise REDUCE core brick (soft_max), reusing the
       // SAME loop op + terminator + validator + reduce_map_model "reduce", EXCEPT
       // the loop-carried accumulator is the f64m1 WIDENING vector (vfwredusum Σe^x

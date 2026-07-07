@@ -8689,6 +8689,128 @@ mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
            << "requires acc to be the enclosing loop's loop-carried accumulator "
               "(region argument 1), so the emit folds the carried Σx² value";
 
+  // OPTIONAL fused rms_norm->mul epilogue region: 0 blocks (plain rms_norm, the
+  // unfused byte-identical path) or 1 block carrying exactly ONE entry argument
+  // -- the per-strip normalized vector `vy` at this brick's NORMALIZE strip LMUL
+  // -- plus exactly ONE tcrv_rvv.elementwise_mul_map consumer brick. The chain
+  // block arg is a declaration the reduce-body emitter binds to the C `vy`
+  // variable (the per-strip value is not a real SSA value at the typed-body
+  // layer). The mul_map brick's own verifier pins the chain/strip_index/output
+  // anti-bypass ties.
+  mlir::Region &epilogue = getEpilogue();
+  if (!epilogue.empty()) {
+    if (!llvm::hasSingleElement(epilogue))
+      return emitOpError()
+             << "the optional fused rms_norm->mul epilogue region must hold at "
+                "most one block";
+    mlir::Block &epiBlock = epilogue.front();
+    if (epiBlock.getNumArguments() != 1)
+      return emitOpError()
+             << "the fused epilogue region must carry exactly one block argument: "
+                "the per-strip normalized vector chain (the producer's vy)";
+    llvm::StringRef stripLmul = getStripLmul().value_or("m8");
+    if (!isGenericRVVVectorType(epiBlock.getArgument(0).getType(),
+                                getRVVSEW32Bits(), stripLmul))
+      return emitOpError()
+             << "the fused epilogue chain block argument must be an f32 RVV vector "
+                "at the normalize strip LMUL \""
+             << stripLmul << "\" (the register-kept vy)";
+    if (epiBlock.getOperations().size() != 1 ||
+        epiBlock.getOps<ElementwiseMulMapOp>().empty())
+      return emitOpError()
+             << "the fused epilogue region must carry exactly one "
+                "tcrv_rvv.elementwise_mul_map consumer brick";
+  }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult ElementwiseMulMapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind. The mul epilogue runs at
+  // the producer's normalize strip LMUL (it consumes the register-kept vy at its
+  // native width), so there is NO independent strip_lmul knob this brick -- the
+  // ONLY allowed attr is "kind". A forbidden local element_count/SEW/LMUL/policy
+  // attr or an unexpected name fails closed (I7).
+  auto isAllowedMulAttr = [](llvm::StringRef name) { return name == "kind"; };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_mul_map keeps SEW/LMUL/policy on "
+                "setvl/with_vl and rejects deleted local element_count metadata";
+    if (!isAllowedMulAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded mul-map attribute 'kind'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_mul_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_mul_map\" for the "
+              "bounded per-strip f32 mul epilogue brick";
+
+  // The weight is read-only (const float *), the output is written (float *) --
+  // the mul reads w[] (the learned weight row) and writes z[] (the fused result).
+  RuntimeABIValueOp weightBinding =
+      getWeight().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the weight operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml mul weight row w[])";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml z[] fused rms_norm->mul output buffer)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // ANTI-BYPASS (chain): chain MUST be the enclosing $epilogue region's block
+  // argument 0 (the producer's per-strip vy), so the emit multiplies the
+  // register-kept normalized vector, not a memory reload. The producer is the
+  // reduce core that owns this epilogue region.
+  auto producer = op->getParentOfType<ElementwiseRmsNormReduceCoreOp>();
+  mlir::Region *epilogue = op->getParentRegion();
+  if (!producer || !epilogue || epilogue != &producer.getEpilogue())
+    return emitOpError()
+           << "must be carried inside the $epilogue region of a "
+              "tcrv_rvv.elementwise_rms_norm_reduce_core producer";
+  mlir::Block &epiBlock = epilogue->front();
+  if (epiBlock.getNumArguments() < 1 || getChain() != epiBlock.getArgument(0))
+    return emitOpError()
+           << "requires chain to be the enclosing epilogue region's per-strip "
+              "normalized vector (block argument 0), so the emit multiplies the "
+              "register-kept vy, not a memory reload (anti-bypass chain tie)";
+
+  // The output MUST be the producer reduce core's output buffer: a single fused
+  // destination z[], so the norm[] intermediate never exists.
+  if (getOutput() != producer.getOutput())
+    return emitOpError()
+           << "requires output to be the producer reduce core's output buffer "
+              "(the single fused rms_norm->mul destination z[])";
+
+  // ANTI-BYPASS (strip_index): strip_index MUST be the enclosing loop body's
+  // induction variable (region argument 0), so the emit addresses weight/output
+  // + strip_index, not the loop-invariant strip 0.
+  auto loop = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!loop)
+    return emitOpError()
+           << "must be nested (via the reduce core's epilogue) under a "
+              "tcrv_rvv.typed_elementwise_loop_body";
+  mlir::Block &loopBlock = loop.getBody().front();
+  if (loopBlock.getNumArguments() < 1 ||
+      getStripIndex() != loopBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction variable "
+              "(region argument 0), not the loop-invariant strip 0 (anti-bypass)";
+
   return mlir::success();
 }
 
