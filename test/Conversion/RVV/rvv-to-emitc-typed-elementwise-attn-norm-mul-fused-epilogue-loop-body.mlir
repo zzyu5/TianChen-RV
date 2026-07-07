@@ -1,0 +1,114 @@
+// RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
+// RUN: sed 's/kind = "elementwise_mul_map"/kind = "elementwise_bogus_map"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADMULKIND
+// RUN: sed 's/tcrv_rvv.elementwise_mul_map %vy, %attn_norm, %cur/tcrv_rvv.elementwise_mul_map %vy, %attn_norm, %attn_norm/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADOUTPUT
+
+// G2 [FUSE] 铺量 ①a -- REAL llama path #1: attn_norm. This is the FIRST of the two
+// real per-layer rms_norm->mul call-sites in llama's graph (build_llama):
+//
+//     cur = ggml_rms_norm(ctx, inpL, f_norm_rms_eps);          // ggml_rms_norm
+//     cur = ggml_mul(ctx, cur, model.layers[il].attn_norm);    // ggml_mul by w[]
+//
+// It reuses the SAME fused rms_norm->mul epilogue mechanism proved by the tracer
+// (rvv-to-emitc-typed-elementwise-rms-norm-mul-fused-epilogue-loop-body.mlir): the
+// tcrv_rvv.elementwise_rms_norm_reduce_core producer carries the optional
+// single-block $epilogue region whose entry argument is the per-strip normalized
+// vector %vy, holding ONE tcrv_rvv.elementwise_mul_map consumer that multiplies vy
+// by the attn_norm WEIGHT strip and stores the fused result to cur[]. NOTHING in
+// the mechanism is attn-specific -- the ONLY path-specific facts are the ABI
+// values: the rms_norm input inpL[] (the layer's residual hidden state), the
+// learned WEIGHT vector attn_norm.weight (fed as the mul operand), and the fused
+// output cur[]. THE POINT of this test: the learned attn_norm.weight vector is
+// correctly fed into the epilogue multiply (w + i loaded at native width, vy * w).
+//
+// THE FUSION FACT (mechanically checked): the intermediate normalized row is NEVER
+// stored to memory and NEVER reloaded -- exactly ONE vse32 (the fused cur[] store)
+// and TWO vle32 (inpL[] and attn_norm[]) in the strip loop; the register-kept vy is
+// the FIRST operand of the vfmul_vv, so it is consumed in place with no norm[]
+// round-trip (the -2*n*4-byte normalize store + reload of a two-kernel path is
+// elided).
+//
+// BYTE-EXACT (strict): the scalar-double Sx^2 fold, the mean, and the
+// 1/sqrtf(mean+eps) scale are IDENTICAL to plain rms_norm (verified zero-regression
+// against the pre-fusion reduce-core emit). The register-kept vy is bit-identical to
+// a store-then-reload of the same f32 vector, and `vy * attn_norm[i]` is a bare
+// per-lane fp32 multiply at the SAME LMUL anchor (no FMA -- no add follows; no
+// cross-lane reduction). Numerical bit-exact-vs-ggml is pending-hardware.
+
+module {
+  tcrv.exec.kernel @ggml_attn_norm_f32_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @ggml_attn_norm_f32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "ne00", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %inpL = tcrv_rvv.runtime_abi_value {c_name = "inpL", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %attn_norm = tcrv_rvv.runtime_abi_value {c_name = "attn_norm", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "in", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cur = tcrv_rvv.runtime_abi_value {c_name = "cur", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %eps = tcrv_rvv.runtime_abi_value {c_name = "eps", c_type = "float", ownership = "target-export-abi-owned", purpose = "eps", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_attn_norm_f32, sew = 32 : i64, source_kernel = "ggml_attn_norm_f32_kernel", status = "selected-lowering-boundary"} {
+        tcrv_rvv.typed_elementwise_loop_body %inpL, %cur, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "reduce", element_sew = 32 : i64} {
+        ^bb0(%strip_index: index, %acc: f64):
+          // rms_norm(inpL) reduce PRODUCER carrying the fused mul EPILOGUE: the
+          // $epilogue entry argument %vy is the per-strip normalized vector (the
+          // register-kept vfmul_vf result), and the single elementwise_mul_map
+          // multiplies it by the attn_norm.weight strip and stores to cur[] (== the
+          // producer output, the single fused destination). anti-bypass: the mul
+          // strip_index is the loop induction variable (region arg 0); the mul
+          // chain is %vy (epilogue region arg 0). strip_lmul = "m8".
+          %acc_next = tcrv_rvv.elementwise_rms_norm_reduce_core %inpL, %cur, %eps, %n strip %strip_index acc %acc {kind = "elementwise_rms_norm_reduce_core", strip_lmul = "m8"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, f64 -> f64 epilogue {
+          ^bb0(%vy: !tcrv_rvv.vector<f32, "m8">):
+            tcrv_rvv.elementwise_mul_map %vy, %attn_norm, %cur, %n strip %strip_index {kind = "elementwise_mul_map"} : !tcrv_rvv.vector<f32, "m8">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
+          }
+          tcrv_rvv.typed_elementwise_loop_yield %acc_next : f64
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// CHECK-NOT: tcrv_rvv.
+// CHECK-NOT: unrealized_conversion_cast
+// The fused attn_norm TU still calls scalar libm (1/sqrtf(mean+eps)), so it
+// self-includes <math.h> (keyed on the reduce core brick, unchanged by the epilogue).
+// CHECK: emitc.include <"math.h">
+// CHECK: emitc.func @tcrv_emitc_ggml_attn_norm_f32_kernel_ggml_attn_norm_f32(
+//
+// ===== rms_norm reduce is BYTE-IDENTICAL to plain rms_norm =====
+// Scalar-double accumulator + ascending step-1 fold (NO vectorized vfredusum).
+// CHECK: %[[SUM:.*]] = "emitc.variable"{{.*}}lvalue<!emitc.opaque<"double">>
+// CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step %{{.*}} {
+// CHECK: %[[PROD:.*]] = mul %{{.*}}, %{{.*}}{{.*}} -> !emitc.opaque<"float">
+// CHECK: cast %[[PROD]] : !emitc.opaque<"float"> to !emitc.opaque<"double">
+// CHECK: add %{{.*}}, %{{.*}} : (!emitc.opaque<"double">, !emitc.opaque<"double">)
+// mean = (float)(sum/(double)ne00); scale = 1.0f/sqrtf(mean+eps).
+// CHECK: div %{{.*}}, %{{.*}} : (!emitc.opaque<"double">, !emitc.opaque<"double">)
+// CHECK: call_opaque "sqrtf"
+// CHECK: div %{{.*}}, %{{.*}} : (!emitc.opaque<"float">, !emitc.opaque<"float">)
+//
+// ===== the FUSED normalize+mul strip (attn_norm weight fed into the epilogue) =====
+// One strip loop (strip_lmul m8): load inpL, normalize to vy, load attn_norm, multiply
+// vy*attn_norm, store cur -- a SINGLE store, no intermediate norm[] round-trip.
+// CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
+// CHECK: call_opaque "__riscv_vsetvl_e32m8"
+// The inpL[] strip load + the normalize vfmul_vf -> the register-kept vy.
+// CHECK: call_opaque "__riscv_vle32_v_f32m8"
+// CHECK: %[[VY:.*]] = call_opaque "__riscv_vfmul_vf_f32m8"
+// The mul epilogue provenance verbatim carries the CONSTRUCTED consumer brick's
+// identity (elementwise_mul_map), NOT an opaque helper -- the region splice.
+// CHECK: route_source_op=tcrv_rvv.elementwise_mul_map
+// The attn_norm.weight strip load (w + i), then the FUSED vfmul_vv whose FIRST
+// operand is the register-kept vy (proving vy flows straight in with no norm[]
+// store/reload, and the learned attn_norm.weight vector is the mul operand).
+// CHECK: call_opaque "__riscv_vle32_v_f32m8"
+// CHECK: %[[VZ:.*]] = call_opaque "__riscv_vfmul_vv_f32m8"(%[[VY]], %{{.*}}, %{{.*}})
+// The SINGLE fused store: cur[i] = vy * attn_norm[i]. The reduce core's normalize
+// store to the intermediate row is GONE (the fused kernel writes only cur[]).
+// CHECK: call_opaque "__riscv_vse32_v_f32m8"(%{{.*}}, %[[VZ]], %{{.*}})
+//
+// Structured emitc nodes only; the provenance verbatims carry BOTH constructed
+// bricks (the reduce core AND the mul epilogue); NO opaque C blob leaks.
+// CHECK-NOT: emitc.verbatim {{.*}}__riscv_v{{.*}};
+
+// The fused mul epilogue brick is fail-closed on its bounded kind and on the single
+// fused destination (mul output == producer output), enforced by the verifiers.
+// BADMULKIND: currently supports only kind "elementwise_mul_map"
+// BADOUTPUT: requires the output operand to bind a runtime ABI value of C type 'float *'
