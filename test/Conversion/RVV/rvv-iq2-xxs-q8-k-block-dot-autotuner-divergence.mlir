@@ -10,20 +10,23 @@
 // monolith op.
 //
 // The grid-core brick below carries NO integer_core_lmul knob -- the compiler must
-// compute it. iq2_xxs's grid+sign vluxei16 gather + dot is ALWAYS one 32-lane sub-block
-// body (gather 4 u64 grid + 4 u64 sign entries as i64<anchor>, reinterpret to i8<anchor>,
-// fold the per-lane sign, ONE vwmul_vv_i16<2*anchor> + ONE vwredsum per sub-block). The
-// single vsetvl/vluxei16_v_i64<anchor> cover is correct ONLY at the whole-LMUL anchor
-// whose i8 strip VLMAX spans the 32-element sub-block at the derived minimum VLEN (a
-// single i64 is 8 bytes, so the 4-entry gather needs the i64 anchor whose VLMAX reaches 4
-// = the i8 view reaches 32). WHICH anchor that is MOVES with VLEN:
+// compute it. iq2_xxs's per-sub-block dot is a 32-lane grid+sign body (gather 4 u64 grid +
+// 4 u64 sign entries, reinterpret to i8<CORE>, fold the per-lane sign, ONE
+// vwmul_vv_i16<2*CORE> + ONE vwredsum per sub-block). The gather + config are now BATCHED
+// per sub-block PAIR at 2*CORE (i64<2*CORE> gather of 8 entries, i8<2*CORE> view/q8/fold),
+// with each 32-lane half recovered by a register-group vget i8<2*CORE>->i8<CORE> -- so the
+// per-sub-block dot widths (i8<CORE>, i16<2*CORE>) still track the SELECTED CORE anchor,
+// and the batched gather/vget/index widths track 2*CORE. The CORE anchor is the whole-LMUL
+// anchor whose i8 strip VLMAX spans the 32-element sub-block at the derived minimum VLEN.
+// WHICH core anchor that is MOVES with VLEN:
 //
 //   * at VLEN 128: only m2 spans it (e8m1 VLMAX 16 < 32) -> integer_core_lmul "m2"
-//     (i64m2 gather, i8m2 view, wide accumulator i16m4, u16mf2 index).
-//   * at VLEN 256: m1 also reaches 32 (and i64m1 VLMAX reaches the 4 grid entries);
-//     m1 TIES m2 on the capability-blind cost and the lighter footprint breaks the
-//     tie -> integer_core_lmul "m1" (i64m1 gather, i8m1 view, i16m2 acc, u16mf4
-//     index) -- exactly the m1-32-lane shape ggml's shipped _vl256 kernel uses.
+//     (per-sub-block i8m2 view + i16m4 product/vget-target; batched i64m4 gather, i8m4
+//     fold, u16m1 index).
+//   * at VLEN 256: m1 also reaches 32; m1 TIES m2 on the capability-blind cost and the
+//     lighter footprint breaks the tie -> integer_core_lmul "m1" (per-sub-block i8m1 view +
+//     i16m2 product/vget-target; batched i64m2 gather, i8m2 fold, u16mf2 index) -- the
+//     m1-32-lane CORE shape ggml's shipped _vl256 kernel uses.
 //
 // One capability fact (the REAL VLEN bits) -> the anchor FLIPS m2->m1. This is the
 // compiler SELECTING the shape from a capability fact, not a hand-set attr.
@@ -79,37 +82,48 @@ module {
 // STAMP-VLEN256-SAME: integer_core_lmul = "m1"
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 
-// ===================== VLEN128 (rv64gcv) — the m2 anchor ====================
-// The compiler SELECTED m2: vluxei16_v_i64m2 grid+sign gather, vreinterpret i8m2,
-// vmul_vv_i8m2 sign fold, vle8_v_i8m2 q8, vwmul_vv_i16m4, vwredsum_vs_i16m4_i32m1,
-// vle16_v_u16mf2 index.
+// ===================== VLEN128 (rv64gcv) — the m2 core anchor ===============
+// The compiler SELECTED m2 CORE: the sub-block dot is pair-BATCHED at 2*core = m4 --
+// vluxei16_v_i64m4 grid+sign gather (8 u64 entries = both sub-blocks), vreinterpret i8m4,
+// vmul_vv_i8m4 sign fold, vle8_v_i8m4 q8, then each 32-lane half recovered by a
+// register-group vget i8m4->i8m2 into the per-sub-block vwmul_vv_i16m4 +
+// vwredsum_vs_i16m4_i32m1; vle16_v_u16m1 index (the m1 EMUL of the m4 gather).
 // VLEN128: emitc.func @tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_ggml_vec_dot_iq2_xxs_q8_K(
-// VLEN128: call_opaque "__riscv_vle16_v_u16mf2"
-// VLEN128: call_opaque "__riscv_vluxei16_v_i64m2"
-// VLEN128: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
-// VLEN128: call_opaque "__riscv_vmul_vv_i8m2"
-// VLEN128: call_opaque "__riscv_vle8_v_i8m2"
+// VLEN128: call_opaque "__riscv_vle16_v_u16m1"
+// VLEN128: call_opaque "__riscv_vluxei16_v_i64m4"
+// VLEN128: call_opaque "__riscv_vreinterpret_v_i64m4_i8m4"
+// VLEN128: call_opaque "__riscv_vle8_v_i8m4"
+// VLEN128: call_opaque "__riscv_vmul_vv_i8m4"
+// VLEN128: call_opaque "__riscv_vget_v_i8m4_i8m2"
 // VLEN128: call_opaque "__riscv_vwmul_vv_i16m4"
 // VLEN128: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
-// VLEN128-NOT: call_opaque "__riscv_vluxei16_v_i64m1"
+// The m1-CORE batched shape (i64m2 gather / i16m2 product / i8m2->i8m1 vget / u16mf2 index)
+// NEVER appears -- the gather/product/vget/index widths all discriminate the m2 core.
+// VLEN128-NOT: call_opaque "__riscv_vluxei16_v_i64m2"
 // VLEN128-NOT: call_opaque "__riscv_vwmul_vv_i16m2"
-// VLEN128-NOT: call_opaque "__riscv_vle16_v_u16mf4"
+// VLEN128-NOT: call_opaque "__riscv_vget_v_i8m2_i8m1"
+// VLEN128-NOT: call_opaque "__riscv_vle16_v_u16mf2"
 // VLEN128: return
 
 // ===================== VLEN256 (rv64gcv_zvl256b) — the FLIP ==================
-// The compiler SELECTED m1: a BYTE-DIFFERENT kernel from the VLEN128 m2 shape. The gather
-// narrows to i64m1, the view to i8m1, the sign fold to vmul_vv_i8m1, the q8 load to i8m1,
-// the product to vwmul_vv_i16m2, the reduce to vwredsum_vs_i16m2_i32m1, and the index load
-// to u16mf4. This is the NON-NULL proof: the two VLENs do NOT emit the same bytes.
+// The compiler SELECTED m1 CORE: a BYTE-DIFFERENT kernel from the VLEN128 m2-core shape.
+// The pair-batched gather narrows to i64m2 (= 2*core), the view to i8m2, the sign fold to
+// vmul_vv_i8m2, the q8 load to i8m2, the per-sub-block vget to i8m2->i8m1, the product to
+// vwmul_vv_i16m2, the reduce to vwredsum_vs_i16m2_i32m1, and the index load to u16mf2.
+// This is the NON-NULL proof: the two VLENs do NOT emit the same bytes.
 // VLEN256: emitc.func @tcrv_emitc_ggml_vec_dot_iq2_xxs_q8_K_kernel_ggml_vec_dot_iq2_xxs_q8_K(
-// VLEN256: call_opaque "__riscv_vle16_v_u16mf4"
-// VLEN256: call_opaque "__riscv_vluxei16_v_i64m1"
-// VLEN256: call_opaque "__riscv_vreinterpret_v_i64m1_i8m1"
-// VLEN256: call_opaque "__riscv_vmul_vv_i8m1"
-// VLEN256: call_opaque "__riscv_vle8_v_i8m1"
+// VLEN256: call_opaque "__riscv_vle16_v_u16mf2"
+// VLEN256: call_opaque "__riscv_vluxei16_v_i64m2"
+// VLEN256: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
+// VLEN256: call_opaque "__riscv_vle8_v_i8m2"
+// VLEN256: call_opaque "__riscv_vmul_vv_i8m2"
+// VLEN256: call_opaque "__riscv_vget_v_i8m2_i8m1"
 // VLEN256: call_opaque "__riscv_vwmul_vv_i16m2"
 // VLEN256: call_opaque "__riscv_vwredsum_vs_i16m2_i32m1"
-// VLEN256-NOT: call_opaque "__riscv_vluxei16_v_i64m2"
+// The m2-CORE batched shape (i64m4 gather / i16m4 product / i8m4->i8m2 vget / u16m1 index)
+// NEVER appears -- the two VLENs diverge on every batched width.
+// VLEN256-NOT: call_opaque "__riscv_vluxei16_v_i64m4"
 // VLEN256-NOT: call_opaque "__riscv_vwmul_vv_i16m4"
-// VLEN256-NOT: call_opaque "__riscv_vle16_v_u16mf2"
+// VLEN256-NOT: call_opaque "__riscv_vget_v_i8m4_i8m2"
+// VLEN256-NOT: call_opaque "__riscv_vle16_v_u16m1"
 // VLEN256: return

@@ -41,9 +41,13 @@
 //
 // THE FLIP (L3 coverage): the front door now constructs this typed body as the SOLE
 // representation of the iq2_xxs vec_dot (the monolith op + emitter + verifier were
-// retired the same action). The emit is byte-identical to the retired monolith
-// (same grid/signs64 decls + per-super-block grid body helper, same facts, same order)
-// modulo the source-op provenance token + the func name. Numerical bit-exact-vs-ggml is
+// retired the same action). The per-super-block grid body now emits its sub-block dot in
+// the PAIR-BATCHED form (one wider i64m4 grid/sign gather + i8m4 q8 load/sign-fold per
+// sub-block pair, each 32-lane half recovered by a register-group vget into the UNCHANGED
+// per-sub-block vwmul_vv_i16m4 + vwredsum). This is a pure decode/gather/config rebuild:
+// the per-sub-block integer dot and the strict s0-then-s1 bsum order are byte-identical to
+// the retired monolith, so the numerical value is INTEGER byte-exact (associativity is
+// exact); only the gather/config widths differ. Numerical bit-exact-vs-ggml is
 // pending-hardware (ssh rvv), not tested here. This is additive: it never touches the
 // q4_K/q5_K DUAL, the q6_K SINGLE-vector, the q2_K scalar, nor the iq1_s/iq1_m/iq3_xxs
 // grid paths (their fold_model / brick branches are unchanged -- zero regression).
@@ -92,9 +96,10 @@ module {
 // VERIFY: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}} : f32
 // VERIFY-NOT: tcrv_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}}
 
-// The flip lowers the honest body to a REAL emitc.func -- the byte-exact
-// SCALAR-accumulator GRID-of-8 emit, byte-identical to the retired monolith (same
-// grid/signs64 decls + per-super-block grid body helper, same facts, same order) modulo
+// The flip lowers the honest body to a REAL emitc.func -- the INTEGER-byte-exact
+// SCALAR-accumulator GRID-of-8 emit (same grid/signs64 decls + per-super-block grid body
+// helper, same facts, same per-sub-block dot + strict bsum order as the retired monolith;
+// the sub-block gather/config are pair-BATCHED but the integer value is unchanged) modulo
 // the source-op provenance token + the func name.
 // EMIT: emitc.func @tcrv_emitc_iq2_xxs_super_block_grid_core_kernel_iq2_xxs_super_block_grid_core(
 // The 256-entry GRID-of-8 codebook + the DERIVED 1024-byte signs64 sign plane, emitted
@@ -132,17 +137,24 @@ module {
 // EMIT: bitwise_left_shift
 // EMIT: bitwise_or
 // EMIT: bitwise_right_shift
-// The HARDWARE vluxei16 grid+sign gather (m2 default): the uint16_t gridoff/signoff[4]
-// byte-offset arrays, vle16 the u16 indices (mf2 EMUL), TWO vluxei16_v_i64m2 gathers over
-// grid64 + signs64, each reinterpreted to i8m2, the vmul-onto-grid sign fold, signed
-// widening product, ONE vwredsum per sub-block, extract. NO scalar vmerge/vneg/vand/vmsne
+// The HARDWARE vluxei16 grid+sign gather, BATCHED per SUB-BLOCK PAIR (m2 core default ->
+// 2*core = m4 wide gather): ONE uint16_t gridoff/signoff[8] byte-offset array per pair
+// (4 slots per sub-block), vle16 the 8 u16 indices at the wider m1 EMUL ((16/64)*m4), TWO
+// vluxei16_v_i64m4 gathers over grid64 + signs64 (8 u64 entries = both sub-blocks), each
+// reinterpreted to i8m4 (64 grid / 64 sign bytes), ONE wider vle8_v_i8m4 q8 pair load +
+// ONE vmul-onto-grid i8m4 sign fold. Each 32-lane sub-block is then recovered from the
+// wide register via a register-group vget (i8m4 -> i8m2) and fed to the SAME per-sub-block
+// vwmul_vv_i16m4 + vwredsum (the Win-A wide<->core gearbox widths are UNCHANGED), so the
+// integer dot per sub-block is byte-identical while the gather + vsetvli config are hoisted
+// to the pair (16 gathers -> 8, halved vle16/vle8/vmul). NO scalar vmerge/vneg/vand/vmsne
 // (the sign comes from the signs64 gather, not a per-group scalar fold).
-// EMIT: "emitc.variable"() {{.*}} -> !emitc.array<4x!emitc.opaque<"uint16_t">>
-// EMIT: call_opaque "__riscv_vle16_v_u16mf2"
-// EMIT: call_opaque "__riscv_vluxei16_v_i64m2"
-// EMIT: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
-// EMIT: call_opaque "__riscv_vle8_v_i8m2"
-// EMIT: call_opaque "__riscv_vmul_vv_i8m2"
+// EMIT: "emitc.variable"() {{.*}} -> !emitc.array<8x!emitc.opaque<"uint16_t">>
+// EMIT: call_opaque "__riscv_vle16_v_u16m1"
+// EMIT: call_opaque "__riscv_vluxei16_v_i64m4"
+// EMIT: call_opaque "__riscv_vreinterpret_v_i64m4_i8m4"
+// EMIT: call_opaque "__riscv_vle8_v_i8m4"
+// EMIT: call_opaque "__riscv_vmul_vv_i8m4"
+// EMIT: call_opaque "__riscv_vget_v_i8m4_i8m2"
 // EMIT: call_opaque "__riscv_vwmul_vv_i16m4"
 // EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMIT: call_opaque "__riscv_vmv_x_s_i32m1_i32"

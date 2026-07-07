@@ -132,16 +132,19 @@ module attributes {tcrv_rvv.source_front_door = "ggml_iq2_xxs_q8_K_block_dot_sou
 // CORE: bitwise_or
 // ls = 2*(aux1>>28)+1.
 // CORE: bitwise_right_shift
-// The vluxei16 grid+sign gather chain: the u16 byte-offset index load, the i64m2
-// GRID gather reinterpreted to i8m2, the i64m2 DERIVED-signs gather, then the +-1
-// signs folded onto the GRID (NOT q8) by vmul_vv_i8m2.
-// CORE: call_opaque "__riscv_vle16_v_u16mf2"
-// CORE: call_opaque "__riscv_vluxei16_v_i64m2"
-// CORE: call_opaque "__riscv_vreinterpret_v_i64m2_i8m2"
-// CORE: call_opaque "__riscv_vluxei16_v_i64m2"
-// CORE: call_opaque "__riscv_vle8_v_i8m2"
-// CORE: call_opaque "__riscv_vmul_vv_i8m2"
-// The signed widening product + ONE vwredsum per sub-block + scalar extract.
+// The vluxei16 grid+sign gather chain, BATCHED per sub-block PAIR (2*core = m4): the
+// 8-slot u16 byte-offset index load (u16m1 EMUL), the i64m4 GRID gather reinterpreted to
+// i8m4, the i64m4 DERIVED-signs gather, the i8m4 q8 pair load, then the +-1 signs folded
+// onto the GRID (NOT q8) by vmul_vv_i8m4.
+// CORE: call_opaque "__riscv_vle16_v_u16m1"
+// CORE: call_opaque "__riscv_vluxei16_v_i64m4"
+// CORE: call_opaque "__riscv_vreinterpret_v_i64m4_i8m4"
+// CORE: call_opaque "__riscv_vluxei16_v_i64m4"
+// CORE: call_opaque "__riscv_vle8_v_i8m4"
+// CORE: call_opaque "__riscv_vmul_vv_i8m4"
+// Each 32-lane sub-block half is recovered by a register-group vget i8m4->i8m2, then the
+// SAME signed widening product + ONE vwredsum per sub-block + scalar extract.
+// CORE: call_opaque "__riscv_vget_v_i8m4_i8m2"
 // CORE: call_opaque "__riscv_vwmul_vv_i16m4"
 // CORE: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // CORE: call_opaque "__riscv_vmv_x_s_i32m1_i32"
