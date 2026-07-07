@@ -177,7 +177,8 @@ latency/compute-bound) from the physical ceiling, not asserted. A run below the 
 - `gapsb_derisk_iq2xxs/objdump_pre_post.md` — real machine-code PRE→POST counts (gather 16→8, vset* 56→40,
   vwmul/vwredsum 8→8 unchanged = byte-exact core, total 459→436).
 - `gapsb_derisk_iq2xxs/provenance.txt` — pinned commands, .o sha256 (PRE f86b5f4d/POST f9e87d23), board fingerprint.
-- `gapsb_derisk_iq2xxs/raw/objdump_iq2xxs_PRE.txt` / `raw/objdump_iq2xxs_POST.txt` — llvm-objdump of exported .o.
+- `gapsb_derisk_iq2xxs/raw/objdump_iq2xxs_PRE.txt` — llvm-objdump of exported .o (PRE 0c64477c).
+- `gapsb_derisk_iq2xxs/raw/objdump_iq2xxs_POST.txt` — llvm-objdump of exported .o (POST 169f0cc0).
 - `gapsb_derisk_iq2xxs/raw/gcc15_factory_vl128_disasm.txt` — gcc-15 factory vl128 body (4 gathers/120 insns, confirms factory=4).
 - (`.o` objects + `*.log` = gitignored scratch, evidence-regenerable, not durable.)
 
