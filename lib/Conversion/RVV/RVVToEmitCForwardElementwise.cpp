@@ -355,6 +355,134 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRmsNormReduceStrip(
     mlir::Value scale =
         rewriter.create<emitc::DivOp>(loc, floatType, oneF, sqrtVal);
 
+    // [FMT-PROP] FUSED-ACTIVATION-QUANTIZE detection: if the reduce core's fused
+    // mul epilogue carries an OPTIONAL $quant_epilogue region (an
+    // elementwise_quantize_q8_0_map brick), the WEIGHTED activation vz is quantized
+    // to block_q8_0 IN REGISTER -- the f32 z[] intermediate is NEVER stored and the
+    // downstream INDEPENDENT quantize_row_q8_0 pass (the f32 activation store + the
+    // quantize reload, 2*n*4 bytes) is ELIDED. The fused-quant kernel is a per-BLOCK
+    // loop (nb = n/32, vl = 32 in one e32m8 strip -- ggml's QK8_0 granularity the
+    // reused amax/scale/narrow body needs), NOT the variable-length normalize strip
+    // the plain / mul-only paths take below. The normalize + mul stay bare per-lane
+    // vfmul (byte-exact at vl=32); the register-kept vz is bit-identical to a
+    // store-then-reload, so the block_q8_0 is byte-exact to the non-fused
+    // rms_norm->mul->quantize pipeline modulo ONLY the eliminated store/reload.
+    tcrvrvv::ElementwiseMulMapOp fusedMul;
+    rmsCore.getEpilogue().walk(
+        [&](tcrvrvv::ElementwiseMulMapOp o) { fusedMul = o; });
+    tcrvrvv::ElementwiseQuantizeQ80MapOp quantBrick;
+    if (fusedMul)
+      fusedMul.getQuantEpilogue().walk(
+          [&](tcrvrvv::ElementwiseQuantizeQ80MapOp o) { quantBrick = o; });
+
+    if (quantBrick) {
+      mlir::Value weight = valueMap.lookup(fusedMul.getWeight());
+      mlir::Value yq8 = valueMap.lookup(quantBrick.getOutput());
+      if (!weight || !yq8)
+        return rewriter.notifyMatchFailure(
+            quantBrick, "fused quant epilogue ABI operand unmapped");
+
+      llvm::StringRef mulOpName = fusedMul.getTCRVEmitCLowerableSourceOpName();
+      llvm::StringRef mulRole = fusedMul.getTCRVEmitCLowerableSourceRole();
+      llvm::StringRef qOpName = quantBrick.getTCRVEmitCLowerableSourceOpName();
+      llvm::StringRef qRole = quantBrick.getTCRVEmitCLowerableSourceRole();
+
+      // The AoS block-format facts (I4): qk=32 (block length / lanes),
+      // block_stride=34, the fp16 d at byte 0, the 32 int8 qs at byte 2.
+      int64_t qk = quantBrick.getQk();
+      int64_t blockStride = quantBrick.getBlockStride();
+      int64_t scaleOffset = quantBrick.getScaleByteOffset();
+      int64_t quantOffset = quantBrick.getQuantByteOffset();
+
+      mlir::Type f32m8Type = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
+      mlir::Type weightPtrType = weight.getType();
+      mlir::Type yq8PtrType = yq8.getType();
+
+      auto qSizeLit = [&](int64_t v) -> mlir::Value {
+        return rewriter.create<emitc::LiteralOp>(loc, sizeType,
+                                                 std::to_string(v));
+      };
+
+      rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(qOpName, qRole));
+
+      // size_t nb = n / 32;  (the AoS block count; n % 32 == 0 a ggml contract).
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(qOpName, qRole, "block_count"));
+      mlir::Value nb =
+          rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, qSizeLit(qk));
+
+      // for (size_t ib = 0; ib < nb; ib += 1) { ... }  -- ONE fused block loop
+      // (normalize + mul + quantize per QK8_0 block).
+      mlir::Value blkZero =
+          rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+      mlir::Value blkOne = qSizeLit(1);
+      auto blockFor = rewriter.create<emitc::ForOp>(loc, blkZero, nb, blkOne,
+                                                    /*bodyBuilder=*/nullptr);
+      mlir::Value ib = blockFor.getInductionVar();
+      {
+        mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+        rewriter.setInsertionPointToStart(blockFor.getBody());
+
+        // size_t vl = 32;  (= QK8_0; all 32 block lanes in one e32m8 strip).
+        mlir::Value vl = qSizeLit(qk);
+
+        // const float *xb = (const float *)(x + ib*32);
+        mlir::Value xOff =
+            rewriter.create<emitc::MulOp>(loc, sizeType, ib, qSizeLit(qk));
+        mlir::Value xbRaw =
+            rewriter.create<emitc::AddOp>(loc, inputPtrType, input, xOff);
+        mlir::Value xb =
+            rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xbRaw)
+                .getResult();
+
+        // vfloat32m8_t vx = __riscv_vle32_v_f32m8(xb, vl);
+        mlir::Value vx =
+            emitOpaqueCall(rewriter, loc, f32m8Type, "__riscv_vle32_v_f32m8",
+                           mlir::ValueRange{xb, vl}, opName, role);
+        // vfloat32m8_t vy = __riscv_vfmul_vf_f32m8(vx, scale, vl);  normalize --
+        // the register-kept normalized vector (no norm[] store).
+        mlir::Value vy =
+            emitOpaqueCall(rewriter, loc, f32m8Type, "__riscv_vfmul_vf_f32m8",
+                           mlir::ValueRange{vx, scale, vl}, opName, role);
+
+        // The mul epilogue: load the weight block, multiply vy in place.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, routeSourceComment(mulOpName, mulRole));
+        // const float *wb = (const float *)(w + ib*32);
+        mlir::Value wbRaw =
+            rewriter.create<emitc::AddOp>(loc, weightPtrType, weight, xOff);
+        mlir::Value wb =
+            rewriter.create<emitc::CastOp>(loc, constFloatPtrType, wbRaw)
+                .getResult();
+        // vfloat32m8_t vw = __riscv_vle32_v_f32m8(wb, vl);
+        mlir::Value vw =
+            emitOpaqueCall(rewriter, loc, f32m8Type, "__riscv_vle32_v_f32m8",
+                           mlir::ValueRange{wb, vl}, mulOpName, mulRole);
+        // vfloat32m8_t vz = __riscv_vfmul_vv_f32m8(vy, vw, vl);  the FUSED
+        // multiply -- the register-kept vy flows STRAIGHT in, no z[] round-trip.
+        mlir::Value vz =
+            emitOpaqueCall(rewriter, loc, f32m8Type, "__riscv_vfmul_vv_f32m8",
+                           mlir::ValueRange{vy, vw, vl}, mulOpName, mulRole);
+
+        // The quant epilogue: the per-block amax/scale/narrow q8_0 body on the
+        // register-kept vz -> block_q8_0 (yb = y_q8 + ib*34). The f32 z[] store is
+        // GONE; the independent quantize_row_q8_0 reload is ELIDED.
+        rewriter.create<emitc::VerbatimOp>(
+            loc, routeSourceComment(qOpName, qRole));
+        rewriter.create<emitc::VerbatimOp>(
+            loc, stepComment(qOpName, qRole, "y_block"));
+        // uint8_t *yb = y_q8 + ib*34;  (the AoS block_q8_0 byte cursor).
+        mlir::Value yOff = rewriter.create<emitc::MulOp>(
+            loc, sizeType, ib, qSizeLit(blockStride));
+        mlir::Value yb =
+            rewriter.create<emitc::AddOp>(loc, yq8PtrType, yq8, yOff);
+        emitQuantizeQ80BlockBody(rewriter, loc, vz, yb, vl, yq8PtrType, sizeType,
+                                 scaleOffset, quantOffset, qOpName, qRole);
+      }
+
+      return mlir::success();
+    }
+
     // The VECTORIZED normalize strip (step 4): y[i] = x[i] * scale. The NORMALIZE
     // strip LMUL is a bounded resource/scheduling fact (default m8, matching
     // ggml's ggml_vec_scale_f32 apply path). It is byte-exact at any anchor (a
@@ -914,21 +1042,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
-    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
-    mlir::Type boolType = rewriter.getI1Type();
-    mlir::Type half16Type = emitc::OpaqueType::get(ctx, "_Float16");
     mlir::Type constFloatPtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
-    mlir::Type half16PtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "_Float16"));
-    mlir::Type i8PtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "int8_t"));
-    // The block's 32 lanes ride in ONE e32m8 strip (ggml's `size_t vl = QK8_0`);
-    // the wide f32 / m1 reduce / i16m4 / i8m2 types are ggml's exact path types.
+    // The block's 32 lanes ride in ONE e32m8 strip (ggml's `size_t vl = QK8_0`).
+    // The wide-f32 load type is ggml's exact path type; the per-block
+    // amax/scale/narrow body's remaining types live in emitQuantizeQ80BlockBody.
     mlir::Type f32m8Type = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
-    mlir::Type f32m1Type = emitc::OpaqueType::get(ctx, "vfloat32m1_t");
-    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
-    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
 
     // The AoS block-format structural facts come straight off the typed attrs
     // (I4): qk=32 (block length / lanes), block_stride=34 (the AoS stride), the
@@ -994,103 +1113,137 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
       mlir::Value vx =
           vcall(f32m8Type, "__riscv_vle32_v_f32m8", mlir::ValueRange{xb, vl});
 
-      // The amax reduction (ggml riscv/quants.c:47-50): vfabs -> vfredmax seeded
-      // with a 0.0f f32m1 -> extract lane 0. The intrinsic callees are HARD-CODED
-      // (ggml's exact spellings) -- never synthesized.
-      mlir::Value vabs =
-          vcall(f32m8Type, "__riscv_vfabs_v_f32m8", mlir::ValueRange{vx, vl});
-      mlir::Value zeroF =
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
-      mlir::Value redSeed = vcall(f32m1Type, "__riscv_vfmv_v_f_f32m1",
-                                  mlir::ValueRange{zeroF, vl});
-      mlir::Value vmax =
-          vcall(f32m1Type, "__riscv_vfredmax_vs_f32m8_f32m1",
-                mlir::ValueRange{vabs, redSeed, vl});
-      mlir::Value amax = vcall(floatType, "__riscv_vfmv_f_s_f32m1_f32",
-                               mlir::ValueRange{vmax});
-
-      // float d = amax / 127.0f;  (ggml's `amax / ((1 << 7) - 1)`; the divisor
-      // is the f32 literal 127.0f so the divide is a single f32 round).
-      rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
-      mlir::Value c127 =
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "127.0f");
-      mlir::Value d = rewriter.create<emitc::DivOp>(loc, floatType, amax, c127);
-
-      // float id = 0.0f; if (d != 0.0f) { id = 1.0f / d; }  -- the load-bearing
-      // `id = d ? 1.0f/d : 0.0f` conditional, STRUCTURED (emitc.cmp + emitc.if,
-      // NOT a raw string). The all-zero block (amax=0 => d=0) takes the else and
-      // keeps id=0, so every q=0 (a bare 1/d would give inf, then 0*inf=NaN).
-      rewriter.create<emitc::VerbatimOp>(
-          loc, localVariableComment("id", opName, role));
-      auto idVar = rewriter.create<emitc::VariableOp>(
-          loc, emitc::LValueType::get(floatType),
-          emitc::OpaqueAttr::get(ctx, ""));
-      rewriter.create<emitc::AssignOp>(
-          loc, idVar,
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
-      mlir::Value dNonZero = rewriter.create<emitc::CmpOp>(
-          loc, boolType, emitc::CmpPredicate::ne, d, zeroF);
-      auto idIf = rewriter.create<emitc::IfOp>(loc, dNonZero,
-                                               /*addThenBlock=*/true,
-                                               /*addElseBlock=*/false);
-      {
-        mlir::OpBuilder::InsertionGuard ifGuard(rewriter);
-        rewriter.setInsertionPointToStart(&idIf.getThenRegion().front());
-        mlir::Value oneF =
-            rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
-        mlir::Value recip =
-            rewriter.create<emitc::DivOp>(loc, floatType, oneF, d);
-        rewriter.create<emitc::AssignOp>(loc, idVar, recip);
-        rewriter.create<emitc::YieldOp>(loc);
-      }
-      mlir::Value id =
-          rewriter.create<emitc::LoadOp>(loc, floatType, idVar).getResult();
-
-      // *(_Float16 *)(yb + 0) = (_Float16)d;  -- the fp16 d store. The board is
-      // __riscv_zfhmin, so GGML_CPU_FP32_TO_FP16(d) is the native (_Float16)d
-      // cast (fcvt.h.s, rne). STRUCTURED: cast the byte cursor to _Float16 *,
-      // subscript [0] (an lvalue), cast d to _Float16, assign.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "fp16_d_store"));
-      mlir::Value dPtrRaw =
-          rewriter.create<emitc::AddOp>(loc, outputPtrType, yb,
-                                        sizeLit(scaleOffset));
-      auto dPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
-          rewriter.create<emitc::CastOp>(loc, half16PtrType, dPtrRaw)
-              .getResult());
-      mlir::Value dIndex =
-          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-      emitc::SubscriptOp dSubscript =
-          rewriter.create<emitc::SubscriptOp>(loc, dPtr, dIndex);
-      mlir::Value dHalf =
-          rewriter.create<emitc::CastOp>(loc, half16Type, d).getResult();
-      rewriter.create<emitc::AssignOp>(loc, dSubscript.getResult(), dHalf);
-
-      // x0 = __riscv_vfmul_vf_f32m8(v_x, id, vl);  -- scale every lane by id.
-      mlir::Value x0 = vcall(f32m8Type, "__riscv_vfmul_vf_f32m8",
-                             mlir::ValueRange{vx, id, vl});
-
-      // The NARROWING CONVERT (ggml riscv/quants.c:60-61): f32 -> i16 (the
-      // rounding crux: vfncvt_x_f_w_i16m4 = dynamic frm = round-to-nearest-EVEN),
-      // then i16 -> i8 truncate (vncvt). Both callees are ggml's exact spellings.
-      mlir::Value vi = vcall(i16m4Type, "__riscv_vfncvt_x_f_w_i16m4",
-                             mlir::ValueRange{x0, vl});
-      mlir::Value vs = vcall(i8m2Type, "__riscv_vncvt_x_x_w_i8m2",
-                             mlir::ValueRange{vi, vl});
-
-      // __riscv_vse8_v_i8m2(yb + 2, vs, vl);  -- store the 32 int8 qs.
-      rewriter.create<emitc::VerbatimOp>(
-          loc, stepComment(opName, role, "qs_store"));
-      mlir::Value qsPtrRaw =
-          rewriter.create<emitc::AddOp>(loc, outputPtrType, yb,
-                                        sizeLit(quantOffset));
-      mlir::Value qsPtr =
-          rewriter.create<emitc::CastOp>(loc, i8PtrType, qsPtrRaw).getResult();
-      emitOpaqueCallVoid(rewriter, loc, "__riscv_vse8_v_i8m2",
-                         mlir::ValueRange{qsPtr, vs, vl}, opName, role);
+      // The SHARED per-block amax/scale/narrow q8_0 body (riscv/quants.c:47-65),
+      // consuming the f32 block LOADED from x[]. The [FMT-PROP] fused
+      // rms_norm->mul->quantize epilogue reuses this SAME body on a register-kept
+      // weighted vector `vz` instead (no f32 store/reload).
+      emitQuantizeQ80BlockBody(rewriter, loc, vx, yb, vl, outputPtrType, sizeType,
+                               scaleOffset, quantOffset, opName, role);
     }
 
     return mlir::success();
+  }
+
+void VariantToEmitCFunc::emitQuantizeQ80BlockBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value vBlock, mlir::Value yb, mlir::Value vl, mlir::Type outputPtrType,
+    mlir::Type sizeType, int64_t scaleOffset, int64_t quantOffset,
+    llvm::StringRef opName, llvm::StringRef role) const {
+    // ggml's per-block block_q8_0 amax/scale/narrow body (riscv/quants.c:47-65) as
+    // fully STRUCTURED emitc nodes, over an ALREADY-COMPUTED f32m8 block vector
+    // `vBlock` (the 32 QK8_0 lanes in one e32m8 strip). This is the SHARED
+    // quantize core: the standalone f32->q8_0 activation quantizer feeds it the
+    // f32 block loaded from x[]; the [FMT-PROP] fused rms_norm->mul->quantize
+    // epilogue feeds it the register-kept WEIGHTED vector vz. BYTE-EXACT to ggml's
+    // EXACT RVV method (vfncvt = rne + native _Float16 cast).
+    mlir::MLIRContext *ctx = rewriter.getContext();
+    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+    mlir::Type boolType = rewriter.getI1Type();
+    mlir::Type half16Type = emitc::OpaqueType::get(ctx, "_Float16");
+    mlir::Type half16PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "_Float16"));
+    mlir::Type i8PtrType =
+        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "int8_t"));
+    mlir::Type f32m8Type = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
+    mlir::Type f32m1Type = emitc::OpaqueType::get(ctx, "vfloat32m1_t");
+    mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
+    mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
+
+    auto sizeLit = [&](int64_t v) -> mlir::Value {
+      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+    };
+    auto vcall = [&](mlir::Type resultType, llvm::StringRef callee,
+                     mlir::ValueRange args) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, resultType, callee, args, opName,
+                            role);
+    };
+
+    // The amax reduction (ggml riscv/quants.c:47-50): vfabs -> vfredmax seeded
+    // with a 0.0f f32m1 -> extract lane 0. The intrinsic callees are HARD-CODED
+    // (ggml's exact spellings) -- never synthesized.
+    mlir::Value vabs =
+        vcall(f32m8Type, "__riscv_vfabs_v_f32m8", mlir::ValueRange{vBlock, vl});
+    mlir::Value zeroF =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f");
+    mlir::Value redSeed = vcall(f32m1Type, "__riscv_vfmv_v_f_f32m1",
+                                mlir::ValueRange{zeroF, vl});
+    mlir::Value vmax = vcall(f32m1Type, "__riscv_vfredmax_vs_f32m8_f32m1",
+                             mlir::ValueRange{vabs, redSeed, vl});
+    mlir::Value amax = vcall(floatType, "__riscv_vfmv_f_s_f32m1_f32",
+                             mlir::ValueRange{vmax});
+
+    // float d = amax / 127.0f;  (ggml's `amax / ((1 << 7) - 1)`; the divisor is
+    // the f32 literal 127.0f so the divide is a single f32 round).
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
+    mlir::Value c127 =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "127.0f");
+    mlir::Value d = rewriter.create<emitc::DivOp>(loc, floatType, amax, c127);
+
+    // float id = 0.0f; if (d != 0.0f) { id = 1.0f / d; }  -- the load-bearing
+    // `id = d ? 1.0f/d : 0.0f` conditional, STRUCTURED (emitc.cmp + emitc.if, NOT
+    // a raw string). The all-zero block (amax=0 => d=0) takes the else and keeps
+    // id=0, so every q=0 (a bare 1/d would give inf, then 0*inf=NaN).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, localVariableComment("id", opName, role));
+    auto idVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, idVar, rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f"));
+    mlir::Value dNonZero = rewriter.create<emitc::CmpOp>(
+        loc, boolType, emitc::CmpPredicate::ne, d, zeroF);
+    auto idIf = rewriter.create<emitc::IfOp>(loc, dNonZero,
+                                             /*addThenBlock=*/true,
+                                             /*addElseBlock=*/false);
+    {
+      mlir::OpBuilder::InsertionGuard ifGuard(rewriter);
+      rewriter.setInsertionPointToStart(&idIf.getThenRegion().front());
+      mlir::Value oneF =
+          rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+      mlir::Value recip = rewriter.create<emitc::DivOp>(loc, floatType, oneF, d);
+      rewriter.create<emitc::AssignOp>(loc, idVar, recip);
+      rewriter.create<emitc::YieldOp>(loc);
+    }
+    mlir::Value id =
+        rewriter.create<emitc::LoadOp>(loc, floatType, idVar).getResult();
+
+    // *(_Float16 *)(yb + 0) = (_Float16)d;  -- the fp16 d store. The board is
+    // __riscv_zfhmin, so GGML_CPU_FP32_TO_FP16(d) is the native (_Float16)d cast
+    // (fcvt.h.s, rne). STRUCTURED: cast the byte cursor to _Float16 *, subscript
+    // [0] (an lvalue), cast d to _Float16, assign.
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "fp16_d_store"));
+    mlir::Value dPtrRaw = rewriter.create<emitc::AddOp>(loc, outputPtrType, yb,
+                                                        sizeLit(scaleOffset));
+    auto dPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+        rewriter.create<emitc::CastOp>(loc, half16PtrType, dPtrRaw).getResult());
+    mlir::Value dIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp dSubscript =
+        rewriter.create<emitc::SubscriptOp>(loc, dPtr, dIndex);
+    mlir::Value dHalf =
+        rewriter.create<emitc::CastOp>(loc, half16Type, d).getResult();
+    rewriter.create<emitc::AssignOp>(loc, dSubscript.getResult(), dHalf);
+
+    // x0 = __riscv_vfmul_vf_f32m8(vBlock, id, vl);  -- scale every lane by id.
+    mlir::Value x0 = vcall(f32m8Type, "__riscv_vfmul_vf_f32m8",
+                           mlir::ValueRange{vBlock, id, vl});
+
+    // The NARROWING CONVERT (ggml riscv/quants.c:60-61): f32 -> i16 (the rounding
+    // crux: vfncvt_x_f_w_i16m4 = dynamic frm = round-to-nearest-EVEN), then
+    // i16 -> i8 truncate (vncvt). Both callees are ggml's exact spellings.
+    mlir::Value vi = vcall(i16m4Type, "__riscv_vfncvt_x_f_w_i16m4",
+                           mlir::ValueRange{x0, vl});
+    mlir::Value vs =
+        vcall(i8m2Type, "__riscv_vncvt_x_x_w_i8m2", mlir::ValueRange{vi, vl});
+
+    // __riscv_vse8_v_i8m2(yb + 2, vs, vl);  -- store the 32 int8 qs.
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "qs_store"));
+    mlir::Value qsPtrRaw = rewriter.create<emitc::AddOp>(loc, outputPtrType, yb,
+                                                         sizeLit(quantOffset));
+    mlir::Value qsPtr =
+        rewriter.create<emitc::CastOp>(loc, i8PtrType, qsPtrRaw).getResult();
+    emitOpaqueCallVoid(rewriter, loc, "__riscv_vse8_v_i8m2",
+                       mlir::ValueRange{qsPtr, vs, vl}, opName, role);
   }
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ81(

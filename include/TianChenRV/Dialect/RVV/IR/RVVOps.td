@@ -8803,7 +8803,7 @@ def ElementwiseRmsNormReduceCoreOp
 
 def ElementwiseMulMapOp
     : TCRVRVV_Op<"elementwise_mul_map",
-    [TCRVEmitCLowerableOpInterface]> {
+    [NoTerminator, TCRVEmitCLowerableOpInterface]> {
   let summary =
       "generic typed RVV per-strip f32 mul epilogue brick (z[i] = vy[i] * w[i]); "
       "the fused rms_norm->mul consumer";
@@ -8855,6 +8855,25 @@ def ElementwiseMulMapOp
     bounded surface `kind` is limited to "elementwise_mul_map". Route ids, helper
     names, ABI strings, artifact names, status fields, and exact intrinsic
     spellings must not infer or choose this map's semantics.
+
+    OPTIONAL [FMT-PROP] FUSED-ACTIVATION-QUANTIZE EPILOGUE: the brick carries an
+    optional single-block `$quant_epilogue` region (0 blocks = the plain fused
+    rms_norm->mul that stores the f32 z[]; 1 block = the FORMAT-PROPAGATED chain
+    that quantizes the weighted activation to block_q8_0 IN REGISTER). When
+    present, the block carries ONE entry argument -- the per-block WEIGHTED vector
+    `vz` (an f32 RVV vector at the producer normalize strip LMUL, pinned m8 so vz
+    is exactly one e32m8 QK8_0 block) -- and ONE
+    tcrv_rvv.elementwise_quantize_q8_0_map consumer brick. The chain edge is a
+    KERNEL-LEVEL declared producer->consumer link (NOT a graph rewriter): the
+    per-block weighted vz flows STRAIGHT into the ggml per-block amax/scale/narrow
+    q8_0 body in the SAME emitted block loop, so the f32 z[] intermediate is NEVER
+    stored to memory and the downstream INDEPENDENT `quantize_row_q8_0` pass (the
+    f32 activation store + the quantize reload, 2*n*4 bytes of DRAM round-trip) is
+    ELIDED. BYTE-EXACT: the register-kept vz is bit-identical to a store-then-reload
+    of the same f32 vector, so the per-block amax reduction / scalar scale /
+    f32->i16->i8 narrow run on the IDENTICAL block values the two-kernel path would
+    read from z[] -- the fused block_q8_0 is byte-exact to the non-fused
+    rms_norm->mul->quantize pipeline modulo ONLY the eliminated store/reload.
   }];
 
   let arguments = (ins
@@ -8865,10 +8884,97 @@ def ElementwiseMulMapOp
     Index:$strip_index,
     StrAttr:$kind
   );
+  // The optional [FMT-PROP] fused-quantize epilogue: 0 blocks (the plain fused
+  // rms_norm->mul, f32 z[] store) or 1 block carrying the per-block weighted
+  // vector entry argument + the tcrv_rvv.elementwise_quantize_q8_0_map consumer
+  // brick. The NoTerminator-free single-op block holds just the quantize brick.
+  let regions = (region AnyRegion:$quant_epilogue);
 
   let assemblyFormat =
     "$chain `,` $weight `,` $output `,` $n `strip` $strip_index attr-dict `:` "
     "type($chain) `,` type($weight) `,` type($output) `,` type($n) `,` "
+    "type($strip_index) (`quant_epilogue` $quant_epilogue^)?";
+  let hasVerifier = 1;
+}
+
+def ElementwiseQuantizeQ80MapOp
+    : TCRVRVV_Op<"elementwise_quantize_q8_0_map",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block f32->block_q8_0 quantize epilogue brick (the "
+      "[FMT-PROP] fused-activation quantizer consuming the rms_norm->mul vz)";
+  let description = [{
+    Records ONE block's f32 -> block_q8_0 quantization of a producer's per-block
+    WEIGHTED activation vector -- the per-block CORE of ggml's `quantize_row_q8_0`
+    RVV path (riscv/quants.c:43-65) running as the [FMT-PROP] FORMAT-PROPAGATED
+    EPILOGUE of a fused rms_norm->mul (llama's attn_norm / ffn_norm immediately
+    followed by the downstream activation quantize that feeds the q4_0_q8_0 /
+    q8_0_q8_0 block-dot kernels) -- as ONE bounded generic plugin-local typed RVV
+    dataflow step: the QUANT-BRIDGE epilogue primitive of the forward-elementwise
+    scaffold (the consumer sibling of the mul-family
+    tcrv_rvv.elementwise_mul_map).
+
+    It is carried inside the OPTIONAL `$quant_epilogue` region of the producer
+    tcrv_rvv.elementwise_mul_map brick. The producer's per-block weighted vector
+    `vz = vy * w` (a bare per-lane vfmul_vv at the m8 QK8_0 block anchor) flows
+    STRAIGHT into this brick's per-block ggml quantize body: the amax reduction
+    (`vfredmax` of `vfabs`), the scalar `d = amax/127`, the load-bearing
+    `id = d ? 1/d : 0`, the native `(_Float16)d` AoS store, the `vfmul_vf(vz, id)`
+    scale, the f32->i16->i8 narrowing convert (`vfncvt` round-to-nearest-EVEN +
+    `vncvt`), and the 32 int8 `qs` AoS store. The KEY [FMT-PROP] fusion fact: the
+    f32 z[] intermediate is NEVER stored to memory and NEVER reloaded -- `vz`
+    stays register-resident and is consumed in the SAME emitted block loop, so the
+    fused kernel elides the producer's f32 z[] store + the downstream independent
+    `quantize_row_q8_0` reload (2*n*4 bytes of DRAM round-trip). BYTE-EXACTNESS is
+    UNCONDITIONAL vs the non-fused two-kernel path: the register-kept `vz` is
+    bit-identical to a store-then-reload of the same f32 vector (IEEE binary32
+    round-trips losslessly through memory), so the amax fold / scalar scale /
+    narrowing convert run on the IDENTICAL block values -- the fused block_q8_0 is
+    byte-exact to `rms_norm->mul` (writing z[]) followed by a separate
+    `quantize_row_q8_0` reading z[], modulo ONLY the eliminated store/reload.
+    Numerical bit-exact-vs-ggml is pending-hardware, matching the family precedent.
+
+    The `chain` operand is the ANTI-BYPASS chain tie: it MUST be the enclosing
+    `$quant_epilogue` region's block argument 0 -- the per-block weighted vector
+    (an f32 RVV vector at the producer's m8 QK8_0 anchor, realized as the C `vz`
+    variable in the emitted block loop; it does not exist as a real SSA value at
+    the typed-body layer because the per-block value only lives inside the emitted
+    block loop). Binding `chain` to that block arg proves the quantizer eats the
+    producer's per-block weighted result, NOT a memory reload. The `strip_index`
+    operand is the SECOND anti-bypass tie: it MUST be the enclosing
+    tcrv_rvv.typed_elementwise_loop_body's induction variable (region argument 0),
+    so the emit addresses the AoS `output + ib*34` block cursor, not the
+    loop-invariant block 0.
+
+    The op consumes the per-block weighted vector `chain`, the written block_q8_0
+    output BYTE buffer base pointer `output` (`uint8_t *`, the AoS block buffer
+    written), the runtime element count `element_count` (= ggml's k, n % 32 == 0 a
+    ggml contract), and the loop's `strip_index`. It has NO result -- the per-block
+    AoS d (fp16) + qs (int8) stores are the sink. The block-format facts (`qk` =
+    32, `block_stride` = 34, the fp16 `d` at byte 0, the 32 int8 `qs` at byte 2)
+    are the op's typed mirror attrs (I4), IDENTICAL to
+    tcrv_rvv.quantize_row_q8_0's; the emission REUSES that op's per-block
+    amax/scale/narrow body. The bounded surface `kind` is limited to
+    "elementwise_quantize_q8_0_map". Route ids, helper names, ABI strings, artifact
+    names, status fields, and exact intrinsic spellings must not infer or choose
+    this quantizer's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$chain,
+    AnyType:$output,
+    AnyType:$element_count,
+    Index:$strip_index,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$quant_byte_offset
+  );
+
+  let assemblyFormat =
+    "$chain `,` $output `,` $element_count `strip` $strip_index attr-dict `:` "
+    "type($chain) `,` type($output) `,` type($element_count) `,` "
     "type($strip_index)";
   let hasVerifier = 1;
 }

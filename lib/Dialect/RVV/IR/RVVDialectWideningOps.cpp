@@ -8811,6 +8811,156 @@ mlir::LogicalResult ElementwiseMulMapOp::verify() {
            << "requires strip_index to be the enclosing loop's induction variable "
               "(region argument 0), not the loop-invariant strip 0 (anti-bypass)";
 
+  // OPTIONAL [FMT-PROP] fused-activation-quantize epilogue region: 0 blocks (the
+  // plain fused rms_norm->mul that stores f32 z[]) or 1 block carrying exactly ONE
+  // entry argument -- the per-block WEIGHTED vector `vz` at the producer normalize
+  // strip LMUL -- plus exactly ONE tcrv_rvv.elementwise_quantize_q8_0_map consumer
+  // brick. When present, the emit runs the per-block amax/scale/narrow q8_0 body
+  // on the register-kept vz and stores block_q8_0: the f32 z[] intermediate is
+  // NEVER stored and the downstream independent quantize_row pass is elided. The
+  // quantize brick's own verifier pins the chain/strip_index/output anti-bypass
+  // ties.
+  mlir::Region &quantEpi = getQuantEpilogue();
+  if (!quantEpi.empty()) {
+    if (!llvm::hasSingleElement(quantEpi))
+      return emitOpError()
+             << "the optional fused quant epilogue region must hold at most one "
+                "block";
+    mlir::Block &qBlock = quantEpi.front();
+    if (qBlock.getNumArguments() != 1)
+      return emitOpError()
+             << "the fused quant epilogue region must carry exactly one block "
+                "argument: the per-block weighted vector chain (the register-kept "
+                "vz)";
+    // The ggml per-block amax/scale/narrow q8_0 body rides the e32m8 QK8_0 strip
+    // (vl=32), so the register-kept vz must be an f32 m8 vector -- the producer
+    // normalize strip LMUL must be m8 for this fused-quant path.
+    llvm::StringRef stripLmul = producer.getStripLmul().value_or("m8");
+    if (stripLmul != "m8")
+      return emitOpError()
+             << "the fused quant epilogue requires the producer normalize strip "
+                "LMUL to be \"m8\" (the ggml QK8_0 e32m8 quantize block); got \""
+             << stripLmul << "\"";
+    if (!isGenericRVVVectorType(qBlock.getArgument(0).getType(),
+                                getRVVSEW32Bits(), "m8"))
+      return emitOpError()
+             << "the fused quant epilogue chain block argument must be an f32 RVV "
+                "vector at \"m8\" (the register-kept weighted vz block)";
+    if (qBlock.getOperations().size() != 1 ||
+        qBlock.getOps<ElementwiseQuantizeQ80MapOp>().empty())
+      return emitOpError()
+             << "the fused quant epilogue region must carry exactly one "
+                "tcrv_rvv.elementwise_quantize_q8_0_map consumer brick";
+  }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult ElementwiseQuantizeQ80MapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind + the block_q8_0 AoS
+  // format facts (qk / block_stride / scale/quant byte offsets), IDENTICAL to
+  // tcrv_rvv.quantize_row_q8_0's mirror attrs. There is NO resource/scheduling
+  // LMUL knob this cut -- the quantize block rides ggml's e32m8 QK8_0 strip. A
+  // forbidden local element_count/SEW/LMUL/policy attr or an unexpected name fails
+  // closed (I7).
+  auto isAllowedQuantizeAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "block_stride" ||
+           name == "scale_byte_offset" || name == "quant_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_quantize_q8_0_map keeps SEW/LMUL/policy "
+                "on setvl/with_vl and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedQuantizeAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded f32->q8_0 quantize-map attributes "
+                "'kind', 'qk', 'block_stride', 'scale_byte_offset', and "
+                "'quant_byte_offset'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_quantize_q8_0_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_quantize_q8_0_map\" for "
+              "the bounded per-block f32->block_q8_0 quantize epilogue brick";
+
+  // The block-format facts are the ggml block_q8_0 layout (ggml-common.h + QK8_0 =
+  // 32): a 32-element block, AoS stride 34 (the fp16 d at byte 0, the 32 int8 qs
+  // at byte 2). They are bounded mirror facts IDENTICAL to the standalone
+  // quantizer; any other layout is rejected fail-closed (I7).
+  if (getQk() != 32)
+    return emitOpError()
+           << "requires qk = 32 (the ggml QK8_0 block length); got " << getQk();
+  if (getBlockStride() != 34)
+    return emitOpError()
+           << "requires block_stride = 34 (the ggml block_q8_0 AoS stride: 2 fp16 "
+              "d bytes + 32 int8 qs bytes); got "
+           << getBlockStride();
+  if (getScaleByteOffset() != 0)
+    return emitOpError()
+           << "requires scale_byte_offset = 0 (the ggml block_q8_0 fp16 d at byte "
+              "0); got "
+           << getScaleByteOffset();
+  if (getQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires quant_byte_offset = 2 (the ggml block_q8_0 int8 qs after "
+              "the 2-byte fp16 d); got "
+           << getQuantByteOffset();
+
+  // The output binds the block_q8_0 AoS BYTE buffer (uint8_t *) the fp16 d + int8
+  // qs stores write into -- the SEPARATE fused-quant destination (the f32 z[]
+  // intermediate the producer would have written is elided, never materialized).
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!outputBinding || outputBinding.getCType() != "uint8_t *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'uint8_t *' (the ggml block_q8_0 AoS byte buffer the fp16 d + int8 "
+              "qs stores write)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index value "
+              "(ggml's k, n % 32 == 0) feeding the enclosing setvl";
+
+  // ANTI-BYPASS (chain): chain MUST be the enclosing $quant_epilogue region's
+  // block argument 0 (the producer mul's per-block weighted vz), so the emit
+  // quantizes the register-kept weighted vector, not a memory reload. The producer
+  // is the mul_map that owns this quant epilogue region.
+  auto mul = op->getParentOfType<ElementwiseMulMapOp>();
+  mlir::Region *quantEpi = op->getParentRegion();
+  if (!mul || !quantEpi || quantEpi != &mul.getQuantEpilogue())
+    return emitOpError()
+           << "must be carried inside the $quant_epilogue region of a "
+              "tcrv_rvv.elementwise_mul_map producer";
+  mlir::Block &quantBlock = quantEpi->front();
+  if (quantBlock.getNumArguments() < 1 ||
+      getChain() != quantBlock.getArgument(0))
+    return emitOpError()
+           << "requires chain to be the enclosing quant epilogue region's "
+              "per-block weighted vector (block argument 0), so the emit quantizes "
+              "the register-kept vz, not a memory reload (anti-bypass chain tie)";
+
+  // ANTI-BYPASS (strip_index): strip_index MUST be the enclosing loop body's
+  // induction variable (region argument 0), so the emit addresses the AoS output
+  // block cursor at block ib, not the loop-invariant block 0.
+  auto loop = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!loop)
+    return emitOpError()
+           << "must be nested (via the mul_map's quant epilogue) under a "
+              "tcrv_rvv.typed_elementwise_loop_body";
+  mlir::Block &loopBlock = loop.getBody().front();
+  if (loopBlock.getNumArguments() < 1 ||
+      getStripIndex() != loopBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction variable "
+              "(region argument 0), not the loop-invariant block 0 (anti-bypass)";
+
   return mlir::success();
 }
 

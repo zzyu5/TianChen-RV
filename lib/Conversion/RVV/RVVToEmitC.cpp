@@ -5862,6 +5862,13 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // memory). The union stays strictly MORE permissive (zero block-dot / map /
       // reduce regression).
       tcrv::rvv::ElementwiseMulMapOp,
+      // The [FMT-PROP] fused-activation-quantize EPILOGUE consumer brick, carried
+      // inside the mul_map's optional $quant_epilogue region. The reduce-body
+      // emitter runs the per-block q8_0 amax/scale/narrow body on the register-kept
+      // weighted vz (the f32 z[] intermediate never touches memory; the downstream
+      // independent quantize_row pass is elided). The union stays strictly MORE
+      // permissive (zero block-dot / map / reduce regression).
+      tcrv::rvv::ElementwiseQuantizeQ80MapOp,
       // The SECOND forward-elementwise REDUCE core brick (soft_max), reusing the
       // SAME loop op + terminator + validator + reduce_map_model "reduce", EXCEPT
       // the loop-carried accumulator is the f64m1 WIDENING vector (vfwredusum Σe^x

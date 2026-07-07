@@ -3601,6 +3601,31 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// Emit ggml's per-block block_q8_0 amax/scale/narrow body (riscv/quants.c:
+  /// 47-65) as fully STRUCTURED emitc nodes, consuming an ALREADY-COMPUTED f32m8
+  /// block vector `vBlock` (the 32 QK8_0 lanes in one e32m8 strip) and the AoS
+  /// block byte cursor `yb`:
+  ///     vfloat32m8_t vabs = __riscv_vfabs_v_f32m8(vBlock, vl);
+  ///     float amax = vfmv_f_s(vfredmax_vs(vabs, vfmv_v_f(0.0f, vl), vl));
+  ///     float d  = amax / 127.0f;  float id = d ? 1.0f/d : 0.0f;
+  ///     *(_Float16 *)(yb + scaleOff) = (_Float16)d;              // fcvt.h.s (rne)
+  ///     vfloat32m8_t x0 = __riscv_vfmul_vf_f32m8(vBlock, id, vl);
+  ///     vint16m4_t vi = __riscv_vfncvt_x_f_w_i16m4(x0, vl);      // f32->i16 (rne)
+  ///     vint8m2_t  vs = __riscv_vncvt_x_x_w_i8m2(vi, vl);        // i16->i8 trunc
+  ///     __riscv_vse8_v_i8m2(yb + quantOff, vs, vl);              // the 32 int8 qs
+  /// This is the SHARED per-block quantize core: emitGgmlQuantizeRowQ80 feeds it
+  /// the f32 block LOADED from x[] (the standalone f32->q8_0 activation quantizer),
+  /// and the [FMT-PROP] fused rms_norm->mul->quantize epilogue feeds it the
+  /// register-kept WEIGHTED vector `vz` (no f32 z[] store/reload). BYTE-EXACTNESS
+  /// matches ggml's EXACT RVV method (vfncvt = rne + native _Float16 cast); every
+  /// value is a NODE in the IR graph (I5; no raw C blob).
+  void emitQuantizeQ80BlockBody(mlir::ConversionPatternRewriter &rewriter,
+                                mlir::Location loc, mlir::Value vBlock,
+                                mlir::Value yb, mlir::Value vl,
+                                mlir::Type outputPtrType, mlir::Type sizeType,
+                                int64_t scaleOffset, int64_t quantOffset,
+                                llvm::StringRef opName, llvm::StringRef role) const;
+
   /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_1` RVV-path body for the single
   /// tcrv_rvv.quantize_row_q8_1 op nested under `scope` as fully STRUCTURED emitc
   /// nodes (I5). The SIBLING of emitGgmlQuantizeRowQ80: the SAME per-32-block amax
