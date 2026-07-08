@@ -1,0 +1,36 @@
+[
+ {
+  "build_commit": "f3e1828",
+  "model_type": "llama 8B Q4_K - Medium",
+  "model_size": 4912898304,
+  "model_n_params": 8030261312,
+  "n_batch": 2048,
+  "n_ubatch": 512,
+  "n_threads": 8,
+  "type_k": "f16",
+  "type_v": "f16",
+  "n_prompt": 128,
+  "n_gen": 0,
+  "avg_ns": 24689818645,
+  "stddev_ns": 4776836,
+  "avg_ts": 5.184323,
+  "stddev_ts": 0.001002,
+  "samples_ts": [5.18419,5.1827,5.18472,5.18411,5.18411,5.18476,5.18386,5.18407,5.18403,5.18669],
+  "_phase": "prefill (pp128), stock baseline, N=10, median 5.184 t/s IQR[5.184,5.185] cv~0.02%"
+ },
+ {
+  "build_commit": "f3e1828",
+  "model_type": "llama 8B Q4_K - Medium",
+  "n_threads": 8,
+  "type_k": "f16",
+  "type_v": "f16",
+  "n_prompt": 0,
+  "n_gen": 32,
+  "avg_ns": 15343027554,
+  "stddev_ns": 20535590,
+  "avg_ts": 2.085641,
+  "stddev_ts": 0.002787,
+  "samples_ts": [2.08532,2.08646,2.08733,2.08683,2.08689,2.0792,2.08803,2.08399,2.08364,2.08872],
+  "_phase": "decode (tg32, n_prompt=0 => decode-ONLY, no pp512), stock baseline, N=10, median 2.087 t/s IQR[2.084,2.087] cv~0.13%"
+ }
+]

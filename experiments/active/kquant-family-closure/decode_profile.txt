@@ -1,0 +1,17 @@
+# q4_K DECODE profile — DeepSeek-R1-Distill-Llama-8B-Q4_K_M
+# board: ssh rvv (openEuler, riscv64, VLEN128, 64c, gov=performance 2.6GHz)
+# cmd: perf record -e task-clock -F 999 -- taskset -c 8-15 llama-bench -m <Q4_K_M> -p 0 -n 48 -t 8 -r 1
+# Samples: 189K of event 'task-clock:u'  (Total Lost Samples: 0)
+# perf report --stdio --percent-limit 0.1, self%:
+    72.83%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q4_K_q8_K_vl128.isra.0
+    21.75%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q6_K_q8_K_vl128.isra.0
+     1.86%  llama-bench  libgomp.so.1.0.0       [.] gomp_team_barrier_wait_end
+     1.47%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_compute_forward_mul_mat
+     0.33%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q4_K_q8_K
+     0.14%  llama-bench  libggml-cpu.so.0.15.1  [.] quantize_row_q8_K
+     0.11%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_compute_forward_flash_attn_ext_f16_one_chunk(...)
+#
+# NOTE: decode is ~95% in K-quant vec_dot BUT is M=1 GEVM (memory-bound). The 1.884x repack-GEMM
+# gain is an M>1 output-tiling/register-reuse phenomenon -> does NOT exist at M=1.
+# => decode transmission efficiency ~= 0, projected decode delta ~= 1.00x (NULL).
+# Consistent with全仓 finding: compute-bound kernel wins don't transplant to memory-bound decode.

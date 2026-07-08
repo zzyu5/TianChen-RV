@@ -1,0 +1,16 @@
+== ENV (stock Q4_K_M phase-split baseline, ssh rvv) ==
+board: openEuler riscv64 VLEN128 64c, gov=performance, freq=2600000 kHz (2.6 GHz)
+isa: rv64imafdcv_zicbom..._zvfh_zvfhmin... (VLEN128)
+pin: taskset -c 8-15  threads: 8
+bench: /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/llama-bench (ggml f3e1828)
+model: DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf  model_sha256=f8eba201522ab44b
+       size=4912898304 (4.58 GiB)  n_params=8030261312 (8.03B)  KV type=f16
+protocol: warmup-dropped, then -r 10 (N=10) median+IQR, -o json.
+measured phases:
+  prefill = `-p 128 -n 0 -r 10`  -> pp128 median 5.184 t/s, cv 0.02% (N=10)
+  decode  = `-p 0   -n 32 -r 10` -> tg32  median 2.087 t/s, cv 0.13% (N=10)  [n_prompt=0 => decode-ONLY]
+note: a pp512 second prefill length was attempted but is ~17 min/10-reps on this 8B model; cut to
+      keep session budget (single prefill length pp128 anchors the projection; e2e ours-vs-stock Δ is
+      BLOCKED regardless of length, so multi-length is a gate-④ nicety, not the headline).
+gotcha: `llama-bench -n N` WITHOUT `-p 0` also runs the default pp512 (cartesian product) -> use
+      `-p 0 -n N` for a decode-ONLY measurement.

@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**37 cells** (active=22, sealed=10, archive=5).
+**38 cells** (active=23, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -18,6 +18,7 @@
 | active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
 | active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
 | active | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
+| active | `kquant-family-closure` | active | repack / [KQUANT-L1] (G3 裁决二.2/二.3 — K-quant 家族收口：整模型**传导账** + q4_K **八门**。 | 8 | — | G3 裁决二 K-quant 家族收口的整模型兑现账。**传导账 = 档案 projection**（1.59× prefill 上限 / |
 | active | `l1-reroll-q4k-repack-gemm` | active | repack / [KQUANT-L1] (RE-ROLL 曳光弹 #2 — q4_K repack GEMM structural RE-ROLL | 5 | — | L1-maturity RE-ROLL A/B evidence. Isolates the non-byte-exact structural re-roll from a |
 | active | `l1-tile-s1-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S1 — q4_K repack GEMM STRUCTURAL h-strip TILE A/B on | 5 | — | L1-maturity T2-tile S1 A/B evidence. Isolates the S1 h-strip STRUCTURAL TILE from the |
 | active | `l1-tile-s6-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S6 — q4_K repack GEMM register-cliff step on rvv/VLEN128: | 5 | — | L1-maturity T2-tile S6 A/B evidence. Isolates the S6 register-cliff increment from the S1 |
@@ -30,7 +31,7 @@
 | active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
 | active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
-| active | `visibility` | active | visibility | 3 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
+| active | `visibility` | active | visibility | 4 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
 | sealed | `opponent-facts-provenance` | sealed | c1-cleanliness | 2 | — | opponent-fact provenance -> pinned ggml line anchors. opponent-facts.pin.json is consumed by tools/lint/check_opponent_facts_pin.sh (pin ch… |
 | sealed | `quant-label-proof` | sealed | c1-cleanliness | 2 | — | string-deletion byte-exact proof (fact-drives-routing, label-inert); NOTES sha256 a457e1b9 + machine evidence.json. |
 | sealed | `k1-vlen256-q4_0-flip` | sealed | repack | 5 | — | k1/VLEN256 q4_0 flip e2e; decode 0.857x PARK-P1 reversal source. |

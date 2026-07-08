@@ -10,5 +10,6 @@
 - `T0-sixstate.md`
 - `T2-ledger-anchor.md`
 - `T7-burndown.md`
+- `T7-three-curve-G3-closure.md`
 
 > Evidence-pointer code (`*.kernel.c` / `*.emitc.mlir` / sealed `*.o` / `*.cpp`) stays in-cell as an evidence pointer; harness/protocol scripts live under `tools/`. Gitignored scratch rides with the cell but is not durable.

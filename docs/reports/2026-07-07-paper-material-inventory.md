@@ -1,4 +1,4 @@
-# 论文素材现状清单 — 2026-07-07（裁决二 板批落表后；2026-07-08 G3 四.1 — G2/FMT-PROP whole-model e2e 落表更新；2026-07-08 G3 四(archival) — L3 从性能支柱重定位为机制展示/方法学素材 + FMT-PROP prefill 相传导账 owed 下板批）
+# 论文素材现状清单 — 2026-07-07（裁决二 板批落表后；2026-07-08 G3 四.1 — G2/FMT-PROP whole-model e2e 落表更新；2026-07-08 G3 四(archival) — L3 从性能支柱重定位为机制展示/方法学素材 + FMT-PROP prefill 相传导账 owed 下板批；**2026-07-08/09 G3 K-quant 家族收口 — 五超块全构造退役 + S6 tiling 铺开 + [XFER-1] 4/4 + 传导账,见 §二.4**）
 
 **目的**：把当前**已落表**的每条论文可用主张，映射到一个具体的证据表行指针，并标注证据成色。
 纪律：[NG-4] 措辞守（internal A/B ≠ beat；beat 需过 [PERF-1] 八门、vs 同-ISA 框架内核、分相报告）；
@@ -45,7 +45,7 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 > first-construction correctness-first **un-pipelined** emit（q2_K GEMM 77 vsetvl、q6_K 21、q3_K 13；~0.2–0.3 MAC/cycle ~20× off
 > peak）vs opponent MATURE 手调 `ggml_vec_dot_q{2,3}_K_q8_K_vl128`。**[NG-4] moot（LOSS 不可能是 beat）；八门未走 → 仅 candidate**：
 > 结构 opening + 板上数值双证已立，但当前构造**未把结构 opening 转成吞吐** = marginal-cost / compiler-maturity 证据，perf 轴 pending。
-> **★吞吐兑现格数 1→2（G3 裁决〇，board 2026-07-08）**：q4_K repack GEMM 输出**瓦片化**（S1→S6，L1-9）**在 q4_K 上闭合了**上面「结构 opening 未转吞吐」的成熟张力——S1 spill 84→23 / parity 0.962→1.473，S6 spill→0 / parity→**1.884×**（kernel-轴 A/B，byte-exact）。→ 迄今**兑现吞吐**的格从 **1（q4_0 e2e 5.9×）→ 2**，但第二格 q4_K 是 **kernel-轴（非 e2e）**、八门未走、[NG-4] 非 beat；e2e 仅**预估 +7%级、待铺族后整模型验证**（sibling q6_K/q2_K/q3_K 的 LOSS 格待同款 tiling 处理，family rollout pending）。
+> **★吞吐兑现格数 1→2→4（G3 裁决〇 board 2026-07-08 → G3 K-quant 家族收口 board 2026-07-08/09，见 §二.4）**：q4_K repack GEMM 输出**瓦片化**（S1→S6，L1-9）**在 q4_K 上闭合了**上面「结构 opening 未转吞吐」的成熟张力——S1 spill 84→23 / parity 0.962→1.473，S6 spill→0 / parity→**1.884×**（kernel-轴 A/B，byte-exact）。→ 兑现吞吐的格从 **1（q4_0 e2e 5.9×）→ 2（+q4_K）**；**家族铺开后再 →4**（+q2_K S6 **1.413×** FLIP LOSS→WIN、+q5_K S6 **2.193×**——两格 S6 tiling **HOLDS**）；q6_K/q3_K tiling **NULL**（weight-bound，~5.3–5.4× LOSS 未救）不加兑现。第 2–4 格均 **kernel-轴（非 e2e）**、八门未走、[NG-4] 非 beat；整模型 e2e 仅 **projection**（§二.4 传导账 prefill Amdahl 上限 ≈1.59×，decode NULL，measured Δ 集成 BLOCKED）。**family rollout = 完成**（K-quant 5/5 全构造退役）。
 
 ---
 
@@ -140,3 +140,48 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 - L2-5 iq4_xs/tq1_0 relaxed body 未建 — `structural-block`（双档税账仅 q8_0 可算）。
 - 缺口余项：tq2_0 vs-SIMD-factory 仍 LOSS；tq1_0 同 spill 类未修 — construction-queue。
 - 所有 kernel-only 项：e2e 传导多半 washes（compute/latency-bound），永远 kernel 与 e2e 分开报。
+
+---
+
+## 二.4 — G3 K-quant 家族收口包（board 2026-07-08/09，rvv/VLEN128）
+
+> 五超块 K-quant repack GEMM 家族全构造退役 + S6 输出-tiling 铺开 + [XFER-1] 迁移验证 + 整模型传导账。
+> **纪律**：kernel-轴数是**兑现-判定指针**（[NG-4] 非 beat / [L-1] kernel-级、板-格式-bound）；整模型 e2e = **projection**（集成 BLOCKED）。
+
+### 收口三数（schema-authoritative @ working tree）
+
+| 指标 | G3 起→终 | 现值 | 权威源 |
+|---|---|---|---|
+| **燃减 C_construct(强义)** | 33 → **40** | **40/93 = 43.0%**（过 M2≥40% 门，向 ≥70%→90% 推） | `coverage_metrics.py report` / `schema/coverage-sixstate.v1.json` |
+| **吞吐兑现(格数)** | 1 → **4** | q4_0 e2e 5.9× + q4_K/q2_K/q5_K S6 kernel-轴 HOLDS | `T3_A` §二.1 块 + `l1-tile-s6-q4k`/`l1-t3-q{2,5}k` cells |
+| **旁路存量(直连发射器)** | 17 → **10** | ternary 2 + K-quant 5 全退役；残 10（flat4 + iq2×3 + iq4×2 + mxfp4） | `schema/emit-bypass-whitelist.v1.json` `baseline_count=10` |
+
+**T7 三曲线**（`experiments/active/visibility/T7-three-curve-G3-closure.md`）：三序在 G3 上**机械耦合**——每 front-door 构造 = **+1 C_construct ∧ −1 旁路**（7 次一一对应，7a4250c5/0b907d0c/7ff52fc4/c3cf7301/1b367c1f/54d3741c/df8a0b76），其中 3 个 K-quant S6 HOLDS 额外 **+1 兑现**。（`T7-burndown.md` 生成器渲染到 C=39，差 1 = 末构造 `df8a0b76` subject 漏 `C_construct 39→40` token;非未提交,schema 权威=40。）
+
+### 二.1 K-quant 五格汇总（S6 register-cliff transfer；瓶颈形状分类 → tiling 判定）
+
+| fmt | 六态 | 瓶颈形状分类 | tiling 判定 | 对手位（VLEN128 dispatch） | spill 前→后（peak vreg） | vs-opponent(untiled→tiled) | [XFER-1] 预测→实测 |
+|---|---|---|---|---|---|---|---|
+| **q4_K** | constructed-strong | **min-fold register-cliff** | **HOLDS**（anchor） | case128=TODO no-op→nullptr@128;`_vl128` 手调 | 84→**3**（v31→**v30**） | 0.962→**1.884×**（~88% lead） | anchor/origin（HOLDS） |
+| **q2_K** | constructed-strong | **min-fold register-cliff**（共享 dmin/bsums-min fold） | **HOLDS** | case128=TODO→nullptr@128;`_vl128` 成熟 | 619→**7**（v31→**v30**;text 减半） | 0.212→**1.413×**（FLIP LOSS→WIN） | 预测 HOLDS → **HOLDS ✓** |
+| **q5_K** | constructed-strong | **min-fold-cliff + qh 残留**（HYBRID） | **HOLDS**（hybrid） | 全 VLEN 无 riscv repack→nullptr;UNTUNED generic | 155→**105**（−32%;v31→**v30**;reload −62%） | 1.547→**2.193×**（already-WIN 推进） | 预测 HOLDS → **HOLDS ✓**（crux：min-fold 存活 qh 面） |
+| **q6_K** | constructed-strong | **dual-plane weight-bound**（ql+qh） | **NULL** | 无 riscv 分支 NEON-only→nullptr@每 VLEN;成熟 | 913→**949**（rose;v31→**v31**） | 0.184→0.181（~5.4× LOSS 未救） | 预测 NULL → **NULL ✓** |
+| **q3_K** | constructed-strong | **dual-plane weight-bound**（qs+hmask,no-min） | **NULL** | 不在 selector,ggml 零 q3_K repack（**最强 absence**）→nullptr;成熟 `_vl128` | 978→**894**（−8.6% 仅 overhead-shave;v31→**v31**） | 0.176→0.191（~5.3× LOSS 未救） | 预测 NULL → **NULL ✓** |
+
+- **判别式**：≤32-vreg 寄存器悬崖（**v30=HOLDS / v31=NULL**）严格追踪瓶颈形状——S6 stack-panel lever 键控于 **min-fold**（把 idle i32 MIN 累加器 + decode strips 外置到栈,byte-exact）：HOLDS ⟺ 峰值压力=decode/min strips（q4_K/q2_K/q5_K 共享 `kquant_dmin_bsums_min` fold）;NULL ⟺ 峰值压力=dual-plane 权重重构（q6_K/q3_K 共享 `kquant_single_scale_no_min` fold,panel 不触及）。全程 **byte-exact**（IDENTITY cmp 0 + silicon INT_mismatch=0 + vwmacc multiset 不变）。
+- **[XFER-1] register-cliff 迁移 = 4/4 命中硅**：从 q4_K S6 anchor 出发的 **4 个 sibling 预测**（q2_K/q5_K 预测 HOLDS、q6_K/q3_K 预测 NULL）**全部实测命中**。这是 C3′「换键不改条目」迁移判据在最细分辨率上的一手素材：register-cliff lever 键控于 min fold,一个共存的权重面（q5_K qh）**降级但不击败**它（hybrid HOLDS,spill 未塌到 0）。
+
+### e2e 结论（不显著 → projection + 归因 + 八门状态）
+
+- **measured 整模型 Δ = N/A**（集成 BLOCKED）：构造 q4_K repack GEMM 活在编译器 emitter（`emitRepackKQuantGemmBodyQ4K`,working-tree 未 commit）,未接入 ggml Q4_K `mul_mat` dispatch;且 VLEN128 K-quant repack trait=`nullptr`(**无可翻 env-toggle**,不同于 G2 fusion ON/OFF)。热插需离线权重 repack + 新 dispatch + q8_K 激活量化胶水(历史 e2e-seal 难点)。
+- **传导账（档案 projection,`kquant-family-closure/transmission_account.md`）**：实测 prefill matmul 占比 **97.3%**（q4_K vec_dot 79.08% + q6_K 18.18%,perf task-clock 798K samples pin8-15 -t8）→ Amdahl（q4_K@1.884× + q6_K@1.0×）**S_prefill ≈ 1.59×**（区间 1.3×–1.6×,机理天花板 1.84× 纯-q4_K）;**decode 传导效率 ≈ 0**（M=1 GEVM memory-bound,tiling 增益机理不存在,Δ≈1.00× NULL）。整模型 = decode-dominated → 净生成 tok/s ≈ NULL,**价值严格住 prefill 相**。stock 基线 pp128 **5.184 t/s**（cv 0.02%）/ tg32 **2.087 t/s**（cv 0.13%）;若集成满额 projected prefill ≈ 8.24 t/s（**projection 非 measured**）。→ 入 `T3_A` §二.2 e2e-transmission-projection 行（成色 `pending`/`e2e-diluted-by-blocker`）。
+
+### q4_K 八门（§4.4 权威；`kquant-family-closure/T-PERF1_q4_K_vlen128_prefill_8gate.md`）
+
+**3/8 PASS · 2 partial · 3 missing → 非 sealed Win,beat 措辞 LOCKED（[NG-4]）**：**PASS** ①字节精确（bounded-ULP 非 ULP0）· ⑥实验纪律 · ⑧措辞门;**PARTIAL** ③双板 objdump（rvv128 ✓ / k1-256 ✗）· ④micro∧e2e（micro 1.884× ✓ / e2e projection,measured BLOCKED）;**MISSING** ②VLEN256 flip lit · ⑤双板都验证（k1 未测 q4_K）· ⑦selector 归因（op-identity 选中,reason≈static_order,非 capability-keyed）。下板批：q4_K VLEN256 lit + k1 objdump/复测 + e2e 集成或 measured A/B + tiled 变体能力键归因。
+
+### 落地指针（本收口无 lib/ 改动;deliverable 未 commit,留用户提交）
+
+- 传导账 + 八门 + phase-split：`experiments/active/kquant-family-closure/`（9 文件）+ harness `tools/e2e-harness/board/kquant_transmission_amdahl.sh`。
+- 五格汇总 + e2e projection 入 `T3_A`（§二.1 / §二.2 块,28-列 schema）;五格 primary 证据 = `l1-tile-s6-q4k` + `l1-t3-q{5,2,6,3}k` cells。
+- 三曲线：`experiments/active/visibility/T7-three-curve-G3-closure.md`（registered;INDEX regen;dir-lint GREEN）。

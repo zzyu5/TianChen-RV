@@ -1,0 +1,20 @@
+# q4_K PREFILL profile — DeepSeek-R1-Distill-Llama-8B-Q4_K_M
+# board: ssh rvv (openEuler, riscv64, VLEN128, 64c, gov=performance 2.6GHz)
+# cmd: perf record -e task-clock -F 999 -- taskset -c 8-15 llama-bench -m <Q4_K_M> -p 256 -n 0 -t 8 -r 1
+# bench: /home/ubuntu/llama.cpp-upstream-native/build-gcc15-rv64gcv/bin/llama-bench  (ggml f3e1828)
+# PMU blocked (perf_event_paranoid=2) -> software task-clock event.
+# Samples: 798K of event 'task-clock:u'  (Total Lost Samples: 0)
+# perf report --stdio --percent-limit 0.1, self%:
+    78.35%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q4_K_q8_K_vl128.isra.0
+    18.18%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q6_K_q8_K_vl128.isra.0
+     1.03%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_compute_forward_mul_mat
+     0.73%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_dot_q4_K_q8_K
+     0.57%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_compute_forward_flash_attn_ext_tiled(...)
+     0.33%  llama-bench  libggml-cpu.so.0.15.1  [.] quantize_row_q8_K
+     0.12%  llama-bench  libggml-cpu.so.0.15.1  [.] ggml_vec_swiglu_f32
+#
+# DERIVED (Amdahl 分母):
+#   q4_K matmul share f4 = 78.35 + 0.73 = 79.08%
+#   q6_K matmul share f6 = 18.18%
+#   matmul total ~= 97.3% (strong matmul-bound prefill)
+#   non-accelerable f_rest = 2.74%
