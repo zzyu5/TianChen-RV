@@ -20,8 +20,8 @@
       "ci": ".github/workflows/falsifier-gate.yml (job: frontdoor-provenance-gate)"
     },
     "shrink_only": true,
-    "baseline_count": 17,
-    "generated_survey": "As of G3 裁决一.3: 17 direct-emitter repack gemm_tile cells (31 emitRepackGem* symbols) are production-wired in kBlockDotKernels and bypass the front door; ALL are honestly dispatch-wired in six-state (feed C_dispatch, not C_construct). The ONLY front-door CONSTRUCTED repack gemm_tile cells are q4_0 decode + q4_0 prefill (typed_repack_gem{v,m}_loop_body) -- they are NOT bypasses and are deliberately absent from this list. baseline was 15 at the G3 freeze and was bumped to 17 in the SAME pass: the iq2_xs/iq2_s repack GEVM+GEMM line (tasks #80-86, which predates G3) had ALREADY landed its 4 emitters (emitRepackGem{v,m}Iq2XsQ8K / emitRepackGem{v,m}Iq2SQ8K, recognizers RVVToEmitC.cpp:1675-1720, ops GgmlRepackGem{v,m}Iq2{Xs,S}Q8KOp) into kBlockDotKernels with oracles byte-exact GREEN (task #84 done); the [F-EMIT] gate detected them as un-whitelisted bypasses, so they were folded in here (retirement_batch 3) per the ruling's 'iq2_xs/iq2_s 若已落' clause. Their lit/rebuild verification residual (tasks #85-86) is owned by that line; the six-state flip absent->dispatch-wired for these two cells was recorded as forward-completion by this G3 pass."
+    "baseline_count": 16,
+    "generated_survey": "As of G3 主线B batch1: 16 direct-emitter repack gemm_tile cells are production-wired in kBlockDotKernels and bypass the front door; ALL are honestly dispatch-wired in six-state (feed C_dispatch, not C_construct). The ONLY front-door CONSTRUCTED repack gemm_tile cells are q4_0 decode + q4_0 prefill AND NOW tq2_0 (typed_repack_gem{v,m}_loop_body) -- they are NOT bypasses and are deliberately absent from this list. G3 主线B batch1 RETIRED the FIRST direct-emitter bypass into the front door: tq2_0 (retirement_batch 1). Its GEVM+GEMM direct emitters (emitRepackGem{v,m}TQ20Q8K), recognizers (isRepackGem{v,m}TQ20Q8KBody), and kBlockDotKernels dispatch entries are DELETED; the repack front door now constructs the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body region carrying the tcrv_rvv.repack_gem{v,m}_ternary_core brick, lowered by emitTypedRepackGem{v,m}LoopBody's ternary branch -> emitRepackTernaryGem{v,m}BodyTQ20 (byte-exact to the retired direct emitter -- the git diff shows ZERO emitOpaqueCall body churn, only the dead result-token literal removed). baseline 17 -> 16 (ratchet shrink). tq1_0 (base-3) remains a batch-1 RESIDUAL (its decode is a distinct base-3 unpack over qs+qh; deferred honestly, still whitelisted). The predecessor bump 15 -> 17 (iq2_xs/iq2_s repack, tasks #80-86) predates this pass and is unchanged."
   },
 
   "entries": [
@@ -74,16 +74,6 @@
       "emitters": ["emitRepackGemvTQ10Q8K", "emitRepackGemmTQ10Q8K"],
       "recognizers": ["isRepackGemvTQ10Q8KBody", "isRepackGemmTQ10Q8KBody"],
       "plan": "ternary batch: retire the base-3 5-trit/byte block-as-lane repack (linear no-min) into the front door; shares the ternary decode brick with the tq1_0 vec_dot already-constructed super-block body."
-    },
-    {
-      "op": "gemm_tile",
-      "format": "tq2_0",
-      "engine": "rvv",
-      "retirement_batch": 1,
-      "provenance": "direct-emitter (transitional scaffolding)",
-      "emitters": ["emitRepackGemvTQ20Q8K", "emitRepackGemmTQ20Q8K"],
-      "recognizers": ["isRepackGemvTQ20Q8KBody", "isRepackGemmTQ20Q8KBody"],
-      "plan": "ternary batch: retire the vand 0x03 + vsub-1 trit-decode block-as-lane repack (linear no-min) into the front door; shares the ternary decode brick with the tq2_0 vec_dot already-constructed super-block body."
     },
     {
       "op": "gemm_tile",
@@ -197,5 +187,17 @@
     }
   ],
 
-  "retired_ledger": []
+  "retired_ledger": [
+    {
+      "op": "gemm_tile",
+      "format": "tq2_0",
+      "engine": "rvv",
+      "retirement_batch": 1,
+      "retired_by": "G3 主线B batch1 (FIRST direct-emitter bypass retired to the front door)",
+      "was_emitters": ["emitRepackGemvTQ20Q8K", "emitRepackGemmTQ20Q8K"],
+      "was_recognizers": ["isRepackGemvTQ20Q8KBody", "isRepackGemmTQ20Q8KBody"],
+      "front_door": "RVVToEmitCBlockQuantLinear.cpp emitTypedRepackGem{v,m}LoopBody ternary branch -> emitRepackTernaryGem{v,m}BodyTQ20 (byte-exact to the retired direct emitter), gated on the in-region tcrv_rvv.repack_gem{v,m}_ternary_core brick constructed in the typed_repack_gem{v,m}_loop_body region.",
+      "note": "The vand 0x03 + vsub-1 2-bit trit-decode block-as-lane repack (linear single-fp16-scale no-min). GEVM+GEMM direct emitters, recognizers, and kBlockDotKernels dispatch entries DELETED; six-state gemm_tile tq2_0 flipped dispatch-wired -> constructed (front-door typed-region). baseline 17 -> 16 (ratchet shrink). Byte-exactness proven by git diff (ZERO emitOpaqueCall body churn)."
+    }
+  ]
 }

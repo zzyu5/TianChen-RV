@@ -112,6 +112,40 @@ constexpr std::int64_t kWeightInterleave = 16;
 // column and carries no interleave.
 constexpr std::int64_t kActivationInterleave = 4;
 
+// The abstract request's committed decode-FAMILY discriminator: the ternary
+// tq2_0 scale_model WHAT. Routing (repack-vs-block-dot) stays fact-driven off the
+// opponent facts; the decode FAMILY (which core brick + block facts the lowering
+// CONSTRUCTS) is keyed off this committed scale_model (a required WHAT attr, NOT
+// the optional `quant` format label). A request carrying it is a BitNet-class
+// 2-bit trit super-block contraction whose repack-SELECTED lowering CONSTRUCTS
+// the ternary typed_repack_gem{v,m}_loop_body region (fold_model
+// "ternary_single_fp16_scale", decode_model "tq2_0"), the sibling of the q4_0
+// nibble region. Deleting the optional `quant` label keeps this WHAT intact.
+constexpr llvm::StringLiteral kTernaryTQ20ScaleModel =
+    "superblock-d.fp16-single-scale-2bit-ternary-nomin";
+
+// The repacked block_tq2_0x16 / block_q8_K byte facts the ternary lowering
+// RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
+// asserts): the 16-inline-fp16-d weight super-block stride (1056), the weight trit
+// quant byte offset (32, after the 16 fp16 d strip), the PLAIN q8_K GEVM activation
+// stride (292) + its quant offset (4, after the fp32 d), and the INTERLEAVED
+// block_q8_Kx4 GEMM activation stride (1168) + its quant offset (16). These MIRROR
+// the retired monolithic tq2_0 repack op verifiers' pins.
+constexpr std::int64_t kTernaryTQ20WeightBlockStride = 1056;
+constexpr std::int64_t kTernaryTQ20WeightQuantByteOffset = 32;
+constexpr std::int64_t kTernaryTQ20GevmActivationBlockStride = 292;
+constexpr std::int64_t kTernaryTQ20GevmActivationQuantByteOffset = 4;
+constexpr std::int64_t kTernaryTQ20GemmActivationBlockStride = 1168;
+constexpr std::int64_t kTernaryTQ20GemmActivationQuantByteOffset = 16;
+
+// The GEMM (prefill) ternary loop-body scale_model. The abstract op commits to the
+// GEVM/base ternary scale_model (kTernaryTQ20ScaleModel); the GEMM lowering sets
+// the 4-column-amortized variant on the constructed loop body (a pure I4 mirror --
+// the loop-body verifier does NOT pin scale_model for the ternary fold; the emitter
+// routes on fold_model + the core brick's decode_model).
+constexpr llvm::StringLiteral kTernaryTQ20GemmScaleModel =
+    "superblock-d.fp16-single-scale-2bit-ternary-4col-nomin";
+
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
 // minimum VLEN, the SAME pure rule MaterializeRVVRepackStripWidth uses
 // (RVVRepackStripWidthMaterialization.cpp:78): half_lanes = min(vlen/16, 16),
@@ -221,11 +255,32 @@ private:
       // tcrv_rvv.typed_repack_gemv_loop_body REGION (the single-activation-row
       // GEVM that internalizes only the N-column loop over a plain q8_0 stream).
       // Both share the SAME capability gate (isRepack + a valid e16m1 strip
-      // width); only the granularity differs.
+      // width); only the granularity differs. The decode FAMILY (q4_0 nibble vs
+      // ternary tq2_0 trit) is keyed off the committed scale_model WHAT: the
+      // ternary family CONSTRUCTS the ternary typed_repack region + the
+      // repack_gem{v,m}_ternary_core brick (decode_model "tq2_0"), the q4_0
+      // family the nibble core + dual-fp16 fold bricks.
+      bool isTernaryTQ20 = op.getScaleModel() == kTernaryTQ20ScaleModel;
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
-      return lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
+        return isTernaryTQ20
+                   ? lowerToRepackGemmTernary(op, selection, halfLanes, isRVV0p7)
+                   : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
+      return isTernaryTQ20
+                 ? lowerToRepackGemvTernary(op, selection, halfLanes, isRVV0p7)
+                 : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
     }
+
+    // Fail-closed (I7): a ternary tq2_0 request has NO block-dot decline path --
+    // the block-dot identity lowering reconstructs a q4_0 nibble body, which
+    // would MISCOMPILE ternary weights. A ternary request that does not afford a
+    // repack strip width (minVLEN < 128) is rejected, never silently mis-lowered
+    // into a q4_0 block-dot.
+    if (op.getScaleModel() == kTernaryTQ20ScaleModel)
+      return op.emitError()
+             << "ternary tq2_0 quant_contraction requires a repack-affording "
+                "capability (a valid e16m1 strip width, minVLEN >= 128); there "
+                "is no ternary block-dot decline path (the block-dot identity "
+                "lowering is q4_0-nibble-only)";
 
     return lowerToBlockDot(op, selection);
   }
@@ -634,6 +689,309 @@ private:
              << "repack-GEMM region lowering requires the abstract "
                 "quant_contraction result to be unused (the repacked lane-wise "
                 "GEMM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (TERNARY REPACK, GEVM region form): the ternary tq2_0 sibling
+  // of lowerToRepackGemv. Realize a repack-SELECTED, capability-afforded ternary
+  // tq2_0 DECODE request as the typed tcrv_rvv.typed_repack_gemv_loop_body REGION
+  // carrying the SINGLE decomposed ternary integer CORE brick
+  // (tcrv_rvv.repack_gemv_ternary_core, decode_model "tq2_0") -- the front-door
+  // CONSTRUCTION of the RETIRED monolithic emitRepackGemvTQ20Q8K direct emitter.
+  // Where q4_0 decomposes into a nibble core + numHalves dual-fp16 FOLD bricks,
+  // the LINEAR ternary fold (single fp16 super-block scale, NO per-sub-block
+  // scale, NO dmin, NO min) is RE-EMITTED whole by the typed emitter keyed off the
+  // core brick's identity, so the region carries ONLY the core brick + the
+  // per-strip accumulator pass-through yield (the SAME construction discipline as
+  // the flat ternary vec_dot core brick). It reconstructs the block_tq2_0x16 x16
+  // weight facts (stride 1056, interleave 16, weight quant offset 32) + the PLAIN
+  // block_q8_K activation facts (stride 292, quant offset 4) the ternary GEVM
+  // reads, derives the resource-aware half_lanes from the capability VLEN, and
+  // stamps the DECLARED OUTPUT CONTRACT weight_layout_contract = "x16".
+  //
+  // SAFETY (NOT a latent miscompile): the emitted kernel reads x16 ternary weights
+  // but the abstract op carries PLAIN weights, so the emit is correct ONLY when the
+  // contract is honored. The abstract GgmlQuantContractionOp has NO real producer
+  // (authored ONLY in lit fixtures), so this region is reachable ONLY via lit,
+  // NEVER in the real llama.cpp pipeline. NO e2e/perf claim.
+  mlir::LogicalResult
+  lowerToRepackGemvTernary(tcrvrvv::GgmlQuantContractionOp op,
+                           const pluginrvv::ContractionSelection &selection,
+                           std::int64_t halfLanes, bool isRVV0p7) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+
+    // The region-carrying loop op: FIVE ABI operands (weight base, activation
+    // base, output, element count n, column count nc), NO vl operand and NO result.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemvLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(),
+                           op.getColumnCount()});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
+    // The ternary GEVM scale_model WHAT (the abstract op's committed
+    // kTernaryTQ20ScaleModel, passed through -- a pure I4 mirror on the loop op).
+    loopState.addAttribute("scale_model",
+                           builder.getStringAttr(op.getScaleModel()));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    // The block_tq2_0x16 x16 weight + PLAIN block_q8_K activation ABI facts the
+    // verifier / emitter pin (NOT the abstract op's plain stride-66 / stride-292
+    // facts -- this region reads the REPACKED weight layout the contract declares).
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("ternary_single_fp16_scale"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // Region entry args: block_index (index) FOLLOWED by numHalves loop-carried
+    // per-strip f32 VECTOR accumulators.
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemv_ternary_core producing the
+    // numHalves per-strip i32 sumi (a variadic result group). block_index-tied
+    // (anti-bypass) + named off the loop body's OWN weight/activation ABI bases.
+    // The typed emitter RE-EMITS the whole byte-exact ternary GEVM body from this
+    // brick's identity; the yield passes the carried-in per-strip accumulators
+    // through (the ternary fold has no separate FOLD brick, unlike q4_0).
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemvTernaryCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemv_ternary_core"));
+    coreState.addAttribute("decode_model", builder.getStringAttr("tq2_0"));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationQuantByteOffset));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    // Terminate the region: the loop yield names the numHalves carried-out
+    // per-strip f32 vector accumulators (the ternary fold is RE-EMITTED whole, so
+    // the accumulators pass THROUGH unchanged).
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemvLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "ternary repack-GEVM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "ternary GEVM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (TERNARY REPACK GEMM finale, region form): the ternary tq2_0
+  // sibling of lowerToRepackGemm. Realize a repack-SELECTED, capability-afforded
+  // ternary tq2_0 PREFILL request as the typed tcrv_rvv.typed_repack_gemm_loop_body
+  // REGION carrying the SINGLE decomposed ternary GEMM integer CORE brick
+  // (tcrv_rvv.repack_gemm_ternary_core, decode_model "tq2_0") -- the front-door
+  // CONSTRUCTION of the RETIRED monolithic emitRepackGemmTQ20Q8K direct emitter. It
+  // reconstructs the block_tq2_0x16 weight facts (stride 1056, interleave 16, weight
+  // quant offset 32) AND the INTERLEAVED block_q8_Kx4 activation facts (stride 1168,
+  // interleave 4, activation quant offset 16), MATERIALIZES the two GEMM ABI values
+  // (row count nr, output row stride bs) the abstract op does not carry, and stamps
+  // the DECLARED OUTPUT CONTRACT weight_layout_contract = "x16". The LINEAR ternary
+  // fold is RE-EMITTED whole by the typed emitter keyed off the core brick, so the
+  // region carries ONLY the core brick + the per-column accumulator pass-through
+  // yield. SAFETY: identical to lowerToRepackGemvTernary (lit-only, NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemmTernary(tcrvrvv::GgmlQuantContractionOp op,
+                           const pluginrvv::ContractionSelection &selection,
+                           std::int64_t halfLanes, bool isRVV0p7) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+
+    // Materialize the two runtime ABI values the internalized M-tiling GEMM nest
+    // needs but the abstract op does not carry (row count nr, output row stride
+    // bs) -- the SAME declared-contract move as the q4_0 repack GEMM.
+    auto variant = op->getParentOfType<tcrv::exec::VariantOp>();
+    if (!variant)
+      return op.emitError() << "ternary repack-GEMM region lowering requires the "
+                               "quant_contraction to sit inside a tcrv.exec.variant";
+    mlir::Value rowCount, outputRowStride;
+    {
+      mlir::OpBuilder::InsertionGuard abiGuard(builder);
+      builder.setInsertionPointToStart(&variant.getBody().front());
+      auto makeAbi = [&](llvm::StringRef cName, llvm::StringRef role,
+                         llvm::StringRef purpose) -> mlir::Value {
+        mlir::OperationState st(
+            loc, tcrvrvv::RuntimeABIValueOp::getOperationName());
+        st.addAttribute("role", builder.getStringAttr(role));
+        st.addAttribute("c_name", builder.getStringAttr(cName));
+        st.addAttribute("c_type", builder.getStringAttr("size_t"));
+        st.addAttribute("ownership",
+                        builder.getStringAttr("target-export-abi-owned"));
+        st.addAttribute("purpose", builder.getStringAttr(purpose));
+        st.addTypes(builder.getIndexType());
+        return builder.create(st)->getResult(0);
+      };
+      rowCount = makeAbi("nr", "source-byte-stride", "nr");
+      outputRowStride = makeAbi("bs", "output-stride", "bs");
+    }
+
+    // The region-carrying loop op: SEVEN ABI operands (weight base, activation
+    // base, output, element count n, row count nr, column count nc, output row
+    // stride bs), NO vl operand and NO result.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemmLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(), rowCount,
+                           op.getColumnCount(), outputRowStride});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemm_loop_body"));
+    // The 4-column-amortized ternary GEMM scale_model WHAT (the loop op derives it
+    // from the abstract op's committed base ternary scale_model + the prefill
+    // regime; a pure I4 mirror -- the loop-body verifier does NOT pin scale_model
+    // for the ternary fold).
+    loopState.addAttribute(
+        "scale_model", builder.getStringAttr(kTernaryTQ20GemmScaleModel));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("activation_interleave",
+                           builder.getI64IntegerAttr(kActivationInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("ternary_single_fp16_scale"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
+    // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    mlir::Value stripOffset = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemm_ternary_core producing the
+    // columnsPerPass per-column i32 sumi (a variadic result group). block_index +
+    // strip_row_offset tied (anti-bypass) + named off the loop body's OWN
+    // weight/activation ABI bases. The typed emitter RE-EMITS the whole byte-exact
+    // ternary GEMM body from this brick's identity; the accumulators pass through.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemmTernaryCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex, stripOffset});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemm_ternary_core"));
+    coreState.addAttribute("decode_model", builder.getStringAttr("tq2_0"));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationQuantByteOffset));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemmLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "ternary repack-GEMM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "ternary GEMM sinks through the output pointer, not an SSA vector)";
     op.erase();
     return mlir::success();
   }
