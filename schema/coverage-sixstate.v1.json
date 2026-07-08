@@ -564,15 +564,15 @@
    "op": "gemm_tile",
    "format": "iq4_nl",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv iq4_nl (GgmlRepackGem{v,m}Iq4NlQ80Op + fail-closed verifier + dispatch + REAL non-linear codebook decode: vluxei16 memory gather through tcrv_iq4_nl_repack_kvalues[16] (not fake-linear, not vrgather) + lane-wise vwmul/vwadd i32 + single fp16 scale + 4 lit + independent oracle byte-exact-integer GREEN, CODEBOOK control 100%)"
   },
   {
    "op": "gemm_tile",
    "format": "iq4_xs",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv iq4_xs (GgmlRepackGem{v,m}Iq4XsQ8KOp + verifier + dispatch + REAL codebook vluxei16 gather + K-quant-style 6-bit signed per-sub-block scale (q4_K bit-dance + vsub 32 + vsext_vf4 + vmacc, no min) + 4 lit + oracle byte-exact-integer GREEN)"
   },
   {
    "op": "gemm_tile",
