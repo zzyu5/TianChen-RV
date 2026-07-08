@@ -7224,6 +7224,307 @@ def GgmlRepackGemmIq2XxsQ8KOp
   let hasVerifier = 1;
 }
 
+def GgmlRepackGemvIq2XsQ8KOp
+    : TCRVRVV_Op<"repack_gemv_iq2_xs_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ2_XS x Q8_K 16x1-REPACKED GEVM (block-as-lane, 512-grid+sign, dual scale) op";
+  let description = [{
+    Records the COMPLETE ggml iq2_xs 16x1-REPACKED GEVM (decode) hot kernel as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the 512-entry GRID CODEBOOK
+    + ksigns SIGN-PLANE, DUAL-per-sub-block-scale sibling of
+    tcrv_rvv.repack_gemv_iq2_xxs_q8_K. iq2_xs is a QK_K=256 super-block split into 8
+    sub-blocks of 32; each sub-block has FOUR groups l=0..3. Group l reads a uint16 whose
+    LOW 9 bits (q2 & 511) index the FIXED 512-entry iq2xs_grid (each entry = 8 packed int8
+    grid bytes) and whose HIGH 7 bits (q2 >> 9) select a SIGN SELECTOR into ksigns_iq2xs
+    (bit j flips grid byte j). The sub-block carries TWO scales from scales[ib32]:
+    ls1 = 2*(sc&0xf)+1 weights groups 0-1, ls2 = 2*(sc>>4)+1 weights groups 2-3. There is
+    ONE fp16 super-block scale d, NO min, and a trailing 0.125 (1/8) factor. FOUR iq2_xs
+    facts distinguish it from iq2_xxs, each load-bearing:
+
+    (1) REAL 512-ENTRY GRID CODEBOOK GATHER (NOT fake). The block-as-lane repack stores one
+        raw uint16 grid INDEX (q2 & 511) per (sub-block, group, column); the decode loads
+        the u16 index strip DIRECTLY (vle16 -- NO vzext, the 9-bit index cannot live in a
+        byte), computes the u16 byte offset index*8 (vsll), then `vluxei16_v_i8` GATHERS
+        grid byte j per lane from the flat int8 grid table (idx*8 + j). Fetching the wrong
+        512-entry grid entry diverges the integer certificate.
+
+    (2) REAL SIGN-PLANE APPLICATION (NOT ignored). Each (sub-block, group, column) also
+        stores a raw 7-bit SIGN SELECTOR byte (q2 >> 9); the decode zero-extends it to a
+        u16 byte offset (sel*8 + j) and `vluxei16_v_i8` GATHERS a +-1 byte per lane from the
+        DERIVED signs64 sign plane (128 selectors * 8 +-1 bytes), then folds it onto the
+        grid via `vmul_vv_i8`. Ignoring the sign plane diverges the integer certificate.
+
+    (3) DUAL PER-SUB-BLOCK ls SCALE + i32 ACCUMULATION. The sub-block dot is split into TWO
+        group-halves (groups 0-1, groups 2-3), each accumulated in i32 (vwmul -> vwadd_wv);
+        the FIRST half is ls1-weighted and the SECOND ls2-weighted into the block i32
+        accumulator via `vmacc_vv_i32` (two distinct unsigned int8 scales, NO -32 bias, NO
+        min). This dual scale is the structural delta over iq2_xxs's single ls.
+
+    (4) TRAILING 0.125 FACTOR. The end-of-block fold is `fp16(x.d) * y.d` (NO min term); the
+        per-column output is scaled by 0.125f before the vse32 store.
+
+    The weight side is the block_iq2_xsx16 block-as-lane layout: 16 fp16 d (+0), the 8
+    per-sub-block DUAL ls scale strips (+32, int8, 8*2*16 bytes), the 512 uint16 grid-index
+    lanes (+288, [sub-block][group][column]), and the 512 sign-selector bytes (+1312). The
+    activation is ONE plain block_q8_K stream (stride 292). Weight block stride 1824. At
+    VLEN=128 each 16-block-as-lane group is processed as TWO 8-lane halves; at VLEN=256 ONE
+    16-lane strip. Every weight byte is read once.
+
+    The op consumes THREE runtime ABI value operands (repacked iq2_xsx16 weight base vx,
+    plain q8_K activation base vy, fp32 output s) + n + nc + vl, and produces ONE i32 LMUL
+    m1 !tcrv_rvv.vector token. The structural facts are typed integer/string attributes (I4
+    mirror only). The fixed 512-entry grid + 128-selector signs64 plane are NOT op attrs:
+    they are FIXED canonical tables emitted ONCE as static const decls. The bounded surface
+    kind is limited to "ggml_repack_gemv_iq2_xs_q8_K" and scale_model to
+    "superblock-d.fp16-grid-sign-dualscale-nomin-eighth". integer_core_lmul is the SAME
+    bounded resource fact; the verifier pins it fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_sign_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$n_subblocks,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$column_count `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($column_count) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlRepackGemmIq2XsQ8KOp
+    : TCRVRVV_Op<"repack_gemm_iq2_xs_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ2_XS x Q8_K 16x1-REPACKED GEMM (block-as-lane, 512-grid+sign, dual scale) op";
+  let description = [{
+    Records the COMPLETE ggml iq2_xs 16x1-REPACKED GEMM (prefill, M>>1) hot kernel as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the PREFILL sibling of
+    tcrv_rvv.repack_gemv_iq2_xs_q8_K. The 512-entry GRID CODEBOOK gather + ksigns SIGN plane
+    application + DUAL per-sub-block ls scale (i32-accumulator, no min) + trailing 0.125
+    factor are IDENTICAL to the GEVM (see that op). The DISTINGUISHING fact is the
+    activation: the interleaved block_q8_Kx4 stream (4 activation ROWS per group, 4 fp32 d
+    at +0, interleaved int8 quants at +16 as pos*4+c). The grid + sign weight decode is
+    AMORTIZED once per 16-weight group and REUSED across the 4 (and, across the row loop, M)
+    activation columns. Weight block stride 1824. At VLEN=128 each 16-block-as-lane group is
+    processed as TWO 8-lane halves; at VLEN=256 ONE 16-lane strip. Every weight byte is read
+    once.
+
+    The weight side is the block_iq2_xsx16 block-as-lane layout (IDENTICAL to the iq2_xs GEVM
+    weight ABI: 16 fp16 d + 8 dual ls strips + 512 uint16 grid-index lanes + 512 sign-
+    selector bytes, stride 1824).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes SEVEN runtime ABI value
+    operands (repacked iq2_xsx16 weight base vx, repacked q8_Kx4 activation base vy, fp32
+    output s, n, nr, nc, output row stride bs) + the active !tcrv_rvv.vl token, and produces
+    ONE i32 LMUL m1 !tcrv_rvv.vector token. The bounded surface kind is limited to
+    "ggml_repack_gemm_iq2_xs_q8_K" and scale_model to
+    "superblock-d.fp16-grid-sign-dualscale-4col-nomin-eighth". integer_core_lmul is the SAME
+    bounded resource fact; the verifier pins it fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$row_count,
+    AnyType:$column_count,
+    AnyType:$output_row_stride,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_sign_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$n_subblocks,
+    I64Attr:$weight_interleave,
+    I64Attr:$activation_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
+    "type($output_row_stride) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlRepackGemvIq2SQ8KOp
+    : TCRVRVV_Op<"repack_gemv_iq2_s_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ2_S x Q8_K 16x1-REPACKED GEVM (block-as-lane, 1024-grid+explicit-sign, dual scale) op";
+  let description = [{
+    Records the COMPLETE ggml iq2_s 16x1-REPACKED GEVM (decode) hot kernel as ONE bounded
+    generic plugin-local typed RVV dataflow step -- the 1024-entry GRID CODEBOOK +
+    EXPLICIT-SIGN-PLANE, DUAL-per-sub-block-scale sibling of
+    tcrv_rvv.repack_gemv_iq2_xs_q8_K. iq2_s is a QK_K=256 super-block split into 8 sub-blocks
+    of 32; each sub-block has FOUR groups l=0..3. Group g reads a 10-bit grid index ASSEMBLED
+    at repack time from the low byte qs[g] and the high 2 bits (qh[ib32]>>(2*l))&3, indexing
+    the FIXED 1024-entry iq2s_grid (each entry = 8 packed int8 grid bytes), plus an EXPLICIT
+    8-bit sign byte (bit j flips grid byte j -- NO ksigns selector). The sub-block carries
+    TWO scales from scales[ib32]: ls1 = 2*(sc&0xf)+1 weights groups 0-1, ls2 = 2*(sc>>4)+1
+    weights groups 2-3. There is ONE fp16 super-block scale d, NO min, and a trailing 0.125
+    factor. FOUR iq2_s facts distinguish it, each load-bearing:
+
+    (1) REAL 1024-ENTRY GRID CODEBOOK GATHER (NOT fake). The block-as-lane repack stores the
+        ASSEMBLED uint16 grid INDEX per (sub-block, group, column); the decode loads the u16
+        index strip DIRECTLY (vle16 -- NO vzext), computes the u16 byte offset index*8
+        (vsll), then `vluxei16_v_i8` GATHERS grid byte j per lane (idx*8 + j).
+
+    (2) REAL EXPLICIT-SIGN-PLANE APPLICATION (NOT ignored). Each (sub-block, group, column)
+        stores the raw 8-bit EXPLICIT sign byte (0..255); the decode zero-extends it to a u16
+        byte offset (sel*8 + j) and `vluxei16_v_i8` GATHERS a +-1 byte per lane from the
+        UNIVERSAL signs256 sign plane (256 sign bytes * 8 +-1 bytes -- NO ksigns selector,
+        the raw byte indexes DIRECTLY), then folds it onto the grid via `vmul_vv_i8`.
+
+    (3) DUAL PER-SUB-BLOCK ls SCALE + i32 ACCUMULATION. The sub-block dot is split into TWO
+        group-halves (groups 0-1, groups 2-3), each accumulated in i32; the first half is
+        ls1-weighted and the second ls2-weighted via `vmacc_vv_i32` (NO -32 bias, NO min).
+
+    (4) TRAILING 0.125 FACTOR. The end-of-block fold is `fp16(x.d) * y.d` (NO min term); the
+        per-column output is scaled by 0.125f before the vse32 store.
+
+    The weight side is the block_iq2_sx16 block-as-lane layout: 16 fp16 d (+0), the 8 dual ls
+    scale strips (+32, int8, 8*2*16 bytes), the 512 uint16 assembled grid-index lanes (+288),
+    and the 512 explicit sign bytes (+1312). Weight block stride 1824; activation is ONE
+    plain block_q8_K stream (stride 292). Every weight byte is read once.
+
+    The op consumes THREE runtime ABI value operands (repacked iq2_sx16 weight base vx, plain
+    q8_K activation base vy, fp32 output s) + n + nc + vl, and produces ONE i32 LMUL m1
+    !tcrv_rvv.vector token. The 1024-entry grid + 256-byte signs256 plane are FIXED canonical
+    tables emitted ONCE as static const decls (NOT op attrs). The bounded surface kind is
+    limited to "ggml_repack_gemv_iq2_s_q8_K" and scale_model to
+    "superblock-d.fp16-grid-explicitsign-dualscale-nomin-eighth". integer_core_lmul is the
+    SAME bounded resource fact; the verifier pins it fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$column_count,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_sign_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$n_subblocks,
+    I64Attr:$weight_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$column_count `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($column_count) `,` "
+    "type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def GgmlRepackGemmIq2SQ8KOp
+    : TCRVRVV_Op<"repack_gemm_iq2_s_q8_K",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV ggml IQ2_S x Q8_K 16x1-REPACKED GEMM (block-as-lane, 1024-grid+explicit-sign, dual scale) op";
+  let description = [{
+    Records the COMPLETE ggml iq2_s 16x1-REPACKED GEMM (prefill, M>>1) hot kernel as ONE
+    bounded generic plugin-local typed RVV dataflow step -- the PREFILL sibling of
+    tcrv_rvv.repack_gemv_iq2_s_q8_K. The 1024-entry GRID CODEBOOK gather + explicit-sign
+    plane application + DUAL per-sub-block ls scale (i32-accumulator, no min) + trailing
+    0.125 factor are IDENTICAL to the GEVM (see that op). The DISTINGUISHING fact is the
+    activation: the interleaved block_q8_Kx4 stream (4 activation ROWS per group, 4 fp32 d
+    at +0, interleaved int8 quants at +16 as pos*4+c). The grid + sign weight decode is
+    AMORTIZED once per 16-weight group and REUSED across the 4 (and, across the row loop, M)
+    activation columns. Weight block stride 1824. Every weight byte is read once.
+
+    The weight side is the block_iq2_sx16 block-as-lane layout (IDENTICAL to the iq2_s GEVM
+    weight ABI: 16 fp16 d + 8 dual ls strips + 512 uint16 grid-index lanes + 512 explicit
+    sign bytes, stride 1824).
+
+    The op is nested directly under tcrv_rvv.with_vl and consumes SEVEN runtime ABI value
+    operands (repacked iq2_sx16 weight base vx, repacked q8_Kx4 activation base vy, fp32
+    output s, n, nr, nc, output row stride bs) + the active !tcrv_rvv.vl token, and produces
+    ONE i32 LMUL m1 !tcrv_rvv.vector token. The bounded surface kind is limited to
+    "ggml_repack_gemm_iq2_s_q8_K" and scale_model to
+    "superblock-d.fp16-grid-explicitsign-dualscale-4col-nomin-eighth". integer_core_lmul is
+    the SAME bounded resource fact; the verifier pins it fail-closed (I7).
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$output,
+    AnyType:$element_count,
+    AnyType:$row_count,
+    AnyType:$column_count,
+    AnyType:$output_row_stride,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$scale_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_sign_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$n_subblocks,
+    I64Attr:$weight_interleave,
+    I64Attr:$activation_interleave,
+    I64Attr:$half_lanes,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
+    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
+    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
+    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
+    "type($output_row_stride) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def GgmlBlockDotMXFP4Q80Op
     : TCRVRVV_Op<"mxfp4_q8_0_block_dot",
     [TCRVEmitCLowerableOpInterface,

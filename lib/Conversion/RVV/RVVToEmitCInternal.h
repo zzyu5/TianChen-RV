@@ -457,6 +457,14 @@ private:
   static bool isRepackGemvIq2XxsQ8KBody(tcrvrvv::WithVLOp scope);
   /// The SUPER-BLOCK GRID+SIGN 16x1-REPACKED GEMM recognizer for iq2_xxs.
   static bool isRepackGemmIq2XxsQ8KBody(tcrvrvv::WithVLOp scope);
+  /// The SUPER-BLOCK 512-GRID + ksigns SIGN + DUAL-scale 16x1-REPACKED GEVM/GEMM
+  /// recognizers for iq2_xs (u16 grid index, 7-bit sign selector, ls1/ls2 halves).
+  static bool isRepackGemvIq2XsQ8KBody(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemmIq2XsQ8KBody(tcrvrvv::WithVLOp scope);
+  /// The SUPER-BLOCK 1024-GRID + EXPLICIT-sign + DUAL-scale 16x1-REPACKED GEVM/GEMM
+  /// recognizers for iq2_s (u16 assembled grid index, explicit 8-bit sign byte).
+  static bool isRepackGemvIq2SQ8KBody(tcrvrvv::WithVLOp scope);
+  static bool isRepackGemmIq2SQ8KBody(tcrvrvv::WithVLOp scope);
 
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
   /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
@@ -1764,6 +1772,69 @@ private:
   /// scale + 0.125 fold, with the grid+sign weight decode AMORTIZED across the 4
   /// interleaved block_q8_Kx4 activation columns.
   mlir::LogicalResult emitRepackGemmIq2XxsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The two DUAL-scale GRID+SIGN repack variants that share the iq2_xxs block-as-
+  /// lane scaffold VERBATIM but split each sub-block into TWO ls-weighted group
+  /// halves (ls1 over groups 0-1, ls2 over groups 2-3) and load the grid INDEX as a
+  /// u16 strip (9/10-bit index) instead of a zero-extended byte. iq2_xs uses the
+  /// 512-entry grid + the ksigns-derived signs64 plane (7-bit sign selector); iq2_s
+  /// uses the 1024-entry grid + the UNIVERSAL explicit-sign signs256 plane (raw
+  /// 8-bit sign byte). Everything else -- the vluxei16 grid/sign gather, the
+  /// vmul-onto-grid sign fold, the i32-accumulator dot, the fp16*fp32 no-min fold,
+  /// the 0.125 store -- is byte-identical to iq2_xxs.
+  enum class Iq2DualGridVariant { Xs, S };
+
+  /// Emit the COMPLETE ggml iq2_xs/iq2_s x q8_K 16x1-REPACKED block-as-lane GEVM
+  /// (decode) shared body -- the SINGLE implementation both dispatch entry points
+  /// call. `variant` selects the grid table (tcrv_iq2xs_grid[512] /
+  /// tcrv_iq2s_grid[1024]) and the sign plane (tcrv_iq2xs_signs64 /
+  /// tcrv_iq2s_signs256) emitted ONCE, plus which grid-core op the body reads.
+  mlir::LogicalResult emitRepackGemvIq2DualScaleQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      Iq2DualGridVariant variant, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
+      mlir::Value resultValue, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
+      int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t half, mlir::Value avlArg,
+      mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The PREFILL GEMM sibling of emitRepackGemvIq2DualScaleQ8K: the SAME dual-scale
+  /// grid+sign decode with the weight decode AMORTIZED across the 4 interleaved
+  /// block_q8_Kx4 activation columns.
+  mlir::LogicalResult emitRepackGemmIq2DualScaleQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      Iq2DualGridVariant variant, mlir::Value weightBase,
+      mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
+      mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value resultValue, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
+      int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
+      int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half,
+      mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The four thin dispatch entry points (one per op type) that resolve the op +
+  /// its ABI operands + facts and delegate to the shared dual-scale bodies above.
+  mlir::LogicalResult emitRepackGemvIq2XsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+  mlir::LogicalResult emitRepackGemmIq2XsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+  mlir::LogicalResult emitRepackGemvIq2SQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+  mlir::LogicalResult emitRepackGemmIq2SQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

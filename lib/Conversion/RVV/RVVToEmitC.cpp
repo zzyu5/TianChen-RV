@@ -400,6 +400,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmIq4XsQ8K},
         {&isRepackGemmIq2XxsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmIq2XxsQ8K},
+        {&isRepackGemmIq2XsQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemmIq2XsQ8K},
+        {&isRepackGemmIq2SQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemmIq2SQ8K},
         {&isRepackGemvQ8_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
         {&isRepackGemvQ4KQ8KBody,
@@ -424,6 +428,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvIq4XsQ8K},
         {&isRepackGemvIq2XxsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvIq2XxsQ8K},
+        {&isRepackGemvIq2XsQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemvIq2XsQ8K},
+        {&isRepackGemvIq2SQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemvIq2SQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
@@ -1662,6 +1670,62 @@ bool VariantToEmitCFunc::isRepackGemmIq2XxsQ8KBody(tcrvrvv::WithVLOp scope) {
       }
     }
     return sawGemm;
+  }
+
+bool VariantToEmitCFunc::isRepackGemvIq2XsQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool saw = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq2XsQ8KOp>(op)) {
+        if (saw)
+          return false;
+        saw = true;
+      } else {
+        return false;
+      }
+    }
+    return saw;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmIq2XsQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool saw = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq2XsQ8KOp>(op)) {
+        if (saw)
+          return false;
+        saw = true;
+      } else {
+        return false;
+      }
+    }
+    return saw;
+  }
+
+bool VariantToEmitCFunc::isRepackGemvIq2SQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool saw = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq2SQ8KOp>(op)) {
+        if (saw)
+          return false;
+        saw = true;
+      } else {
+        return false;
+      }
+    }
+    return saw;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmIq2SQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool saw = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq2SQ8KOp>(op)) {
+        if (saw)
+          return false;
+        saw = true;
+      } else {
+        return false;
+      }
+    }
+    return saw;
   }
 
 bool VariantToEmitCFunc::isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope) {
