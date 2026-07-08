@@ -388,16 +388,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmQ2KQ8K},
         {&isRepackGemmQ3KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmQ3KQ8K},
-        // NOTE: the tq2_0 16x1-repacked GEMM's direct emitter
-        // (emitRepackGemmTQ20Q8K) + its monolith op (tcrv_rvv.repack_gemm_tq2_0_q8_K)
-        // + recognizer are RETIRED (G3 主线B batch1, the FIRST direct-emitter bypass
-        // retired to the front door): the repack front door now constructs the typed
+        // NOTE: the tq2_0 (G3 主线B batch1) AND tq1_0 (G3 主线B batch2) 16x1-repacked
+        // GEMM direct emitters (emitRepackGemm{TQ20,TQ10}Q8K) + their monolith ops
+        // (tcrv_rvv.repack_gemm_tq{2,1}_0_q8_K) + recognizers are RETIRED (the whole
+        // ternary batch): the repack front door now constructs the typed
         // tcrv_rvv.typed_repack_gemm_loop_body region carrying the
         // tcrv_rvv.repack_gemm_ternary_core brick, lowered below by
         // isTypedRepackGemmLoopBody -> emitTypedRepackGemmLoopBody (ternary branch)
-        // -> emitRepackTernaryGemmBodyTQ20 (byte-exact to the retired direct emitter).
-        {&isRepackGemmTQ10Q8KBody,
-         &VariantToEmitCFunc::emitRepackGemmTQ10Q8K},
+        // -> emitRepackTernaryGemmBodyTQ{20,10} (byte-exact to the retired direct
+        // emitters; the tq1_0 branch reads the base-3 qh SECOND weight plane).
         {&isRepackGemmIq4NlQ80Body,
          &VariantToEmitCFunc::emitRepackGemmIq4NlQ80},
         {&isRepackGemmMxfp4Q8Body,
@@ -422,15 +421,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ2KQ8K},
         {&isRepackGemvQ3KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ3KQ8K},
-        // NOTE: the tq2_0 16x1-repacked GEVM's direct emitter
-        // (emitRepackGemvTQ20Q8K) + its monolith op (tcrv_rvv.repack_gemv_tq2_0_q8_K)
-        // + recognizer are RETIRED (G3 主线B batch1): the repack front door now
-        // constructs the typed tcrv_rvv.typed_repack_gemv_loop_body region carrying
-        // the tcrv_rvv.repack_gemv_ternary_core brick, lowered below by
+        // NOTE: the tq2_0 (G3 主线B batch1) AND tq1_0 (G3 主线B batch2) 16x1-repacked
+        // GEVM direct emitters (emitRepackGemv{TQ20,TQ10}Q8K) + their monolith ops
+        // (tcrv_rvv.repack_gemv_tq{2,1}_0_q8_K) + recognizers are RETIRED (the whole
+        // ternary batch): the repack front door now constructs the typed
+        // tcrv_rvv.typed_repack_gemv_loop_body region carrying the
+        // tcrv_rvv.repack_gemv_ternary_core brick, lowered below by
         // isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody (ternary branch)
-        // -> emitRepackTernaryGemvBodyTQ20 (byte-exact to the retired direct emitter).
-        {&isRepackGemvTQ10Q8KBody,
-         &VariantToEmitCFunc::emitRepackGemvTQ10Q8K},
+        // -> emitRepackTernaryGemvBodyTQ{20,10} (byte-exact to the retired direct
+        // emitters; the tq1_0 branch reads the base-3 qh SECOND weight plane).
         {&isRepackGemvIq4NlQ80Body,
          &VariantToEmitCFunc::emitRepackGemvIq4NlQ80},
         {&isRepackGemvMxfp4Q8Body,
@@ -1515,38 +1514,12 @@ bool VariantToEmitCFunc::isRepackGemmQ3KQ8KBody(tcrvrvv::WithVLOp scope) {
     return sawGemm;
   }
 
-// NOTE: isRepackGemvTQ20Q8KBody + isRepackGemmTQ20Q8KBody (the tq2_0 direct-emitter
-// recognizers) are RETIRED with the tq2_0 direct emitters (G3 主线B batch1); the
-// tq2_0 repack GEVM/GEMM now flows through the typed_repack_gem{v,m}_loop_body front
-// door (isTypedRepackGem{v,m}LoopBody -> the ternary branch).
-
-bool VariantToEmitCFunc::isRepackGemvTQ10Q8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvTQ10Q8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmTQ10Q8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmTQ10Q8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE: isRepackGem{v,m}TQ20Q8KBody (G3 主线B batch1) AND isRepackGem{v,m}TQ10Q8KBody
+// (G3 主线B batch2) -- the tq2_0 2-bit + tq1_0 base-3 direct-emitter recognizers --
+// are RETIRED with their direct emitters (the whole ternary batch); the tq{2,1}_0
+// repack GEVM/GEMM now flow through the typed_repack_gem{v,m}_loop_body front door
+// (isTypedRepackGem{v,m}LoopBody -> the ternary branch, keyed off the in-region
+// repack_gem{v,m}_ternary_core brick's decode_model).
 
 bool VariantToEmitCFunc::isRepackGemvIq4NlQ80Body(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;

@@ -146,6 +146,70 @@ constexpr std::int64_t kTernaryTQ20GemmActivationQuantByteOffset = 16;
 constexpr llvm::StringLiteral kTernaryTQ20GemmScaleModel =
     "superblock-d.fp16-single-scale-2bit-ternary-4col-nomin";
 
+// The ternary tq1_0 decode-FAMILY discriminators + repacked byte facts, the base-3
+// sibling of the tq2_0 set. tq1_0 shares the ENTIRE ternary loop-body region + core
+// brick scaffold (single fp16 super-block scale, LINEAR no-min lane-wise fold); the
+// DELTA vs tq2_0 is the WEIGHT DECODE -- a base-3 5-trit/qs-byte + 4-trit/qh-byte
+// two-plane unpack instead of the 2-bit field peel. The repacked block_tq1_0x16
+// weight super-block stride is 864 (16 inline fp16 d + 768 qs base-3 bytes + 64 qh
+// base-3 bytes), the qs plane at +32 (after the 16 fp16 d), the qh plane at +800
+// (after the 16 d + 768 qs -- the SECOND weight plane tq2_0 lacks). The plain
+// block_q8_K activation facts (292/4 GEVM, 1168/16 GEMM) are IDENTICAL to tq2_0.
+constexpr llvm::StringLiteral kTernaryTQ10ScaleModel =
+    "superblock-d.fp16-single-scale-base3-ternary-nomin";
+constexpr llvm::StringLiteral kTernaryTQ10GemmScaleModel =
+    "superblock-d.fp16-single-scale-base3-ternary-4col-nomin";
+constexpr std::int64_t kTernaryTQ10WeightBlockStride = 864;
+constexpr std::int64_t kTernaryTQ10WeightQuantByteOffset = 32;
+constexpr std::int64_t kTernaryTQ10WeightQhByteOffset = 800;
+constexpr std::int64_t kTernaryTQ10GevmActivationBlockStride = 292;
+constexpr std::int64_t kTernaryTQ10GevmActivationQuantByteOffset = 4;
+constexpr std::int64_t kTernaryTQ10GemmActivationBlockStride = 1168;
+constexpr std::int64_t kTernaryTQ10GemmActivationQuantByteOffset = 16;
+
+// The per-family ternary decode facts the shared lowerToRepackGem{v,m}Ternary read to
+// CONSTRUCT the typed_repack region + the repack_gem{v,m}_ternary_core brick. The
+// decode FAMILY (which base facts + core-brick decode_model + optional qh SECOND
+// plane) is keyed off the committed abstract scale_model WHAT; routing (repack-vs-
+// block-dot) stays fact-driven upstream. weightQhByteOffset == 0 is the "single-plane
+// 2-bit ternary (tq2_0), NO qh plane" sentinel; a positive value is the tq1_0 base-3
+// qh SECOND-plane offset the lowering stamps on the loop body op.
+struct TernaryDecodeFacts {
+  llvm::StringRef decodeModel;             // "tq2_0" | "tq1_0" (core brick)
+  llvm::StringRef gemmScaleModel;          // the 4-col GEMM loop-op scale_model
+  std::int64_t weightBlockStride;          // 1056 | 864
+  std::int64_t weightQuantByteOffset;      // 32 (qs plane)
+  std::int64_t weightQhByteOffset;         // 0 (tq2_0) | 800 (tq1_0 qh plane)
+  std::int64_t gevmActivationBlockStride;  // 292
+  std::int64_t gevmActivationQuantByteOffset;   // 4
+  std::int64_t gemmActivationBlockStride;  // 1168
+  std::int64_t gemmActivationQuantByteOffset;   // 16
+};
+
+constexpr TernaryDecodeFacts kTernaryTQ20DecodeFacts = {
+    /*decodeModel=*/"tq2_0",
+    /*gemmScaleModel=*/kTernaryTQ20GemmScaleModel,
+    /*weightBlockStride=*/kTernaryTQ20WeightBlockStride,
+    /*weightQuantByteOffset=*/kTernaryTQ20WeightQuantByteOffset,
+    /*weightQhByteOffset=*/0,
+    /*gevmActivationBlockStride=*/kTernaryTQ20GevmActivationBlockStride,
+    /*gevmActivationQuantByteOffset=*/kTernaryTQ20GevmActivationQuantByteOffset,
+    /*gemmActivationBlockStride=*/kTernaryTQ20GemmActivationBlockStride,
+    /*gemmActivationQuantByteOffset=*/kTernaryTQ20GemmActivationQuantByteOffset,
+};
+
+constexpr TernaryDecodeFacts kTernaryTQ10DecodeFacts = {
+    /*decodeModel=*/"tq1_0",
+    /*gemmScaleModel=*/kTernaryTQ10GemmScaleModel,
+    /*weightBlockStride=*/kTernaryTQ10WeightBlockStride,
+    /*weightQuantByteOffset=*/kTernaryTQ10WeightQuantByteOffset,
+    /*weightQhByteOffset=*/kTernaryTQ10WeightQhByteOffset,
+    /*gevmActivationBlockStride=*/kTernaryTQ10GevmActivationBlockStride,
+    /*gevmActivationQuantByteOffset=*/kTernaryTQ10GevmActivationQuantByteOffset,
+    /*gemmActivationBlockStride=*/kTernaryTQ10GemmActivationBlockStride,
+    /*gemmActivationQuantByteOffset=*/kTernaryTQ10GemmActivationQuantByteOffset,
+};
+
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
 // minimum VLEN, the SAME pure rule MaterializeRVVRepackStripWidth uses
 // (RVVRepackStripWidthMaterialization.cpp:78): half_lanes = min(vlen/16, 16),
@@ -256,28 +320,35 @@ private:
       // GEVM that internalizes only the N-column loop over a plain q8_0 stream).
       // Both share the SAME capability gate (isRepack + a valid e16m1 strip
       // width); only the granularity differs. The decode FAMILY (q4_0 nibble vs
-      // ternary tq2_0 trit) is keyed off the committed scale_model WHAT: the
-      // ternary family CONSTRUCTS the ternary typed_repack region + the
-      // repack_gem{v,m}_ternary_core brick (decode_model "tq2_0"), the q4_0
-      // family the nibble core + dual-fp16 fold bricks.
-      bool isTernaryTQ20 = op.getScaleModel() == kTernaryTQ20ScaleModel;
+      // ternary tq2_0 2-bit vs ternary tq1_0 base-3 trit) is keyed off the
+      // committed scale_model WHAT: the ternary families CONSTRUCT the ternary
+      // typed_repack region + the repack_gem{v,m}_ternary_core brick via the SHARED
+      // lowerToRepackGem{v,m}Ternary, parameterized by the per-family
+      // TernaryDecodeFacts (base facts + core-brick decode_model + optional qh
+      // SECOND plane); the q4_0 family builds the nibble core + dual-fp16 fold.
+      const TernaryDecodeFacts *ternary =
+          op.getScaleModel() == kTernaryTQ20ScaleModel ? &kTernaryTQ20DecodeFacts
+          : op.getScaleModel() == kTernaryTQ10ScaleModel
+              ? &kTernaryTQ10DecodeFacts
+              : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return isTernaryTQ20
-                   ? lowerToRepackGemmTernary(op, selection, halfLanes, isRVV0p7)
-                   : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
-      return isTernaryTQ20
-                 ? lowerToRepackGemvTernary(op, selection, halfLanes, isRVV0p7)
-                 : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
+        return ternary ? lowerToRepackGemmTernary(op, selection, halfLanes,
+                                                  isRVV0p7, *ternary)
+                       : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
+      return ternary ? lowerToRepackGemvTernary(op, selection, halfLanes,
+                                                isRVV0p7, *ternary)
+                     : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
     }
 
-    // Fail-closed (I7): a ternary tq2_0 request has NO block-dot decline path --
-    // the block-dot identity lowering reconstructs a q4_0 nibble body, which
-    // would MISCOMPILE ternary weights. A ternary request that does not afford a
-    // repack strip width (minVLEN < 128) is rejected, never silently mis-lowered
-    // into a q4_0 block-dot.
-    if (op.getScaleModel() == kTernaryTQ20ScaleModel)
+    // Fail-closed (I7): a ternary request (tq2_0 2-bit OR tq1_0 base-3) has NO
+    // block-dot decline path -- the block-dot identity lowering reconstructs a
+    // q4_0 nibble body, which would MISCOMPILE ternary weights. A ternary request
+    // that does not afford a repack strip width (minVLEN < 128) is rejected, never
+    // silently mis-lowered into a q4_0 block-dot.
+    if (op.getScaleModel() == kTernaryTQ20ScaleModel ||
+        op.getScaleModel() == kTernaryTQ10ScaleModel)
       return op.emitError()
-             << "ternary tq2_0 quant_contraction requires a repack-affording "
+             << "ternary quant_contraction requires a repack-affording "
                 "capability (a valid e16m1 strip width, minVLEN >= 128); there "
                 "is no ternary block-dot decline path (the block-dot identity "
                 "lowering is q4_0-nibble-only)";
@@ -718,7 +789,8 @@ private:
   mlir::LogicalResult
   lowerToRepackGemvTernary(tcrvrvv::GgmlQuantContractionOp op,
                            const pluginrvv::ContractionSelection &selection,
-                           std::int64_t halfLanes, bool isRVV0p7) {
+                           std::int64_t halfLanes, bool isRVV0p7,
+                           const TernaryDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -743,26 +815,34 @@ private:
                            op.getColumnCount()});
     loopState.addAttribute(
         "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
-    // The ternary GEVM scale_model WHAT (the abstract op's committed
-    // kTernaryTQ20ScaleModel, passed through -- a pure I4 mirror on the loop op).
+    // The ternary GEVM scale_model WHAT (the abstract op's committed base ternary
+    // scale_model -- tq2_0 2-bit or tq1_0 base-3 -- passed through, a pure I4
+    // mirror on the loop op).
     loopState.addAttribute("scale_model",
                            builder.getStringAttr(op.getScaleModel()));
     loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
-    // The block_tq2_0x16 x16 weight + PLAIN block_q8_K activation ABI facts the
-    // verifier / emitter pin (NOT the abstract op's plain stride-66 / stride-292
-    // facts -- this region reads the REPACKED weight layout the contract declares).
+    // The repacked block_tq{2,1}_0x16 x16 weight + PLAIN block_q8_K activation ABI
+    // facts the verifier / emitter pin (NOT the abstract op's plain stride-66/54 /
+    // stride-292 facts -- this region reads the REPACKED weight layout the contract
+    // declares), keyed off the per-family TernaryDecodeFacts.
     loopState.addAttribute(
         "weight_block_stride",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightBlockStride));
+        builder.getI64IntegerAttr(facts.weightBlockStride));
     loopState.addAttribute(
         "activation_block_stride",
-        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationBlockStride));
+        builder.getI64IntegerAttr(facts.gevmActivationBlockStride));
     loopState.addAttribute(
         "weight_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
     loopState.addAttribute(
         "activation_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationQuantByteOffset));
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    // The base-3 tq1_0 fold reads a SECOND weight plane (qh); stamp its repacked
+    // byte offset ONLY for that family (weightQhByteOffset == 0 == tq2_0 no-qh).
+    if (facts.weightQhByteOffset != 0)
+      loopState.addAttribute(
+          "weight_qh_byte_offset",
+          builder.getI64IntegerAttr(facts.weightQhByteOffset));
     loopState.addAttribute("weight_interleave",
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("half_lanes",
@@ -805,13 +885,14 @@ private:
         {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
     coreState.addAttribute("kind",
                            builder.getStringAttr("repack_gemv_ternary_core"));
-    coreState.addAttribute("decode_model", builder.getStringAttr("tq2_0"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
     coreState.addAttribute(
         "weight_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
     coreState.addAttribute(
         "activation_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20GevmActivationQuantByteOffset));
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
     if (integerCoreLmul)
       coreState.addAttribute("integer_core_lmul", integerCoreLmul);
     for (std::int64_t h = 0; h < numHalves; ++h)
@@ -852,7 +933,8 @@ private:
   mlir::LogicalResult
   lowerToRepackGemmTernary(tcrvrvv::GgmlQuantContractionOp op,
                            const pluginrvv::ContractionSelection &selection,
-                           std::int64_t halfLanes, bool isRVV0p7) {
+                           std::int64_t halfLanes, bool isRVV0p7,
+                           const TernaryDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -907,24 +989,29 @@ private:
     loopState.addAttribute(
         "kind", builder.getStringAttr("typed_repack_gemm_loop_body"));
     // The 4-column-amortized ternary GEMM scale_model WHAT (the loop op derives it
-    // from the abstract op's committed base ternary scale_model + the prefill
-    // regime; a pure I4 mirror -- the loop-body verifier does NOT pin scale_model
-    // for the ternary fold).
+    // from the per-family TernaryDecodeFacts + the prefill regime; a pure I4 mirror
+    // -- the loop-body verifier does NOT pin scale_model for the ternary fold).
     loopState.addAttribute(
-        "scale_model", builder.getStringAttr(kTernaryTQ20GemmScaleModel));
+        "scale_model", builder.getStringAttr(facts.gemmScaleModel));
     loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
     loopState.addAttribute(
         "weight_block_stride",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightBlockStride));
+        builder.getI64IntegerAttr(facts.weightBlockStride));
     loopState.addAttribute(
         "activation_block_stride",
-        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationBlockStride));
+        builder.getI64IntegerAttr(facts.gemmActivationBlockStride));
     loopState.addAttribute(
         "weight_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
     loopState.addAttribute(
         "activation_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationQuantByteOffset));
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    // The base-3 tq1_0 fold reads a SECOND weight plane (qh); stamp its repacked
+    // byte offset ONLY for that family (weightQhByteOffset == 0 == tq2_0 no-qh).
+    if (facts.weightQhByteOffset != 0)
+      loopState.addAttribute(
+          "weight_qh_byte_offset",
+          builder.getI64IntegerAttr(facts.weightQhByteOffset));
     loopState.addAttribute("weight_interleave",
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("activation_interleave",
@@ -969,13 +1056,14 @@ private:
         {op.getWeightBase(), op.getActivationBase(), vl, blockIndex, stripOffset});
     coreState.addAttribute("kind",
                            builder.getStringAttr("repack_gemm_ternary_core"));
-    coreState.addAttribute("decode_model", builder.getStringAttr("tq2_0"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
     coreState.addAttribute(
         "weight_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20WeightQuantByteOffset));
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
     coreState.addAttribute(
         "activation_quant_byte_offset",
-        builder.getI64IntegerAttr(kTernaryTQ20GemmActivationQuantByteOffset));
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
     if (integerCoreLmul)
       coreState.addAttribute("integer_core_lmul", integerCoreLmul);
     for (std::int64_t c = 0; c < columnsPerPass; ++c)

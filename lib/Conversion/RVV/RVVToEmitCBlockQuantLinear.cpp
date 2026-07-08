@@ -1627,9 +1627,30 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
+    // tq1_0 base-3: the base-3 decode reads a SECOND weight plane (qh), whose
+    // repacked byte offset rides on the loop body op's OPTIONAL weight_qh_byte_offset
+    // attr (the tq2_0 single-plane fold does not carry it).
+    if (coreBrick.getDecodeModel() == "tq1_0") {
+      std::optional<uint64_t> qhOff = loopBody.getWeightQhByteOffset();
+      if (!qhOff)
+        return rewriter.notifyMatchFailure(
+            loopBody, "tq1_0 ternary repack GEVM loop body requires the base-3 "
+                      "weight_qh_byte_offset SECOND-plane attr");
+      return emitRepackTernaryGemvBodyTQ10(
+          rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
+          sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(*qhOff),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
+    }
     return rewriter.notifyMatchFailure(
-        coreBrick, "ternary repack GEVM decode_model not yet routed through the "
-                   "front door (tq1_0 base-3 is a batch-1 residual)");
+        coreBrick, "ternary repack GEVM decode_model not recognized (expected "
+                   "\"tq2_0\" 2-bit or \"tq1_0\" base-3)");
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width -- never the *what*): the
@@ -2025,9 +2046,31 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
+    // tq1_0 base-3: the base-3 decode reads a SECOND weight plane (qh), whose
+    // repacked byte offset rides on the loop body op's OPTIONAL weight_qh_byte_offset
+    // attr (the tq2_0 single-plane fold does not carry it).
+    if (coreBrick.getDecodeModel() == "tq1_0") {
+      std::optional<uint64_t> qhOff = loopBody.getWeightQhByteOffset();
+      if (!qhOff)
+        return rewriter.notifyMatchFailure(
+            loopBody, "tq1_0 ternary repack GEMM loop body requires the base-3 "
+                      "weight_qh_byte_offset SECOND-plane attr");
+      return emitRepackTernaryGemmBodyTQ10(
+          rewriter, loc, weightBase, activationBase, output, rowCount,
+          columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(*qhOff),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getActivationInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
+    }
     return rewriter.notifyMatchFailure(
-        coreBrick, "ternary repack GEMM decode_model not yet routed through the "
-                   "front door (tq1_0 base-3 is a batch-1 residual)");
+        coreBrick, "ternary repack GEMM decode_model not recognized (expected "
+                   "\"tq2_0\" 2-bit or \"tq1_0\" base-3)");
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
@@ -16097,32 +16140,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     return mlir::success();
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvTQ10Q8K(
+// TERNARY REPACK GEVM front-door body (tq1_0, BASE-3). The byte-exact body of the
+// RETIRED monolithic direct emitter emitRepackGemvTQ10Q8K, refactored to take the
+// mapped ABI values + block-format facts (including the base-3 qh SECOND weight-plane
+// offset the tq2_0 leaf lacks) as PARAMETERS (no monolith-op lookup, no trailing
+// unused-result token). Called ONLY from emitTypedRepackGemvLoopBody's ternary branch,
+// gated on the in-region tcrv_rvv.repack_gemv_ternary_core anti-bypass brick
+// (decode_model "tq1_0"), so byte-exactness to the old direct emitter is by
+// construction (the SAME emit code).
+mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemvBodyTQ10(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvTQ10Q8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvTQ10Q8KOp>(op))
-        gemv = g;
-    }
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope,
-                                         "repack-gemv-tq1_0 body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-tq1_0 ABI operand unmapped");
-
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+    int64_t qk, int64_t weightStride, int64_t activationStride,
+    int64_t weightQuantOffset, int64_t weightQhOffset,
+    int64_t activationQuantOffset, int64_t weightInterleave, int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";
@@ -16154,14 +16189,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvTQ10Q8K(
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-    int64_t qk = gemv.getQk();                                      // 256
-    int64_t weightStride = gemv.getWeightBlockStride();             // 864
-    int64_t activationStride = gemv.getActivationBlockStride();     // 292
-    int64_t weightQuantOffset = gemv.getWeightQuantByteOffset();    // 32 (qs)
-    int64_t weightQhOffset = gemv.getWeightQhByteOffset();          // 800 (qh)
-    int64_t activationQuantOffset = gemv.getActivationQuantByteOffset(); // 4
-    int64_t weightInterleave = gemv.getWeightInterleave();          // 16
-    int64_t half = gemv.getHalfLanes();
+    // tq1_0 16x1 repack block-format facts: qk 256, weight stride 864, activation
+    // stride 292, weight qs offset 32, weight qh SECOND-plane offset 800, activation
+    // quant offset 4, interleave 16 (passed from the enclosing
+    // typed_repack_gemv_loop_body op's pinned attrs + its OPTIONAL weight_qh_byte_offset).
     int64_t numHalves = weightInterleave / half;
     const int64_t pow3[5] = {1, 3, 9, 27, 81};
 
@@ -16175,7 +16206,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvTQ10Q8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemv, "repack-gemv-tq1_0 output not pointer");
+      return rewriter.notifyMatchFailure(loc, "repack-gemv-tq1_0 output not pointer");
 
     mlir::Value vl8 = sizeLit(half);
 
@@ -16493,48 +16524,30 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvTQ10Q8K(
       }
     }
 
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemv.getResult()] = resultTok;
+    // The typed_repack_gemv_loop_body region op is RESULT-LESS (the per-strip
+    // lane-wise vse32 is the sink), so unlike the retired monolith direct emitter
+    // there is NO trailing unused-result token to seed.
     return mlir::success();
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmTQ10Q8K(
+// TERNARY REPACK GEMM (prefill) front-door body (tq1_0, BASE-3). The byte-exact body
+// of the RETIRED monolithic direct emitter emitRepackGemmTQ10Q8K, refactored to take
+// the mapped ABI values + block-format facts (including the base-3 qh SECOND
+// weight-plane offset) as PARAMETERS (no monolith-op lookup, no trailing unused-result
+// token). Called ONLY from emitTypedRepackGemmLoopBody's ternary branch, gated on the
+// in-region tcrv_rvv.repack_gemm_ternary_core anti-bypass brick (decode_model
+// "tq1_0"), so byte-exactness to the old direct emitter is by construction.
+mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmTQ10Q8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmTQ10Q8KOp>(op))
-        gemm = g;
-    }
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope,
-                                         "repack-gemm-tq1_0 body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount ||
-        !columnCount || !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-tq1_0 ABI operand unmapped");
-
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+    int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+    int64_t weightQhOffset, int64_t activationQuantOffset,
+    int64_t weightInterleave, int64_t activationInterleave, int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
-    llvm::StringRef coreLmul = gemm.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";
@@ -16566,15 +16579,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmTQ10Q8K(
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-    int64_t qk = gemm.getQk();                                      // 256
-    int64_t weightStride = gemm.getWeightBlockStride();             // 864
-    int64_t activationStride = gemm.getActivationBlockStride();     // 1168
-    int64_t weightQuantOffset = gemm.getWeightQuantByteOffset();    // 32
-    int64_t weightQhOffset = gemm.getWeightQhByteOffset();          // 800
-    int64_t activationQuantOffset = gemm.getActivationQuantByteOffset(); // 16
-    int64_t weightInterleave = gemm.getWeightInterleave();          // 16
-    int64_t activationInterleave = gemm.getActivationInterleave();  // 4
-    int64_t half = gemm.getHalfLanes();
+    // tq1_0 16x1 repack GEMM block-format facts: qk 256, weight stride 864,
+    // activation stride 1168 (block_q8_Kx4), weight qs offset 32, weight qh
+    // SECOND-plane offset 800, activation quant offset 16, weight interleave 16,
+    // activation interleave 4 (passed from the enclosing typed_repack_gemm_loop_body
+    // op's pinned attrs + its OPTIONAL weight_qh_byte_offset).
     int64_t numHalves = weightInterleave / half;
     int64_t columnsPerPass =
         (coreLmul == "m1") ? 1 : activationInterleave;
@@ -16590,7 +16599,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmTQ10Q8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemm, "repack-gemm-tq1_0 output not pointer");
+      return rewriter.notifyMatchFailure(loc, "repack-gemm-tq1_0 output not pointer");
 
     mlir::Value vl8 = sizeLit(half);
 
@@ -16962,16 +16971,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmTQ10Q8K(
       }
     }
 
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemm.getResult()] = resultTok;
+    // The typed_repack_gemm_loop_body region op is RESULT-LESS (the per-column
+    // per-strip lane-wise vse32 is the sink), so unlike the retired monolith direct
+    // emitter there is NO trailing unused-result token to seed.
     return mlir::success();
   }
 

@@ -411,17 +411,10 @@ private:
   // direct emitters (G3 主线B batch1); tq2_0 repack now flows through the
   // typed_repack_gem{v,m}_loop_body front door's ternary branch.
 
-  /// The TERNARY (BitNet-class) 16x1-REPACKED single-output-column GEVM recognizer
-  /// for tq1_0: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_tq1_0_q8_K. The emitter owns the block-as-lane single-column
-  /// expansion with the BASE-3 TERNARY weight unpack (5 trits/qs byte + 4 trits/qh
-  /// byte) and the single fp16 super-block scale, single-accumulator no-min fold.
-  static bool isRepackGemvTQ10Q8KBody(tcrvrvv::WithVLOp scope);
-  /// The TERNARY 16x1-REPACKED multi-output-column GEMM recognizer for tq1_0: a
-  /// with_vl scope whose ONLY compute op is a single tcrv_rvv.repack_gemm_tq1_0_q8_K.
-  /// The emitter shares the base-3 ternary decode (amortized across the 4 interleaved
-  /// activation columns) with the single-scale no-min accumulator.
-  static bool isRepackGemmTQ10Q8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE: isRepackGemvTQ10Q8KBody + isRepackGemmTQ10Q8KBody RETIRED with the tq1_0
+  // BASE-3 TERNARY direct emitters (G3 主线B batch2); tq1_0 repack now flows through
+  // the typed_repack_gem{v,m}_loop_body front door's ternary branch (decode_model
+  // "tq1_0").
 
   /// The CODEBOOK 16x1-REPACKED single-output-column GEVM recognizer for iq4_nl: a
   /// with_vl scope whose ONLY compute op is a single
@@ -1668,25 +1661,45 @@ private:
       int64_t activationInterleave, int64_t half) const;
 
   /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
-  /// for one tcrv_rvv.repack_gemv_tq1_0_q8_K op. tq1_0 REUSES the tq2_0 single-scale
-  /// no-min scaffold and differs ONLY in the weight decode: a BASE-3 unpack (`q =
+  /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
+  /// emitter emitRepackGemvTQ10Q8K, refactored to take the mapped ABI values +
+  /// block-format facts as PARAMETERS (including the base-3 qh SECOND weight-plane
+  /// byte offset the tq2_0 leaf lacks). Called ONLY from emitTypedRepackGemvLoopBody's
+  /// ternary branch (gated on the in-region tcrv_rvv.repack_gemv_ternary_core
+  /// anti-bypass brick, decode_model "tq1_0"). tq1_0 REUSES the tq2_0 single-scale
+  /// no-min scaffold and differs ONLY in the WEIGHT DECODE: a BASE-3 unpack (`q =
   /// (uint8_t)(byte*pow3[l])`, `xi = (q*3)>>8`, `xi-1`) over the 48-byte qs plane (5
   /// trits/byte) + the 4-byte qh plane (4 trits/byte), lane-wise across the 16-column
-  /// strip. LANE-WISE vwmacc, i32->f32 single-scale fold.
-  mlir::LogicalResult emitRepackGemvTQ10Q8K(
+  /// strip. LANE-WISE vwmacc, i32->f32 single-scale fold. RESULT-LESS (no token).
+  mlir::LogicalResult emitRepackTernaryGemvBodyTQ10(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t weightQhOffset,
+      int64_t activationQuantOffset, int64_t weightInterleave,
+      int64_t half) const;
 
-  /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
-  /// one tcrv_rvv.repack_gemm_tq1_0_q8_K op. The tq1_0 prefill sibling of
-  /// emitRepackGemvTQ10Q8K: the SAME base-3 ternary weight decode + single-scale
-  /// no-min fold, with the weight decode AMORTIZED across the 4 interleaved
-  /// block_q8_Kx4 activation columns.
-  mlir::LogicalResult emitRepackGemmTQ10Q8K(
+  /// Emit the COMPLETE ggml tq1_0 x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
+  /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
+  /// emitter emitRepackGemmTQ10Q8K, refactored to take the mapped ABI values +
+  /// block-format facts as PARAMETERS (including the base-3 qh SECOND weight-plane
+  /// byte offset). Called ONLY from emitTypedRepackGemmLoopBody's ternary branch
+  /// (gated on the in-region tcrv_rvv.repack_gemm_ternary_core anti-bypass brick,
+  /// decode_model "tq1_0"). The tq1_0 prefill sibling of emitRepackTernaryGemvBodyTQ10:
+  /// the SAME base-3 ternary weight decode + single-scale no-min fold, with the weight
+  /// decode AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns.
+  /// RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackTernaryGemmBodyTQ10(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+      int64_t weightQhOffset, int64_t activationQuantOffset,
+      int64_t weightInterleave, int64_t activationInterleave, int64_t half) const;
 
   /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
   /// for one tcrv_rvv.repack_gemv_iq4_nl_q8_0 op. iq4_nl is the FIRST CODEBOOK repack:

@@ -1,17 +1,24 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
-// The ggml tq1_0 x q8_K 16x1-REPACKED GEVM (decode) hot kernel -- the BASE-3 TERNARY
-// (BitNet-class, 1.6 bits/weight) block-as-lane sibling of
-// tcrv_rvv.repack_gemv_tq2_0_q8_K -- as STRUCTURED emitc IR (I5; ZERO raw() strings).
-// It REUSES tq2_0's single-scale no-min block-as-lane scaffold (LANE-WISE vwmacc, ONE
-// i32 accumulator per strip, single fp16 super-block scale, NO dmin / bsums / min
-// term) and differs ONLY in the WEIGHT DECODE: a BASE-3 unpack of the 48-byte qs
-// plane (5 trits/byte) + the 4-byte qh plane (4 trits/byte). Each trit is recovered
-// by ggml's exact pipeline: q = (uint8_t)(byte * pow3[l]) (vmul_vx_u8, the mandatory
-// 8-bit wrap), xi = ((uint16_t)q * 3) >> 8 (vwmulu_vx_u16 * 3, vsrl_vx_u16 >> 8, in
-// {0,1,2}), narrow (vncvt), reinterpret to i8, then xi - 1 (vadd_vx_i8 by -1, the
-// trit in {-1,0,1}). block_tq1_0x16 stride 864, d at +0, qs at +32, qh at +800.
+// G3 主线B batch2: the ggml tq1_0 x q8_K 16x1-REPACKED GEVM (decode) hot kernel -- the
+// BASE-3 TERNARY (BitNet-class, 1.6 bits/weight) block-as-lane sibling of tq2_0 -- is
+// now CONSTRUCTED through the typed-region FRONT DOOR (the q4_0 / tq2_0 typed_repack
+// precedent), NOT the retired monolithic emitRepackGemvTQ10Q8K direct emitter. The
+// tcrv_rvv.typed_repack_gemv_loop_body region (fold_model "ternary_single_fp16_scale")
+// carries the tcrv_rvv.repack_gemv_ternary_core integer-core BRICK (decode_model
+// "tq1_0"), block_index-tied (anti-bypass) and named off the loop-body's own weight /
+// activation ABI bases. The lowering GATES the emit on that brick's anti-bypass ties,
+// then RE-EMITS the byte-exact ternary GEVM body via emitTypedRepackGemvLoopBody's
+// ternary branch -> emitRepackTernaryGemvBodyTQ10 (byte-identical to the retired direct
+// emitter). tq1_0 REUSES tq2_0's single-scale no-min block-as-lane scaffold and differs
+// ONLY in the WEIGHT DECODE: a BASE-3 unpack of the 48-byte qs plane (5 trits/byte) +
+// the 4-byte qh plane (4 trits/byte). Each trit: q = (uint8_t)(byte * pow3[l])
+// (vmul_vx_u8, the mandatory 8-bit wrap), xi = ((uint16_t)q * 3) >> 8 (vwmulu_vx_u16 *
+// 3, vsrl_vx_u16 >> 8, in {0,1,2}), narrow (vncvt), reinterpret to i8, then xi - 1
+// (vadd_vx_i8 by -1, the trit in {-1,0,1}). block_tq1_0x16 stride 864, d at +0, qs at
+// +32, qh at +800 (the SECOND weight plane tq2_0 lacks, carried on the loop body op's
+// OPTIONAL weight_qh_byte_offset attr). VLEN=128 => TWO disjoint 8-lane strips.
 
 module {
   tcrv.exec.kernel @ggml_repack_gemv_tq1_0_q8_K_kernel {
@@ -24,13 +31,23 @@ module {
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_tq1_0_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_tq1_0_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemv_tq1_0_q8_K %vx, %vy, %s, %n, %nc, %vl {kind = "ggml_repack_gemv_tq1_0_q8_K", scale_model = "superblock-d.fp16-single-scale-base3-ternary-nomin", qk = 256 : i64, weight_block_stride = 864 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 32 : i64, weight_qh_byte_offset = 800 : i64, activation_quant_byte_offset = 4 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-single-scale-base3-ternary-nomin", qk = 256 : i64, weight_block_stride = 864 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 32 : i64, weight_qh_byte_offset = 800 : i64, activation_quant_byte_offset = 4 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "ternary_single_fp16_scale"} {
+        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index-tied ternary integer-core BRICK: per-block lane-wise base-3
+          // trit dot -> the numHalves (2) per-strip i32 sumi. The typed emitter re-emits
+          // the whole byte-exact ternary body (base-3 core + single-scale fold) from this
+          // brick's identity; the yield passes through the carried-in per-strip accs.
+          %sumi:2 = tcrv_rvv.repack_gemv_ternary_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_ternary_core", decode_model = "tq1_0", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemv_tq1_0_q8_K %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemv_ternary_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemv_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_tq1_0_q8_K_kernel_ggml_repack_gemv_tq1_0_q8_K(
 // The block count nb = n / 256 and the column-group count nc/16 (%arg4 = nc).
@@ -76,6 +93,8 @@ module {
 // CHECK: return
 
 // The block-as-lane repack erases the reduction wall; the LINEAR fold has no min term.
+// Also NO trailing dead result-token vmv (the region is result-less, unlike the retired
+// direct emitter).
 // NOWALL-NOT: redsum
 // NOWALL-NOT: vfnmsac
 // NOWALL-NOT: vwmacc_vv_i32
