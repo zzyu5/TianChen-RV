@@ -1,0 +1,78 @@
+[tile-q6k-t3-ab] board=rvv core=8 K=2048 nr=64 nc=512 iters=20 N=12 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs cc=clang-17
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+[preflight] loadavg=2.33 2.31 2.18 1/1257 363682 core=8 freq=2600000 gov=performance
+[compile] untiled/tiled q6_K GEMM at -O2 (measured) and -O3 (diagnosis); GEVM (both); driver; verify
+=== [1] OBJDUMP seal: vsetvli + spill/reload + maxVreg + vwmacc  UNTILED->TILED (spill ~0? peak <=32?) ===
+  OBJD UNTILED -O2  vsetvli=21   spill=913  reload=953  vwmacc=2304  maxVreg=v31  textB=72378
+  OBJD TILED   -O2  vsetvli=21   spill=949  reload=957  vwmacc=2304  maxVreg=v31  textB=73100
+  OBJD UNTILED -O3  vsetvli=20   spill=927  reload=965  vwmacc=2304  maxVreg=v31  textB=73200
+  OBJD TILED   -O3  vsetvli=20   spill=953  reload=960  vwmacc=2304  maxVreg=v31  textB=73626
+--- hot-loop spill classification (TILED -O2): vs*r.v addresses vs first hot-dot label ---
+63:      92:	22850427          	vs2r.v	v8,(a0)
+69:      a6:	22850427          	vs2r.v	v8,(a0)
+77:      c4:	02850427          	vs1r.v	v8,(a0)
+174:     1e8:	22860d27          	vs2r.v	v26,(a2)
+180:     1fc:	22860a27          	vs2r.v	v20,(a2)
+186:     212:	22860b27          	vs2r.v	v22,(a2)
+192:     226:	22860c27          	vs2r.v	v24,(a2)
+198:     23a:	22860e27          	vs2r.v	v28,(a2)
+204:     24e:	22860827          	vs2r.v	v16,(a2)
+210:     262:	22860727          	vs2r.v	v14,(a2)
+216:     276:	22860527          	vs2r.v	v10,(a2)
+346:     476:	028685a7          	vs1r.v	v11,(a3)
+355:     498:	028405a7          	vs1r.v	v11,(s0)
+363:     4b4:	028785a7          	vs1r.v	v11,(a5)
+383:     500:	028405a7          	vs1r.v	v11,(s0)
+391:     51e:	028685a7          	vs1r.v	v11,(a3)
+400:     540:	028405a7          	vs1r.v	v11,(s0)
+408:     55e:	028785a7          	vs1r.v	v11,(a5)
+433:     5c0:	028685a7          	vs1r.v	v11,(a3)
+441:     5de:	028685a7          	vs1r.v	v11,(a3)
+=== [2] SILICON verify (INT byte-exact-integer + NORM bounded-ULP) UNTILED then TILED ===
+--- verify UNTILED ---
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=4.579e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=176    norm=2.445e-07 (maxAbsErr/rms)
+
+VERDICT q6_K: INT_mismatch_total=0  NORM worst_ulp=220 worst_norm=4.579e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+--- verify TILED   ---
+  GEMM nr=16 nc=256  n=256   worst_ulp=1      norm=4.579e-07 (maxAbsErr/rms)
+  GEMM nr=4  nc=160  n=2560  worst_ulp=176    norm=2.445e-07 (maxAbsErr/rms)
+
+VERDICT q6_K: INT_mismatch_total=0  NORM worst_ulp=220 worst_norm=4.579e-07  => SILICON BYTE-EXACT-INTEGER + BOUNDED-NORM
+=== [3] IDENTITY-DUMP byte-exact cmp UNTILED vs TILED (small-finite fp16-scale fold path) ===
+Q6K_DUMP wrote 32768 floats to /tmp/kquant_tile_q6k_t3_ab/o_untiled.bin (nr=64 nc=512)
+Q6K_DUMP wrote 32768 floats to /tmp/kquant_tile_q6k_t3_ab/o_tiled.bin (nr=64 nc=512)
+  IDENTITY: o_untiled.bin == o_tiled.bin  (BYTE-EXACT, 0 mismatch)
+=== [4/5] A/B(tiled vs untiled) + vs-opponent (cold N=12 rounds; each round untiled then tiled fresh procs) ===
+    KQGEMM line: OURS best_gmacs / OPP best_gmacs / ratio_best (ours/opp)
+[loadavg-mid] 2.90 2.51 2.26 1/1257 363814
+ROUND 1 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=140 | OURS best_ns=99733478 med_ns=99879959 best_gmacs=0.6729 | OPP best_ns=18396088 med_ns=18438888 best_gmacs=3.6480 | ratio_best=0.184 ratio_med=0.185 sink=10456817365.5
+ROUND 1 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=280 | OURS best_ns=101745767 med_ns=101977048 best_gmacs=0.6596 | OPP best_ns=18486128 med_ns=18514529 best_gmacs=3.6302 | ratio_best=0.182 ratio_med=0.182 sink=10456817365.5
+ROUND 2 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=240 | OURS best_ns=99846198 med_ns=100014040 best_gmacs=0.6721 | OPP best_ns=18378708 med_ns=18425209 best_gmacs=3.6514 | ratio_best=0.184 ratio_med=0.184 sink=10456817365.5
+ROUND 2 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=40 | OURS best_ns=101295066 med_ns=101458646 best_gmacs=0.6625 | OPP best_ns=18130247 med_ns=18216587 best_gmacs=3.7015 | ratio_best=0.179 ratio_med=0.180 sink=10456817365.5
+ROUND 3 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=40 | OURS best_ns=99664617 med_ns=99880859 best_gmacs=0.6733 | OPP best_ns=18366828 med_ns=18409128 best_gmacs=3.6538 | ratio_best=0.184 ratio_med=0.184 sink=10456817365.5
+ROUND 3 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=101434386 med_ns=101699567 best_gmacs=0.6616 | OPP best_ns=18192387 med_ns=18244227 best_gmacs=3.6888 | ratio_best=0.179 ratio_med=0.179 sink=10456817365.5
+ROUND 4 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=80 | OURS best_ns=99635597 med_ns=99757058 best_gmacs=0.6735 | OPP best_ns=18268747 med_ns=18304807 best_gmacs=3.6734 | ratio_best=0.183 ratio_med=0.183 sink=10456817365.5
+ROUND 4 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=60 | OURS best_ns=101291146 med_ns=101469526 best_gmacs=0.6625 | OPP best_ns=18304568 med_ns=18335348 best_gmacs=3.6662 | ratio_best=0.181 ratio_med=0.181 sink=10456817365.5
+ROUND 5 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=240 | OURS best_ns=99762278 med_ns=99860499 best_gmacs=0.6727 | OPP best_ns=18422468 med_ns=18465408 best_gmacs=3.6428 | ratio_best=0.185 ratio_med=0.185 sink=10456817365.5
+ROUND 5 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=101185645 med_ns=101466566 best_gmacs=0.6632 | OPP best_ns=18457489 med_ns=18490228 best_gmacs=3.6359 | ratio_best=0.182 ratio_med=0.182 sink=10456817365.5
+ROUND 6 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=280 | OURS best_ns=99745678 med_ns=99859739 best_gmacs=0.6728 | OPP best_ns=18240207 med_ns=18267888 best_gmacs=3.6792 | ratio_best=0.183 ratio_med=0.183 sink=10456817365.5
+ROUND 6 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=60 | OURS best_ns=101210705 med_ns=101355026 best_gmacs=0.6631 | OPP best_ns=18493608 med_ns=18547748 best_gmacs=3.6288 | ratio_best=0.183 ratio_med=0.183 sink=10456817365.5
+ROUND 7 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=100381701 med_ns=100521122 best_gmacs=0.6685 | OPP best_ns=18145647 med_ns=18207087 best_gmacs=3.6983 | ratio_best=0.181 ratio_med=0.181 sink=10456817365.5
+ROUND 7 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=220 | OURS best_ns=101170225 med_ns=101330186 best_gmacs=0.6633 | OPP best_ns=18208567 med_ns=18285108 best_gmacs=3.6856 | ratio_best=0.180 ratio_med=0.180 sink=10456817365.5
+ROUND 8 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=100004680 med_ns=100226140 best_gmacs=0.6711 | OPP best_ns=18260908 med_ns=18302168 best_gmacs=3.6750 | ratio_best=0.183 ratio_med=0.183 sink=10456817365.5
+ROUND 8 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=101105864 med_ns=101320946 best_gmacs=0.6637 | OPP best_ns=18183508 med_ns=18221327 best_gmacs=3.6906 | ratio_best=0.180 ratio_med=0.180 sink=10456817365.5
+ROUND 9 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=60 | OURS best_ns=99694558 med_ns=99824179 best_gmacs=0.6731 | OPP best_ns=18339348 med_ns=18397788 best_gmacs=3.6593 | ratio_best=0.184 ratio_med=0.184 sink=10456817365.5
+ROUND 9 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=260 | OURS best_ns=101112784 med_ns=101379365 best_gmacs=0.6637 | OPP best_ns=18231087 med_ns=18271168 best_gmacs=3.6810 | ratio_best=0.180 ratio_med=0.180 sink=10456817365.5
+ROUND 10 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=240 | OURS best_ns=99706278 med_ns=99817759 best_gmacs=0.6731 | OPP best_ns=18461129 med_ns=18497768 best_gmacs=3.6351 | ratio_best=0.185 ratio_med=0.185 sink=10456817365.5
+ROUND 10 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=280 | OURS best_ns=101150505 med_ns=101367466 best_gmacs=0.6635 | OPP best_ns=18351408 med_ns=18394528 best_gmacs=3.6569 | ratio_best=0.181 ratio_med=0.181 sink=10456817365.5
+ROUND 11 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=40 | OURS best_ns=99722977 med_ns=99815238 best_gmacs=0.6730 | OPP best_ns=18228188 med_ns=18263948 best_gmacs=3.6816 | ratio_best=0.183 ratio_med=0.183 sink=10456817365.5
+ROUND 11 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=60 | OURS best_ns=101477526 med_ns=101660347 best_gmacs=0.6613 | OPP best_ns=18361168 med_ns=18402068 best_gmacs=3.6549 | ratio_best=0.181 ratio_med=0.181 sink=10456817365.5
+ROUND 12 untiled KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=160 | OURS best_ns=99744958 med_ns=99949619 best_gmacs=0.6728 | OPP best_ns=18366608 med_ns=18412528 best_gmacs=3.6539 | ratio_best=0.184 ratio_med=0.184 sink=10456817365.5
+ROUND 12 tiled   KQGEMM fmt=q6_K VLEN=128 K=2048 nr=64 nc=512 reps=20 noisefloor_ns=40 | OURS best_ns=101424446 med_ns=101611547 best_gmacs=0.6617 | OPP best_ns=18307428 med_ns=18370208 best_gmacs=3.6657 | ratio_best=0.181 ratio_med=0.181 sink=10456817365.5
+[loadavg-end] 3.21 2.80 2.41 1/1256 363841
+[tile-q6k-t3-ab] done. restore: main tree + build/ UNTOUCHED (no rebuild); board scratch ephemeral under /tmp/kquant_tile_q6k_t3_ab; governor left as-found.
+EXIT=0

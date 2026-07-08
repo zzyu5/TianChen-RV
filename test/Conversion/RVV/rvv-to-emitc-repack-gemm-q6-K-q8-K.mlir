@@ -2,16 +2,26 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMIN
 
-// The ggml q6_K x q8_K 16x1-REPACKED PREFILL GEMM (M>>1) hot kernel as STRUCTURED
-// emitc IR (I5; ZERO raw() strings) -- the q6_K prefill sibling of the decode GEVM.
-// The single typed op tcrv_rvv.repack_gemm_q6_K_q8_K lowers to the BLOCK-AS-LANE
-// multi-output-column matmul nest: row-group (nr/4) x weight-column-group (nc/16) x
-// contraction-block, over the interleaved block_q8_Kx4 activation (stride 1168, qs at
-// +16). The 6-bit ql|qh weight decode (and its -32 offset-binary bias) is AMORTIZED
-// once per 16-weight group and REUSED across the 4 interleaved activation columns --
-// each column reads its own q8_Kx4 quant. Same q6_K facts as the GEVM: 6-bit two-plane
-// weight (vand 0x03 / vsub 32), SIGNED int8 scales (vle8_v_i8 / vsext), SINGLE
-// accumulator NO-min fold (NO bsums, NO vfnmsac). block_q6_Kx16 stride 3360.
+// G3 主线A T3: the ggml q6_K x q8_K 16x1-REPACKED PREFILL GEMM (M>>1) hot kernel is now
+// CONSTRUCTED through the typed-region FRONT DOOR (the q4_0 / ternary / q4_K typed_repack
+// precedent), NOT the retired monolithic emitRepackGemmQ6KQ8K direct emitter. The
+// tcrv_rvv.typed_repack_gemm_loop_body region (fold_model "kquant_single_scale_no_min")
+// carries the tcrv_rvv.repack_gemm_kquant_core integer-core BRICK (decode_model "q6_K"),
+// block_index + strip_row_offset tied (anti-bypass) and named off the loop-body's own
+// weight / activation ABI bases. The lowering GATES the emit on those anti-bypass ties,
+// then RE-EMITS the byte-exact PLAIN/UNTILED q6_K GEMM body (S6 tiling NULL for q6_K, reverted) via emitTypedRepackGemmLoopBody's
+// K-quant no-min branch -> emitRepackKQuantGemmBodyQ6K (byte-identical output to the
+// retired direct emitter; the plain per-block scale form (S6 stack-panel reverted, NULL for q6_K)
+// are register-pressure levers, NOT semantic changes -- SSA-register accumulators, no
+// inline-min-fold as q6_K has no min). The activation is the INTERLEAVED block_q8_Kx4
+// stream (stride 1168, 4-column-interleaved int8 quants at +16; q6_K reads NO bsums);
+// the 6-bit ql|qh decode is AMORTIZED once per 16-weight group across the 4 columns.
+// block_q6_Kx16 stride 3360, ql at +1312, qh at +288, signed scales at +32. VLEN=128
+// mf2 => columnsPerPass=4, TWO 8-lane strips.
+//
+// NUMERIC STATUS: this lit checks the LOWERED STRUCTURE only. Numeric correctness is
+// proven SEPARATELY by the board oracle (independent scalar q6_K dequant-matmul
+// reference, byte-exact-integer GREEN + SILICON board-numeric-confirmed VLEN128).
 
 module {
   tcrv.exec.kernel @ggml_repack_gemm_q6_K_q8_K_kernel {
@@ -26,13 +36,24 @@ module {
       %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_q6_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_q6_K_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemm_q6_K_q8_K %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_q6_K_q8_K", scale_model = "superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin", qk = 256 : i64, weight_block_stride = 3360 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 1312 : i64, activation_quant_byte_offset = 16 : i64, weight_scales_byte_offset = 32 : i64, weight_qh_byte_offset = 288 : i64, n_subblocks = 16 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin", qk = 256 : i64, weight_block_stride = 3360 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 1312 : i64, activation_quant_byte_offset = 16 : i64, weight_scales_byte_offset = 32 : i64, weight_qh_byte_offset = 288 : i64, n_subblocks = 16 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, fold_model = "kquant_single_scale_no_min"} {
+        ^bb0(%block_index: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index + strip_row_offset tied q6_K GEMM integer-core BRICK:
+          // per-block lane-wise q6_K dot across the 4 interleaved columns -> the
+          // columnsPerPass (4) per-column i32 sumi. The typed emitter re-emits the whole
+          // byte-exact PLAIN q6_K GEMM body from this brick's identity; the yield
+          // passes through the carried-in per-column accs.
+          %sumi:4 = tcrv_rvv.repack_gemm_kquant_core %vx, %vy, %vl block %block_index strip %roff : index, index {kind = "repack_gemm_kquant_core", decode_model = "q6_K", weight_quant_byte_offset = 1312 : i64, activation_quant_byte_offset = 16 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemm_loop_yield %acc0, %acc1, %acc2, %acc3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemm_q6_K_q8_K %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemm_kquant_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemm_q6_K_q8_K_kernel_ggml_repack_gemm_q6_K_q8_K(
 // The block count nb = n / 256 (QK_K).
@@ -54,7 +75,8 @@ module {
 // CHECK: call_opaque "*(const float *)"
 // The SINGLE per-column per-strip i32 accumulator seed (NO bsums accumulator).
 // CHECK: call_opaque "__riscv_vmv_v_x_i32m2"
-// The q6_K SIGNED int8 per-sub-block scale (SHARED across columns): vle8_v_i8 + vsext.
+// The q6_K SIGNED int8 per-sub-block scale (SHARED across columns): vle8_v_i8 + vsext,
+// kept in the plain per-block scale form (S6 stack-panel was reverted -- NULL for q6_K).
 // CHECK: call_opaque "__riscv_vle8_v_i8mf2"
 // CHECK: call_opaque "__riscv_vsext_vf2_i16m1"
 // The q6_K 6-bit two-plane weight assembly (SHARED across the 4 columns): ql/qh strip
@@ -79,6 +101,7 @@ module {
 // NOWALL-NOT: redsum
 
 // q6_K is a SINGLE-accumulator no-min fold: NO min-term subtract (vfnmsac) and NO
-// activation bsums read (int16_t) appear.
+// activation bsums read (int16_t) appear. (The reverted S6 scale panel would have used a MUTABLE int16_t*
+// address-of `&panel[i]`, never a `*(const int16_t *)` scalar bsums dereference.)
 // NOMIN-NOT: vfnmsac
 // NOMIN-NOT: *(const int16_t *)

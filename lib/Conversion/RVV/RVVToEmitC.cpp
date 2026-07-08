@@ -390,8 +390,9 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // emitter). q5_K/q6_K/q2_K/q3_K remain direct-emitter (batch5).
         {&isRepackGemmQ5KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmQ5KQ8K},
-        {&isRepackGemmQ6KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmQ6KQ8K},
+        // NOTE (G3 主线A T3): q6_K GEMM direct emitter (emitRepackGemmQ6KQ8K) + its
+        // monolith op + recognizer RETIRED to the front door (constructed +
+        // S6-tiled typed_repack_gemm_loop_body, fold_model "kquant_single_scale_no_min").
         {&isRepackGemmQ2KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmQ2KQ8K},
         {&isRepackGemmQ3KQ8KBody,
@@ -430,8 +431,9 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // emitter).
         {&isRepackGemvQ5KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ5KQ8K},
-        {&isRepackGemvQ6KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvQ6KQ8K},
+        // NOTE (G3 主线A T3): q6_K GEVM direct emitter (emitRepackGemvQ6KQ8K) + its
+        // monolith op + recognizer RETIRED to the front door (constructed
+        // typed_repack_gemv_loop_body, fold_model "kquant_single_scale_no_min").
         {&isRepackGemvQ2KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ2KQ8K},
         {&isRepackGemvQ3KQ8KBody,
@@ -1423,33 +1425,13 @@ bool VariantToEmitCFunc::isRepackGemvQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
     return sawGemv;
   }
 
-bool VariantToEmitCFunc::isRepackGemvQ6KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ6KQ8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmQ6KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ6KQ8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE (G3 主线A T3): the q6_K 16x1-repacked GEVM + GEMM recognizers
+// (isRepackGem{v,m}Q6KQ8KBody) are RETIRED with their direct emitters + monolith ops.
+// The q6_K repack is now CONSTRUCTED as the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body
+// region (fold_model "kquant_single_scale_no_min") carrying the
+// tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q6_K"), lowered by
+// isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody's K-quant no-min
+// branch -> emitRepackKQuantGem{v,m}BodyQ6K (byte-exact GEVM / S6-tiled byte-exact GEMM).
 
 bool VariantToEmitCFunc::isRepackGemvQ2KQ8KBody(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;

@@ -1,0 +1,49 @@
+# [KQUANT-L1 / T3-tile] q6_K repack GEMM — UNTILED(HEAD full-unroll direct-emit) -> TILED(S6-scheme no-min stack-panel)
+# objdump seal at the MEASURED board form clang-17.0.6 -O2 AND the diagnosis form -O3.
+# board rvv/VLEN128 (openEuler, core 8, 2.6 GHz gov=performance, 2026-07-08). seal method
+# (campaign-canonical, == q4_K tile-s1/s6 cells; NOT driver-export):
+#   vsetvli = grep -cE 'vsetvli|vsetivli' ; spill = grep -cE 'vs[1248]r.v' ; reload = grep -cE 'vl[1248]r.v'
+#   vwmacc  = grep -cE 'vwmacc' ; maxVreg = max v-reg operand ([ ,(]v[0-9]+) ; textB = objdump -h .text size
+# UNTILED = untiled_q6K_gemm.c (md5 0f14791e; HEAD 924dc31f front-door export == kquant-l1-q6q2q3-repack
+#           cell's q6_K GEMM; source op tcrv_rvv.repack_gemm_q6_K_q8_K; the board-harvest2 0.18x baseline).
+# TILED   = tiled_q6K_gemm.c  (md5 28cbeebd; working-tree emitter delta on RVVToEmitCBlockQuantLinear.cpp
+#           emitRepackKQuantGemmBodyQ6K; S6-scheme = decoded signed-scale int16 stack-panel via vse16/vle16
+#           + on-demand d f16 widen deferred to the end-of-block fold; NO min-fold panel — q6_K has no min).
+#           Regenerated via READ-ONLY build/bin/tcrv-opt on rvv-to-emitc-repack-gemm-q6-K-q8-K.mlir (no rebuild).
+#
+#   OBJD UNTILED -O2  vsetvli=21   spill=913   reload=953   vwmacc=2304  maxVreg=v31  textB=72378
+#   OBJD TILED   -O2  vsetvli=21   spill=949   reload=957   vwmacc=2304  maxVreg=v31  textB=73100
+#   OBJD UNTILED -O3  vsetvli=20   spill=927   reload=965   vwmacc=2304  maxVreg=v31  textB=73200
+#   OBJD TILED   -O3  vsetvli=20   spill=953   reload=960   vwmacc=2304  maxVreg=v31  textB=73626
+#
+# READING (the pre-registered "spill -> ~0, peak <=32" gate -> ★NOT REACHED / NULL):
+#   spill  913 -> 949 (-O2) / 927 -> 953 (-O3)  : the S6 stack-panel did NOT drive spill toward ~0;
+#                          it rose slightly (+36 / +26). The q6_K fully-unrolled body carries ~900
+#                          whole-register spills — an ORDER OF MAGNITUDE more than q4_K golden's 84 /
+#                          S1's 23 — dominated by the DUAL-PLANE 6-bit weight reconstruction (ql@1312 +
+#                          qh@288, 16 sub-blocks) and the f32 accumulator fan, NOT by the decode-scale
+#                          strips that the S6 int16 panel stages. Staging only the scale strips is a drop
+#                          in the ~900-spill bucket and ADDS panel store/load traffic (reload 953->957,
+#                          text 72378->73100) => spill nudges UP, not down.
+#   maxVreg v31 -> v31 (both -O2/-O3) : the peak live-set did NOT drop under 32; the ≤32-vreg register
+#                          cliff was NEVER reached (unlike q4_K S6 which hit v30). No spare register.
+#   vwmacc 2304 -> 2304 (UNCHANGED across ALL four) => the widening-MAC multiset is PRESERVED
+#                          => byte-exact-preserving schedule (independently confirmed by the silicon
+#                          verify INT_mismatch=0 for BOTH + the untiled-vs-tiled IDENTITY cmp, 0 mismatch).
+#   vsetvli 21 -> 21 : unchanged (the no-min single-scale decode band is the same vtype count).
+#
+# ★ CONTRAST WITH q4_K S6 (cell l1-tile-s6-q4k-repack-gemm): there the residual pressure at the peak WAS
+#   the idle-across-the-hot-dot i32 MIN accumulator (bsums) + the 6-bit decode strips — EXACTLY what the
+#   stack-panel targets — so staging them collapsed spill 23 -> 3 and peak v31 -> v30, +27.9%. For q6_K the
+#   dominant pressure is the dual-plane weight materialization, which the scale-strip panel does not touch,
+#   so the SAME lever is a NULL here. The tiling pattern does NOT transfer q4_K -> q6_K without a
+#   different lever (e.g. a block-loop re-roll to shrink the unroll, or a ql/qh materialization panel).
+#
+# hot-loop spill classification (TILED -O2, objdump -d first 20 vs*r.v):
+#   the vs*r.v are NOT confined to the prologue (as they were for q4_K S6's benign residual-3). They begin
+#   at 0x92/0xa6/0xc4 and continue densely through the block body (0x1e8..0x5de shown, and 949 total) =>
+#   these are genuine hot-loop allocator live-value spills, saturated in BOTH untiled and tiled forms.
+#     63:  92: vs2r.v v8,(a0)     174: 1e8: vs2r.v v26,(a2)   346: 476: vs1r.v v11,(a3)
+#     69:  a6: vs2r.v v8,(a0)     180: 1fc: vs2r.v v20,(a2)   355: 498: vs1r.v v11,(s0)
+#     77:  c4: vs1r.v v8,(a0)     186: 212: vs2r.v v22,(a2)   363: 4b4: vs1r.v v11,(a5)
+#                                 192: 226: vs2r.v v24,(a2)   ... (949 total, throughout the body)

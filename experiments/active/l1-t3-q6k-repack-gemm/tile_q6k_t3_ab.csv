@@ -1,0 +1,15 @@
+# T3-tile q6_K repack GEMM A/B — board rvv/VLEN128 core8 2.6GHz gov=perf, clang-17.0.6 -O2, K=2048 nc=512 iters=20
+# UNTILED = HEAD 924dc31f full-unroll direct-emit (md5 0f14791e, source op tcrv_rvv.repack_gemm_q6_K_q8_K; board-harvest2 0.18x baseline)
+# TILED   = working-tree S6-scheme no-min stack-panel (md5 28cbeebd, emitRepackKQuantGemmBodyQ6K; byte-exact to UNTILED — verify INT_mismatch=0 both + IDENTITY cmp 0 mismatch)
+# ★ RESULT = NULL: the q4_K S6 register-cliff lever does NOT transfer to q6_K. spill NOT ->~0 (913->949, UP), maxVreg NOT <=32 (v31->v31), MAC/cycle DOWN (-1.5%), vs-opponent still ~0.18x LOSS.
+# loadavg nr64: pre 2.33 / mid 2.90 / end 3.21 ; nr16: pre 2.51 / end 3.26 (core8 taskset-pinned, gov=performance, 2.6GHz)
+nr,N,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_ours_over_opp,AB_tiled_over_untiled,vsetvli,spill_vsXr,reload_vlXr,maxVreg,vwmacc,textB
+64,12,untiled_full_unroll,0.6724,0.197,3.6627,0.488,0.1836,,21,913,953,v31,2304,72378
+64,12,tiled_s6_scale_panel,0.6625,0.178,3.6655,0.648,0.1807,0.9852,21,949,957,v31,2304,73100
+16,10,untiled_full_unroll,0.6524,0.145,3.3991,3.470,0.1922,,21,913,953,v31,2304,72378
+16,10,tiled_s6_scale_panel,0.6374,0.345,3.3875,5.255,0.1887,0.9769,21,949,957,v31,2304,73100
+# byte-exact gates: (a) silicon verify UNTILED & TILED both = INT_mismatch_total=0, NORM worst_ulp=220 worst_norm=4.579e-07 (== identical) => both compute the oracle; (b) IDENTITY-DUMP o_untiled.bin == o_tiled.bin (32768 floats, BYTE-EXACT 0 mismatch on the small-finite fp16-scale fold path).
+# A/B tiled/untiled: nr64 mean 0.9852 (max 0.9922 < 1, min 0.9802) ; nr16 mean 0.9769 (max 0.9802, min 0.9674). SHAPE-ROBUST CONSISTENT ~1.5-2.3% REGRESSION (both sides cv 0.15-0.35% at nr64/16 ours-side => non-overlapping, real).
+# vs-opponent (nr64 clean anchor, opp cv 0.575% across 24 samples): untiled 0.1836 (reproduces board-harvest2 q6_K prefill 0.18x LOSS => basis validated) -> tiled 0.1807 (slightly WORSE; opponent ggml block-dot ~5.4-5.5x faster). nr16 opponent noise-dominated (cv 3.5-5.3%) — not a usable parity anchor; ours-side A/B is load-bearing.
+# pre-registered judgment: spill->~0 AND MAC/cycle UP AND wall passes T-N => holds. ALL THREE FAIL => q6_K S6-scheme does NOT hold (NULL/small-regression). Diagnosis in objdump_tile_q6k_t3_seal.objdump: q6_K's ~900-spill dual-plane fully-unrolled body is not relieved by a decode-scale panel.
+# [NG-4]: L1 kernel datapoint, NOT a beat (eight [PERF-1] gates unwalked; single core; opponent=single-thread block-dot proxy). Logged as the q6_K T3 negative datapoint (tiling-lever transfer boundary).

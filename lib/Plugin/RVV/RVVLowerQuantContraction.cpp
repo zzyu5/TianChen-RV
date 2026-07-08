@@ -226,38 +226,64 @@ constexpr llvm::StringLiteral kKQuantQ4KScaleModel =
 constexpr llvm::StringLiteral kKQuantQ4KGemmScaleModel =
     "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks-4col";
 
-// The repacked block_q4_Kx16 / block_q8_K{,x4} byte facts the K-quant lowering
+// The K-quant q6_K decode-FAMILY discriminator (G3 主线A T3): the q6_K super-block
+// SINGLE fp16 d scale + 16 SIGNED int8 per-16-element scales + 6-bit two-plane
+// (ql|qh) offset-binary weight (-32 bias LANE-WISE), 16 sub-blocks of 16, and NO
+// dmin / NO per-sub-block min / NO activation bsums (the single-accumulator no-min
+// fold, the honest structural delta over q4_K's dual d/dmin + bsums-min). A request
+// carrying it is a K-quant super-block contraction whose repack-SELECTED lowering
+// CONSTRUCTS the K-quant typed_repack_gem{v,m}_loop_body region (fold_model
+// "kquant_single_scale_no_min", decode_model "q6_K") -- the no-min sibling of the
+// q4_K region. The framework (KQuantDecodeFacts + lowerToRepackGem{v,m}KQuant) is
+// GENERALIZED across the two folds by the per-family facts.hasMin / facts.foldModel
+// (the K-quant re-pay is ~0; only the q6_K decode leaf + no-min gating is net-new).
+constexpr llvm::StringLiteral kKQuantQ6KScaleModel =
+    "superblock-d.fp16-signed8-scale-16-subblocks-6bit-nomin";
+constexpr llvm::StringLiteral kKQuantQ6KGemmScaleModel =
+    "superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin";
+
+// The repacked block_q{4,6}_Kx16 / block_q8_K{,x4} byte facts the K-quant lowering
 // RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
-// asserts): the 16-inline-fp16-d + 16-inline-fp16-dmin + 192-scales + 2048-nibble
-// weight super-block stride (2304), the weight nibble quant byte offset (256), the
-// per-column dmin strip (32), the custom 6-bit scales/mins region (64), the PLAIN
-// block_q8_K GEVM activation stride (292) + its quant offset (4) + its int16 bsums
-// (260), the INTERLEAVED block_q8_Kx4 GEMM activation stride (1168) + its quant
-// offset (16) + its bsums (1040), and 8 sub-blocks. These MIRROR the retired
-// monolithic q4_K repack op verifiers' pins.
+// asserts). For q4_K (hasMin): the 16-inline-fp16-d + 16-inline-fp16-dmin +
+// 192-scales + 2048-nibble weight super-block stride (2304), the weight nibble quant
+// byte offset (256), the per-column dmin strip (32), the custom 6-bit scales/mins
+// region (64), the PLAIN block_q8_K GEVM activation stride (292) + its quant offset
+// (4) + its int16 bsums (260), the INTERLEAVED block_q8_Kx4 GEMM activation stride
+// (1168) + its quant offset (16) + its bsums (1040), and 8 sub-blocks. For q6_K
+// (no-min): the 16-inline-fp16-d + 256-signed-int8-scales + 1024-qh-high-2-bit +
+// 2048-ql-low-4-bit super-block stride (3360), the weight ql quant offset (1312),
+// the qh high-2-bit plane offset (288), the signed scales offset (32), 16 sub-blocks,
+// and the SAME q8_K activation ABI (292/4 GEVM, 1168/16 GEMM) but with NO bsums read.
+// These MIRROR the retired monolithic q{4,6}_K repack op verifiers' pins.
 struct KQuantDecodeFacts {
-  llvm::StringRef decodeModel;              // "q4_K" (core brick)
+  llvm::StringRef decodeModel;              // "q4_K" / "q6_K" (core brick)
   llvm::StringRef gemmScaleModel;           // the 4-col GEMM loop-op scale_model
-  std::int64_t weightBlockStride;           // 2304
-  std::int64_t weightQuantByteOffset;       // 256 (nibble plane)
-  std::int64_t weightDminByteOffset;        // 32 (dmin strip)
-  std::int64_t weightScalesByteOffset;      // 64 (6-bit scales/mins region)
+  llvm::StringRef foldModel;                // loop-body fold_model
+  bool hasMin;                              // q4_K dual d/dmin + bsums-min; q6_K no-min
+  std::int64_t weightBlockStride;           // 2304 (q4_K) / 3360 (q6_K)
+  std::int64_t weightQuantByteOffset;       // 256 nibble (q4_K) / 1312 ql (q6_K)
+  std::int64_t weightDminByteOffset;        // 32 dmin strip (q4_K only; 0 for q6_K)
+  std::int64_t weightScalesByteOffset;      // 64 6-bit (q4_K) / 32 signed int8 (q6_K)
+  std::int64_t weightQhByteOffset;          // q6_K high-2-bit plane 288 (0 for q4_K)
   std::int64_t gevmActivationBlockStride;   // 292 (plain block_q8_K)
   std::int64_t gevmActivationQuantByteOffset;    // 4
-  std::int64_t gevmActivationBsumsByteOffset;    // 260
+  std::int64_t gevmActivationBsumsByteOffset;    // 260 (q4_K only; 0 for q6_K)
   std::int64_t gemmActivationBlockStride;   // 1168 (interleaved block_q8_Kx4)
   std::int64_t gemmActivationQuantByteOffset;    // 16
-  std::int64_t gemmActivationBsumsByteOffset;    // 1040
-  std::int64_t nSubblocks;                  // 8
+  std::int64_t gemmActivationBsumsByteOffset;    // 1040 (q4_K only; 0 for q6_K)
+  std::int64_t nSubblocks;                  // 8 (q4_K) / 16 (q6_K)
 };
 
 constexpr KQuantDecodeFacts kQ4KDecodeFacts = {
     /*decodeModel=*/"q4_K",
     /*gemmScaleModel=*/kKQuantQ4KGemmScaleModel,
+    /*foldModel=*/"kquant_dmin_bsums_min",
+    /*hasMin=*/true,
     /*weightBlockStride=*/2304,
     /*weightQuantByteOffset=*/256,
     /*weightDminByteOffset=*/32,
     /*weightScalesByteOffset=*/64,
+    /*weightQhByteOffset=*/0,
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
     /*gevmActivationBsumsByteOffset=*/260,
@@ -265,6 +291,29 @@ constexpr KQuantDecodeFacts kQ4KDecodeFacts = {
     /*gemmActivationQuantByteOffset=*/16,
     /*gemmActivationBsumsByteOffset=*/1040,
     /*nSubblocks=*/8,
+};
+
+// q6_K: the SINGLE-accumulator no-min sibling. No dmin (single super-block d), no
+// per-sub-block min, no activation bsums -- the -32 offset-binary bias lives INSIDE
+// each 6-bit weight lane. The qh high-2-bit plane (288) is the q6_K-specific second
+// weight plane the ql low-4-bit plane (1312) is fused with.
+constexpr KQuantDecodeFacts kQ6KDecodeFacts = {
+    /*decodeModel=*/"q6_K",
+    /*gemmScaleModel=*/kKQuantQ6KGemmScaleModel,
+    /*foldModel=*/"kquant_single_scale_no_min",
+    /*hasMin=*/false,
+    /*weightBlockStride=*/3360,
+    /*weightQuantByteOffset=*/1312,
+    /*weightDminByteOffset=*/0,
+    /*weightScalesByteOffset=*/32,
+    /*weightQhByteOffset=*/288,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
+    /*nSubblocks=*/16,
 };
 
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
@@ -388,12 +437,14 @@ private:
           : op.getScaleModel() == kTernaryTQ10ScaleModel
               ? &kTernaryTQ10DecodeFacts
               : nullptr;
-      // The K-quant q4_K family builds the K-quant typed_repack region + the
-      // repack_gem{v,m}_kquant_core brick via lowerToRepackGem{v,m}KQuant,
-      // parameterized by the KQuantDecodeFacts (super-block dual d/dmin + 6-bit
-      // scale/min + bsums-min facts).
+      // The K-quant family (q4_K dual d/dmin + bsums-min, OR q6_K single-scale
+      // no-min) builds the K-quant typed_repack region + the repack_gem{v,m}_kquant_core
+      // brick via lowerToRepackGem{v,m}KQuant, parameterized by the per-family
+      // KQuantDecodeFacts (facts.hasMin / facts.foldModel select the fold arity).
       const KQuantDecodeFacts *kquant =
-          op.getScaleModel() == kKQuantQ4KScaleModel ? &kQ4KDecodeFacts : nullptr;
+          op.getScaleModel() == kKQuantQ4KScaleModel   ? &kQ4KDecodeFacts
+          : op.getScaleModel() == kKQuantQ6KScaleModel ? &kQ6KDecodeFacts
+                                                       : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
         return kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
                                                 isRVV0p7, *kquant)
@@ -407,14 +458,16 @@ private:
                        : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
     }
 
-    // Fail-closed (I7): a ternary (tq2_0 2-bit / tq1_0 base-3) OR K-quant (q4_K)
-    // request has NO block-dot decline path -- the block-dot identity lowering
-    // reconstructs a q4_0 nibble body, which would MISCOMPILE ternary trit / q4_K
-    // super-block weights. Such a request that does not afford a repack strip width
-    // (minVLEN < 128) is rejected, never silently mis-lowered into a q4_0 block-dot.
+    // Fail-closed (I7): a ternary (tq2_0 2-bit / tq1_0 base-3) OR K-quant (q4_K
+    // dual-scale+min / q6_K 6-bit no-min) request has NO block-dot decline path --
+    // the block-dot identity lowering reconstructs a q4_0 nibble body, which would
+    // MISCOMPILE ternary trit / q4_K / q6_K super-block weights. Such a request that
+    // does not afford a repack strip width (minVLEN < 128) is rejected, never
+    // silently mis-lowered into a q4_0 block-dot.
     if (op.getScaleModel() == kTernaryTQ20ScaleModel ||
         op.getScaleModel() == kTernaryTQ10ScaleModel ||
-        op.getScaleModel() == kKQuantQ4KScaleModel)
+        op.getScaleModel() == kKQuantQ4KScaleModel ||
+        op.getScaleModel() == kKQuantQ6KScaleModel)
       return op.emitError()
              << "ternary / K-quant quant_contraction requires a repack-affording "
                 "capability (a valid e16m1 strip width, minVLEN >= 128); there "
@@ -1219,26 +1272,33 @@ private:
     loopState.addAttribute(
         "activation_quant_byte_offset",
         builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
-    // The K-quant super-block decode facts (dmin strip / 6-bit scales/mins region /
-    // activation int16 bsums / sub-block count) on the loop body op's OPTIONAL
-    // K-quant attrs; the emitter reads them only under the K-quant fold.
-    loopState.addAttribute(
-        "weight_dmin_byte_offset",
-        builder.getI64IntegerAttr(facts.weightDminByteOffset));
+    // The K-quant super-block decode facts on the loop body op's OPTIONAL K-quant
+    // attrs; the emitter reads them only under the K-quant fold. The scales region
+    // + sub-block count are shared by BOTH folds; the q4_K min structure (dmin strip
+    // + activation int16 bsums) is set ONLY for hasMin, and the q6_K qh high-2-bit
+    // SECOND weight plane is set ONLY for the no-min q6_K fold.
+    if (facts.hasMin) {
+      loopState.addAttribute(
+          "weight_dmin_byte_offset",
+          builder.getI64IntegerAttr(facts.weightDminByteOffset));
+      loopState.addAttribute(
+          "activation_bsums_byte_offset",
+          builder.getI64IntegerAttr(facts.gevmActivationBsumsByteOffset));
+    } else {
+      loopState.addAttribute(
+          "weight_qh_byte_offset",
+          builder.getI64IntegerAttr(facts.weightQhByteOffset));
+    }
     loopState.addAttribute(
         "weight_scales_byte_offset",
         builder.getI64IntegerAttr(facts.weightScalesByteOffset));
-    loopState.addAttribute(
-        "activation_bsums_byte_offset",
-        builder.getI64IntegerAttr(facts.gevmActivationBsumsByteOffset));
     loopState.addAttribute("n_subblocks",
                            builder.getI64IntegerAttr(facts.nSubblocks));
     loopState.addAttribute("weight_interleave",
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("half_lanes",
                            builder.getI64IntegerAttr(emittedHalfLanes));
-    loopState.addAttribute("fold_model",
-                           builder.getStringAttr("kquant_dmin_bsums_min"));
+    loopState.addAttribute("fold_model", builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
     loopState.addRegion();
@@ -1389,15 +1449,24 @@ private:
     loopState.addAttribute(
         "activation_quant_byte_offset",
         builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
-    loopState.addAttribute(
-        "weight_dmin_byte_offset",
-        builder.getI64IntegerAttr(facts.weightDminByteOffset));
+    // K-quant super-block decode facts (OPTIONAL loop-body attrs). scales + n_subblocks
+    // are shared; the q4_K min structure (dmin + bsums) is set ONLY for hasMin, and the
+    // q6_K qh SECOND weight plane ONLY for the no-min q6_K fold (mirrors the GEVM).
+    if (facts.hasMin) {
+      loopState.addAttribute(
+          "weight_dmin_byte_offset",
+          builder.getI64IntegerAttr(facts.weightDminByteOffset));
+      loopState.addAttribute(
+          "activation_bsums_byte_offset",
+          builder.getI64IntegerAttr(facts.gemmActivationBsumsByteOffset));
+    } else {
+      loopState.addAttribute(
+          "weight_qh_byte_offset",
+          builder.getI64IntegerAttr(facts.weightQhByteOffset));
+    }
     loopState.addAttribute(
         "weight_scales_byte_offset",
         builder.getI64IntegerAttr(facts.weightScalesByteOffset));
-    loopState.addAttribute(
-        "activation_bsums_byte_offset",
-        builder.getI64IntegerAttr(facts.gemmActivationBsumsByteOffset));
     loopState.addAttribute("n_subblocks",
                            builder.getI64IntegerAttr(facts.nSubblocks));
     loopState.addAttribute("weight_interleave",
@@ -1406,8 +1475,7 @@ private:
                            builder.getI64IntegerAttr(kActivationInterleave));
     loopState.addAttribute("half_lanes",
                            builder.getI64IntegerAttr(emittedHalfLanes));
-    loopState.addAttribute("fold_model",
-                           builder.getStringAttr("kquant_dmin_bsums_min"));
+    loopState.addAttribute("fold_model", builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
     loopState.addRegion();

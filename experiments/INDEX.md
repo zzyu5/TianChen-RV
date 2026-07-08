@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**33 cells** (active=18, sealed=10, archive=5).
+**34 cells** (active=19, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -21,6 +21,7 @@
 | active | `l1-reroll-q4k-repack-gemm` | active | repack / [KQUANT-L1] (RE-ROLL 曳光弹 #2 — q4_K repack GEMM structural RE-ROLL | 5 | — | L1-maturity RE-ROLL A/B evidence. Isolates the non-byte-exact structural re-roll from a |
 | active | `l1-tile-s1-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S1 — q4_K repack GEMM STRUCTURAL h-strip TILE A/B on | 5 | — | L1-maturity T2-tile S1 A/B evidence. Isolates the S1 h-strip STRUCTURAL TILE from the |
 | active | `l1-tile-s6-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S6 — q4_K repack GEMM register-cliff step on rvv/VLEN128: | 5 | — | L1-maturity T2-tile S6 A/B evidence. Isolates the S6 register-cliff increment from the S1 |
+| active | `l1-t3-q6k-repack-gemm` | active | repack / [KQUANT-L1] (T3-tile — q6_K repack GEMM tiling-lever transfer test on | 5 | — | L1-maturity T3-tile A/B evidence. Isolates the q6_K tiling increment by measuring UNTILED |
 | active | `l1-pipeline-q4k-repack-gemm` | active | repack / [KQUANT-L1] (pipeline — q4_K repack GEMM byte-exact schedule-rearrangement | 5 | — | L1-maturity pipeline A/B evidence. Isolates the "pipelining" (byte-exact reorder) from a |
 | active | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
 | active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
