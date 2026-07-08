@@ -431,6 +431,20 @@ private:
   /// activation columns) with the single-scale no-min accumulator.
   static bool isRepackGemmTQ10Q8KBody(tcrvrvv::WithVLOp scope);
 
+  /// The CODEBOOK 16x1-REPACKED single-output-column GEVM recognizer for iq4_nl: a
+  /// with_vl scope whose ONLY compute op is a single
+  /// tcrv_rvv.repack_gemv_iq4_nl_q8_0. iq4_nl is the FIRST CODEBOOK repack (nibble =
+  /// index into a 16-entry non-linear int8 codebook, decoded via a fractional-anchor
+  /// MEMORY vluxei16 gather), single fp16 scale, i32-accumulator no-min fold.
+  static bool isRepackGemvIq4NlQ80Body(tcrvrvv::WithVLOp scope);
+  /// The CODEBOOK 16x1-REPACKED multi-output-column GEMM recognizer for iq4_nl.
+  static bool isRepackGemmIq4NlQ80Body(tcrvrvv::WithVLOp scope);
+  /// The SUPER-BLOCK CODEBOOK 16x1-REPACKED GEVM recognizer for iq4_xs: codebook
+  /// gather + K-quant 6-bit SIGNED per-sub-block scale (biased -32, no min).
+  static bool isRepackGemvIq4XsQ8KBody(tcrvrvv::WithVLOp scope);
+  /// The SUPER-BLOCK CODEBOOK 16x1-REPACKED GEMM recognizer for iq4_xs.
+  static bool isRepackGemmIq4XsQ8KBody(tcrvrvv::WithVLOp scope);
+
   /// The M-FLAT loop-scaffold recognizer: a with_vl scope whose ONLY op is a
   /// single tcrv_rvv.typed_flat_block_dot_loop_body (the region-carrying nb
   /// block loop with a SSA loop-carried f32 accumulator). Routed through the
@@ -1640,6 +1654,50 @@ private:
   /// no-min fold, with the weight decode AMORTIZED across the 4 interleaved
   /// block_q8_Kx4 activation columns.
   mlir::LogicalResult emitRepackGemmTQ10Q8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_iq4_nl_q8_0 op. iq4_nl is the FIRST CODEBOOK repack:
+  /// the 4-bit nibble is an INDEX into a 16-entry non-linear int8 codebook, decoded by
+  /// a REAL memory-indexed codebook GATHER (zero-extend the nibble to a u16 byte offset
+  /// into the codebook array, then vluxei16_v_i8 -- the fractional mf2 anchor forbids a
+  /// register vrgather), NOT a fake-linear value. Single fp16 scale, i32-accumulator
+  /// (vwmul + vwadd_wv, codebook products overflow i16) no-min fold. The 16-entry
+  /// codebook is emitted ONCE as a `static const int8_t[16]` decl above the loop.
+  mlir::LogicalResult emitRepackGemvIq4NlQ80(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_iq4_nl_q8_0 op. The iq4_nl prefill sibling of
+  /// emitRepackGemvIq4NlQ80: the SAME memory codebook-gather decode + single-scale
+  /// i32-accumulator no-min fold, with the codebook decode AMORTIZED across the 4
+  /// interleaved block_q8_0x4 activation columns.
+  mlir::LogicalResult emitRepackGemmIq4NlQ80(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml iq4_xs x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_iq4_xs_q8_K op. The SUPER-BLOCK CODEBOOK sibling of
+  /// emitRepackGemvIq4NlQ80: the SAME 16-entry memory codebook GATHER (vluxei16) with a
+  /// K-quant 6-bit SIGNED per-sub-block scale (assembled lane-wise via the q4_K
+  /// vand/vsrl/vsll/vor bit-dance, biased -32, NO min). The 32-element sub-block dot is
+  /// accumulated in i32 (codebook products overflow i16), then the sign-extended scale
+  /// weights it into the block accumulator via vmacc_vv_i32; single fp16*fp32 fold.
+  mlir::LogicalResult emitRepackGemvIq4XsQ8K(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml iq4_xs x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_iq4_xs_q8_K op. The iq4_xs prefill sibling of
+  /// emitRepackGemvIq4XsQ8K: the SAME codebook gather + 6-bit signed-scale decode,
+  /// AMORTIZED across the 4 interleaved block_q8_Kx4 activation columns.
+  mlir::LogicalResult emitRepackGemmIq4XsQ8K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
