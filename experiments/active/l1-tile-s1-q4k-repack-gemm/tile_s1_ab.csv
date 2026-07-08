@@ -1,0 +1,10 @@
+# T2-tile S1 q4_K repack GEMM A/B — board rvv/VLEN128 core8 2.6GHz gov=perf, clang-17.0.6 -O2, K=2048 nc=512 iters=20
+# PRE = full-unroll golden (md5 b0b5beac, oracle-GREEN @039133ea); POST = S1 h-strip tile (two emitc.for block loops, byte-exact-preserving)
+nr,N,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_ours_over_opp,AB_post_over_pre,vsetvli,spill_vsXr,reload_vlXr,vwmacc,textB
+64,12,pre_full_unroll,4.2338,0.96,4.3997,0.43,0.962,,53,84,88,2240,23486
+64,12,post_s1_tile,6.4799,0.28,4.4044,0.63,1.471,1.527,73,23,34,2240,25358
+16,10,pre_full_unroll,4.2488,0.08,4.5096,3.13,0.943,,53,84,88,2240,23486
+16,10,post_s1_tile,6.4569,0.29,4.5245,3.20,1.429,1.519,73,23,34,2240,25358
+# byte-exact identity gate PRE vs POST (int + norm) = IDENTICAL 0 mismatch (sink checksum equal both shapes)
+# pre-registered judgment: spill DOWN (84->23 -73%) AND MAC/cycle UP (+53%) AND wall passes T-N (55x/179x floor) => S1 HOLDS.
+# [NG-4]: L1 kernel datapoint, NOT a beat (eight [PERF-1] gates unwalked; single core; opponent=single-thread block-dot proxy).

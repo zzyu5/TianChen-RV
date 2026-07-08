@@ -1,0 +1,34 @@
+# [KQUANT-L1 / T2-tile S1] q4_K repack GEMM — PRE(full-unroll golden) vs POST(S1 h-strip tile)
+# objdump seal at the MEASURED board form clang-17.0.6 -O2 AND the diagnosis form -O3.
+# board rvv/VLEN128. seal method (campaign-canonical, == sibling reroll/pipeline cells):
+#   vsetvli = grep -cE 'vsetvli|vsetivli' ; spill = grep -cE 'vs[1248]r.v' ; reload = grep -cE 'vl[1248]r.v'
+#   vwmacc  = grep -cE 'vwmacc'           ; textB = objdump -h .text size
+# PRE = cached golden gemm_q4_K_q8_K.kernel.c (md5 b0b5beac, oracle-GREEN @039133ea; SAME fixture
+#       rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir the siblings measured). POST = SAME fixture re-lowered
+#       through the working-tree S1-tile emitter (two per-h-strip emitc.for block loops).
+#
+# ★ VALIDATION: this PRE -O2 seal (vsetvli=53 spill=84 reload=88 vwmacc=2240 textB=23486) reproduces
+#   the l1-reroll-q4k-repack-gemm cell's independently-measured PRE -O2 seal BYTE-FOR-BYTE -> the
+#   measurement basis is the campaign-canonical one (NOT the build-report's driver-export basis,
+#   which counted a ~100KB .o and reported spill "flat").
+#
+#   OBJD PRE  -O2   vsetvli=53   spill=84   reload=88   vwmacc=2240  textB=23486
+#   OBJD POST -O2   vsetvli=73   spill=23   reload=34   vwmacc=2240  textB=25358
+#   OBJD PRE  -O3   vsetvli=52   spill=84   reload=87   vwmacc=2240  textB=23540
+#   OBJD POST -O3   vsetvli=73   spill=23   reload=34   vwmacc=2240  textB=25330
+#
+# READING (the "does spill DROP?" gate -> YES):
+#   spill  84 -> 23  (-73%)   reload 88 -> 34  (-61%)   at BOTH -O2 and -O3 (deterministic).
+#   vsetvli 53 -> 73 (+38%)   -- rose (cheap scalar vtype re-config from the extra per-strip preamble),
+#                                but the register-pressure metric (spill/reload) collapsed.
+#   vwmacc 2240 -> 2240 (UNCHANGED) -- the widening-MAC multiset is preserved => byte-exact-preserving
+#                                schedule (same arithmetic, re-tiled), confirmed by the identity gate.
+#   text 23486 -> 25358 (+8%) -- the per-strip preamble + scalar-activation re-read (x2) cost.
+#
+# MECHANISM: the full-unroll PRE keeps ALL 16 [col][half] fp32 accumulators (+sumi/bsums) live across
+#   the SINGLE block loop -> 84 whole-register spills. The S1 tile splits the block loop into TWO
+#   SEQUENTIAL per-h-strip loops (mr=4/hs=1), each carrying only its OWN ~half of the accumulators;
+#   because the two passes are SEQUENTIAL the PEAK live-set HALVES (not sums) -> clang keeps each
+#   strip's accumulators in registers -> spill 84 -> 23. (This is exactly the "register-tiled column
+#   blocking" the reroll cell named as the real lever; it does NOT forfeit the vector vwmacc decode
+#   amortization -- vwmacc count is preserved -- only re-reads the scalar activation broadcasts x2.)

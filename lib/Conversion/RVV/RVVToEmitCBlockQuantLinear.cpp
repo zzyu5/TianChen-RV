@@ -5959,20 +5959,41 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                 return {zero, vl8};
               });
         };
-        // sumfVar[c][h]: per activation column c, per weight strip h.
-        llvm::SmallVector<llvm::SmallVector<mlir::Value>> sumfVar(
-            activationInterleave);
+        // ===== S1 h-strip OUTPUT TILE (mr=4 / hs=1) ======================
+        // Process one DISJOINT weight strip h at a time, each in its OWN
+        // contraction-block loop. This is a STRUCTURAL tile boundary, NOT a mere
+        // emission reorder (the scheduler is free to re-interleave a single
+        // fanned-out loop body, which is why the naive reorder is a spill NULL):
+        // a SEPARATE emitc.for per strip scopes each block loop's live set, so the
+        // register allocator only ever juggles ONE strip's accumulators + decode
+        // temporaries at once (peak ~94 live vregs > 32 -> tile-local set, under
+        // the spill cliff). The per-column f32 accumulator sumf_c is TILE-LOCAL: 4
+        // accumulators, seeded ABOVE this strip's block loop and carried across it
+        // as SSA-register VariableOps (NEVER rolled into the iter-arg-less
+        // emitc.for -- the re-roll trap that memory-round-trips the accumulator).
+        // Amortization is UNCHANGED: the h strips read DISJOINT weight bytes
+        // (h*half offset), so nothing is shared across strips anyway, and the
+        // weight decode stays amortized across the 4 activation columns
+        // (columnsPerPass) WITHIN each strip. Capability-keyed schedule (an L2
+        // property, not a value fact): numHalves == weight_interleave / half_lanes
+        // is the VLEN-derived tile count -- 2 at VLEN128 (32-vreg budget forces
+        // tiling), 1 at VLEN256 (the tile degenerates to a single pass,
+        // byte-identical to the untiled emit).
+        for (int64_t h = 0; h < numHalves; ++h) {
+        // sumfVar[c] = vfmv_v_f(0.0f, half): THIS strip's per-column f32
+        // accumulator, carried across the contraction-block loop. The MIN
+        // correction is folded straight into sumf via vfnmsac at end-of-block (no
+        // separate sum_minf).
+        llvm::SmallVector<mlir::Value> sumfVar(activationInterleave);
         for (int64_t c = cLo; c < cHi; ++c) {
-          for (int64_t h = 0; h < numHalves; ++h) {
-            auto v = rewriter.create<emitc::VariableOp>(
-                loc, emitc::LValueType::get(f32m2Type),
-                emitc::OpaqueAttr::get(ctx, ""));
-            rewriter.create<emitc::AssignOp>(loc, v, seedF32());
-            sumfVar[c].push_back(v);
-          }
+          auto v = rewriter.create<emitc::VariableOp>(
+              loc, emitc::LValueType::get(f32m2Type),
+              emitc::OpaqueAttr::get(ctx, ""));
+          rewriter.create<emitc::AssignOp>(loc, v, seedF32());
+          sumfVar[c] = v;
         }
 
-        // ===== Inner contraction-BLOCK loop: for (l = 0; l < nb; ++l) =====
+        // ===== This strip's contraction-BLOCK loop: for (l = 0; l < nb; ++l) ==
         auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
                                                        sizeLit(1),
                                                        /*bodyBuilder=*/nullptr);
@@ -6016,34 +6037,30 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                 llvm::StringRef("act_scale_scalar"));
           }
 
-          // -- SHARED weight strips, unpacked ONCE per 16-weight group and reused
-          // across the activation columns (the prefill amortization). dmin/d are
-          // per-column-lane fp16 strips widened to f32; the per-strip dmin is
-          // multiplied by EACH activation column's d_y_c inside the column fold.
-          llvm::SmallVector<mlir::Value> dminF32(numHalves), dF32(numHalves);
-          for (int64_t h = 0; h < numHalves; ++h) {
-            dminF32[h] = widenF16(loadF16Strip(bl, weightDminOffset, h * half));
-            dF32[h] = widenF16(loadF16Strip(bl, 0, h * half));
-          }
+          // -- SHARED (within the strip) weight strips, unpacked ONCE per
+          // 16-weight group and reused across the activation columns (the prefill
+          // amortization). dmin/d are the per-column-lane fp16 strips of THIS h
+          // widened to f32; each is multiplied by EACH activation column's d_y_c
+          // inside the column fold.
+          mlir::Value dminF32 =
+              widenF16(loadF16Strip(bl, weightDminOffset, h * half));
+          mlir::Value dF32 = widenF16(loadF16Strip(bl, 0, h * half));
 
-          // ===== Per-column i32 main + bsums accumulators (per strip). =====
-          // sumiVar[c][h] (scale main term), bsumsVar[c][h] (min term).
-          llvm::SmallVector<llvm::SmallVector<mlir::Value>> sumiVar(
-              activationInterleave),
+          // ===== Per-column i32 main + bsums accumulators for THIS strip. =====
+          // sumiVar[c] (scale main term), bsumsVar[c] (min term).
+          llvm::SmallVector<mlir::Value> sumiVar(activationInterleave),
               bsumsVar(activationInterleave);
           for (int64_t c = cLo; c < cHi; ++c) {
-            for (int64_t h = 0; h < numHalves; ++h) {
-              auto sv = rewriter.create<emitc::VariableOp>(
-                  loc, emitc::LValueType::get(i32m2Type),
-                  emitc::OpaqueAttr::get(ctx, ""));
-              rewriter.create<emitc::AssignOp>(loc, sv, seedI32());
-              sumiVar[c].push_back(sv);
-              auto bv = rewriter.create<emitc::VariableOp>(
-                  loc, emitc::LValueType::get(i32m2Type),
-                  emitc::OpaqueAttr::get(ctx, ""));
-              rewriter.create<emitc::AssignOp>(loc, bv, seedI32());
-              bsumsVar[c].push_back(bv);
-            }
+            auto sv = rewriter.create<emitc::VariableOp>(
+                loc, emitc::LValueType::get(i32m2Type),
+                emitc::OpaqueAttr::get(ctx, ""));
+            rewriter.create<emitc::AssignOp>(loc, sv, seedI32());
+            sumiVar[c] = sv;
+            auto bv = rewriter.create<emitc::VariableOp>(
+                loc, emitc::LValueType::get(i32m2Type),
+                emitc::OpaqueAttr::get(ctx, ""));
+            rewriter.create<emitc::AssignOp>(loc, bv, seedI32());
+            bsumsVar[c] = bv;
           }
 
           // ===== Super-half loop: for (j = 0; j < QK_K/128; ++j) =====
@@ -6056,32 +6073,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
             //   scales_lo = lo & 0x0F; mins_lo = lo >> 4.
             //   j==0: scales_hi = (hi & 0x03) << 4; mins_hi = (hi & 0x0C) << 2.
             //   j==1: scales_hi =  hi & 0x30;       mins_hi = (hi & 0xC0) >> 2.
-            // Unpacked ONCE; scaleVal[h][sb]/minVal[h][sb] reused per column.
-            llvm::SmallVector<llvm::SmallVector<mlir::Value>> scaleVal(numHalves);
-            llvm::SmallVector<llvm::SmallVector<mlir::Value>> minVal(numHalves);
-            for (int64_t h = 0; h < numHalves; ++h) {
-              for (int64_t sb = 0; sb < subPerSuper; ++sb) {
-                int64_t loByte =
-                    weightScalesOffset + j * 64 + sb * 16 + h * half;
-                int64_t hiByte = weightScalesOffset + 128 + sb * 16 + h * half;
-                mlir::Value lo = loadU8Strip(bl, sizeLit(loByte));
-                mlir::Value hi = loadU8Strip(bl, sizeLit(hiByte));
-                mlir::Value scalesLo = u8Imm(vandCallee, lo, "0x0F");
-                mlir::Value minsLo = u8Imm(vsrlCallee, lo, "4");
-                mlir::Value scalesHi, minsHi;
-                if (j == 0) {
-                  scalesHi =
-                      u8Imm(vsllCallee, u8Imm(vandCallee, hi, "0x03"), "4");
-                  minsHi = u8Imm(vsllCallee, u8Imm(vandCallee, hi, "0x0C"), "2");
-                } else {
-                  scalesHi = u8Imm(vandCallee, hi, "0x30");
-                  minsHi = u8Imm(vsrlCallee, u8Imm(vandCallee, hi, "0xC0"), "2");
-                }
-                mlir::Value scU8 = u8Or(scalesHi, scalesLo);
-                mlir::Value mnU8 = u8Or(minsHi, minsLo);
-                scaleVal[h].push_back(liftToI16(scU8));
-                minVal[h].push_back(liftToI16(mnU8));
+            // Unpacked ONCE for THIS strip; scaleVal[sb]/minVal[sb] reused per col.
+            llvm::SmallVector<mlir::Value> scaleVal, minVal;
+            for (int64_t sb = 0; sb < subPerSuper; ++sb) {
+              int64_t loByte = weightScalesOffset + j * 64 + sb * 16 + h * half;
+              int64_t hiByte = weightScalesOffset + 128 + sb * 16 + h * half;
+              mlir::Value lo = loadU8Strip(bl, sizeLit(loByte));
+              mlir::Value hi = loadU8Strip(bl, sizeLit(hiByte));
+              mlir::Value scalesLo = u8Imm(vandCallee, lo, "0x0F");
+              mlir::Value minsLo = u8Imm(vsrlCallee, lo, "4");
+              mlir::Value scalesHi, minsHi;
+              if (j == 0) {
+                scalesHi = u8Imm(vsllCallee, u8Imm(vandCallee, hi, "0x03"), "4");
+                minsHi = u8Imm(vsllCallee, u8Imm(vandCallee, hi, "0x0C"), "2");
+              } else {
+                scalesHi = u8Imm(vandCallee, hi, "0x30");
+                minsHi = u8Imm(vsrlCallee, u8Imm(vandCallee, hi, "0xC0"), "2");
               }
+              mlir::Value scU8 = u8Or(scalesHi, scalesLo);
+              mlir::Value mnU8 = u8Or(minsHi, minsLo);
+              scaleVal.push_back(liftToI16(scU8));
+              minVal.push_back(liftToI16(mnU8));
             }
 
             // ----- MIN term per activation column m: bsums_acc[m] += bsum_pair *
@@ -6100,15 +6112,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                     al, activationBsumsOffset + (gsub * 8 + c + 4) * 2);
                 mlir::Value bsPair =
                     rewriter.create<emitc::AddOp>(loc, i32Type, bs0, bs1);
-                for (int64_t h = 0; h < numHalves; ++h) {
-                  mlir::Value curB =
-                      rewriter
-                          .create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c][h])
-                          .getResult();
-                  rewriter.create<emitc::AssignOp>(
-                      loc, bsumsVar[c][h],
-                      vwmaccVX32(curB, bsPair, minVal[h][sb]));
-                }
+                mlir::Value curB =
+                    rewriter
+                        .create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c])
+                        .getResult();
+                rewriter.create<emitc::AssignOp>(
+                    loc, bsumsVar[c], vwmaccVX32(curB, bsPair, minVal[sb]));
               }
             }
 
@@ -6127,53 +6136,43 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
               int64_t aLoBase = activationQuantOffset + j * 512 + sbLo * 128;
               int64_t aHiBase = activationQuantOffset + j * 512 + sbHi * 128;
               for (int64_t k = 0; k < 2; ++k) {
-                // Per-column i16 partials for this 16-element k-chunk.
-                llvm::SmallVector<llvm::SmallVector<mlir::Value>> sLo(
-                    activationInterleave),
+                // Per-column i16 partials for this 16-element k-chunk (THIS h).
+                llvm::SmallVector<mlir::Value> sLo(activationInterleave),
                     sHi(activationInterleave);
                 for (int64_t c = cLo; c < cHi; ++c) {
-                  for (int64_t h = 0; h < numHalves; ++h) {
-                    sLo[c].push_back(seedI16());
-                    sHi[c].push_back(seedI16());
-                  }
+                  sLo[c] = seedI16();
+                  sHi[c] = seedI16();
                 }
                 for (int64_t ii = 0; ii < 16; ++ii) {
                   int64_t i = k * 16 + ii;
-                  // SHARED weight nibble decode per (i,h): reused over columns.
-                  llvm::SmallVector<mlir::Value> nLo(numHalves), nHi(numHalves);
-                  for (int64_t h = 0; h < numHalves; ++h) {
-                    step("weight_nibble_addr");
-                    mlir::Value packed = loadU8Strip(
-                        bl, sizeLit(qsPairBase + i * 16 + h * half));
-                    nLo[h] = reinterpretToI8(u8Imm(vandCallee, packed, "0x0F"));
-                    nHi[h] = reinterpretToI8(u8Imm(vsrlCallee, packed, "4"));
-                  }
+                  // SHARED weight nibble decode per i (THIS h): reused over cols.
+                  step("weight_nibble_addr");
+                  mlir::Value packed =
+                      loadU8Strip(bl, sizeLit(qsPairBase + i * 16 + h * half));
+                  mlir::Value nLo =
+                      reinterpretToI8(u8Imm(vandCallee, packed, "0x0F"));
+                  mlir::Value nHi =
+                      reinterpretToI8(u8Imm(vsrlCallee, packed, "4"));
                   for (int64_t c = cLo; c < cHi; ++c) {
                     step("act_quant_addr");
                     mlir::Value aLo =
                         i8Read(al, sizeLit(aLoBase + (i * 4 + c)));
                     mlir::Value aHi =
                         i8Read(al, sizeLit(aHiBase + (i * 4 + c)));
-                    for (int64_t h = 0; h < numHalves; ++h) {
-                      sLo[c][h] = vwmacc16(sLo[c][h], aLo, nLo[h]);
-                      sHi[c][h] = vwmacc16(sHi[c][h], aHi, nHi[h]);
-                    }
+                    sLo[c] = vwmacc16(sLo[c], aLo, nLo);
+                    sHi[c] = vwmacc16(sHi[c], aHi, nHi);
                   }
                 }
                 // sumi_c += scale_sbLo * sLo_c + scale_sbHi * sHi_c (i16->i32).
                 step("scale_subblock_fold");
                 for (int64_t c = cLo; c < cHi; ++c) {
-                  for (int64_t h = 0; h < numHalves; ++h) {
-                    mlir::Value cur0 =
-                        rewriter
-                            .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c][h])
-                            .getResult();
-                    mlir::Value acc0 =
-                        vwmaccVV32(cur0, scaleVal[h][sbLo], sLo[c][h]);
-                    rewriter.create<emitc::AssignOp>(
-                        loc, sumiVar[c][h],
-                        vwmaccVV32(acc0, scaleVal[h][sbHi], sHi[c][h]));
-                  }
+                  mlir::Value cur0 =
+                      rewriter
+                          .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                          .getResult();
+                  mlir::Value acc0 = vwmaccVV32(cur0, scaleVal[sbLo], sLo[c]);
+                  rewriter.create<emitc::AssignOp>(
+                      loc, sumiVar[c], vwmaccVV32(acc0, scaleVal[sbHi], sHi[c]));
                 }
               }
             }
@@ -6184,66 +6183,62 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
           // SHARED per-strip fp16 d/dmin widened to f32; multiplied by the
           // per-column fp32 d_y_c. =====
           for (int64_t c = cLo; c < cHi; ++c) {
-            for (int64_t h = 0; h < numHalves; ++h) {
-              // d_0_c = dF32[h] * d_y_c;  sumf_c += cvt(sumi_c) * d_0_c.
-              mlir::Value d0 = fmulScalar(dF32[h], aD[c]);
-              mlir::Value sumiV =
-                  rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c][h])
-                      .getResult();
-              mlir::Value curF =
-                  rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c][h])
-                      .getResult();
-              mlir::Value afterMain = emitOpaqueCallBuilt(
-                  rewriter, loc, f32m2Type, vfmaccVVCallee, opName, role,
-                  [&](mlir::OpBuilder &b,
-                      mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-                    return {curF, cvtI32F32(sumiV), d0, vl8};
-                  });
-              // dmin_0_c = dminF32[h] * d_y_c;  sumf_c -= dmin_0_c * cvt(bsums_c).
-              mlir::Value dmin0 = fmulScalar(dminF32[h], aD[c]);
-              mlir::Value bsumsV =
-                  rewriter.create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c][h])
-                      .getResult();
-              mlir::Value afterMin = emitOpaqueCallBuilt(
-                  rewriter, loc, f32m2Type, vfnmsacVVCallee, opName, role,
-                  [&](mlir::OpBuilder &b,
-                      mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-                    return {afterMain, dmin0, cvtI32F32(bsumsV), vl8};
-                  });
-              rewriter.create<emitc::AssignOp>(loc, sumfVar[c][h], afterMin);
-            }
+            // d_0_c = dF32 * d_y_c;  sumf_c += cvt(sumi_c) * d_0_c.
+            mlir::Value d0 = fmulScalar(dF32, aD[c]);
+            mlir::Value sumiV =
+                rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                    .getResult();
+            mlir::Value curF =
+                rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c])
+                    .getResult();
+            mlir::Value afterMain = emitOpaqueCallBuilt(
+                rewriter, loc, f32m2Type, vfmaccVVCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {curF, cvtI32F32(sumiV), d0, vl8};
+                });
+            // dmin_0_c = dminF32 * d_y_c;  sumf_c -= dmin_0_c * cvt(bsums_c).
+            mlir::Value dmin0 = fmulScalar(dminF32, aD[c]);
+            mlir::Value bsumsV =
+                rewriter.create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c])
+                    .getResult();
+            mlir::Value afterMin = emitOpaqueCallBuilt(
+                rewriter, loc, f32m2Type, vfnmsacVVCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {afterMain, dmin0, cvtI32F32(bsumsV), vl8};
+                });
+            rewriter.create<emitc::AssignOp>(loc, sumfVar[c], afterMin);
           }
         }
 
-        // Per-column per-strip store: s + (y*4 + c)*bs + x*16 + h*half.
+        // Per-column store for THIS strip: s + (y*4 + c)*bs + x*16 + h*half.
         std::string vseCallee = riscvIntrinsicName("vse", 32, l32, "f32");
         for (int64_t c = cLo; c < cHi; ++c) {
-          for (int64_t h = 0; h < numHalves; ++h) {
-            step("output_addr");
-            mlir::Value y4 = rewriter.create<emitc::MulOp>(
-                loc, sizeType, y, sizeLit(activationInterleave));
-            mlir::Value rowIdx =
-                rewriter.create<emitc::AddOp>(loc, sizeType, y4, sizeLit(c));
-            mlir::Value rowOff = rewriter.create<emitc::MulOp>(
-                loc, sizeType, rowIdx, outputRowStride);
-            mlir::Value x16 = rewriter.create<emitc::MulOp>(
-                loc, sizeType, x, sizeLit(weightInterleave));
-            mlir::Value colOff =
-                rewriter.create<emitc::AddOp>(loc, sizeType, rowOff, x16);
-            mlir::Value totalOff = colOff;
-            if (h * half != 0)
-              totalOff = rewriter.create<emitc::AddOp>(loc, sizeType, colOff,
-                                                       sizeLit(h * half));
-            mlir::Value dst = rewriter.create<emitc::AddOp>(
-                loc, floatPtrType, output, totalOff);
-            mlir::Value sumfVal =
-                rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c][h])
-                    .getResult();
-            emitOpaqueCallVoid(rewriter, loc, vseCallee,
-                               mlir::ValueRange{dst, sumfVal, vl8}, opName,
-                               role);
-          }
+          step("output_addr");
+          mlir::Value y4 = rewriter.create<emitc::MulOp>(
+              loc, sizeType, y, sizeLit(activationInterleave));
+          mlir::Value rowIdx =
+              rewriter.create<emitc::AddOp>(loc, sizeType, y4, sizeLit(c));
+          mlir::Value rowOff = rewriter.create<emitc::MulOp>(
+              loc, sizeType, rowIdx, outputRowStride);
+          mlir::Value x16 = rewriter.create<emitc::MulOp>(
+              loc, sizeType, x, sizeLit(weightInterleave));
+          mlir::Value colOff =
+              rewriter.create<emitc::AddOp>(loc, sizeType, rowOff, x16);
+          mlir::Value totalOff = colOff;
+          if (h * half != 0)
+            totalOff = rewriter.create<emitc::AddOp>(loc, sizeType, colOff,
+                                                     sizeLit(h * half));
+          mlir::Value dst = rewriter.create<emitc::AddOp>(
+              loc, floatPtrType, output, totalOff);
+          mlir::Value sumfVal =
+              rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c])
+                  .getResult();
+          emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                             mlir::ValueRange{dst, sumfVal, vl8}, opName, role);
         }
+        } // end S1 h-strip output tile (hs=1)
         } // end activation-column-PASS loop (cLo)
       }
     }
