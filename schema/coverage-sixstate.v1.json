@@ -529,8 +529,8 @@
    "op": "gemm_tile",
    "format": "iq2_xxs",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv iq2_xxs (GgmlRepackGem{v,m}Iq2XxsQ8KOp + fail-closed verifier + dispatch + REAL super-block grid codebook decode: dual vluxei16 gather grid[idx*8+j] + signs64[sel*8+j] + vmul sign-fold + vsext_vf4 ls-scale (no min) + 4 lit + independent oracle byte-exact-integer GREEN, GRID/SIGN/SCALE controls 100%)"
   },
   {
    "op": "gemm_tile",
