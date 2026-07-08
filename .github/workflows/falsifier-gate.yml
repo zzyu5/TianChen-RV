@@ -99,3 +99,33 @@ jobs:
       # retired verifier as a dead-code tomb.
       - name: Monolith-retire gate (ODS monoliths == whitelist, no #if 0 tombs)
         run: python3 tools/lint/check_monolith_retire.py
+
+  # [G3 裁决一.3] [F-EMIT] direct-emitter bypass gate. Terminal state [K-3b]: the repack
+  # front door (typed_repack_gem{v,m}_loop_body) is the SOLE emission authority; a
+  # hand-written emitRepackGem{v,m}<fmt> wired into the production dispatch table
+  # kBlockDotKernels (RVVToEmitC.cpp) BYPASSES it and is TRANSITIONAL SCAFFOLDING (feeds
+  # C_dispatch, never C_construct). Every such bypass must be NAMED in
+  # schema/emit-bypass-whitelist.v1.json with a retirement_batch, must be dispatch-wired
+  # (not constructed) in schema/coverage-sixstate.v1.json with the direct-emitter
+  # provenance marker, and the whitelist is a shrink-only ratchet (baseline_count ==
+  # entry count). An un-whitelisted bypass, a bypass over-reported as constructed, a
+  # stale whitelist entry, or a ratchet breach fails the job closed. Tracks 旁路存量 -> 0.
+  # Stdlib-Python only.
+  frontdoor-provenance-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the classifier DISCRIMINATES (matching -> GREEN, each
+      # violation class -- un-whitelisted bypass / stale / ratchet / over-report /
+      # missing-provenance / sixstate-unlisted -> RED) before it judges the committed tree.
+      - name: Front-door provenance gate self-test
+        run: python3 tools/lint/check_frontdoor_provenance.py --self-test
+
+      # Default-path gate on the COMMITTED dispatch table + whitelist + six-state: non-zero
+      # exit (un-whitelisted bypass / over-report / stale / ratchet / setup error) fails the
+      # job. Fires on EVERY PR/push that wires a new emitRepackGem* direct emitter into
+      # kBlockDotKernels without whitelisting it, or reports a bypass cell as constructed.
+      - name: Front-door provenance gate ([F-EMIT] bypass == whitelist, no over-report)
+        run: python3 tools/lint/check_frontdoor_provenance.py

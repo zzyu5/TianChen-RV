@@ -307,6 +307,54 @@ flat-path body is never reported as strong construction. Convergence acceptance
 criteria are owned by [K-3b] in the objectives 总纲; this contract only fixes the
 authority direction (operand layer wins; flat emitter subordinates to it).
 
+#### [G3] Mature-Compiler Target State + Direct-Emitter Retirement
+
+The maturity headline is not raw coverage but **construction provenance**. A
+mature compiler in this load domain is defined by:
+
+```text
+strong construction (C_construct, [L-8]) >= 70%  (pushing toward 90%)
+flagship-tile throughput realized (真-beat, past [PERF-1])
+EVERY constructed body built via the front door (typed region)
+generic operand layer = sole emission authority ([K-3b])
+direct-emitter bypass inventory == 0
+```
+
+A **direct emitter** is a hand-written per-format body emitter wired into the
+production dispatch path that emits a whole (super-)block / repacked GEVM/GEMM
+body **without** going through the front door's typed region. Repack examples are
+the `emitRepackGem{v,m}<fmt>` entries in `kBlockDotKernels`
+(`RVVToEmitC.cpp`); the front-door counterpart is
+`lowerToRepackGem{v,m} -> tcrv_rvv.typed_repack_gem{v,m}_loop_body`
+(`RVVLowerQuantContraction.cpp`), constructed at this cut for q4_0 only. A direct
+emitter is **transitional scaffolding**: it dispatch-wires a format (feeds
+`C_dispatch`, never `C_construct`) and is honestly labeled `dispatch-wired`
+([K-4]); reporting one as `constructed` is an [L-8] violation. `C_dispatch` is
+therefore a **subordinate annotation** under the maturity ledger, not a headline —
+the headline is `C_construct` (strong) plus the bypass inventory shrinking to 0.
+
+Retirement is a per-tile plan, not a rewrite-everything event: each surviving
+direct emitter carries a `retirement_batch` naming the campaign that will retire
+it into the front door, following the proven q4_0 `typed_repack` precedent
+(region-vs-monolith byte-exactness proven before the hand emitter is dropped).
+
+This is machine-enforced ([F-EMIT], canon-level, fail-closed):
+
+- `schema/emit-bypass-whitelist.v1.json` — the authoritative allow-list of
+  surviving direct-emitter cells (each with `provenance` + `retirement_batch`);
+  a shrink-only ratchet (`baseline_count == entry count`, monotone-down across
+  history).
+- `schema/coverage-sixstate.v1.json` — each bypass cell carries
+  `provenance="direct-emitter (transitional scaffolding)"` + `retirement_batch`
+  and is `dispatch-wired`, never `constructed`.
+- `tools/lint/check_frontdoor_provenance.py` — fails closed on an un-whitelisted
+  bypass, a bypass over-reported as `constructed`, a stale whitelist entry (tile
+  retired to the front door), or a ratchet breach; CI job
+  `frontdoor-provenance-gate` (`.github/workflows/falsifier-gate.yml`).
+
+The terminal condition is the whitelist emptying (bypass inventory 0), at which
+point the front door is provably the sole emission authority for the family.
+
 ### [K-2] Body Pattern Library As Construction Primitives
 
 A strong-sense `constructed` body ([K-4]) is materialized by **referencing

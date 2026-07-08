@@ -13,7 +13,8 @@
    "constructed",
    "covered"
   ],
-  "note": "'constructed' == STRONG (typed pattern-library primitives). C_construct counts 'constructed'+ only; 'constructed-weak' feeds C_construct_plus, never C_construct."
+  "note": "'constructed' == STRONG (typed pattern-library primitives). C_construct counts 'constructed'+ only; 'constructed-weak' feeds C_construct_plus, never C_construct.",
+  "g3_bypass_provenance": "G3 裁决一.1 (六态执法): the repack gemm_tile family has TWO emission provenances. (a) FRONT-DOOR CONSTRUCTED = the terminal [K-3b] path: the repack front door (RVVLowerQuantContraction.cpp lowerToRepackGemv/lowerToRepackGemm) CONSTRUCTS the typed tcrv_rvv.typed_repack_gemv_loop_body / typed_repack_gemm_loop_body region out of decomposed bricks -- ONLY q4_0 decode + q4_0 prefill are here, and ONLY these two gemm_tile cells feed C_construct (strong). (b) DIRECT-EMITTER (transitional scaffolding) = the 17 dispatch-wired repack gemm_tile RVV cells (q4_1/q5_0/q5_1/q8_0/q2_K/q3_K/q4_K/q5_K/q6_K/iq2_xxs/iq2_xs/iq2_s/iq4_nl/iq4_xs/mxfp4/tq1_0/tq2_0; iq2_xs/iq2_s landed by the in-flight repack line tasks #80-86 and flipped absent->dispatch-wired here as G3 forward-completion) whose body is emitted by a hand-written emitRepackGem{v,m}<fmt> that BYPASSES the L2 typed-region front door -- these are honestly labeled dispatch-wired (feed C_dispatch, NEVER C_construct, per [L-6]①/[L-8]) and each now carries provenance='direct-emitter (transitional scaffolding)' + retirement_batch (0=flat-mainline via the proven q4_0 typed_repack template / 1=ternary tq / 2=iq4 codebook / 3=iq2 codebook / 4=fp4 codebook / 5=K-quant super-block via mainline-A super-block repack front door). NO bypass cell is over-reported as constructed (zero demotion needed at this cut). Machine-enforced by the [F-EMIT] gate tools/lint/check_frontdoor_provenance.py against schema/emit-bypass-whitelist.v1.json: a production-wired emitRepackGem* not in the whitelist, a bypass cell claiming state=constructed, or a whitelist grown past its shrink-only baseline all fail closed. Terminal target [K-3b]: bypass count -> 0 (every gemm_tile constructed via the front door). C_construct (strong) is UNCHANGED by this labeling (33 at snapshot; only 2 of them -- q4_0 decode/prefill -- are gemm_tile)."
  },
  "states": [
   {
@@ -444,6 +445,8 @@
    "op": "gemm_tile",
    "format": "q4_1",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 0,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q4_1"
   },
@@ -451,6 +454,8 @@
    "op": "gemm_tile",
    "format": "q5_0",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 0,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q5_0"
   },
@@ -458,6 +463,8 @@
    "op": "gemm_tile",
    "format": "q5_1",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 0,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemv q5_1 (tcrv_rvv.repack_gemv_q5_1_q8_1): GgmlRepackGemvQ51Q81Op (RVVOps.td) + GgmlRepackGemvQ51Q81Op::verify (RVVDialectWideningOps.cpp, fail-closed I7) + isRepackGemvQ5_1Q8_1Body dispatch (RVVToEmitC.cpp) + emitRepackGemvQ5_1Q8_1 (RVVToEmitCBlockQuantLinear.cpp) + rvv-to-emitc-repack-gemv-q5-1-q8-1.mlir",
    "note": "absent -> dispatch-wired (裁决四接线批②). q5_1 repacked block-as-lane GEVM (decode) wired as the UNION of the two proven repacked-GEVM siblings: the FIVE-BIT transposed-qh weight decode of the q5_0 repack (block_q5_1x16: 16 fp16 d @0 + 16 fp16 m @32 + 256 RAW nibble bytes @64 + 64 transposed bit-packed qh bytes @320, stride 384) fused with the FAMILY-B (scale+MIN, asymmetric) dual fold of the q4_1 repack (plain block_q8_1 activation, stride 36, d@0/s@2/qs@4; per-strip sumf += (d_x*d_y)*sumi + m_x*s_y). q5_1 is q4_1 plus the 5th high bit: the integer core assembles the UNSIGNED A = nibble | (qh_bit<<4) in [0,31] WITHOUT the q5_0 `-16` offset-binary bias (asymmetric; bias in the MIN scale), then feeds the SAME lane-wise vwmacc + q4_1 dual fold. Verifier pins the block_q5_1x16 ABI fail-closed (wrong stride/kind/min-offset/qh-offset, forbidden LMUL attr, bad half_lanes all rejected -- verified). Byte-exact-vs-ggml-q5_1 by construction (union of two byte-exact decode paths); numbers pending-hardware (not run on ssh rvv this cut). This is coverage/dispatch wiring, NOT the constructed typed-loop-body rung (like the q5_0/q8_0/q4_1/q4_K dispatch-wired siblings, not the q4_0 constructed repack GEVM/GEMM). DECODE only (single-column GEVM); the prefill GEMM sibling is not wired (matches the q5_0/q8_0 dispatch-wired precedent -- GEVM alone flips the single gemm_tile roster entry)."
@@ -466,6 +473,8 @@
    "op": "gemm_tile",
    "format": "q8_0",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 0,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q8_0"
   },
@@ -480,6 +489,8 @@
    "op": "gemm_tile",
    "format": "q2_K",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 5,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q2_K (GgmlRepackGem{v,m}Q2KQ8KOp + verifier + dispatch + real 2-bit weight dual d/dmin + bsums-min fold + 4 lit + oracle byte-exact-integer isum+summs + SILICON board-numeric-confirmed VLEN128)"
   },
@@ -487,6 +498,8 @@
    "op": "gemm_tile",
    "format": "q3_K",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 5,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q3_K (GgmlRepackGem{v,m}Q3KQ8KOp + verifier + dispatch + real 3-bit subtractive-hmask no-min + 4 lit + oracle byte-exact-integer + SILICON board-numeric-confirmed VLEN128)"
   },
@@ -494,6 +507,8 @@
    "op": "gemm_tile",
    "format": "q4_K",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 5,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q4_K"
   },
@@ -501,6 +516,8 @@
    "op": "gemm_tile",
    "format": "q5_K",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 5,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q5_K (GgmlRepackGem{v,m}Q5KQ8KOp + fail-closed verifier + isRepackGem{v,m}Q5KQ8KBody dispatch + real K-quant superblock decode reusing q4_K get_scale_min_k4 + qh 5th-bit inject + 4 lit + independent oracle byte-exact-integer GREEN board rvv VLEN128)"
   },
@@ -508,6 +525,8 @@
    "op": "gemm_tile",
    "format": "q6_K",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 5,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv q6_K (GgmlRepackGem{v,m}Q6KQ8KOp + verifier + dispatch + real 6-bit two-plane no-min single-accumulator + 4 lit + oracle byte-exact-integer + SILICON board-numeric-confirmed VLEN128)"
   },
@@ -529,6 +548,8 @@
    "op": "gemm_tile",
    "format": "iq2_xxs",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 3,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv iq2_xxs (GgmlRepackGem{v,m}Iq2XxsQ8KOp + fail-closed verifier + dispatch + REAL super-block grid codebook decode: dual vluxei16 gather grid[idx*8+j] + signs64[sel*8+j] + vmul sign-fold + vsext_vf4 ls-scale (no min) + 4 lit + independent oracle byte-exact-integer GREEN, GRID/SIGN/SCALE controls 100%)"
   },
@@ -536,15 +557,19 @@
    "op": "gemm_tile",
    "format": "iq2_xs",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 3,
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv iq2_xs (GgmlRepackGem{v,m}Iq2XsQ8KOp + verifier + isRepackGem{v,m}Iq2XsQ8KBody dispatch RVVToEmitC.cpp:1675/1689 + real 512-grid vluxei16 (w&511) + signs64 (w>>9) gather + per-sub-block explicit 4-bit scales[8] two-half split; oracle byte-exact-integer GREEN). G3 一.1 forward-completion: the in-flight iq2_xs/iq2_s repack line (tasks #80-86) landed the full wiring in kBlockDotKernels (dispatch/emitters/oracles done #80-84); this cell was flipped absent->dispatch-wired by the G3 [F-EMIT] pass because the prior 'no in-code repack GEMM' anchor was stale. DIRECT-EMITTER bypass (feeds C_dispatch, not C_construct); lit/rebuild verification residual (#85-86) owned by that line."
   },
   {
    "op": "gemm_tile",
    "format": "iq2_s",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 3,
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv iq2_s (GgmlRepackGem{v,m}Iq2SQ8KOp + verifier + isRepackGem{v,m}Iq2SQ8KBody dispatch RVVToEmitC.cpp:1703/1717 + real 1024-grid vluxei16 (qs|qh-plane) + signs256 explicit-sign-byte gather + per-sub-block explicit 4-bit scales[8] two-half split; oracle byte-exact-integer GREEN). G3 一.1 forward-completion: the in-flight iq2_xs/iq2_s repack line (tasks #80-86) landed the full wiring in kBlockDotKernels (dispatch/emitters/oracles done #80-84); this cell was flipped absent->dispatch-wired by the G3 [F-EMIT] pass because the prior 'no in-code repack GEMM' anchor was stale. DIRECT-EMITTER bypass (feeds C_dispatch, not C_construct); lit/rebuild verification residual (#85-86) owned by that line."
   },
   {
    "op": "gemm_tile",
@@ -564,6 +589,8 @@
    "op": "gemm_tile",
    "format": "iq4_nl",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 2,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv iq4_nl (GgmlRepackGem{v,m}Iq4NlQ80Op + fail-closed verifier + dispatch + REAL non-linear codebook decode: vluxei16 memory gather through tcrv_iq4_nl_repack_kvalues[16] (not fake-linear, not vrgather) + lane-wise vwmul/vwadd i32 + single fp16 scale + 4 lit + independent oracle byte-exact-integer GREEN, CODEBOOK control 100%)"
   },
@@ -571,6 +598,8 @@
    "op": "gemm_tile",
    "format": "iq4_xs",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 2,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv iq4_xs (GgmlRepackGem{v,m}Iq4XsQ8KOp + verifier + dispatch + REAL codebook vluxei16 gather + K-quant-style 6-bit signed per-sub-block scale (q4_K bit-dance + vsub 32 + vsext_vf4 + vmacc, no min) + 4 lit + oracle byte-exact-integer GREEN)"
   },
@@ -578,6 +607,8 @@
    "op": "gemm_tile",
    "format": "mxfp4",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 4,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv mxfp4 (GgmlRepackGem{v,m}Mxfp4Q8Op + fail-closed verifier + dispatch + REAL fp4 codebook vluxei16 gather (doubled-E2M1 kvalues) + vectorized E8M0 shared-exponent 2^(e-128) scale fold + 4 lit + independent oracle byte-exact-integer GREEN, CODEBOOK/EXPONENT controls 100%)"
   },
@@ -592,6 +623,8 @@
    "op": "gemm_tile",
    "format": "tq1_0",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 1,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv tq1_0 (GgmlRepackGem{v,m}TQ10Q8KOp + verifier + dispatch + real base-3 5-trit/byte block-as-lane emitter (q*3)>>8-1 reusing ternary vec_dot formula, linear no-min + 4 lit + oracle byte-exact-integer GREEN)"
   },
@@ -599,6 +632,8 @@
    "op": "gemm_tile",
    "format": "tq2_0",
    "engine": "rvv",
+   "provenance": "direct-emitter (transitional scaffolding)",
+   "retirement_batch": 1,
    "state": "dispatch-wired",
    "anchor": "emitRepackGemm/Gemv tq2_0 (GgmlRepackGem{v,m}TQ20Q8KOp + fail-closed verifier + isRepackGem{v,m}TQ20Q8KBody dispatch + real ternary block-as-lane emitter: vand 0x03 + vsub-1 trit decode reusing RVVToEmitCTernaryBinary vec_dot formula, linear no-min + 4 lit + independent oracle byte-exact-integer GREEN)"
   },

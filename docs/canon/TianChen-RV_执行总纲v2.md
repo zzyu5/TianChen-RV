@@ -81,6 +81,8 @@
 | **K-6** 缺口关闭环 [GAP-1] | 环未机制化(triage/gap_id grep=0);首实例(钳位回归)已诊断为"缺 wide-clamp 能力",**但闭环第2-4步(命名→关闭→复测→引用 gap-ID)未走** | 缺失 | 有界工作项 | C3′ |
 | **L-8** 弱/强构造纪律 | 判据清晰、文档遵守(descriptor-selected=弱 vs typed 原语=强);**无机制化护栏**(无 C_construct 计量器阻止弱充强),为 prose 纪律 | 部分 | 有界工作项 | C3′ |
 
+> **[G3] 成熟 compiler 目标态 + 旁路清零(canon 一.2)**：成熟判据 = 强构造 `C_construct` ≥70%(向 90% 推)+ 旗舰格吞吐兑现 + **构造全走 front-door** + 发射权威唯一([K-3b])+ **旁路存量(直连发射器格数)→0**。直连发射器(`kBlockDotKernels` 里的 `emitRepackGem{v,m}<fmt>`,绕过 `typed_repack_gem{v,m}_loop_body` front-door)= **transitional scaffolding**:如实标 `dispatch-wired`(喂 `C_dispatch`,永不 `C_construct`),每格带 `retirement_batch` 逐格退役计划(仿 q4_0 已证 `typed_repack` 先例)。**`C_dispatch` 降为附注**,头条 = `C_construct`(强义)+ 旁路存量。机检护栏(L-8 的"机制化"缺口首次落地):`schema/emit-bypass-whitelist.v1.json`(shrink-only ratchet,`baseline_count==条目数`)+ `schema/coverage-sixstate.v1.json` 的 provenance 字段 + `tools/lint/check_frontdoor_provenance.py`([F-EMIT],CI job `frontdoor-provenance-gate`),对未白名单旁路 / 旁路充 constructed / 白名单陈旧 / ratchet 破坏一律 fail-closed。当前旁路存量 = 17 repack gemm_tile 格(仅 q4_0 decode/prefill 走 front-door constructed);终态 = 白名单清空。
+
 ### 模式注册表 · 成本账 · 覆盖率 [PAT-*]/[LED-*]/[COV-*]
 
 | 条款 | 现状(锚点) | 等级 | 标签 | 关联 |

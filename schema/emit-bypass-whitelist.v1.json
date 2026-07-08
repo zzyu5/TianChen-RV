@@ -1,0 +1,201 @@
+{
+  "$meta": {
+    "schema": "emit-bypass-whitelist.v1",
+    "ruling": "G3 裁决一.3 — [F-EMIT] direct-emitter bypass discipline (front-door emission-authority ratchet).",
+    "purpose": "Authoritative allow-list of the repack gemm_tile cells whose body is emitted by a hand-written emitRepackGem{v,m}<fmt> DIRECT EMITTER that BYPASSES the L2 typed-region front door (RVVLowerQuantContraction.cpp lowerToRepackGemv/lowerToRepackGemm -> tcrv_rvv.typed_repack_gemv_loop_body / typed_repack_gemm_loop_body). A direct-emitter repack path is TRANSITIONAL SCAFFOLDING: it dispatch-wires a format (feeds C_dispatch, NEVER C_construct) while the terminal state ([K-3b]) is that the front door is the SOLE emission authority and every gemm_tile is CONSTRUCTED as a typed region (the q4_0 decode/prefill precedent). Every direct-emitter that is production-wired in the kBlockDotKernels dispatch table MUST be named here with a retirement_batch; an un-whitelisted bypass fails the [F-EMIT] gate closed. The list is a RATCHET DOWN: it only shrinks as tiles are retired to the front door.",
+    "constitution": [
+      "A 'direct-emitter bypass' = a &VariantToEmitCFunc::emitRepackGem{v,m}<fmt> entry wired into the production dispatch table kBlockDotKernels (lib/Conversion/RVV/RVVToEmitC.cpp). Its recognizer matches a monolith repack op (tcrv_rvv.repack_gem{v,m}_<fmt>) and its emitter writes the whole repacked GEVM/GEMM body by hand -- it does NOT go through the typed_repack_gem{v,m}_loop_body region that the front door constructs. The typed-region path (isTypedRepackGemvLoopBody/isTypedRepackGemmLoopBody -> emitTypedRepackGem{v,m}LoopBody) is the FRONT DOOR and is NOT a bypass (q4_0 only, at this cut).",
+      "provenance = 'direct-emitter (transitional scaffolding)': the same string is stamped on the matching gemm_tile cell in schema/coverage-sixstate.v1.json. The bypass cell is dispatch-wired (feeds C_dispatch); reporting it as constructed is an [L-8] violation the [F-EMIT] gate rejects.",
+      "retirement_batch names the campaign that will retire the bypass into the front door, following the q4_0 typed_repack precedent (region-vs-monolith byte-exactness proven before the monolith emitter is retired): 0=flat-mainline (q4_1/q5_0/q5_1/q8_0 -- the readiest, the q4_0 typed_repack_gemv/gemm template already exists) ; 1=ternary (tq1_0/tq2_0) ; 2=iq4 codebook (iq4_nl/iq4_xs) ; 3=iq2 codebook (iq2_xxs/iq2_xs/iq2_s -- iq2_xs/iq2_s landed by the in-flight repack line #80-86, folded in at baseline 15->17) ; 4=fp4 codebook (mxfp4) ; 5=K-quant super-block (q2_K/q3_K/q4_K/q5_K/q6_K) via the mainline-A super-block repack front door.",
+      "shrink-only ratchet: baseline_count MUST EQUAL len(entries) (the [F-EMIT] gate fails closed on any drift), so a NEW bypass can never be added SILENTLY -- adding one forces a visible baseline_count bump in the same diff, which is the tamper-evident tripwire. baseline_count only ever DECREASES across git history (that monotone-down property is the shrink-only invariant, enforced by review of the diff). Adding a bypass is allowed only by retiring another OR by a sanctioned in-flight exception that predates G3 (e.g. the iq2_xs/iq2_s repack line, tasks #80-86) with the bump justified here. When a tile retires to the front door its emitter symbols leave kBlockDotKernels; the gate then flags the now-stale whitelist entry RED until it is MOVED to retired_ledger and baseline_count is decremented -- this is the mechanism that drives 旁路存量 -> 0.",
+      "The gate is fail-closed in BOTH directions: a production-wired emitRepackGem* absent from this list => RED (un-whitelisted bypass); a whitelist emitter symbol no longer wired in kBlockDotKernels => RED (stale -- the tile retired to the front door; MOVE it to retired_ledger)."
+    ],
+    "source_of_truth": {
+      "production_dispatch_table": "lib/Conversion/RVV/RVVToEmitC.cpp (static constexpr BlockDotKernel kBlockDotKernels[])",
+      "direct_emitter_marker": "&VariantToEmitCFunc::emitRepackGem[vm]<fmt>  (the address-of-member initializer in kBlockDotKernels; comment-immune)",
+      "front_door_authority": "lib/Conversion/RVV/RVVLowerQuantContraction.cpp lowerToRepackGemv/lowerToRepackGemm -> tcrv_rvv.typed_repack_gem{v,m}_loop_body ([K-3b] sole emission authority)",
+      "front_door_emitters": "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp emitTypedRepackGemvLoopBody / emitTypedRepackGemmLoopBody (the NON-bypass typed-region path -- q4_0 only)",
+      "sixstate": "schema/coverage-sixstate.v1.json (each whitelisted format's gemm_tile rvv cell carries provenance='direct-emitter (transitional scaffolding)' + retirement_batch; state must be dispatch-wired, never constructed)",
+      "checker": "tools/lint/check_frontdoor_provenance.py",
+      "ci": ".github/workflows/falsifier-gate.yml (job: frontdoor-provenance-gate)"
+    },
+    "shrink_only": true,
+    "baseline_count": 17,
+    "generated_survey": "As of G3 裁决一.3: 17 direct-emitter repack gemm_tile cells (31 emitRepackGem* symbols) are production-wired in kBlockDotKernels and bypass the front door; ALL are honestly dispatch-wired in six-state (feed C_dispatch, not C_construct). The ONLY front-door CONSTRUCTED repack gemm_tile cells are q4_0 decode + q4_0 prefill (typed_repack_gem{v,m}_loop_body) -- they are NOT bypasses and are deliberately absent from this list. baseline was 15 at the G3 freeze and was bumped to 17 in the SAME pass: the iq2_xs/iq2_s repack GEVM+GEMM line (tasks #80-86, which predates G3) had ALREADY landed its 4 emitters (emitRepackGem{v,m}Iq2XsQ8K / emitRepackGem{v,m}Iq2SQ8K, recognizers RVVToEmitC.cpp:1675-1720, ops GgmlRepackGem{v,m}Iq2{Xs,S}Q8KOp) into kBlockDotKernels with oracles byte-exact GREEN (task #84 done); the [F-EMIT] gate detected them as un-whitelisted bypasses, so they were folded in here (retirement_batch 3) per the ruling's 'iq2_xs/iq2_s 若已落' clause. Their lit/rebuild verification residual (tasks #85-86) is owned by that line; the six-state flip absent->dispatch-wired for these two cells was recorded as forward-completion by this G3 pass."
+  },
+
+  "entries": [
+    {
+      "op": "gemm_tile",
+      "format": "q4_1",
+      "engine": "rvv",
+      "retirement_batch": 0,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ4_1Q8_1", "emitRepackGemmQ4_1Q8_1"],
+      "recognizers": ["isRepackGemvQ4_1Q8_1Body", "isRepackGemmQ4_1Q8_1Body"],
+      "plan": "flat-mainline: retire GEVM+GEMM into the front door following the proven q4_0 typed_repack_gemv/gemm_loop_body template (Family-B scale+MIN dual fold already isolated in the q4_1 monolith)."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_0",
+      "engine": "rvv",
+      "retirement_batch": 0,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ5_0Q8_0"],
+      "recognizers": ["isRepackGemvQ5_0Q8_0Body"],
+      "plan": "flat-mainline (GEVM/decode only; no GEMM wired). Retire the five-bit offset-binary repack GEVM into the front door via the q4_0 typed_repack_gemv template + a per-block qh 5th-bit source brick."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_1",
+      "engine": "rvv",
+      "retirement_batch": 0,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ5_1Q8_1"],
+      "recognizers": ["isRepackGemvQ5_1Q8_1Body"],
+      "plan": "flat-mainline (GEVM/decode only). Retire the q5_0-qh + q4_1-dual-fold union repack GEVM into the front door via the q4_0 typed_repack_gemv template."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q8_0",
+      "engine": "rvv",
+      "retirement_batch": 0,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ8_0Q8_0"],
+      "recognizers": ["isRepackGemvQ8_0Q8_0Body"],
+      "plan": "flat-mainline (GEVM/decode only). Retire the widening-product repack GEVM into the front door via the q4_0 typed_repack_gemv template (the simplest flat core: no nibble unpack)."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq1_0",
+      "engine": "rvv",
+      "retirement_batch": 1,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvTQ10Q8K", "emitRepackGemmTQ10Q8K"],
+      "recognizers": ["isRepackGemvTQ10Q8KBody", "isRepackGemmTQ10Q8KBody"],
+      "plan": "ternary batch: retire the base-3 5-trit/byte block-as-lane repack (linear no-min) into the front door; shares the ternary decode brick with the tq1_0 vec_dot already-constructed super-block body."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq2_0",
+      "engine": "rvv",
+      "retirement_batch": 1,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvTQ20Q8K", "emitRepackGemmTQ20Q8K"],
+      "recognizers": ["isRepackGemvTQ20Q8KBody", "isRepackGemmTQ20Q8KBody"],
+      "plan": "ternary batch: retire the vand 0x03 + vsub-1 trit-decode block-as-lane repack (linear no-min) into the front door; shares the ternary decode brick with the tq2_0 vec_dot already-constructed super-block body."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_nl",
+      "engine": "rvv",
+      "retirement_batch": 2,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvIq4NlQ80", "emitRepackGemmIq4NlQ80"],
+      "recognizers": ["isRepackGemvIq4NlQ80Body", "isRepackGemmIq4NlQ80Body"],
+      "plan": "iq4 codebook batch: retire the vluxei16 non-linear codebook (tcrv_iq4_nl_repack_kvalues[16]) gather + lane-wise vwmul/vwadd + single fp16 scale repack into the front door via a codebook-core brick."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_xs",
+      "engine": "rvv",
+      "retirement_batch": 2,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvIq4XsQ8K", "emitRepackGemmIq4XsQ8K"],
+      "recognizers": ["isRepackGemvIq4XsQ8KBody", "isRepackGemmIq4XsQ8KBody"],
+      "plan": "iq4 codebook batch: retire the codebook vluxei16 gather + K-quant-style 6-bit signed per-sub-block scale (q4_K bit-dance + vsub 32, no min) repack into the front door; reuses the iq4_nl codebook-core brick + the K-quant scale dance."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xxs",
+      "engine": "rvv",
+      "retirement_batch": 3,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvIq2XxsQ8K", "emitRepackGemmIq2XxsQ8K"],
+      "recognizers": ["isRepackGemvIq2XxsQ8KBody", "isRepackGemmIq2XxsQ8KBody"],
+      "plan": "iq2 codebook batch: retire the dual vluxei16 grid[idx*8+j] + signs64[sel*8+j] gather + vmul sign-fold + vsext_vf4 ls-scale (no min) repack into the front door via a GRID/SIGN codebook-core brick."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xs",
+      "engine": "rvv",
+      "retirement_batch": 3,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvIq2XsQ8K", "emitRepackGemmIq2XsQ8K"],
+      "recognizers": ["isRepackGemvIq2XsQ8KBody", "isRepackGemmIq2XsQ8KBody"],
+      "plan": "iq2 codebook batch: retire the 512-grid vluxei16 (w&511) + signs64 (w>>9) gather + per-sub-block explicit 4-bit scales[8] two-half split repack into the front door via the iq2 GRID/SIGN codebook-core brick. Landed by the in-flight iq2_xs/iq2_s repack line (tasks #80-86; oracles byte-exact GREEN #84, lit/rebuild #85-86 residual owned by that line)."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_s",
+      "engine": "rvv",
+      "retirement_batch": 3,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvIq2SQ8K", "emitRepackGemmIq2SQ8K"],
+      "recognizers": ["isRepackGemvIq2SQ8KBody", "isRepackGemmIq2SQ8KBody"],
+      "plan": "iq2 codebook batch: retire the 1024-grid vluxei16 (qs|qh-plane) + signs256 explicit-sign-byte gather + per-sub-block explicit 4-bit scales[8] two-half split repack into the front door via the iq2 GRID/SIGN codebook-core brick. Landed by the in-flight iq2_xs/iq2_s repack line (tasks #80-86; oracles byte-exact GREEN #84, lit/rebuild #85-86 residual owned by that line)."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "mxfp4",
+      "engine": "rvv",
+      "retirement_batch": 4,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvMxfp4Q8", "emitRepackGemmMxfp4Q8"],
+      "recognizers": ["isRepackGemvMxfp4Q8Body", "isRepackGemmMxfp4Q8Body"],
+      "plan": "fp4 codebook batch: retire the fp4 codebook vluxei16 gather (doubled-E2M1 kvalues) + vectorized E8M0 shared-exponent 2^(e-128) scale fold repack into the front door. NOTE: mxfp4 is also the vec_dot NEGATIVE CONTROL (kept undecomposed on the vec_dot axis); the repack GEMM axis is a distinct cell and retires normally."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q2_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ2KQ8K", "emitRepackGemmQ2KQ8K"],
+      "recognizers": ["isRepackGemvQ2KQ8KBody", "isRepackGemmQ2KQ8KBody"],
+      "plan": "K-quant batch (mainline-A super-block repack front door): retire the real 2-bit dual d/dmin + bsums-min fold repack into the front door; reuses the q2_K vec_dot integer core + scalar scale/min fold already constructed on the super-block loop op."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q3_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ3KQ8K", "emitRepackGemmQ3KQ8K"],
+      "recognizers": ["isRepackGemvQ3KQ8KBody", "isRepackGemmQ3KQ8KBody"],
+      "plan": "K-quant batch (mainline-A super-block repack front door): retire the 3-bit subtractive-hmask no-min repack into the front door; reuses the q3_K aux32 integer core + q6_K no-min fold already constructed on the super-block loop op."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ4KQ8K", "emitRepackGemmQ4KQ8K"],
+      "recognizers": ["isRepackGemvQ4KQ8KBody", "isRepackGemmQ4KQ8KBody"],
+      "plan": "K-quant batch (mainline-A super-block repack front door): retire the block_q4_Kx16 block-as-lane repack into the front door; reuses the 5 q4_K bricks (nibble_unpack/scale_min_bit_dance/scaled_dot/min_term/sums_fold_scale_d) already constructed on the vec_dot super-block loop op."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ5KQ8K", "emitRepackGemmQ5KQ8K"],
+      "recognizers": ["isRepackGemvQ5KQ8KBody", "isRepackGemmQ5KQ8KBody"],
+      "plan": "K-quant batch (mainline-A super-block repack front door): retire the q4_K + qh 5th-bit repack into the front door; == q4_K bricks + BRICK 1 qh-offset attr (weight_block_stride 176)."
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q6_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "provenance": "direct-emitter (transitional scaffolding)",
+      "emitters": ["emitRepackGemvQ6KQ8K", "emitRepackGemmQ6KQ8K"],
+      "recognizers": ["isRepackGemvQ6KQ8KBody", "isRepackGemmQ6KQ8KBody"],
+      "plan": "K-quant batch (mainline-A super-block repack front door): retire the 6-bit two-plane no-min single-accumulator repack into the front door; reuses the q6_K aux32 integer core + no-min fold already constructed on the super-block loop op."
+    }
+  ],
+
+  "retired_ledger": []
+}
