@@ -396,6 +396,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmIq4NlQ80},
         {&isRepackGemmIq4XsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmIq4XsQ8K},
+        {&isRepackGemmIq2XxsQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemmIq2XxsQ8K},
         {&isRepackGemvQ8_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
         {&isRepackGemvQ4KQ8KBody,
@@ -416,6 +418,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvIq4NlQ80},
         {&isRepackGemvIq4XsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvIq4XsQ8K},
+        {&isRepackGemvIq2XxsQ8KBody,
+         &VariantToEmitCFunc::emitRepackGemvIq2XxsQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
@@ -1590,6 +1594,34 @@ bool VariantToEmitCFunc::isRepackGemmIq4XsQ8KBody(tcrvrvv::WithVLOp scope) {
     bool sawGemm = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlRepackGemmIq4XsQ8KOp>(op)) {
+        if (sawGemm)
+          return false;
+        sawGemm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemm;
+  }
+
+bool VariantToEmitCFunc::isRepackGemvIq2XxsQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool sawGemv = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq2XxsQ8KOp>(op)) {
+        if (sawGemv)
+          return false;
+        sawGemv = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemv;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmIq2XxsQ8KBody(tcrvrvv::WithVLOp scope) {
+    bool sawGemm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq2XxsQ8KOp>(op)) {
         if (sawGemm)
           return false;
         sawGemm = true;
