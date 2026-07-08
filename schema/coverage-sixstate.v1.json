@@ -578,8 +578,8 @@
    "op": "gemm_tile",
    "format": "mxfp4",
    "engine": "rvv",
-   "state": "absent",
-   "anchor": "no in-code repack GEMM"
+   "state": "dispatch-wired",
+   "anchor": "emitRepackGemm/Gemv mxfp4 (GgmlRepackGem{v,m}Mxfp4Q8Op + fail-closed verifier + dispatch + REAL fp4 codebook vluxei16 gather (doubled-E2M1 kvalues) + vectorized E8M0 shared-exponent 2^(e-128) scale fold + 4 lit + independent oracle byte-exact-integer GREEN, CODEBOOK/EXPONENT controls 100%)"
   },
   {
    "op": "gemm_tile",
