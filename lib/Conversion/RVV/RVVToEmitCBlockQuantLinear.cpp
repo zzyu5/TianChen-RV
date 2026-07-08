@@ -1682,12 +1682,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           coreBrick, "the K-quant core brick's weight/activation bases must be the "
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
-    if (coreBrick.getDecodeModel() != "q4_K")
+    // Both q4_K (4-bit nibble) and q2_K (2-bit) SHARE the dual d/dmin + bsums-min fold
+    // (fold_model "kquant_dmin_bsums_min"); the decode_model WHAT selects the
+    // per-family decode leaf. q2_K is the LOWEST-bit min-fold sibling of q4_K.
+    if (coreBrick.getDecodeModel() != "q4_K" &&
+        coreBrick.getDecodeModel() != "q2_K")
       return rewriter.notifyMatchFailure(
           coreBrick, "K-quant repack GEVM decode_model not recognized (expected "
-                     "\"q4_K\")");
+                     "\"q4_K\" or \"q2_K\")");
     // The K-quant super-block decode facts on the loop body op's OPTIONAL attrs
-    // (fail-closed, I7): dmin strip byte offset, 6-bit scales/mins region byte
+    // (fail-closed, I7): dmin strip byte offset, 6-bit/4-bit scales/mins region byte
     // offset, activation int16 bsums byte offset, and sub-block count.
     std::optional<uint64_t> dminOff = loopBody.getWeightDminByteOffset();
     std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
@@ -1708,6 +1712,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // The q2_K (2-bit) sibling shares the SAME leaf signature + facts as q4_K (4-bit);
+    // the ONLY delta is the decode leaf (2-bit weight peel + 4-bit packed scale/min +
+    // single-bsum-per-sub-block). RE-EMITs the byte-exact q2_K GEVM body.
+    if (coreBrick.getDecodeModel() == "q2_K")
+      return emitRepackKQuantGemvBodyQ2K(
+          rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
+          sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(*dminOff), static_cast<int64_t>(*scalesOff),
+          static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
     return emitRepackKQuantGemvBodyQ4K(
         rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
         sizeType, opName, role, coreLmul,
@@ -2234,10 +2254,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           coreBrick, "the K-quant GEMM core brick's weight/activation bases must "
                      "be the loop-body's own repacked-weight / q8_Kx4-activation "
                      "ABI buffers");
-    if (coreBrick.getDecodeModel() != "q4_K")
+    // Both q4_K (4-bit) and q2_K (2-bit) SHARE the dual d/dmin + bsums-min GEMM fold;
+    // the decode_model WHAT selects the per-family decode leaf. Both leaves are S6-TILED
+    // (the register-cliff lever transfers -- q2_K's min+bsums fold is the same shape).
+    if (coreBrick.getDecodeModel() != "q4_K" &&
+        coreBrick.getDecodeModel() != "q2_K")
       return rewriter.notifyMatchFailure(
           coreBrick, "K-quant repack GEMM decode_model not recognized (expected "
-                     "\"q4_K\")");
+                     "\"q4_K\" or \"q2_K\")");
     std::optional<uint64_t> dminOff = loopBody.getWeightDminByteOffset();
     std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
     std::optional<uint64_t> bsumsOff = loopBody.getActivationBsumsByteOffset();
@@ -2260,6 +2284,20 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    if (coreBrick.getDecodeModel() == "q2_K")
+      return emitRepackKQuantGemmBodyQ2K(
+          rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
+          outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(*dminOff), static_cast<int64_t>(*scalesOff),
+          static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getActivationInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
     return emitRepackKQuantGemmBodyQ4K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -8918,50 +8956,39 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
   return d;
 }
 
-// q2_K x q8_K 16x1-REPACKED GEVM emitter. q2_K is the LOWEST-bit K-quant and the
-// MIN-TERM regression: a FAITHFUL reuse of the oracle-verified q4_K/q5_K super-block
-// scaffold (LANE-WISE vwmacc block-as-lane strips, dual super-block d/dmin fold, the
-// bsums-min correction -- emitRepackGemvQ4KQ8K) with THREE q2_K deltas: (1) the
-// weight is 2-BIT, FOUR lanes per byte -- the qs byte is loaded ONCE per column strip
-// and peeled by vsrl {0,2,4,6} + vand 0x03 into four UNSIGNED [0,3] lanes (NO
-// offset-binary bias; the bias lives entirely in the 4-bit MIN, exactly q4_K/q5_K).
-// (2) the per-sub-block scale/min is a SINGLE 4-bit-packed byte -- vand 0x0F is the
-// scale, vsrl 4 the min (NOT q4_K's 6-bit two-byte get_scale_min_k4 bit-dance). (3)
-// 16 sub-blocks of 16 -> each sub-block is EXACTLY ONE q8_K bsums group, so the MIN
-// term reads a SINGLE bsum per sub-block (NOT q4_K's paired bs0+bs1) and each 16-
-// element dot fits in ONE i16 partial (16*127*3 = 6096 < 32767, NO 2x16 k-chunk
-// split). NUMERIC STATUS: oracle-verified byte-exact INTEGER isum + summs vs an
-// INDEPENDENT scalar q2_K dequant-matmul reference (controls 2BIT/SCALE/MIN all 100%
-// exercised). The q8_K activation ABI is byte-identical to q4_K/q5_K/q6_K.
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ2KQ8K(
+// q2_K x q8_K 16x1-REPACKED GEVM (decode) body leaf, from the FRONT DOOR. q2_K is the
+// LOWEST-bit K-quant and the MIN-TERM regression: a FAITHFUL reuse of the oracle-
+// verified q4_K super-block scaffold (LANE-WISE vwmacc block-as-lane strips, dual
+// super-block d/dmin fold, the bsums-min correction -- emitRepackKQuantGemvBodyQ4K)
+// with THREE q2_K deltas: (1) the weight is 2-BIT, FOUR lanes per byte -- the qs byte
+// is loaded ONCE per column strip and peeled by vsrl {0,2,4,6} + vand 0x03 into four
+// UNSIGNED [0,3] lanes (NO offset-binary bias; the bias lives entirely in the 4-bit
+// MIN, exactly q4_K). (2) the per-sub-block scale/min is a SINGLE 4-bit-packed byte --
+// vand 0x0F is the scale, vsrl 4 the min (NOT q4_K's 6-bit two-byte get_scale_min_k4
+// bit-dance). (3) 16 sub-blocks of 16 -> each sub-block is EXACTLY ONE q8_K bsums
+// group, so the MIN term reads a SINGLE bsum per sub-block (NOT q4_K's paired bs0+bs1)
+// and each 16-element dot fits in ONE i16 partial (16*127*3 = 6096 < 32767, NO 2x16
+// k-chunk split). The block-format facts are PARAMETERS (the loop body op's pinned
+// attrs, read by the K-quant branch of emitTypedRepackGemvLoopBody and passed in).
+// NUMERIC STATUS: oracle-verified byte-exact INTEGER isum + summs vs an INDEPENDENT
+// scalar q2_K dequant-matmul reference. The q8_K activation ABI is byte-identical to
+// q4_K/q5_K/q6_K. RESULT-LESS (no monolith token).
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ2K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ2KQ8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ2KQ8KOp>(op))
-        gemv = g;
-    }
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope, "repack-gemv-q2_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-q2_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+    int64_t qk, int64_t weightStride, int64_t activationStride,
+    int64_t weightQuantOffset, int64_t activationQuantOffset,
+    int64_t weightDminOffset, int64_t weightScalesOffset,
+    int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
+    int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the 16-way
     // interleaved repack reads the SAME bytes either way). "mf2" (default) is the
     // RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2 (f16 scale m1). "m1"
     // is the WHOLE-LMUL chain RVV0.7.1 requires: i8m1 -> i16m2 -> i32m4 -> f32m4.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -8998,23 +9025,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ2KQ8K(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
     // The 16x1 repacked q2_K (K-quant super-block) GEVM block-format structural
-    // facts (I4 mirror, pinned by the verifier): QK_K=256, block_q2_Kx16 weight
-    // stride 1344 (16 fp16 d + 16 fp16 dmin + 256 packed 4-bit scale/min + 1024
-    // 2-bit quant bytes), block_q8_K activation stride 292, the weight quant bytes
-    // at +320, the per-column dmin strip at +32, the packed scale/min region at +64,
-    // the activation int8 quants at +4, the activation bsums at +260, 16 weight
-    // columns per group, 16 sub-blocks of 16, and the VLEN-derived e8 half width.
-    int64_t qk = gemv.getQk();                                      // 256
-    int64_t weightStride = gemv.getWeightBlockStride();             // 1344
-    int64_t activationStride = gemv.getActivationBlockStride();     // 292
-    int64_t weightQuantOffset = gemv.getWeightQuantByteOffset();    // 320
-    int64_t activationQuantOffset = gemv.getActivationQuantByteOffset(); // 4
-    int64_t weightDminOffset = gemv.getWeightDminByteOffset();      // 32
-    int64_t weightScalesOffset = gemv.getWeightScalesByteOffset();  // 64
-    int64_t activationBsumsOffset = gemv.getActivationBsumsByteOffset(); // 260
-    int64_t nSubblocks = gemv.getNSubblocks();                      // 16
-    int64_t weightInterleave = gemv.getWeightInterleave();          // 16
-    int64_t half = gemv.getHalfLanes();              // 8 @128, 16 @256
+    // facts (I4 mirror, PARAMETERS now -- the loop body op's pinned attrs): QK_K=256,
+    // block_q2_Kx16 weight stride 1344 (16 fp16 d + 16 fp16 dmin + 256 packed 4-bit
+    // scale/min + 1024 2-bit quant bytes), block_q8_K activation stride 292, the weight
+    // quant bytes at +320, the per-column dmin strip at +32, the packed scale/min
+    // region at +64, the activation int8 quants at +4, the activation bsums at +260, 16
+    // weight columns per group, 16 sub-blocks of 16, and the VLEN-derived e8 half width.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 8 sub-blocks / super-half
@@ -9029,7 +9045,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ2KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemv, "repack-gemv-q2_K output not pointer");
+      return rewriter.notifyMatchFailure(loc, "repack-gemv-q2_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
     // The active vl is the COMPILE-TIME-CONSTANT half width.
@@ -9444,62 +9460,52 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ2KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    // The op result is the typed i32m1 token; the GEVM writes through *s so the
-    // token has no consumer. Seed it with a zero i32m1 lane-0.
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemv.getResult()] = resultTok;
+    (void)i32m1Type;
+    // RESULT-LESS (no monolith token): the typed_repack_gemv_loop_body region is
+    // result-less (the repacked lane-wise K-quant GEVM sinks through the output
+    // pointer, not an SSA vector), so unlike the retired direct emitter this body leaf
+    // seeds NO dead i32m1 result token.
     return mlir::success();
   }
 
-// q2_K x q8_K 16x1-REPACKED PREFILL GEMM emitter. The q2_K prefill sibling of
-// emitRepackGemvQ2KQ8K: the SAME 2-bit-4-lanes weight assembly + 4-bit packed
-// scale/min + dual d/dmin + bsums-min fold, with the WEIGHT-side 2-bit decode and
-// scale/min unpack done ONCE per 16-weight group and REUSED across the 4 interleaved
-// activation columns of block_q8_Kx4 -- the amortization the single-column GEVM
-// lacks. Activation interleave (IDENTICAL to q4_K): qs@16 are 4-column-interleaved
-// (element e of column c at qs[e*4 + c]); bsums@1040 are group16-major/column-minor
-// (group g16 col c at bsums[g16*4 + c]); d[4]@0 are 4 fp32 scalars. NUMERIC STATUS:
-// oracle-verified byte-exact INTEGER (isum + summs) vs the INDEPENDENT scalar q2_K
-// dequant-matmul reference on the interleaved x4 stream.
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
+// q2_K x q8_K 16x1-REPACKED PREFILL GEMM (prefill) body leaf, from the FRONT DOOR
+// + S6 TILED (byte-exact). The q2_K prefill sibling of emitRepackKQuantGemvBodyQ2K:
+// the SAME 2-bit-4-lanes weight assembly + 4-bit packed scale/min + dual d/dmin +
+// bsums-min fold, with the WEIGHT-side 2-bit decode and scale/min unpack done ONCE
+// per 16-weight group and REUSED across the 4 interleaved activation columns of
+// block_q8_Kx4 -- the amortization the single-column GEVM lacks. Because q2_K SHARES
+// the q4_K dual d/dmin + bsums-min fold, the FAMILY S6 tiling scheme transfers WHOLE
+// (the register-cliff lever): S1 h-strip OUTPUT TILE (one disjoint weight strip at a
+// time, a SEPARATE emitc.for per strip scoping each block loop's live set) + the S6
+// stack panels -- the decoded 4-bit scale/min i16 strips are staged to scalePanel/
+// minPanel and the idle per-column i32 MIN accumulator is staged to bsumsPanel (both
+// addressed via vle/vse opaque intrinsics so they LIVE ON THE STACK, off the hot live
+// set) + on-demand d/dmin widen (deferred to the end-of-block fold). The HOT sumf/sumi
+// per-column accumulators stay SSA-register VariableOps (NEVER paneled, NEVER rolled
+// into the iter-arg-less emitc.for -- the re-roll trap). Every staged value is INTEGER
+// (exact store/reload) and the end-of-block f32 fold order is UNCHANGED => byte-exact
+// bit-identical to the plain untiled emit. Activation interleave (IDENTICAL to q4_K):
+// qs@16 are 4-column-interleaved (element e of column c at qs[e*4 + c]); bsums@1040
+// are group16-major/column-minor (group g16 col c at bsums[g16*4 + c]); d[4]@0 are 4
+// fp32 scalars. The block-format facts are PARAMETERS (the loop body op's pinned
+// attrs, read by the K-quant branch of emitTypedRepackGemmLoopBody and passed in).
+// NUMERIC STATUS: oracle-verified byte-exact INTEGER (isum + summs) vs the INDEPENDENT
+// scalar q2_K dequant-matmul reference on the interleaved x4 stream. RESULT-LESS.
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmQ2KQ8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ2KQ8KOp>(op))
-        gemm = g;
-    }
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope,
-                                         "repack-gemm-q2_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount ||
-        !columnCount || !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-q2_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+    int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+    int64_t activationQuantOffset, int64_t weightDminOffset,
+    int64_t weightScalesOffset, int64_t activationBsumsOffset,
+    int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
+    int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*), the SAME
     // parametric chain the q2_K GEVM sibling carries.
-    llvm::StringRef coreLmul = gemm.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -9510,7 +9516,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
         emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
     mlir::Type i32m2Type =
         emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
-    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     mlir::Type u16m1Type =
         emitc::OpaqueType::get(ctx, ("vuint16" + l16 + "_t").str());
     mlir::Type i8mf2Type =
@@ -9533,25 +9538,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-    // The 16x1 repacked q2_K PREFILL GEMM block-format facts (I4 mirror, pinned by
-    // the verifier): QK_K=256, block_q2_Kx16 weight stride 1344 (SAME weight ABI as
-    // the GEVM), block_q8_Kx4 activation stride 1168 (4 fp32 d + 1024 int8 quants [4
-    // columns interleaved] + 64 int16 bsums), weight quants at +320, dmin strip at
-    // +32, packed scale/min region at +64, interleaved activation quants at +16,
-    // interleaved activation bsums at +1040, 16 weight / 4 activation columns per
-    // group, 16 sub-blocks of 16, and the VLEN-derived e8 half width.
-    int64_t qk = gemm.getQk();                                      // 256
-    int64_t weightStride = gemm.getWeightBlockStride();             // 1344
-    int64_t activationStride = gemm.getActivationBlockStride();     // 1168
-    int64_t weightQuantOffset = gemm.getWeightQuantByteOffset();    // 320
-    int64_t activationQuantOffset = gemm.getActivationQuantByteOffset(); // 16
-    int64_t weightDminOffset = gemm.getWeightDminByteOffset();      // 32
-    int64_t weightScalesOffset = gemm.getWeightScalesByteOffset();  // 64
-    int64_t activationBsumsOffset = gemm.getActivationBsumsByteOffset(); // 1040
-    int64_t nSubblocks = gemm.getNSubblocks();                      // 16
-    int64_t weightInterleave = gemm.getWeightInterleave();          // 16
-    int64_t activationInterleave = gemm.getActivationInterleave();  // 4
-    int64_t half = gemm.getHalfLanes();              // 8 @128, 16 @256
+    // The 16x1 repacked q2_K PREFILL GEMM block-format facts (I4 mirror, PARAMETERS
+    // now): QK_K=256, block_q2_Kx16 weight stride 1344 (SAME weight ABI as the GEVM),
+    // block_q8_Kx4 activation stride 1168 (4 fp32 d + 1024 int8 quants [4 columns
+    // interleaved] + 64 int16 bsums), weight quants at +320, dmin strip at +32, packed
+    // scale/min region at +64, interleaved activation quants at +16, interleaved
+    // activation bsums at +1040, 16 weight / 4 activation columns per group, 16
+    // sub-blocks of 16, and the VLEN-derived e8 half width.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
     int64_t subPerSuper = nSubblocks / nSuperHalves; // 8 sub-blocks / super-half
@@ -9570,7 +9563,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemm,
+      return rewriter.notifyMatchFailure(loc,
                                          "repack-gemm-q2_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
@@ -9773,7 +9766,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
              cLo += columnsPerPass) {
         int64_t cHi = cLo + columnsPerPass;
 
-        // vfloat32m2_t sumf_{c,h} = vfmv_v_f(0.0f, half); per column per strip.
         std::string fmvCallee = riscvIntrinsicName("vfmv_v_f", 32, l32, "f32");
         auto seedF32 = [&]() -> mlir::Value {
           return emitOpaqueCallBuilt(
@@ -9786,19 +9778,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
                 return {zero, vl8};
               });
         };
-        llvm::SmallVector<llvm::SmallVector<mlir::Value>> sumfVar(
-            activationInterleave);
+        // ===== S1 h-strip OUTPUT TILE (mr=4 / hs=1) ======================
+        // Process one DISJOINT weight strip h at a time, each in its OWN contraction-
+        // block loop (a SEPARATE emitc.for scopes each block loop's live set), so the
+        // register allocator only ever juggles ONE strip's accumulators + decode
+        // temporaries at once (the q4_K spill-cliff lever, transferred WHOLE since
+        // q2_K shares the min fold). The per-column f32 accumulator sumf_c is TILE-
+        // LOCAL: columnsPerPass accumulators seeded ABOVE this strip's block loop and
+        // carried across it as SSA-register VariableOps (NEVER rolled into the
+        // iter-arg-less emitc.for). Amortization is UNCHANGED: the h strips read
+        // DISJOINT weight bytes, and the weight decode stays amortized across the 4
+        // activation columns WITHIN each strip. numHalves == weight_interleave /
+        // half_lanes is the VLEN-derived tile count (2 @VLEN128, 1 @VLEN256).
+        for (int64_t h = 0; h < numHalves; ++h) {
+        // sumfVar[c]: THIS strip's per-column f32 accumulator, carried across the
+        // contraction-block loop. The MIN correction is folded straight into sumf via
+        // vfnmsac at end-of-block.
+        llvm::SmallVector<mlir::Value> sumfVar(activationInterleave);
         for (int64_t c = cLo; c < cHi; ++c) {
-          for (int64_t h = 0; h < numHalves; ++h) {
-            auto v = rewriter.create<emitc::VariableOp>(
-                loc, emitc::LValueType::get(f32m2Type),
-                emitc::OpaqueAttr::get(ctx, ""));
-            rewriter.create<emitc::AssignOp>(loc, v, seedF32());
-            sumfVar[c].push_back(v);
-          }
+          auto v = rewriter.create<emitc::VariableOp>(
+              loc, emitc::LValueType::get(f32m2Type),
+              emitc::OpaqueAttr::get(ctx, ""));
+          rewriter.create<emitc::AssignOp>(loc, v, seedF32());
+          sumfVar[c] = v;
         }
 
-        // ===== Inner contraction-BLOCK loop: for (l = 0; l < nb; ++l) =====
+        // ===== This strip's contraction-BLOCK loop: for (l = 0; l < nb; ++l) ==
         auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
                                                        sizeLit(1),
                                                        /*bodyBuilder=*/nullptr);
@@ -9840,103 +9845,161 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
                 llvm::StringRef("act_scale_scalar"));
           }
 
-          // -- SHARED weight d/dmin strips (per-column-lane fp16), widened to f32
-          // and reused across the activation columns.
-          llvm::SmallVector<mlir::Value> dminF32(numHalves), dF32(numHalves);
-          for (int64_t h = 0; h < numHalves; ++h) {
-            dminF32[h] = widenF16(loadF16Strip(bl, weightDminOffset, h * half));
-            dF32[h] = widenF16(loadF16Strip(bl, 0, h * half));
-          }
+          // ===== S6 decoded-weight + min-accumulator STACK PANELS (byte-exact) ===
+          // The COLD decode band (this block's 4-bit scale/min i16 strips) and the
+          // COLD per-column i32 MIN accumulator are staged into small PER-BLOCK stack
+          // arrays, addressed via vle/vse opaque intrinsics (the taken address defeats
+          // mem2reg, so they LIVE ON THE STACK, not in vregs). This takes the scale
+          // strips (held live across the dot loop only for the post-loop fold) and the
+          // bsums family (idle throughout the hot main term) OFF the hot live set, so
+          // the allocator only juggles the HOT sumf/sumi accumulators + sPartial
+          // partials. Every staged value is INTEGER (exact store/reload) and the
+          // end-of-block f32 fold is UNCHANGED => byte-exact. sumf/sumi stay SSA-
+          // register accumulators (the re-roll trap avoided). Declared PER-BLOCK.
+          mlir::Type i16ElemTy = emitc::OpaqueType::get(ctx, "int16_t");
+          mlir::Type i32ElemTy = emitc::OpaqueType::get(ctx, "int32_t");
+          mlir::Type i16MutPtrTy = emitc::PointerType::get(i16ElemTy);
+          mlir::Type i32MutPtrTy = emitc::PointerType::get(i32ElemTy);
+          mlir::Type scaleMinPanelTy =
+              emitc::ArrayType::get({subPerSuper * half}, i16ElemTy);
+          mlir::Type bsumsPanelTy =
+              emitc::ArrayType::get({columnsPerPass * half}, i32ElemTy);
+          auto mkPanel =
+              [&](mlir::Type arrTy) -> mlir::TypedValue<emitc::ArrayType> {
+            auto var = rewriter.create<emitc::VariableOp>(
+                loc, arrTy, emitc::OpaqueAttr::get(ctx, ""));
+            return llvm::cast<mlir::TypedValue<emitc::ArrayType>>(var.getResult());
+          };
+          // scale/min panels are per-super-half local (subPerSuper strips), rewritten
+          // each super-half; bsums panel is per-block (columnsPerPass).
+          mlir::TypedValue<emitc::ArrayType> scalePanel = mkPanel(scaleMinPanelTy);
+          mlir::TypedValue<emitc::ArrayType> minPanel = mkPanel(scaleMinPanelTy);
+          mlir::TypedValue<emitc::ArrayType> bsumsPanel = mkPanel(bsumsPanelTy);
+          std::string vse16Callee = riscvIntrinsicName("vse", 16, l16, "i16");
+          std::string vle16Callee = riscvIntrinsicName("vle", 16, l16, "i16");
+          std::string vse32Callee = riscvIntrinsicName("vse", 32, l32, "i32");
+          std::string vle32Callee = riscvIntrinsicName("vle", 32, l32, "i32");
+          auto panelPtr = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                              mlir::Type ptrTy, int64_t idx) -> mlir::Value {
+            mlir::Value iv = rewriter.create<emitc::LiteralOp>(
+                loc, rewriter.getIndexType(), std::to_string(idx));
+            mlir::Value elem =
+                rewriter.create<emitc::SubscriptOp>(loc, arr, mlir::ValueRange{iv})
+                    .getResult();
+            return rewriter.create<emitc::ApplyOp>(loc, ptrTy, "&", elem)
+                .getResult();
+          };
+          auto storeI16Panel = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                                   int64_t idx, mlir::Value vec) {
+            emitOpaqueCallVoid(
+                rewriter, loc, vse16Callee,
+                mlir::ValueRange{panelPtr(arr, i16MutPtrTy, idx), vec, vl8}, opName,
+                role);
+          };
+          auto loadI16Panel = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                                  int64_t idx) -> mlir::Value {
+            return emitOpaqueCall(
+                rewriter, loc, i16m1Type, vle16Callee,
+                mlir::ValueRange{panelPtr(arr, i16MutPtrTy, idx), vl8}, opName,
+                role);
+          };
+          auto storeBsumsPanel = [&](int64_t col, mlir::Value vec) {
+            emitOpaqueCallVoid(
+                rewriter, loc, vse32Callee,
+                mlir::ValueRange{panelPtr(bsumsPanel, i32MutPtrTy, col * half), vec,
+                                 vl8},
+                opName, role);
+          };
+          auto loadBsumsPanel = [&](int64_t col) -> mlir::Value {
+            return emitOpaqueCall(
+                rewriter, loc, i32m2Type, vle32Callee,
+                mlir::ValueRange{panelPtr(bsumsPanel, i32MutPtrTy, col * half),
+                                 vl8},
+                opName, role);
+          };
 
-          // ===== Per-column i32 main + bsums accumulators (per strip). =====
-          llvm::SmallVector<llvm::SmallVector<mlir::Value>> sumiVar(
-              activationInterleave),
-              bsumsVar(activationInterleave);
+          // -- S6 d/dmin ON-DEMAND: the per-column-lane fp16 d/dmin strips of THIS h
+          // are per-block loop-invariant but are only CONSUMED in the end-of-block f32
+          // fold. Their widen-to-f32 is deferred to that fold point (see below), so
+          // the two f32m2 strips do NOT sit live across the hot main-term dot loop.
+
+          // ===== Per-column i32 main accumulator for THIS strip (SSA register). =====
+          // sumiVar[c] (scale main term) stays a HOT SSA-register accumulator; the
+          // bsums (min term) accumulator family is STAGED to bsumsPanel -- idle across
+          // the hot main dot and reloaded only at the end-of-block fold.
+          llvm::SmallVector<mlir::Value> sumiVar(activationInterleave);
           for (int64_t c = cLo; c < cHi; ++c) {
-            for (int64_t h = 0; h < numHalves; ++h) {
-              auto sv = rewriter.create<emitc::VariableOp>(
-                  loc, emitc::LValueType::get(i32m2Type),
-                  emitc::OpaqueAttr::get(ctx, ""));
-              rewriter.create<emitc::AssignOp>(loc, sv, seedI32());
-              sumiVar[c].push_back(sv);
-              auto bv = rewriter.create<emitc::VariableOp>(
-                  loc, emitc::LValueType::get(i32m2Type),
-                  emitc::OpaqueAttr::get(ctx, ""));
-              rewriter.create<emitc::AssignOp>(loc, bv, seedI32());
-              bsumsVar[c].push_back(bv);
-            }
+            auto sv = rewriter.create<emitc::VariableOp>(
+                loc, emitc::LValueType::get(i32m2Type),
+                emitc::OpaqueAttr::get(ctx, ""));
+            rewriter.create<emitc::AssignOp>(loc, sv, seedI32());
+            sumiVar[c] = sv;
           }
 
           // ===== Super-half loop: for (k = 0; k < QK_K/128; ++k) =====
-          // UNPACK the 8 per-sub-block 4-bit scale + 8 min strips LANE-WISE (SHARED
-          // across columns), then the per-column MIN fold, then the 2-bit dot.
           for (int64_t k = 0; k < nSuperHalves; ++k) {
             step("scale_min_unpack_superhalf");
-            llvm::SmallVector<llvm::SmallVector<mlir::Value>> scaleVal(numHalves);
-            llvm::SmallVector<llvm::SmallVector<mlir::Value>> minVal(numHalves);
-            for (int64_t h = 0; h < numHalves; ++h) {
-              for (int64_t sb = 0; sb < subPerSuper; ++sb) {
-                int64_t gsub = k * subPerSuper + sb;
-                int64_t scByte = weightScalesOffset + gsub * 16 + h * half;
-                mlir::Value packed = loadU8Strip(bl, sizeLit(scByte));
-                mlir::Value scU8 = u8Imm(vandCallee, packed, "0x0F");
-                mlir::Value mnU8 = u8Imm(vsrlCallee, packed, "4");
-                scaleVal[h].push_back(liftToI16(scU8));
-                minVal[h].push_back(liftToI16(mnU8));
-              }
+            // Per sub-block sb (0..subPerSuper): the packed byte is at
+            // scales[k*128 + sb*16 + h*half] (gsub = k*subPerSuper + sb). scale = byte
+            // & 0x0F; min = byte >> 4. STAGED to scalePanel/minPanel (byte-exact i16)
+            // and reloaded per column in the MIN/MAIN folds.
+            for (int64_t sb = 0; sb < subPerSuper; ++sb) {
+              int64_t gsub = k * subPerSuper + sb;
+              int64_t scByte = weightScalesOffset + gsub * 16 + h * half;
+              mlir::Value packed = loadU8Strip(bl, sizeLit(scByte));
+              mlir::Value scU8 = u8Imm(vandCallee, packed, "0x0F");
+              mlir::Value mnU8 = u8Imm(vsrlCallee, packed, "4");
+              storeI16Panel(scalePanel, sb * half, liftToI16(scU8));
+              storeI16Panel(minPanel, sb * half, liftToI16(mnU8));
             }
 
             // ----- MIN term per activation column c: bsums_acc[c] += bsum * min_sb.
             // The interleaved q8_Kx4 bsums are group16-major/column-minor (index =
             // group16*4 + c); q2_K sub-block gsub IS group16 gsub, so the bsum is a
-            // SINGLE read a.bsums[gsub*4 + c] (NOT q4_K's paired read). -----
+            // SINGLE read a.bsums[gsub*4 + c] (NOT q4_K's paired read). The min strip
+            // is reloaded ONCE per sub-block from the panel, reused across columns; the
+            // bsums accumulator is read/updated straight in the panel (byte-exact i32).
             step("min_bsums_fold");
             for (int64_t sb = 0; sb < subPerSuper; ++sb) {
               int64_t gsub = k * subPerSuper + sb;
+              mlir::Value minStrip = loadI16Panel(minPanel, sb * half);
               for (int64_t c = cLo; c < cHi; ++c) {
                 mlir::Value bsum = i16Read(
                     al, activationBsumsOffset + (gsub * 4 + c) * 2);
-                for (int64_t h = 0; h < numHalves; ++h) {
-                  mlir::Value curB =
-                      rewriter
-                          .create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c][h])
-                          .getResult();
-                  rewriter.create<emitc::AssignOp>(
-                      loc, bsumsVar[c][h],
-                      vwmaccVX32(curB, bsum, minVal[h][sb]));
-                }
+                // First sub-block (k==0 && sb==0) DEFINES the panel from a register
+                // zero seed (no zero-store); later sub-blocks load-accumulate-store.
+                bool firstAcc = (k == 0 && sb == 0);
+                mlir::Value cur =
+                    firstAcc ? seedI32() : loadBsumsPanel(c - cLo);
+                storeBsumsPanel(c - cLo, vwmaccVX32(cur, bsum, minStrip));
               }
             }
 
             // ----- MAIN term: two m-halves; the weight 2-bit lanes are DECODED ONCE
-            // per (m,h) and REUSED across the activation columns, each column reading
-            // its own interleaved q8_Kx4 quant qs[16 + (k*128+j*32+m)*4 + c]. -----
+            // per (m) for THIS strip and REUSED across the activation columns, each
+            // column reading its own interleaved q8_Kx4 quant qs[16 + (k*128+j*32+m)*4
+            // + c]. NO 2x16 k-chunk split (16*127*3 < 32767). -----
             for (int64_t mh = 0; mh < 2; ++mh) {
-              // Per-column i16 partials, one per shift-j.
+              // Per-column i16 partials, one per shift-j (THIS strip).
               llvm::SmallVector<llvm::SmallVector<mlir::Value>> sPartial(
                   activationInterleave);
               for (int64_t c = cLo; c < cHi; ++c)
-                for (int64_t h = 0; h < numHalves; ++h)
-                  for (int64_t j = 0; j < 4; ++j)
-                    sPartial[c].push_back(seedI16());
+                for (int64_t j = 0; j < 4; ++j)
+                  sPartial[c].push_back(seedI16());
               for (int64_t mm = 0; mm < 16; ++mm) {
                 int64_t m = mh * 16 + mm;
-                // SHARED weight 2-bit decode per (m,h): 4 lanes reused over columns.
-                // wLane[h][j].
-                llvm::SmallVector<llvm::SmallVector<mlir::Value>> wLane(numHalves);
-                for (int64_t h = 0; h < numHalves; ++h) {
-                  step("weight_2bit_addr");
-                  mlir::Value packed = loadU8Strip(
-                      bl, sizeLit(weightQuantOffset + (k * 32 + m) * 16 +
-                                  h * half));
-                  for (int64_t j = 0; j < 4; ++j) {
-                    mlir::Value shifted = packed;
-                    if (j != 0)
-                      shifted =
-                          u8Imm(vsrlCallee, packed, std::to_string(2 * j));
-                    wLane[h].push_back(
-                        reinterpretToI8(u8Imm(vandCallee, shifted, "0x03")));
-                  }
+                // SHARED weight 2-bit decode per m (THIS strip): 4 lanes reused over
+                // columns. wLane[j].
+                step("weight_2bit_addr");
+                mlir::Value packed = loadU8Strip(
+                    bl, sizeLit(weightQuantOffset + (k * 32 + m) * 16 + h * half));
+                llvm::SmallVector<mlir::Value> wLane;
+                for (int64_t j = 0; j < 4; ++j) {
+                  mlir::Value shifted = packed;
+                  if (j != 0)
+                    shifted = u8Imm(vsrlCallee, packed, std::to_string(2 * j));
+                  wLane.push_back(
+                      reinterpretToI8(u8Imm(vandCallee, shifted, "0x03")));
                 }
                 for (int64_t c = cLo; c < cHi; ++c) {
                   for (int64_t j = 0; j < 4; ++j) {
@@ -9944,92 +10007,94 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
                     mlir::Value aq = i8Read(
                         al, sizeLit(activationQuantOffset +
                                     (k * 128 + j * 32 + m) * 4 + c));
-                    for (int64_t h = 0; h < numHalves; ++h)
-                      sPartial[c][h * 4 + j] =
-                          vwmacc16(sPartial[c][h * 4 + j], aq, wLane[h][j]);
+                    sPartial[c][j] = vwmacc16(sPartial[c][j], aq, wLane[j]);
                   }
                 }
               }
-              // sumi_c += scale_{2j+mh} * partial_{c,j} (i16->i32 vwmacc_vv).
+              // sumi_c += scale_{2j+mh} * partial_{c,j} (i16->i32 vwmacc_vv). The scale
+              // strip is reloaded ONCE per j from the panel, reused across the columns
+              // (byte-exact i16); the per-column accumulation order (j ascending) is
+              // unchanged.
               step("scale_subblock_fold");
-              for (int64_t c = cLo; c < cHi; ++c) {
-                for (int64_t h = 0; h < numHalves; ++h) {
-                  for (int64_t j = 0; j < 4; ++j) {
-                    mlir::Value cur =
-                        rewriter
-                            .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c][h])
-                            .getResult();
-                    rewriter.create<emitc::AssignOp>(
-                        loc, sumiVar[c][h],
-                        vwmaccVV32(cur, scaleVal[h][2 * j + mh],
-                                   sPartial[c][h * 4 + j]));
-                  }
+              for (int64_t j = 0; j < 4; ++j) {
+                mlir::Value scStrip =
+                    loadI16Panel(scalePanel, (2 * j + mh) * half);
+                for (int64_t c = cLo; c < cHi; ++c) {
+                  mlir::Value cur =
+                      rewriter
+                          .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                          .getResult();
+                  rewriter.create<emitc::AssignOp>(
+                      loc, sumiVar[c], vwmaccVV32(cur, scStrip, sPartial[c][j]));
                 }
               }
             }
           }
 
-          // ===== End-of-block fold per column per strip: sumf_c += d_x*d_y_c*sumi
+          // ===== End-of-block fold per column for THIS strip: sumf_c += d_x*d_y_c*sumi
           // (main) then sumf_c -= dmin_x*d_y_c*bsums_c (MIN). =====
+          // S6: the d/dmin widen is loaded HERE (on-demand at the fold), not at the top
+          // of the block, so it does not occupy 4 vreg across the main dot loop.
+          mlir::Value dminF32 =
+              widenF16(loadF16Strip(bl, weightDminOffset, h * half));
+          mlir::Value dF32 = widenF16(loadF16Strip(bl, 0, h * half));
           for (int64_t c = cLo; c < cHi; ++c) {
-            for (int64_t h = 0; h < numHalves; ++h) {
-              mlir::Value d0 = fmulScalar(dF32[h], aD[c]);
-              mlir::Value sumiV =
-                  rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c][h])
-                      .getResult();
-              mlir::Value curF =
-                  rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c][h])
-                      .getResult();
-              mlir::Value afterMain = emitOpaqueCallBuilt(
-                  rewriter, loc, f32m2Type, vfmaccVVCallee, opName, role,
-                  [&](mlir::OpBuilder &b,
-                      mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-                    return {curF, cvtI32F32(sumiV), d0, vl8};
-                  });
-              mlir::Value dmin0 = fmulScalar(dminF32[h], aD[c]);
-              mlir::Value bsumsV =
-                  rewriter.create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c][h])
-                      .getResult();
-              mlir::Value afterMin = emitOpaqueCallBuilt(
-                  rewriter, loc, f32m2Type, vfnmsacVVCallee, opName, role,
-                  [&](mlir::OpBuilder &b,
-                      mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-                    return {afterMain, dmin0, cvtI32F32(bsumsV), vl8};
-                  });
-              rewriter.create<emitc::AssignOp>(loc, sumfVar[c][h], afterMin);
-            }
+            mlir::Value d0 = fmulScalar(dF32, aD[c]);
+            mlir::Value sumiV =
+                rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                    .getResult();
+            mlir::Value curF =
+                rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c])
+                    .getResult();
+            mlir::Value afterMain = emitOpaqueCallBuilt(
+                rewriter, loc, f32m2Type, vfmaccVVCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {curF, cvtI32F32(sumiV), d0, vl8};
+                });
+            // dmin_0_c = dminF32 * d_y_c;  sumf_c -= dmin_0_c * cvt(bsums_c).
+            // bsums_c reloaded from its stack panel (byte-exact i32); the fold order
+            // (main vfmacc THEN min vfnmsac) is identical to the plain emit ->
+            // bit-identical.
+            mlir::Value dmin0 = fmulScalar(dminF32, aD[c]);
+            mlir::Value bsumsV = loadBsumsPanel(c - cLo);
+            mlir::Value afterMin = emitOpaqueCallBuilt(
+                rewriter, loc, f32m2Type, vfnmsacVVCallee, opName, role,
+                [&](mlir::OpBuilder &b,
+                    mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+                  return {afterMain, dmin0, cvtI32F32(bsumsV), vl8};
+                });
+            rewriter.create<emitc::AssignOp>(loc, sumfVar[c], afterMin);
           }
         }
 
-        // Per-column per-strip store: s + (y*4 + c)*bs + x*16 + h*half.
+        // Per-column store for THIS strip: s + (y*4 + c)*bs + x*16 + h*half.
         std::string vseCallee = riscvIntrinsicName("vse", 32, l32, "f32");
         for (int64_t c = cLo; c < cHi; ++c) {
-          for (int64_t h = 0; h < numHalves; ++h) {
-            step("output_addr");
-            mlir::Value y4 = rewriter.create<emitc::MulOp>(
-                loc, sizeType, y, sizeLit(activationInterleave));
-            mlir::Value rowIdx =
-                rewriter.create<emitc::AddOp>(loc, sizeType, y4, sizeLit(c));
-            mlir::Value rowOff = rewriter.create<emitc::MulOp>(
-                loc, sizeType, rowIdx, outputRowStride);
-            mlir::Value x16 = rewriter.create<emitc::MulOp>(
-                loc, sizeType, x, sizeLit(weightInterleave));
-            mlir::Value colOff =
-                rewriter.create<emitc::AddOp>(loc, sizeType, rowOff, x16);
-            mlir::Value totalOff = colOff;
-            if (h * half != 0)
-              totalOff = rewriter.create<emitc::AddOp>(loc, sizeType, colOff,
-                                                       sizeLit(h * half));
-            mlir::Value dst = rewriter.create<emitc::AddOp>(
-                loc, floatPtrType, output, totalOff);
-            mlir::Value sumfVal =
-                rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c][h])
-                    .getResult();
-            emitOpaqueCallVoid(rewriter, loc, vseCallee,
-                               mlir::ValueRange{dst, sumfVal, vl8}, opName,
-                               role);
-          }
+          step("output_addr");
+          mlir::Value y4 = rewriter.create<emitc::MulOp>(
+              loc, sizeType, y, sizeLit(activationInterleave));
+          mlir::Value rowIdx =
+              rewriter.create<emitc::AddOp>(loc, sizeType, y4, sizeLit(c));
+          mlir::Value rowOff = rewriter.create<emitc::MulOp>(
+              loc, sizeType, rowIdx, outputRowStride);
+          mlir::Value x16 = rewriter.create<emitc::MulOp>(
+              loc, sizeType, x, sizeLit(weightInterleave));
+          mlir::Value colOff =
+              rewriter.create<emitc::AddOp>(loc, sizeType, rowOff, x16);
+          mlir::Value totalOff = colOff;
+          if (h * half != 0)
+            totalOff = rewriter.create<emitc::AddOp>(loc, sizeType, colOff,
+                                                     sizeLit(h * half));
+          mlir::Value dst = rewriter.create<emitc::AddOp>(
+              loc, floatPtrType, output, totalOff);
+          mlir::Value sumfVal =
+              rewriter.create<emitc::LoadOp>(loc, f32m2Type, sumfVar[c])
+                  .getResult();
+          emitOpaqueCallVoid(rewriter, loc, vseCallee,
+                             mlir::ValueRange{dst, sumfVal, vl8}, opName, role);
         }
+        } // end S1 h-strip output tile (hs=1)
         } // end activation-column-PASS loop (cLo)
       }
     }
@@ -10037,17 +10102,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ2KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    // The op result is the typed i32m1 token; the GEMM writes through *s.
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemm.getResult()] = resultTok;
+    // RESULT-LESS (no monolith token): the typed_repack_gemm_loop_body region is
+    // result-less (the repacked lane-wise K-quant GEMM sinks through the output
+    // pointer, not an SSA vector), so unlike the retired direct emitter this body leaf
+    // seeds NO dead i32m1 result token.
     return mlir::success();
   }
 

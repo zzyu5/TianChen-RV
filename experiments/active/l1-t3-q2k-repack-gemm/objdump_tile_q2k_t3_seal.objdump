@@ -1,0 +1,55 @@
+# [KQUANT-L1 / T3-tile] q2_K repack GEMM — UNTILED(HEAD full-unroll direct-emit) -> TILED(S6-scheme dmin+bsums-min stack-panel)
+# objdump seal at the MEASURED board form clang-17.0.6 -O2 AND the diagnosis form -O3.
+# board rvv/VLEN128 (openEuler, core 8, 2.6 GHz gov=performance, 2026-07-08). seal method
+# (campaign-canonical, == q4_K tile-s1/s6 + q6_K t3 cells; NOT driver-export):
+#   vsetvli = grep -cE 'vsetvli|vsetivli' ; spill = grep -cE 'vs[1248]r.v' ; reload = grep -cE 'vl[1248]r.v'
+#   vwmacc  = grep -cE 'vwmacc' ; maxVreg = max v-reg operand ([ ,(]v[0-9]+) ; textB = objdump -h .text size
+# UNTILED = untiled_q2K_gemm.c (md5 6c9322f65922aa9f724c5ade316c6592; 924dc31f export == kquant-l1-q6q2q3-repack
+#           cell's q2_K GEMM; the emitRepackGemmQ2KQ8K direct-emit UNTILED body is byte-identical between
+#           924dc31f and HEAD c3cf7301 — verified: the ONLY q2_K token in that commit range is a ternary
+#           comment, not the q2_K emitter — so this == HEAD's retired-direct-emit UNTILED baseline; the
+#           board-harvest2 q2_K prefill ~0.20x baseline).
+# TILED   = tiled_q2K_gemm.c  (md5 9c5bac28f61c7c4c0b38f7cdddada349; working-tree emitter delta on
+#           RVVToEmitCBlockQuantLinear.cpp emitRepackKQuantGemmBodyQ2K; S6-scheme = S1 h-strip output tile +
+#           decoded 4-bit scale/min int16 stack-panel via vse16/vle16 + inline-min-fold i32 bsums stack-panel
+#           via vse32/vle32 + on-demand d/dmin f16 widen deferred to the end-of-block fold; SHARES q4_K min
+#           fold "kquant_dmin_bsums_min"). Regenerated via READ-ONLY build/bin/tcrv-opt on the campaign-canonical
+#           fixture rvv-to-emitc-repack-gemm-q2-K-q8-K.mlir (front-door region form; no rebuild, ZERO opt/translate errors).
+#
+#   OBJD UNTILED -O2  vsetvli=77   spill=619  reload=747  vwmacc=2304  maxVreg=v31  textB=51014
+#   OBJD TILED   -O2  vsetvli=87   spill=7    reload=12   vwmacc=2304  maxVreg=v30  textB=26968
+#   OBJD UNTILED -O3  vsetvli=76   spill=603  reload=730  vwmacc=2304  maxVreg=v31  textB=47796
+#   OBJD TILED   -O3  vsetvli=87   spill=7    reload=12   vwmacc=2304  maxVreg=v30  textB=26974
+#
+# READING (the pre-registered "spill -> ~0, peak <=32" gate -> ★REACHED / HOLDS):
+#   spill  619 -> 7 (-O2) / 603 -> 7 (-O3)  : the S6 stack-panel DROVE spill to ~0 (a −98.9% collapse). The
+#                          q2_K untiled full-unroll body carried ~600 whole-register spills — NOT the q4_K
+#                          golden 84, but a q6_K-magnitude ~600 — YET, unlike q6_K, that pressure is EXACTLY the
+#                          decode-4bit-scale/min strips + the idle-across-the-hot-dot i32 MIN (bsums) accumulator
+#                          that the S6 int16/i32 panels stage. So staging them collapses the whole spill set.
+#   maxVreg v31 -> v30 (both -O2/-O3) : the peak live-set DROPPED to v30 (<=32 register cliff REACHED — same
+#                          v31->v30 step q4_K S6 hit). q6_K never left v31; q2_K does.
+#   vwmacc 2304 -> 2304 (UNCHANGED across ALL four) => the widening-MAC multiset is PRESERVED => byte-exact-
+#                          preserving schedule (independently confirmed: silicon verify INT_mismatch=0 for BOTH +
+#                          the untiled-vs-tiled IDENTITY cmp, 0 mismatch on 32768/8192 floats).
+#   textB 51014 -> 26968 (-O2)  : the tiled body is HALF the code — the fully-unrolled spill-and-reload sequence
+#                          collapses into a compact panel store/load + a hot dot that fits registers.
+#   vsetvli 77 -> 87 : the tiled adds a few vtype toggles for the panel vse16/vle16 + vse32/vle32 store/load bands
+#                          (idle-strip staging), but the hot dot itself is register-resident.
+#
+# ★ CONTRAST WITH q6_K T3 (cell l1-t3-q6k-repack-gemm): there the SAME lever was a NULL — spill 913->949 (UP),
+#   maxVreg v31->v31 (cliff NOT reached), throughput −1.5% — because q6_K's ~900-spill pressure lives in the
+#   DUAL-PLANE 6-bit weight reconstruction (ql@1312 + qh@288), which the decode-scale panel does not touch.
+#   q2_K's ~600-spill pressure lives in the SCALE/MIN decode + MIN accumulator — EXACTLY the panel's target —
+#   so here it collapses to ~0. This is the tiling-lever transfer BOUNDARY (C3′ pattern-library): the q4_K S6
+#   register-cliff lever transfers to formats whose peak pressure IS the decode/min strips (q4_K/q5_K/q2_K —
+#   the shared kquant_dmin_bsums_min fold), and is a null where the peak pressure is dual-plane weight
+#   materialization (q6_K). q2_K CONFIRMS the register-cliff prediction; q6_K refuted it.
+#
+# hot-loop spill classification (TILED -O2, objdump -d — only 7 vs*r.v TOTAL, so all shown):
+#   the residual 7 vs*r.v are NOT in the hot dot body — 5 cluster in the prologue (0xd2/0xe6/0x10e/0x20a/0x21a)
+#   and 2 at the far epilogue (0x35d8/0x35e8). These are benign function-boundary whole-register saves, the same
+#   pattern as q4_K S6's benign residual-3 — NOT hot-loop allocator live-value spills.
+#     74:    d2: vs2r.v v8,(a0)     186:  20a: vs2r.v v28,(a0)    3526: 35d8: vs2r.v v28,(a0)
+#     80:    e6: vs2r.v v8,(a0)     191:  21a: vs2r.v v12,(a0)    3531: 35e8: vs2r.v v12,(a0)
+#     91:   10e: vs2r.v v8,(a0)

@@ -242,6 +242,24 @@ constexpr llvm::StringLiteral kKQuantQ6KScaleModel =
 constexpr llvm::StringLiteral kKQuantQ6KGemmScaleModel =
     "superblock-d.fp16-signed8-scale-16-subblocks-6bit-4col-nomin";
 
+// The K-quant q2_K decode-FAMILY discriminator (G3 主线A T3 format2): the q2_K
+// super-block dual d/dmin fp16 scale + per-sub-block 4-bit-packed scale/min +
+// activation bsums-min, 16 sub-blocks of 16, with a 2-BIT UNSIGNED weight (4 lanes
+// per byte, NO offset-binary bias -- the bias lives entirely in the 4-bit MIN). It
+// is the LOWEST-bit K-quant and the min-term REGRESSION: it shares the SAME dual
+// d/dmin + bsums-min FOLD structure as q4_K (fold_model "kquant_dmin_bsums_min",
+// hasMin=true), so it REUSES the existing q4_K KQuantDecodeFacts fold WITHOUT any
+// framework generalization -- the ONLY q2_K-specific work is the decode leaf (the
+// 2-bit weight peel + the 4-bit packed scale/min unpack + the 16-sub-block single
+// bsum) and the q2_K block offsets. A request carrying it is a K-quant super-block
+// contraction whose repack-SELECTED lowering CONSTRUCTS the K-quant
+// typed_repack_gem{v,m}_loop_body region (fold_model "kquant_dmin_bsums_min",
+// decode_model "q2_K") -- the min-fold sibling of the q4_K region.
+constexpr llvm::StringLiteral kKQuantQ2KScaleModel =
+    "superblock-d.dmin-fp16-plus-bsums-min-16-subblocks-2bit";
+constexpr llvm::StringLiteral kKQuantQ2KGemmScaleModel =
+    "superblock-d.dmin-fp16-plus-bsums-min-16-subblocks-2bit-4col";
+
 // The repacked block_q{4,6}_Kx16 / block_q8_K{,x4} byte facts the K-quant lowering
 // RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
 // asserts). For q4_K (hasMin): the 16-inline-fp16-d + 16-inline-fp16-dmin +
@@ -313,6 +331,32 @@ constexpr KQuantDecodeFacts kQ6KDecodeFacts = {
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
     /*gemmActivationBsumsByteOffset=*/0,
+    /*nSubblocks=*/16,
+};
+
+// q2_K: the MIN-fold sibling of q4_K. It REUSES the q4_K dual d/dmin + bsums-min
+// fold (hasMin=true, foldModel "kquant_dmin_bsums_min"), so the framework re-pay is
+// ZERO -- only the block offsets change. block_q2_Kx16 stride 1344 (16 fp16 d + 16
+// fp16 dmin + 256 packed 4-bit scale/min + 1024 2-bit quant bytes): dmin strip @32,
+// packed scale/min region @64, 2-bit weights @320. 16 sub-blocks of 16 (one bsum
+// each). The q8_K activation ABI is byte-identical to q4_K (292/4/260 GEVM,
+// 1168/16/1040 GEMM). NO qh plane (weightQhByteOffset == 0).
+constexpr KQuantDecodeFacts kQ2KDecodeFacts = {
+    /*decodeModel=*/"q2_K",
+    /*gemmScaleModel=*/kKQuantQ2KGemmScaleModel,
+    /*foldModel=*/"kquant_dmin_bsums_min",
+    /*hasMin=*/true,
+    /*weightBlockStride=*/1344,
+    /*weightQuantByteOffset=*/320,
+    /*weightDminByteOffset=*/32,
+    /*weightScalesByteOffset=*/64,
+    /*weightQhByteOffset=*/0,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/260,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/1040,
     /*nSubblocks=*/16,
 };
 
@@ -437,13 +481,15 @@ private:
           : op.getScaleModel() == kTernaryTQ10ScaleModel
               ? &kTernaryTQ10DecodeFacts
               : nullptr;
-      // The K-quant family (q4_K dual d/dmin + bsums-min, OR q6_K single-scale
-      // no-min) builds the K-quant typed_repack region + the repack_gem{v,m}_kquant_core
+      // The K-quant family (q4_K dual d/dmin + bsums-min, q6_K single-scale no-min,
+      // OR q2_K 2-bit-weight dual d/dmin + bsums-min -- the q4_K min-fold sibling)
+      // builds the K-quant typed_repack region + the repack_gem{v,m}_kquant_core
       // brick via lowerToRepackGem{v,m}KQuant, parameterized by the per-family
       // KQuantDecodeFacts (facts.hasMin / facts.foldModel select the fold arity).
       const KQuantDecodeFacts *kquant =
           op.getScaleModel() == kKQuantQ4KScaleModel   ? &kQ4KDecodeFacts
           : op.getScaleModel() == kKQuantQ6KScaleModel ? &kQ6KDecodeFacts
+          : op.getScaleModel() == kKQuantQ2KScaleModel ? &kQ2KDecodeFacts
                                                        : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
         return kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
@@ -467,7 +513,8 @@ private:
     if (op.getScaleModel() == kTernaryTQ20ScaleModel ||
         op.getScaleModel() == kTernaryTQ10ScaleModel ||
         op.getScaleModel() == kKQuantQ4KScaleModel ||
-        op.getScaleModel() == kKQuantQ6KScaleModel)
+        op.getScaleModel() == kKQuantQ6KScaleModel ||
+        op.getScaleModel() == kKQuantQ2KScaleModel)
       return op.emitError()
              << "ternary / K-quant quant_contraction requires a repack-affording "
                 "capability (a valid e16m1 strip width, minVLEN >= 128); there "

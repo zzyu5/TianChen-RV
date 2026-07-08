@@ -1,0 +1,15 @@
+# T3-tile q2_K repack GEMM A/B — board rvv/VLEN128 core8 2.6GHz gov=perf, clang-17.0.6 -O2, K=2048 nc=512 iters=20
+# UNTILED = HEAD c3cf7301 (== 924dc31f cached export) full-unroll direct-emit (md5 6c9322f6, source op tcrv_rvv.repack_gemm_q2_K_q8_K; board-harvest2 ~0.20x baseline)
+# TILED   = working-tree S6-scheme dmin+bsums-min stack-panel (md5 9c5bac28, emitRepackKQuantGemmBodyQ2K; byte-exact to UNTILED — verify INT_mismatch=0 both + IDENTITY cmp 0 mismatch; vwmacc 2304 unchanged)
+# ★ RESULT = HOLDS/WIN: the q4_K S6 register-cliff lever TRANSFERS to q2_K (shared kquant_dmin_bsums_min fold). spill 619->7 (-98.9%, ->~0), maxVreg v31->v30 (<=32 cliff REACHED), MAC/cycle +565% (0.955->6.351), vs-opponent 0.21x LOSS -> 1.41x WIN. Opposite of q6_K T3 (which was NULL).
+# loadavg nr64: pre 2.13 / mid 2.69 / end 3.05 ; nr16: pre 2.36 / mid 2.83 / end 2.98 (core8 taskset-pinned, gov=performance, 2.6GHz)
+nr,N,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_ours_over_opp,AB_tiled_over_untiled,vsetvli,spill_vsXr,reload_vlXr,maxVreg,vwmacc,textB
+64,12,untiled_full_unroll,0.9546,0.115,4.4955,1.142,0.2124,,77,619,747,v31,2304,51014
+64,12,tiled_s6_scale_min_panel,6.3513,0.486,4.4955,1.142,1.4128,6.653,87,7,12,v30,2304,26968
+16,10,untiled_full_unroll,0.9235,0.189,4.2333,5.297,0.2182,,77,619,747,v31,2304,51014
+16,10,tiled_s6_scale_min_panel,5.2160,1.397,4.2333,5.297,1.2321,5.648,87,7,12,v30,2304,26968
+# byte-exact gates: (a) silicon verify UNTILED & TILED both = INT_mismatch_total=0, NORM worst_ulp=3402 worst_norm=6.618e-07 (== identical) => both compute the oracle; (b) IDENTITY-DUMP o_untiled.bin == o_tiled.bin (nr64 32768 / nr16 8192 floats, BYTE-EXACT 0 mismatch on the small-finite dual-fp16 d/dmin fold path). worst_ulp is on the adversarial-NORM path only (INT path byte-exact); q2_K's higher ULP vs q6_K (3402 vs 220) is the DUAL fp16 (d AND dmin) fold divergence from the f64 ref, still bounded-norm.
+# A/B tiled/untiled: nr64 mean 6.653x (per-round min 6.595 max 6.713 < non-overlapping) ; nr16 mean 5.648x (per-round min 5.525 max 5.763). SHAPE-ROBUST decisive WIN (ours-side cv 0.12-1.40% => non-overlapping, real). Untiled 0.955 GMAC/s is spill-bound (619 whole-reg spills); tiled 6.35 GMAC/s is register-resident.
+# vs-opponent (nr64 clean anchor, opp cv 1.14% across 24 samples): untiled 0.2124 (reproduces board-harvest2 q2_K prefill ~0.20x LOSS => basis validated) -> tiled 1.4128 (WIN; our tiled repack GEMM 1.41x FASTER than ggml_vec_dot_q2_K_q8_K block-dot). nr16 opponent noise-dominated (cv 5.3%) — indicative tiled parity 1.23x; nr64 is the load-bearing parity anchor.
+# pre-registered judgment: spill->~0 AND MAC/cycle UP AND wall passes T-N => HOLDS. ALL THREE MET => q2_K S6-scheme HOLDS (ship tiled). register-cliff prediction CONFIRMED (contrast q6_K T3 NULL). Diagnosis in objdump_tile_q2k_t3_seal.objdump.
+# [NG-4]: L1 kernel datapoint, NOT a beat (eight [PERF-1] gates unwalked; single core; opponent=single-thread block-dot proxy). Logged as the q2_K T3 positive datapoint (tiling-lever transfer CONFIRMED — the q4_K/q5_K/q2_K min-fold family).
