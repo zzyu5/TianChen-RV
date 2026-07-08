@@ -1,0 +1,68 @@
+# objdump seal — q5_K repack GEMM UNTILED -> TILED (S6 min-fold stack-panel + qh inject)
+# board rvv/VLEN128 (openEuler), clang-17.0.6, march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs -mabi=lp64d -ffp-contract=on
+# UNTILED = untiled_q5K_gemm.c (pre-S6 front-door export k_gemm_q5K.cpp; 24 panel markers, vwmacc-src 4480; oracle-GREEN WORST_NORM 8.0e-07)
+# TILED   = tiled_q5K_gemm.c   (working-tree emitRepackKQuantGemmBodyQ5K = q4_K S6-tiled body + qh inject; 440 panel markers, vwmacc-src 4480 UNCHANGED)
+# ★[XFER-1] verify #2 question: does q5_K reach the <=32 register cliff (v30, min-fold dominates, HOLDS)
+#   or stay v31 (the qh 5th-bit plane makes it dual-plane weight-bound like q6_K/q3_K, NULL)?
+
+| form         | vsetvli | spill(vs*r.v) | reload(vl*r.v) | maxVreg | vwmacc | textB |
+|--------------|--------:|--------------:|---------------:|--------:|-------:|------:|
+| UNTILED -O2  |      53 |           155 |            288 |     v31 |   2240 | 37774 |
+| TILED   -O2  |      71 |           105 |            110 |     v30 |   2240 | 38506 |
+| UNTILED -O3  |      52 |           156 |            288 |     v31 |   2240 | 37882 |
+| TILED   -O3  |      71 |           106 |            111 |     v30 |   2240 | 38608 |
+
+## Verdict: ★ REGISTER CLIFF REACHED (v31 -> v30) = HOLDS side (min-fold lever engages despite the qh plane)
+# - maxVreg v31 -> v30 at BOTH -O2 and -O3: the <=32-vreg register cliff WAS REACHED — the SAME
+#   v31->v30 step q4_K S6 and q2_K T3 hit. q6_K T3 and q3_K T3 (dual-plane / no-min weight-bound)
+#   NEVER left v31. So by the campaign's mechanistic discriminator, q5_K is on the HOLDS side:
+#   the shared kquant_dmin_bsums_min min-fold register-cliff lever TRANSFERS to q5_K and SURVIVES
+#   the qh 5th-bit weight plane.
+# - vwmacc 2240 UNCHANGED across all four => byte-exact MAC multiset preserved (confirmed by the
+#   IDENTITY-DUMP o_untiled.bin == o_tiled.bin, 0 mismatch, and both oracle verifies PASS 8.0e-07).
+# - reload (vl*r.v) 288 -> 110 (-62%): the S6 scale/min int16 + i32 bsums stack-panels cut hot-loop
+#   reload traffic by nearly two-thirds — this is the throughput lever (register-resident hot dot).
+# - spill (vs*r.v) 155 -> 105 (-32%): DROPPED but did NOT collapse to ~0 (contrast q2_K 619->7,
+#   q4_K 84->3). This is the QH PLANE FOOTPRINT: q5_K carries a 5th-bit weight-reconstruction plane
+#   (qh, the SHARED weight_qh_byte_offset slot, here on the MIN fold) that the decode-scale/min panel
+#   does NOT stage — so a ~105-spill residual floor remains. q5_K's UNTILED spill was already only
+#   155 (NOT the 600-900 of q2_K/q6_K), because untiled q5_K was already lean and already a ~1.55x
+#   WIN vs the opponent block-dot (unlike q2_K's 619-spill 0.21x LOSS regime). So there was less
+#   absolute spill to collapse; the decisive move is the peak-vreg drop below 32 + the -62% reload cut.
+# - textB ~flat (37774 -> 38506, +2%; NOT halved like q2_K 51014->26968): the hot dot stays fully
+#   unrolled (4480 src vwmacc both forms) and the panel store/load bands add a little code; the win is
+#   register-residency + peak-vreg-below-cliff, not code shrink.
+
+## Hot-loop spill classification (TILED -O2): first 20 vs*r.v addresses
+#   The early 0xbc/0xd4/0xe2/0x106/0x120 + 0x22e/0x244/0x258/0x26e cluster are prologue whole-register
+#   saves (function-boundary, benign). From 0x54a onward the recurring `vs1r.v v19,(a0)` at a regular
+#   ~0x8a stride are the per-h-strip qh-plane / weight-materialization spills that the min-fold panel
+#   does not cover — the residual weight-bound floor. (Full disassembly on the board scratch, ephemeral.)
+    68:      bc:  vs2r.v v8,(a0)     # prologue whole-reg save (benign)
+    75:      d4:  vs2r.v v8,(a0)
+    79:      e2:  vs1r.v v8,(a0)
+    89:     106:  vs2r.v v8,(a0)
+    96:     120:  vs1r.v v8,(a0)
+   196:     22e:  vs2r.v v20,(a0)
+   202:     244:  vs2r.v v22,(a0)
+   208:     258:  vs2r.v v18,(a0)
+   214:     26e:  vs2r.v v10,(a0)
+   409:     54a:  vs1r.v v11,(a0)   # from here: recurring per-strip qh/weight residual spills (~0x8a stride)
+   457:     604:  vs1r.v v19,(a0)
+   492:     68c:  vs1r.v v19,(a0)
+   527:     714:  vs1r.v v19,(a0)
+   563:     79e:  vs1r.v v19,(a0)
+   598:     826:  vs1r.v v19,(a0)
+   634:     8b0:  vs1r.v v19,(a0)
+   670:     93a:  vs1r.v v19,(a0)
+   705:     9c2:  vs1r.v v19,(a0)
+   740:     a4a:  vs1r.v v19,(a0)
+   775:     ad2:  vs1r.v v19,(a0)
+
+## The transfer boundary (q5_K places on the map)
+# q4_K / q2_K  (pure kquant_dmin_bsums_min min-fold): v31->v30, spill->~0, HUGE win        = HOLDS (full collapse)
+# q5_K         (min-fold + qh 5th-bit weight plane):  v31->v30, spill 155->105, +42% win   = HOLDS (min-fold lever
+#              reaches the cliff; qh plane leaves a residual spill floor — a HYBRID, not the full collapse)
+# q6_K / q3_K  (dual-plane / no-min weight-bound):     v31->v31, spill ~flat, NULL          = NULL (weight-bound)
+# => q5_K confirms the min-fold register-cliff lever DOMINATES enough to cross the <=32 cliff even WITH
+#    a weight plane present. The qh plane is a SECONDARY residual (105 floor), not the dominant pressure.

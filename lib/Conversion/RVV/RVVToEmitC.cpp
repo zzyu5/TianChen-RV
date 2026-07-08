@@ -387,9 +387,12 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // tcrv_rvv.repack_gemm_kquant_core brick (decode_model "q4_K"), lowered
         // below by isTypedRepackGemmLoopBody -> emitTypedRepackGemmLoopBody (K-quant
         // branch) -> emitRepackKQuantGemmBodyQ4K (byte-exact to the retired direct
-        // emitter). q5_K/q6_K/q2_K/q3_K remain direct-emitter (batch5).
-        {&isRepackGemmQ5KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmQ5KQ8K},
+        // emitter). q6_K/q2_K/q3_K/q5_K ALSO retired (batch5 COMPLETE).
+        // NOTE (G3 主线A T3 format4): q5_K GEMM direct emitter (emitRepackGemmQ5KQ8K) +
+        // its monolith op + recognizer RETIRED to the front door (constructed +
+        // S6-tiled typed_repack_gemm_loop_body, fold_model "kquant_dmin_bsums_min"
+        // SHARED with q4_K -> emitRepackKQuantGemmBodyQ5K; the register-cliff lever
+        // transfers like q2_K -- q5_K = q4_K min fold + the qh 5th-bit plane).
         // NOTE (G3 主线A T3): q6_K GEMM direct emitter (emitRepackGemmQ6KQ8K) + its
         // monolith op + recognizer RETIRED to the front door (constructed +
         // S6-tiled typed_repack_gemm_loop_body, fold_model "kquant_single_scale_no_min").
@@ -433,8 +436,11 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // below by isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody (K-quant
         // branch) -> emitRepackKQuantGemvBodyQ4K (byte-exact to the retired direct
         // emitter).
-        {&isRepackGemvQ5KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvQ5KQ8K},
+        // NOTE (G3 主线A T3 format4): q5_K GEVM direct emitter (emitRepackGemvQ5KQ8K) +
+        // its monolith op + recognizer RETIRED to the front door (constructed
+        // typed_repack_gemv_loop_body, fold_model "kquant_dmin_bsums_min" SHARED with
+        // q4_K -> emitRepackKQuantGemvBodyQ5K; q5_K = q4_K min fold + the qh 5th-bit
+        // plane). This COMPLETES the K-quant repack family (q4_K/q6_K/q2_K/q3_K/q5_K).
         // NOTE (G3 主线A T3): q6_K GEVM direct emitter (emitRepackGemvQ6KQ8K) + its
         // monolith op + recognizer RETIRED to the front door (constructed
         // typed_repack_gemv_loop_body, fold_model "kquant_single_scale_no_min").
@@ -1405,33 +1411,16 @@ bool VariantToEmitCFunc::isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope) {
 // NOTE (G3 主线A T2-construct): isRepackGemvQ4KQ8KBody RETIRED with its monolith op
 // (the K-quant repack GEVM is now the constructed typed_repack_gemv_loop_body region).
 
-bool VariantToEmitCFunc::isRepackGemmQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ5KQ8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
-
-bool VariantToEmitCFunc::isRepackGemvQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ5KQ8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
+// NOTE (G3 主线A T3 format4): the q5_K 16x1-repacked GEVM + GEMM recognizers
+// (isRepackGem{v,m}Q5KQ8KBody) are RETIRED with their direct emitters + monolith ops
+// (the FIFTH K-quant super-block, the THIRD min-fold, COMPLETING the K-quant repack
+// family). The q5_K repack is now CONSTRUCTED as the typed
+// tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model "kquant_dmin_bsums_min",
+// SHARED with q4_K) carrying the tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model
+// "q5_K"), lowered by isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody's
+// K-quant MIN branch -> emitRepackKQuantGem{v,m}BodyQ5K (byte-exact GEVM / S6-tiled
+// byte-exact GEMM; the register-cliff lever transfers like q2_K). q5_K == q4_K + the qh
+// 5th-bit plane.
 
 // NOTE (G3 主线A T3): the q6_K 16x1-repacked GEVM + GEMM recognizers
 // (isRepackGem{v,m}Q6KQ8KBody) are RETIRED with their direct emitters + monolith ops.

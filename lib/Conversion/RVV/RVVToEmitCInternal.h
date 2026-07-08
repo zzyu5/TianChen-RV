@@ -352,16 +352,15 @@ private:
   // now CONSTRUCTED as the typed_repack_gemv_loop_body region (K-quant branch of
   // emitTypedRepackGemvLoopBody -> emitRepackKQuantGemvBodyQ4K).
 
-  /// The K-QUANT (super-block) 16x1-REPACKED single-column GEVM recognizer for
-  /// q5_K (q4_K + the qh 5th-bit plane): a with_vl scope whose ONLY compute op is
-  /// a single tcrv_rvv.repack_gemv_q5_K_q8_K. The op identity is the dispatch key;
-  /// the emitter reuses the q4_K 8-sub-block dual fold with the qh 5th-bit inject.
-  static bool isRepackGemvQ5KQ8KBody(tcrvrvv::WithVLOp scope);
-  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
-  /// recognizer for q5_K: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemm_q5_K_q8_K. The emitter reuses the q4_K prefill fold with
-  /// the qh 5th-bit inject shared across the interleaved activation columns.
-  static bool isRepackGemmQ5KQ8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 主线A T3 format4): isRepackGemvQ5KQ8KBody + isRepackGemmQ5KQ8KBody RETIRED
+  // with the q5_K direct emitters + monolith ops (the FIFTH K-quant super-block, the
+  // THIRD min-fold, COMPLETING the K-quant repack family). The q5_K repack now flows
+  // through the typed_repack_gem{v,m}_loop_body front door's K-quant MIN branch
+  // (fold_model "kquant_dmin_bsums_min", SHARED with q4_K) carrying the
+  // tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q5_K"), lowered by
+  // emitTypedRepackGem{v,m}LoopBody -> emitRepackKQuantGem{v,m}BodyQ5K (byte-exact GEVM /
+  // S6-tiled byte-exact GEMM; the register-cliff lever transfers like q2_K). q5_K == q4_K
+  // + the qh 5th-bit plane (A = nibble | ((qh_bit & 1) << 4)).
 
   // NOTE (G3 主线A T3): the q6_K 16x1-REPACKED GEVM + GEMM recognizers
   // (isRepackGem{v,m}Q6KQ8KBody) are RETIRED with their direct emitters + monolith
@@ -1525,28 +1524,53 @@ private:
       int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
       int64_t half) const;
 
-  /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane GEVM for one
-  /// tcrv_rvv.repack_gemv_q5_K_q8_K op. q5_K == q4_K + the qh 5th (high) weight
-  /// bit: a FAITHFUL reuse of the oracle-verified q4_K super-block decode
-  /// (emitRepackGemvQ4KQ8K) with ONE added step -- each 4-bit nibble is lifted to
-  /// a 5-bit value in [0,31] by OR-ing qh[i]'s per-sub-block high bit (<<4). This
-  /// is K-quant scale+min (NO q5_0 offset-binary -16); the q8_K activation ABI is
-  /// byte-identical to q4_K (the qh plane is a weight-side fact only).
-  mlir::LogicalResult emitRepackGemvQ5KQ8K(
+  /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemvQ5KQ8K, refactored to take the mapped ABI values + block-format facts
+  /// (the q4_K min structure dmin/scales/bsums + the q5_K qh 5th-bit plane byte offset +
+  /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's K-quant
+  /// MIN branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+  /// brick, decode_model "q5_K"). q5_K == q4_K + the qh 5th (high) weight bit: a FAITHFUL
+  /// reuse of the oracle-verified q4_K super-block decode (emitRepackKQuantGemvBodyQ4K)
+  /// with ONE added step -- each 4-bit nibble is lifted to a 5-bit value in [0,31] by
+  /// OR-ing qh[i]'s per-sub-block high bit (<<4). K-quant scale+min (NO q5_0 -16); the
+  /// q8_K activation ABI is byte-identical to q4_K (the qh plane is a weight-side fact
+  /// only). RESULT-LESS (no monolith token). The min-fold sibling of
+  /// emitRepackKQuantGemvBodyQ4K WITH the qh plane.
+  mlir::LogicalResult emitRepackKQuantGemvBodyQ5K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t activationQuantOffset,
+      int64_t weightDminOffset, int64_t weightScalesOffset,
+      int64_t activationBsumsOffset, int64_t weightQhOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t half) const;
 
-  /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
-  /// for one tcrv_rvv.repack_gemm_q5_K_q8_K op. The q5_K prefill sibling of
-  /// emitRepackGemvQ5KQ8K and the q5_K analogue of emitRepackGemmQ4KQ8K: a
-  /// faithful reuse of the q4_K prefill fold (8-sub-block 6-bit unpack amortized
-  /// across the 4 interleaved activation columns) with the qh 5th-bit inject added
-  /// to the SHARED nibble decode.
-  mlir::LogicalResult emitRepackGemmQ5KQ8K(
+  /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
+  /// from the FRONT DOOR + S6 TILED (byte-exact). The q5_K prefill sibling of
+  /// emitRepackKQuantGemvBodyQ5K = the S6-tiled q4_K GEMM (emitRepackKQuantGemmBodyQ4K)
+  /// WITH the qh 5th-bit inject. Because q5_K SHARES the q4_K dual d/dmin + bsums-min
+  /// fold, the FAMILY S6 tiling scheme transfers WHOLE (the register-cliff lever like
+  /// q2_K): S1 h-strip OUTPUT TILE + decoded 6-bit scale/min i16 stack-panels +
+  /// inline-min-fold i32 bsums stack-panel + on-demand d/dmin widen, SSA-register
+  /// sumf/sumi accumulators. The qh inject is the ONLY delta vs the q4_K tiled body
+  /// (byte-identical otherwise -> byte-exact to the plain untiled q5_K emit). Called ONLY
+  /// from emitTypedRepackGemmLoopBody's K-quant MIN branch (gated on the in-region
+  /// tcrv_rvv.repack_gemm_kquant_core anti-bypass brick, decode_model "q5_K").
+  /// RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackKQuantGemmBodyQ5K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+      int64_t activationQuantOffset, int64_t weightDminOffset,
+      int64_t weightScalesOffset, int64_t activationBsumsOffset,
+      int64_t weightQhOffset, int64_t nSubblocks, int64_t weightInterleave,
+      int64_t activationInterleave, int64_t half) const;
 
   /// Emit the COMPLETE ggml q6_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
