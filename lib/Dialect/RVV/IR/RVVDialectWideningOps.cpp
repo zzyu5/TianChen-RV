@@ -5776,6 +5776,329 @@ mlir::LogicalResult GgmlRepackGemmIq4NlQ80Op::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlRepackGemvMxfp4Q8Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
+  // flat single-scale E8M0 codebook no-min scale model, the 16x1 REPACKED flat
+  // structural facts, and the 16-entry doubled-E2M1 int8 codebook. mxfp4 is FLAT
+  // (nibble fp4 codebook index, single E8M0 shared-exponent scale, no min /
+  // sub-block), so the attribute set is the minimal repack family surface PLUS
+  // the codebook. No weight_scales / weight_dmin / n_subblocks. Fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "weight_interleave" || name == "half_lanes" ||
+           name == "codebook" || name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemv_mxfp4_q8_0 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/nc in the surrounding control-plane "
+                "IR, and rejects deleted local element_count metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml MXFP4 x Q8_0 16x1-repacked GEVM "
+                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'weight_interleave', "
+                "'half_lanes', 'codebook', and 'integer_core_lmul'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_repack_gemv_mxfp4_q8_0")
+    return emitOpError()
+           << "currently supports only kind \"ggml_repack_gemv_mxfp4_q8_0\" for "
+              "the bounded ggml MXFP4 x Q8_0 16x1-repacked GEVM typed surface";
+  if (getScaleModel() != "flat.e8m0-single-scale-codebook-nomin")
+    return emitOpError()
+           << "requires scale_model \"flat.e8m0-single-scale-codebook-nomin\" "
+              "for the ggml MXFP4 x Q8_0 16x1-repacked GEVM route";
+
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK_MXFP4) for the ggml MXFP4 x "
+                            "Q8_0 16x1-repacked GEVM route";
+  if (getWeightBlockStride() != 272)
+    return emitOpError()
+           << "requires weight_block_stride == 272 (sizeof block_mxfp4x16: 16 "
+              "E8M0 bytes + 256 nibble bytes) for the ggml MXFP4 x Q8_0 "
+              "16x1-repacked GEVM route";
+  if (getActivationBlockStride() != 34)
+    return emitOpError()
+           << "requires activation_block_stride == 34 (sizeof block_q8_0: fp16 "
+              "d + 32 int8 quants) for the ggml MXFP4 x Q8_0 16x1-repacked "
+              "GEVM route";
+  if (getWeightQuantByteOffset() != 16)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 16 (the 16 inline E8M0 "
+              "exponent bytes precede the interleaved nibble bytes) for the ggml "
+              "MXFP4 x Q8_0 16x1-repacked GEVM route";
+  if (getActivationQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 2 (the fp16 delta d "
+              "precedes the int8 quants) for the ggml MXFP4 x Q8_0 "
+              "16x1-repacked GEVM route";
+  if (getWeightInterleave() != 16)
+    return emitOpError() << "requires weight_interleave == 16 (the 16x1 "
+                            "block-as-lane repack width) for the ggml MXFP4 x "
+                            "Q8_0 16x1-repacked GEVM route";
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} (the resource-aware strip width) "
+              "for the ggml MXFP4 x Q8_0 16x1-repacked GEVM route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) for the "
+              "ggml MXFP4 x Q8_0 16x1-repacked GEVM route";
+  if (getCodebook().size() != 16)
+    return emitOpError()
+           << "requires a 16-entry doubled-E2M1 int8 codebook (the kvalues_mxfp4 "
+              "lookup range [0,15]) for the ggml MXFP4 x Q8_0 16x1-repacked "
+              "GEVM route; got "
+           << getCodebook().size() << " entries";
+
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} for the ggml "
+                "MXFP4 x Q8_0 16x1-repacked GEVM route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" for "
+                "the ggml MXFP4 x Q8_0 16x1-repacked GEVM route";
+  }
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one repacked weight base pointer, one plain activation "
+              "base pointer, one output pointer, one runtime element-count, one "
+              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
+              "m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_mxfp4x16 repacked weight "
+              "byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0 plain "
+              "activation byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination, nc outputs)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc, the number of weight columns)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml MXFP4 x Q8_0 16x1-repacked GEVM route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml MXFP4 x Q8_0 16x1-repacked GEVM";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult GgmlRepackGemmMxfp4Q8Op::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The bounded mirror attrs (I4): the flat single-scale E8M0 codebook no-min
+  // 4-column scale model + the 16x1 REPACKED flat facts + the activation_interleave
+  // + the 16-entry doubled-E2M1 codebook. Fail-closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "scale_model" || name == "qk" ||
+           name == "weight_block_stride" ||
+           name == "activation_block_stride" ||
+           name == "weight_quant_byte_offset" ||
+           name == "activation_quant_byte_offset" ||
+           name == "weight_interleave" || name == "activation_interleave" ||
+           name == "half_lanes" || name == "codebook" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.repack_gemm_mxfp4_q8_0 keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/nr/nc/bs in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded ggml MXFP4 x Q8_0 16x1-repacked GEMM "
+                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
+                "'activation_block_stride', 'weight_quant_byte_offset', "
+                "'activation_quant_byte_offset', 'weight_interleave', "
+                "'activation_interleave', 'half_lanes', 'codebook', and "
+                "'integer_core_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "ggml_repack_gemm_mxfp4_q8_0")
+    return emitOpError()
+           << "currently supports only kind \"ggml_repack_gemm_mxfp4_q8_0\" for "
+              "the bounded ggml MXFP4 x Q8_0 16x1-repacked GEMM typed surface";
+  if (getScaleModel() != "flat.e8m0-single-scale-codebook-4col-nomin")
+    return emitOpError()
+           << "requires scale_model "
+              "\"flat.e8m0-single-scale-codebook-4col-nomin\" for the ggml "
+              "MXFP4 x Q8_0 16x1-repacked GEMM route";
+
+  if (getQk() != 32)
+    return emitOpError() << "requires qk == 32 (QK_MXFP4) for the ggml MXFP4 x "
+                            "Q8_0 16x1-repacked GEMM route";
+  if (getWeightBlockStride() != 272)
+    return emitOpError()
+           << "requires weight_block_stride == 272 (sizeof block_mxfp4x16) for "
+              "the ggml MXFP4 x Q8_0 16x1-repacked GEMM route";
+  if (getActivationBlockStride() != 136)
+    return emitOpError()
+           << "requires activation_block_stride == 136 (sizeof block_q8_0x4: 4 "
+              "fp16 d + 128 int8 quants) for the ggml MXFP4 x Q8_0 "
+              "16x1-repacked GEMM route";
+  if (getWeightQuantByteOffset() != 16)
+    return emitOpError()
+           << "requires weight_quant_byte_offset == 16 for the ggml MXFP4 x "
+              "Q8_0 16x1-repacked GEMM route";
+  if (getActivationQuantByteOffset() != 8)
+    return emitOpError()
+           << "requires activation_quant_byte_offset == 8 (the 4 fp16 d precede "
+              "the interleaved int8 quants) for the ggml MXFP4 x Q8_0 "
+              "16x1-repacked GEMM route";
+  if (getWeightInterleave() != 16)
+    return emitOpError() << "requires weight_interleave == 16 for the ggml "
+                            "MXFP4 x Q8_0 16x1-repacked GEMM route";
+  if (getActivationInterleave() != 4)
+    return emitOpError() << "requires activation_interleave == 4 (block_q8_0x4) "
+                            "for the ggml MXFP4 x Q8_0 16x1-repacked GEMM route";
+  if (getHalfLanes() != 8 && getHalfLanes() != 16)
+    return emitOpError()
+           << "requires half_lanes in {8, 16} for the ggml MXFP4 x Q8_0 "
+              "16x1-repacked GEMM route";
+  if (getWeightInterleave() % getHalfLanes() != 0)
+    return emitOpError()
+           << "requires half_lanes to divide weight_interleave (16) for the "
+              "ggml MXFP4 x Q8_0 16x1-repacked GEMM route";
+  if (getCodebook().size() != 16)
+    return emitOpError()
+           << "requires a 16-entry doubled-E2M1 int8 codebook for the ggml "
+              "MXFP4 x Q8_0 16x1-repacked GEMM route; got "
+           << getCodebook().size() << " entries";
+
+  if (getIntegerCoreLmul().has_value()) {
+    llvm::StringRef coreLmul = *getIntegerCoreLmul();
+    if (coreLmul != "mf2" && coreLmul != "m1")
+      return emitOpError()
+             << "requires integer_core_lmul in {\"mf2\", \"m1\"} for the ggml "
+                "MXFP4 x Q8_0 16x1-repacked GEMM route; got \""
+             << coreLmul << "\"";
+    if (coreLmul == "m1" && getHalfLanes() != 16)
+      return emitOpError()
+             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" for "
+                "the ggml MXFP4 x Q8_0 16x1-repacked GEMM route";
+  }
+
+  if (op->getNumOperands() != 8 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one repacked weight base pointer, one repacked "
+              "activation base pointer, one output pointer, one runtime "
+              "element-count, one runtime row-count, one runtime column-count, "
+              "one runtime output-row-stride, one !tcrv_rvv.vl operand, and one "
+              "i32 LMUL m1 result";
+
+  RuntimeABIValueOp weightBinding =
+      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp activationBinding =
+      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the weight base operand to bind a runtime ABI value of "
+              "C type 'const uint8_t *' (the AoS block_mxfp4x16 repacked weight "
+              "byte array)";
+  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
+    return emitOpError()
+           << "requires the activation base operand to bind a runtime ABI "
+              "value of C type 'const uint8_t *' (the AoS block_q8_0x4 "
+              "interleaved activation byte array)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C "
+              "type 'float *' (the ggml *s scalar destination)";
+  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+  if (!llvm::isa<mlir::IndexType>(getRowCount().getType()))
+    return emitOpError()
+           << "requires the row-count operand to be a runtime index value (nr)";
+  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
+    return emitOpError()
+           << "requires the column-count operand to be a runtime index value "
+              "(nc)";
+  if (!llvm::isa<mlir::IndexType>(getOutputRowStride().getType()))
+    return emitOpError()
+           << "requires the output-row-stride operand to be a runtime index "
+              "value (bs, in floats)";
+
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type !tcrv_rvv.vector<i32, "
+              "\"m1\"> for the ggml MXFP4 x Q8_0 16x1-repacked GEMM route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the ggml MXFP4 x Q8_0 16x1-repacked GEMM";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlRepackGemvIq4XsQ8KOp::verify() {
   mlir::Operation *op = getOperation();
 

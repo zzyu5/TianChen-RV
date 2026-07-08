@@ -439,6 +439,14 @@ private:
   static bool isRepackGemvIq4NlQ80Body(tcrvrvv::WithVLOp scope);
   /// The CODEBOOK 16x1-REPACKED multi-output-column GEMM recognizer for iq4_nl.
   static bool isRepackGemmIq4NlQ80Body(tcrvrvv::WithVLOp scope);
+  /// The FP4-CODEBOOK + E8M0 16x1-REPACKED single-output-column GEVM recognizer for
+  /// mxfp4: the nibble indexes a 16-entry doubled-E2M1 int8 codebook (fractional-
+  /// anchor MEMORY vluxei16 gather, the SAME as iq4_nl), scaled by ONE E8M0 shared-
+  /// exponent byte per column reconstructed to 2^(e-128), i32-accumulator no-min fold.
+  static bool isRepackGemvMxfp4Q8Body(tcrvrvv::WithVLOp scope);
+  /// The FP4-CODEBOOK + E8M0 16x1-REPACKED multi-output-column GEMM recognizer for
+  /// mxfp4.
+  static bool isRepackGemmMxfp4Q8Body(tcrvrvv::WithVLOp scope);
   /// The SUPER-BLOCK CODEBOOK 16x1-REPACKED GEVM recognizer for iq4_xs: codebook
   /// gather + K-quant 6-bit SIGNED per-sub-block scale (biased -32, no min).
   static bool isRepackGemvIq4XsQ8KBody(tcrvrvv::WithVLOp scope);
@@ -1682,6 +1690,32 @@ private:
   /// i32-accumulator no-min fold, with the codebook decode AMORTIZED across the 4
   /// interleaved block_q8_0x4 activation columns.
   mlir::LogicalResult emitRepackGemmIq4NlQ80(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
+  /// for one tcrv_rvv.repack_gemv_mxfp4_q8_0 op. The FP4-CODEBOOK + E8M0 sibling of
+  /// emitRepackGemvIq4NlQ80: the SAME 16-entry MEMORY codebook GATHER (vzext -> u16
+  /// byte offset -> vluxei16_v_i8 through the doubled-E2M1 kvalues_mxfp4 table) and
+  /// i32-accumulator (vwmul + vwadd_wv) no-min integer core, but the per-column weight
+  /// scale is ONE E8M0 shared-exponent BYTE (not fp16): the strip loads the 16 E8M0
+  /// bytes as a lane vector and reconstructs 2^(e-128) per lane by ggml's EXACT bit
+  /// construction (vzext_vf4 -> vsll/vmerge -> vreinterpret to f32), then folds
+  /// dC = scale_x * fp16(y.d) via vfmul_vf. The 16-entry codebook is emitted ONCE as
+  /// a `static const int8_t[16]` decl above the loop.
+  mlir::LogicalResult emitRepackGemvMxfp4Q8(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM for
+  /// one tcrv_rvv.repack_gemm_mxfp4_q8_0 op. The mxfp4 prefill sibling of
+  /// emitRepackGemvMxfp4Q8: the SAME memory fp4-codebook-gather decode + E8M0 vector
+  /// scale reconstruction + i32-accumulator no-min fold, with the codebook decode and
+  /// E8M0 reconstruction AMORTIZED across the 4 interleaved block_q8_0x4 activation
+  /// columns.
+  mlir::LogicalResult emitRepackGemmMxfp4Q8(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;

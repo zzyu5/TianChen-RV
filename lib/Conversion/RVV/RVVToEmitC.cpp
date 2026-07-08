@@ -394,6 +394,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmTQ10Q8K},
         {&isRepackGemmIq4NlQ80Body,
          &VariantToEmitCFunc::emitRepackGemmIq4NlQ80},
+        {&isRepackGemmMxfp4Q8Body,
+         &VariantToEmitCFunc::emitRepackGemmMxfp4Q8},
         {&isRepackGemmIq4XsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmIq4XsQ8K},
         {&isRepackGemmIq2XxsQ8KBody,
@@ -416,6 +418,8 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvTQ10Q8K},
         {&isRepackGemvIq4NlQ80Body,
          &VariantToEmitCFunc::emitRepackGemvIq4NlQ80},
+        {&isRepackGemvMxfp4Q8Body,
+         &VariantToEmitCFunc::emitRepackGemvMxfp4Q8},
         {&isRepackGemvIq4XsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvIq4XsQ8K},
         {&isRepackGemvIq2XxsQ8KBody,
@@ -1566,6 +1570,34 @@ bool VariantToEmitCFunc::isRepackGemmIq4NlQ80Body(tcrvrvv::WithVLOp scope) {
     bool sawGemm = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::GgmlRepackGemmIq4NlQ80Op>(op)) {
+        if (sawGemm)
+          return false;
+        sawGemm = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemm;
+  }
+
+bool VariantToEmitCFunc::isRepackGemvMxfp4Q8Body(tcrvrvv::WithVLOp scope) {
+    bool sawGemv = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemvMxfp4Q8Op>(op)) {
+        if (sawGemv)
+          return false;
+        sawGemv = true;
+      } else {
+        return false;
+      }
+    }
+    return sawGemv;
+  }
+
+bool VariantToEmitCFunc::isRepackGemmMxfp4Q8Body(tcrvrvv::WithVLOp scope) {
+    bool sawGemm = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::GgmlRepackGemmMxfp4Q8Op>(op)) {
         if (sawGemm)
           return false;
         sawGemm = true;
