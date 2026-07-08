@@ -1653,6 +1653,75 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
                    "\"tq2_0\" 2-bit or \"tq1_0\" base-3)");
   }
 
+  // ---- K-QUANT front-door dispatch (the retired emitRepackGemvQ4KQ8K direct
+  // emitter, now CONSTRUCTED through this typed-region front door). When the loop
+  // body carries the K-quant fold_model its decomposed in-region brick is the
+  // tcrv_rvv.repack_gemv_kquant_core (decode_model "q4_K", NOT the q4_0 nibble core
+  // + dual-fp16 fold). We GATE the emit on that brick's block_index-tied + base-tied
+  // anti-bypass, then RE-EMIT the byte-exact q4_K GEVM body (the 8-sub-block 6-bit
+  // scale/min lane-wise unpack + the split-32 main dot + the bsums-min correction +
+  // the dual d/dmin fp16 fold) from the shared body leaf; byte-exactness to the
+  // retired direct emitter is by construction (the SAME emit code). The K-quant
+  // super-block decode facts (dmin @32, 6-bit scales/mins @64, activation bsums,
+  // n_subblocks) ride on the loop body op's OPTIONAL K-quant attrs. ----
+  if (loopBody.getFoldModel() == "kquant_dmin_bsums_min") {
+    tcrvrvv::RepackGemvKQuantCoreOp coreBrick;
+    loopBody.getBody().walk(
+        [&](tcrvrvv::RepackGemvKQuantCoreOp o) { coreBrick = o; });
+    if (!coreBrick)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEVM loop body requires the region "
+                    "tcrv_rvv.repack_gemv_kquant_core integer-core brick");
+    if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0))
+      return rewriter.notifyMatchFailure(
+          coreBrick, "the K-quant core brick's block_index must be the loop "
+                     "induction variable (region arg 0)");
+    if (coreBrick.getWeightBase() != loopBody.getWeightBase() ||
+        coreBrick.getActivationBase() != loopBody.getActivationBase())
+      return rewriter.notifyMatchFailure(
+          coreBrick, "the K-quant core brick's weight/activation bases must be the "
+                     "loop-body's own repacked-weight / q8_K-activation ABI "
+                     "buffers");
+    if (coreBrick.getDecodeModel() != "q4_K")
+      return rewriter.notifyMatchFailure(
+          coreBrick, "K-quant repack GEVM decode_model not recognized (expected "
+                     "\"q4_K\")");
+    // The K-quant super-block decode facts on the loop body op's OPTIONAL attrs
+    // (fail-closed, I7): dmin strip byte offset, 6-bit scales/mins region byte
+    // offset, activation int16 bsums byte offset, and sub-block count.
+    std::optional<uint64_t> dminOff = loopBody.getWeightDminByteOffset();
+    std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
+    std::optional<uint64_t> bsumsOff = loopBody.getActivationBsumsByteOffset();
+    std::optional<uint64_t> nSub = loopBody.getNSubblocks();
+    if (!dminOff || !scalesOff || !bsumsOff || !nSub)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEVM loop body requires the super-block decode "
+                    "attrs weight_dmin_byte_offset / weight_scales_byte_offset / "
+                    "activation_bsums_byte_offset / n_subblocks");
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    mlir::Value columnCount = valueMap.lookup(loopBody.getColumnCount());
+    if (!weightBase || !activationBase || !output || !columnCount)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEVM loop ABI operand unmapped");
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    return emitRepackKQuantGemvBodyQ4K(
+        rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
+        sizeType, opName, role, coreLmul,
+        static_cast<int64_t>(loopBody.getQk()),
+        static_cast<int64_t>(loopBody.getWeightBlockStride()),
+        static_cast<int64_t>(loopBody.getActivationBlockStride()),
+        static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+        static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+        static_cast<int64_t>(*dminOff), static_cast<int64_t>(*scalesOff),
+        static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
+        static_cast<int64_t>(loopBody.getWeightInterleave()),
+        static_cast<int64_t>(loopBody.getHalfLanes()));
+  }
+
   // ---- Shape facts (the *how* -- LMUL / strip width -- never the *what*): the
   // per-block strides drive the base advance (loop shape); the within-block byte
   // offsets driving the integer core / scale fold come from the BRICKS (the
@@ -2071,6 +2140,72 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     return rewriter.notifyMatchFailure(
         coreBrick, "ternary repack GEMM decode_model not recognized (expected "
                    "\"tq2_0\" 2-bit or \"tq1_0\" base-3)");
+  }
+
+  // ---- K-QUANT front-door dispatch (the retired emitRepackGemmQ4KQ8K direct
+  // emitter, now CONSTRUCTED through this typed-region front door). Gate on the
+  // in-region tcrv_rvv.repack_gemm_kquant_core brick's block_index + strip_row_offset
+  // + base anti-bypass ties, then RE-EMIT the byte-exact q4_K GEMM body from the
+  // shared body leaf. ----
+  if (loopBody.getFoldModel() == "kquant_dmin_bsums_min") {
+    tcrvrvv::RepackGemmKQuantCoreOp coreBrick;
+    loopBody.getBody().walk(
+        [&](tcrvrvv::RepackGemmKQuantCoreOp o) { coreBrick = o; });
+    if (!coreBrick)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEMM loop body requires the region "
+                    "tcrv_rvv.repack_gemm_kquant_core integer-core brick");
+    if (coreBrick.getBlockIndex() != loopBody.getBody().front().getArgument(0) ||
+        coreBrick.getStripRowOffset() !=
+            loopBody.getBody().front().getArgument(1))
+      return rewriter.notifyMatchFailure(
+          coreBrick, "the K-quant GEMM core brick's block_index / "
+                     "strip_row_offset must be region args 0 / 1");
+    if (coreBrick.getWeightBase() != loopBody.getWeightBase() ||
+        coreBrick.getActivationBase() != loopBody.getActivationBase())
+      return rewriter.notifyMatchFailure(
+          coreBrick, "the K-quant GEMM core brick's weight/activation bases must "
+                     "be the loop-body's own repacked-weight / q8_Kx4-activation "
+                     "ABI buffers");
+    if (coreBrick.getDecodeModel() != "q4_K")
+      return rewriter.notifyMatchFailure(
+          coreBrick, "K-quant repack GEMM decode_model not recognized (expected "
+                     "\"q4_K\")");
+    std::optional<uint64_t> dminOff = loopBody.getWeightDminByteOffset();
+    std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
+    std::optional<uint64_t> bsumsOff = loopBody.getActivationBsumsByteOffset();
+    std::optional<uint64_t> nSub = loopBody.getNSubblocks();
+    if (!dminOff || !scalesOff || !bsumsOff || !nSub)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEMM loop body requires the super-block decode "
+                    "attrs weight_dmin_byte_offset / weight_scales_byte_offset / "
+                    "activation_bsums_byte_offset / n_subblocks");
+    mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
+    mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
+    mlir::Value output = valueMap.lookup(loopBody.getOutput());
+    mlir::Value rowCount = valueMap.lookup(loopBody.getRowCount());
+    mlir::Value columnCount = valueMap.lookup(loopBody.getColumnCount());
+    mlir::Value outputRowStride = valueMap.lookup(loopBody.getOutputRowStride());
+    if (!weightBase || !activationBase || !output || !rowCount ||
+        !columnCount || !outputRowStride)
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEMM loop ABI operand unmapped");
+    llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+    llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    return emitRepackKQuantGemmBodyQ4K(
+        rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
+        outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+        static_cast<int64_t>(loopBody.getQk()),
+        static_cast<int64_t>(loopBody.getWeightBlockStride()),
+        static_cast<int64_t>(loopBody.getActivationBlockStride()),
+        static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+        static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+        static_cast<int64_t>(*dminOff), static_cast<int64_t>(*scalesOff),
+        static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
+        static_cast<int64_t>(loopBody.getWeightInterleave()),
+        static_cast<int64_t>(loopBody.getActivationInterleave()),
+        static_cast<int64_t>(loopBody.getHalfLanes()));
   }
 
   // ---- Shape facts (the *how* -- LMUL / strip width / spill-avoiding
@@ -4404,28 +4539,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
 // (bounded-norm PASS, WORST_NORM ~7e-07 over 8 shapes; controls NOMIN 4e5x / PERM 2e6x). NOT
 // byte-exact vs ggml: the MIN term is folded once across super-halves (an IEEE-legal reassociation
 // of ggml's per-super-half subtract), so the difference is fp round-off only, not a decode error.
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ4K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ4KQ8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ4KQ8KOp>(op))
-        gemv = g;
-    }
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope, "repack-gemv-q4_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-q4_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+    int64_t qk, int64_t weightStride, int64_t activationStride,
+    int64_t weightQuantOffset, int64_t activationQuantOffset,
+    int64_t weightDminOffset, int64_t weightScalesOffset,
+    int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
+    int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -4434,7 +4557,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one
     // notch i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -4477,18 +4599,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
     // + 16 int16 bsums), the weight nibble bytes at +256, the per-column dmin
     // strip at +32, the custom 6-bit scales/mins region at +64, the activation
     // int8 quants at +4, the activation bsums at +260, 16 weight columns per
-    // group, 8 sub-blocks of 32, and the VLEN-derived e8 half width.
-    int64_t qk = gemv.getQk();                                      // 256
-    int64_t weightStride = gemv.getWeightBlockStride();             // 2304
-    int64_t activationStride = gemv.getActivationBlockStride();     // 292
-    int64_t weightQuantOffset = gemv.getWeightQuantByteOffset();    // 256
-    int64_t activationQuantOffset = gemv.getActivationQuantByteOffset(); // 4
-    int64_t weightDminOffset = gemv.getWeightDminByteOffset();      // 32
-    int64_t weightScalesOffset = gemv.getWeightScalesByteOffset();  // 64
-    int64_t activationBsumsOffset = gemv.getActivationBsumsByteOffset(); // 260
-    int64_t nSubblocks = gemv.getNSubblocks();                      // 8
-    int64_t weightInterleave = gemv.getWeightInterleave();          // 16
-    int64_t half = gemv.getHalfLanes();              // 8 @128, 16 @256
+    // group, 8 sub-blocks of 32, and the VLEN-derived e8 half width. These are
+    // PARAMETERS now (the loop body op's pinned attrs, read by the K-quant branch
+    // of emitTypedRepackGemvLoopBody and passed in): qk, weightStride,
+    // activationStride, weightQuantOffset, activationQuantOffset, weightDminOffset,
+    // weightScalesOffset, activationBsumsOffset, nSubblocks, weightInterleave, half.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t subBlockSize = qk / nSubblocks;          // 32 elems / sub-block
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
@@ -4505,7 +4620,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemv, "repack-gemv-q4_K output not pointer");
+      return rewriter.notifyMatchFailure(loc, "repack-gemv-q4_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
     // The active vl is the COMPILE-TIME-CONSTANT half width.
@@ -4963,18 +5078,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    // The op result is the typed i32m1 token; the GEVM writes through *s so the
-    // token has no consumer. Seed it with a zero i32m1 lane-0.
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemv.getResult()] = resultTok;
+    // RESULT-LESS (no monolith token): the typed_repack_gemv_loop_body region is
+    // result-less (the repacked lane-wise K-quant GEVM sinks through the output
+    // pointer, not an SSA vector), so unlike the retired direct emitter this body
+    // leaf seeds NO dead i32m1 result token.
     return mlir::success();
   }
 
@@ -5517,32 +5624,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
 // dequant-matmul reference (M=4) on the RVV1.0 VLEN128 board (bounded-norm PASS, WORST_NORM
 // ~7e-07 over 8 shapes; controls NOMIN 3.5e5x / PERM 4e6x / ROWROT 7.6e6x). NOT byte-exact vs
 // ggml_gemm_q4_K_16x1_q8_K (IEEE-legal float reassociation only, not a decode error).
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmQ4KQ8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ4KQ8KOp>(op))
-        gemm = g;
-    }
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope,
-                                         "repack-gemm-q4_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount ||
-        !columnCount || !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-q4_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+    int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+    int64_t activationQuantOffset, int64_t weightDminOffset,
+    int64_t weightScalesOffset, int64_t activationBsumsOffset,
+    int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
+    int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -5553,7 +5645,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
     // i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip. This is
     // the SAME parametric chain the q4_K GEVM sibling carries; the GEMM inherits
     // the already-LMUL-parametric 8-sub-block 6-bit unpack from it.
-    llvm::StringRef coreLmul = gemm.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -5600,18 +5691,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
     // scales/mins region at +64, the interleaved activation int8 quants at +16,
     // the interleaved activation bsums at +1040, 16 weight columns / 4 activation
     // columns per group, 8 sub-blocks of 32, and the VLEN-derived e8 half width.
-    int64_t qk = gemm.getQk();                                      // 256
-    int64_t weightStride = gemm.getWeightBlockStride();             // 2304
-    int64_t activationStride = gemm.getActivationBlockStride();     // 1168
-    int64_t weightQuantOffset = gemm.getWeightQuantByteOffset();    // 256
-    int64_t activationQuantOffset = gemm.getActivationQuantByteOffset(); // 16
-    int64_t weightDminOffset = gemm.getWeightDminByteOffset();      // 32
-    int64_t weightScalesOffset = gemm.getWeightScalesByteOffset();  // 64
-    int64_t activationBsumsOffset = gemm.getActivationBsumsByteOffset(); // 1040
-    int64_t nSubblocks = gemm.getNSubblocks();                      // 8
-    int64_t weightInterleave = gemm.getWeightInterleave();          // 16
-    int64_t activationInterleave = gemm.getActivationInterleave();  // 4
-    int64_t half = gemm.getHalfLanes();              // 8 @128, 16 @256
+    // These are PARAMETERS now (the loop body op's pinned attrs, read by the K-quant
+    // branch of emitTypedRepackGemmLoopBody and passed in): qk, weightStride,
+    // activationStride, weightQuantOffset, activationQuantOffset, weightDminOffset,
+    // weightScalesOffset, activationBsumsOffset, nSubblocks, weightInterleave,
+    // activationInterleave, half.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t subBlockSize = qk / nSubblocks;          // 32 elems / sub-block
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
@@ -5638,7 +5722,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemm,
+      return rewriter.notifyMatchFailure(loc,
                                          "repack-gemm-q4_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
@@ -6167,18 +6251,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    // The op result is the typed i32m1 token; the GEMM writes through *s so the
-    // token has no consumer. Seed it with a zero i32m1 lane-0.
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemm.getResult()] = resultTok;
+    // RESULT-LESS (no monolith token): the typed_repack_gemm_loop_body region is
+    // result-less (the repacked lane-wise K-quant GEMM sinks through the output
+    // pointer, not an SSA vector), so unlike the retired direct emitter this body
+    // leaf seeds NO dead i32m1 result token.
     return mlir::success();
   }
 

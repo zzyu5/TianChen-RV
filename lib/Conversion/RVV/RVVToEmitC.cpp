@@ -378,8 +378,16 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1},
         {&isRepackGemmQ4_1Q8_1Body,
          &VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1},
-        {&isRepackGemmQ4KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmQ4KQ8K},
+        // NOTE (G3 主线A T2-construct): the q4_K 16x1-repacked GEMM direct emitter
+        // (emitRepackGemmQ4KQ8K) + its monolith op (tcrv_rvv.repack_gemm_q4_K_q8_K)
+        // + recognizer (isRepackGemmQ4KQ8KBody) are RETIRED (the FIRST K-quant
+        // super-block repack retired to the front door): the repack front door now
+        // constructs the typed tcrv_rvv.typed_repack_gemm_loop_body region
+        // (fold_model "kquant_dmin_bsums_min") carrying the
+        // tcrv_rvv.repack_gemm_kquant_core brick (decode_model "q4_K"), lowered
+        // below by isTypedRepackGemmLoopBody -> emitTypedRepackGemmLoopBody (K-quant
+        // branch) -> emitRepackKQuantGemmBodyQ4K (byte-exact to the retired direct
+        // emitter). q5_K/q6_K/q2_K/q3_K remain direct-emitter (batch5).
         {&isRepackGemmQ5KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmQ5KQ8K},
         {&isRepackGemmQ6KQ8KBody,
@@ -411,8 +419,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmIq2SQ8K},
         {&isRepackGemvQ8_0Q8_0Body,
          &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
-        {&isRepackGemvQ4KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvQ4KQ8K},
+        // NOTE (G3 主线A T2-construct): the q4_K 16x1-repacked GEVM direct emitter
+        // (emitRepackGemvQ4KQ8K) + its monolith op (tcrv_rvv.repack_gemv_q4_K_q8_K)
+        // + recognizer (isRepackGemvQ4KQ8KBody) are RETIRED: the repack front door
+        // now constructs the typed tcrv_rvv.typed_repack_gemv_loop_body region
+        // (fold_model "kquant_dmin_bsums_min") carrying the
+        // tcrv_rvv.repack_gemv_kquant_core brick (decode_model "q4_K"), lowered
+        // below by isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody (K-quant
+        // branch) -> emitRepackKQuantGemvBodyQ4K (byte-exact to the retired direct
+        // emitter).
         {&isRepackGemvQ5KQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvQ5KQ8K},
         {&isRepackGemvQ6KQ8KBody,
@@ -1360,19 +1375,8 @@ bool VariantToEmitCFunc::isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope) {
     return sawGemm;
   }
 
-bool VariantToEmitCFunc::isRepackGemmQ4KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ4KQ8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE (G3 主线A T2-construct): isRepackGemmQ4KQ8KBody RETIRED with its monolith op
+// (the K-quant repack GEMM is now the constructed typed_repack_gemm_loop_body region).
 
 bool VariantToEmitCFunc::isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;
@@ -1388,19 +1392,8 @@ bool VariantToEmitCFunc::isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope) {
     return sawGemv;
   }
 
-bool VariantToEmitCFunc::isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ4KQ8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
+// NOTE (G3 主线A T2-construct): isRepackGemvQ4KQ8KBody RETIRED with its monolith op
+// (the K-quant repack GEVM is now the constructed typed_repack_gemv_loop_body region).
 
 bool VariantToEmitCFunc::isRepackGemmQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
     bool sawGemm = false;

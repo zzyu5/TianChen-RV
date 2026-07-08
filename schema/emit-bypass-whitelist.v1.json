@@ -20,8 +20,8 @@
       "ci": ".github/workflows/falsifier-gate.yml (job: frontdoor-provenance-gate)"
     },
     "shrink_only": true,
-    "baseline_count": 15,
-    "generated_survey": "As of G3 主线B batch2: 15 direct-emitter repack gemm_tile cells are production-wired in kBlockDotKernels and bypass the front door; ALL are honestly dispatch-wired in six-state (feed C_dispatch, not C_construct). The ONLY front-door CONSTRUCTED repack gemm_tile cells are q4_0 decode + q4_0 prefill AND the WHOLE ternary batch tq2_0 (batch1) + tq1_0 (batch2) (typed_repack_gem{v,m}_loop_body) -- they are NOT bypasses and are deliberately absent from this list. G3 主线B batch2 RETIRED the SECOND direct-emitter bypass into the front door -- tq1_0 (retirement_batch 1), COMPLETING the ternary batch (ternary family fully retired). Its GEVM+GEMM direct emitters (emitRepackGem{v,m}TQ10Q8K), recognizers (isRepackGem{v,m}TQ10Q8KBody), monolith ops (tcrv_rvv.repack_gem{v,m}_tq1_0_q8_K + verifiers), and kBlockDotKernels dispatch entries are DELETED; the repack front door now constructs the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body region carrying the tcrv_rvv.repack_gem{v,m}_ternary_core brick (decode_model \"tq1_0\"), lowered by emitTypedRepackGem{v,m}LoopBody's ternary branch -> emitRepackTernaryGem{v,m}BodyTQ10 (byte-exact to the retired direct emitter). The tq1_0 base-3 delta vs tq2_0 is the WEIGHT DECODE (5 trits/qs byte + 4 trits/qh byte, TWO planes) whose qh SECOND-plane offset rides on the loop body op's OPTIONAL weight_qh_byte_offset attr; the SHARED lowerToRepackGem{v,m}Ternary is parameterized by a per-family TernaryDecodeFacts. baseline 16 -> 15 (ratchet shrink). The predecessor bumps (15 -> 17 iq2_xs/iq2_s repack tasks #80-86; 17 -> 16 tq2_0 batch1) predate this pass and are unchanged."
+    "baseline_count": 14,
+    "generated_survey": "As of G3 主线A T2-construct: 14 direct-emitter repack gemm_tile cells are production-wired in kBlockDotKernels and bypass the front door; ALL are honestly dispatch-wired in six-state (feed C_dispatch, not C_construct). The ONLY front-door CONSTRUCTED repack gemm_tile cells are q4_0 decode + q4_0 prefill, the WHOLE ternary batch tq2_0 (batch1) + tq1_0 (batch2), AND q4_K (the FIRST K-quant super-block retired, T2-construct) (typed_repack_gem{v,m}_loop_body) -- they are NOT bypasses and are deliberately absent from this list. G3 主线A T2-construct RETIRED the q4_K direct-emitter bypass into the front door (retirement_batch 5, the FIRST K-quant super-block; the tiling prerequisite): the framework generalized to a THIRD decode family {q4_0, ternary, K-quant} via lowerToRepackGem{v,m}KQuant (parameterized by KQuantDecodeFacts), constructing the typed_repack_gem{v,m}_loop_body region (fold_model \"kquant_dmin_bsums_min\") carrying the tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model \"q4_K\"), lowered by emitTypedRepackGem{v,m}LoopBody's K-quant branch -> emitRepackKQuantGem{v,m}BodyQ4K (byte-exact to the retired direct emitter). The K-quant super-block decode facts (dmin @32, 6-bit scales/mins @64, activation bsums, n_subblocks 8) ride on the loop body op's OPTIONAL K-quant attrs. baseline 15 -> 14 (ratchet shrink). q5_K/q6_K/q2_K/q3_K remain direct-emitter (batch5). G3 主线B batch2 RETIRED the SECOND direct-emitter bypass into the front door -- tq1_0 (retirement_batch 1), COMPLETING the ternary batch (ternary family fully retired). Its GEVM+GEMM direct emitters (emitRepackGem{v,m}TQ10Q8K), recognizers (isRepackGem{v,m}TQ10Q8KBody), monolith ops (tcrv_rvv.repack_gem{v,m}_tq1_0_q8_K + verifiers), and kBlockDotKernels dispatch entries are DELETED; the repack front door now constructs the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body region carrying the tcrv_rvv.repack_gem{v,m}_ternary_core brick (decode_model \"tq1_0\"), lowered by emitTypedRepackGem{v,m}LoopBody's ternary branch -> emitRepackTernaryGem{v,m}BodyTQ10 (byte-exact to the retired direct emitter). The tq1_0 base-3 delta vs tq2_0 is the WEIGHT DECODE (5 trits/qs byte + 4 trits/qh byte, TWO planes) whose qh SECOND-plane offset rides on the loop body op's OPTIONAL weight_qh_byte_offset attr; the SHARED lowerToRepackGem{v,m}Ternary is parameterized by a per-family TernaryDecodeFacts. baseline 16 -> 15 (ratchet shrink). The predecessor bumps (15 -> 17 iq2_xs/iq2_s repack tasks #80-86; 17 -> 16 tq2_0 batch1) predate this pass and are unchanged."
   },
 
   "entries": [
@@ -147,16 +147,6 @@
     },
     {
       "op": "gemm_tile",
-      "format": "q4_K",
-      "engine": "rvv",
-      "retirement_batch": 5,
-      "provenance": "direct-emitter (transitional scaffolding)",
-      "emitters": ["emitRepackGemvQ4KQ8K", "emitRepackGemmQ4KQ8K"],
-      "recognizers": ["isRepackGemvQ4KQ8KBody", "isRepackGemmQ4KQ8KBody"],
-      "plan": "K-quant batch (mainline-A super-block repack front door): retire the block_q4_Kx16 block-as-lane repack into the front door; reuses the 5 q4_K bricks (nibble_unpack/scale_min_bit_dance/scaled_dot/min_term/sums_fold_scale_d) already constructed on the vec_dot super-block loop op."
-    },
-    {
-      "op": "gemm_tile",
       "format": "q5_K",
       "engine": "rvv",
       "retirement_batch": 5,
@@ -178,6 +168,17 @@
   ],
 
   "retired_ledger": [
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "engine": "rvv",
+      "retirement_batch": 5,
+      "retired_by": "G3 主线A T2-construct (FIRST K-quant super-block direct-emitter bypass retired to the front door; tiling prerequisite)",
+      "was_emitters": ["emitRepackGemvQ4KQ8K", "emitRepackGemmQ4KQ8K"],
+      "was_recognizers": ["isRepackGemvQ4KQ8KBody", "isRepackGemmQ4KQ8KBody"],
+      "front_door": "RVVToEmitCBlockQuantLinear.cpp emitTypedRepackGem{v,m}LoopBody K-quant branch -> emitRepackKQuantGem{v,m}BodyQ4K (byte-exact to the retired direct emitter), gated on the in-region tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model \"q4_K\") constructed in the typed_repack_gem{v,m}_loop_body region (fold_model \"kquant_dmin_bsums_min\") by lowerToRepackGem{v,m}KQuant (parameterized by KQuantDecodeFacts).",
+      "note": "The q4_K K-quant super-block block-as-lane repack: dual d/dmin fp16 scale + 6-bit per-sub-block scale/min lane-wise unpack (get_scale_min_k4 bit-dance) + activation bsums-min correction, 8 sub-blocks of 32. The framework generalized to a THIRD decode family {q4_0, ternary, K-quant}; the K-quant dual-scale + bsums-min fold is a NEW fold structure (fold_model \"kquant_dmin_bsums_min\") RE-EMITTED WHOLE by the typed emitter from the core brick's identity (not decomposed into a separate fold brick -- emitter-inlined, honest scope), and the super-block decode facts (dmin @32, 6-bit scales/mins @64, activation bsums, n_subblocks 8) ride on the loop body op's OPTIONAL K-quant attrs. GEVM+GEMM direct emitters, recognizers, monolith ops (tcrv_rvv.repack_gem{v,m}_q4_K_q8_K + verifiers), and kBlockDotKernels dispatch entries DELETED; six-state gemm_tile q4_K flipped dispatch-wired -> constructed (front-door typed-region), C_construct 35 -> 36. baseline 15 -> 14 (ratchet shrink). Byte-exact to the oracle-verified q4_K repack (the SAME emit code moved into the body leaf). q5_K/q6_K/q2_K/q3_K remain direct-emitter (batch5)."
+    },
     {
       "op": "gemm_tile",
       "format": "tq2_0",

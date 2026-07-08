@@ -336,12 +336,10 @@ private:
   /// identity is the dispatch key; the emitter owns the structured block-as-lane
   /// multi-output-column expansion with the q4_1 scale+MIN per-column fold.
   static bool isRepackGemmQ4_1Q8_1Body(tcrvrvv::WithVLOp scope);
-  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
-  /// recognizer: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemm_q4_K_q8_K. The op identity is the dispatch key; the
-  /// emitter owns the structured block-as-lane multi-output-column expansion
-  /// with the q4_K dual d/dmin 8-sub-block 6-bit scale fold.
-  static bool isRepackGemmQ4KQ8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 主线A T2-construct): the q4_K repack GEMM recognizer
+  // isRepackGemmQ4KQ8KBody is RETIRED with its monolith op -- the K-quant repack is
+  // now CONSTRUCTED as the typed_repack_gemm_loop_body region (K-quant branch of
+  // emitTypedRepackGemmLoopBody -> emitRepackKQuantGemmBodyQ4K).
   /// The Family-A (symmetric, full-int8) 16x1-REPACKED single-column GEMV
   /// (decode) recognizer: a with_vl scope whose ONLY compute op is a single
   /// tcrv_rvv.repack_gemv_q8_0_q8_0. The op identity is the dispatch key; the
@@ -349,12 +347,10 @@ private:
   /// with FULL int8 weight lanes (NO nibble decode) and i32 in-block accumulation.
   static bool isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope);
 
-  /// The K-QUANT (super-block) 16x1-REPACKED single-column GEVM recognizer: a
-  /// with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_q4_K_q8_K. The op identity is the dispatch key; the
-  /// emitter owns the structured block-as-lane single-output-column expansion
-  /// with the q4_K 8-sub-block dual (scale + bsums-min) 6-bit fold.
-  static bool isRepackGemvQ4KQ8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 主线A T2-construct): the q4_K repack GEVM recognizer
+  // isRepackGemvQ4KQ8KBody is RETIRED with its monolith op -- the K-quant repack is
+  // now CONSTRUCTED as the typed_repack_gemv_loop_body region (K-quant branch of
+  // emitTypedRepackGemvLoopBody -> emitRepackKQuantGemvBodyQ4K).
 
   /// The K-QUANT (super-block) 16x1-REPACKED single-column GEVM recognizer for
   /// q5_K (q4_K + the qh 5th-bit plane): a with_vl scope whose ONLY compute op is
@@ -1476,20 +1472,27 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
-  /// emitter: the q4_K sibling of emitRepackGemmQ4_1Q8_1 and the PREFILL sibling
-  /// of emitRepackGemvQ4KQ8K. The weight side is the block_q4_Kx16 block-as-lane
-  /// layout (16 interleaved columns per lane), the activation the interleaved
-  /// block_q8_Kx4 stream (4 rows per group, fp32 d[4]/qs[1024]/bsums[64]). The
-  /// q4_K dual d/dmin 8-sub-block 6-bit scale/min unpack is done ONCE per 16
-  /// weights and REUSED across the M activation columns (the amortization that is
-  /// the prefill e2e-win mechanism). Validated norm-based against the in-tree
-  /// q4_K block-dot reference; the byte-exact ggml_gemm_q4_K_16x1_q8_K oracle is
-  /// a deferred rvv follow-up.
-  mlir::LogicalResult emitRepackGemmQ4KQ8K(
+  /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
+  /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
+  /// emitter emitRepackGemmQ4KQ8K, refactored to take the mapped ABI values +
+  /// block-format facts (including the K-quant dmin/scales/bsums byte offsets +
+  /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's
+  /// K-quant branch (gated on the in-region tcrv_rvv.repack_gemm_kquant_core
+  /// anti-bypass brick, decode_model "q4_K"). The q4_K prefill sibling of
+  /// emitRepackKQuantGemvBodyQ4K: the SAME 8-sub-block 6-bit scale/min dual-fold +
+  /// bsums-min decode, with the weight unpack AMORTIZED across the 4 interleaved
+  /// block_q8_Kx4 activation columns. RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackKQuantGemmBodyQ4K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+      int64_t activationQuantOffset, int64_t weightDminOffset,
+      int64_t weightScalesOffset, int64_t activationBsumsOffset,
+      int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
+      int64_t half) const;
 
   /// FAMILY-A (symmetric, full-int8) block-as-lane sibling of
   /// emitRepackGemvQ4_0Q8_0: the q8_0 16x1-REPACKED single-column GEMV (decode).
@@ -1515,16 +1518,27 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane GEVM for one
-  /// tcrv_rvv.repack_gemv_q4_K_q8_K op as fully STRUCTURED emitc nodes (I5; no
-  /// raw() strings). The K-quant super-block sibling of emitRepackGemvQ4_1Q8_1:
-  /// 8 sub-blocks of 32, per-sub-block 6-bit scale/min unpacked LANE-WISE across
-  /// the 16 weight columns, main term d*Sum(scale_sub*sumi_sub) and MIN term
-  /// dmin*Sum(min_sub*bsums_sub). Lane-wise accumulator (NO vredsum).
-  mlir::LogicalResult emitRepackGemvQ4KQ8K(
+  /// Emit the COMPLETE ggml q4_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
+  /// body from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct
+  /// emitter emitRepackGemvQ4KQ8K, refactored to take the mapped ABI values +
+  /// block-format facts (including the K-quant dmin/scales/bsums byte offsets +
+  /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's
+  /// K-quant branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core
+  /// anti-bypass brick, decode_model "q4_K"). The K-quant super-block decode: 8
+  /// sub-blocks of 32, per-sub-block 6-bit scale/min unpacked LANE-WISE across the
+  /// 16 weight columns, main term d*Sum(scale_sub*sumi_sub) and MIN term
+  /// dmin*Sum(min_sub*bsums_sub). Lane-wise accumulator (NO vredsum). RESULT-LESS
+  /// (no monolith token).
+  mlir::LogicalResult emitRepackKQuantGemvBodyQ4K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t activationQuantOffset,
+      int64_t weightDminOffset, int64_t weightScalesOffset,
+      int64_t activationBsumsOffset, int64_t nSubblocks, int64_t weightInterleave,
+      int64_t half) const;
 
   /// Emit the COMPLETE ggml q5_K x q8_K 16x1-REPACKED block-as-lane GEVM for one
   /// tcrv_rvv.repack_gemv_q5_K_q8_K op. q5_K == q4_K + the qh 5th (high) weight

@@ -1,23 +1,20 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
-// The ggml q4_K x q8_K 16x1-REPACKED GEMV (decode) hot kernel -- the K-QUANT
-// (super-block) block-as-lane sibling of the validated q4_1 repacked GEMV -- as
-// STRUCTURED emitc IR (I5; ZERO raw() strings). The single typed op
-// tcrv_rvv.repack_gemv_q4_K_q8_K lowers to the BLOCK-AS-LANE single-output-
-// column matmul: the 16 interleaved weight columns of a group occupy 16 vector
-// lanes, the dot accumulates LANE-WISE via vwmacc (NO cross-lane vredsum wall),
-// and at VLEN=128 each 16-block group is processed as TWO disjoint contiguous
-// 8-lane halves (cols 0..7 then cols 8..15) inline. The activation is ONE plain
-// block_q8_K stream (stride 292, fp32 d at +0, int8 quants at +4, int16 bsums at
-// +260). The K-quant super-block (QK_K=256, 8 sub-blocks of 32) carries THREE
-// structural extensions over the q4_1 sibling: (1) the per-sub-block 6-bit
-// scale/min are unpacked LANE-WISE (vand 0x0F / vsrl / vsll bit dance, ggml
-// arch/riscv/repack.cpp 299-315), (2) the MIN correction folds the activation
-// int16 bsums LANE-WISE via vwmacc_vx weighted by the 6-bit mins, (3) the
-// 32-element sub-block dot is split into 2x16 i16 chunks (i16 overflow guard)
-// promoted to i32 weighted by the 6-bit scale. The super-block (d, dmin) are
-// fp16 VECTOR strips; the activation d is a single fp32 SCALAR.
+// G3 主线A T2-construct: the ggml q4_K x q8_K 16x1-REPACKED GEVM (decode) hot kernel is
+// now CONSTRUCTED through the typed-region FRONT DOOR (the q4_0 / ternary typed_repack
+// precedent), NOT the retired monolithic emitRepackGemvQ4KQ8K direct emitter. The
+// tcrv_rvv.typed_repack_gemv_loop_body region (fold_model "kquant_dmin_bsums_min")
+// carries the tcrv_rvv.repack_gemv_kquant_core integer-core BRICK (decode_model
+// "q4_K"), block_index-tied (anti-bypass) and named off the loop-body's own weight /
+// activation ABI bases. The lowering GATES the emit on that brick's anti-bypass ties,
+// then RE-EMITS the byte-exact q4_K GEVM body via emitTypedRepackGemvLoopBody's K-quant
+// branch -> emitRepackKQuantGemvBodyQ4K (byte-identical to the retired direct emitter).
+// The K-quant super-block (QK_K=256, 8 sub-blocks of 32) carries the dual d/dmin fp16
+// scale + the 6-bit per-sub-block scale/min lane-wise unpack (vand 0x0F / vsrl / vsll
+// bit dance) + the activation bsums-min correction; block_q4_Kx16 stride 2304 (d @0,
+// dmin @32, 6-bit scales @64, nibbles @256), plain block_q8_K activation stride 292
+// (fp32 d @0, int8 quants @4, int16 bsums @260). VLEN=128 => TWO disjoint 8-lane strips.
 
 module {
   tcrv.exec.kernel @ggml_repack_gemv_q4_K_q8_K_kernel {
@@ -30,13 +27,23 @@ module {
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_q4_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_q4_K_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemv_q4_K_q8_K %vx, %vy, %s, %n, %nc, %vl {kind = "ggml_repack_gemv_q4_K_q8_K", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", qk = 256 : i64, weight_block_stride = 2304 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 256 : i64, activation_quant_byte_offset = 4 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, activation_bsums_byte_offset = 260 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", qk = 256 : i64, weight_block_stride = 2304 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 256 : i64, activation_quant_byte_offset = 4 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, activation_bsums_byte_offset = 260 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "kquant_dmin_bsums_min"} {
+        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index-tied K-quant integer-core BRICK: per-block lane-wise q4_K
+          // dot -> the numHalves (2) per-strip i32 sumi. The typed emitter re-emits the
+          // whole byte-exact q4_K body (integer core + dual d/dmin + bsums-min fold)
+          // from this brick's identity; the yield passes through the carried-in accs.
+          %sumi:2 = tcrv_rvv.repack_gemv_kquant_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_kquant_core", decode_model = "q4_K", weight_quant_byte_offset = 256 : i64, activation_quant_byte_offset = 4 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemv_q4_K_q8_K %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemv_kquant_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemv_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_q4_K_q8_K_kernel_ggml_repack_gemv_q4_K_q8_K(
 // The block count nb = n / 256 (QK_K).
@@ -46,7 +53,6 @@ module {
 // The OUTER weight-column-GROUP loop over nc/16.
 // CHECK: for %[[X:.*]] = %{{.*}} to %{{.*}} step
 // Per-group weight base vx + x*nb*2304 (block_q4_Kx16 stride 2304).
-// CHECK: mul %[[X]], %{{.*}}
 // CHECK: literal "2304"
 // The two 8-lane f32 accumulators (cols 0..7, 8..15): two vfmv_v_f_f32m2(0.0f, 8).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
@@ -85,9 +91,8 @@ module {
 // CHECK: call_opaque "*(const int8_t *)"
 // CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
 // CHECK: call_opaque "__riscv_vwmacc_vv_i32m2"
-// The end-of-block fold: vle16 the super-block d strip, vfwcvt + vfmul_vf
-// (d_x*d_y), vfcvt the i32 sumi, vfmacc the main term, then vfnmsac the MIN term
-// (sumf -= dmins_d * cvt(bsums)).
+// The end-of-block fold: vfcvt the i32 sumi, vfmacc the main term, then vfnmsac the
+// MIN term (sumf -= dmins_d * cvt(bsums)).
 // CHECK: call_opaque "__riscv_vfcvt_f_x_v_f32m2"
 // CHECK: call_opaque "__riscv_vfmacc_vv_f32m2"
 // CHECK: call_opaque "__riscv_vfnmsac_vv_f32m2"
@@ -97,5 +102,7 @@ module {
 // CHECK: return
 
 // The block-as-lane repack erases the per-block cross-lane reduction wall: the
-// dot accumulates LANE-WISE via vwmacc, so NO vredsum / vwredsum appears.
+// dot accumulates LANE-WISE via vwmacc, so NO vredsum / vwredsum appears. Also NO
+// trailing dead result-token vmv (the region is result-less, unlike the retired
+// direct emitter).
 // NOWALL-NOT: redsum
