@@ -6037,30 +6037,108 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                 llvm::StringRef("act_scale_scalar"));
           }
 
-          // -- SHARED (within the strip) weight strips, unpacked ONCE per
-          // 16-weight group and reused across the activation columns (the prefill
-          // amortization). dmin/d are the per-column-lane fp16 strips of THIS h
-          // widened to f32; each is multiplied by EACH activation column's d_y_c
-          // inside the column fold.
-          mlir::Value dminF32 =
-              widenF16(loadF16Strip(bl, weightDminOffset, h * half));
-          mlir::Value dF32 = widenF16(loadF16Strip(bl, 0, h * half));
+          // ===== S6 decoded-weight + min-accumulator STACK PANELS (byte-exact) ===
+          // The COLD decode band (this block's 6-bit scale/min i16 strips) and the
+          // COLD per-column i32 MIN accumulator are staged into small PER-BLOCK
+          // stack arrays, addressed via vle/vse opaque intrinsics (the taken
+          // address defeats mem2reg, so they LIVE ON THE STACK, not in vregs). This
+          // is the classic GEMM "pack the panel into a contiguous buffer" move
+          // applied to the ALREADY-DECODED weights + the idle min accumulator: it
+          // takes the scale strips (held live across the dot loop only for the
+          // post-loop fold) and the bsums family (idle throughout the hot main
+          // term, needed only at the end-of-block fold) OFF the hot live set, so
+          // the allocator only juggles the HOT sumf/sumi accumulators + sLo/sHi
+          // partials. Every staged value is INTEGER (exact store/reload) and the
+          // end-of-block f32 fold is UNCHANGED => byte-exact. sumf/sumi stay SSA-
+          // register accumulators (NEVER paneled, NEVER rolled into the iter-arg-
+          // less emitc.for -- the re-roll trap). Declared PER-BLOCK (inside the
+          // block loop) so each iteration fully writes-before-reads the panel (no
+          // conservative prologue zero-init).
+          mlir::Type i16ElemTy = emitc::OpaqueType::get(ctx, "int16_t");
+          mlir::Type i32ElemTy = emitc::OpaqueType::get(ctx, "int32_t");
+          mlir::Type i16MutPtrTy = emitc::PointerType::get(i16ElemTy);
+          mlir::Type i32MutPtrTy = emitc::PointerType::get(i32ElemTy);
+          mlir::Type scaleMinPanelTy =
+              emitc::ArrayType::get({subPerSuper * half}, i16ElemTy);
+          mlir::Type bsumsPanelTy =
+              emitc::ArrayType::get({columnsPerPass * half}, i32ElemTy);
+          auto mkPanel =
+              [&](mlir::Type arrTy) -> mlir::TypedValue<emitc::ArrayType> {
+            auto var = rewriter.create<emitc::VariableOp>(
+                loc, arrTy, emitc::OpaqueAttr::get(ctx, ""));
+            return llvm::cast<mlir::TypedValue<emitc::ArrayType>>(var.getResult());
+          };
+          // scale/min panels are per-super-half local (subPerSuper strips),
+          // rewritten each super-half; bsums panel is per-block (columnsPerPass).
+          mlir::TypedValue<emitc::ArrayType> scalePanel = mkPanel(scaleMinPanelTy);
+          mlir::TypedValue<emitc::ArrayType> minPanel = mkPanel(scaleMinPanelTy);
+          mlir::TypedValue<emitc::ArrayType> bsumsPanel = mkPanel(bsumsPanelTy);
+          std::string vse16Callee = riscvIntrinsicName("vse", 16, l16, "i16");
+          std::string vle16Callee = riscvIntrinsicName("vle", 16, l16, "i16");
+          std::string vse32Callee = riscvIntrinsicName("vse", 32, l32, "i32");
+          std::string vle32Callee = riscvIntrinsicName("vle", 32, l32, "i32");
+          auto panelPtr = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                              mlir::Type ptrTy, int64_t idx) -> mlir::Value {
+            mlir::Value iv = rewriter.create<emitc::LiteralOp>(
+                loc, rewriter.getIndexType(), std::to_string(idx));
+            mlir::Value elem =
+                rewriter.create<emitc::SubscriptOp>(loc, arr, mlir::ValueRange{iv})
+                    .getResult();
+            return rewriter.create<emitc::ApplyOp>(loc, ptrTy, "&", elem)
+                .getResult();
+          };
+          auto storeI16Panel = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                                   int64_t idx, mlir::Value vec) {
+            emitOpaqueCallVoid(
+                rewriter, loc, vse16Callee,
+                mlir::ValueRange{panelPtr(arr, i16MutPtrTy, idx), vec, vl8}, opName,
+                role);
+          };
+          auto loadI16Panel = [&](mlir::TypedValue<emitc::ArrayType> arr,
+                                  int64_t idx) -> mlir::Value {
+            return emitOpaqueCall(
+                rewriter, loc, i16m1Type, vle16Callee,
+                mlir::ValueRange{panelPtr(arr, i16MutPtrTy, idx), vl8}, opName,
+                role);
+          };
+          auto storeBsumsPanel = [&](int64_t col, mlir::Value vec) {
+            emitOpaqueCallVoid(
+                rewriter, loc, vse32Callee,
+                mlir::ValueRange{panelPtr(bsumsPanel, i32MutPtrTy, col * half), vec,
+                                 vl8},
+                opName, role);
+          };
+          auto loadBsumsPanel = [&](int64_t col) -> mlir::Value {
+            return emitOpaqueCall(
+                rewriter, loc, i32m2Type, vle32Callee,
+                mlir::ValueRange{panelPtr(bsumsPanel, i32MutPtrTy, col * half),
+                                 vl8},
+                opName, role);
+          };
+
+          // -- S6 d/dmin ON-DEMAND: the SHARED (within the strip) per-column-lane
+          // fp16 d/dmin strips of THIS h are per-block loop-invariant but are only
+          // CONSUMED in the end-of-block f32 fold. Their widen-to-f32 is deferred
+          // to that fold point (still loaded ONCE per block, byte-identical bytes)
+          // so the two f32m2 strips do NOT sit live across the hot main-term dot
+          // loop -- 4 vreg off the peak, byte-exact. (Moved down; see the fold.)
 
           // ===== Per-column i32 main + bsums accumulators for THIS strip. =====
           // sumiVar[c] (scale main term), bsumsVar[c] (min term).
-          llvm::SmallVector<mlir::Value> sumiVar(activationInterleave),
-              bsumsVar(activationInterleave);
+          // sumiVar[c] stays a HOT SSA-register accumulator (scale main term). The
+          // bsums (min term) accumulator family is STAGED to bsumsPanel -- idle
+          // across the hot main dot and reloaded only at the end-of-block fold --
+          // so it costs NO vreg on the peak. The panel is DEFINED by the first
+          // sub-block's MIN accumulation (a register-seeded vwmacc, no separate
+          // zero-store), so no broadcast-zero whole-register store is emitted.
+          // Byte-exact: the i32 accumulation, single cvt, and fold order unchanged.
+          llvm::SmallVector<mlir::Value> sumiVar(activationInterleave);
           for (int64_t c = cLo; c < cHi; ++c) {
             auto sv = rewriter.create<emitc::VariableOp>(
                 loc, emitc::LValueType::get(i32m2Type),
                 emitc::OpaqueAttr::get(ctx, ""));
             rewriter.create<emitc::AssignOp>(loc, sv, seedI32());
             sumiVar[c] = sv;
-            auto bv = rewriter.create<emitc::VariableOp>(
-                loc, emitc::LValueType::get(i32m2Type),
-                emitc::OpaqueAttr::get(ctx, ""));
-            rewriter.create<emitc::AssignOp>(loc, bv, seedI32());
-            bsumsVar[c] = bv;
           }
 
           // ===== Super-half loop: for (j = 0; j < QK_K/128; ++j) =====
@@ -6073,8 +6151,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
             //   scales_lo = lo & 0x0F; mins_lo = lo >> 4.
             //   j==0: scales_hi = (hi & 0x03) << 4; mins_hi = (hi & 0x0C) << 2.
             //   j==1: scales_hi =  hi & 0x30;       mins_hi = (hi & 0xC0) >> 2.
-            // Unpacked ONCE for THIS strip; scaleVal[sb]/minVal[sb] reused per col.
-            llvm::SmallVector<mlir::Value> scaleVal, minVal;
+            // Unpacked ONCE for THIS strip; STAGED to scalePanel/minPanel (byte-
+            // exact i16) and reloaded per column in the MIN/MAIN folds, so the
+            // decode strips never sit live across the hot dot loop.
             for (int64_t sb = 0; sb < subPerSuper; ++sb) {
               int64_t loByte = weightScalesOffset + j * 64 + sb * 16 + h * half;
               int64_t hiByte = weightScalesOffset + 128 + sb * 16 + h * half;
@@ -6092,8 +6171,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
               }
               mlir::Value scU8 = u8Or(scalesHi, scalesLo);
               mlir::Value mnU8 = u8Or(minsHi, minsLo);
-              scaleVal.push_back(liftToI16(scU8));
-              minVal.push_back(liftToI16(mnU8));
+              storeI16Panel(scalePanel, sb * half, liftToI16(scU8));
+              storeI16Panel(minPanel, sb * half, liftToI16(mnU8));
             }
 
             // ----- MIN term per activation column m: bsums_acc[m] += bsum_pair *
@@ -6105,6 +6184,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
             step("min_bsums_fold");
             for (int64_t sb = 0; sb < subPerSuper; ++sb) {
               int64_t gsub = j * subPerSuper + sb;
+              // min strip reloaded ONCE per sub-block from the panel, reused across
+              // the 4 columns (same value ggml's minVal[sb] carried); the bsums
+              // accumulator is read/updated straight in the panel (byte-exact i32).
+              mlir::Value minStrip = loadI16Panel(minPanel, sb * half);
               for (int64_t c = cLo; c < cHi; ++c) {
                 mlir::Value bs0 = i16Read(
                     al, activationBsumsOffset + (gsub * 8 + c) * 2);
@@ -6112,12 +6195,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                     al, activationBsumsOffset + (gsub * 8 + c + 4) * 2);
                 mlir::Value bsPair =
                     rewriter.create<emitc::AddOp>(loc, i32Type, bs0, bs1);
-                mlir::Value curB =
-                    rewriter
-                        .create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c])
-                        .getResult();
-                rewriter.create<emitc::AssignOp>(
-                    loc, bsumsVar[c], vwmaccVX32(curB, bsPair, minVal[sb]));
+                // First sub-block (gsub==0) DEFINES the panel from a register zero
+                // seed (no zero-store); later sub-blocks load-accumulate-store.
+                bool firstAcc = (j == 0 && sb == 0);
+                mlir::Value cur =
+                    firstAcc ? seedI32() : loadBsumsPanel(c - cLo);
+                storeBsumsPanel(c - cLo, vwmaccVX32(cur, bsPair, minStrip));
               }
             }
 
@@ -6164,15 +6247,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                   }
                 }
                 // sumi_c += scale_sbLo * sLo_c + scale_sbHi * sHi_c (i16->i32).
+                // scale strips reloaded ONCE from the panel per (pair,k), reused
+                // across the 4 columns (byte-exact i16, same scaleVal[sb]).
                 step("scale_subblock_fold");
+                mlir::Value scLo = loadI16Panel(scalePanel, sbLo * half);
+                mlir::Value scHi = loadI16Panel(scalePanel, sbHi * half);
                 for (int64_t c = cLo; c < cHi; ++c) {
                   mlir::Value cur0 =
                       rewriter
                           .create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
                           .getResult();
-                  mlir::Value acc0 = vwmaccVV32(cur0, scaleVal[sbLo], sLo[c]);
+                  mlir::Value acc0 = vwmaccVV32(cur0, scLo, sLo[c]);
                   rewriter.create<emitc::AssignOp>(
-                      loc, sumiVar[c], vwmaccVV32(acc0, scaleVal[sbHi], sHi[c]));
+                      loc, sumiVar[c], vwmaccVV32(acc0, scHi, sHi[c]));
                 }
               }
             }
@@ -6182,6 +6269,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
           // (main) then sumf_c -= dmin_x*d_y_c*bsums_c (MIN). d_x/dmin_x are the
           // SHARED per-strip fp16 d/dmin widened to f32; multiplied by the
           // per-column fp32 d_y_c. =====
+          // S6: the d/dmin widen is loaded HERE (on-demand at the fold), not at the
+          // top of the block, so it does not occupy 4 vreg across the main dot loop.
+          mlir::Value dminF32 =
+              widenF16(loadF16Strip(bl, weightDminOffset, h * half));
+          mlir::Value dF32 = widenF16(loadF16Strip(bl, 0, h * half));
           for (int64_t c = cLo; c < cHi; ++c) {
             // d_0_c = dF32 * d_y_c;  sumf_c += cvt(sumi_c) * d_0_c.
             mlir::Value d0 = fmulScalar(dF32, aD[c]);
@@ -6198,10 +6290,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
                   return {curF, cvtI32F32(sumiV), d0, vl8};
                 });
             // dmin_0_c = dminF32 * d_y_c;  sumf_c -= dmin_0_c * cvt(bsums_c).
+            // bsums_c reloaded from its stack panel (byte-exact i32); the fold order
+            // (main vfmacc THEN min vfnmsac) is identical to S1 -> bit-identical.
             mlir::Value dmin0 = fmulScalar(dminF32, aD[c]);
-            mlir::Value bsumsV =
-                rewriter.create<emitc::LoadOp>(loc, i32m2Type, bsumsVar[c])
-                    .getResult();
+            mlir::Value bsumsV = loadBsumsPanel(c - cLo);
             mlir::Value afterMin = emitOpaqueCallBuilt(
                 rewriter, loc, f32m2Type, vfnmsacVVCallee, opName, role,
                 [&](mlir::OpBuilder &b,

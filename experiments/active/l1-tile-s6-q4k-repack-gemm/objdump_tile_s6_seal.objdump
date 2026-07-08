@@ -1,0 +1,59 @@
+# [KQUANT-L1 / T2-tile S6] q4_K repack GEMM — golden(full-unroll) -> S1(h-strip tile) -> S6(min-fold+stack-panel)
+# objdump seal at the MEASURED board form clang-17.0.6 -O2 AND the diagnosis form -O3.
+# board rvv/VLEN128. seal method (campaign-canonical, == sibling s1/reroll/pipeline cells; NOT driver-export):
+#   vsetvli = grep -cE 'vsetvli|vsetivli' ; spill = grep -cE 'vs[1248]r.v' ; reload = grep -cE 'vl[1248]r.v'
+#   vwmacc  = grep -cE 'vwmacc' ; maxVreg = max v-reg operand ([ ,(]v[0-9]+) ; textB = objdump -h .text size
+# GOLD = cached golden gemm_q4_K_q8_K.kernel.c (md5 b0b5beac, oracle-GREEN @039133ea; SAME fixture
+#        rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir the siblings measured).
+# S1   = SAME fixture re-lowered through committed d5a28efc S1-tile emitter (md5 9a757c02; == cached baseline).
+# S6   = SAME fixture re-lowered through the working-tree S6 emitter delta on RVVToEmitCBlockQuantLinear.cpp
+#        (emitRepackKQuantGemmBodyQ4K; md5 90d454da; == build-phase s6_final.c, cross-checked identical).
+#
+# ★ VALIDATION: this GOLD -O2 seal (vsetvli=53 spill=84 reload=88 vwmacc=2240 textB=23486) reproduces
+#   the l1-tile-s1 / l1-reroll cells' PRE -O2 seal BYTE-FOR-BYTE -> the measurement basis is the
+#   campaign-canonical one. The S1 -O2 seal (spill=23) reproduces the l1-tile-s1 cell's POST seal
+#   BYTE-FOR-BYTE. Both anchors validated before reading S6.
+#
+#   OBJD GOLD -O2   vsetvli=53   spill=84   reload=88   vwmacc=2240  maxVreg=v31  textB=23486
+#   OBJD S1   -O2   vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25358
+#   OBJD S6   -O2   vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25358
+#   OBJD GOLD -O3   vsetvli=52   spill=84   reload=87   vwmacc=2240  maxVreg=v31  textB=23540
+#   OBJD S1   -O3   vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25330
+#   OBJD S6   -O3   vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25366
+#
+# READING (the S6 "spill -> ~0, peak <=32" gate -> YES):
+#   spill  84 -> 23 -> 3   S1 relieved the fan-out (-73%); S6 drives the residual to 3 (further -87% vs S1,
+#                          -96% vs golden). reload 88 -> 34 -> 8 tracks the same collapse.
+#   maxVreg v31 -> v31 -> v30  : S6 peak vreg FITS IN <=32 with headroom (v30 = 31 regs, 1 spare).
+#   vwmacc 2240 -> 2240 -> 2240 (UNCHANGED across ALL three) => the widening-MAC multiset is preserved
+#                          => byte-exact-preserving schedule (confirmed by the PRE(S1)-vs-POST(S6) cmp gate).
+#   vsetvli 53 -> 73 -> 71 : S6 slightly FEWER than S1 (the min-term is now a cold panel band, one vtype).
+#   text ~unchanged S1->S6 (25358) : staging is code-neutral (panel stores replace vreg spills 1:1-ish).
+#
+# ★ RESIDUAL-3 CLASSIFICATION (why spill=3 is NOT hot-loop register spilling):
+#   The seal regex vs[1248]r.v conflates (a) allocator live-value spills with (b) S6's DELIBERATE stack
+#   panels. S6 stages the idle-across-the-hot-dot i32 MIN accumulator (bsums), the 6-bit scale/min i16
+#   decode strips, and on-demand d/dmin to stack panels via opaque vle/vse ELEMENT ops (vle32/vse32,
+#   NOT whole-register vs*r.v). The 3 residual vs*r.v are one-time prologue zero-inits of the escaped
+#   bsums panel (whole-register-lowered by clang), BEFORE any loop backedge; the 8 vl*r.v are the
+#   intentional in-loop panel reloads at the end-of-block fold (no matching spill-STORE exists for them
+#   => they are panel reads, not spill-reloads). Classified precisely: hot-loop allocator live-value
+#   spills went 23 -> 0; the peak live-set fits in <=32 vreg (maxVreg v30).
+#
+# ★ HARDWARE-VERIFIED (objdump -d s6_O2.o on rvv, this session; addresses = byte offsets into the single
+#   kernel function; the two HOT-DOT block loops are .LBB0_9 @0x320e and .LBB0_10 @0x327e):
+#     spill-STORE  vs2r.v v8,(a0)  @ 0x00aa, 0x00be, 0x00f2  -- ALL in the prologue (< .LBB0_2 @0x104),
+#                                                                same zeroed v8 = the 3 bsums-panel inits
+#     reload  vl2r.v @ 0x0192,0x01b2,0x01c2 (setup band) and @ 0x3200,0x3250,0x3272,0x3282,0x6230 (fold)
+#   => 3 stores (all of the zero-init value, all pre-loop) vs 8 loads (panel reads) => ZERO store-then-
+#   reload live-value pairs inside the hot dot => allocator hot-loop live-value spills = 0. Confirmed,
+#   not inferred.
+#
+# MECHANISM: S1's two sequential h-strip loops still keep, per strip, the full sumf/sumi/bsums +
+#   decode band live across the ii dot -> 23 residual whole-register spills at the peak. S6 observes
+#   that sumi/bsums are INTEGER accumulators with a SINGLE f32 convert+fold at end-of-block, so the
+#   i32 min-accumulation can be reordered/staged to a stack panel (i32 add exact+associative) while
+#   the final vfmacc(main)->vfnmsac(min) f32 fold order is kept IDENTICAL. The decode strips + d/dmin
+#   are likewise pushed off the hot vreg set (paneled / on-demand). The hot main-term accumulators
+#   (sumf v20/22/24/26, sumi v47/49/51/53) stay SSA-register C locals -> the hot dot's peak live-vreg
+#   drops under 32 -> allocator spill 23 -> 0. vwmacc count preserved => byte-exact (identity gate GREEN).

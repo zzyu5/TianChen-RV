@@ -1,0 +1,42 @@
+[tile-s6-ab] board=rvv core=8 K=2048 nr=16 nc=512 iters=20 N=10 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs cc=clang-17
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+[preflight] loadavg=3.59 3.44 3.93 2/1279 360147 core=8 freq=2600000 gov=performance
+[compile] golden/S1/S6 q4_K at -O2 (measured) and -O3 (diagnosis); shared q5_K + paired driver (-O2)
+=== [1] OBJDUMP seal: vsetvli + spill/reload + maxVreg  golden->S1->S6 (spill ~0? peak <=32?) ===
+  OBJD GOLD -O2    vsetvli=53   spill=84   reload=88   vwmacc=2240  maxVreg=v31  textB=23486
+  OBJD S1   -O2    vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25358
+  OBJD S6   -O2    vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25358
+  OBJD GOLD -O3    vsetvli=52   spill=84   reload=87   vwmacc=2240  maxVreg=v31  textB=23540
+  OBJD S1   -O3    vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25330
+  OBJD S6   -O3    vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25366
+=== [2] BYTE-EXACT identity gate PRE(S1) vs POST(S6) (int + norm) ===
+  ORACLE mode=int : IDENTICAL (0 byte mismatch)
+  ORACLE mode=norm : IDENTICAL (0 byte mismatch)
+=== [3/4] A/B(S6 vs S1) + vs-opponent (cold N=10 rounds; each round pre(S1) then post(S6) as fresh procs) ===
+    KQGEMM line: ours_gmacs / opp_gmacs / ratio_ours_over_opp
+[loadavg-mid] 4.49 3.69 3.98 2/1279 360432
+ROUND 1 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2594843.4 ours_gmacs=6.4656 opp_ns=3778365.0 opp_gmacs=4.4403 ratio_ours_over_opp=1.456 sink=29769.9
+ROUND 1 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2044795.8 ours_gmacs=8.2048 opp_ns=3763395.0 opp_gmacs=4.4580 ratio_ours_over_opp=1.840 sink=29769.9
+ROUND 2 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2591355.4 ours_gmacs=6.4743 opp_ns=3716602.8 opp_gmacs=4.5141 ratio_ours_over_opp=1.434 sink=29769.9
+ROUND 2 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2019584.6 ours_gmacs=8.3073 opp_ns=3809763.2 opp_gmacs=4.4037 ratio_ours_over_opp=1.886 sink=29769.9
+ROUND 3 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2591585.4 ours_gmacs=6.4737 opp_ns=3745890.9 opp_gmacs=4.4788 ratio_ours_over_opp=1.445 sink=29769.9
+ROUND 3 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2019962.6 ours_gmacs=8.3057 opp_ns=3644149.4 opp_gmacs=4.6039 ratio_ours_over_opp=1.804 sink=29769.9
+ROUND 4 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2598718.4 ours_gmacs=6.4560 opp_ns=3665263.5 opp_gmacs=4.5774 ratio_ours_over_opp=1.410 sink=29769.9
+ROUND 4 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2049649.8 ours_gmacs=8.1854 opp_ns=3714889.8 opp_gmacs=4.5162 ratio_ours_over_opp=1.812 sink=29769.9
+ROUND 5 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2606838.5 ours_gmacs=6.4358 opp_ns=3475785.6 opp_gmacs=4.8269 ratio_ours_over_opp=1.333 sink=29769.9
+ROUND 5 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2033793.7 ours_gmacs=8.2492 opp_ns=3526700.9 opp_gmacs=4.7572 ratio_ours_over_opp=1.734 sink=29769.9
+ROUND 6 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2595293.4 ours_gmacs=6.4645 opp_ns=3507779.8 opp_gmacs=4.7829 ratio_ours_over_opp=1.352 sink=29769.9
+ROUND 6 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2032894.7 ours_gmacs=8.2529 opp_ns=3766644.0 opp_gmacs=4.4542 ratio_ours_over_opp=1.853 sink=29769.9
+ROUND 7 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2594661.4 ours_gmacs=6.4661 opp_ns=3539434.9 opp_gmacs=4.7401 ratio_ours_over_opp=1.364 sink=29769.9
+ROUND 7 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2038591.8 ours_gmacs=8.2298 opp_ns=3578996.1 opp_gmacs=4.6877 ratio_ours_over_opp=1.756 sink=29769.9
+ROUND 8 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2595129.4 ours_gmacs=6.4649 opp_ns=3794837.1 opp_gmacs=4.4211 ratio_ours_over_opp=1.462 sink=29769.9
+ROUND 8 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2039372.8 ours_gmacs=8.2267 opp_ns=3457924.5 opp_gmacs=4.8518 ratio_ours_over_opp=1.696 sink=29769.9
+ROUND 9 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2612383.5 ours_gmacs=6.4222 opp_ns=3746509.9 opp_gmacs=4.4781 ratio_ours_over_opp=1.434 sink=29769.9
+ROUND 9 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2027103.6 ours_gmacs=8.2764 opp_ns=3714944.7 opp_gmacs=4.5161 ratio_ours_over_opp=1.833 sink=29769.9
+ROUND 10 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2603268.5 ours_gmacs=6.4447 opp_ns=3789598.1 opp_gmacs=4.4272 ratio_ours_over_opp=1.456 sink=29769.9
+ROUND 10 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=16 nc=512 iters=20 ours_ns=2021814.6 ours_gmacs=8.2981 opp_ns=3530057.9 opp_gmacs=4.7527 ratio_ours_over_opp=1.746 sink=29769.9
+[loadavg-end] 4.38 3.70 3.98 2/1279 360454
+[tile-s6-ab] done. restore: main tree + build/ UNTOUCHED (no rebuild); board scratch ephemeral under /tmp/kquant_tile_s6_ab; governor left as-found.

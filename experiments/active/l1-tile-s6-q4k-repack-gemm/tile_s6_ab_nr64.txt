@@ -1,0 +1,53 @@
+[tile-s6-ab] board=rvv core=8 K=2048 nr=64 nc=512 iters=20 N=12 march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs cc=clang-17
+
+Authorized users only. All activities may be monitored and reported.
+
+Authorized users only. All activities may be monitored and reported.
+[preflight] loadavg=3.24 3.17 3.94 2/1279 359644 core=8 freq=2600000 gov=performance
+[compile] golden/S1/S6 q4_K at -O2 (measured) and -O3 (diagnosis); shared q5_K + paired driver (-O2)
+=== [1] OBJDUMP seal: vsetvli + spill/reload + maxVreg  golden->S1->S6 (spill ~0? peak <=32?) ===
+  OBJD GOLD -O2    vsetvli=53   spill=84   reload=88   vwmacc=2240  maxVreg=v31  textB=23486
+  OBJD S1   -O2    vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25358
+  OBJD S6   -O2    vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25358
+  OBJD GOLD -O3    vsetvli=52   spill=84   reload=87   vwmacc=2240  maxVreg=v31  textB=23540
+  OBJD S1   -O3    vsetvli=73   spill=23   reload=34   vwmacc=2240  maxVreg=v31  textB=25330
+  OBJD S6   -O3    vsetvli=71   spill=3    reload=8    vwmacc=2240  maxVreg=v30  textB=25366
+=== [2] BYTE-EXACT identity gate PRE(S1) vs POST(S6) (int + norm) ===
+  ORACLE mode=int : IDENTICAL (0 byte mismatch)
+  ORACLE mode=norm : IDENTICAL (0 byte mismatch)
+=== [3/4] A/B(S6 vs S1) + vs-opponent (cold N=12 rounds; each round pre(S1) then post(S6) as fresh procs) ===
+    KQGEMM line: ours_gmacs / opp_gmacs / ratio_ours_over_opp
+[loadavg-mid] 3.76 3.34 3.95 2/1279 359930
+ROUND 1 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10311540.2 ours_gmacs=6.5081 opp_ns=15179580.3 opp_gmacs=4.4210 ratio_ours_over_opp=1.472 sink=49115.7
+ROUND 1 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8071180.5 ours_gmacs=8.3146 opp_ns=15355482.2 opp_gmacs=4.3704 ratio_ours_over_opp=1.903 sink=49115.7
+ROUND 2 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10318687.2 ours_gmacs=6.5036 opp_ns=15250218.7 opp_gmacs=4.4005 ratio_ours_over_opp=1.478 sink=49115.7
+ROUND 2 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8052220.3 ours_gmacs=8.3342 opp_ns=15427059.6 opp_gmacs=4.3501 ratio_ours_over_opp=1.916 sink=49115.7
+ROUND 3 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10326429.2 ours_gmacs=6.4987 opp_ns=15229041.7 opp_gmacs=4.4066 ratio_ours_over_opp=1.475 sink=49115.7
+ROUND 3 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8139725.8 ours_gmacs=8.2446 opp_ns=15335801.2 opp_gmacs=4.3760 ratio_ours_over_opp=1.884 sink=49115.7
+ROUND 4 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10387414.6 ours_gmacs=6.4606 opp_ns=15455153.7 opp_gmacs=4.3422 ratio_ours_over_opp=1.488 sink=49115.7
+ROUND 4 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8134704.8 ours_gmacs=8.2497 opp_ns=15373055.3 opp_gmacs=4.3654 ratio_ours_over_opp=1.890 sink=49115.7
+ROUND 5 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10372906.4 ours_gmacs=6.4696 opp_ns=15151650.2 opp_gmacs=4.4291 ratio_ours_over_opp=1.461 sink=49115.7
+ROUND 5 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8139186.8 ours_gmacs=8.2452 opp_ns=15310377.0 opp_gmacs=4.3832 ratio_ours_over_opp=1.881 sink=49115.7
+ROUND 6 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10343672.3 ours_gmacs=6.4879 opp_ns=15415647.6 opp_gmacs=4.3533 ratio_ours_over_opp=1.490 sink=49115.7
+ROUND 6 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8084424.5 ours_gmacs=8.3010 opp_ns=15271607.8 opp_gmacs=4.3944 ratio_ours_over_opp=1.889 sink=49115.7
+ROUND 7 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10382040.5 ours_gmacs=6.4639 opp_ns=15670248.7 opp_gmacs=4.2826 ratio_ours_over_opp=1.509 sink=49115.7
+ROUND 7 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8086712.5 ours_gmacs=8.2987 opp_ns=15251044.7 opp_gmacs=4.4003 ratio_ours_over_opp=1.886 sink=49115.7
+ROUND 8 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10339047.3 ours_gmacs=6.4908 opp_ns=15218812.6 opp_gmacs=4.4096 ratio_ours_over_opp=1.472 sink=49115.7
+ROUND 8 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8140640.8 ours_gmacs=8.2437 opp_ns=15188323.4 opp_gmacs=4.4185 ratio_ours_over_opp=1.866 sink=49115.7
+ROUND 9 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10401906.6 ours_gmacs=6.4516 opp_ns=15132273.2 opp_gmacs=4.4348 ratio_ours_over_opp=1.455 sink=49115.7
+ROUND 9 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8111725.7 ours_gmacs=8.2731 opp_ns=15185781.4 opp_gmacs=4.4192 ratio_ours_over_opp=1.872 sink=49115.7
+ROUND 10 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10402348.6 ours_gmacs=6.4513 opp_ns=15332111.1 opp_gmacs=4.3770 ratio_ours_over_opp=1.474 sink=49115.7
+ROUND 10 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8073437.5 ours_gmacs=8.3123 opp_ns=15120351.1 opp_gmacs=4.4383 ratio_ours_over_opp=1.873 sink=49115.7
+ROUND 11 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10349071.3 ours_gmacs=6.4845 opp_ns=15205970.5 opp_gmacs=4.4133 ratio_ours_over_opp=1.469 sink=49115.7
+ROUND 11 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8062523.5 ours_gmacs=8.3236 opp_ns=15178161.4 opp_gmacs=4.4214 ratio_ours_over_opp=1.883 sink=49115.7
+ROUND 12 pre  KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=10400761.6 ours_gmacs=6.4523 opp_ns=15217399.6 opp_gmacs=4.4100 ratio_ours_over_opp=1.463 sink=49115.7
+ROUND 12 post KQGEMM fmt=q4_K VLEN=128 K=2048 nr=64 nc=512 iters=20 ours_ns=8144993.8 ours_gmacs=8.2393 opp_ns=15285040.9 opp_gmacs=4.3905 ratio_ours_over_opp=1.877 sink=49115.7
+[loadavg-end] 3.97 3.48 3.96 2/1279 360074
+[tile-s6-ab] done. restore: main tree + build/ UNTOUCHED (no rebuild); board scratch ephemeral under /tmp/kquant_tile_s6_ab; governor left as-found.
+
+# ===== RESIDUAL-SPILL HARDWARE VERIFICATION (objdump -d s6_O2.o on rvv) =====
+# hot-dot block loops: .LBB0_9 @0x320e, .LBB0_10 @0x327e
+# vs2r.v v8,(a0)  @ 0x00aa 0x00be 0x00f2  -> all PROLOGUE (< .LBB0_2 @0x104); zeroed v8 = 3 bsums-panel inits
+# vl2r.v          @ 0x0192 0x01b2 0x01c2 (setup) + 0x3200 0x3250 0x3272 0x3282 0x6230 (fold) -> panel reads
+# => 3 pre-loop zero-init stores, 8 panel reads, ZERO store->reload live-value pairs in the hot dot
+# => allocator hot-loop live-value spills = 0 (the seal's raw spill=3 are init, not spills).

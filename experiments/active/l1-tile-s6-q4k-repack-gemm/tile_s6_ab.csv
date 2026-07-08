@@ -1,0 +1,15 @@
+# T2-tile S6 q4_K repack GEMM A/B — board rvv/VLEN128 core8 2.6GHz gov=perf, clang-17.0.6 -O2, K=2048 nc=512 iters=20
+# PRE = S1 h-strip tile (md5 9a757c02, committed d5a28efc, oracle-GREEN); POST = S6 inline-min-fold+stack-panel (md5 90d454da, working-tree delta; byte-exact to S1/golden)
+# golden full-unroll (md5 b0b5beac) shown as the spill=84 base anchor (objdump only, not timed)
+# loadavg nr64: pre 3.24 / mid 3.76 / end 3.97 ; nr16: pre 3.59 / mid 4.49 / end 3.98 (SPEC bzip2 co-tenant present, captured; paired protocol cancels common-mode)
+nr,N,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_ours_over_opp,AB_post_over_pre,vsetvli,spill_vsXr,reload_vlXr,maxVreg,vwmacc,textB
+64,-,golden_full_unroll,,,,,,,53,84,88,v31,2240,23486
+64,12,pre_s1_tile,6.4769,0.313,4.3900,0.965,1.473,,73,23,34,v31,2240,25358
+64,12,post_s6_minfold_panel,8.2817,0.416,4.3940,0.578,1.884,1.279,71,3,8,v30,2240,25358
+16,10,pre_s1_tile,6.4568,0.253,4.5844,3.227,1.434,,73,23,34,v31,2240,25358
+16,10,post_s6_minfold_panel,8.2536,0.491,4.5844,3.227,1.808,1.279,71,3,8,v30,2240,25358
+# byte-exact identity gate PRE(S1) vs POST(S6) (int + norm) = IDENTICAL 0 mismatch both shapes (sink 49115.7 nr64 / 29769.9 nr16)
+# spill classification (objdump -d s6_O2.o verified): raw vs*r.v 84->23->3; the S6 residual 3 = prologue bsums-panel zero-inits, 8 vl*r.v = fold panel reads => hot-loop allocator live-value spills 23->0; maxVreg v31->v30 (peak <=32).
+# pre-registered judgment: spill->~0 (23->3, hot-loop live 23->0) AND MAC/cycle UP (+27.9%, 6.48->8.28 GMAC/s) AND wall passes T-N (~67x/57x floor, non-overlapping) => S6 HOLDS.
+# vs-opponent (clean anchor nr64): parity S1 1.473 -> S6 1.884 (opponent stable cv 0.80% across 24 samples => jump is 100% ours-side). nr16 opponent noise-dominated (cv 3.2%).
+# [NG-4]: L1 kernel datapoint, NOT a beat (eight [PERF-1] gates unwalked; single core; opponent=single-thread block-dot proxy). S6 logged ALONE (not merged S1).
