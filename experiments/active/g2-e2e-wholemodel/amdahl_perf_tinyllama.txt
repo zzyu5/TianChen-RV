@@ -1,0 +1,19 @@
+
+=== TASK-CLOCK DECODE PROFILE (tinyllama-q4_0, fusion ON, 160 tok) ===
+    90.20%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_vec_dot_q4_0_q8_0
+     3.31%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_vec_dot_q6_K_q8_K_vl128.isra.0
+     3.15%  llama-completio  libgomp.so.1.0.0             [.] gomp_team_barrier_wait_end
+     0.85%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_compute_forward_mul_mat
+     0.40%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_compute_forward_flash_attn_ext_f16_one_chunk(ggml_compute_params const*, ggml_tensor*, int, int, long, long, float*, long)
+     0.40%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_vec_dot_f16
+     0.19%  llama-completio  libm.so.6                    [.] expf
+     0.17%  llama-completio  libgomp.so.1.0.0             [.] gomp_barrier_wait_end
+                --0.17%--gomp_thread_start
+     0.14%  llama-completio  libggml-cpu.so.0.15.1        [.] quantize_row_q8_0
+     0.10%  llama-completio  libggml-cpu.so.0.15.1        [.] ggml_graph_compute_thread.isra.0
+                --0.09%--ggml_graph_compute_thread.isra.0
+     0.07%  llama-completio  libggml-base.so.0.15.1       [.] ggml_is_contiguous_0
+     0.07%  llama-completio  libggml-base.so.0.15.1       [.] ggml_type_size
+     0.06%  llama-completio  libgomp.so.1.0.0             [.] gomp_team_barrier_wait
+     0.05%  llama-completio  libllama-common.so.0.0.1     [.] bool std::operator==<char, std::char_traits<char>, std::allocator<char> >(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, char const*)
+                --0.05%--llama_vocab::impl::load(llama_model_loader&, LLM_KV const&)

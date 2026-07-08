@@ -5,10 +5,11 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**29 cells** (active=14, sealed=10, archive=5).
+**30 cells** (active=15, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
+| active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
 | active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 5 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |

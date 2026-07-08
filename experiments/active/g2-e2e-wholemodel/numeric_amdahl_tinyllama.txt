@@ -1,0 +1,26 @@
+== (A) NUMERIC: greedy determinism fusion ON vs OFF (llama-completion) ==
+--- ON  completion ---
+ <|user|>
+Once upon a time in a small village there lived<|assistant|>
+A wise old woman who had lived a long and happy life. She was known for her kindness, wisdom, and her ability to heal. Her name was Mother Mary.
+Mother Mary was a woman of great beauty,
+> EOF by user
+
+
+--- OFF completion ---
+ <|user|>
+Once upon a time in a small village there lived<|assistant|>
+A wise old woman who had lived a long and happy life. She was known for her kindness, wisdom, and her ability to heal. Her name was Mother Mary.
+Mother Mary was a woman of great beauty,
+> EOF by user
+
+
+--- VERDICT ---
+NUMERIC_VERDICT: IDENTICAL (fusion ON == OFF greedy completion, byte-for-byte)
+on_sha=c0c1274bd2aa8b01  off_sha=c0c1274bd2aa8b01
+on_bytes=273  off_bytes=273
+
+== (B) AMDAHL: perf-record decode (fusion ON), sample share of fused norm ==
+--- perf report top-30 self (percent-limit 0.3) ---
+--- norm/mul/quantize-related symbols ---
+== DONE-NUMAMDAHL ==

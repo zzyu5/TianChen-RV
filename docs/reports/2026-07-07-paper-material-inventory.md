@@ -1,4 +1,4 @@
-# 论文素材现状清单 — 2026-07-07（裁决二 板批落表后）
+# 论文素材现状清单 — 2026-07-07（裁决二 板批落表后；2026-07-08 G3 四.1 — G2/FMT-PROP whole-model e2e 落表更新）
 
 **目的**：把当前**已落表**的每条论文可用主张，映射到一个具体的证据表行指针，并标注证据成色。
 纪律：[NG-4] 措辞守（internal A/B ≠ beat；beat 需过 [PERF-1] 八门、vs 同-ISA 框架内核、分相报告）；
@@ -10,6 +10,7 @@ scalar/naive 只作 internal sanity，**绝不**作贡献倍数。三贡献框�
 - `kernel-only` — 真硅实测但 KERNEL-micro；e2e 传导缺席（compute/latency-bound 多半 washes，见 memory: kernel-wins-dont-transplant）。
 - `pending` — 机理投影 / 未跑板 / 八门未闭（②③④ 类）。
 - `structural-block` — 阻塞是 emitter 成熟度（construction-queue），code-verifiable，非测量、未花板。
+- `e2e-diluted-Amdahl` — 真硅 e2e 实测但相分裂 Δ **亚噪声（NOT-SIGNIFICANT）**；isolated kernel 赢经 Amdahl 稀释到噪声地板下（e2e 效应 ≈ 0），如实登记为诚实 null，**非 beat、非失败**（= kernel-wins-dont-transplant 的量化病例）。
 
 主表位置：`experiments/active/result-tables/`（T3_A=rvv/VLEN128，T3_B=k1/VLEN256，T8=win/loss/gap ledger，
 T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指向 T8 行。
@@ -66,13 +67,23 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 
 | # | 主张 | headline | 表行指针 | 成色 | [NG-4] 边界 |
 |---|---|---|---|---|---|
-| L3-1 | **G2 rms_norm→mul 融合首个 L3 字节实测** | wall **1.308×**（T-N PASS，~19× 地板，IQR 不重叠）；**实测 DRAM 消除 256.22 MiB = 预测 y[] 往返 8·n·rows 的 100.1%**；ndiff=0/ULP0 | `T8:g2-fuse-rms-norm-mul-rvv-vlen128-memory-axis`；`T3_A` fused-epilogue 行；cell `g2-fuse-rms-norm-mul/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟），**非 ggml beat、非 e2e 八门**；whole-model e2e（65 norms/token≈2.03 MiB/token）是 projection（`pending`） |
-| L3-2 | **[FMT-PROP] rms_norm→mul→quantize(q8_0) 融合** — 第二条 L3 字节腿（把下游激活量化 pass 折进 epilogue） | wall **1.139×**（T-N PASS，~30× 地板，IQR 0.082/0.032% 不重叠）；**实测 DRAM 消除 255.8 MiB = 预测 f32 激活往返 2·n·4·rows 的 99.9%**（双计数器：store-miss 127.97=z[]store 100.0% + load-miss 127.80=z[]reload 99.8%）；cycles Δ 30.01≈wall Δ 30.32 ms/iter（99.0%）；ndiff=0/4.46M（byte-exact fused≡unfused） | `T8:fmtprop-rms-norm-mul-quantize-q8_0-rvv-vlen128-memory-axis`；`T3_A` fused-quantize-epilogue 行；cell `fmtprop-rms-norm-mul-quantize/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）；铺量-phase1 board-proven COMPLETE** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟：fused-mul + 独立 `quantize_row_q8_0`），**非 ggml beat、非 e2e 八门**；**比 g2-fuse 1.308× 小且诚实**（FMT-PROP unfused 基线多做整趟 quantize → 同 256 MiB 消除占总流量比例更小；载重主张=消除**量级**复现非 wall 比值）；whole-model e2e 是 projection（`pending`） |
+| L3-1 | **G2 rms_norm→mul 融合首个 L3 字节实测** | wall **1.308×**（T-N PASS，~19× 地板，IQR 不重叠）；**实测 DRAM 消除 256.22 MiB = 预测 y[] 往返 8·n·rows 的 100.1%**；ndiff=0/ULP0 | `T8:g2-fuse-rms-norm-mul-rvv-vlen128-memory-axis`；`T3_A` fused-epilogue 行；cell `g2-fuse-rms-norm-mul/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟），**非 ggml beat、非 e2e 八门**；whole-model e2e（G3 四.1，board-measured 2026-07-08）= **NOT-SIGNIFICANT**：tinyllama-q4_0 prefill −0.11%/decode −0.27% ns（+ llama-2-7b canonical-65-norm prefill +0.06%/decode +0.12%）均亚噪声、greedy 逐字节等价（value-preserving）→ isolated 1.308× **不传导**（成色 `e2e-diluted-Amdahl`：fused-norm 仅占 decode 0.05%、q4_0 matmul 90.2%、ceiling +0.05%<地板；norm 中间体 cache-resident 8KiB/norm decode ~1MiB prefill<L2/L3，isolated >L3(128MiB) micro 的 DRAM 往返在整模型尺度不存在）；见 `T8:g2-fuse-rms-norm-mul-WHOLE-MODEL-e2e-rvv-vlen128-NOT-SIGNIFICANT` + `T3_A` e2e 行 + cell `g2-e2e-wholemodel/`；无 e2e beat |
+| L3-2 | **[FMT-PROP] rms_norm→mul→quantize(q8_0) 融合** — 第二条 L3 字节腿（把下游激活量化 pass 折进 epilogue） | wall **1.139×**（T-N PASS，~30× 地板，IQR 0.082/0.032% 不重叠）；**实测 DRAM 消除 255.8 MiB = 预测 f32 激活往返 2·n·4·rows 的 99.9%**（双计数器：store-miss 127.97=z[]store 100.0% + load-miss 127.80=z[]reload 99.8%）；cycles Δ 30.01≈wall Δ 30.32 ms/iter（99.0%）；ndiff=0/4.46M（byte-exact fused≡unfused） | `T8:fmtprop-rms-norm-mul-quantize-q8_0-rvv-vlen128-memory-axis`；`T3_A` fused-quantize-epilogue 行；cell `fmtprop-rms-norm-mul-quantize/board_measured.md` | **board-proven（[NG-4] memory-axis A/B，kernel-micro pair）；铺量-phase1 board-proven COMPLETE** | 是 **isolated A/B**（fused vs 我方自己 unfused 两趟：fused-mul + 独立 `quantize_row_q8_0`），**非 ggml beat、非 e2e 八门**；**比 g2-fuse 1.308× 小且诚实**（FMT-PROP unfused 基线多做整趟 quantize → 同 256 MiB 消除占总流量比例更小；载重主张=消除**量级**复现非 wall 比值）；whole-model e2e（G3 四.1）= **board-Amdahl-derived**（同一 decode profile：`quantize_row_q8_0`=0.14% of decode → 单独 e2e ceiling +0.14%、与 norm 合并 0.19%，**均亚噪声** → 成色 `e2e-diluted-Amdahl`，e2e 效应 ≈0 与 G2 同族）；见 `T8:g2-fuse-...-WHOLE-MODEL-e2e-...-NOT-SIGNIFICANT` 的 Amdahl 分解 + cell `g2-e2e-wholemodel/`；无 e2e beat |
 
 > L3 一句话：融合的机理（省掉激活往返：G2 是 y[]=8·n·rows，FMT-PROP 是 f32 激活 z[]=2·n·4·rows≈256MiB）
 > **精确传导到硅**（两腿都 cycles Δ≈wall Δ、双计数器字节归因到 99–100%），是 board-proven 的内存轴数字；框架守住
 > [NG-4]（内部 A/B、非 beat）。这是 L1/L2 的 compute/latency 轴之外，编译器变换在 **memory 轴** 上真赢 wall 的
 > 病例族——两条腿（rms→mul、rms→mul→quantize）都复现了「消除一趟激活往返≈256MiB」的载重量级；铺量 phase1 board-proven 完成。
+>
+> **★whole-model e2e（G3 四.1，board-measured 2026-07-08，NOT-SIGNIFICANT）**：两腿的 isolated 内存赢**不传导**到整模型——
+> tinyllama-q4_0 prefill −0.11%/decode −0.27% ns（+ llama-2-7b canonical-65-norm prefill +0.06%/decode +0.12%）**全亚噪声**、
+> greedy 逐字节等价（value-preserving，on_sha=off_sha=c0c1274bd2aa8b01）。e2e A/B = ggml **自己**的 fusion ON/OFF 开关
+> （`GGML_CPU_DISABLE_FUSION`；upstream f3e1828 **默认已融合** → 无 unfused-stock 可打；toggle 测的是我方编译器 emit 的**同一变换**、
+> preflight(0) 同二进制对称）。**Amdahl 结构性解释**：fused-norm 仅占 decode task-clock **0.05%**、q4_0 matmul **90.2%**、
+> norm-fusion ceiling **+0.05%**（+FMT-PROP quantize 0.14% → 合并 0.19%）**均在噪声地板下** → e2e null 是**结构性**非测量缺失；
+> 病因=整模型 norm 中间体 **cache-resident**（8KiB/norm decode、~1MiB prefill，均<L2/L3），isolated >L3(128MiB) micro 强迫的
+> DRAM 往返在整模型 norm 尺度**不存在**。成色 `e2e-diluted-Amdahl`；**无 e2e beat、无 Win-B/Win-C**，铺量 e2e 推广**不在证据上**
+> （轴是 q4_0 matmul 非 norm）——这正是 memory `kernel-wins-dont-transplant-to-memory-bound-e2e` 被量化到 0.05% 切片的诚实病例。
 
 ---
 
@@ -111,8 +122,8 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 - L1-4/L1-5 q4_K/q5_K：opponent-absence 已 board-probed 双证，但**八门整体未走**（kernel-prefill 单核 proxy、吞吐-only 未复验数值）— `candidate`，beat 措辞锁；q4_K 吞吐=PARITY、q5_K=~1.5×-vs-UNTUNED（争夺格候选数非 win）。
 - L1-6/L1-7/L1-8 q6_K/q2_K/q3_K：opponent-absence board-probed（q3_K 家族最强 absence）**且板上数值已证**（SILICON byte-exact-integer + bounded-norm，比 q4_K/q5_K 多一层硬件数值确认）— `candidate（board-numeric-verified）`；但吞吐**三格全 LOSS ~5–6×**（first-construction un-pipelined emit vs ggml mature `_vl128` block-dot）→ **[NG-4] moot（LOSS 不可能是 beat）**，八门未走；结构 opening 未转吞吐 = marginal-cost/maturity 证据，perf 轴 pending（construction-queue：pipeline/schedule 化 emit 才可能翻）。
 - **★L1 成熟前沿 = 精确诊断出的开放张力（两曳光弹 board-证伪，2026-07-08）**：q4_K repack GEMM 上两个 cheap maturity 杠杆【全证伪于硅】——① byte-exact schedule 重排 = NULL（+0.65% 噪声地板、cell `l1-pipeline-q4k-repack-gemm`）；② 结构 RE-ROLL（回卷全展开超块→runtime `emitc.for`）= **−11% 退化**（oracle byte-exact GREEN 但 vsetvli 53→76/spill 84→118 反升、parity 0.962→0.860、cell `l1-reroll-q4k-repack-gemm`）。★病灶精确：emitter 全展开超块→~80 累加器>32 寄存器→普遍 spill（2188 次整寄存器访存=~20× off-peak）；但**寄存器压力 opening 在 16-累加器 `[col][half]` fan-out**——回卷 ii/k 不缩它（且 emitc.for 无 iter-args→累加器落内存每迭代 spill、SEW 交替 e8↔e16→vsetvli 非 loop-invariant 回卷反乘 toggle），唯一缩它的 column 维【牺牲 once-per-16-weight decode amortization=GEMM 相对 GEVM 全部优势】。→ **吞吐赢是 amortization-vs-register-pressure 真张力、非 cheap maturity 修**；转吞吐需更深 restructure（平衡 tiling），是精确定界的 **future-work 前沿**（诚实 negative = C2 边际成本 / C3′ 迁移边界素材，非失败）。
-- L3 G2 whole-model e2e（65 norms/token 投影）未跑板 — `pending`。
-- L3-2 FMT-PROP whole-model e2e（激活量化 epilogue，逐 token 投影）未跑板 — `pending`（isolated A/B 已 board-proven，铺量 phase1 完成）。
+- ~~L3 G2 whole-model e2e 未跑板 — `pending`~~ → **已跑板已闭（G3 四.1，2026-07-08）**：**NOT-SIGNIFICANT**（tinyllama-q4_0 prefill −0.11%/decode −0.27% ns 均亚噪声；llama-2-7b canonical-65-norm 同 null；value-preserving 逐字节等价）；成色 `e2e-diluted-Amdahl`（Amdahl ceiling +0.05%<地板、norm cache-resident、isolated 1.308× 不传导）；行 `T8:g2-fuse-rms-norm-mul-WHOLE-MODEL-e2e-rvv-vlen128-NOT-SIGNIFICANT` + `T3_A` e2e 行 + cell `g2-e2e-wholemodel/`。isolated 内存轴赢仍 board-proven，e2e 推广不在证据上（轴=matmul 非 norm）。
+- ~~L3-2 FMT-PROP whole-model e2e 未跑板 — `pending`~~ → **已闭（G3 四.1，board-Amdahl-derived）**：同一 decode profile 的 `quantize_row_q8_0`=0.14% of decode → 单独 e2e ceiling +0.14%、与 norm 合并 0.19%，均亚噪声；成色 `e2e-diluted-Amdahl`（e2e 效应 ≈0，与 G2 同族）；见上同 cell/T8 行的 Amdahl 分解。isolated A/B 仍 board-proven、铺量 phase1 完成。
 - L2-5 iq4_xs/tq1_0 relaxed body 未建 — `structural-block`（双档税账仅 q8_0 可算）。
 - 缺口余项：tq2_0 vs-SIMD-factory 仍 LOSS；tq1_0 同 spill 类未修 — construction-queue。
 - 所有 kernel-only 项：e2e 传导多半 washes（compute/latency-bound），永远 kernel 与 e2e 分开报。
