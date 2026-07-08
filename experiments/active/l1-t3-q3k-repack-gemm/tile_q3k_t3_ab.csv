@@ -1,0 +1,7 @@
+# q3_K repack GEMM T3-tile A/B -- rvv/VLEN128 core8 2.6GHz gov=performance, clang-17 -O2, 2026-07-08
+# byte-exact GREEN (verify INT_mismatch=0 both, ulp 760 identical; identity o_untiled==o_tiled 0 mismatch; vwmacc 2176 unchanged)
+nr,variant,ours_gmacs_mean,ours_cv_pct,opp_gmacs_mean,opp_cv_pct,parity_mean,ab_tiled_over_untiled,spill_O2,reload_O2,maxVreg,vwmacc,textB_O2,N
+64,untiled,0.6153,0.040,3.4843,1.259,0.1760,,978,1095,v31,2176,75686,12
+64,tiled,0.6643,0.043,3.4843,1.259,0.1913,1.0797,894,1016,v31,2176,72464,12
+16,untiled,0.5951,0.174,3.4255,1.406,0.1727,,978,1095,v31,2176,75686,10
+16,tiled,0.6454,0.214,3.4255,1.406,0.1896,1.0845,894,1016,v31,2176,72464,10

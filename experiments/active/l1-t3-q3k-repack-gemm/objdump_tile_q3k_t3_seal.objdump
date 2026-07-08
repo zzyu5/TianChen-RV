@@ -1,0 +1,54 @@
+=== [1] OBJDUMP seal: vsetvli + spill/reload + maxVreg + vwmacc  UNTILED->TILED (spill ~0? peak <=32?) ===
+  OBJD UNTILED -O2  vsetvli=13   spill=978  reload=1095 vwmacc=2176  maxVreg=v31  textB=75686
+  OBJD TILED   -O2  vsetvli=13   spill=894  reload=1016 vwmacc=2176  maxVreg=v31  textB=72464
+  OBJD UNTILED -O3  vsetvli=12   spill=983  reload=1099 vwmacc=2176  maxVreg=v31  textB=75900
+  OBJD TILED   -O3  vsetvli=12   spill=910  reload=1031 vwmacc=2176  maxVreg=v31  textB=73158
+--- hot-loop spill classification (TILED -O2): vs*r.v addresses vs first hot-dot label ---
+67:      bc:	22850427          	vs2r.v	v8,(a0)
+73:      d0:	22850427          	vs2r.v	v8,(a0)
+81:      ee:	02850427          	vs1r.v	v8,(a0)
+193:     230:	22850e27          	vs2r.v	v28,(a0)
+199:     244:	22850027          	vs2r.v	v0,(a0)
+205:     258:	22850227          	vs2r.v	v4,(a0)
+211:     26c:	22850927          	vs2r.v	v18,(a0)
+216:     27c:	22850a27          	vs2r.v	v20,(a0)
+222:     290:	22850827          	vs2r.v	v16,(a0)
+228:     2a4:	22850727          	vs2r.v	v14,(a0)
+234:     2b8:	22850527          	vs2r.v	v10,(a0)
+292:     390:	22850627          	vs2r.v	v12,(a0)
+304:     3bc:	22850627          	vs2r.v	v12,(a0)
+374:     4d0:	02850727          	vs1r.v	v14,(a0)
+383:     4f2:	02850727          	vs1r.v	v14,(a0)
+400:     534:	02860727          	vs1r.v	v14,(a2)
+437:     5bc:	02858727          	vs1r.v	v14,(a1)
+450:     5ec:	02858727          	vs1r.v	v14,(a1)
+464:     620:	02860727          	vs1r.v	v14,(a2)
+502:     6ac:	02858727          	vs1r.v	v14,(a1)
+=== [2] SILICON verify (INT byte-exact-integer + NORM bounded-ULP) UNTILED then TILED ===
+
+=== SEAL TABLE (clang-17.0.6, march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs) ===
+| form           | vsetvli | spill(vs*r.v) | reload(vl*r.v) | maxVreg | vwmacc | textB |
+|----------------|--------:|--------------:|---------------:|--------:|-------:|------:|
+| UNTILED -O2    |      13 |           978 |           1095 |     v31 |   2176 | 75686 |
+| TILED   -O2    |      13 |           894 |           1016 |     v31 |   2176 | 72464 |
+| UNTILED -O3    |      12 |           983 |           1099 |     v31 |   2176 | 75900 |
+| TILED   -O3    |      12 |           910 |           1031 |     v31 |   2176 | 73158 |
+
+MECHANISM (★key: q4_K 84 cliff vs q6_K ~900 weight-bound?):
+- UNTILED spill = 978 (-O2) / 983 (-O3). This is q6_K-MAGNITUDE (~900), an ORDER OF MAGNITUDE
+  above the q4_K golden 84 / S1 23. maxVreg v31 (fully saturated, no spare register). q3_K is
+  WEIGHT-RECONSTRUCTION-BOUND, not register-cliff-bound.
+- TILED spill = 894 (-O2) / 910 (-O3). The S6 stack-panel (stage all 32 decoded signed-6bit-scale
+  int16 vectors via vse16/vle16, defer reload to first use = the vwmacc_vv scale x weight-partial
+  accumulation) shaved exactly ~84 spills (= the 32 staged scale strips + their reloads) but the
+  ~894 RESIDUAL remains: spill did NOT reach ~0 (q2_K hit 7, q4_K hit 3), and maxVreg did NOT drop
+  under 32 (v31 -> v31; q2_K/q4_K hit v30). The ≤32-vreg register cliff was NEVER reached.
+- The ~894 residual = the two-plane 3-bit qs|hmask weight reconstruction (2048 vand + 2048 vsrl +
+  1024 vsll + 1024 vor + 1024 vsub -> the i16 weight-partial-sums that are the OTHER operand of the
+  256 vwmacc_vv), plus the f32 accumulator fan -- pressure the decode-scale panel does not touch.
+- vwmacc 2176 UNCHANGED across all four -> byte-exact multiset preserved (confirmed by the silicon
+  verify + identity dump). text shrank 75686->72464 (the staged scale spill/reload collapse).
+- CONTRAST q6_K (cell l1-t3-q6k): its emitter panel spill ROSE 913->949 (+36); q3_K's clean minimal
+  hand-panel FELL 978->894 (-84). Both are NULL ON THE CLIFF (spill stays ~900, maxVreg v31) -- the
+  sign of the small delta differs but neither reaches the register cliff. q3_K rides the SAME q6_K
+  no-min single-scale fold; it is q6_K-shaped, not q4_K/q2_K(min-fold)-shaped.

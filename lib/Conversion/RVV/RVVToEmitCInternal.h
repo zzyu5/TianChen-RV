@@ -379,18 +379,14 @@ private:
   // emitTypedRepackGem{v,m}LoopBody's K-quant branch -> emitRepackKQuantGem{v,m}BodyQ2K
   // (byte-exact GEVM / S6-tiled byte-exact GEMM).
 
-  /// The K-quant (super-block) 16x1-REPACKED single-output-column GEVM (decode)
-  /// recognizer for q3_K: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_q3_K_q8_K. The emitter owns the block-as-lane single-column
-  /// expansion with the q3_K 3-bit SUBTRACTIVE-hmask weight assembly (2-bit qs + 1-bit
-  /// hmask, -4 bias) + the reused q6_K signed-scale single-accumulator no-min fold.
-  static bool isRepackGemvQ3KQ8KBody(tcrvrvv::WithVLOp scope);
-  /// The K-quant (super-block) 16x1-REPACKED multi-output-column GEMM (prefill)
-  /// recognizer for q3_K: a with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemm_q3_K_q8_K. The emitter shares the q3_K 3-bit SUBTRACTIVE
-  /// hmask decode (amortized across the 4 interleaved activation columns) with the
-  /// single signed-scale no-min accumulator.
-  static bool isRepackGemmQ3KQ8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 主线A T3 format3): isRepackGemvQ3KQ8KBody + isRepackGemmQ3KQ8KBody RETIRED
+  // with the q3_K direct emitters + monolith ops (the SECOND no-min K-quant super-block,
+  // the LAST K-quant repack sibling). The q3_K repack now flows through the
+  // typed_repack_gem{v,m}_loop_body front door's K-quant NO-MIN branch (fold_model
+  // "kquant_single_scale_no_min", SHARED with q6_K) carrying the
+  // tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q3_K"), lowered by
+  // emitTypedRepackGem{v,m}LoopBody -> emitRepackKQuantGem{v,m}BodyQ3K (byte-exact GEVM /
+  // PLAIN byte-exact GEMM; S6 tiling NULL for weight-bound q3_K).
 
   // NOTE: isRepackGemvTQ20Q8KBody + isRepackGemmTQ20Q8KBody RETIRED with the tq2_0
   // direct emitters (G3 主线B batch1); tq2_0 repack now flows through the
@@ -1647,31 +1643,53 @@ private:
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
       int64_t half) const;
 
-  /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) for
-  /// one tcrv_rvv.repack_gemv_q3_K_q8_K op. q3_K is q6_K's no-min structural cousin: it
-  /// REUSES the q6_K SINGLE-accumulator no-min scaffold (LANE-WISE vwmacc block-as-lane
-  /// strips, 16 SIGNED int8 scales vle8_v_i8 + vsext_vf2_i16, a SINGLE super-block d
-  /// fold with NO dmin / NO bsums / NO min term) with ONE q3_K delta: the 3-BIT
-  /// SUBTRACTIVE-HMASK weight assembly `((qs >> shift) & 3) - ((hmask & (1<<p)) ? 0 :
-  /// 4)` -- a 2-bit qs low plane | a SINGLE hmask high bit lifted to bit-2, then the -4
-  /// SUBTRACTIVE bias (vsub_vx_i8 by 4, a SIGNED value in [-4,3]). The 16 signed 6-bit
-  /// scales are PRE-UNPACKED + -32-biased at repack time (byte-identical scale side to
-  /// q6_K). Because |w| <= 4, each 16-position sub-block partial runs in ONE i16 (NO
-  /// 2x8 k-chunk split).
-  mlir::LogicalResult emitRepackGemvQ3KQ8K(
+  /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemvQ3KQ8K, refactored to take the mapped ABI values + block-format facts
+  /// (the q3_K signed-scales + hmask high-bit plane byte offset [the SHARED qh slot] +
+  /// n_subblocks) as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's K-quant
+  /// NO-MIN branch (gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+  /// brick, decode_model "q3_K"). q3_K is q6_K's no-min structural cousin: it REUSES the
+  /// q6_K SINGLE-accumulator no-min scaffold (LANE-WISE vwmacc block-as-lane strips, 16
+  /// SIGNED int8 scales vle8_v_i8 + vsext_vf2_i16, a SINGLE super-block d fold with NO
+  /// dmin / NO bsums / NO min term) with ONE q3_K delta: the 3-BIT SUBTRACTIVE-HMASK
+  /// weight assembly `((qs >> shift) & 3) - ((hmask & (1<<p)) ? 0 : 4)` -- a 2-bit qs low
+  /// plane | a SINGLE hmask high bit lifted to bit-2, then the -4 SUBTRACTIVE bias
+  /// (vsub_vx_i8 by 4, a SIGNED value in [-4,3]). The 16 signed 6-bit scales are
+  /// PRE-UNPACKED + -32-biased at repack time (byte-identical scale side to q6_K). Because
+  /// |w| <= 4, each 16-position sub-block partial runs in ONE i16 (NO 2x8 k-chunk split).
+  /// RESULT-LESS (no monolith token). The no-min sibling of emitRepackKQuantGemvBodyQ6K.
+  mlir::LogicalResult emitRepackKQuantGemvBodyQ3K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQsOffset, int64_t activationQuantOffset,
+      int64_t weightScalesOffset, int64_t weightHmaskOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t half) const;
 
-  /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM for
-  /// one tcrv_rvv.repack_gemm_q3_K_q8_K op. The q3_K prefill sibling of
-  /// emitRepackGemvQ3KQ8K: the SAME 3-bit SUBTRACTIVE-hmask weight assembly (-4 bias) +
-  /// signed-6bit-scale single-accumulator no-min fold, with the weight decode AMORTIZED
-  /// across the 4 interleaved block_q8_Kx4 activation columns.
-  mlir::LogicalResult emitRepackGemmQ3KQ8K(
+  /// Emit the COMPLETE ggml q3_K x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemmQ3KQ8K, refactored to PARAMETERS. Ships PLAIN/UNTILED: S6 output
+  /// tiling is a family-lever NULL on weight-reconstruction-bound no-min K-quant (q4_K's
+  /// register-cliff lever does NOT transfer to q3_K/q6_K; simpler-wins), byte-exact to
+  /// the retired direct emitter. Called ONLY from emitTypedRepackGemmLoopBody's K-quant
+  /// NO-MIN branch (gated on the in-region tcrv_rvv.repack_gemm_kquant_core anti-bypass
+  /// brick, decode_model "q3_K"). The q3_K prefill sibling of emitRepackKQuantGemvBodyQ3K:
+  /// the SAME 3-bit SUBTRACTIVE-hmask weight assembly (-4 bias) + signed-6bit-scale
+  /// single-accumulator no-min fold, with the weight decode AMORTIZED across the 4
+  /// interleaved block_q8_Kx4 activation columns. RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackKQuantGemmBodyQ3K(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQsOffset,
+      int64_t activationQuantOffset, int64_t weightScalesOffset,
+      int64_t weightHmaskOffset, int64_t nSubblocks, int64_t weightInterleave,
+      int64_t activationInterleave, int64_t half) const;
 
   /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)
   /// Emit the COMPLETE ggml tq2_0 x q8_K 16x1-REPACKED block-as-lane GEVM (decode)

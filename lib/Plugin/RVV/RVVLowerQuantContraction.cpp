@@ -260,6 +260,25 @@ constexpr llvm::StringLiteral kKQuantQ2KScaleModel =
 constexpr llvm::StringLiteral kKQuantQ2KGemmScaleModel =
     "superblock-d.dmin-fp16-plus-bsums-min-16-subblocks-2bit-4col";
 
+// The K-quant q3_K decode-FAMILY discriminator (G3 主线A T3 format3): the q3_K
+// super-block SINGLE fp16 d scale + 16 SIGNED 6-bit per-16-element scales (pre-unpacked
+// + -32-biased at repack, stored as signed int8) + 3-BIT SUBTRACTIVE weight assembled
+// from a 2-bit `qs` low plane + a 1-bit `hmask` high plane (`((qs>>shift)&3 | hbit<<2)
+// - 4`, a SIGNED value in [-4,3]; the -4 SUBTRACTIVE bias lives LANE-WISE inside each
+// weight), 16 sub-blocks of 16, and NO dmin / NO per-sub-block min / NO activation
+// bsums (the single-accumulator no-min fold). It is q6_K's NO-MIN structural cousin:
+// it SHARES the SAME "kquant_single_scale_no_min" fold (hasMin=false), so it REUSES the
+// no-min KQuantDecodeFacts fold WITHOUT any framework generalization -- the ONLY
+// q3_K-specific work is the decode leaf (the 3-bit subtractive qs|hmask weight peel)
+// and the q3_K block offsets. Its repack-SELECTED lowering CONSTRUCTS the K-quant
+// typed_repack_gem{v,m}_loop_body region (fold_model "kquant_single_scale_no_min",
+// decode_model "q3_K") -- the no-min sibling of the q6_K region, keying the hmask
+// SECOND weight plane off the SHARED weightQhByteOffset (the q6_K qh slot).
+constexpr llvm::StringLiteral kKQuantQ3KScaleModel =
+    "superblock-d.fp16-signed6-scale-16-subblocks-3bit-subtractive-hmask-nomin";
+constexpr llvm::StringLiteral kKQuantQ3KGemmScaleModel =
+    "superblock-d.fp16-signed6-scale-16-subblocks-3bit-subtractive-hmask-4col-nomin";
+
 // The repacked block_q{4,6}_Kx16 / block_q8_K{,x4} byte facts the K-quant lowering
 // RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
 // asserts). For q4_K (hasMin): the 16-inline-fp16-d + 16-inline-fp16-dmin +
@@ -357,6 +376,33 @@ constexpr KQuantDecodeFacts kQ2KDecodeFacts = {
     /*gemmActivationBlockStride=*/1168,
     /*gemmActivationQuantByteOffset=*/16,
     /*gemmActivationBsumsByteOffset=*/1040,
+    /*nSubblocks=*/16,
+};
+
+// q3_K: the SINGLE-accumulator no-min sibling of q6_K (SHARES the no-min fold, K-quant
+// re-pay ZERO -- only the block offsets + the decode leaf change). No dmin (single
+// super-block d), no per-sub-block min, no activation bsums -- the -4 SUBTRACTIVE bias
+// lives INSIDE each 3-bit weight lane. block_q3_Kx16 stride 1824 (16 fp16 d + 256
+// signed int8 scales + 512 hmask high-bit + 1024 qs low-2-bit): signed scales @32, the
+// hmask high-bit SECOND weight plane @288 (the q6_K qh slot -- weightQhByteOffset), the
+// qs low-2-bit plane @800. 16 sub-blocks of 16. The q8_K activation ABI is byte-identical
+// to q6_K (292/4 GEVM, 1168/16 GEMM, NO bsums read).
+constexpr KQuantDecodeFacts kQ3KDecodeFacts = {
+    /*decodeModel=*/"q3_K",
+    /*gemmScaleModel=*/kKQuantQ3KGemmScaleModel,
+    /*foldModel=*/"kquant_single_scale_no_min",
+    /*hasMin=*/false,
+    /*weightBlockStride=*/1824,
+    /*weightQuantByteOffset=*/800,
+    /*weightDminByteOffset=*/0,
+    /*weightScalesByteOffset=*/32,
+    /*weightQhByteOffset=*/288,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gevmActivationBsumsByteOffset=*/0,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*gemmActivationBsumsByteOffset=*/0,
     /*nSubblocks=*/16,
 };
 
@@ -490,6 +536,7 @@ private:
           op.getScaleModel() == kKQuantQ4KScaleModel   ? &kQ4KDecodeFacts
           : op.getScaleModel() == kKQuantQ6KScaleModel ? &kQ6KDecodeFacts
           : op.getScaleModel() == kKQuantQ2KScaleModel ? &kQ2KDecodeFacts
+          : op.getScaleModel() == kKQuantQ3KScaleModel ? &kQ3KDecodeFacts
                                                        : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
         return kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
@@ -514,7 +561,8 @@ private:
         op.getScaleModel() == kTernaryTQ10ScaleModel ||
         op.getScaleModel() == kKQuantQ4KScaleModel ||
         op.getScaleModel() == kKQuantQ6KScaleModel ||
-        op.getScaleModel() == kKQuantQ2KScaleModel)
+        op.getScaleModel() == kKQuantQ2KScaleModel ||
+        op.getScaleModel() == kKQuantQ3KScaleModel)
       return op.emitError()
              << "ternary / K-quant quant_contraction requires a repack-affording "
                 "capability (a valid e16m1 strip width, minVLEN >= 128); there "

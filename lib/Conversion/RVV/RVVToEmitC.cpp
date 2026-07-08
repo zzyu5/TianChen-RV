@@ -397,8 +397,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // its monolith op + recognizer RETIRED to the front door (constructed +
         // S6-tiled typed_repack_gemm_loop_body, fold_model "kquant_dmin_bsums_min"
         // SHARED with q4_K -> emitRepackKQuantGemmBodyQ2K).
-        {&isRepackGemmQ3KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmQ3KQ8K},
+        // NOTE (G3 主线A T3 format3): q3_K GEMM direct emitter (emitRepackGemmQ3KQ8K) +
+        // its monolith op + recognizer RETIRED to the front door (constructed PLAIN
+        // typed_repack_gemm_loop_body, fold_model "kquant_single_scale_no_min" SHARED
+        // with q6_K -> emitRepackKQuantGemmBodyQ3K; S6 tiling NULL for weight-bound q3_K).
         // NOTE: the tq2_0 (G3 主线B batch1) AND tq1_0 (G3 主线B batch2) 16x1-repacked
         // GEMM direct emitters (emitRepackGemm{TQ20,TQ10}Q8K) + their monolith ops
         // (tcrv_rvv.repack_gemm_tq{2,1}_0_q8_K) + recognizers are RETIRED (the whole
@@ -440,8 +442,10 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // its monolith op + recognizer RETIRED to the front door (constructed
         // typed_repack_gemv_loop_body, fold_model "kquant_dmin_bsums_min" SHARED with
         // q4_K -> emitRepackKQuantGemvBodyQ2K).
-        {&isRepackGemvQ3KQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvQ3KQ8K},
+        // NOTE (G3 主线A T3 format3): q3_K GEVM direct emitter (emitRepackGemvQ3KQ8K) +
+        // its monolith op + recognizer RETIRED to the front door (constructed
+        // typed_repack_gemv_loop_body, fold_model "kquant_single_scale_no_min" SHARED
+        // with q6_K -> emitRepackKQuantGemvBodyQ3K).
         // NOTE: the tq2_0 (G3 主线B batch1) AND tq1_0 (G3 主线B batch2) 16x1-repacked
         // GEVM direct emitters (emitRepackGemv{TQ20,TQ10}Q8K) + their monolith ops
         // (tcrv_rvv.repack_gemv_tq{2,1}_0_q8_K) + recognizers are RETIRED (the whole
@@ -1445,33 +1449,15 @@ bool VariantToEmitCFunc::isRepackGemvQ5KQ8KBody(tcrvrvv::WithVLOp scope) {
 // isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody's K-quant branch ->
 // emitRepackKQuantGem{v,m}BodyQ2K (byte-exact GEVM / S6-tiled byte-exact GEMM).
 
-bool VariantToEmitCFunc::isRepackGemvQ3KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvQ3KQ8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmQ3KQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmQ3KQ8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE (G3 主线A T3 format3): the q3_K 16x1-repacked GEVM + GEMM recognizers
+// (isRepackGem{v,m}Q3KQ8KBody) are RETIRED with their direct emitters + monolith ops
+// (the SECOND no-min K-quant super-block, the LAST K-quant repack sibling). The q3_K
+// repack is now CONSTRUCTED as the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body region
+// (fold_model "kquant_single_scale_no_min", SHARED with q6_K) carrying the
+// tcrv_rvv.repack_gem{v,m}_kquant_core brick (decode_model "q3_K"), lowered by
+// isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody's K-quant no-min
+// branch -> emitRepackKQuantGem{v,m}BodyQ3K (byte-exact GEVM / PLAIN byte-exact GEMM;
+// S6 tiling NULL for weight-reconstruction-bound q3_K).
 
 // NOTE: isRepackGem{v,m}TQ20Q8KBody (G3 主线B batch1) AND isRepackGem{v,m}TQ10Q8KBody
 // (G3 主线B batch2) -- the tq2_0 2-bit + tq1_0 base-3 direct-emitter recognizers --

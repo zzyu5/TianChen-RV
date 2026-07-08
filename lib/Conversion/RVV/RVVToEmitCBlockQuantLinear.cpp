@@ -1770,20 +1770,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           coreBrick, "the q6_K core brick's weight/activation bases must be the "
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
-    if (coreBrick.getDecodeModel() != "q6_K")
+    // Both q6_K (6-bit ql|qh two-plane offset-binary) and q3_K (3-bit qs|hmask
+    // subtractive) SHARE the SINGLE-accumulator no-min fold ("kquant_single_scale_no_min");
+    // the decode_model WHAT selects the per-family decode leaf. q3_K is q6_K's no-min
+    // cousin (its hmask SECOND weight plane rides the SHARED weight_qh_byte_offset slot).
+    if (coreBrick.getDecodeModel() != "q6_K" &&
+        coreBrick.getDecodeModel() != "q3_K")
       return rewriter.notifyMatchFailure(
-          coreBrick, "q6_K repack GEVM decode_model not recognized (expected "
-                     "\"q6_K\")");
-    // The q6_K super-block decode facts on the loop body op's OPTIONAL attrs
-    // (fail-closed, I7): SIGNED int8 scales region byte offset, qh high-2-bit plane
-    // byte offset, and sub-block count. NO dmin / NO bsums (single-accumulator).
+          coreBrick, "K-quant no-min repack GEVM decode_model not recognized "
+                     "(expected \"q6_K\" or \"q3_K\")");
+    // The no-min super-block decode facts on the loop body op's OPTIONAL attrs
+    // (fail-closed, I7): SIGNED int8 scales region byte offset, the SECOND weight-plane
+    // byte offset (q6_K qh high-2-bit / q3_K hmask high-bit), and sub-block count. NO
+    // dmin / NO bsums (single-accumulator).
     std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
     std::optional<uint64_t> qhOff = loopBody.getWeightQhByteOffset();
     std::optional<uint64_t> nSub = loopBody.getNSubblocks();
     if (!scalesOff || !qhOff || !nSub)
       return rewriter.notifyMatchFailure(
-          loopBody, "q6_K repack GEVM loop body requires the super-block decode "
-                    "attrs weight_scales_byte_offset / weight_qh_byte_offset / "
+          loopBody, "K-quant no-min repack GEVM loop body requires the super-block "
+                    "decode attrs weight_scales_byte_offset / weight_qh_byte_offset / "
                     "n_subblocks");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
@@ -1791,10 +1797,25 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     mlir::Value columnCount = valueMap.lookup(loopBody.getColumnCount());
     if (!weightBase || !activationBase || !output || !columnCount)
       return rewriter.notifyMatchFailure(
-          loopBody, "q6_K repack GEVM loop ABI operand unmapped");
+          loopBody, "K-quant no-min repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
+    // RE-EMITs the byte-exact q3_K GEVM body (the no-min sibling of q6_K).
+    if (coreBrick.getDecodeModel() == "q3_K")
+      return emitRepackKQuantGemvBodyQ3K(
+          rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
+          sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(*scalesOff), static_cast<int64_t>(*qhOff),
+          static_cast<int64_t>(*nSub),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
     return emitRepackKQuantGemvBodyQ6K(
         rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
         sizeType, opName, role, coreLmul,
@@ -2341,17 +2362,22 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           coreBrick, "the q6_K GEMM core brick's weight/activation bases must be "
                      "the loop-body's own repacked-weight / q8_Kx4-activation ABI "
                      "buffers");
-    if (coreBrick.getDecodeModel() != "q6_K")
+    // q6_K (6-bit ql|qh) and q3_K (3-bit qs|hmask subtractive) SHARE the no-min GEMM
+    // fold; the decode_model WHAT selects the per-family leaf. Both ship PLAIN/UNTILED
+    // (S6 output tiling is a family-lever NULL on weight-reconstruction-bound no-min
+    // K-quant -- q4_K's register-cliff lever does NOT transfer; simpler-wins).
+    if (coreBrick.getDecodeModel() != "q6_K" &&
+        coreBrick.getDecodeModel() != "q3_K")
       return rewriter.notifyMatchFailure(
-          coreBrick, "q6_K repack GEMM decode_model not recognized (expected "
-                     "\"q6_K\")");
+          coreBrick, "K-quant no-min repack GEMM decode_model not recognized "
+                     "(expected \"q6_K\" or \"q3_K\")");
     std::optional<uint64_t> scalesOff = loopBody.getWeightScalesByteOffset();
     std::optional<uint64_t> qhOff = loopBody.getWeightQhByteOffset();
     std::optional<uint64_t> nSub = loopBody.getNSubblocks();
     if (!scalesOff || !qhOff || !nSub)
       return rewriter.notifyMatchFailure(
-          loopBody, "q6_K repack GEMM loop body requires the super-block decode "
-                    "attrs weight_scales_byte_offset / weight_qh_byte_offset / "
+          loopBody, "K-quant no-min repack GEMM loop body requires the super-block "
+                    "decode attrs weight_scales_byte_offset / weight_qh_byte_offset / "
                     "n_subblocks");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
@@ -2362,10 +2388,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     if (!weightBase || !activationBase || !output || !rowCount ||
         !columnCount || !outputRowStride)
       return rewriter.notifyMatchFailure(
-          loopBody, "q6_K repack GEMM loop ABI operand unmapped");
+          loopBody, "K-quant no-min repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
+    // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
+    // RE-EMITs the byte-exact PLAIN q3_K GEMM body (the no-min sibling of q6_K).
+    if (coreBrick.getDecodeModel() == "q3_K")
+      return emitRepackKQuantGemmBodyQ3K(
+          rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
+          outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(loopBody.getWeightQuantByteOffset()),
+          static_cast<int64_t>(loopBody.getActivationQuantByteOffset()),
+          static_cast<int64_t>(*scalesOff), static_cast<int64_t>(*qhOff),
+          static_cast<int64_t>(*nSub),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getActivationInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
     return emitRepackKQuantGemmBodyQ6K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -14584,45 +14626,38 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedVectorLane0ToScalarExtract(
   return mlir::success();
 }
 
-// q3_K x q8_K 16x1-REPACKED GEVM emitter. q3_K is the LAST (and most intricate)
-// K-quant repack sibling: a FAITHFUL reuse of the oracle-verified q6_K SINGLE-
-// accumulator no-min scaffold (emitRepackGemvQ6KQ8K -- LANE-WISE vwmacc block-as-lane
-// strips, 16 SIGNED int8 scales vle8_v_i8 + vsext_vf2_i16, a SINGLE super-block d fold
-// with NO dmin / NO bsums / NO min term) with ONE q3_K-specific delta: the 3-BIT
-// SUBTRACTIVE-HMASK weight assembly. Each weight is `((qs >> shift) & 3) - ((hmask &
-// (1<<p)) ? 0 : 4)` -- a 2-bit `qs` low plane (4 weights per byte at shift {0,2,4,6})
-// | a SINGLE `hmask` high bit lifted to bit-2, then the -4 SUBTRACTIVE bias (bit CLEAR
-// -> subtract 4, folded LANE-WISE via vsub_vx_i8 by 4). The hmask bit position
-// `p = 4*(n/128) + shift_group` reuses the SAME 32-byte hmask plane across BOTH
-// super-halves (the hmask byte index is NEVER advanced by super-half; only qs is). The
-// 16 SIGNED 6-bit scales are PRE-UNPACKED + -32-biased at repack time, so the scale
-// side is byte-identical to q6_K. Because |w| <= 4 (vs q6_K's [-32,31]), a full
+// q3_K x q8_K 16x1-REPACKED GEVM (decode) body leaf, from the FRONT DOOR. q3_K is the
+// LAST (and most intricate) K-quant repack sibling: a FAITHFUL reuse of the
+// oracle-verified q6_K SINGLE-accumulator no-min scaffold (emitRepackKQuantGemvBodyQ6K
+// -- LANE-WISE vwmacc block-as-lane strips, 16 SIGNED int8 scales vle8_v_i8 +
+// vsext_vf2_i16, a SINGLE super-block d fold with NO dmin / NO bsums / NO min term) with
+// ONE q3_K-specific delta: the 3-BIT SUBTRACTIVE-HMASK weight assembly. Each weight is
+// `((qs >> shift) & 3) - ((hmask & (1<<p)) ? 0 : 4)` -- a 2-bit `qs` low plane (4 weights
+// per byte at shift {0,2,4,6}) | a SINGLE `hmask` high bit lifted to bit-2, then the -4
+// SUBTRACTIVE bias (bit CLEAR -> subtract 4, folded LANE-WISE via vsub_vx_i8 by 4). The
+// hmask bit position `p = 4*(n/128) + shift_group` reuses the SAME 32-byte hmask plane
+// across BOTH super-halves (the hmask byte index is NEVER advanced by super-half; only
+// qs is). The 16 SIGNED 6-bit scales are PRE-UNPACKED + -32-biased at repack time, so the
+// scale side is byte-identical to q6_K. Because |w| <= 4 (vs q6_K's [-32,31]), a full
 // 16-position sub-block partial stays within int16 (16*4*127 = 8128 < 32767), so q3_K
-// runs ONE i16 partial per sub-block with NO 2x8 k-chunk split. Oracle-verified vs an
-// INDEPENDENT scalar q3_K dequant-matmul reference (controls HMASK-OFF / HMASK-INV /
-// SCALE-ROT / BIAS-OFF).
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ3KQ8K(
+// runs ONE i16 partial per sub-block with NO 2x8 k-chunk split. The byte-exact body of
+// the RETIRED monolithic direct emitter emitRepackGemvQ3KQ8K, refactored to take the
+// mapped ABI values + block-format facts as PARAMETERS (no monolith-op lookup, no
+// trailing unused-result token); called ONLY from emitTypedRepackGemvLoopBody's K-quant
+// no-min branch, gated on the in-region tcrv_rvv.repack_gemv_kquant_core anti-bypass
+// brick (decode_model "q3_K"). Oracle-verified vs an INDEPENDENT scalar q3_K
+// dequant-matmul reference (controls HMASK-OFF / HMASK-INV / SCALE-ROT / BIAS-OFF).
+// RESULT-LESS (no monolith token). The hmask SECOND weight plane rides the SHARED qh
+// slot (weightHmaskOffset == the loop op's weight_qh_byte_offset).
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ3K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvQ3KQ8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvQ3KQ8KOp>(op))
-        gemv = g;
-    }
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope, "repack-gemv-q3_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-q3_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemv.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemv.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+    int64_t qk, int64_t weightStride, int64_t activationStride,
+    int64_t weightQsOffset, int64_t activationQuantOffset,
+    int64_t weightScalesOffset, int64_t weightHmaskOffset, int64_t nSubblocks,
+    int64_t weightInterleave, int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the 16-way
@@ -14630,7 +14665,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ3KQ8K(
     // the RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2 (f16 scale m1),
     // running at half_lanes e16m1 lanes per strip. "m1" is the WHOLE-LMUL chain
     // RVV0.7.1 requires: the chain shifts up one notch, ONE 16-lane strip.
-    llvm::StringRef coreLmul = gemv.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;                         // mf2 -> mf2; m1 -> m1
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";  // mf2 -> m1;  m1 -> m2
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";  // mf2 -> m2;  m1 -> m4
@@ -14662,22 +14696,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ3KQ8K(
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
     // The 16x1 repacked q3_K (K-quant super-block) GEVM block-format structural facts
-    // (I4 mirror, pinned by the verifier): QK_K=256, block_q3_Kx16 weight stride 1824
-    // (16 fp16 d + 256 signed int8 scales + 512 hmask high-bit + 1024 qs low-2-bit),
-    // block_q8_K activation stride 292 (fp32 d + 256 int8 quants + 16 int16 bsums,
-    // bsums UNUSED), qs at +800, hmask at +288, signed scales at +32, activation int8
-    // quants at +4, 16 weight columns per group, 16 sub-blocks of 16, and the
-    // VLEN-derived e8 half width.
-    int64_t qk = gemv.getQk();                                      // 256
-    int64_t weightStride = gemv.getWeightBlockStride();             // 1824
-    int64_t activationStride = gemv.getActivationBlockStride();     // 292
-    int64_t weightQsOffset = gemv.getWeightQuantByteOffset();       // 800
-    int64_t activationQuantOffset = gemv.getActivationQuantByteOffset(); // 4
-    int64_t weightScalesOffset = gemv.getWeightScalesByteOffset();  // 32
-    int64_t weightHmaskOffset = gemv.getWeightHmaskByteOffset();    // 288
-    int64_t nSubblocks = gemv.getNSubblocks();                      // 16
-    int64_t weightInterleave = gemv.getWeightInterleave();          // 16
-    int64_t half = gemv.getHalfLanes();              // 8 @128, 16 @256
+    // (I4 mirror, PARAMETERS now -- the loop body op's pinned attrs, read by the K-quant
+    // no-min branch of emitTypedRepackGemvLoopBody and passed in): QK_K=256,
+    // block_q3_Kx16 weight stride 1824 (16 fp16 d + 256 signed int8 scales + 512 hmask
+    // high-bit + 1024 qs low-2-bit), block_q8_K activation stride 292 (fp32 d + 256 int8
+    // quants + 16 int16 bsums, bsums UNUSED), qs at +800, hmask at +288 (weightHmaskOffset,
+    // the SHARED qh slot), signed scales at +32, activation int8 quants at +4, 16 weight
+    // columns per group, 16 sub-blocks of 16, and the VLEN-derived e8 half width.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t nSuperHalves = qk / 128;                 // 2 (QK_K / 128)
     (void)nSubblocks;
@@ -14692,7 +14717,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ3KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemv, "repack-gemv-q3_K output not pointer");
+      return rewriter.notifyMatchFailure(loc, "repack-gemv-q3_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
     // The active vl is the COMPILE-TIME-CONSTANT half width.
@@ -15080,58 +15105,35 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ3KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    // The op result is the typed i32m1 token; the GEVM writes through *s so the token
-    // has no consumer. Seed it with a zero i32m1 lane-0.
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemv.getResult()] = resultTok;
+    (void)i32m1Type;
+    // RESULT-LESS (no monolith token): the typed_repack_gemv_loop_body region is
+    // result-less (the repacked lane-wise q3_K GEVM sinks through the output pointer,
+    // not an SSA vector), so unlike the retired direct emitter this body leaf seeds NO
+    // dead i32m1 result token.
     return mlir::success();
   }
 
-// q3_K x q8_K 16x1-REPACKED PREFILL GEMM emitter. The q3_K prefill sibling of
-// emitRepackGemvQ3KQ8K: the SAME 3-bit SUBTRACTIVE-hmask signed-weight assembly (-4
+// q3_K x q8_K 16x1-REPACKED PREFILL GEMM (prefill) body leaf, from the FRONT DOOR
+// (PLAIN/UNTILED). The q3_K prefill sibling of emitRepackKQuantGemvBodyQ3K: the SAME
+// 3-bit SUBTRACTIVE-hmask signed-weight assembly (-4
 // bias), the SAME 16 SIGNED 6-bit scales (pre-unpacked + -32-biased at repack), and
 // the SAME SINGLE-accumulator no-min fold, with the weight decode AMORTIZED once per
 // 16-weight group across the 4 (and, across the row loop, M) interleaved block_q8_Kx4
 // activation columns. Oracle-verified vs an INDEPENDENT scalar q3_K dequant-matmul
 // reference (controls HMASK-OFF / HMASK-INV / SCALE-ROT / BIAS-OFF, plus the x4
 // interleave).
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ3KQ8K(
+mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmQ3KQ8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmQ3KQ8KOp>(op))
-        gemm = g;
-    }
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope,
-                                         "repack-gemm-q3_K body missing op");
-
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount ||
-        !columnCount || !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-q3_K ABI operand unmapped");
-
-    llvm::StringRef opName = gemm.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = gemm.getTCRVEmitCLowerableSourceRole();
+    mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+    mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+    int64_t weightStride, int64_t activationStride, int64_t weightQsOffset,
+    int64_t activationQuantOffset, int64_t weightScalesOffset,
+    int64_t weightHmaskOffset, int64_t nSubblocks, int64_t weightInterleave,
+    int64_t activationInterleave, int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
-    llvm::StringRef coreLmul = gemm.getIntegerCoreLmul().value_or("mf2");
     llvm::StringRef l8 = coreLmul;
     llvm::StringRef l16 = coreLmul == "m1" ? "m2" : "m1";
     llvm::StringRef l32 = coreLmul == "m1" ? "m4" : "m2";
@@ -15161,23 +15163,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ3KQ8K(
     mlir::Type f16PtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const _Float16"));
 
-    // The 16x1 repacked q3_K PREFILL GEMM block-format facts (I4 mirror, verifier-
-    // pinned): QK_K=256, block_q3_Kx16 weight stride 1824 (SAME weight ABI as the
-    // GEVM), block_q8_Kx4 activation stride 1168 (4 fp32 d + 1024 int8 + 64 int16
-    // bsums, bsums UNUSED), qs at +800, hmask at +288, signed scales at +32,
-    // interleaved activation quants at +16, 16 weight columns / 4 activation columns,
-    // 16 sub-blocks of 16, VLEN-derived e8 half width.
-    int64_t qk = gemm.getQk();                                      // 256
-    int64_t weightStride = gemm.getWeightBlockStride();             // 1824
-    int64_t activationStride = gemm.getActivationBlockStride();     // 1168
-    int64_t weightQsOffset = gemm.getWeightQuantByteOffset();       // 800
-    int64_t activationQuantOffset = gemm.getActivationQuantByteOffset(); // 16
-    int64_t weightScalesOffset = gemm.getWeightScalesByteOffset();  // 32
-    int64_t weightHmaskOffset = gemm.getWeightHmaskByteOffset();    // 288
-    int64_t nSubblocks = gemm.getNSubblocks();                      // 16
-    int64_t weightInterleave = gemm.getWeightInterleave();          // 16
-    int64_t activationInterleave = gemm.getActivationInterleave();  // 4
-    int64_t half = gemm.getHalfLanes();              // 8 @128, 16 @256
+    // The 16x1 repacked q3_K PREFILL GEMM block-format facts (I4 mirror, PARAMETERS now
+    // -- the loop body op's pinned attrs, read by the K-quant no-min branch of
+    // emitTypedRepackGemmLoopBody and passed in): QK_K=256, block_q3_Kx16 weight stride
+    // 1824 (SAME weight ABI as the GEVM), block_q8_Kx4 activation stride 1168 (4 fp32 d +
+    // 1024 int8 + 64 int16 bsums, bsums UNUSED), qs at +800, hmask at +288
+    // (weightHmaskOffset, the SHARED qh slot), signed scales at +32, interleaved
+    // activation quants at +16, 16 weight columns / 4 activation columns, 16 sub-blocks
+    // of 16, VLEN-derived e8 half width.
     int64_t numHalves = weightInterleave / half;     // 2 @128, 1 @256
     int64_t nSuperHalves = qk / 128;                 // 2
     (void)nSubblocks;
@@ -15196,7 +15189,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ3KQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(gemm,
+      return rewriter.notifyMatchFailure(loc,
                                          "repack-gemm-q3_K output not pointer");
     auto outPtr = llvm::cast<mlir::TypedValue<emitc::PointerType>>(output);
 
@@ -15628,16 +15621,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ3KQ8K(
       return mlir::failure();
 
     (void)outPtr;
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[gemm.getResult()] = resultTok;
+    (void)i32m1Type;
+    // RESULT-LESS (no monolith token): the typed_repack_gemm_loop_body region is
+    // result-less (the repacked lane-wise q3_K GEMM sinks through the output pointer),
+    // so unlike the retired direct emitter this body leaf seeds NO dead i32m1 token.
     return mlir::success();
   }
 
