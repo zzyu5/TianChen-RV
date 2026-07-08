@@ -258,6 +258,7 @@ dispatch with offload threshold
 - 核级赢**不得**直接写成 e2e 赢；须给 Amdahl 四列：`相内时间占比% → Amdahl 预测相级Δ → 实测相级Δ → 传导效率`。无传导列的核级赢不得声称传导到 e2e。
 - micro 赢不在 e2e 出现须如实披露；regime（compute-bound / memory-bandwidth-bound / per-block reduction-latency-bound）须声明，不得藏在更大的数字后。
 - **带宽受限内核以 parity 为零假设**（parity 是物理确认，不是失败）。
+- **memory-轴 epilogue 融合（消一趟中间张量往返）= 机制展示 / 方法学素材,不作性能支柱**：其 isolated A/B（融合 vs 自己两趟）字节消除即便 board-proven,也**不得**暗示 whole-model e2e 收益。当融合的中间张量在整模型尺度 **cache-resident**（< L2/L3）时,isolated micro（>L3 强迫 DRAM 往返）的字节赢**不传导**,whole-model e2e 被 **Amdahl（该算子相内占比切片）+ cache 驻留**双双稀释到噪声地板下 = **结构性 null**（非测量缺失、非失败）。此类 e2e 须作 **micro↛e2e 传导会计的正面档案教材**登记,成色 = `e2e-diluted-Amdahl`。**锁定标准表述形态**：*「kernel 级字节轴机制已证;whole-model 中被 Amdahl（该算子占相内 X%）与 cache 驻留（中间张量 < L2/L3）稀释,e2e 不显著——传导会计精确预测了这一点」*。**绝不**据此声称 Win-B/Win-C 或 e2e beat。
 
 > 表 schema 与落点（T0/T3/T6/T7 等）详情引 [docs 实验总纲 §2](../../../docs/TianChen-RV_实验总纲v1.md) + `experiments/`；本层只写口径与门，零现值。
 
