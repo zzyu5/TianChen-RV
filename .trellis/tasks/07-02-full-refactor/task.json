@@ -30,7 +30,9 @@
     "07-07-construct-gemm-tile-m1",
     "07-07-gap-grid-decode-lever",
     "07-07-revive-m1-wholelmul-schedule",
-    "07-08-pipeline-kquant-repack-gemm"
+    "07-08-pipeline-kquant-repack-gemm",
+    "07-08-G3-L1-maturity",
+    "07-08-G3-frontdoor"
   ],
   "parent": null,
   "relatedFiles": [],
