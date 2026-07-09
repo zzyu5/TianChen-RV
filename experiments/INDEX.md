@@ -5,11 +5,12 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**45 cells** (active=30, sealed=10, archive=5).
+**46 cells** (active=31, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
+| active | `t4b-m1-minterm-bisect` | unknown | — | 2 | — | — |
 | active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
 | active | `t4b-m2-dispatch` | unknown | — | 3 | `m2_dispatch.cpp` | — |
 | active | `t4b-m2c-dispatch` | unknown | — | 5 | — | — |

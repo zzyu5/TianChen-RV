@@ -1,0 +1,233 @@
+
+[m1] board=rvv VLEN128 gcc-15.2.0 ATREE=/home/ubuntu/tcrv-llamacpp core=8 loadavg=3.14 2.96 3.00 2/1280 540448
+=== [0] baseline verify + backup 2 patch-target files ===
+  GEN  now=deb61a29dd079440ffdc8996b5bd2fa1  base=deb61a29dd079440ffdc8996b5bd2fa1
+  ARCH now=99131cf791e30348b588423b2388e0b8  base=99131cf791e30348b588423b2388e0b8
+  backups captured.
+=== [0b] instrumented kernel fingerprint (base md5 must be 90d454da when captures stripped) ===
+ba2996c20681a0ceddf6047921634063  /tmp/m1_minterm_board/instr_q4K.inc
+1
+1
+=== [1] apply M1 patch (instrumented kernel) ===
+PATCH OK (M1: INSTRUMENTED S6 kernel)
+GEN  md5: 93374ef0d3f978b3ad46e12b2b904cea
+ARCH md5: 376706bd9846a04a02f32d5a8159e1c6
+Edit2a instr include present: True
+Edit2b banner present: True
+=== [2] rebuild ggml-cpu ===
+  patch build OK
+-rwxr-xr-x 1 ubuntu ubuntu 918632  7月 9日 20:21 /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so.0.15.1
+  golden symbol (expect >=1):
+1
+  banner (expect >=1):
+1
+  capture globals exported (expect tcrv_min_i tcrv_dmin present):
+0000000000153420 B tcrv_cap_want
+0000000000152a18 B tcrv_dmin
+0000000000153018 B tcrv_main_i
+0000000000152c18 B tcrv_min_i
+=== [3] compile m1_probe driver ===
+  driver compile OK
+=== [4] RUN m1_probe (real ggml_mul_mat -> instrumented kernel, min-term bisect) ===
+VLEN(bits)=128
+repack: repack tensor  with q4_K_16x1
+TCRV EMITTED GEMM(q4_K_16x1 VLEN128 compiler-emitted) ENGAGED nr=4 nc=64 nb=2
+TCRV Q4_K BLOCK-DOT ENGAGED (LMUL=m1 compiler-emitted)
+repack: repack tensor  with q4_K_16x1
+KCAP blk=0 row=0 ad=0.039370 MAIN 226750 -349494 -332266 11319 -373981 -15075 273030 216507 MIN 10597 -111 -1815 17613 2794 8602 -4805 -3215 D 0.031250 0.062500 0.125000 0.250000 0.015625 0.046875 0.187500 0.023438 DMIN 0.062500 0.125000 0.250000 0.015625 0.046875 0.187500 0.023438 0.031250
+KCAP blk=0 row=1 ad=-0.039370 MAIN 276589 -602391 111833 170810 -70776 -141621 5457 -281691 MIN 12021 -3019 22250 -18922 3402 31281 13292 7531
+KCAP blk=0 row=2 ad=0.039370 MAIN -408785 -655136 -624484 -90768 -504381 -487708 -514889 -94692 MIN -74574 -30417 -47866 -75367 -68159 -36223 -10586 -35518
+KCAP blk=0 row=3 ad=0.039370 MAIN -693222 -439126 -623495 -212159 -197053 -200827 -313618 -265612 MIN -72287 -63200 -48734 -34068 -51954 -27507 -78424 -52953
+KCAP blk=1 row=0 ad=0.039370 MAIN -213908 79382 31166 186163 -302170 -78367 -31184 -22496 MIN -22088 1069 -11981 3218 -1397 -10510 9538 -24814 D 0.062500 0.125000 0.250000 0.015625 0.046875 0.187500 0.023438 0.031250 DMIN 0.015625 0.046875 0.187500 0.023438 0.031250 0.062500 0.125000 0.250000
+KCAP blk=1 row=1 ad=-0.039370 MAIN -225591 65678 -91366 -297585 18702 181386 208128 212990 MIN 23156 -864 337 28666 -9757 14641 -19748 14980
+KCAP blk=1 row=2 ad=0.039370 MAIN -569398 245250 -415579 -875017 -206702 -195824 -524570 -203955 MIN -25691 -27558 -34123 -46595 -41090 -16269 -40242 -29224
+KCAP blk=1 row=3 ad=-0.039370 MAIN 63684 240045 -110197 31234 441718 159158 229128 167264 MIN 16032 16355 -15380 13222 -24683 11229 -25302 18868
+=== M1 q4_K repack-GEMM min-term BISECT through REAL ggml_mul_mat dispatch (VLEN128) ===
+  [INT ] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=4.457e-07 OK | R-vs-ORACLE(main) rel=4.457e-07 | R-vs-stock rel=3.142e-06
+  [NORM] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=1.998e-01 BAD | R-vs-ORACLE(main) rel=5.750e+01 | R-vs-stock rel=1.998e-01
+
+  ===== [G3 M1 BISECT] NORM N=64 K=512 rows=4 : kernel-vs-oracle per (block,row,col) =====
+  capture hits=2 nblk=2 (expect hits = nblk*1 for group0)
+  Per-output-column full ratio R/F (row0, cols 0..7):
+    c0=0.997 c1=0.999 c2=1.006 c3=1.024 c4=1.002 c5=1.006 c6=1.005 c7=1.003
+  [dist] R-vs-F: max ABS err=12.5471 at idx=51 (F=3662.7144, |F| LARGE->systematic); elems rel>1%: 29/256 ; rel>0.1%: 166/256
+  [dist] R-vs-STOCK max ABS err=12.5471 ; oracle-vs-STOCK agree(rel<1e-3): 256/256 (LOW => oracle q8 != ggml q8 -> integer bisect noise is a MODELING gap not a kernel bug)
+
+  --- block 0 ---
+   col:                     0          1          2          3          4          5          6          7 
+   r0 MAIN kern:       226750    -349494    -332266      11319    -373981     -15075     273030     216507 
+   r0 MAIN orac:       225256    -350633    -333050      10771    -374840     -15473     271617     215747 
+   r0 MIN  kern:        10597       -111      -1815      17613       2794       8602      -4805      -3215 
+   r0 MIN  orac:        10618       -224      -1849      17542       2773       8560      -4852      -3249 
+   r0 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+   b0 d    kern:      0.03125    0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344 
+   b0 d    orac:      0.03125    0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344 
+   b0 dmin kern:      0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344    0.03125 
+   b0 dmin orac:      0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344    0.03125 
+   b0 ad(k=0.03937 o=0.03937)
+   r1 MAIN kern:       276589    -602391     111833     170810     -70776    -141621       5457    -281691 
+   r1 MAIN orac:       276617    -602277     111886     170990     -70237    -141529       5457    -281361 
+   r1 MIN  kern:        12021      -3019      22250     -18922       3402      31281      13292       7531 
+   r1 MIN  orac:        12070      -2997      22282     -18871       3457      31295      13296       7559 
+   r1 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+   r2 MAIN kern:      -408785    -655136    -624484     -90768    -504381    -487708    -514889     -94692 
+   r2 MAIN orac:      -408505    -655217    -623956     -90352    -504782    -487963    -513977     -94150 
+   r2 MIN  kern:       -74574     -30417     -47866     -75367     -68159     -36223     -10586     -35518 
+   r2 MIN  orac:       -74577     -30389     -47818     -75412     -68136     -36165     -10524     -35480 
+   r2 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+   r3 MAIN kern:      -693222    -439126    -623495    -212159    -197053    -200827    -313618    -265612 
+   r3 MAIN orac:      -692797    -438211    -623436    -212172    -196276    -199860    -312109    -265110 
+   r3 MIN  kern:       -72287     -63200     -48734     -34068     -51954     -27507     -78424     -52953 
+   r3 MIN  orac:       -72238     -63077     -48678     -33938     -51899     -27413     -78414     -52912 
+   r3 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+
+  --- block 1 ---
+   col:                     0          1          2          3          4          5          6          7 
+   r0 MAIN kern:      -213908      79382      31166     186163    -302170     -78367     -31184     -22496 
+   r0 MAIN orac:      -213404      79780      32234     186719    -301182     -77754     -31194     -22736 
+   r0 MIN  kern:       -22088       1069     -11981       3218      -1397     -10510       9538     -24814 
+   r0 MIN  orac:       -22063       1093     -11972       3218      -1391     -10460       9529     -24779 
+   r0 MIN  d(k/o):       DIFF       DIFF       DIFF         ok       DIFF       DIFF       DIFF       DIFF 
+   b1 d    kern:      0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344    0.03125 
+   b1 d    orac:      0.06250    0.12500    0.25000    0.01562    0.04688    0.18750    0.02344    0.03125 
+   b1 dmin kern:      0.01562    0.04688    0.18750    0.02344    0.03125    0.06250    0.12500    0.25000 
+   b1 dmin orac:      0.01562    0.04688    0.18750    0.02344    0.03125    0.06250    0.12500    0.25000 
+   b1 ad(k=0.03937 o=0.03937)
+   r1 MAIN kern:      -225591      65678     -91366    -297585      18702     181386     208128     212990 
+   r1 MAIN orac:      -225263      66206     -91288    -297435      18717     181414     208716     213270 
+   r1 MIN  kern:        23156       -864        337      28666      -9757      14641     -19748      14980 
+   r1 MIN  orac:        23162       -846        353      28708      -9728      14657     -19693      15008 
+   r1 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+   r2 MAIN kern:      -569398     245250    -415579    -875017    -206702    -195824    -524570    -203955 
+   r2 MAIN orac:      -569975     245828    -415584    -875121    -207266    -195930    -525050    -204587 
+   r2 MIN  kern:       -25691     -27558     -34123     -46595     -41090     -16269     -40242     -29224 
+   r2 MIN  orac:       -25657     -27608     -34162     -46602     -41165     -16245     -40322     -29213 
+   r2 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+   r3 MAIN kern:        63684     240045    -110197      31234     441718     159158     229128     167264 
+   r3 MAIN orac:        64028     239994    -109959      30421     441917     159676     229634     166383 
+   r3 MIN  kern:        16032      16355     -15380      13222     -24683      11229     -25302      18868 
+   r3 MIN  orac:        15991      16358     -15358      13217     -24655      11232     -25328      18854 
+   r3 MIN  d(k/o):       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF       DIFF 
+
+  ===== [q8-FREE] min-term decomposition using KERNEL's own captured bsums =====
+  [q8-FREE] min_int(oracle-weight-min x KERNEL-bsums) vs kernel v46: mismatches=0 (0 => kernel min math CORRECT given its bsums)
+  [q8-FREE] kernel-bsums vs oracle-bsums: diffs=22/128 maxabs=2 (nonzero => activation q8 quant differs oracle-vs-ggml)
+
+  ===== [ZERO-MODEL] ggml mat-quant (kernel) vs row-quant (stock), and kernel-vs-mat-quant-recompute =====
+  [ZERO-MODEL] sizeof(blk_q8_K)=292 (ggml expect 292) sizeof(blk_q8_Kx4)=1168 (expect 1168)
+  [ZERO-MODEL] (a) ggml mat-quant bsums vs ggml row-quant bsums: diffs=64/128 maxabs=1170
+               kernel captured bsums vs ggml mat-quant bsums: diffs=0 (0 => kernel eats exactly ggml mat-quant)
+  [ZERO-MODEL] (c) mat-quant qs (deint) vs row-quant qs element-wise: diffs=780/2048 maxabs=254 (0 => two ggml q8 IDENTICAL)
+               kernel v47 MAIN vs recompute-from-ROW-q8: mismatches=64 | kernel v46 MIN vs ROW: mismatches=63
+  [ZERO-MODEL] (b) kernel v47 MAIN vs recompute-from-mat-q8: mismatches=0  |  kernel v46 MIN vs recompute: mismatches=0
+  [ZERO-MODEL] (d) first mat(generic)-vs-row(riscv SIMD) q8 divergences, with per-row d and act:
+    (row=0 blk=0) qs-diffs=4/256 firstdiff-elt=77 | oracle max=-5.00000 1/iscale=-0.039370  mat.d=0.039370  row.d=0.039370
+       around elt 77:  e:act / orac / mat / row
+         77:  -2.5000 /  -64 /  -63 /  -64
+         78:  -2.0500 /  -52 /  -52 /  -52
+         79:  -4.7500 / -121 / -121 / -121
+         80:  -2.6000 /  -66 /  -66 /  -66
+         81:   4.6000 /  117 /  117 /  117
+         82:  -1.2000 /  -30 /  -30 /  -30
+    (row=1 blk=0) qs-diffs=254/256 firstdiff-elt=0 | oracle max=5.00000 1/iscale=0.039370  mat.d=-0.039370  rorepack: repack tensor  with q4_K_16x1
+w.d=0.039370
+       around elt 0:  e:act / orac / mat / row
+          0:  -1.9000 /   48 /   48 /  -48
+          1:  -4.2500 /  108 /  108 / -108
+          2:  -2.8500 /   72 /   72 /  -72
+          3:   4.0500 / -103 / -103 /  103
+          4:   1.2500 /  -32 /  -32 /   32
+          5:   1.2000 /  -30 /  -30 /   30
+    (row=2 blk=0) qs-diffs=3/256 firstdiff-elt=178 | oracle max=-5.00000 1/iscale=-0.039370  mat.d=0.039370  row.d=0.039370
+       around elt 178:  e:act / orac / mat / row
+         178:  -2.5000 /  -64 /  -63 /  -64
+         179:   3.7000 /   94 /   94 /   94
+         180:  -2.3500 /  -60 /  -60 /  -60
+         181:  -2.4500 /  -62 /  -62 /  -62
+         182:  -0.8500 /  -22 /  -22 /  -22
+         183:  -1.5500 /  -39 /  -39 /  -39
+    (row=3 blk=0) qs-diffs=4/256 firstdiff-elt=69 | oracle max=-5.00000 1/iscale=-0.039370  mat.d=0.039370  row.d=0.039370
+       around elt 69:  e:act / orac / mat / row
+         69:   2.5000 /   64 /   63 /   64
+         70:  -4.7000 / -119 / -119 / -119
+         71:   3.9000 /   99 /   99 /   99
+         72:  -4.3500 / -110 / -110 / -110
+         73:   1.2000 /   30 /   30 /   30
+         74:   4.5000 /  114 /  114 /  114
+    (row=0 blk=1) qs-diffs=3/256 firstdiff-elt=52 | oracle max=-5.00000 1/iscale=-0.039370  mat.d=0.039370  row.d=0.039370
+       around elt 52:  e:act / orac / mat / row
+         52:   2.5000 /   64 /   63 /   64
+         53:   4.6000 /  117 /  117 /  117
+         54:  -3.1000 /  -79 /  -79 /  -79
+         55:   1.9000 /   48 /   48 /   48
+         56:  -2.2500 /  -57 /  -57 /  -57
+         57:  -1.4000 /  -36 /  -36 /  -36
+    (row=1 blk=1) qs-diffs=254/256 firstdiff-elt=0 | oracle max=5.00000 1/iscale=0.039370  mat.d=-0.039370  row.d=0.039370
+       around elt 0:  e:act / orac / mat / row
+          0:   3.9500 / -100 / -100 /  100
+          1:   0.9000 /  -23 /  -23 /   23
+          2:   0.5500 /  -14 /  -14 /   14
+          3:   4.0000 / -102 / -102 /  102
+          4:  -2.8000 /   71 /   71 /  -71
+          5:   0.0500 /   -1 /   -1 /    1
+               (both 0 => kernel computes q4_K.q8 BIT-EXACT for its input; discrepancy vs stock/oracle is the mat-vs-row q8 path, NOT a kernel defect)
+
+  ===== BISECT VERDICT: MAIN mismatches=63  MIN mismatches=63  d mismatches=0  dmin mismatches=0 | q8FREE-minmath-bad=0  bsum-diffs=22 =====
+  -> MIN integer accumulator (v46) DIVERGES from oracle: defect is UPSTREAM of fp16 fold (min-value unpack or bsums pairing).
+  [NORM] N=160  K=2560  rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=3.143e+00 BAD | R-vs-ORACLE(main) rel=6.634e+01 | R-vs-stock rel=3.143e+00
+
+SUMMARY: NUMERIC-DIVERGENCE-PRESENT (expected: min-term bug)
+RUN_EXIT=0
+
+=== [5] objdump min-fold region (instruction-level evidence) ===
+  --- vsetivli/vsetvli setting vl for the 8-lane e32m2 strips (grep zero=..e32,m2) ---
+104529:   67788:	0d107757          	vsetvli	a4,zero,e32,m2,ta,ma
+104583:   67850:	0d17f7d7          	vsetvli	a5,a5,e32,m2,ta,ma
+104667:   6798e:	0d17f7d7          	vsetvli	a5,a5,e32,m2,ta,ma
+104730:   67a78:	0d17f7d7          	vsetvli	a5,a5,e32,m2,ta,ma
+104778:   67b2a:	0d17f7d7          	vsetvli	a5,a5,e32,m2,ta,ma
+153959:   8b400:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+  --- vwmacc.vx (integer min accumulator, per-strip) count in .so ---
+2832
+  --- vfnmsac.vv (float dmin*min fold) occurrences ---
+172550:   9bd62:	bf0f1157          	vfnmsac.vv	v2,v30,v16
+172563:   9bd92:	beed1257          	vfnmsac.vv	v4,v26,v14
+172576:   9bdc2:	becc1e57          	vfnmsac.vv	v28,v24,v12
+172588:   9bdee:	bea91b57          	vfnmsac.vv	v22,v18,v10
+179491:   a2332:	beeb1c57          	vfnmsac.vv	v24,v22,v14
+179495:   a2342:	beca1957          	vfnmsac.vv	v18,v20,v12
+179511:   a237e:	bea11857          	vfnmsac.vv	v16,v2,v10
+179512:   a2382:	be821d57          	vfnmsac.vv	v26,v4,v8
+  --- context around first vfnmsac.vv (the min fold) ---
+   9bd2e:	4ae19757          	vfcvt.f.x.v	v14,v14
+   9bd32:	4b819c57          	vfcvt.f.x.v	v24,v24
+   9bd36:	4ac19657          	vfcvt.f.x.v	v12,v12
+   9bd3a:	4aa19557          	vfcvt.f.x.v	v10,v10
+   9bd3e:	2b078793          	addi	a5,a5,688
+   9bd42:	978a                	add	a5,a5,sp
+   9bd44:	2287e107          	vl2re32.v	v2,(a5)
+   9bd48:	05300793          	li	a5,83
+   9bd4c:	02a787b3          	mul	a5,a5,a0
+   9bd50:	b3e21157          	vfmacc.vv	v2,v4,v30
+   9bd54:	9267df57          	vfmul.vf	v30,v6,fa5
+   9bd58:	02a70733          	mul	a4,a4,a0
+   9bd5c:	2b078793          	addi	a5,a5,688
+   9bd60:	978a                	add	a5,a5,sp
+   9bd62:	bf0f1157          	vfnmsac.vv	v2,v30,v16
+   9bd66:	2287e207          	vl2re32.v	v4,(a5)
+   9bd6a:	05500793          	li	a5,85
+objdump saved to /tmp/m1_kernel.objdump (185315 lines)
+=== [6] done -- EXIT trap force-restores A-tree + rebuilds pristine ===
+
+=== [restore] forced A-tree restore ===
+  restored md5:
+deb61a29dd079440ffdc8996b5bd2fa1  /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/repack.cpp
+99131cf791e30348b588423b2388e0b8  /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/arch/riscv/repack.cpp
+  expect GEN  deb61a29dd079440ffdc8996b5bd2fa1
+  expect ARCH 99131cf791e30348b588423b2388e0b8
+=== [restore] rebuild ggml-cpu pristine ===
+  restore build OK
+  golden symbol in pristine .so (expect 0):
+0
+  banner in pristine .so (expect 0):
+0
