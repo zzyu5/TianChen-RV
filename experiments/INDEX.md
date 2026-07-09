@@ -5,12 +5,13 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**43 cells** (active=28, sealed=10, archive=5).
+**44 cells** (active=29, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
 | active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
+| active | `t4b-m2-dispatch` | unknown | — | 0 | — | — |
 | active | `t4b-model-manifest` | unknown | — | 0 | — | — |
 | active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
