@@ -1,8 +1,8 @@
 {
   "id": "G3-minterm-fix",
-  "name": "G3-minterm-fix",
+  "name": "G3-cert-hardening: min-term 案终审(M4)+ 证书三要件防复发(进 CI)+ ZERO-MODEL codify(原 G3-minterm-fix,M2-fix 撤销)",
   "title": "G3-minterm-fix: q4_K/q5_K repack-GEMM min-term VLEN128 bug 修复战役(审计→确诊→修→防复发→重测)",
-  "description": "M2c 决定性发现 q4_K/q5_K repack-GEMM 共享 min fold(kquant_dmin_bsums_min)VLEN128 有 parity-alternating min-term bug(偶~5%/奇~36%、对真 dmin≠0 数据错)、旧 cert 全用 dmin=0/identity 漏抓。正确性级、继承 T4b 关键路径优先。里程碑:M0 审计扫描(a fold 血缘清单:哪些格/路共享该 fold 或同构、q2_K 必查、GEVM/vec_dot K-quant min 路证书一并查;b 全表 cert 语料审计:逐 cert 标是否 exercise 每算术项 dmin/mins/非退化 scale/符号,未 exercise 者降 partial 列清单)→ M1 根因确诊(instrumented driver 逐环 bisect、验/否证 half_lanes=8 双 strip 物化假设、指令级证据入 T8、未确诊不动刀)→ M2 修复(修 min fold VLEN128 物化、正确性目标 dmin≠0 vs 标量 oracle、修后 plain 与 S6 两形式仍 bit-identical)→ M3 防复发 cert(canon 性质测试:任何 fold cert 必 exercise 全算术项 dmin≠0/满幅 scale/交替符号/次正规、进 CI、旧 cert 按新语料重跑)→ M4 重测恢复(q4_K/q5_K/q2_K kernel-轴 A/B+vs-opponent 板批重测如实入表、pending 解除、兑现按实恢复、随后 T4b M2 重跑→M3/M4 解锁)。修复期禁 q4_K/q5_K 吞吐叙事。",
+  "description": "【改组自 G3-minterm-fix】M1 ZERO-MODEL 决定性证伪 kernel bug(M2c 误诊=harness q8 quantizer 失配、oracle 用 row-quant 而真 dispatch 喂 mat-quant)。M2-fix 撤销(无 kernel 可修、理由入 T8 [CASE-MINTERM])。保留:M4 干净终审(repack kernel vs ggml 自身 repack GEMM 同 mat-quant/dmin≠0/真模型张量、预注册 bit-exact→定案+恢复 claims/无法归因→案件重开)+ M3 防复发证书三要件进 CI(①语料完备每算术项非退化 exercise ②输入路径同源 oracle 与 dispatch 逐环同源 ③oracle 独立不共享读取实现=空心证书禁令、全表旧 cert 补标注缺项降 partial)+ ZERO-MODEL codify 为正确性争议终审标准工具 + 《ggml 激活量化双路径备忘》(mat-quant vs row-quant 惯例差、裁定我方 repack 验收 oracle=mat-quant)。收口=三要件进 CI+旧 cert 补标+M4 定案+备忘交付→恢复口径(吞吐兑现 4/un-narrow/[XFER-1] 解除)→T4b 复轨。",
   "status": "planning",
   "dev_type": null,
   "scope": null,
