@@ -1,0 +1,87 @@
+# [G3-cert-hardening M4] board run transcript (ssh rvv, VLEN128, gcc-15.2.0)
+# Reversible ARCH-only non-destructive patch; forced EXIT-trap restore. NO git ops. Emitter source unchanged.
+
+[m4] board=rvv VLEN128 gcc-15.2.0 ATREE=/home/ubuntu/tcrv-llamacpp core=8 loadavg=3.12 3.07 3.01
+=== [0] baseline verify (ARCH+GEN) + kernel fingerprints ===
+  GEN  now=deb61a29dd079440ffdc8996b5bd2fa1  base=deb61a29dd079440ffdc8996b5bd2fa1
+  ARCH now=99131cf791e30348b588423b2388e0b8  base=99131cf791e30348b588423b2388e0b8
+  ARCH backup captured.
+  fresh_q4K.inc md5: 90d454da655f2fc1f88435d2d5826942
+  fresh_q5K.inc md5: c209226b9f84aae429f1c0b90ee5082d
+=== [1] instrument q4_K kernel (pure-observation) ===
+  INSTRUMENT OK -> /tmp/m4_decisive/instr_q4K.inc  (dst md5 6e42aa5bc7e9349e0495eb4ba80c9a70)
+  globals present: True  capture present: True
+=== [2] apply M4 patch (non-destructive include+wrappers) ===
+  PATCH OK  ARCH md5: 5b388f7f3107e8b755c556e113d34e26
+  q4K include: True  q5K include: True  wrappers: True
+=== [3] rebuild ggml-cpu ===
+  patch build OK   libggml-cpu.so.0.15.1 = 1008800 B
+  our kernels present (q4_K/q5_K): 1 / 1
+  wrappers exported (tcrv_m4_call*): 2
+  ggml own gemm still exported (generic / rvv): 1 / 1
+  capture globals exported: tcrv_cap_want tcrv_main_i tcrv_min_i
+=== [4] compile m4_probe driver === OK
+=== [5] RUN m4_probe (real tensor, dmin!=0, our kernel vs ggml own generic) ===
+=== M4 DECISIVE POSITIONAL: our repack-GEMM vs ggml's own, REAL Q4_K_M tensor, VLEN128 ===
+    sizeof(blk_q8_Kx4)=1168 (expect 1168)  sizeof(kqr_block_q4_K)=144(144) kqr_block_q5_K=176(176)
+
+================ q4_K  tensor=blk.0.attn_k.weight ================
+  real tensor: type=Q4_K K=4096 N=1024 nb=16  (2359296 bytes)
+  dmin!=0 blocks: 16384/16384  (min=2.146e-04 max=1.057e-02) sample d=0.000617981 dmin=0.00585175  MIN-TERM ACTIVE=YES
+  [INTEGER capture] kernel MAIN/MIN vs exact recompute-from-mat-q8 (cols0..7, blk0..7, rows0..3):
+      hits=8 nblk=8  MAIN mismatches=0  MIN mismatches=0  => INTEGER BIT-EXACT
+  [FLOAT head-to-head] (real dmin!=0 weights, same mat-quant q8 into both):
+    OURS  vs ggml_generic (A vs B)     max_abs=1.068e-04  max_rel(|.|>1)=6.306e-05  max_ulp=235260  exact=69/4096
+    OURS  vs int-exact oracle (A vs G) max_abs=7.629e-06  max_rel(|.|>1)=2.861e-06  max_ulp=5220  exact=670/4096
+    ggml_generic vs int-exact (B vs G) max_abs=1.068e-04  max_rel(|.|>1)=6.241e-05  max_ulp=231887  exact=61/4096
+    ggml_RVV vs int-exact (C vs G)     max_abs=2.929e+01  bad-elems(>1%)=4081/4096  (RVV vl=16 hardcode => VLEN256-only)
+  sample row0 c0..7:  OURS / ggml_gen / int-exact
+    c0:      5.54494 /      5.54495 /      5.54494
+    c1:      1.01641 /      1.01642 /      1.01641
+    c2:      3.72737 /      3.72737 /      3.72737
+    c3:     -1.77675 /     -1.77675 /     -1.77675
+    c4:      3.27715 /      3.27715 /      3.27715
+    c5:      0.50362 /      0.50361 /      0.50362
+    c6:      3.13073 /      3.13074 /      3.13073
+    c7:     -0.23027 /     -0.23026 /     -0.23027
+  >>> q4_K VERDICT: CASE CLOSED (int-exact:YES  A~G rel=2.86e-06  A~ggml rel=6.31e-05)
+
+================ q5_K  (real-derived from blk.0.attn_v.weight) ================
+  source Q6_K K=4096 N=1024 nb=16 -> dequant -> requant Q5_K (real-model-derived)
+  q5_K dmin!=0 blocks: 16384/16384 (min=1.165e-04 max=9.575e-04) sample d=1.38283e-05 dmin=0.000189543  MIN-TERM ACTIVE=YES
+  [FLOAT] q5_K OURS vs int-exact oracle (real-derived dmin!=0, same mat-quant q8):
+    OURS vs int-exact oracle (A vs G)  max_abs=9.537e-07  max_rel(|.|>1)=7.749e-07  max_ulp=3221  exact=725/4096
+  sample row0 c0..7:  OURS / int-exact
+    c0:     -0.40516 /     -0.40516
+    c1:      1.01301 /      1.01301
+    c2:      0.43710 /      0.43710
+    c3:      1.62510 /      1.62510
+    c4:      0.67820 /      0.67820
+    c5:      0.58752 /      0.58752
+    c6:     -1.09473 /     -1.09473
+    c7:      0.70088 /      0.70088
+  >>> q5_K VERDICT: CASE CLOSED (A~G rel=7.75e-07)
+
+=== M4 SUMMARY: ALL CASE CLOSED (kernel correct on real model tensors, dmin!=0) ===
+RUN_EXIT=0
+
+=== [6] objdump min-fold signature (instruction-level record) ===
+  vsetivli/vsetvli e32,m2 (8-lane strips): 240
+  vfnmsac.vv (float dmin*min fold) count: 16
+  objdump saved /tmp/m4_kernel.objdump (209444 lines)
+
+=== [restore] forced A-tree restore (ARCH only) ===
+  restored ARCH md5: 99131cf791e30348b588423b2388e0b8  (== base)
+  GEN untouched md5: deb61a29dd079440ffdc8996b5bd2fa1  (== base)
+  restore build OK
+  our kernels in pristine .so: 0 / 0
+  wrappers in pristine .so: 0
+  pristine .so size: 860736   (== pristine)
+
+# NOTE on max_ulp: the large ulp-int values (235260 / 231887) are inflated by near-zero cancellation
+# outputs where the twos-complement float-representation distance blows up for tiny absolute error;
+# the operative bounds are max_abs (~1e-4) and max_rel (~6e-5), ~1000x below the M2c "5-40%" min-term
+# artifact floor. Every arithmetic term is accounted: integer MAIN/MIN bit-exact (0 mismatches), and
+# the residual float delta is FP-reassociation (ggml_generic folds sumi*d*a_d per element; our kernel
+# integer-accumulates then folds once) -- OURS is in fact CLOSER to the integer-exact oracle than
+# ggml's own generic is.
