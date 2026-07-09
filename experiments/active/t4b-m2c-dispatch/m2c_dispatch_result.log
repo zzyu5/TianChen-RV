@@ -1,0 +1,82 @@
+[m2c] board=rvv VLEN128 gcc-15.2.0 ATREE=/home/ubuntu/tcrv-llamacpp BUILD=build-gcc15-rv64gcv core=8
+[m2c] loadavg=3.13 3.08 2.89 2/1272 513293
+
+=== [0] baseline verify + backup the 2 patch-target files ===
+  GEN  now=deb61a29dd079440ffdc8996b5bd2fa1  base=deb61a29dd079440ffdc8996b5bd2fa1
+  ARCH now=99131cf791e30348b588423b2388e0b8  base=99131cf791e30348b588423b2388e0b8
+  backups captured (== baseline).
+
+=== [0b] fresh kernel fingerprint on board ===
+90d454da655f2fc1f88435d2d5826942  /tmp/m2c_q4k_dispatch/fresh_q4K.inc
+  (expect 90d454da655f2fc1f88435d2d5826942 == S6-tiled fresh; NOT b0b5beac)
+1
+
+=== [1] apply M2c patch (fresh S6 kernel) ===
+PATCH OK (M2c: FRESH S6 kernel md5 90d454da)
+GEN  md5: c013fc066c616198bf593c0013fe9b19
+ARCH md5: be189ee509e286a3b2b7c2135e7822a1
+Edit1 applied: case 128:  { if (cur->ne[1] % 16 == 0) { return &q4_K_16x1_q8_K; } break; } /* TCRV-M2c q4_K@VLEN128 */
+Edit2a fresh include present: True
+Edit2b banner present: True
+
+=== [2] rebuild ggml-cpu (fresh S6 kernel compiled into libggml-cpu.so) ===
+  patch build OK
+-rwxr-xr-x 1 ubuntu ubuntu 918264  7月 9日 18:03 /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so.0.15.1
+  golden symbol in patched .so (expect >=1):
+1
+  banner string in patched .so (expect >=1):
+1
+
+=== [3] compile m2_dispatch driver (g++-15.2, links patched libggml-cpu.so) ===
+  driver compile OK
+  driver links:
+	libggml-cpu.so.0 => /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so.0 (0x00007fffae1c2000)
+	libggml-base.so.0 => /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-base.so.0 (0x00007fffae126000)
+	libggml.so.0 => /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml.so.0 (0x00007fffae11d000)
+
+=== [4] RUN m2c_dispatch (real ggml_mul_mat dispatch -> FRESH S6 kernel, min-term exercised) ===
+VLEN(bits)=128
+>>> [INT  N=64 K=512 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1
+TCRV EMITTED GEMM(q4_K_16x1 VLEN128 compiler-emitted) ENGAGED nr=4 nc=64 nb=2
+<<< REPACK-dispatch compute end
+TCRV Q4_K BLOCK-DOT ENGAGED (LMUL=m1 compiler-emitted)
+>>> [INT  N=160 K=2560 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1
+<<< REPACK-dispatch compute end
+>>> [NORM N=64 K=512 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1
+<<< REPACK-dispatch compute end
+>>> [NORM N=160 K=2560 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1
+<<< REPACK-dispatch compute end
+>>> [NORM N=256 K=512 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1
+<<< REPACK-dispatch compute end
+=== M2 q4_K repack-GEMM through REAL ggml_mul_mat dispatch (VLEN128) ===
+  [INT ] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=4.457e-07 OK | R-vs-ORACLE(main-only) rel=4.457e-07 | R-vs-tcrv-stock rel=3.142e-06
+  [INT ] N=160  K=2560  rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=2.198e-05 OK | R-vs-ORACLE(main-only) rel=2.198e-05 | R-vs-tcrv-stock rel=4.546e-05
+  [NORM] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=1.998e-01 BAD | R-vs-ORACLE(main-only) rel=5.750e+01 | R-vs-tcrv-stock rel=1.998e-01
+      sample[r0c0..3] R    : -259.8622 -470.7425 -1222.1089 212.1229
+      sample[r0c0..3] Ffull: -260.5272 -471.0747 -1215.1870 207.1149
+      sample[r0c0..3] Fmain: -247.9724 -470.1599 -1321.7618 220.8754
+  [NORM] N=160  K=2560  rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=3.143e+00 BAD | R-vs-ORACLE(main-only) rel=6.634e+01 | R-vs-tcrv-stock rel=3.143e+00
+  [NORM] N=256  K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=1.201e+00 BAD | R-vs-ORACLE(main-only) rel=5.557e+01 | R-vs-tcrv-stock rel=1.201e+00
+SUMMARY: FAIL
+RUN_EXIT=1
+
+=== [5] done -- EXIT trap will now force-restore the A-tree + rebuild pristine ===
+
+=== [restore] forced A-tree restore (板末强制 restore) ===
+  restored md5:
+deb61a29dd079440ffdc8996b5bd2fa1  /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/repack.cpp
+99131cf791e30348b588423b2388e0b8  /home/ubuntu/tcrv-llamacpp/ggml/src/ggml-cpu/arch/riscv/repack.cpp
+  expect     : deb61a29dd079440ffdc8996b5bd2fa1  (GEN)
+  expect     : 99131cf791e30348b588423b2388e0b8  (ARCH)
+=== [restore] rebuild ggml-cpu pristine ===
+  restore build OK
+-rwxr-xr-x 1 ubuntu ubuntu 860736  7月 9日 18:03 /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so.0.15.1
+  golden symbol in pristine .so (expect 0):
+0
+  banner string in pristine .so (expect 0):
+0
