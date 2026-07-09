@@ -11,6 +11,33 @@
 > q6_K/q3_K（另一 fold、无 min-term）、iq4 码本、q4_0 不受影响。
 > ############################################################################
 
+> ############################################################################
+> **★[追认 — post-G3-closure 记分板 — 2026-07-09 G3-cert-hardening]** 本 doc 头条三数 / 耦合轨迹表 / ASCII 曲线是
+> **G3-closure 快照**(C_construct=42、旗舰吞吐兑现窗口);下列三项追认记录**收口后**燃减继续复利到 M3 门 + 素材落账,
+> **不改上方已封快照**(schema snapshot 亦停在 42、生成器 regen 口径落后见文末对账,同一已知落后关系)。M4 定案前**不 un-narrow**
+> M2c-NARROWED(吞吐兑现仍 =1(+3 pending))。
+> 1. **★M3 结构门已过一行**: C_construct **66 / 93 = 71.0%** 过 **M3 70% 门**(commit `0e39f60a`:`C_construct 60→66`;
+>    权威 = commit-subject 记账,schema snapshot 停在 42 未 regen 到 HEAD,同文末生成器落后关系)。42→66 的 +24 全在
+>    **dequant / quantize 前门**(线B:q8_0/q8_1/q8_K quantize + K-quant dequant + iq2/iq3 grid dequant + iq4/mxfp4/nvfp4/iq1
+>    codebook dequant),**非** repack gemm_tile 轴(故矿脉/旁路 8 不变)。**形状 = 按族批量复利的预期"缓段"**(素材同源、
+>    per-family near-zero re-pay),**不庆功**——是 M2/M3 门"先陡后缓"曲线的机械延续,非新赢面。
+> 2. **★M1 通用 repacker + M3 真模型落账一行**: (a) 通用离线 K-quant repacker(`tools/e2e-harness/board/kquant_repacker.h`,
+>    header-only 无依赖,任意 shape:`kqr_repack_q4_K`/2304 + `kqr_repack_q5_K`/2816 + 共享 `kqr_interleave_q8_K`/1168)
+>    **q4_K/q5_K 全 7 shape INT 0-mismatch/0-ULP byte-exact**(vs 板 libggml `ggml_vec_dot_q{4,5}_K_q8_K` 独立 oracle;
+>    NORM bounded-ULP worst rel 1.18e-4=纯 fp32 reassoc benign),commit `b524a5f6`,cell `experiments/active/t4b-m1-repacker/`;
+>    ★注:该 cert oracle 喂 raw-非-repacked 块(=row-quant 侧),按 [CERT-3REQ] #3 属 PARTIAL(排队补测 oracle=mat-quant),
+>    此处只落"repack 布局正确"账,不作 min 惯例 byte-exact。(b) **M3 真 Q4_K 模型就位**:
+>    DeepSeek-R1-Distill-Llama-8B-**Q4_K_M**.gguf(4.58GiB、sha256 `87bcba20…`、GGUF file_type=15、**193 Q4_K**+33 Q6_K+66 F32
+>    tensor、32 层、与传导账同模型),板上 `/home/ubuntu/models/`(CN 网走 **hf-mirror.com** 镜像源、模型本体不入 git),
+>    MANIFEST `experiments/active/t4b-model-manifest/`。
+> 3. **★90% 路径清单入记分板(M4 门全部剩余、逐项有名)**: 到 M4 90% 门(C_construct ≥ 84/93)剩余路径 =
+>    ① **矿脉/旁路 8**(dispatch-wired gemm_tile 但 repack-GEMM 未构造 **==** emit-bypass-whitelist 8,**同一集两视角**、
+>    见下文 §矿脉队列存量 与 §旁路存量):flat4 `q4_1/q5_0/q5_1/q8_0` + iq2×3 `iq2_xxs/iq2_xs/iq2_s` + `mxfp4`;
+>    **SEL-1 T4 后逐格战役立项、禁批量**(每格首翻=净新增-ODS 里程碑)。② **收尾若干**(更深尾,分散在其余轴):
+>    `iq3/iq1 vec_dot` + `tq1_0/tq2_0 dequant` + **前向算子残项**。**逐项有名 = 90% 门无隐藏尾**;形状延续"先陡后缓"。
+> ★三项均为**覆盖-构造轴**记账(与正确性 / 吞吐无关);M4 数值口径恢复等 M4 终审。
+> ############################################################################
+
 > DATA CELL (visibility line E, G3-closure companion). Hand-curated **coupled** multi-series over the
 > G3 campaign, keyed on the 9 G3 front-door flip commits (7 K-quant closure + M2-后 iq4 codebook pair).
 > Coverage/representation accounting ONLY —

@@ -87,3 +87,50 @@ q5_K-repack-gemm-k1-VLEN256-BOARD-B-kernel-axis-dual-board,B1(kernel-axis-path-w
 #   re-cert(M3/M4)须以【实际 dispatch q8 = mat-quant】为 oracle(kernel 对之 bit-exact)或 vs ggml 自己的 repack GEMM;
 #   ggml mat-quant vs riscv-row-quant 分歧(sign 选择 + round-half)=正交的 ggml-side numerics 问题,非本编译器.
 # A-tree 板末 byte-exact restored(GEN deb61a29 / ARCH 99131cf7, pristine .so 860736B, golden=0);无 emitter 源改;confirm-only.
+# ############################################################################
+# [CASE-MINTERM] 卷宗 — 误诊→逆转→终审 全链 (2026-07-09 G3-cert-hardening;append-only,数值不改、行不删,M4 待定案)
+# 一句话:q4_K/q5_K repack-GEMM 的 "5% min-term VLEN128 bug" 是 CERT-HARNESS 激活量化路径失配伪影,非 kernel 缺陷。
+# 全链(逐 commit 指针):
+#   ① 误诊(决定性 outcome-b): M2c 真 dispatch 重测判 min fold latent bug(dmin≠0 语料 rel 5–314% + 列-parity
+#      0.947/0.637),HYPOTHESIS 归因 VLEN128 两-8-lane-strip(half_lanes=8)min 物化。commit 53666846,
+#      cell experiments/active/t4b-m2c-dispatch/m2c_dispatch_result.log。→ 触发全表 M2c-NARROWED 收窄(上方行 26–49)。
+#   ② 逆转(ZERO-MODEL bit-exact): M1 逐(block,row,col)instrumented bisect(纯观测、零向量算改)。三决定性证据:
+#      (a) q8-FREE: min_int(oracle-weight-min × KERNEL-自己 bsums) vs kernel v46 = 0 mismatch(两 block 全 row/col)
+#          + d/dmin fp16 = 0 → half_lanes=8 双-strip 物化假设 FALSIFIED(bit-exact);
+#      (b) ZERO-MODEL: kernel v47 MAIN / v46 MIN / bsums vs recompute-from-(ggml 自己 ggml_quantize_mat_q8_K_4x1)
+#          = 0/0/0 → kernel 对被喂的 mat-quant 激活 BIT-EXACT;recompute-from-ROW-q8 = 64/63(kernel 不吃 row-quant);
+#      (c) 根因: ggml GEMM-path mat-quant ≠ scalar-path row-quant(qs diffs 780/2048、bsums diffs 64/128)=
+#          SIGN-FLIP(dot 内抵消,良性)+ ROUND-HALF(~1.5% 半整值真 ±1 q8 噪,近零抵消放大 ~5-20% 相对,max ABS 0.34%)。
+#      commit 8ede2779,cell experiments/active/t4b-m1-minterm-bisect/(m1_bisect_result.log + MANIFEST.md + m1_probe.cpp);
+#      objdump min-fold 指令级正确:vsetivli zero,8,e32,m2 → vfmul.vf(dmin·a_d) → vfmacc.vv(main) → vfnmsac.vv(减 min)。
+#   ③ 终审(pending): M4 seal 在跑;裁定输入=【repack-GEMM 验收 oracle=mat-quant(与真 dispatch 同源、kernel 对之 bit-exact)】,
+#      详 docs/reports/2026-07-09-ggml-q8-quant-dual-path-memo.md;M4 定案前口径不恢复(M2c-NARROWED 全持)。commit M4=pending。
+# 方法学素材(论文): (i) 定罪与翻案同等严谨 —— M2c failure-cert 抓到真现象(数值确实分歧)但误归因 kernel;
+#   M1 ZERO-MODEL 逆转、正确归因 ggml-side 激活量化惯例;(ii) ZERO-MODEL(recompute-from-实际-dispatch-q8)=
+#   数值终审标准工具,专排"oracle 失配/错源"这一类空心 cert;(iii) 列-parity 是 mat-vs-row 差在交织列布局上的投影,非 kernel。
+# ############################################################################
+# [CERT-3REQ] cert 三要件补标 — 全表旧 K-quant min cert (2026-07-09 G3-cert-hardening;append-only;基于 M0 审计 4f8d815c)
+# 三要件(空心证书禁令):① 语料完备,每算术项非退化 exercise(dmin≠0 ∧ mins≠0);② 输入路径同源(oracle 与被测 kernel
+#   同喂真-dispatch 激活量化 = mat-quant,非 row-quant / 独立 lrintf −127/max);③ oracle 独立不共享读取(非自比
+#   PRE≡POST / untiled≡tiled)。★M1 揭示:全表旧 cert 系统性违反的正是 ②(oracle 用 row-quant/lrintf,与 GEMM 真 dispatch
+#   喂的 mat-quant 不同源)—— M2c 恰好抓到该差却误归因 kernel;M1 证 kernel 对 mat-quant bit-exact。缺项一律降 partial,
+#   注【排队补测(oracle=mat-quant)】;★不 un-narrow(M2c-NARROWED 全持,等 M4)。逐 cert 判据源 = docs/reports/2026-07-09-minterm-fold-audit.md §3 表。
+# cert 逐项(#=M0 审计编号 | ①②③ | 判定 | 备注):
+#   #1  M2c t4b-m2c-dispatch(53666846)         | ①✔ ②✔(oracle=mat-quant) ③✔ | FULL(唯一充分;且是 failure-cert,抓到真 mat-vs-row 差、误归因 kernel) | 保持 FULL 记账;结论(kernel 缺陷)经 M1 逆转
+#   #2  M0 tracer t4b-m0-q4k-tracer(039133ea)  | ①部分(INT dmin=0) ②✗(非真 mul_mat) ③✔ | PARTIAL | 排队补测(oracle=mat-quant);NORM worst 2.4e-5 ≪ 真差 → 语料漏抓
+#   #3  M1 repacker cert t4b-m1-repacker        | ①部分(INT dmin=0) ②✗(独立 harness,喂 raw 非 repacked=非 mat-quant) ③✔ | PARTIAL | 排队补测(oracle=mat-quant);7-shape INT 0-mismatch 仅证 repack 布局,非 min 惯例
+#   #4  q4_K L1-candidate(T8 行 50)             | ①✗ ②✗ ③✗(托 039133ea 构造 oracle) | PARTIAL | 排队补测(oracle=mat-quant);correctness NOT re-verified this run
+#   #5  q5_K L1-candidate(T8 行 51)             | ①✗ ②✗ ③✗(同 #4,共享 fold)         | PARTIAL | 排队补测(oracle=mat-quant)
+#   #6  q2_K L1 SILICON numeric(T8 行 53)       | ①声称✔ ②✗(独立 harness 非 mul_mat) ③✗ | PARTIAL / ★HOLLOW | 声称 min-active 却 NORM 5.77e-7 ≪ 真差 → 独立 ref 与 kernel 共享 bsums 读法/语料列-对称;排队补测(oracle=mat-quant);T8 已标 q2_K-PENDING-AUDIT
+#   #7  q6_K L1 SILICON numeric(T8 行 52)       | N/A(q6_K no-min,无 min-term)         | N/A-本缺陷 | 记录 harness 与 #6 同源、同非-dispatch;不收窄(q6_K 不受累)
+#   #8  l1-tile-s1 identity                      | ①退化(unit scale) ②✗ ③✗(PRE≡POST 自比) | PARTIAL | 自比只证 tiling 保序不变量,无法抓两变体共享缺陷;排队补测(oracle=mat-quant)
+#   #9  l1-tile-s6 identity(T8 行 57)           | 同 #8(S1≡S6 自比)                     | PARTIAL | ★结构缺陷:M2c 正证 S1/S6 同时带差、自比 0-mismatch 仍漏;排队补测(oracle=mat-quant)
+#   #10 l1-reroll / l1-pipeline q4_K             | ①✗ ②✗ ③✗(untiled≡reordered 自比)    | PARTIAL | 相对不变量;correctness 引 039133ea 未 re-verify;排队补测(oracle=mat-quant)
+#   #11 l1-t3-q5k oracle_q5K.cpp(T8 行 61)      | ①✔(bsums mean 186.1) ②✗(独立 harness) ③声称独立 | PARTIAL / ★HOLLOW/SUSPECT | 反例守卫最强(NOMIN 149291×/ROWROT 6.15M×)却仍 NORM 8.0e-7 → 未复现真-dispatch interleaved 列-parity;M2c 明推 q5_K 带同差;排队补测(oracle=mat-quant)
+#   #12 l1-t3-q2k(T8 行 59)                     | ①部分(INT dmin=0) ②✗ ③✗(untiled≡tiled 自比) | PARTIAL | q2_K 共享 fold,PENDING-AUDIT;排队补测(oracle=mat-quant)
+#   #13 k1-VLEN256 t4a identity(T8 行 64)       | ②✗ ③✗(golden≡S6 @VLEN256 自比)        | PARTIAL / 无关 VLEN128 | VLEN256 16-lane 单-strip 本无两-strip 差(M2c: NO counterpart);identical 属预期、非 VLEN128 语料证据
+#   #14 emit-golden lit(M0 §3a 清单)           | 结构文本,无数值断言                   | N/A-numerics | 无法抓任何数值缺陷,与本审计正交;不得当 correctness 证据
+# 小结:降 partial = #2 #3 #4 #5 #6 #8 #9 #10 #11 #12 #13(共 11);两 ★HOLLOW = #6(q2_K-SILICON)/#11(q5_K-oracle);
+#   自比 NORM 结构缺陷 = #8/#9/#10/#12/#13(PRE≡POST / untiled≡tiled / golden≡S6);FULL = #1(M2c,failure-cert);
+#   N/A = #7(q6_K no-min)/#14(emit-golden)。★全部 partial 注【排队补测(oracle=mat-quant)】;M4 定案前不 un-narrow。
+# ############################################################################
