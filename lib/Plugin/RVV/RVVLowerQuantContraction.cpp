@@ -643,6 +643,77 @@ private:
                        << op.getMRegime() << "\"");
   }
 
+  // [G3 主线C / SEL-1] T3: the SHARED SP4 output-tiling SELECTION + stamp, invoked at
+  // EVERY repack GEMM loop-body construction point (q4_0 flat, K-quant min-fold +
+  // no-min, codebook). The tiled-vs-plain choice that was a COMPILE-TIME per-format
+  // hardcode inside emitTypedRepackGemmLoopBody (the gate (7) gap) is a RUNTIME
+  // CAPABILITY-KEYED selection keyed on the BOTTLENECK SHAPE derived from fold_model (a
+  // structure / capability fact), NEVER the format name -- so a pattern migrates
+  // "换键不改条目" and format-name dispatch mechanically cannot recur. Two-stage
+  // (RVVRepackTilingSelection.h): Stage-1 legality prunes the bounded {plain, s6_tiled}
+  // set; Stage-2 ranks -- a still-feasible offline-profile measurement wins the memoized
+  // argmin (reason=measured; the 5 seeded K-quant), else the [XFER-1] cold-start
+  // capability prior keyed on the shape (reason=prior; q4_0 + the codebook pair). An
+  // empty feasible set (no capability fact) fails safe to the shape default
+  // (reason=static_order) -- HONESTLY not a prior, and it must NOT appear on a
+  // capability-afforded board (the burn-down signal). The chosen variant + reason are
+  // stamped for the EmitC emitter's PURE REALIZE (absent => the S6Tiled default, so an
+  // un-wired path stays byte-identical); the full [D-4] JSONL attribution record
+  // (reusing the SAME support::computeDeclaredInstanceHash the exec/schedule sinks use)
+  // rides an inert in-IR attr. A fold_model with NO output-tiling axis (ternary,
+  // non-repack) classifies to std::nullopt and is a NO-OP (no stamp).
+  void stampTilingSelection(mlir::OpBuilder &builder,
+                            tcrvrvv::TypedRepackGemmLoopBodyOp loop,
+                            llvm::StringRef foldModel, llvm::StringRef kernel,
+                            tcrvrvv::GgmlQuantContractionOp op) {
+    std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
+        pluginrvv::classifyTilingBottleneckShape(foldModel);
+    if (!shape)
+      return;
+
+    // The declared-instance hash: the SAME [D-4](1)/[D-2a] hash the exec / schedule
+    // sinks compute (support::computeDeclaredInstanceHash of the enclosing kernel's
+    // expanded capability instance). Best-effort: an unbuildable / non-conforming
+    // instance leaves it empty (the measurement key then simply MISSES => cold start).
+    std::string declaredInstanceHash;
+    if (auto kernelOp = op->getParentOfType<tcrv::exec::KernelOp>()) {
+      if (llvm::Expected<support::TargetCapabilitySet> capabilities =
+              support::TargetCapabilitySet::buildFromKernelChecked(kernelOp))
+        declaredInstanceHash =
+            support::computeDeclaredInstanceHash(*capabilities);
+      else
+        llvm::consumeError(capabilities.takeError());
+    }
+
+    // The DERIVED capability facts: the guaranteed minimum VLEN of the configured
+    // target (the SAME authority lowerOne derives) + the HARD 32-vector-register ISA
+    // fact. Consult the offline-profile measurement cache FIRST (a HIT => memoized
+    // argmin, reason=measured), then the two-stage capability selection.
+    std::int64_t minVLEN =
+        pluginrvv::deriveMinimumVLEN(march, isaVectorHints);
+    std::optional<pluginrvv::RVVTilingMeasurementHit> measurement =
+        pluginrvv::lookupTilingMeasurement(declaredInstanceHash, kernel);
+    pluginrvv::RVVRepackTilingChoice choice =
+        pluginrvv::selectRepackTilingVariant(*shape, minVLEN,
+                                             kRVVArchVectorRegisterCount,
+                                             measurement);
+
+    loop->setAttr(kTilingVariantAttr,
+                  builder.getStringAttr(pluginrvv::stringifyRVVRepackTilingVariant(
+                      choice.variant)));
+    loop->setAttr(kTilingReasonAttr,
+                  builder.getStringAttr(pluginrvv::stringifyRVVTilingSelectionReason(
+                      choice.reason)));
+    const pluginrvv::RVVRepackTilingVariant candidates[] = {
+        pluginrvv::RVVRepackTilingVariant::Plain,
+        pluginrvv::RVVRepackTilingVariant::S6Tiled};
+    loop->setAttr(kTilingRecordAttr,
+                  builder.getStringAttr(
+                      pluginrvv::buildTilingSelectionAttributionRecord(
+                          kernel, candidates, choice.variant, choice.reason,
+                          declaredInstanceHash, /*noTimestamp=*/true)));
+  }
+
   // The IN-COMPILER selection: derive the target VLEN from the pass's -march (the
   // capability authority -- NOT the op's advisory min_vlen attr), lift the
   // committed WHAT axes, and ask the pure fact-driven selector which algorithm to
@@ -729,7 +800,7 @@ private:
         return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
                                                     isRVV0p7, *codebook)
                : kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
-                                                  isRVV0p7, minVLEN, *kquant)
+                                                  isRVV0p7, *kquant)
                : ternary ? lowerToRepackGemmTernary(op, selection, halfLanes,
                                                     isRVV0p7, *ternary)
                          : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
@@ -1097,6 +1168,13 @@ private:
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // [SEL-1] T3: the flat q4_0 GEMM SP4 tiling selection. Its fold_model
+    // "lane_wise_vector_scale" classifies AlreadyLean (already <= the 32-vreg cliff,
+    // output tiling a structural no-op) => Plain; q4_0 carries NO offline seed, so it
+    // resolves via the cold-start [XFER-1] prior (reason=prior). Byte-exact: the flat
+    // q4_0 emitter does not read tiling_variant, so the stamp is inert to the body.
+    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q4_0", op);
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
     // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
@@ -1672,7 +1750,7 @@ private:
   lowerToRepackGemmKQuant(tcrvrvv::GgmlQuantContractionOp op,
                           const pluginrvv::ContractionSelection &selection,
                           std::int64_t halfLanes, bool isRVV0p7,
-                          std::int64_t minVLEN, const KQuantDecodeFacts &facts) {
+                          const KQuantDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -1782,65 +1860,16 @@ private:
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
-    // [G3 主线C / SEL-1] T2 tracer: SP4 output-tiling variant SELECTION (q4_K ONLY
-    // this round; T3 铺 the remaining K-quant / codebook / q4_0 leaves). The
-    // tiled-vs-plain choice that today is a COMPILE-TIME per-format hardcode inside
-    // emitTypedRepackGemmLoopBody (the gate (7) gap) moves HERE into a runtime
-    // CAPABILITY-KEYED selection: the key is the BOTTLENECK SHAPE derived from
-    // fold_model (a structure/capability fact), NEVER the format name -- so the
-    // pattern migrates "换键不改条目" and format-name dispatch cannot recur. On
-    // rvv/VLEN128 (minVLEN 128, 32 vregs) the q4_K min-fold register-cliff shape has
-    // BOTH {plain, s6_tiled} feasible and an EMPTY offline-profile cache, so the
-    // cold-start [XFER-1] prior returns S6Tiled -- BYTE-EXACT to the current hardcode.
-    // The variant + reason are stamped for the EmitC emitter's PURE REALIZE (absent
-    // => the S6Tiled default, so the un-wired GEVM / other GEMM leaves stay
-    // byte-identical); the full [D-4] attribution record (reusing the SAME
-    // computeDeclaredInstanceHash) rides an inert in-IR attr. The SP4 tiling axis is a
-    // GEMM-only leaf, so this stamp lives only on the prefill loop op.
-    if (facts.decodeModel == "q4_K") {
-      if (std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
-              pluginrvv::classifyTilingBottleneckShape(facts.foldModel)) {
-        // The declared-instance hash: the SAME [D-4](1)/[D-2a] hash the exec /
-        // schedule sinks compute (support::computeDeclaredInstanceHash of the
-        // enclosing kernel's expanded capability instance). Best-effort: an
-        // unbuildable / non-conforming instance leaves it empty (the measurement key
-        // then simply misses => cold start).
-        std::string declaredInstanceHash;
-        if (auto kernel = op->getParentOfType<tcrv::exec::KernelOp>()) {
-          if (llvm::Expected<support::TargetCapabilitySet> capabilities =
-                  support::TargetCapabilitySet::buildFromKernelChecked(kernel))
-            declaredInstanceHash =
-                support::computeDeclaredInstanceHash(*capabilities);
-          else
-            llvm::consumeError(capabilities.takeError());
-        }
-        // Consult the offline-profile measurement cache FIRST (empty seed => cold
-        // start), then run the two-stage capability selection.
-        std::optional<pluginrvv::RVVTilingMeasurementHit> measurement =
-            pluginrvv::lookupTilingMeasurement(declaredInstanceHash,
-                                               facts.decodeModel);
-        pluginrvv::RVVRepackTilingChoice choice =
-            pluginrvv::selectRepackTilingVariant(
-                *shape, minVLEN, kRVVArchVectorRegisterCount, measurement);
-        loop->setAttr(kTilingVariantAttr,
-                      builder.getStringAttr(
-                          pluginrvv::stringifyRVVRepackTilingVariant(
-                              choice.variant)));
-        loop->setAttr(kTilingReasonAttr,
-                      builder.getStringAttr(
-                          pluginrvv::stringifyRVVTilingSelectionReason(
-                              choice.reason)));
-        const pluginrvv::RVVRepackTilingVariant candidates[] = {
-            pluginrvv::RVVRepackTilingVariant::Plain,
-            pluginrvv::RVVRepackTilingVariant::S6Tiled};
-        loop->setAttr(
-            kTilingRecordAttr,
-            builder.getStringAttr(
-                pluginrvv::buildTilingSelectionAttributionRecord(
-                    facts.decodeModel, candidates, choice.variant, choice.reason,
-                    declaredInstanceHash, /*noTimestamp=*/true)));
-      }
-    }
+    // [G3 主线C / SEL-1] T3: the K-quant GEMM SP4 output-tiling SELECTION (all 5
+    // leaves this round). The KEY is the BOTTLENECK SHAPE derived from facts.foldModel,
+    // NEVER the format name: the min-fold register-cliff shape (q4_K/q2_K/q5_K,
+    // "kquant_dmin_bsums_min") and the weight-reconstruction-bound no-min shape
+    // (q6_K/q3_K, "kquant_single_scale_no_min") route through the SAME selector. All 5
+    // are offline-seeded on the rvv/VLEN128 board (reason=measured): the min-fold
+    // family memoized-argmins to S6Tiled, and q6_K/q3_K to Plain (the HONEST measured
+    // weight-bound fallback -- measurement says S6 is a NULL lever there). The SP4
+    // tiling axis is a GEMM-only leaf, so this stamp lives only on the prefill loop op.
+    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -2155,6 +2184,14 @@ private:
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // [SEL-1] T3: the codebook GEMM SP4 tiling selection. The codebook fold_models
+    // (iq4_nl "codebook_flat_single_scale" / iq4_xs "codebook_superblock_signed6_no_min")
+    // classify AlreadyLean (a memory-gather decode already <= the 32-vreg cliff, output
+    // tiling a structural no-op) => Plain; no offline seed => the cold-start [XFER-1]
+    // prior (reason=prior). Byte-exact: the codebook emitter does not read
+    // tiling_variant, so the stamp is inert to the untiled body.
+    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);

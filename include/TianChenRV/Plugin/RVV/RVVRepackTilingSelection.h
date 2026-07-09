@@ -79,8 +79,13 @@ stringifyRVVTilingSelectionReason(RVVTilingSelectionReason reason) {
 //   - DualPlaneWeightBound (fold_model "kquant_single_scale_no_min", q6_K/q3_K): the
 //     peak is two-plane weight reconstruction, so output tiling is a NULL lever.
 //     Prior => Plain.
-//   - AlreadyLean (codebook fold_models, iq4_nl/iq4_xs): already <= the 32-vreg
-//     cliff, so S6 output tiling is a structural no-op. Prior => Plain.
+//   - AlreadyLean (the codebook fold_models iq4_nl/iq4_xs AND the flat q4_0 linear
+//     fold "lane_wise_vector_scale"): the body already sits <= the 32-vreg cliff (a
+//     memory-gather codebook decode, or the flat single-plane nibble + dual-fp16
+//     fold), so S6 output tiling is a structural no-op. Prior => Plain. This is the
+//     [XFER-1] rule's LOWER BOUND -- there are no stageable decode strips to relieve,
+//     so the flat q4_0 leaf carries the SAME already-lean verdict as the codebook
+//     leaves (the KEY is the shape, not the format: q4_0 and iq4 co-map here).
 enum class RVVTilingBottleneckShape {
   MinFoldRegisterCliff,
   DualPlaneWeightBound,
@@ -88,8 +93,11 @@ enum class RVVTilingBottleneckShape {
 };
 
 // Map a loop-body fold_model to its bottleneck shape (the selection KEY). Returns
-// std::nullopt when the fold_model is not an SP4 tiling leaf (the q4_0
-// "lane_wise_vector_scale" fold and every non-repack fold carry NO tiling axis).
+// std::nullopt when the fold_model has NO SP4 output-tiling GEMM axis (a non-repack
+// fold, or the ternary trit folds). The flat q4_0 "lane_wise_vector_scale" GEMM leaf
+// DOES classify now (AlreadyLean): it is a wired SP4 leaf whose prior is Plain
+// (already <= the 32-vreg cliff), so the tiled-vs-plain choice for EVERY repack GEMM
+// leaf -- q4_0 flat, K-quant min-fold + no-min, codebook -- flows through this KEY.
 inline std::optional<RVVTilingBottleneckShape>
 classifyTilingBottleneckShape(llvm::StringRef foldModel) {
   if (foldModel == "kquant_dmin_bsums_min")
@@ -97,7 +105,8 @@ classifyTilingBottleneckShape(llvm::StringRef foldModel) {
   if (foldModel == "kquant_single_scale_no_min")
     return RVVTilingBottleneckShape::DualPlaneWeightBound;
   if (foldModel == "codebook_flat_single_scale" ||
-      foldModel == "codebook_superblock_signed6_no_min")
+      foldModel == "codebook_superblock_signed6_no_min" ||
+      foldModel == "lane_wise_vector_scale")
     return RVVTilingBottleneckShape::AlreadyLean;
   return std::nullopt;
 }
@@ -148,16 +157,50 @@ struct RVVTilingMeasurementHit {
 // Consult the offline-profile measurement cache for the memoized argmin winner of the
 // (declared_instance_hash, kernel) key. The versioned schema/tiling-measurements.v1
 // JSON is the OFFLINE authority (a harness on `ssh rvv` fills it past the byte-exact
-// gate); the compiler holds an in-memory VIEW of it and consults it BEFORE the cold-
-// start prior. The seed cache is EMPTY, so every query is a cold start today (=>
-// reason=prior), exactly as the [SEL-1] design's "可空/seed" measurement layer
-// specifies. Kept a pure lookup (never parses JSON in-tree, [NG-3]/I4: measured
-// timings are a cache fact, never a correctness/cost authority in `lib/`).
+// gate); the compiler holds this in-memory VIEW of it and consults it BEFORE the
+// cold-start prior. Kept a pure lookup (never parses JSON in-tree, [NG-3]/I4: a
+// measured timing is a cache fact, never a correctness/cost authority in `lib/`).
+//
+// [SEL-1] T3 SEED: the view is seeded from the REAL T8 rvv/VLEN128 board (the
+// experiments .../T8_winloss_gap_ledger.csv [XFER-1] rows), keyed on the @rvv
+// declared-instance hash (3cd23a4e...) the fixture kernels expand to. The 5 K-quant
+// GEMM leaves were byte-exact-gated + A/B profiled; their memoized argmin winner:
+//   - min-fold register-cliff family q4_K / q2_K / q5_K => S6Tiled (S6 reaches the
+//     <=32-vreg cliff [spill->0], 1.884 / 1.413 / 2.193x vs the ggml block-dot).
+//   - weight-reconstruction-bound no-min family q6_K / q3_K => Plain: S6 is a NULL
+//     lever (the <=32-vreg cliff is NEVER reached; the two-plane weight rebuild
+//     dominates), so the HONEST measured winner is the untiled body -- a MEASURED
+//     weight-bound fallback, NOT a blind default (this is the [XFER-1] transfer-
+//     boundary claim: measurement itself says "do not tile here").
+// Every OTHER (hash, kernel) -- q4_0, iq4_nl/iq4_xs, or any un-profiled board -- is a
+// MISS => nullopt => the caller's cold-start [XFER-1] prior (reason=prior). So the
+// selector demonstrates BOTH paths: measured argmin (the 5 seeded K-quant) and prior
+// cold-start (q4_0 + the codebook pair).
 inline std::optional<RVVTilingMeasurementHit>
 lookupTilingMeasurement(llvm::StringRef declaredInstanceHash,
                         llvm::StringRef kernel) {
-  (void)declaredInstanceHash;
-  (void)kernel;
+  struct SeededMeasurement {
+    llvm::StringRef declaredInstanceHash;
+    llvm::StringRef kernel;
+    RVVRepackTilingVariant winner;
+  };
+  // The rvv/VLEN128 declared-instance hash the @rvv fixture kernels expand to (the
+  // SAME support::computeDeclaredInstanceHash the exec/schedule attribution sinks
+  // compute). A different board => a different hash => a MISS => the prior.
+  static constexpr llvm::StringLiteral kBoardInstanceHash =
+      "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
+  const SeededMeasurement kSeeded[] = {
+      {kBoardInstanceHash, "q4_K", RVVRepackTilingVariant::S6Tiled},
+      {kBoardInstanceHash, "q2_K", RVVRepackTilingVariant::S6Tiled},
+      {kBoardInstanceHash, "q5_K", RVVRepackTilingVariant::S6Tiled},
+      {kBoardInstanceHash, "q6_K", RVVRepackTilingVariant::Plain},
+      {kBoardInstanceHash, "q3_K", RVVRepackTilingVariant::Plain},
+  };
+  if (declaredInstanceHash.empty())
+    return std::nullopt;
+  for (const SeededMeasurement &row : kSeeded)
+    if (row.declaredInstanceHash == declaredInstanceHash && row.kernel == kernel)
+      return RVVTilingMeasurementHit{row.winner};
   return std::nullopt;
 }
 
