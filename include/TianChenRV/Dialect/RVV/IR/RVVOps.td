@@ -10094,8 +10094,13 @@ def TypedDequantizeRowLoopBodyOp
     "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" (the fp16 d/dmin seam + the per-format
     super-block scale/min unpack -- get_scale_min_k4 6-bit, the q3_K aux kmask shuffle,
     the q2_K packed 4-bit scale/min, the q6_K signed int8 scales -- then the 2/3/4/5/6-bit
-    quant unpack + fold). The op does NOT own dtype/route authority; the per-block decode
-    is the separate typed brick carried inside the region.
+    quant unpack + fold) plus the QK_K=256 IQ grid-table super-block leaves
+    "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s" (the fp16 d seam + the grid-of-N
+    codebook gather -- grid-of-8 int64 / 512- and 1024-entry grids / grid-of-4 uint32 --
+    with the per-format sign plane signs64/signs256/ksigns/per-lane sign bytes, all
+    DERIVED at emit as function-local statics, folded d*scale*grid*sign). The op does
+    NOT own dtype/route authority; the per-block decode is the separate typed brick
+    carried inside the region.
   }];
 
   let arguments = (ins
@@ -10157,11 +10162,15 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     optional qh 5th-bit plane, then the per-nibble unpack + bias/min fold + scale; for
     the QK_K=256 K-quant super-block leaves "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K": the
     fp16 d (+ optional dmin) seam + the per-format super-block scale/min unpack, then
-    the 2/3/4/5/6-bit quant unpack + fold. The block-layout facts (qk,
+    the 2/3/4/5/6-bit quant unpack + fold; for the QK_K=256 IQ grid-table super-block
+    leaves "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s": the fp16 d seam + the per-format
+    grid-of-N codebook gather + sign plane (all DERIVED at emit as function-local
+    statics), folded d*scale*grid*sign. The block-layout facts (qk,
     weight_block_stride, scale_byte_offset, quant_byte_offset) are the ggml ABI
     constants; decode_model pins WHICH decode leaf. For the current bounded surface
     decode_model is limited to the flat streaming family "q8_0"/"q4_0"/"q4_1"/"q5_0"/
-    "q5_1" + the K-quant super-blocks "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K".
+    "q5_1" + the K-quant super-blocks "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" + the IQ
+    grid-table super-blocks "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s".
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,

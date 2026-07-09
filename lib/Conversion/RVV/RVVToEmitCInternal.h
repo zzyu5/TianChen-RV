@@ -4316,14 +4316,17 @@ private:
   /// the E8M0/UE4M3 scale reconstruction, the get_scale_min_k4 6-bit unpack, the
   /// q3_K aux 6-bit scale shuffle, the base-3 tq1_0 unpack, the codebook gather).
   /// Hand-written monolith body (wiring, not construction: no typed loop brick)
-  /// for the NON-K-quant extended formats. NOTE the K-quant super-blocks
-  /// (q2_K/q3_K/q4_K/q5_K/q6_K) are now FRONT-DOOR CONSTRUCTED: their super-block
-  /// decode is emitted from THIS SAME function (keyed by the `format` string, no
-  /// deqOp needed), so BOTH the dispatch-wired monolith fallback AND the constructed
-  /// typed lowering (via emitDequantizeRowKQuantBodyShared) reach byte-identical C by
-  /// calling the SAME code -- no duplicated decode leaf. Returns success iff `format`
-  /// is one of the extended formats and its body was emitted; a legacy/unwired
-  /// format yields a match failure so the caller falls back to the legacy chain.
+  /// for the remaining [L-6]-wired extended formats (FP4 / ternary / iq1 / iq4
+  /// codebook). NOTE the K-quant super-blocks (q2_K/q3_K/q4_K/q5_K/q6_K) AND the IQ
+  /// grid-table super-blocks (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s) are now FRONT-DOOR
+  /// CONSTRUCTED: their super-block decode is emitted from THIS SAME function (keyed by
+  /// the `format` string, no deqOp needed -- the grid/sign planes are DERIVED at emit,
+  /// not carried as op-attrs), so BOTH the dispatch-wired monolith fallback AND the
+  /// constructed typed lowering (via emitDequantizeRowKQuantBodyShared /
+  /// emitDequantizeRowIQGridBodyShared) reach byte-identical C by calling the SAME
+  /// code -- no duplicated decode leaf. Returns success iff `format` is one of the
+  /// extended formats and its body was emitted; a legacy/unwired format yields a match
+  /// failure so the caller falls back to the legacy chain.
   mlir::LogicalResult emitGgmlDequantizeRowExtended(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       llvm::StringRef format, mlir::Value input, mlir::Value output,
@@ -4429,6 +4432,31 @@ private:
   /// reference dequantize_row_<format> (a scalar AoS super-block loop; no reduction).
   /// Streaming sibling of emitDequantizeRowNibbleBodyShared (no accumulator).
   mlir::LogicalResult emitDequantizeRowKQuantBodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef format) const;
+
+  /// The SHARED IQ grid-table super-block dequantize_row block-decode body for the
+  /// QK_K=256 IQ grid family (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s): the AoS
+  /// `nb = k / 256` super-block loop, the fp16 d seam, the per-format canonical grid
+  /// + sign-plane table decls emitted ONCE as function-local statics (the SAME
+  /// emitIQ2XXSCanonicalGridTableDecl / ...Signs64TableDecl / ...Signs256TableDecl /
+  /// emitIQ3XXSCanonicalKsignsTableDecl anchors the block-dot vec_dot lowering emits),
+  /// then the per-super-block grid-index + sign decode (grid-of-8 int64 for iq2_xxs,
+  /// the 512/1024-entry grids for iq2_xs/iq2_s, the grid-of-4 uint32 for iq3_xxs/iq3_s)
+  /// folded d*scale*grid*sign. This is a thin `format`-keyed FORWARDER to
+  /// emitGgmlDequantizeRowExtended -- the SAME hand-written grid decode the
+  /// dispatch-wired monolith fallback runs -- so the CONSTRUCTED typed lowering (via
+  /// emitTypedDequantizeRowLoopBody) and the monolith emit byte-identical C by
+  /// construction (modulo only the source-op provenance token threaded through
+  /// opName/role); there is NO duplicated IQ grid decode leaf. The grid/sign planes are
+  /// DERIVED at emit (NOT carried as op-attrs), so the leaf is self-contained -- no
+  /// signs64/grid-table op-attr blocker (that blocker is specific to the block-dot
+  /// repack GEVM path, not this streaming dequant path). Byte-exact to ggml's reference
+  /// dequantize_row_<format> (a scalar AoS super-block loop; no reduction). Streaming
+  /// sibling of emitDequantizeRowKQuantBodyShared (no accumulator).
+  mlir::LogicalResult emitDequantizeRowIQGridBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,

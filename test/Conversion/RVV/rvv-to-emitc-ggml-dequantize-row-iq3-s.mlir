@@ -1,11 +1,23 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_iq3_s` block DECODE (block_iq3_s -> f32 row) as a
-// DISPATCH-WIRED lowering (\[L-6\] wiring != construction): tcrv_rvv.dequantize_row
-// (format="iq3_s") routes to the hand-written monolith emitter reproducing ggml's
-// reference dequantize_row_iq3_s -- 512-entry grid-of-4 (uint32) with a 9th index bit from qh; explicit per-lane sign bytes bit-tested; two passes (qh0/qh1) per scale group. REUSES the iq3_s block-dot vec_dot grid
-// decl (byte-identical canonical grid/signs table). Numerically byte-exact to ggml
-// (verified vs ggml's reference on random blocks; scalar AoS loop, no reduction).
+// The ggml `dequantize_row_iq3_s` block DECODE (block_iq3_s -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the IQ grid-table dequant leaf (G3 line-B, a
+// dequantize_row family member, family-head q8_0): the abstract tcrv_rvv.dequantize_row
+// (format="iq3_s") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
+// it into the typed tcrv_rvv.typed_dequantize_row_loop_body region {
+// dequantize_row_decode_core (decode_model "iq3_s", qk=256, stride=110);
+// typed_dequantize_row_loop_yield } and lowers it (the emission is DRIVEN by the typed
+// region op-identity + decode_model, [L-6]/[L-8] construction, NOT the abstract format
+// string). The emitted C is BYTE-IDENTICAL to the dispatch-wired iq3_s monolith modulo
+// ONLY the source-op provenance token (the SHARED grid decode emitGgmlDequantizeRowExtended,
+// reached via emitDequantizeRowIQGridBodyShared, is the SAME code both paths run) -- the
+// 512-entry (uint32) grid-of-4 with a 9th index bit merged from qh, the EXPLICIT per-lane
+// sign bytes (bit-tested, no derived sign table), the two passes (qh0/qh1) per scale group
+// db=d*(1+2*scale), and the fp16 d via the (float)*(const _Float16 *) seam. The grid table
+// is DERIVED at emit as a function-local static (NO grid op-attr; that blocker is
+// block-dot-repack-only, not this streaming dequant path). REUSES the iq3_s block-dot
+// vec_dot grid decl. Byte-exact-vs-ggml-reference dequantize_row_iq3_s (a scalar AoS
+// super-block loop; no reduction).
 
 module {
   tcrv.exec.kernel @dequant_iq3_s_kernel {
@@ -22,10 +34,14 @@ module {
   }
 }
 
+// CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_iq3_s_kernel_dequant_iq3_s(
-// The grid table decl, emitted once above the super-block loop (reused from the vec_dot grid decl).
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
+// The 512-entry (uint32) grid-of-4 decl, emitted once above the super-block loop (reused from the vec_dot grid decl).
 // CHECK: tcrv_iq3s_grid
 // The super-block loop, then the fp16 block-scale seam inside it.
-// CHECK: for %
+// CHECK: for
 // CHECK: call_opaque "(float)*(const _Float16 *)"

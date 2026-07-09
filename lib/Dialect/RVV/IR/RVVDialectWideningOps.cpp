@@ -11281,7 +11281,10 @@ static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
          decodeModel == "q4_1" || decodeModel == "q5_0" ||
          decodeModel == "q5_1" || decodeModel == "q2_K" ||
          decodeModel == "q3_K" || decodeModel == "q4_K" ||
-         decodeModel == "q5_K" || decodeModel == "q6_K";
+         decodeModel == "q5_K" || decodeModel == "q6_K" ||
+         decodeModel == "iq2_xxs" || decodeModel == "iq2_xs" ||
+         decodeModel == "iq2_s" || decodeModel == "iq3_xxs" ||
+         decodeModel == "iq3_s";
 }
 
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
@@ -11322,8 +11325,9 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
               "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 (the flat streaming "
               "family: the block_q8_0 bare-int8 scale family-head + the 4-bit nibble "
               "leaves) + q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
-              "leaves). An unconstructed format stays dispatch-wired via the abstract "
-              "tcrv_rvv.dequantize_row monolith";
+              "leaves) + iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s (the QK_K=256 IQ grid-table "
+              "super-block leaves). An unconstructed format stays dispatch-wired via the "
+              "abstract tcrv_rvv.dequantize_row monolith";
 
   // qk / weight_block_stride are positive ggml ABI byte counts the per-block
   // address arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
@@ -11419,7 +11423,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
            << "decode_model '" << getDecodeModel()
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
               "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
-              "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K";
+              "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table super-blocks "
+              "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getWeightBlockStrideAttr().getInt() <= 0)
