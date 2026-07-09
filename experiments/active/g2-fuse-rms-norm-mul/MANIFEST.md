@@ -1,5 +1,9 @@
 # cell MANIFEST — g2-fuse-rms-norm-mul
 
+> ★M2c min-term-bug 隔离确认(2026-07-09 G3-minterm-fix 裁决一.2):本 cell kernel(rms_norm→mul 逐元素融合)
+> grep 无 `kquant_dmin_bsums_min` / dmin·bsums-min fold —— 无 K-quant min fold。故与 M2c q4_K/q5_K/q2_K
+> repack-GEMM min-term VLEN128 bug(commit 53666846)**无共享路径、不受影响**;1.308× 数值不动。
+
 - **campaign**: fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis)
 - **status**: ACTIVE — **BOARD-MEASURED (裁决二.5, 2026-07-07, rvv/VLEN128)**: paired fused-vs-unfused
   cold N=12 => **1.308× wall speedup** (fused 165.18ms vs unfused 215.99ms; IQR 0.04–0.06%

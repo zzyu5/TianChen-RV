@@ -1,5 +1,9 @@
 # [GAP-SB] de-risk cell — iq2_xxs pair-batching: instruction-count drop => real board speedup?
 
+> ★M2c min-term-bug 隔离确认(2026-07-09 G3-minterm-fix 裁决一.2):本 cell kernel(iq2_xxs 码本 gather 块点积)
+> grep 无 `kquant_dmin_bsums_min` / dmin·bsums-min fold —— iq2 码本格、无 K-quant min fold。故与 M2c
+> q4_K/q5_K/q2_K repack-GEMM min-term VLEN128 bug(commit 53666846)**无共享路径、不受影响**;2.570×/A-B 数值不动。
+
 Purpose: BEFORE investing pair-batching across the whole IQ super-block family, answer the
 transduction question — the EMIT-level "gather 16->8" halving, does it actually run FASTER on
 silicon? Core number = A/B (ours-PRE vs ours-POST), an INTERNAL optimization metric ([NG-4]:

@@ -1,5 +1,9 @@
 # cell MANIFEST — fmtprop-rms-norm-mul-quantize
 
+> ★M2c min-term-bug 隔离确认(2026-07-09 G3-minterm-fix 裁决一.2):本 cell kernel(rms_norm→mul→quantize(q8_0)
+> 融合)grep 无 `kquant_dmin_bsums_min` / dmin·bsums-min fold —— 无 K-quant min fold。故与 M2c q4_K/q5_K/q2_K
+> repack-GEMM min-term VLEN128 bug(commit 53666846)**无共享路径、不受影响**;1.139× 数值不动。
+
 - **campaign**: fuse / [FMT-PROP] (三 G2 铺量 phase1b — format propagation: fold activation quantize
   into the rms_norm→mul epilogue; L3 memory axis)
 - **status**: ACTIVE — **BOARD-MEASURED (2026-07-08, rvv/VLEN128, core 8, 2.6 GHz)**: paired

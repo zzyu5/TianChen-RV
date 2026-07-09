@@ -1,5 +1,16 @@
 # T7 — G3 三曲线收口 (燃减 C_construct · 吞吐兑现 · 旁路存量)
 
+> ############################################################################
+> **★[吞吐兑现收窄 — 记账 — 2026-07-09 G3-minterm-fix 裁决一]** M2c 决定性发现（commit 53666846）：q4_K/q5_K/q2_K
+> repack-GEMM 共享的 `kquant_dmin_bsums_min` min fold VLEN128 有 parity-alternating min-term bug、对真 dmin≠0 数据错；
+> 旧 cert 全 dmin=0 / identity 语料漏抓。**故本 cell「吞吐兑现」曲线由 4 收窄为 1（+3 pending）**：q4_0 e2e 5.9×（不受
+> 影响、成色仍 routing 归因）= **1**；q4_K/q5_K S6 kernel-轴 = **pending-correctness**、q2_K = **pending-audit**（byte-exact
+> 仅 dmin=0 语料、vs-opponent 吞吐 pending-重测、修复期吞吐叙事禁用）。**下方 headline 三数 / 耦合轨迹表 / ASCII 曲线的
+> 「吞吐兑现→4」段读作历史轨迹（M2c 前），现终值 = 1（+3 pending）。暂持不变**：C_construct(=42) / 旁路存量(=8) / 矿脉队列(=8)
+> 三序（覆盖-构造轴，与正确性无关）+ [XFER-1] 分类 + spill + tiling 判定（相对-untiled、byte-exact-PRESERVING）。
+> q6_K/q3_K（另一 fold、无 min-term）、iq4 码本、q4_0 不受影响。
+> ############################################################################
+
 > DATA CELL (visibility line E, G3-closure companion). Hand-curated **coupled** multi-series over the
 > G3 campaign, keyed on the 9 G3 front-door flip commits (7 K-quant closure + M2-后 iq4 codebook pair).
 > Coverage/representation accounting ONLY —
@@ -13,7 +24,7 @@
 | # | 指标 | G3 起 → 终 | 现值 | 权威源 |
 |---|---|---|---|---|
 | 1 | **燃减 — C_construct(强义)** | 33 → **42** | **42 / 93 = 45.2%** | `schema/coverage-sixstate.v1.json` (`coverage_metrics.py report`: C_construct num=42 den=93) |
-| 2 | **吞吐兑现(格数)** | 1 → **4** | **4** | q4_0 e2e 5.9× + q4_K/q2_K/q5_K S6 kernel-轴 HOLDS(见下表 + `T3_A` 二.1 块) |
+| 2 | **吞吐兑现(格数)** | 1 → **1（+3 pending）**（★收窄 M2c，原 →4） | **1（+3 pending）** | q4_0 e2e 5.9×（不受影响）= **1**；q4_K/q5_K = **pending-correctness**、q2_K = **pending-audit**（min-fold min-term VLEN128 bug 53666846；byte-exact 仅 dmin=0 语料、吞吐叙事禁用；见顶 banner + `T3_A` 二.1 块顶 banner） |
 | 3 | **旁路存量(直连发射器格数)** | 17 → **8** | **8** | `schema/emit-bypass-whitelist.v1.json` `baseline_count=8`(== len(entries); ratchet-down) |
 | 4 | **★矿脉队列存量(gemm_tile 待战役格数)** | — | **8** (+ 9 absent) | `schema/coverage-sixstate.v1.json` gemm_tile 28 = 11 constructed + **8 dispatch-wired** + 9 absent |
 
@@ -25,6 +36,10 @@
   形状 = **先陡后缓**:flat/ternary/K-quant 素材厚已陡峭燃掉(33→42);剩码本/三值 repack GEMM 的矿脉队列**单列**、**SEL-1 T4 后逐格战役立项、禁批量**(每格首翻=净新增-ODS 里程碑,batch 绕过 front-door construction 判据)。
 
 ## 耦合轨迹表(9 个 G3 flip:7 K-quant 收口 + M2-后 iq4 码本对 2;kernel-axis 数只作兑现-判定指针,[NG-4] 非 beat)
+
+> ★收窄 M2c 裁决一(2026-07-09):下表「吞吐兑现」列 step3/5/7(q4_K/q2_K/q5_K S6 HOLDS,数 1.884×/1.413×/2.193×)
+> 现全 **pending**(共享 `kquant_dmin_bsums_min` min-term VLEN128 bug 53666846:q4_K/q5_K=pending-correctness、q2_K=pending-audit,
+> byte-exact 仅 dmin=0 语料)→ 兑现终值列读作 **1(+3 pending)** 而非 4;表内 2/3/4 是 M2c 前历史轨迹。C_construct/旁路/tiling 判定不变。
 
 | step | flip commit | format | C_construct | 旁路存量 | 吞吐兑现 | tiling(S6) | 兑现新增(kernel-轴 A/B, [NG-4] 非 beat) |
 |---:|---|---|---:|---:|---:|---|---|
@@ -69,7 +84,7 @@ C_construct  ####################################################   33 -> 42   (
 - **★矿脉队列存量(gemm_tile 待战役格数)**:六态 gemm_tile 28 = 11 constructed + **8 dispatch-wired** + 9 absent。**8 dispatch-wired == 旁路存量 8**
   (dispatch-wired 但 repack GEMM 未构造),是 90% 路径当前**唯一矿脉队列**:flat4 + iq2×3 + mxfp4。9 absent(iq1_m/iq1_s/iq3_s/iq3_xxs/nvfp4/q1_0/q4_0/q4_K/q8_0)
   连 dispatch-wired repack GEMM 都未接,是更深尾。形状 = **先陡后缓**:家族素材厚的段已陡峭燃掉;矿脉队列**单列、SEL-1 T4 后逐格战役立项、禁批量**。
-- **吞吐兑现**:兑现 = 构造格把结构 opening **转成实测吞吐**。1(q4_0 e2e 5.9× prefill,唯一 **e2e** 兑现)→ 4
+- **吞吐兑现**（★收窄 M2c 裁决一 2026-07-09:曲线由 4 收窄为 **1(+3 pending)**——q4_K/q5_K/q2_K 三格共享 `kquant_dmin_bsums_min` min-term VLEN128 bug 53666846 → pending;q4_K/q5_K=pending-correctness、q2_K=pending-audit;下文「→4」为 M2c 前历史轨迹,现终值=1):兑现 = 构造格把结构 opening **转成实测吞吐**。1(q4_0 e2e 5.9× prefill,唯一 **e2e** 兑现)→ 4
   (+q4_K/q2_K/q5_K S6 tiling **kernel-轴** HOLDS)。★兑现≠beat:后 3 格是 **kernel-轴 A/B**(单核、opponent=单线程
   block-dot proxy、8 [PERF-1] 门未走),整模型 e2e = **projection**(二.2 Amdahl prefill 上限 ≈1.59×,decode NULL,measured Δ 集成 BLOCKED)。
   q6_K/q3_K tiling **NULL**(weight-bound,~5.3–5.4× LOSS 未救)+ iq4 码本对 S6 **结构 no-op**(已在 ≤32-vreg 悬崖)→ 均不加兑现,如实登记为 marginal-cost/maturity 证据。

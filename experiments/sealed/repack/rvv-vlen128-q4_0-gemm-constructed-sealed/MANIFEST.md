@@ -1,5 +1,10 @@
 # cell MANIFEST — rvv-vlen128-q4_0-gemm-constructed-sealed
 
+> ★M2c min-term-bug 隔离确认(2026-07-09 G3-minterm-fix 裁决一.2):本 cell kernel(q4_0 flat repack GEMM)
+> grep 无 `kquant_dmin_bsums_min` / dmin·bsums-min fold —— q4_0 是 flat 格、无 K-quant min fold。故与 M2c
+> q4_K/q5_K/q2_K repack-GEMM min-term VLEN128 bug(commit 53666846)**无共享路径、不受影响**;5.9× 数值不动
+> (成色仍按既有 routing 归因,见 `docs/reports/2026-07-09-q4_0-5.9x-routing-attribution-correction.md`)。
+
 - **campaign**: repack
 - **status**: SEALED (D-board return finale)
 - **role**: q4_0 REPACK GEMM prefill ~5.9x SEALED + decode P1; step0 restore + noisefloor + constructed + objdump fingerprint + bandwidth analysis.

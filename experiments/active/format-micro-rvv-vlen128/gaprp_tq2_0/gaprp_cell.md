@@ -1,5 +1,9 @@
 # [GAP-RP] tq2_0 register-spill elimination — BOARD A/B + vs-generic (rvv/VLEN128, 裁决二.4)
 
+> ★M2c min-term-bug 隔离确认(2026-07-09 G3-minterm-fix 裁决一.2):本 cell kernel(tq2_0 ternary 块点积)
+> grep 无 `kquant_dmin_bsums_min` / dmin·bsums-min fold —— ternary 格、无 K-quant min fold。故与 M2c
+> q4_K/q5_K/q2_K repack-GEMM min-term VLEN128 bug(commit 53666846)**无共享路径、不受影响**;1.92× A/B 数值不动。
+
 Question (same read structure as [GAP-SB]): the tq2_0 format-micro loss was triaged to a
 **LMUL-over-widen regfile spill** (4 whole-reg vector spill round-trips per super-block iteration).
 Commit 3186919d ("Path 3: keep m4, kill overlap, serialize the 2 chunks") eliminates the spill,
