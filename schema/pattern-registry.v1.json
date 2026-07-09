@@ -86,6 +86,44 @@
       "metrics_hook": null,
       "status": "deferred-backlog",
       "restart_condition": "Reopen ONLY when the repack campaign's GEMM path reproduces the decode-width bottleneck AND carries NEW evidence (e.g. objdump showing narrow decode-width dominating a GEMM tile). Until then: accept the q5_K board-split (k1/VLEN256 win / rvv/VLEN128 loss, bit-exact dual-board + more-faithful-to-ggml-scalar than the factory riscv kernel) + decode-width characterization banked (docs/method/perf-characterizations-layer4.md #4). Do NOT open a standalone campaign (option-3 rabbit-hole declined). Full trail: gap-log GAP-1/q5_K-aux8-roundtrip + GAP-1/q5_K-P3-register-resident FALSIFIED; T8 q5_K-2c row; experiments/archive/perf-historical/ondevice-q5_K/."
+    },
+    {
+      "pattern_id": "PAT-S6-repack-gemm-output-tiling-register-cliff-XFER-1",
+      "milestone": "G3 主线A (K-quant + iq4 codebook repack GEMM output-tiling)",
+      "brick": "S6",
+      "requires": ["rvv.v"],
+      "discriminant_capability_fact": "vreg_count=32 (the <=32-vreg register cliff is the DISCRIMINANT capability fact; vlen sets half/numHalves and the mf2 chain vreg cost). S6 is a LAYER-4 output-tiling optimization on the already-mechanized front-door construction -- it NEVER moves C_construct.",
+      "transform": "S6 output-tiling of the repack GEMM body (h-strip hs=1 + inline-min-fold dropping the bsums i32 accumulator family + already-decoded weight stack-panel + on-demand d/dmin widen; SSA-register accumulators). Lowers the per-format emitRepackKQuantGem{v,m}Body* / emitRepackCodebookGem{v,m}Body* GEMM leaf; peak live vreg 94->~29 (<=32) while preserving once-per-16-weight decode amortization (FULL). Design pack: docs/reports/2026-07-08-G3-L1-tiling-schemes.md (S6).",
+      "mechanism": "[XFER-1] S6 transfer rule -- THREE classes, discriminated by whether the format's decode has STAGEABLE strips under HIGH register pressure. UNIFIED CRITERION: S6 applies <=> the hot loop carries HIGH register pressure from STAGEABLE decode strips (the stack-panel can externalize a COLD decoded strip so the HOT accumulator fan-out drops under the <=32-vreg cliff). Observable discriminant (objdump): post-tile maxVreg v30 = crossed <=32 cliff = HOLDS; v31 = cliff NOT reached = NULL; spill->0 = HOLDS, rose/flat = NULL, already <=32 pre-tile = structural no-op.",
+      "xfer_classes": [
+        {
+          "class": "1 min-fold register-cliff",
+          "verdict": "HOLDS",
+          "ships": "GEMM ships S6-TILED",
+          "formats": "q4_K (anchor) / q2_K / q5_K",
+          "requires": "dual d/dmin + bsums-min i32 accumulators (fold_model kquant_dmin_bsums_min) AROUND a single-plane nibble/scale decode that IS stageable into the stack-panel; it is the ACCUMULATOR fan-out (not the weight assembly) that overflows 32.",
+          "mechanism": "inline-min-fold drops the bsums i32 family + stacks the decoded 6-bit scale/min strip to L1 (cold) -> HOT accumulator fan-out drops under 32 -> spill->0, maxVreg v30. The q4_K register-cliff lever transfers WHOLE to q2_K (single-plane) and q5_K (the qh 5th-bit inject is orthogonal to the tiling; min+bsums fold dominates and crosses the cliff despite the extra qh plane)."
+        },
+        {
+          "class": "2 weight-reconstruction-bound",
+          "verdict": "NULL",
+          "ships": "GEMM ships PLAIN/untiled",
+          "formats": "q6_K / q3_K",
+          "requires": "MULTI-PLANE weight assembly (q6_K ql+qh 6-bit dual plane / q3_K qs+hmask 3-bit subtractive) whose ~900+ vand/vsrl/vsll/vor/vsub reconstruction ops (1.28x q6_K / 3.29x q3_K of the dot vwmacc) are NON-stageable: the whole weight strip must be live simultaneously to assemble one int8 weight.",
+          "mechanism": "the S6 stack-panel only externalizes the ~84 scale-strip spill = one drop in the ~900 weight-reconstruction bucket; the DOMINANT live set is the multi-plane weight assembly, which the panel cannot touch -> spill stays >>32 (q6_K rose 913->949 / q3_K 978->894), maxVreg v31, NO <=32 cliff. vs-opponent stays ~5.2-5.4x LOSS (weight-bound, not tiling-curable)."
+        },
+        {
+          "class": "3 codebook-gather already-lean",
+          "verdict": "STRUCTURAL NO-OP",
+          "ships": "GEMM ships PLAIN/untiled",
+          "formats": "iq4_nl / iq4_xs",
+          "requires": "codebook decode via vluxei16 MEMORY gather (weight = codebook[nibble]; vwmacc=0 = ZERO register weight-reconstruction); spill ALREADY <=32 (at the register cliff) pre-tile; NO high-register-pressure stageable decode strip exists.",
+          "mechanism": "there is no HIGH-register-pressure stageable strip to externalize -- the codebook body already sits at the <=32-vreg cliff (iq4_nl spill 7/v30; iq4_xs spill 73/v30), so S6 output tiling is a STRUCTURAL NO-OP: the front-door body ships PLAIN/untiled, byte-exact to the retired direct-emitter body verbatim. DISTINCT from class 2 NULL (that FAILS to reach the cliff under weight pressure; this one is ALREADY BELOW it, no lever needed)."
+        }
+      ],
+      "metrics_hook": "experiments/active/result-tables/T8_winloss_gap_ledger.csv (the 7 XFER-1 rows: q4_K/q2_K/q5_K -tile-S6 HOLDS, q6_K/q3_K -tile-T3 NULL, iq4_nl/iq4_xs -frontdoor-tile-NOOP) + experiments/active/visibility/T7-three-curve-G3-closure.md ([XFER-1] 7/7 prediction-registration table) + per-format cells experiments/active/l1-tile-s6-q4k-repack-gemm + l1-t3-q{2,3,5,6}k-repack-gemm + l1-m2-iq4.",
+      "status": "mechanized",
+      "xfer_note": "The S6 output-tiling primitive is MECHANIZED in the emitter for the HOLDS class (a LAYER-4 register-cliff optimization on the already-mechanized front-door construction, NOT a construction brick -- it never moves C_construct). Per-class verdict is a HARDWARE-MEASURED characterization: 7/7 predicted==measured (min-fold HOLDS x3, weight-bound NULL x2, codebook no-op x2). Kernel-axis vs-opponent parity + spill/maxVreg objdump; NOT e2e, NOT 8-gate sealed ([NG-4]/[L-1] locks live on the T8 rows). e2e transmission is a PROJECTION, not measured (experiments/active/kquant-family-closure/transmission_account.md; prefill Amdahl upper bound ~1.59x, decode NULL)."
     }
   ]
 }

@@ -32,7 +32,8 @@
     "07-07-revive-m1-wholelmul-schedule",
     "07-08-pipeline-kquant-repack-gemm",
     "07-08-G3-L1-maturity",
-    "07-08-G3-frontdoor"
+    "07-08-G3-frontdoor",
+    "07-09-G3-selector"
   ],
   "parent": null,
   "relatedFiles": [],

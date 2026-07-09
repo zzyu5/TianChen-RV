@@ -62,6 +62,29 @@ C_construct  ############################################   33 -> 40   (+7 强�
   q6_K/q3_K tiling **NULL**(weight-bound,~5.3–5.4× LOSS 未救)→ 不加兑现,如实登记为 marginal-cost/maturity 证据。
 - **[XFER-1] register-cliff 迁移** = 4 个 sibling 预测从 q4_K S6 anchor 出发,**4/4 命中硅**(q2_K/q5_K 预测 HOLDS→实测 HOLDS;
   q6_K/q3_K 预测 NULL→实测 NULL);判别式 = ≤32-vreg 寄存器悬崖(v30=HOLDS / v31=NULL),对应瓶颈形状(min-fold-register-cliff vs dual-plane-weight-bound)。
+  含 anchor q4_K 自身 + iq4 codebook 对(iq4_nl/iq4_xs,第③类 no-op)= 全族 **7/7**,见下「[XFER-1] 预测登记表」。
+
+## [XFER-1] 预测登记表 (format × 瓶颈类 × 预测 × 实测 = 7/7)
+
+> S6 output-tiling 迁移的**逐格预测-实测对账**(裁决〇.1b)。统一判据 = **S6 适用 ⟺ stageable decode strips 的高寄存器压力**
+> (stack-panel 能把 COLD 已解码 strip 外置 → HOT 累加器 fan-out 掉到 ≤32-vreg 悬崖下)。三类:①min-fold register-cliff→HOLDS→tiled;
+> ②weight-reconstruction-bound(多平面/hmask,non-stageable)→NULL→plain;③codebook-gather already-lean(vluxei16 memory gather,
+> spill 已 ≤32,无 stageable strip)→structural no-op→plain。权威源 = `schema/pattern-registry.v1.json`
+> (`PAT-S6-repack-gemm-output-tiling-register-cliff-XFER-1`);逐格 A/B 数 = `result-tables/T8_winloss_gap_ledger.csv` 的 7 条 XFER-1 行([NG-4] 非 beat)。
+
+| # | format | 瓶颈类 | 预测(S6 transfer) | 实测 | 判别式(objdump: spill / maxVreg) | 一致 |
+|---:|---|---|---|---|---|:--:|
+| 1 | q4_K (anchor) | ① min-fold register-cliff | HOLDS → tiled | HOLDS **1.884×** | 84→3 / v30 ≤32 悬崖 | ✓ |
+| 2 | q2_K | ① min-fold register-cliff | HOLDS → tiled | HOLDS **1.413×** (0.212×LOSS→WIN 翻转) | 619→7 / v30 | ✓ |
+| 3 | q5_K | ① min-fold register-cliff (+qh 面) | HOLDS → tiled | HOLDS **2.193×** | 155→105 / v30 悬崖达成(qh 面残留 floor) | ✓ |
+| 4 | q6_K | ② weight-reconstruction-bound | NULL → plain | NULL (~5.4× LOSS 未救) | 913→**949 ROSE** / v31 无悬崖 | ✓ |
+| 5 | q3_K | ② weight-reconstruction-bound | NULL → plain | NULL (~5.2× LOSS 未救) | 978→894 / v31 无悬崖 | ✓ |
+| 6 | iq4_nl | ③ codebook-gather already-lean | no-op → plain | no-op (structural) | 7 / v30 **tile 前已 ≤32**,vwmacc=0=memory-gather | ✓ |
+| 7 | iq4_xs | ③ codebook-gather already-lean | no-op → plain | no-op (structural) | 73 / v30 **tile 前已 ≤32** | ✓ |
+
+**= 7/7 预测-实测一致**(min-fold HOLDS ×3 / weight-bound NULL ×2 / codebook no-op ×2)。②与③都 ships-PLAIN 但机理不同:
+②是**压力下没够到悬崖**(v31),③是**本就在悬崖下**(v30,无 stageable strip,无杠杆可施)。★kernel-轴 vs-opponent parity + spill/maxVreg,
+**非 e2e、非 8-门封印**;整模型 e2e = projection(二.2 传导账,prefill Amdahl 上限 ≈1.59×,decode NULL)。
 
 ## 与自动双曲线(`T7-burndown.md`)的对账
 
