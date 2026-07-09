@@ -396,14 +396,12 @@ private:
   // the typed_repack_gem{v,m}_loop_body front door's ternary branch (decode_model
   // "tq1_0").
 
-  /// The CODEBOOK 16x1-REPACKED single-output-column GEVM recognizer for iq4_nl: a
-  /// with_vl scope whose ONLY compute op is a single
-  /// tcrv_rvv.repack_gemv_iq4_nl_q8_0. iq4_nl is the FIRST CODEBOOK repack (nibble =
-  /// index into a 16-entry non-linear int8 codebook, decoded via a fractional-anchor
-  /// MEMORY vluxei16 gather), single fp16 scale, i32-accumulator no-min fold.
-  static bool isRepackGemvIq4NlQ80Body(tcrvrvv::WithVLOp scope);
-  /// The CODEBOOK 16x1-REPACKED multi-output-column GEMM recognizer for iq4_nl.
-  static bool isRepackGemmIq4NlQ80Body(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 M2 iq4_nl codebook front-door): isRepackGem{v,m}Iq4NlQ80Body -- the iq4_nl
+  // flat CODEBOOK direct-emitter recognizers -- are RETIRED with their direct emitters +
+  // the monolith ops; the iq4_nl repack GEVM/GEMM now flow through the
+  // typed_repack_gem{v,m}_loop_body front door (isTypedRepackGem{v,m}LoopBody -> the
+  // codebook branch, keyed off the in-region repack_gem{v,m}_codebook_core brick's
+  // decode_model "iq4_nl" + its 16-entry non-linear codebook).
   /// The FP4-CODEBOOK + E8M0 16x1-REPACKED single-output-column GEVM recognizer for
   /// mxfp4: the nibble indexes a 16-entry doubled-E2M1 int8 codebook (fractional-
   /// anchor MEMORY vluxei16 gather, the SAME as iq4_nl), scaled by ONE E8M0 shared-
@@ -1795,28 +1793,47 @@ private:
       int64_t weightQhOffset, int64_t activationQuantOffset,
       int64_t weightInterleave, int64_t activationInterleave, int64_t half) const;
 
-  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
-  /// for one tcrv_rvv.repack_gemv_iq4_nl_q8_0 op. iq4_nl is the FIRST CODEBOOK repack:
-  /// the 4-bit nibble is an INDEX into a 16-entry non-linear int8 codebook, decoded by
-  /// a REAL memory-indexed codebook GATHER (zero-extend the nibble to a u16 byte offset
-  /// into the codebook array, then vluxei16_v_i8 -- the fractional mf2 anchor forbids a
-  /// register vrgather), NOT a fake-linear value. Single fp16 scale, i32-accumulator
-  /// (vwmul + vwadd_wv, codebook products overflow i16) no-min fold. The 16-entry
-  /// codebook is emitted ONCE as a `static const int8_t[16]` decl above the loop.
-  mlir::LogicalResult emitRepackGemvIq4NlQ80(
+  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane GEVM (decode) body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemvIq4NlQ80, refactored to take the mapped ABI values + block-format facts
+  /// (including the 16-entry non-linear int8 codebook) as PARAMETERS. Called ONLY from
+  /// emitTypedRepackGemvLoopBody's codebook branch (gated on the in-region
+  /// tcrv_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model "iq4_nl"). iq4_nl
+  /// is the FIRST codebook repack: the 4-bit nibble is an INDEX into a 16-entry non-linear
+  /// int8 codebook, decoded by a REAL fractional-anchor MEMORY vluxei16 codebook GATHER
+  /// (zero-extend the nibble to a u16 byte offset, then vluxei16_v_i8; a register vrgather
+  /// is illegal at the mf2 anchor's VLMAX < 16), NOT a fake-linear value. Single fp16
+  /// scale, i32 in-block accumulator (vwmul + vwadd_wv). RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackCodebookGemvBodyIq4Nl(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t activationQuantOffset,
+      llvm::ArrayRef<int8_t> codebook, int64_t weightInterleave,
+      int64_t half) const;
 
-  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM for
-  /// one tcrv_rvv.repack_gemm_iq4_nl_q8_0 op. The iq4_nl prefill sibling of
-  /// emitRepackGemvIq4NlQ80: the SAME memory codebook-gather decode + single-scale
-  /// i32-accumulator no-min fold, with the codebook decode AMORTIZED across the 4
-  /// interleaved block_q8_0x4 activation columns.
-  mlir::LogicalResult emitRepackGemmIq4NlQ80(
+  /// Emit the COMPLETE ggml iq4_nl x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemmIq4NlQ80, refactored to take the mapped ABI values + block-format facts
+  /// (including the codebook) as PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's
+  /// codebook branch (gated on the in-region tcrv_rvv.repack_gemm_codebook_core anti-bypass
+  /// brick, decode_model "iq4_nl"). The iq4_nl prefill sibling of
+  /// emitRepackCodebookGemvBodyIq4Nl: the SAME memory codebook-gather decode + single fp16
+  /// scale i32-accumulator fold, with the codebook decode AMORTIZED across the 4
+  /// interleaved block_q8_0x4 activation columns. Ships PLAIN (untiled): iq4_nl already
+  /// sits at the <=32-vreg cliff, so S6 output tiling is a structural no-op. RESULT-LESS.
+  mlir::LogicalResult emitRepackCodebookGemmBodyIq4Nl(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+      int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
+      int64_t weightInterleave, int64_t activationInterleave,
+      int64_t half) const;
 
   /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
   /// for one tcrv_rvv.repack_gemv_mxfp4_q8_0 op. The FP4-CODEBOOK + E8M0 sibling of

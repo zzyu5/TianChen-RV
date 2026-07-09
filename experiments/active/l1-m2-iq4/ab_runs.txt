@@ -1,0 +1,8 @@
+# l1-m2-iq4 vs-opponent A/B (repack GEMM vs ggml block-dot; cold paired; noisefloor<<region)
+[loadavg-pre] 2.07 2.15 2.39 1/1246 387473
+IQ4GEMM fmt=iq4_nl VLEN=128 K=2048 nr=64 nc=512 reps=12 noisefloor_ns=40 | OURS best_ns=27333703 med_ns=27394123 best_gmacs=2.4552 | OPP best_ns=22870383 med_ns=22900463 best_gmacs=2.9343 | ratio_best=0.837 ratio_med=0.836 sink=6473923445.4
+IQ4GEMM fmt=iq4_nl VLEN=128 K=2048 nr=64 nc=512 reps=12 noisefloor_ns=40 | OURS best_ns=27303783 med_ns=27395163 best_gmacs=2.4579 | OPP best_ns=23085764 med_ns=23114523 best_gmacs=2.9069 | ratio_best=0.846 ratio_med=0.844 sink=6473906941.4
+IQ4GEMM fmt=iq4_nl VLEN=128 K=2048 nr=16 nc=512 reps=10 noisefloor_ns=40 | OURS best_ns=6875091 med_ns=6892291 best_gmacs=2.4403 | OPP best_ns=4915082 med_ns=4962902 best_gmacs=3.4134 | ratio_best=0.715 ratio_med=0.720 sink=5394924049.2
+IQ4GEMM fmt=iq4_xs VLEN=128 K=2048 nr=64 nc=512 reps=12 noisefloor_ns=40 | OURS best_ns=35803561 med_ns=36137303 best_gmacs=1.8744 | OPP best_ns=23346005 med_ns=23432485 best_gmacs=2.8745 | ratio_best=0.652 ratio_med=0.648 sink=6473950708.1
+IQ4GEMM fmt=iq4_xs VLEN=128 K=2048 nr=16 nc=512 reps=10 noisefloor_ns=260 | OURS best_ns=9452922 med_ns=9883505 best_gmacs=1.7748 | OPP best_ns=5844846 med_ns=5930387 best_gmacs=2.8704 | ratio_best=0.618 ratio_med=0.600 sink=5394848343.5
+[loadavg-end] 2.35 2.21 2.40 1/1246 387487

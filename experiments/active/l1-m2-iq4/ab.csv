@@ -1,0 +1,20 @@
+fmt,axis,nr,metric,value,note
+iq4_nl,objdump_untiled_O2,-,spill,7,vs[1248]r.v whole-reg spills
+iq4_nl,objdump_untiled_O2,-,reload,8,vl[1248]r.v
+iq4_nl,objdump_untiled_O2,-,maxVreg,30,v30 (spare reg; cliff already reached)
+iq4_nl,objdump_untiled_O2,-,vlux,64,vluxei16 codebook gathers
+iq4_nl,objdump_untiled_O2,-,vwmacc,0,no widening-MAC (codebook-gather product path)
+iq4_nl,objdump_untiled_O2,-,vsetvli,656,
+iq4_xs,objdump_untiled_O2,-,spill,73,vs[1248]r.v
+iq4_xs,objdump_untiled_O2,-,reload,149,vl[1248]r.v
+iq4_xs,objdump_untiled_O2,-,maxVreg,30,v30 (spare reg; cliff already reached)
+iq4_xs,objdump_untiled_O2,-,vlux,512,vluxei16 codebook gathers
+iq4_xs,objdump_untiled_O2,-,vsetvli,5162,
+ref,context,-,q6K_untiled_spill,913,v31 saturated -> NULL (weight-bound)
+ref,context,-,q4K_golden/S1/S6,84/23/3,all v30 (S6 = WIN state)
+iq4_nl,vs_opponent,64,ratio_best,0.837,OURS 2.455 / OPP 2.934 GMAC/s (seed C0FFEE)
+iq4_nl,vs_opponent,64,ratio_best,0.846,OURS 2.458 / OPP 2.907 GMAC/s (seed BEEF01)
+iq4_nl,vs_opponent,16,ratio_best,0.715,OURS 2.440 / OPP 3.413 GMAC/s
+iq4_xs,vs_opponent,64,ratio_best,0.652,OURS 1.874 / OPP 2.874 GMAC/s
+iq4_xs,vs_opponent,16,ratio_best,0.618,OURS 1.775 / OPP 2.870 GMAC/s
+tiling,verdict,-,tiling_holds,FALSE,untiled already v30/low-spill -> S6 register-cliff lever has no pressure to relieve; codebook-gather(memory)-bound NULL

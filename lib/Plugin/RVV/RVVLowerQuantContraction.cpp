@@ -454,6 +454,60 @@ constexpr KQuantDecodeFacts kQ5KDecodeFacts = {
     /*nSubblocks=*/8,
 };
 
+// The iq4_nl codebook decode-FAMILY discriminator (G3 M2, the FIRST codebook decode
+// family): a FLAT 32-element block whose 4-bit weight nibble is an INDEX into a 16-entry
+// NON-LINEAR int8 codebook (the weight is `codebook[nibble]`), ONE fp16 super-block scale,
+// i32 IN-BLOCK accumulator, NO min / NO sub-block. It is the codebook analogue of the q4_0
+// flat linear repack: NO dmin, NO 6-bit scales, NO bsums, NO qh SECOND plane -- the ONLY
+// codebook-specific decode fact is the 16-entry kvalues table the MEMORY vluxei16 gather
+// indexes. A request carrying it is a flat codebook contraction whose repack-SELECTED
+// lowering CONSTRUCTS the codebook typed_repack_gem{v,m}_loop_body region (fold_model
+// "codebook_flat_single_scale", decode_model "iq4_nl") carrying the
+// repack_gem{v,m}_codebook_core brick. The GEMM lowering sets the 4-column-amortized
+// variant on the constructed loop body (a pure I4 mirror). The next codebook sibling
+// (iq4_xs) will ride the SAME core brick with a K-quant 6-bit signed sub-block scale.
+constexpr llvm::StringLiteral kCodebookIq4NlScaleModel =
+    "flat.fp16-single-scale-codebook-nomin";
+constexpr llvm::StringLiteral kCodebookIq4NlGemmScaleModel =
+    "flat.fp16-single-scale-codebook-4col-nomin";
+
+// The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
+// abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
+// table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
+constexpr int8_t kvalues_iq4nl[16] = {-127, -104, -83, -65, -49, -35, -22, -10,
+                                      1,    13,   25,  38,  53,  69,  89,  113};
+
+// The repacked block_iq4_nlx16 / block_q8_0{,x4} byte facts the codebook lowering
+// RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
+// asserts): the 16-inline-fp16-d + 256-nibble weight super-block stride (288), the weight
+// nibble quant byte offset (32), the PLAIN block_q8_0 GEVM activation stride (34) + its
+// quant offset (2), the INTERLEAVED block_q8_0x4 GEMM activation stride (136) + its quant
+// offset (8), and the 16-entry non-linear int8 codebook. These MIRROR the retired
+// monolithic iq4_nl repack op verifiers' pins.
+struct CodebookDecodeFacts {
+  llvm::StringRef decodeModel;              // "iq4_nl" (core brick)
+  llvm::StringRef gemmScaleModel;           // the 4-col GEMM loop-op scale_model
+  std::int64_t weightBlockStride;           // 288 (block_iq4_nlx16)
+  std::int64_t weightQuantByteOffset;       // 32 (repacked nibble plane)
+  std::int64_t gevmActivationBlockStride;   // 34 (plain block_q8_0)
+  std::int64_t gevmActivationQuantByteOffset;    // 2
+  std::int64_t gemmActivationBlockStride;   // 136 (interleaved block_q8_0x4)
+  std::int64_t gemmActivationQuantByteOffset;    // 8
+  llvm::ArrayRef<int8_t> codebook;          // the 16-entry non-linear kvalues
+};
+
+constexpr CodebookDecodeFacts kIq4NlDecodeFacts = {
+    /*decodeModel=*/"iq4_nl",
+    /*gemmScaleModel=*/kCodebookIq4NlGemmScaleModel,
+    /*weightBlockStride=*/288,
+    /*weightQuantByteOffset=*/32,
+    /*gevmActivationBlockStride=*/34,
+    /*gevmActivationQuantByteOffset=*/2,
+    /*gemmActivationBlockStride=*/136,
+    /*gemmActivationQuantByteOffset=*/8,
+    /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_iq4nl),
+};
+
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
 // minimum VLEN, the SAME pure rule MaterializeRVVRepackStripWidth uses
 // (RVVRepackStripWidthMaterialization.cpp:78): half_lanes = min(vlen/16, 16),
@@ -587,14 +641,25 @@ private:
           : op.getScaleModel() == kKQuantQ3KScaleModel ? &kQ3KDecodeFacts
           : op.getScaleModel() == kKQuantQ5KScaleModel ? &kQ5KDecodeFacts
                                                        : nullptr;
+      // The codebook family (iq4_nl flat non-linear codebook) builds the codebook
+      // typed_repack region + the repack_gem{v,m}_codebook_core brick via
+      // lowerToRepackGem{v,m}Codebook, parameterized by the CodebookDecodeFacts (flat
+      // single-scale facts + the RECONSTRUCTED kvalues table).
+      const CodebookDecodeFacts *codebook =
+          op.getScaleModel() == kCodebookIq4NlScaleModel ? &kIq4NlDecodeFacts
+                                                         : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
-                                                isRVV0p7, *kquant)
+        return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
+                                                    isRVV0p7, *codebook)
+               : kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
+                                                  isRVV0p7, *kquant)
                : ternary ? lowerToRepackGemmTernary(op, selection, halfLanes,
                                                     isRVV0p7, *ternary)
                          : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
-      return kquant ? lowerToRepackGemvKQuant(op, selection, halfLanes, isRVV0p7,
-                                              *kquant)
+      return codebook ? lowerToRepackGemvCodebook(op, selection, halfLanes,
+                                                  isRVV0p7, *codebook)
+             : kquant ? lowerToRepackGemvKQuant(op, selection, halfLanes, isRVV0p7,
+                                                *kquant)
              : ternary ? lowerToRepackGemvTernary(op, selection, halfLanes,
                                                   isRVV0p7, *ternary)
                        : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
@@ -612,12 +677,13 @@ private:
         op.getScaleModel() == kKQuantQ6KScaleModel ||
         op.getScaleModel() == kKQuantQ2KScaleModel ||
         op.getScaleModel() == kKQuantQ3KScaleModel ||
-        op.getScaleModel() == kKQuantQ5KScaleModel)
+        op.getScaleModel() == kKQuantQ5KScaleModel ||
+        op.getScaleModel() == kCodebookIq4NlScaleModel)
       return op.emitError()
-             << "ternary / K-quant quant_contraction requires a repack-affording "
-                "capability (a valid e16m1 strip width, minVLEN >= 128); there "
-                "is no ternary / K-quant block-dot decline path (the block-dot "
-                "identity lowering is q4_0-nibble-only)";
+             << "ternary / K-quant / codebook quant_contraction requires a "
+                "repack-affording capability (a valid e16m1 strip width, minVLEN "
+                ">= 128); there is no ternary / K-quant / codebook block-dot "
+                "decline path (the block-dot identity lowering is q4_0-nibble-only)";
 
     return lowerToBlockDot(op, selection);
   }
@@ -1685,6 +1751,294 @@ private:
              << "K-quant repack-GEMM region lowering requires the abstract "
                 "quant_contraction result to be unused (the repacked lane-wise "
                 "K-quant GEMM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (CODEBOOK REPACK, GEVM region form): the codebook iq4_nl sibling of
+  // lowerToRepackGemvKQuant. Realize a repack-SELECTED, capability-afforded iq4_nl DECODE
+  // request as the typed tcrv_rvv.typed_repack_gemv_loop_body REGION carrying the SINGLE
+  // decomposed codebook integer CORE brick (tcrv_rvv.repack_gemv_codebook_core, decode_model
+  // "iq4_nl") -- the front-door CONSTRUCTION of the RETIRED monolithic emitRepackGemvIq4NlQ80
+  // direct emitter. Like the K-quant core (and UNLIKE the q4_0 nibble core + SEPARATE
+  // dual-fp16 FOLD brick), the codebook flat single-fp16-scale fold is RE-EMITTED WHOLE by
+  // the typed emitter keyed off the core brick's identity, so the region carries ONLY the
+  // core brick + the per-strip accumulator pass-through yield. It reconstructs the
+  // block_iq4_nlx16 x16 weight facts (stride 288, nibbles @32) + the PLAIN block_q8_0
+  // activation facts (stride 34, quant @2) the codebook GEVM reads (carried on the loop
+  // body op's block facts), derives the resource-aware half_lanes from the capability VLEN,
+  // stamps the DECLARED OUTPUT CONTRACT weight_layout_contract = "x16", and RECONSTRUCTS the
+  // 16-entry non-linear codebook (kvalues_iq4nl) onto the core brick (the abstract op
+  // carries no codebook). SAFETY: identical to lowerToRepackGemvKQuant (lit-only, NO
+  // e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemvCodebook(tcrvrvv::GgmlQuantContractionOp op,
+                            const pluginrvv::ContractionSelection &selection,
+                            std::int64_t halfLanes, bool isRVV0p7,
+                            const CodebookDecodeFacts &facts) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+
+    // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
+    // output, element count n, column count nc), NO vl operand and NO result. The
+    // codebook flat fold carries NO K-quant super-block attrs (no dmin/scales/bsums/qh/
+    // n_subblocks) -- it is the flat single-scale sibling of the q4_0 nibble fold.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemvLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(),
+                           op.getColumnCount()});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
+    loopState.addAttribute("scale_model",
+                           builder.getStringAttr(op.getScaleModel()));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(facts.weightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(facts.gevmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("codebook_flat_single_scale"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemv_codebook_core producing the
+    // numHalves per-strip i32 sumi. block_index-tied (anti-bypass) + named off the loop
+    // body's OWN weight/activation ABI bases + the RECONSTRUCTED 16-entry codebook. The
+    // typed emitter RE-EMITS the whole byte-exact iq4_nl GEVM body from this brick's
+    // identity; the yield passes the carried-in per-strip accumulators through.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemvCodebookCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemv_codebook_core"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    coreState.addAttribute("codebook",
+                           builder.getDenseI8ArrayAttr(facts.codebook));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemvLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "codebook repack-GEVM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "codebook GEVM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (CODEBOOK REPACK GEMM, region form): the codebook iq4_nl sibling of
+  // lowerToRepackGemmKQuant. Realize a repack-SELECTED, capability-afforded iq4_nl PREFILL
+  // request as the typed tcrv_rvv.typed_repack_gemm_loop_body REGION carrying the SINGLE
+  // decomposed codebook GEMM integer CORE brick (tcrv_rvv.repack_gemm_codebook_core,
+  // decode_model "iq4_nl") -- the front-door CONSTRUCTION of the RETIRED monolithic
+  // emitRepackGemmIq4NlQ80 direct emitter. It reconstructs the block_iq4_nlx16 weight facts
+  // (stride 288, nibbles @32) AND the INTERLEAVED block_q8_0x4 activation facts (stride 136,
+  // quant @8), MATERIALIZES the two GEMM ABI values (row count nr, output row stride bs) the
+  // abstract op does not carry, stamps weight_layout_contract = "x16", and RECONSTRUCTS the
+  // 16-entry codebook onto the core brick. The codebook GEMM ships PLAIN (untiled): iq4_nl
+  // already sits at the <=32-vreg cliff, so S6 output tiling is a structural no-op. SAFETY:
+  // identical to lowerToRepackGemvCodebook (lit-only, NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemmCodebook(tcrvrvv::GgmlQuantContractionOp op,
+                            const pluginrvv::ContractionSelection &selection,
+                            std::int64_t halfLanes, bool isRVV0p7,
+                            const CodebookDecodeFacts &facts) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+
+    // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
+    // the abstract op does not carry (row count nr, output row stride bs) -- the SAME
+    // declared-contract move as the q4_0 / ternary / K-quant repack GEMM.
+    auto variant = op->getParentOfType<tcrv::exec::VariantOp>();
+    if (!variant)
+      return op.emitError() << "codebook repack-GEMM region lowering requires the "
+                               "quant_contraction to sit inside a tcrv.exec.variant";
+    mlir::Value rowCount, outputRowStride;
+    {
+      mlir::OpBuilder::InsertionGuard abiGuard(builder);
+      builder.setInsertionPointToStart(&variant.getBody().front());
+      auto makeAbi = [&](llvm::StringRef cName, llvm::StringRef role,
+                         llvm::StringRef purpose) -> mlir::Value {
+        mlir::OperationState st(
+            loc, tcrvrvv::RuntimeABIValueOp::getOperationName());
+        st.addAttribute("role", builder.getStringAttr(role));
+        st.addAttribute("c_name", builder.getStringAttr(cName));
+        st.addAttribute("c_type", builder.getStringAttr("size_t"));
+        st.addAttribute("ownership",
+                        builder.getStringAttr("target-export-abi-owned"));
+        st.addAttribute("purpose", builder.getStringAttr(purpose));
+        st.addTypes(builder.getIndexType());
+        return builder.create(st)->getResult(0);
+      };
+      rowCount = makeAbi("nr", "source-byte-stride", "nr");
+      outputRowStride = makeAbi("bs", "output-stride", "bs");
+    }
+
+    // The region-carrying loop op: SEVEN ABI operands (weight base, activation base,
+    // output, element count n, row count nr, column count nc, output row stride bs), NO vl
+    // operand and NO result. The codebook flat fold carries NO K-quant super-block attrs.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemmLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(), rowCount,
+                           op.getColumnCount(), outputRowStride});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemm_loop_body"));
+    loopState.addAttribute(
+        "scale_model", builder.getStringAttr(facts.gemmScaleModel));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(facts.weightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(facts.gemmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("activation_interleave",
+                           builder.getI64IntegerAttr(kActivationInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("codebook_flat_single_scale"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    mlir::Value stripOffset = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemm_codebook_core producing the
+    // columnsPerPass per-column i32 sumi. block_index + strip_row_offset tied (anti-bypass)
+    // + named off the loop body's OWN weight/activation ABI bases + the RECONSTRUCTED
+    // codebook. The typed emitter RE-EMITS the whole byte-exact iq4_nl GEMM body (PLAIN
+    // untiled) from this brick's identity; the accumulators pass through.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemmCodebookCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex, stripOffset});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemm_codebook_core"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightQuantByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    coreState.addAttribute("codebook",
+                           builder.getDenseI8ArrayAttr(facts.codebook));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemmLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "codebook repack-GEMM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "codebook GEMM sinks through the output pointer, not an SSA vector)";
     op.erase();
     return mlir::success();
   }

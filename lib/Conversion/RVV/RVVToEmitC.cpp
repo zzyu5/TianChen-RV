@@ -413,8 +413,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // isTypedRepackGemmLoopBody -> emitTypedRepackGemmLoopBody (ternary branch)
         // -> emitRepackTernaryGemmBodyTQ{20,10} (byte-exact to the retired direct
         // emitters; the tq1_0 branch reads the base-3 qh SECOND weight plane).
-        {&isRepackGemmIq4NlQ80Body,
-         &VariantToEmitCFunc::emitRepackGemmIq4NlQ80},
+        // NOTE (G3 M2 iq4_nl codebook front-door): the iq4_nl 16x1-repacked GEMM direct
+        // emitter (emitRepackGemmIq4NlQ80) + its monolith op
+        // (tcrv_rvv.repack_gemm_iq4_nl_q8_0) + recognizer (isRepackGemmIq4NlQ80Body) are
+        // RETIRED: the repack front door now constructs the typed
+        // tcrv_rvv.typed_repack_gemm_loop_body region (fold_model
+        // "codebook_flat_single_scale") carrying the tcrv_rvv.repack_gemm_codebook_core
+        // brick (decode_model "iq4_nl"), lowered below by isTypedRepackGemmLoopBody ->
+        // emitTypedRepackGemmLoopBody (codebook branch) -> emitRepackCodebookGemmBodyIq4Nl
+        // (byte-exact PLAIN untiled body to the retired direct emitter).
         {&isRepackGemmMxfp4Q8Body,
          &VariantToEmitCFunc::emitRepackGemmMxfp4Q8},
         {&isRepackGemmIq4XsQ8KBody,
@@ -461,8 +468,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody (ternary branch)
         // -> emitRepackTernaryGemvBodyTQ{20,10} (byte-exact to the retired direct
         // emitters; the tq1_0 branch reads the base-3 qh SECOND weight plane).
-        {&isRepackGemvIq4NlQ80Body,
-         &VariantToEmitCFunc::emitRepackGemvIq4NlQ80},
+        // NOTE (G3 M2 iq4_nl codebook front-door): the iq4_nl 16x1-repacked GEVM direct
+        // emitter (emitRepackGemvIq4NlQ80) + its monolith op
+        // (tcrv_rvv.repack_gemv_iq4_nl_q8_0) + recognizer (isRepackGemvIq4NlQ80Body) are
+        // RETIRED: the repack front door now constructs the typed
+        // tcrv_rvv.typed_repack_gemv_loop_body region (fold_model
+        // "codebook_flat_single_scale") carrying the tcrv_rvv.repack_gemv_codebook_core
+        // brick (decode_model "iq4_nl"), lowered below by isTypedRepackGemvLoopBody ->
+        // emitTypedRepackGemvLoopBody (codebook branch) -> emitRepackCodebookGemvBodyIq4Nl
+        // (byte-exact to the retired direct emitter).
         {&isRepackGemvMxfp4Q8Body,
          &VariantToEmitCFunc::emitRepackGemvMxfp4Q8},
         {&isRepackGemvIq4XsQ8KBody,
@@ -1455,33 +1469,12 @@ bool VariantToEmitCFunc::isRepackGemvQ8_0Q8_0Body(tcrvrvv::WithVLOp scope) {
 // (isTypedRepackGem{v,m}LoopBody -> the ternary branch, keyed off the in-region
 // repack_gem{v,m}_ternary_core brick's decode_model).
 
-bool VariantToEmitCFunc::isRepackGemvIq4NlQ80Body(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq4NlQ80Op>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmIq4NlQ80Body(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq4NlQ80Op>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE (G3 M2 iq4_nl codebook front-door): isRepackGem{v,m}Iq4NlQ80Body -- the iq4_nl
+// flat CODEBOOK direct-emitter recognizers -- are RETIRED with their direct emitters + the
+// monolith ops; the iq4_nl repack GEVM/GEMM now flow through the
+// typed_repack_gem{v,m}_loop_body front door (isTypedRepackGem{v,m}LoopBody -> the codebook
+// branch, keyed off the in-region repack_gem{v,m}_codebook_core brick's decode_model
+// "iq4_nl" + its 16-entry non-linear codebook).
 
 bool VariantToEmitCFunc::isRepackGemvMxfp4Q8Body(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;

@@ -5092,185 +5092,21 @@ def GgmlRepackGemvQ80Q80Op
 // emitter). The base-3 qh SECOND-plane offset the tq2_0 single-plane fold lacks rides
 // on the loop body op's OPTIONAL weight_qh_byte_offset attr.
 
-def GgmlRepackGemvIq4NlQ80Op
-    : TCRVRVV_Op<"repack_gemv_iq4_nl_q8_0",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml IQ4_NL x Q8_0 16x1-REPACKED GEVM (block-as-lane, codebook) op";
-  let description = [{
-    Records the COMPLETE ggml iq4_nl 16x1-REPACKED GEVM (decode) hot kernel as ONE
-    bounded generic plugin-local typed RVV dataflow step -- the FIRST CODEBOOK
-    (NON-LINEAR decode) block-as-lane sibling of the flat repacked GEVMs. iq4_nl is a
-    FLAT 32-element block whose 4-bit weight nibble is NOT a linear value: it is an
-    INDEX into a 16-entry NON-LINEAR int8 codebook (kvalues_iq4nl), so the weight is
-    `codebook[nibble]` and the dot is `sumf += fp16(x.d) * y.d * (sum over 32 elements
-    of codebook[nibble] * q8)`. There is ONE fp16 super-block scale, NO min, NO
-    sub-block structure -- the codebook analogue of the q4_0/q8_0 flat linear repack.
-    TWO iq4_nl facts distinguish it from the q4_1 4-bit surface, each load-bearing:
-
-    (1) NON-LINEAR CODEBOOK DECODE (NOT fake-linear). The 4-bit nibble is an INDEX,
-        not a value: the low nibble `qs[i] & 0x0F` and high nibble `qs[i] >> 4` are
-        each mapped THROUGH the 16-entry codebook via a REAL table lookup. The
-        block-as-lane repack runs the codebook core at the fractional mf2 anchor
-        (half_lanes lanes per strip, VLMAX < 16), so a register vrgather (which needs
-        VLMAX >= 16 to index all 16 codebook entries) is ILLEGAL: the decode is a
-        MEMORY-indexed codebook GATHER -- zero-extend the nibble index to a u16 byte
-        offset into the int8 codebook array, then `vluxei16_v_i8` gathers
-        `codebook[nibble]` per lane (the SAME memory-gather mechanism the iq2/iq3 grid
-        siblings use, here over the 16-entry codebook). Perturbing the codebook table
-        or treating the nibble as a linear value diverges the integer certificate.
-
-    (2) i32 IN-BLOCK ACCUMULATION (NOT the q4_1 i16 partial). Codebook values reach
-        |127|, so a codebook x q8 product reaches 127*127 = 16129 and even a few
-        accumulations overflow i16. The dot therefore keeps a SINGLE i32 accumulator
-        per column strip: each position's `vwmul` (i8 x i8 -> i16 product) is widened
-        into the i32 accumulator via `vwadd_wv` (the q8_0 linear repack's accumulation
-        strategy), NOT the q4_1 vwmacc i16 partial.
-
-    The weight side is the block_iq4_nlx16 block-as-lane layout: the 16 interleaved
-    weight columns of a group occupy 16 distinct vector lanes so the dot accumulates
-    LANE-WISE via vwmul/vwadd_wv (NO cross-lane vredsum -- the per-block reduction wall
-    is gone), and the activation is ONE plain block_q8_0 stream (stride 34, fp16 d at
-    +0, int8 quants at +2). At VLEN=128 an e16m1 vector holds 8 i16 lanes, so each
-    16-block-as-lane group is processed as TWO disjoint 8-lane halves; at VLEN=256 it
-    is ONE 16-lane strip. Every weight byte is read once.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes THREE runtime ABI
-    value operands -- the repacked iq4_nlx16 weight base pointer (vx, NC/16 column-
-    groups at byte stride (n/QK)*288), the plain q8_0 activation base pointer (vy, one
-    block_q8_0 stream at byte stride 34), the fp32 output base pointer (s) -- plus the
-    runtime contraction element count (n) and the runtime weight-column count (nc),
-    plus the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector
-    token whose lowering writes the nc fp32 results through the output pointer. There
-    is NO activation-row count (nr is 1) and NO output row stride.
-
-    The structural facts -- QK=32, the repacked weight block stride (288 bytes for
-    block_iq4_nlx16 = 16 fp16 d + 256 nibble bytes), the plain activation block stride
-    (34 bytes for block_q8_0), the repacked weight quant byte offset (qs at +32 after
-    the 16 fp16 d), the plain activation quant byte offset (qs at +2 after the fp16 d),
-    the weight interleave width (16), the resource-aware strip width (half_lanes in
-    {8,16}), the flat-single-scale-codebook-nomin scale model, and the 16-entry
-    non-linear int8 codebook (DenseI8ArrayAttr, the kvalues lookup range [0,15]) -- are
-    carried as typed integer/string/array attributes (I4 mirror only). The fixed
-    emission is the op's lowering. The bounded surface kind is limited to
-    "ggml_repack_gemv_iq4_nl_q8_0" and scale_model to
-    "flat.fp16-single-scale-codebook-nomin".
-
-    The optional `integer_core_lmul` attribute is the SAME bounded resource/scheduling
-    fact the flat repacked GEVM siblings carry (the *how*, never the *what*): absent /
-    "mf2" anchors the RVV1.0 fractional chain, "m1" anchors the RVV0.7.1 whole-LMUL
-    chain (half_lanes 16). The verifier pins the legal (integer_core_lmul, half_lanes)
-    combinations fail-closed (I7); half_lanes must divide the 16-way interleave.
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$column_count,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    I64Attr:$weight_interleave,
-    I64Attr:$half_lanes,
-    DenseI8ArrayAttr:$codebook,
-    OptionalAttr<StrAttr>:$integer_core_lmul
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
-    "$column_count `,` $vl attr-dict "
-    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
-    "type($element_count) `,` type($column_count) `,` "
-    "type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
-
-def GgmlRepackGemmIq4NlQ80Op
-    : TCRVRVV_Op<"repack_gemm_iq4_nl_q8_0",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml IQ4_NL x Q8_0 16x1-REPACKED GEMM (block-as-lane, codebook) op";
-  let description = [{
-    Records the COMPLETE ggml iq4_nl 16x1-REPACKED GEMM (prefill, M>>1) hot kernel as
-    ONE bounded generic plugin-local typed RVV dataflow step -- the PREFILL sibling of
-    tcrv_rvv.repack_gemv_iq4_nl_q8_0. The iq4_nl NON-LINEAR codebook decode (the 4-bit
-    nibble is an INDEX into the 16-entry int8 kvalues table, gathered via the
-    fractional-anchor MEMORY vluxei16 codebook GATHER, NOT a register vrgather and NOT
-    a fake-linear value) and the SINGLE fp16 scale + i32-accumulator no-min fold are
-    IDENTICAL to the GEVM. The DISTINGUISHING fact is the activation: the interleaved
-    block_q8_0x4 stream (4 activation ROWS per group). The codebook weight decode is
-    AMORTIZED once per 16-weight group and REUSED across the 4 (and, across the row
-    loop, M) activation columns -- each column reads its own interleaved block_q8_0x4
-    quant. At VLEN=128 each 16-block-as-lane group is processed as TWO 8-lane halves;
-    at VLEN=256 ONE 16-lane strip. Every weight byte is read once.
-
-    The weight side is the block_iq4_nlx16 block-as-lane layout (IDENTICAL to the
-    iq4_nl GEVM weight ABI: 16 fp16 d + 256 nibble bytes, stride 288). Its per-block
-    per-COLUMN statement is `sumf_c += fp16(x.d) * y.d_c * (sum over 32 elements of
-    codebook[nibble] * q8_c)`.
-
-    The op is nested directly under tcrv_rvv.with_vl and consumes SEVEN runtime ABI
-    value operands -- the repacked iq4_nlx16 weight base pointer (vx, NC/16 column-
-    groups at byte stride (n/QK)*288), the repacked q8_0x4 activation base pointer (vy,
-    nr/4 row-groups at byte stride (n/QK)*136), the fp32 output base pointer (s), the
-    runtime contraction element count (n), the runtime activation-row count (nr) and
-    weight-column count (nc), and the runtime output row stride (bs, in floats) -- plus
-    the active !tcrv_rvv.vl token. It produces ONE i32 LMUL m1 !tcrv_rvv.vector token
-    whose lowering writes the nr x nc fp32 results through the output pointer.
-
-    The structural facts -- QK=32, the repacked block strides (288 for block_iq4_nlx16,
-    136 for block_q8_0x4 = 4 fp16 d + 128 int8 quants), the repacked quant byte offsets
-    (weight qs at +32, activation qs at +8 after the 4 fp16 d), the interleave widths
-    (16 weight columns, 4 activation rows), the resource-aware strip width (half_lanes
-    in {8,16}), the flat-single-scale-codebook-4col-nomin scale model, and the 16-entry
-    non-linear int8 codebook -- are carried as typed integer/string/array attributes
-    (I4 mirror only). The bounded surface kind is limited to
-    "ggml_repack_gemm_iq4_nl_q8_0" and scale_model to
-    "flat.fp16-single-scale-codebook-4col-nomin". integer_core_lmul is the SAME bounded
-    resource fact; the verifier pins the legal (integer_core_lmul, half_lanes)
-    combinations fail-closed (I7).
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$row_count,
-    AnyType:$column_count,
-    AnyType:$output_row_stride,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    I64Attr:$weight_interleave,
-    I64Attr:$activation_interleave,
-    I64Attr:$half_lanes,
-    DenseI8ArrayAttr:$codebook,
-    OptionalAttr<StrAttr>:$integer_core_lmul
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
-    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
-    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
-    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
-    "type($output_row_stride) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
+// NOTE (G3 M2 iq4_nl codebook front-door): def GgmlRepackGemvIq4NlQ80Op +
+// def GgmlRepackGemmIq4NlQ80Op (tcrv_rvv.repack_gem{v,m}_iq4_nl_q8_0) are RETIRED with
+// the iq4_nl FLAT CODEBOOK monolith direct emitters (the FIRST codebook decode family
+// retired to the typed-region front door, alongside q4_0 / ternary / K-quant). The
+// iq4_nl repack is now CONSTRUCTED as the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body
+// region (fold_model "codebook_flat_single_scale") carrying the SHARED
+// tcrv_rvv.repack_gem{v,m}_codebook_core brick (decode_model "iq4_nl", + the 16-entry
+// non-linear int8 codebook DenseI8ArrayAttr), lowered by emitTypedRepackGem{v,m}LoopBody's
+// codebook branch -> emitRepackCodebookGem{v,m}BodyIq4Nl (byte-exact GEVM; PLAIN untiled
+// byte-exact GEMM -- iq4_nl already sits at the <=32-vreg cliff, so S6 tiling is a
+// structural no-op). The 4-bit nibble is an INDEX into the codebook, decoded by the REAL
+// fractional-anchor MEMORY vluxei16 codebook GATHER (a register vrgather is illegal at the
+// mf2 anchor's VLMAX < 16), NOT a fake-linear value. The codebook family framework is the
+// codebook core brick + the codebook fold; the next codebook sibling (iq4_xs) rides the
+// SAME core brick with a K-quant 6-bit signed sub-block scale.
 
 def GgmlRepackGemvMxfp4Q8Op
     : TCRVRVV_Op<"repack_gemv_mxfp4_q8_0",
@@ -11713,6 +11549,142 @@ def RepackGemmKQuantCoreOp
     StrAttr:$decode_model,
     I64Attr:$weight_quant_byte_offset,
     I64Attr:$activation_quant_byte_offset,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs Variadic<AnyType>:$results);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $vl `block` $block_index `strip` "
+    "$strip_row_offset `:` type($block_index) `,` type($strip_row_offset) "
+    "attr-dict `:` type($weight_base) `,` type($activation_base) `,` type($vl) "
+    "`->` type($results)";
+  let hasVerifier = 1;
+}
+
+def RepackGemvCodebookCoreOp
+    : TCRVRVV_Op<"repack_gemv_codebook_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV CODEBOOK (non-linear nibble-index) 16x1-REPACKED per-block "
+      "LANE-WISE memory-gather single-scale dot integer-core op (GEVM), the front-door "
+      "sibling of the retired monolithic emitRepackGemvIq4NlQ80 direct emitter";
+  let description = [{
+    Records ONE repacked contraction-BLOCK's CODEBOOK (non-linear decode) 16x1-REPACKED
+    per-block LANE-WISE single-fp16-scale dot -- the integer CORE of the ggml iq4_nl
+    16x1-repacked per-column-group inner loop -- as ONE bounded generic plugin-local
+    typed RVV dataflow step. It is the CODEBOOK sibling of the K-quant repack integer
+    CORE brick tcrv_rvv.repack_gemv_kquant_core: where the K-quant core decodes a
+    dual-scale + bsums-min super-block dot, the codebook core decodes a FLAT 32-element
+    block whose 4-bit weight nibble is an INDEX into a 16-entry NON-LINEAR int8 codebook
+    (the weight is `codebook[nibble]`), gathered LANE-WISE by the fractional-anchor
+    MEMORY codebook GATHER (zero-extend the nibble index to a u16 byte offset, then
+    vluxei16_v_i8 through the codebook array -- a register vrgather is ILLEGAL at the mf2
+    anchor's VLMAX < 16), then accumulated i32 IN-BLOCK (vwmul + vwadd_wv; codebook
+    products overflow i16). ONE fp16 super-block scale, NO min, NO sub-block structure --
+    the codebook analogue of the q4_0/q8_0 flat linear repack. The single-fp16-scale fold
+    is RE-EMITTED WHOLE by the typed emitter keyed off this brick's identity (the SAME
+    construction discipline as the K-quant core), so the region carries ONLY this core
+    brick + the per-strip accumulator pass-through yield.
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemv_loop_body region (codebook
+    fold_model) and consumes the repacked block_iq4_nlx16 weight base pointer, the plain
+    block_q8_0 activation base pointer, the active !tcrv_rvv.vl token, and the loop's
+    `block_index` induction variable (region argument 0). It produces the numHalves
+    per-strip i32 !tcrv_rvv.vector sumi values as a VARIADIC result group (one per
+    disjoint strip, numHalves == weight_interleave / half_lanes). The typed emitter
+    RE-EMITS the whole byte-exact per-block body (the 16-entry MEMORY codebook gather +
+    the i32 in-block dot + the single fp16 scale fold) from this brick's identity, so
+    byte-exactness to the retired direct emitter is by construction.
+
+    The `block_index` operand is the ANTI-BYPASS tie: it MUST be the loop induction
+    variable (region argument 0), so the per-block base is `base + block_index*stride
+    (+ byte_offset)`. The `decode_model` selects the codebook decode family ("iq4_nl"
+    flat single fp16 scale, the FIRST codebook sibling). The `codebook` DenseI8ArrayAttr
+    is the 16-entry NON-LINEAR int8 lookup table (kvalues) the memory gather indexes --
+    perturbing it diverges the integer certificate, so it is a load-bearing WHAT the
+    emitter reads to spell the `static const int8_t[16]` decl and the gather. The
+    `weight_quant_byte_offset` / `activation_quant_byte_offset` locate the repacked
+    nibble bytes and the q8_0 quant bytes WITHIN their blocks; the per-block strides + qk
+    + interleave + the resource-aware strip width are the enclosing loop op's block-format
+    facts. The bounded surface kind is limited to "repack_gemv_codebook_core". The
+    optional `integer_core_lmul` is the bounded resource knob (the *how*, never the
+    *what*). Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, operand mirror strings, and quant format names must not infer or
+    choose this repacked lane-wise codebook dot's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    Index:$block_index,
+    StrAttr:$kind,
+    StrAttr:$decode_model,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    DenseI8ArrayAttr:$codebook,
+    OptionalAttr<StrAttr>:$integer_core_lmul
+  );
+  let results = (outs Variadic<AnyType>:$results);
+
+  let assemblyFormat =
+    "$weight_base `,` $activation_base `,` $vl `block` $block_index `:` "
+    "type($block_index) attr-dict `:` type($weight_base) `,` "
+    "type($activation_base) `,` type($vl) `->` type($results)";
+  let hasVerifier = 1;
+}
+
+def RepackGemmCodebookCoreOp
+    : TCRVRVV_Op<"repack_gemm_codebook_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV CODEBOOK (non-linear nibble-index) 16x1-REPACKED GEMM per-block "
+      "ONE-STRIP N-COLUMN LANE-WISE memory-gather single-scale dot integer-core op, the "
+      "front-door sibling of the retired monolithic emitRepackGemmIq4NlQ80 direct emitter";
+  let description = [{
+    The GEMM (prefill) sibling of tcrv_rvv.repack_gemv_codebook_core: it records ONE
+    repacked contraction-BLOCK's CODEBOOK 16x1-REPACKED per-block LANE-WISE single-scale
+    dot for the ggml iq4_nl prefill per-(strip, column-pass) inner block loop. Where the
+    GEVM core loops the numHalves disjoint strips over a SINGLE broadcast block_q8_0
+    activation column, THIS GEMM core reads ONE strip (a RUNTIME `roff` strip row offset)
+    across the columnsPerPass INTERLEAVED activation columns of a block_q8_0x4 group
+    (columnsPerPass per-column sumi). The 16-entry MEMORY codebook decode is AMORTIZED
+    across the interleaved activation columns (the e2e-win-prefill amortization the
+    single-column GEVM lacks). The single-fp16-scale fold is IDENTICAL in structure to the
+    GEVM core and is RE-EMITTED WHOLE by the typed emitter keyed off this brick's identity.
+
+    The op is carried inside the tcrv_rvv.typed_repack_gemm_loop_body region (codebook
+    fold_model) and consumes the repacked block_iq4_nlx16 weight base pointer, the
+    interleaved block_q8_0x4 activation base pointer, the active !tcrv_rvv.vl token, the
+    loop's `block_index` induction variable (region argument 0), and the
+    `strip_row_offset` runtime strip offset (region argument 1). It produces the
+    columnsPerPass per-column i32 !tcrv_rvv.vector sumi values as a VARIADIC result group.
+    The typed emitter RE-EMITS the whole byte-exact per-block GEMM body keyed off this
+    brick's identity, so byte-exactness to the retired direct emitter is by construction.
+    iq4_nl already sits at the <=32-vreg register cliff, so the GEMM body ships PLAIN
+    (untiled); S6 output tiling is a structural no-op.
+
+    The `block_index` operand is the ANTI-BYPASS tie (region argument 0). The
+    `strip_row_offset` operand is the SECOND anti-bypass tie (region argument 1), so the
+    emit provably addresses the runtime strip, not a hardcoded strip 0. The
+    `decode_model`, `codebook`, byte offsets, and the optional `integer_core_lmul` mirror
+    the GEVM core. The bounded surface kind is limited to "repack_gemm_codebook_core".
+    Route ids, helper names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, operand mirror strings, and quant format names must not infer or choose
+    this repacked lane-wise codebook dot's semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$activation_base,
+    AnyType:$vl,
+    Index:$block_index,
+    Index:$strip_row_offset,
+    StrAttr:$kind,
+    StrAttr:$decode_model,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$activation_quant_byte_offset,
+    DenseI8ArrayAttr:$codebook,
     OptionalAttr<StrAttr>:$integer_core_lmul
   );
   let results = (outs Variadic<AnyType>:$results);

@@ -1,0 +1,8 @@
+# l1-m2-iq4 objdump seal (rvv/VLEN128, clang-17.0.6, core8, 2.6GHz gov=performance)
+# UNTILED iq4 repack GEMM exported from HEAD 81a8050b via read-only build/bin/tcrv-opt (no rebuild)
+# spill=vs[1248]r.v  reload=vl[1248]r.v  vlux=vluxei (codebook gather)  maxVreg  vwmacc
+  iq4_nl -O2   vsetvli=656   spill=7    reload=8    vwmacc=0   vlux=64   maxVreg=v30  textB=6954
+  iq4_nl -O3   vsetvli=656   spill=7    reload=7    vwmacc=0   vlux=64   maxVreg=v30  textB=7002
+  iq4_xs -O2   vsetvli=5162  spill=73   reload=149  vwmacc=0   vlux=512  maxVreg=v30  textB=55202
+  iq4_xs -O3   vsetvli=5162  spill=72   reload=147  vwmacc=0   vlux=512  maxVreg=v30  textB=55198
+# context: q6_K-NULL untiled=913spill/v31 ; q4_K golden=84 S1=23 S6-WIN=3 (all v30)

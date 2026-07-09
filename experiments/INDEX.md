@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**38 cells** (active=23, sealed=10, archive=5).
+**39 cells** (active=24, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -19,6 +19,7 @@
 | active | `p1-k1-vlen256-decode-roofline` | active | repack (P1 decision, roofline-resolved) | 4 | — | P1 决议 for the parked k1/VLEN256 q4_0 GEVM decode reversal. Fresh paired N=10 (llama-bench |
 | active | `p1-gemm-vlen256-fix-confirm` | active | repack ([GAP-P1] fix confirmation board batch — 裁决二.1) | 11 | `kernels/q4_0_gemm_post_m1_vlen256.kernel.c`, `kernels/q4_0_gemm_pre_mf2_vlen256.kernel.c`, `kernels/q8_0_gevm_m1_wholeLMUL.kernel.c`, `kernels/q8_0_gevm_narrow_hl8.kernel.c`, `kernels/q8_0_gevm_wide_hl16.kernel.c` | the k1 board batch the [GAP-P1] commit itself deferred ("78%→91% 是机理投影、真吃墙率待 k1 |
 | active | `kquant-family-closure` | active | repack / [KQUANT-L1] (G3 裁决二.2/二.3 — K-quant 家族收口：整模型**传导账** + q4_K **八门**。 | 8 | — | G3 裁决二 K-quant 家族收口的整模型兑现账。**传导账 = 档案 projection**（1.59× prefill 上限 / |
+| active | `l1-m2-iq4` | active | repack / [KQUANT-L1] (M2-tile — CODEBOOK family: does the q4_K S6 register-cliff | 4 | — | L1-maturity M2-tile CODEBOOK-family A/B evidence. Isolates the iq4_nl/iq4_xs codebook |
 | active | `l1-reroll-q4k-repack-gemm` | active | repack / [KQUANT-L1] (RE-ROLL 曳光弹 #2 — q4_K repack GEMM structural RE-ROLL | 5 | — | L1-maturity RE-ROLL A/B evidence. Isolates the non-byte-exact structural re-roll from a |
 | active | `l1-tile-s1-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S1 — q4_K repack GEMM STRUCTURAL h-strip TILE A/B on | 5 | — | L1-maturity T2-tile S1 A/B evidence. Isolates the S1 h-strip STRUCTURAL TILE from the |
 | active | `l1-tile-s6-q4k-repack-gemm` | active | repack / [KQUANT-L1] (T2-tile S6 — q4_K repack GEMM register-cliff step on rvv/VLEN128: | 5 | — | L1-maturity T2-tile S6 A/B evidence. Isolates the S6 register-cliff increment from the S1 |

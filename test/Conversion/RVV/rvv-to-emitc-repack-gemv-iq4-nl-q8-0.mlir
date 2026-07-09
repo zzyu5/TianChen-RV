@@ -2,17 +2,22 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=GATHER
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
-// The ggml iq4_nl x q8_0 16x1-REPACKED GEVM (decode) hot kernel -- the FIRST
-// CODEBOOK (non-linear decode) block-as-lane sibling of the flat repacked GEVMs --
-// as STRUCTURED emitc IR (I5; ZERO raw() strings). The single typed op
-// tcrv_rvv.repack_gemv_iq4_nl_q8_0 lowers to the BLOCK-AS-LANE single-output-column
-// matmul: the 16 interleaved weight columns of a group occupy 16 vector lanes, and
-// the 4-bit weight nibble is an INDEX into a 16-entry NON-LINEAR int8 codebook,
-// decoded by a REAL MEMORY codebook GATHER (vzext the nibble to a u16 byte offset,
-// then vluxei16_v_i8 through the codebook array -- NOT a register vrgather, NOT a
-// fake-linear value). The dot accumulates LANE-WISE in an i32 accumulator (codebook
-// products overflow i16), single fp16 scale, NO min. block_iq4_nlx16 stride 288,
-// d at +0, qs at +32; activation is one plain block_q8_0 (stride 34, qs at +2).
+// G3 M2 iq4_nl codebook front-door: the ggml iq4_nl x q8_0 16x1-REPACKED GEVM (decode) hot
+// kernel -- the FIRST CODEBOOK (non-linear decode) decode family -- is now CONSTRUCTED
+// through the typed-region FRONT DOOR (the q4_0 / ternary / K-quant typed_repack precedent),
+// NOT the retired monolithic emitRepackGemvIq4NlQ80 direct emitter. The
+// tcrv_rvv.typed_repack_gemv_loop_body region (fold_model "codebook_flat_single_scale")
+// carries the tcrv_rvv.repack_gemv_codebook_core integer-core BRICK (decode_model "iq4_nl" +
+// the 16-entry non-linear int8 codebook DenseI8ArrayAttr), block_index-tied (anti-bypass)
+// and named off the loop-body's own weight / activation ABI bases. The lowering GATES the
+// emit on that brick's anti-bypass ties, then RE-EMITS the byte-exact iq4_nl GEVM body via
+// emitTypedRepackGemvLoopBody's codebook branch -> emitRepackCodebookGemvBodyIq4Nl
+// (byte-identical to the retired direct emitter). The 4-bit weight nibble is an INDEX into
+// the 16-entry codebook, decoded by a REAL MEMORY codebook GATHER (vzext the nibble to a u16
+// byte offset, then vluxei16_v_i8 through the codebook array -- NOT a register vrgather, NOT
+// a fake-linear value); the dot accumulates LANE-WISE in an i32 accumulator (codebook
+// products overflow i16), single fp16 scale, NO min. block_iq4_nlx16 stride 288 (d @0,
+// qs @32); activation is one plain block_q8_0 (stride 34, qs at +2). VLEN=128 => TWO strips.
 
 module {
   tcrv.exec.kernel @ggml_repack_gemv_iq4_nl_q8_0_kernel {
@@ -25,13 +30,24 @@ module {
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_iq4_nl_q8_0, sew = 32 : i64, source_kernel = "ggml_repack_gemv_iq4_nl_q8_0_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemv_iq4_nl_q8_0 %vx, %vy, %s, %n, %nc, %vl {kind = "ggml_repack_gemv_iq4_nl_q8_0", scale_model = "flat.fp16-single-scale-codebook-nomin", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "flat.fp16-single-scale-codebook-nomin", qk = 32 : i64, weight_block_stride = 288 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "codebook_flat_single_scale"} {
+        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index-tied CODEBOOK integer-core BRICK: per-block lane-wise iq4_nl
+          // memory-gather dot -> the numHalves (2) per-strip i32 sumi. The typed emitter
+          // re-emits the whole byte-exact iq4_nl body (codebook gather + i32 dot + single
+          // fp16 scale fold) from this brick's identity + its 16-entry codebook; the yield
+          // passes through the carried-in accs.
+          %sumi:2 = tcrv_rvv.repack_gemv_codebook_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_codebook_core", decode_model = "iq4_nl", weight_quant_byte_offset = 32 : i64, activation_quant_byte_offset = 2 : i64, codebook = array<i8: -127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemv_iq4_nl_q8_0 %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemv_codebook_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemv_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_iq4_nl_q8_0_kernel_ggml_repack_gemv_iq4_nl_q8_0(
 // The 16-entry NON-LINEAR int8 codebook decl (the kvalues_iq4nl table).
@@ -81,7 +97,9 @@ module {
 // The codebook decode is a MEMORY gather (vluxei16), NOT a register vrgather (the
 // fractional mf2 anchor's VLMAX < 16 forbids indexing all 16 entries in a vreg).
 // The block-as-lane repack erases the cross-lane reduction wall; the flat codebook
-// fold has NO min (no vfnmsac) and NO per-sub-block scale (no vwmacc_vv_i32).
+// fold has NO min (no vfnmsac) and NO per-sub-block scale (no vwmacc_vv_i32). Also NO
+// trailing dead result-token vmv (the region is result-less, unlike the retired direct
+// emitter).
 // NOWALL-NOT: vrgather
 // NOWALL-NOT: redsum
 // NOWALL-NOT: vfnmsac
