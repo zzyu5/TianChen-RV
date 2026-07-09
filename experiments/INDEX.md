@@ -10,7 +10,7 @@
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
-| active | `t4b-m1-minterm-bisect` | unknown | — | 2 | — | — |
+| active | `t4b-m1-minterm-bisect` | unknown | — | 5 | `m1_probe.cpp` | — |
 | active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
 | active | `t4b-m2-dispatch` | unknown | — | 3 | `m2_dispatch.cpp` | — |
 | active | `t4b-m2c-dispatch` | unknown | — | 5 | — | — |

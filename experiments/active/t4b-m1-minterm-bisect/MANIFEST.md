@@ -54,8 +54,11 @@ riscv SIMD row-quant) from the actual GEMM dispatch (generic mat-quant). M2 dire
 ggml's own repack GEMM; (2) the ggml mat-quant-vs-riscv-row-quant divergence (sign choice + round-half) is a
 ggml-side numerics question, orthogonal to our compiler. Awaits ruling.
 
-## Durable Files files
-- `instrument_kernel.py`, `m1_probe.cpp`, `m1_patch.py`, `m1_board_run.sh` — regenerable reversible harness.
+## Durable Files
+- `instrument_kernel.py` — pure-observation kernel instrumenter (regenerable reversible harness).
+- `m1_probe.cpp` — the bisect driver.
+- `m1_patch.py` — reversible ggml dispatch patcher.
+- `m1_board_run.sh` — board build+run+restore driver.
 - `m1_bisect_result.log` — captured board run (routing banner + per-(block,row,col) intermediates + q8-FREE +
   ZERO-MODEL decomposition + mat-vs-row divergence dump + objdump min-fold + forced-restore proof).
 - Base kernel `fresh_q4K.inc` md5 90d454da regenerable from `test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir`.
