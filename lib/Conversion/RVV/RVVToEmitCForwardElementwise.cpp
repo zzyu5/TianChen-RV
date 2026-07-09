@@ -2405,6 +2405,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
                                          "unwired dequantize_row format");
     }
 
+    // q8_0 is the FRONT-DOOR CONSTRUCTED family-head: in production the emit driver
+    // routes the abstract q8_0 op to constructOrEmitGgmlDequantizeRow (which builds
+    // the typed_dequantize_row_loop_body region and lowers it via the SHARED body
+    // emitter). This defensive early-return keeps the SAME shared body as the single
+    // q8_0 emit source, so the dispatch-wired and constructed paths never diverge.
+    if (bareInt8)
+      return emitDequantizeRowQ8_0BodyShared(rewriter, loc, input, output, avlArg,
+                                             sizeType, opName, role);
+
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -2568,32 +2577,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
                                      qsBaseRaw)
               .getResult();
 
-      if (bareInt8) {
-        // q8_0: for (j = 0; j < 32; ++j) y[j] = qs[j] * d;  (bare signed-int8
-        // scale; the load sign-extends).
-        rewriter.create<emitc::VerbatimOp>(
-            loc, stepComment(opName, role, "q8_scale"));
-        auto qFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(qk),
-                                                  sizeLit(1),
-                                                  /*bodyBuilder=*/nullptr);
-        mlir::Value j = qFor.getInductionVar();
-        {
-          mlir::OpBuilder::InsertionGuard qGuard(rewriter);
-          rewriter.setInsertionPointToStart(qFor.getBody());
-          // const int8_t *qp = qs + j;  float *yp = yb + j;
-          mlir::Value qp =
-              rewriter.create<emitc::AddOp>(loc, i8PtrType, qsBase, j);
-          mlir::Value qi = loadElemAsInt(qp, constI8Type);
-          mlir::Value qf =
-              rewriter.create<emitc::CastOp>(loc, floatType, qi).getResult();
-          mlir::Value yv =
-              rewriter.create<emitc::MulOp>(loc, floatType, qf, d);
-          mlir::Value yp =
-              rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, j);
-          storeF32(yp, yv);
-        }
-        return mlir::success();
-      }
+      // NOTE: the q8_0 bare signed-int8 scale (`y[j] = qs[j] * d` over all 32 lanes)
+      // is emitted by emitDequantizeRowQ8_0BodyShared (the family-head early-returns
+      // above); it is NOT re-emitted here. `bareInt8` is always false at this point,
+      // so the qsBase cast below picks u8PtrType (the nibble carrier). i8PtrType /
+      // constI8Type stay referenced (the qsBase cast ternary + i8PtrType's init).
 
       // The 4-bit nibble formats (q4_0/q4_1/q5_0/q5_1): for (j = 0; j < 16; ++j)
       // decode the low nibble -> y[j] and the high nibble -> y[j+16].
@@ -2680,6 +2668,269 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
 
     return mlir::success();
   }
+
+// The SHARED q8_0 dequantize_row block-decode body: the AoS `nb = k/32` block loop,
+// the fp16 block scale via the `(float)*(const _Float16 *)` seam, and the bare
+// signed-int8 scale `y[j] = qs[j] * d` over all 32 block lanes (the load
+// sign-extends). Extracted VERBATIM from the q8_0 branch of emitGgmlDequantizeRow so
+// the DISPATCH-WIRED monolith fallback and the CONSTRUCTED typed lowering emit
+// byte-identical C (modulo only the source-op provenance token threaded through
+// opName/role). Byte-exact to ggml's reference dequantize_row_q8_0 (a scalar block
+// loop; no reduction).
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ8_0BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  // block_q8_0 AoS facts: fp16 d @0, 32 signed int8 quants @2, stride 34.
+  const int64_t qk = 32, stride = 34, qsOff = 2;
+
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type inputPtrType = input.getType();
+  mlir::Type outputPtrType = output.getType();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
+  mlir::Type indexType = rewriter.getIndexType();
+  mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
+  mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
+  mlir::Type floatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+  llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+
+  auto sizeLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
+  };
+  auto idxLit = [&](int64_t v) -> mlir::Value {
+    return rewriter.create<emitc::LiteralOp>(loc, indexType,
+                                             std::to_string(v));
+  };
+  auto loadElemAsInt = [&](mlir::Value elemPtr,
+                           mlir::Type elemType) -> mlir::Value {
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(elemPtr),
+                idxLit(0))
+            .getResult();
+    mlir::Value v =
+        rewriter.create<emitc::LoadOp>(loc, elemType, elem).getResult();
+    return rewriter.create<emitc::CastOp>(loc, intType, v).getResult();
+  };
+  auto storeF32 = [&](mlir::Value elemPtr, mlir::Value value) {
+    mlir::Value elem =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(elemPtr),
+                idxLit(0))
+            .getResult();
+    rewriter.create<emitc::AssignOp>(loc, elem, value);
+  };
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // size_t nb = k / 32;  (ggml's `const int nb = k / qk`; k % qk == 0, no tail).
+  rewriter.create<emitc::VerbatimOp>(
+      loc, stepComment(opName, role, "block_count"));
+  mlir::Value nb =
+      rewriter.create<emitc::DivOp>(loc, sizeType, avlArg, sizeLit(qk));
+
+  mlir::Value zero = sizeLit(0);
+  mlir::Value one = sizeLit(1);
+  auto blockFor = rewriter.create<emitc::ForOp>(loc, zero, nb, one,
+                                                /*bodyBuilder=*/nullptr);
+  mlir::Value ib = blockFor.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(blockFor.getBody());
+
+    // const uint8_t *xb = x + ib*34;  float *yb = y + ib*32;
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "x_block"));
+    mlir::Value xOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(stride));
+    mlir::Value xb =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, input, xOff);
+    mlir::Value yOff =
+        rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk));
+    mlir::Value ybRaw =
+        rewriter.create<emitc::AddOp>(loc, outputPtrType, output, yOff);
+    mlir::Value yb =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ybRaw).getResult();
+
+    // float d = (float)*(const _Float16 *)xb;  (the fp16 block scale; fcvt.s.h).
+    rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, "d"));
+    mlir::Value d = emitOpaqueCall(rewriter, loc, floatType, fp16ReadCallee,
+                                   mlir::ValueRange{xb}, opName, role,
+                                   llvm::StringRef("fcvt.s.h"));
+
+    // const int8_t *qs = (const int8_t *)(xb + 2);
+    mlir::Value qsBaseRaw =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff));
+    mlir::Value qsBase =
+        rewriter.create<emitc::CastOp>(loc, i8PtrType, qsBaseRaw).getResult();
+
+    // for (j = 0; j < 32; ++j) y[j] = qs[j] * d;  (bare signed-int8 scale).
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(opName, role, "q8_scale"));
+    auto qFor = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(qk),
+                                              sizeLit(1),
+                                              /*bodyBuilder=*/nullptr);
+    mlir::Value j = qFor.getInductionVar();
+    {
+      mlir::OpBuilder::InsertionGuard qGuard(rewriter);
+      rewriter.setInsertionPointToStart(qFor.getBody());
+      mlir::Value qp =
+          rewriter.create<emitc::AddOp>(loc, i8PtrType, qsBase, j);
+      mlir::Value qi = loadElemAsInt(qp, constI8Type);
+      mlir::Value qf =
+          rewriter.create<emitc::CastOp>(loc, floatType, qi).getResult();
+      mlir::Value yv = rewriter.create<emitc::MulOp>(loc, floatType, qf, d);
+      mlir::Value yp = rewriter.create<emitc::AddOp>(loc, floatPtrType, yb, j);
+      storeF32(yp, yv);
+    }
+  }
+
+  return mlir::success();
+}
+
+// Lower the CONSTRUCTED streaming dequantize_row region: walk the
+// tcrv_rvv.typed_dequantize_row_loop_body, extract its per-block DECODE brick
+// (tcrv_rvv.dequantize_row_decode_core) + the VOID yield, enforce the anti-bypass
+// invariant (the brick's block_index MUST be the region induction variable / region
+// arg 0, so the ABI bases are sourced from the BRICK not inferred), and re-emit the
+// whole nb block loop + per-block decode via the SHARED body emitter -- byte-exact to
+// the dispatch-wired q8_0 monolith. The whole loop is emitter-inlined by the brick
+// lowering (the streaming analog of q1_0/nvfp4's flat single-core-brick emit).
+mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  tcrvrvv::TypedDequantizeRowLoopBodyOp loopBody;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedDequantizeRowLoopBodyOp>(op))
+      loopBody = lb;
+  }
+  if (!loopBody)
+    return rewriter.notifyMatchFailure(
+        scope, "typed dequantize_row loop body missing the op");
+
+  // Bounded decode_model surface gate (I7): only the q8_0 family-head is
+  // constructed this cut. The verifier already gates decode_model; this fails the
+  // emit closed if a not-yet-lowered decode leaf slips a valid-verify region here.
+  if (loopBody.getDecodeModel() != "q8_0")
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed dequantize_row loop body only lowers decode_model "
+                  "\"q8_0\" (the constructed streaming family-head)");
+
+  tcrvrvv::DequantizeRowDecodeCoreOp coreOp;
+  tcrvrvv::TypedDequantizeRowLoopYieldOp yieldOp;
+  loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+    if (auto o = llvm::dyn_cast<tcrvrvv::DequantizeRowDecodeCoreOp>(bodyOp))
+      coreOp = o;
+    else if (auto o =
+                 llvm::dyn_cast<tcrvrvv::TypedDequantizeRowLoopYieldOp>(bodyOp))
+      yieldOp = o;
+  });
+  mlir::Block &coreBlock = loopBody.getBody().front();
+  if (!coreOp || !yieldOp)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed dequantize_row body requires the "
+                  "dequantize_row_decode_core brick + the void loop yield");
+  if (coreBlock.getNumArguments() != 1)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed dequantize_row body region must carry exactly the "
+                  "block_index induction variable");
+  mlir::Value blockIndex = coreBlock.getArgument(0);
+  if (coreOp.getBlockIndex() != blockIndex)
+    return rewriter.notifyMatchFailure(
+        loopBody, "the decode-core brick's block_index must be the loop "
+                  "induction variable (region arg 0) so the emit addresses "
+                  "base + ib*stride, not block-0");
+
+  // Anti-bypass (I7): the ABI bases are sourced from the BRICK's operands.
+  mlir::Value weightBase = valueMap.lookup(coreOp.getWeightBase());
+  mlir::Value output = valueMap.lookup(coreOp.getOutput());
+  if (!weightBase || !output)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "typed dequantize_row ABI operand unmapped");
+
+  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
+                                         avlArg, sizeType, opName, role);
+}
+
+// The dequant FRONT DOOR (family-head q8_0): CONSTRUCT the typed
+// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
+// typed_dequantize_row_loop_yield } in place of the abstract tcrv_rvv.dequantize_row,
+// then LOWER it via emitTypedDequantizeRowLoopBody. The construction is a genuine IR
+// rewrite (the emission is DRIVEN by the typed region op-identity + decode_model, not
+// the abstract format string), so q8_0 is CONSTRUCTED ([L-6]/[L-8]), not
+// dispatch-wired. The other 22 formats fall through to the dispatch-wired monolith.
+mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  tcrvrvv::GgmlDequantizeRowOp deqOp;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto d = llvm::dyn_cast<tcrvrvv::GgmlDequantizeRowOp>(op))
+      deqOp = d;
+  }
+  if (!deqOp)
+    return rewriter.notifyMatchFailure(scope, "dequant body missing the op");
+
+  // The 22 non-family-head formats stay DISPATCH-WIRED (hand-written monolith).
+  if (deqOp.getFormat() != "q8_0")
+    return emitGgmlDequantizeRow(rewriter, loc, scope, avlArg, sizeType,
+                                 valueMap);
+
+  mlir::Value input = deqOp.getInput();
+  mlir::Value output = deqOp.getOutput();
+  mlir::Value n = deqOp.getElementCount();
+  mlir::Type indexType = rewriter.getIndexType();
+  // block_q8_0 AoS facts: fp16 d @0, 32 signed int8 quants @2, stride 34.
+  const int64_t qk = 32, stride = 34, dOff = 0, qsOff = 2;
+
+  {
+    mlir::OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPoint(deqOp);
+
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedDequantizeRowLoopBodyOp::getOperationName());
+    loopState.addOperands({input, output, n});
+    loopState.addAttribute(
+        "kind", rewriter.getStringAttr("typed_dequantize_row_loop_body"));
+    loopState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
+    loopState.addAttribute("weight_block_stride",
+                           rewriter.getI64IntegerAttr(stride));
+    loopState.addAttribute("decode_model", rewriter.getStringAttr("q8_0"));
+    loopState.addRegion();
+    auto loopBody = llvm::cast<tcrvrvv::TypedDequantizeRowLoopBodyOp>(
+        rewriter.create(loopState));
+
+    mlir::Block *block = rewriter.createBlock(
+        &loopBody.getBody(), loopBody.getBody().end(), {indexType}, {loc});
+    mlir::Value blockIndex = block->getArgument(0);
+    rewriter.setInsertionPointToStart(block);
+
+    mlir::OperationState coreState(
+        loc, tcrvrvv::DequantizeRowDecodeCoreOp::getOperationName());
+    coreState.addOperands({input, output, blockIndex});
+    coreState.addAttribute("decode_model", rewriter.getStringAttr("q8_0"));
+    coreState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
+    coreState.addAttribute("weight_block_stride",
+                           rewriter.getI64IntegerAttr(stride));
+    coreState.addAttribute("scale_byte_offset",
+                           rewriter.getI64IntegerAttr(dOff));
+    coreState.addAttribute("quant_byte_offset",
+                           rewriter.getI64IntegerAttr(qsOff));
+    rewriter.create(coreState);
+    rewriter.create<tcrvrvv::TypedDequantizeRowLoopYieldOp>(loc);
+  }
+  rewriter.eraseOp(deqOp);
+
+  return emitTypedDequantizeRowLoopBody(rewriter, loc, scope, avlArg, sizeType,
+                                        valueMap);
+}
 
 // The EXTENDED dequantize_row decode: K-quant super-blocks, FP4 codebooks,
 // ternary, and iq4_nl. Each body is a hand-written scalar AoS super-block loop

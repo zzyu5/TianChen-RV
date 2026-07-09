@@ -505,6 +505,12 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvIq2SQ8K},
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
+        // The FRONT-DOOR CONSTRUCTED streaming dequantize_row family-head (q8_0):
+        // a pre-constructed tcrv_rvv.typed_dequantize_row_loop_body region (from an
+        // explicit-region lit, or the in-pass construction below) lowers here via
+        // the shared q8_0 body -- byte-exact to the retired dispatch-wired monolith.
+        {&isTypedDequantizeRowLoopBody,
+         &VariantToEmitCFunc::emitTypedDequantizeRowLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
         // elementwise strip-loop body (constructed sibling of the flat block-dot
         // loop body). It replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32
@@ -724,14 +730,20 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    // The dequantize_row family (block_qX -> f32 row) is DISPATCH-WIRED (not
-    // constructed): the op identity + its bounded `format` route to a hand-written
-    // per-format monolith decode (an AoS block loop reproducing ggml's reference
-    // dequantize_row_<format>). Void-return, like the forward/quantize bridges
-    // above. Marker: the op identity ([L-6] wiring != construction).
+    // The dequantize_row family (block_qX -> f32 row): the FAMILY-HEAD q8_0 is
+    // FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites the
+    // abstract tcrv_rvv.dequantize_row into the typed
+    // tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
+    // typed_dequantize_row_loop_yield } and lowers it (emission DRIVEN by the typed
+    // region op-identity + decode_model, [L-6]/[L-8] construction, byte-exact to the
+    // retired q8_0 monolith). The other 22 formats stay DISPATCH-WIRED (the op
+    // identity + bounded `format` route to a hand-written per-format monolith decode
+    // reproducing ggml's reference dequantize_row_<format>). Void-return, like the
+    // forward/quantize bridges above.
     if (isGgmlDequantizeRowBody(scope)) {
-      if (mlir::failed(emitGgmlDequantizeRow(rewriter, loc, scope, avlArg,
-                                             sizeType, valueMap)))
+      if (mlir::failed(constructOrEmitGgmlDequantizeRow(rewriter, loc, scope,
+                                                        avlArg, sizeType,
+                                                        valueMap)))
         return mlir::failure();
       rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
       rewriter.eraseOp(variant);
@@ -1615,6 +1627,20 @@ bool VariantToEmitCFunc::isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::TypedFlatBlockDotLoopBodyOp>(op)) {
+        if (sawLoopBody)
+          return false;
+        sawLoopBody = true;
+      } else {
+        return false;
+      }
+    }
+    return sawLoopBody;
+  }
+
+bool VariantToEmitCFunc::isTypedDequantizeRowLoopBody(tcrvrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::TypedDequantizeRowLoopBodyOp>(op)) {
         if (sawLoopBody)
           return false;
         sawLoopBody = true;

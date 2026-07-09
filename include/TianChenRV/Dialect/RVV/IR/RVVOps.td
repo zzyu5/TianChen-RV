@@ -10049,6 +10049,134 @@ def GgmlDequantizeRowOp
   let hasVerifier = 1;
 }
 
+def TypedDequantizeRowLoopBodyOp
+    : TCRVRVV_Op<"typed_dequantize_row_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-carried nb loop op for the ggml dequantize_row "
+      "family (block_qX -> f32 row); the streaming CONSTRUCTED sibling of "
+      "tcrv_rvv.typed_flat_block_dot_loop_body";
+  let description = [{
+    Records the ggml `dequantize_row_<format>` block DECODE's OUTER `nb = k / QK`
+    block loop as ONE typed region-carrying dataflow op -- the STREAMING (no
+    reduction, no loop-carried accumulator) sibling of
+    tcrv_rvv.typed_flat_block_dot_loop_body. It is the FRONT-DOOR CONSTRUCTED form
+    of the dequantize_row family: where the abstract tcrv_rvv.dequantize_row is
+    DISPATCH-WIRED (the emitter owns a hand-written per-format monolith decode,
+    [L-6] wiring != construction), the dequant front door instead CONSTRUCTS this
+    typed region -- one per-block DECODE brick (tcrv_rvv.dequantize_row_decode_core)
+    carried inside a single-block region terminated by
+    tcrv_rvv.typed_dequantize_row_loop_yield -- and the emitter lowers it by op
+    identity + the explicit block-layout facts, NEVER inferred from candidate-mirror
+    metadata, route ids, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, or q8/q4 names (I5).
+
+    Unlike the flat block-dot loop op there is NO loop-carried accumulator: the
+    dequantize_row decode STORES each decoded f32 straight through the `output`
+    pointer (ggml's y[]), so the region carries ONLY the `block_index` induction
+    variable (index) and the yield is VOID (the per-block store is the sink). It
+    consumes three runtime ABI operands -- the read-only quantized weight base
+    pointer `weight_base` (`const uint8_t *`, ggml's `const block_qX * x` byte
+    cursor), the written f32 `output` base pointer (`float *`, ggml's y[]), and the
+    runtime element count `n` (= ggml's k). BYTE-EXACTNESS is to ggml's reference
+    `dequantize_row_<format>` (a scalar AoS block loop; no reduction, so
+    LMUL/strip-count are correctness-free).
+
+    The bounded scheduling facts (qk, the AoS weight block stride) are the same
+    byte-exact shape constants the monolithic body reads off `format` (the ggml ABI
+    layout, NOT tunable knobs). decode_model KEYS which per-format DECODE leaf the
+    region's brick carries; for the current bounded surface kind is limited to
+    "typed_dequantize_row_loop_body" and decode_model to "q8_0" (the flat block_q8_0
+    bare signed-int8 scale `y[j] = qs[j] * d`, the family-head streaming decode --
+    the structurally simplest flat-block dequant, no nibble unpack). The op does NOT
+    own dtype/route authority; the per-block decode is the separate typed brick
+    carried inside the region.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$output,
+    AnyType:$n,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    StrAttr:$decode_model
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $weight_base `,` $output `,` $n
+    attr-dict-with-keyword $body `:`
+    type($weight_base) `,` type($output) `,` type($n)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedDequantizeRowLoopYieldOp
+    : TCRVRVV_Op<"typed_dequantize_row_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedDequantizeRowLoopBodyOp">]> {
+  let summary =
+      "VOID terminator of the streaming dequantize_row block loop op (the "
+      "per-block f32 store is the sink; no loop-carried value)";
+  let description = [{
+    Terminates the tcrv_rvv.typed_dequantize_row_loop_body region. The
+    dequantize_row decode STORES each decoded f32 straight through the output
+    pointer, so -- unlike tcrv_rvv.typed_flat_block_dot_loop_yield (which names the
+    carried-out f32 accumulator) -- this yield carries NO operand: the streaming
+    store IS the loop's only effect, and there is no cross-block dataflow to name.
+    It carries no compute, dtype, memory, or route semantics.
+  }];
+
+  let arguments = (ins);
+  let assemblyFormat = "attr-dict";
+}
+
+def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block DECODE brick for the dequantize_row family "
+      "(the streaming block_qX -> f32 leaf carried inside "
+      "tcrv_rvv.typed_dequantize_row_loop_body)";
+  let description = [{
+    Records ONE per-block DECODE leaf of the ggml `dequantize_row_<format>` block
+    decode as a first-class typed brick, carried inside the
+    tcrv_rvv.typed_dequantize_row_loop_body region (the streaming analog of the
+    per-block integer-core bricks the block-dot loop ops carry). It consumes the
+    weight base pointer, the f32 output base pointer, and the `block_index` region
+    induction variable, and reconstructs one AoS block of `qk` f32 outputs from the
+    per-format quant layout -- for decode_model "q8_0": read the fp16 block scale d
+    via the `(float)*(const _Float16 *)` seam, then the bare signed-int8 scale
+    `y[j] = qs[j] * d` over all qk block lanes (the load sign-extends). The
+    block-layout facts (qk, weight_block_stride, scale_byte_offset,
+    quant_byte_offset) are the ggml ABI constants; decode_model pins WHICH decode
+    leaf. For the current bounded surface decode_model is limited to "q8_0".
+
+    Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
+    induction variable so the per-block address arithmetic is `base + ib*stride`,
+    not super-block-0. The op owns no dtype/route authority; emission is determined
+    by op identity + decode_model + the layout facts, never inferred from
+    candidate-mirror metadata, route ids, ABI strings, artifact names, status
+    fields, or exact intrinsic spellings.
+  }];
+
+  let arguments = (ins
+    AnyType:$weight_base,
+    AnyType:$output,
+    AnyType:$block_index,
+    StrAttr:$decode_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$quant_byte_offset
+  );
+
+  let assemblyFormat =
+    "$weight_base `,` $output `,` $block_index attr-dict `:` "
+    "type($weight_base) `,` type($output) `,` type($block_index)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

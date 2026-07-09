@@ -4272,6 +4272,48 @@ private:
       mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
       llvm::StringRef role) const;
 
+  /// True iff `scope`'s body is exactly ONE tcrv_rvv.typed_dequantize_row_loop_body
+  /// (the FRONT-DOOR CONSTRUCTED streaming dequantize_row region). Mirrors
+  /// isTypedFlatBlockDotLoopBody; the recognizer for the constructed dequant path.
+  static bool isTypedDequantizeRowLoopBody(tcrvrvv::WithVLOp scope);
+
+  /// Lower the CONSTRUCTED streaming dequantize_row region
+  /// (tcrv_rvv.typed_dequantize_row_loop_body carrying ONE
+  /// tcrv_rvv.dequantize_row_decode_core brick + the VOID
+  /// tcrv_rvv.typed_dequantize_row_loop_yield). Walks the region, sources the ABI
+  /// bases from the brick (anti-bypass I7: block_index == region arg 0), and re-emits
+  /// the whole nb block loop + per-block decode via the SHARED body emitter
+  /// (emitDequantizeRowQ8_0BodyShared) -- byte-exact to the dispatch-wired q8_0
+  /// monolith modulo only the source-op provenance token. Void-return (the streaming
+  /// store is the sink), so it is wired as a kBlockDotKernels entry.
+  mlir::LogicalResult emitTypedDequantizeRowLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The dequant FRONT DOOR for the family-head q8_0: CONSTRUCT the typed
+  /// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
+  /// typed_dequantize_row_loop_yield } in place of the abstract deqOp, then LOWER it
+  /// via emitTypedDequantizeRowLoopBody. The other 22 formats fall through to the
+  /// dispatch-wired monolith (emitGgmlDequantizeRow). Called from the
+  /// isGgmlDequantizeRowBody branch of the emit driver.
+  mlir::LogicalResult constructOrEmitGgmlDequantizeRow(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The SHARED q8_0 dequantize_row block-decode body emit: the AoS `nb = k/32`
+  /// block loop, the fp16 block scale via the `(float)*(const _Float16 *)` seam, and
+  /// the bare signed-int8 scale `y[j] = qs[j] * d` over all 32 block lanes (the load
+  /// sign-extends). Called by BOTH the dispatch-wired monolith
+  /// (emitGgmlDequantizeRow's bareInt8 branch) and the CONSTRUCTED typed lowering
+  /// (emitTypedDequantizeRowLoopBody), so the two are byte-exact by construction. The
+  /// opName/role thread the source-op provenance into the route/step comments.
+  mlir::LogicalResult emitDequantizeRowQ8_0BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the
