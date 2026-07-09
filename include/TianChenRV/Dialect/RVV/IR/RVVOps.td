@@ -5295,157 +5295,26 @@ def GgmlRepackGemmMxfp4Q8Op
   let hasVerifier = 1;
 }
 
-def GgmlRepackGemvIq4XsQ8KOp
-    : TCRVRVV_Op<"repack_gemv_iq4_xs_q8_K",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml IQ4_XS x Q8_K 16x1-REPACKED GEVM (block-as-lane, codebook) op";
-  let description = [{
-    Records the COMPLETE ggml iq4_xs 16x1-REPACKED GEVM (decode) hot kernel as ONE
-    bounded generic plugin-local typed RVV dataflow step -- the SUPER-BLOCK CODEBOOK
-    sibling of tcrv_rvv.repack_gemv_iq4_nl_q8_0 and the codebook analogue of the q4_K
-    K-quant repack. iq4_xs is a QK_K=256 super-block split into 8 sub-blocks of 32,
-    each carrying its OWN 6-bit per-sub-block scale (biased -32, NO min), with ONE fp16
-    super-block scale d. The 4-bit weight nibble is an INDEX into the SAME 16-entry
-    non-linear int8 codebook iq4_nl uses (kvalues_iq4nl). THREE iq4_xs facts, each
-    load-bearing:
-
-    (1) NON-LINEAR CODEBOOK DECODE (the SAME memory-gather codebook lookup as iq4_nl,
-        NOT fake-linear): the nibble indexes the 16-entry int8 codebook via a
-        zero-extend to a u16 byte offset + `vluxei16_v_i8` gather (the fractional mf2
-        anchor forbids a register vrgather).
-
-    (2) K-QUANT 6-BIT SIGNED PER-SUB-BLOCK SCALE (like q4_K's scale unpack, but NO
-        min): each sub-block's 6-bit scale is assembled LANE-WISE from a 4-bit low
-        nibble (scales_l) and a 2-bit high field (scales_h split into two byte strips)
-        via the q4_K vand/vsrl/vsll/vor bit-dance, then biased by -32 (`vsub_vx_i8` by
-        32), a SIGNED per-sub-block scale in [-32,31].
-
-    (3) i32 SUB-BLOCK ACCUMULATION + i32 SCALE-WEIGHTED FOLD. Codebook products reach
-        |127*127| so the 32-element sub-block dot is accumulated in i32 (vwmul ->
-        vwadd_wv), then the SIGNED 6-bit scale (sign-extended to i32) weights the
-        sub-block dot into the block i32 accumulator via `vmacc_vv_i32`. The end-of-
-        block fold is the SINGLE product `fp16(x.d) * y.d` (NO min, NO bsums term).
-
-    The weight side is the block_iq4_xsx16 block-as-lane layout: 16 fp16 d (+0), the
-    scales_h split into a low byte strip (sub-blocks 0..3, +32) and a high byte strip
-    (sub-blocks 4..7, +48), the scales_l pairs (+64, 4 pairs x 16 columns), then the
-    2048 interleaved nibble bytes (+128). The activation is ONE plain block_q8_K stream
-    (stride 292, fp32 d at +0, int8 quants at +4; the bsums region is present but
-    UNREAD). At VLEN=128 each 16-block-as-lane group is processed as TWO 8-lane halves;
-    at VLEN=256 ONE 16-lane strip. Every weight byte is read once.
-
-    The op consumes THREE runtime ABI value operands (repacked iq4_xsx16 weight base vx
-    at byte stride (n/QK_K)*2176, plain q8_K activation base vy at stride 292, fp32
-    output s) + n + nc + vl, and produces ONE i32 LMUL m1 !tcrv_rvv.vector token. The
-    structural facts -- QK_K=256, weight stride 2176, activation stride 292, weight
-    quant offset +128, weight scales-high (split-byte) offset +32, weight scales-low
-    (pair) offset +64, activation quant offset +4, 8 sub-blocks, 16-way interleave,
-    half_lanes in {8,16}, the superblock-d-codebook-6bit-signed-scale-nomin scale
-    model, and the 16-entry non-linear int8 codebook -- are typed attributes (I4 mirror
-    only). The bounded surface kind is limited to "ggml_repack_gemv_iq4_xs_q8_K" and
-    scale_model to "superblock-d.fp16-codebook-6bit-signed-scale-nomin". integer_core_lmul
-    is the SAME bounded resource fact; the verifier pins it fail-closed (I7).
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$column_count,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$weight_scales_low_byte_offset,
-    I64Attr:$weight_scales_high_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    I64Attr:$n_subblocks,
-    I64Attr:$weight_interleave,
-    I64Attr:$half_lanes,
-    DenseI8ArrayAttr:$codebook,
-    OptionalAttr<StrAttr>:$integer_core_lmul
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
-    "$column_count `,` $vl attr-dict "
-    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
-    "type($element_count) `,` type($column_count) `,` "
-    "type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
-
-def GgmlRepackGemmIq4XsQ8KOp
-    : TCRVRVV_Op<"repack_gemm_iq4_xs_q8_K",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary =
-      "generic typed RVV ggml IQ4_XS x Q8_K 16x1-REPACKED GEMM (block-as-lane, codebook) op";
-  let description = [{
-    Records the COMPLETE ggml iq4_xs 16x1-REPACKED GEMM (prefill, M>>1) hot kernel as
-    ONE bounded generic plugin-local typed RVV dataflow step -- the PREFILL sibling of
-    tcrv_rvv.repack_gemv_iq4_xs_q8_K. The iq4_xs codebook decode + K-quant 6-bit signed
-    per-sub-block scale (biased -32, NO min) + i32 sub-block accumulate + i32 scale-
-    weighted fold are IDENTICAL to the GEVM. The DISTINGUISHING fact is the activation:
-    the interleaved block_q8_Kx4 stream (4 activation ROWS per group, stride 1168 = 4
-    fp32 d + 1024 int8 quants + 64 int16 bsums, the bsums UNREAD). The codebook weight
-    decode + scale unpack are AMORTIZED once per 16-weight group and REUSED across the 4
-    activation columns.
-
-    The weight side is the block_iq4_xsx16 block-as-lane layout (IDENTICAL to the GEVM
-    weight ABI, stride 2176). The op consumes SEVEN runtime ABI value operands (weight
-    base vx, q8_Kx4 activation base vy, fp32 output s, n, nr, nc, output row stride bs)
-    + vl and produces ONE i32 LMUL m1 !tcrv_rvv.vector token. The structural facts --
-    QK_K=256, weight stride 2176, activation stride 1168, weight quant offset +128,
-    weight scales-high offset +32, weight scales-low offset +64, activation quant offset
-    +16, 8 sub-blocks, interleave widths (16 weight columns, 4 activation rows),
-    half_lanes in {8,16}, the superblock-d-codebook-6bit-signed-scale-4col-nomin scale
-    model, and the 16-entry non-linear int8 codebook -- are typed attributes (I4 mirror
-    only). The bounded surface kind is limited to "ggml_repack_gemm_iq4_xs_q8_K" and
-    scale_model to "superblock-d.fp16-codebook-6bit-signed-scale-4col-nomin".
-    integer_core_lmul is pinned fail-closed (I7).
-  }];
-
-  let arguments = (ins
-    AnyType:$weight_base,
-    AnyType:$activation_base,
-    AnyType:$output,
-    AnyType:$element_count,
-    AnyType:$row_count,
-    AnyType:$column_count,
-    AnyType:$output_row_stride,
-    AnyType:$vl,
-    StrAttr:$kind,
-    StrAttr:$scale_model,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$weight_scales_low_byte_offset,
-    I64Attr:$weight_scales_high_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    I64Attr:$n_subblocks,
-    I64Attr:$weight_interleave,
-    I64Attr:$activation_interleave,
-    I64Attr:$half_lanes,
-    DenseI8ArrayAttr:$codebook,
-    OptionalAttr<StrAttr>:$integer_core_lmul
-  );
-  let results = (outs AnyType:$result);
-
-  let assemblyFormat =
-    "$weight_base `,` $activation_base `,` $output `,` $element_count `,` "
-    "$row_count `,` $column_count `,` $output_row_stride `,` $vl attr-dict "
-    "`:` type($weight_base) `,` type($activation_base) `,` type($output) `,` "
-    "type($element_count) `,` type($row_count) `,` type($column_count) `,` "
-    "type($output_row_stride) `,` type($vl) `->` type($result)";
-  let hasVerifier = 1;
-}
+// NOTE (G3 M2-后 iq4_xs codebook front-door): def GgmlRepackGemvIq4XsQ8KOp +
+// def GgmlRepackGemmIq4XsQ8KOp (tcrv_rvv.repack_gem{v,m}_iq4_xs_q8_K) are RETIRED with
+// the iq4_xs SUPER-BLOCK CODEBOOK monolith direct emitters (the SECOND codebook decode
+// family retired to the typed-region front door, COMPLETING the iq4 codebook pair with
+// iq4_nl). The iq4_xs repack is now CONSTRUCTED as the typed
+// tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+// "codebook_superblock_signed6_no_min") carrying the SHARED
+// tcrv_rvv.repack_gem{v,m}_codebook_core brick (decode_model "iq4_xs", + the SAME
+// 16-entry non-linear int8 codebook iq4_nl uses), lowered by the codebook branch of
+// emitTypedRepackGem{v,m}LoopBody -> emitRepackCodebookGem{v,m}BodyIq4Xs (body VERBATIM
+// = byte-exact to the retired direct emitter; the GEMM ships PLAIN/UNTILED, iq4_xs sits
+// at the <=32-vreg cliff). The iq4_xs delta over the iq4_nl flat fold -- the QK_K=256
+// super-block + the K-quant-style 6-bit SIGNED per-sub-block scale (the q4_K
+// vand/vsrl/vsll/vor bit-dance + vsub 32, NO min) + the i32 sub-block/scale-weighted
+// vmacc fold -- rides on the loop body op's OPTIONAL super-block attrs
+// (weight_scales_byte_offset = scales_l LOW pair region +64, weight_scales_high_byte_offset
+// = scales_h HIGH 2-bit region +32, n_subblocks = 8). lowerToRepackGem{v,m}Codebook
+// (parameterized by kIq4XsDecodeFacts) RECONSTRUCTS the kvalues_iq4nl codebook + the
+// signed-6 scale facts the abstract quant_contraction request omits. See the codebook
+// core brick RepackGem{v,m}CodebookCoreOp (SHARED with iq4_nl, decode_model widened).
 
 def GgmlRepackGemvIq2XxsQ8KOp
     : TCRVRVV_Op<"repack_gemv_iq2_xxs_q8_K",
@@ -11015,7 +10884,16 @@ def TypedRepackGemvLoopBodyOp
     OptionalAttr<I64Attr>:$weight_dmin_byte_offset,
     OptionalAttr<I64Attr>:$weight_scales_byte_offset,
     OptionalAttr<I64Attr>:$activation_bsums_byte_offset,
-    OptionalAttr<I64Attr>:$n_subblocks
+    OptionalAttr<I64Attr>:$n_subblocks,
+    // OPTIONAL iq4_xs SUPER-BLOCK CODEBOOK signed-6 scale HIGH byte offset (+32): the
+    // split 2-bit high field of the K-quant-style 6-bit per-sub-block scale. Present
+    // ONLY for the codebook super-block fold (fold_model
+    // "codebook_superblock_signed6_no_min", decode_model "iq4_xs"), which reads the
+    // 6-bit signed scale from the scales_l LOW pair region (weight_scales_byte_offset,
+    // +64) OR-ed with this HIGH 2-bit region (+32) then biased -32 (NO min); ABSENT for
+    // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
+    // mirror, never a route/dtype WHAT.
+    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset
   );
   let regions = (region SizedRegion<1>:$body);
 
@@ -11800,7 +11678,16 @@ def TypedRepackGemmLoopBodyOp
     OptionalAttr<I64Attr>:$weight_dmin_byte_offset,
     OptionalAttr<I64Attr>:$weight_scales_byte_offset,
     OptionalAttr<I64Attr>:$activation_bsums_byte_offset,
-    OptionalAttr<I64Attr>:$n_subblocks
+    OptionalAttr<I64Attr>:$n_subblocks,
+    // OPTIONAL iq4_xs SUPER-BLOCK CODEBOOK signed-6 scale HIGH byte offset (+32): the
+    // split 2-bit high field of the K-quant-style 6-bit per-sub-block scale (mirrors the
+    // GEVM loop-body attr). Present ONLY for the codebook super-block fold (fold_model
+    // "codebook_superblock_signed6_no_min", decode_model "iq4_xs"), which reads the
+    // 6-bit signed scale from the scales_l LOW pair region (weight_scales_byte_offset,
+    // +64) OR-ed with this HIGH 2-bit region (+32) then biased -32 (NO min); ABSENT for
+    // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
+    // mirror, never a route/dtype WHAT.
+    OptionalAttr<I64Attr>:$weight_scales_high_byte_offset
   );
   let regions = (region SizedRegion<1>:$body);
 

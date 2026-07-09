@@ -471,6 +471,22 @@ constexpr llvm::StringLiteral kCodebookIq4NlScaleModel =
 constexpr llvm::StringLiteral kCodebookIq4NlGemmScaleModel =
     "flat.fp16-single-scale-codebook-4col-nomin";
 
+// The iq4_xs codebook decode-family discriminator (the SECOND codebook sibling, COMPLETING
+// the iq4 codebook pair): the SUPER-BLOCK (QK_K=256) analogue of iq4_nl. It rides the SAME
+// codebook core brick (RepackGem{v,m}CodebookCoreOp) + the SAME 16-entry non-linear int8
+// codebook, but the flat single-fp16-scale fold is replaced by a K-quant-style 6-bit SIGNED
+// per-sub-block scale: each of the 8 sub-blocks carries a 6-bit scale assembled LANE-WISE
+// from a scales_l LOW pair nibble + a scales_h HIGH 2-bit field (the q4_K vand/vsrl/vsll/vor
+// bit-dance) then biased -32 (NO min / NO bsums / NO qh SECOND plane), sign-extended to i32
+// and folded via vmacc onto the i32 sub-block dot. A request carrying it is a super-block
+// codebook contraction whose repack-SELECTED lowering CONSTRUCTS the codebook
+// typed_repack_gem{v,m}_loop_body region (fold_model "codebook_superblock_signed6_no_min",
+// decode_model "iq4_xs") carrying the SHARED codebook core brick.
+constexpr llvm::StringLiteral kCodebookIq4XsScaleModel =
+    "superblock.fp16-signed6-scale-codebook-nomin";
+constexpr llvm::StringLiteral kCodebookIq4XsGemmScaleModel =
+    "superblock.fp16-signed6-scale-codebook-4col-nomin";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -485,26 +501,59 @@ constexpr int8_t kvalues_iq4nl[16] = {-127, -104, -83, -65, -49, -35, -22, -10,
 // offset (8), and the 16-entry non-linear int8 codebook. These MIRROR the retired
 // monolithic iq4_nl repack op verifiers' pins.
 struct CodebookDecodeFacts {
-  llvm::StringRef decodeModel;              // "iq4_nl" (core brick)
+  llvm::StringRef decodeModel;              // "iq4_nl" / "iq4_xs" (core brick)
   llvm::StringRef gemmScaleModel;           // the 4-col GEMM loop-op scale_model
-  std::int64_t weightBlockStride;           // 288 (block_iq4_nlx16)
-  std::int64_t weightQuantByteOffset;       // 32 (repacked nibble plane)
-  std::int64_t gevmActivationBlockStride;   // 34 (plain block_q8_0)
-  std::int64_t gevmActivationQuantByteOffset;    // 2
-  std::int64_t gemmActivationBlockStride;   // 136 (interleaved block_q8_0x4)
-  std::int64_t gemmActivationQuantByteOffset;    // 8
-  llvm::ArrayRef<int8_t> codebook;          // the 16-entry non-linear kvalues
+  llvm::StringRef foldModel;                // loop-body fold_model
+  std::int64_t weightBlockStride;           // 288 (iq4_nl) / 2176 (iq4_xs)
+  std::int64_t weightQuantByteOffset;       // 32 (iq4_nl) / 128 (iq4_xs) nibble plane
+  std::int64_t gevmActivationBlockStride;   // 34 (plain block_q8_0) / 292 (block_q8_K)
+  std::int64_t gevmActivationQuantByteOffset;    // 2 (iq4_nl) / 4 (iq4_xs)
+  std::int64_t gemmActivationBlockStride;   // 136 (block_q8_0x4) / 1168 (block_q8_Kx4)
+  std::int64_t gemmActivationQuantByteOffset;    // 8 (iq4_nl) / 16 (iq4_xs)
+  // The iq4_xs SUPER-BLOCK signed-6 scale facts (0 for the iq4_nl flat fold): the scales_l
+  // LOW pair region byte offset (+64), the scales_h HIGH 2-bit region byte offset (+32),
+  // and the sub-block count (8). The lowering stamps them onto the loop body op's OPTIONAL
+  // super-block attrs ONLY under the codebook super-block fold.
+  std::int64_t weightScalesLowByteOffset;   // 64 (iq4_xs) / 0 (iq4_nl)
+  std::int64_t weightScalesHighByteOffset;  // 32 (iq4_xs) / 0 (iq4_nl)
+  std::int64_t nSubblocks;                  // 8 (iq4_xs) / 0 (iq4_nl)
+  llvm::ArrayRef<int8_t> codebook;          // the 16-entry non-linear kvalues (SHARED)
 };
 
 constexpr CodebookDecodeFacts kIq4NlDecodeFacts = {
     /*decodeModel=*/"iq4_nl",
     /*gemmScaleModel=*/kCodebookIq4NlGemmScaleModel,
+    /*foldModel=*/"codebook_flat_single_scale",
     /*weightBlockStride=*/288,
     /*weightQuantByteOffset=*/32,
     /*gevmActivationBlockStride=*/34,
     /*gevmActivationQuantByteOffset=*/2,
     /*gemmActivationBlockStride=*/136,
     /*gemmActivationQuantByteOffset=*/8,
+    /*weightScalesLowByteOffset=*/0,
+    /*weightScalesHighByteOffset=*/0,
+    /*nSubblocks=*/0,
+    /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_iq4nl),
+};
+
+// iq4_xs: the SUPER-BLOCK codebook sibling. It RECONSTRUCTS the block_iq4_xsx16 x16 weight
+// facts (stride 2176, nibbles @128, scales_l LOW pair @64, scales_h HIGH 2-bit @32) + the
+// block_q8_K activation facts (292/4 GEVM, interleaved block_q8_Kx4 1168/16 GEMM) + the SAME
+// 16-entry non-linear int8 codebook iq4_nl uses (the abstract request carries none). The
+// 6-bit SIGNED per-sub-block scale (biased -32, NO min) rides the codebook super-block fold.
+constexpr CodebookDecodeFacts kIq4XsDecodeFacts = {
+    /*decodeModel=*/"iq4_xs",
+    /*gemmScaleModel=*/kCodebookIq4XsGemmScaleModel,
+    /*foldModel=*/"codebook_superblock_signed6_no_min",
+    /*weightBlockStride=*/2176,
+    /*weightQuantByteOffset=*/128,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*weightScalesLowByteOffset=*/64,
+    /*weightScalesHighByteOffset=*/32,
+    /*nSubblocks=*/8,
     /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_iq4nl),
 };
 
@@ -641,13 +690,16 @@ private:
           : op.getScaleModel() == kKQuantQ3KScaleModel ? &kQ3KDecodeFacts
           : op.getScaleModel() == kKQuantQ5KScaleModel ? &kQ5KDecodeFacts
                                                        : nullptr;
-      // The codebook family (iq4_nl flat non-linear codebook) builds the codebook
-      // typed_repack region + the repack_gem{v,m}_codebook_core brick via
-      // lowerToRepackGem{v,m}Codebook, parameterized by the CodebookDecodeFacts (flat
-      // single-scale facts + the RECONSTRUCTED kvalues table).
+      // The codebook family (iq4_nl flat single-scale non-linear codebook, OR iq4_xs the
+      // SUPER-BLOCK sibling with a K-quant-style 6-bit SIGNED per-sub-block scale) builds
+      // the codebook typed_repack region + the SHARED repack_gem{v,m}_codebook_core brick
+      // via lowerToRepackGem{v,m}Codebook, parameterized by the per-family CodebookDecodeFacts
+      // (facts.foldModel selects flat vs super-block-signed6; both RECONSTRUCT the SAME
+      // 16-entry kvalues table + iq4_xs its signed-6 scale offsets).
       const CodebookDecodeFacts *codebook =
-          op.getScaleModel() == kCodebookIq4NlScaleModel ? &kIq4NlDecodeFacts
-                                                         : nullptr;
+          op.getScaleModel() == kCodebookIq4NlScaleModel   ? &kIq4NlDecodeFacts
+          : op.getScaleModel() == kCodebookIq4XsScaleModel ? &kIq4XsDecodeFacts
+                                                           : nullptr;
       if (*mRegime == pluginrvv::MRegime::Prefill)
         return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
                                                     isRVV0p7, *codebook)
@@ -678,7 +730,8 @@ private:
         op.getScaleModel() == kKQuantQ2KScaleModel ||
         op.getScaleModel() == kKQuantQ3KScaleModel ||
         op.getScaleModel() == kKQuantQ5KScaleModel ||
-        op.getScaleModel() == kCodebookIq4NlScaleModel)
+        op.getScaleModel() == kCodebookIq4NlScaleModel ||
+        op.getScaleModel() == kCodebookIq4XsScaleModel)
       return op.emitError()
              << "ternary / K-quant / codebook quant_contraction requires a "
                 "repack-affording capability (a valid e16m1 strip width, minVLEN "
@@ -1821,8 +1874,22 @@ private:
                            builder.getI64IntegerAttr(kWeightInterleave));
     loopState.addAttribute("half_lanes",
                            builder.getI64IntegerAttr(emittedHalfLanes));
+    // The iq4_xs SUPER-BLOCK signed-6 scale facts on the loop body op's OPTIONAL attrs
+    // (the emitter reads them only under the codebook super-block fold): the scales_l LOW
+    // pair region + the scales_h HIGH 2-bit region + the sub-block count. ABSENT for the
+    // iq4_nl flat single-scale fold (facts.nSubblocks == 0).
+    if (facts.nSubblocks != 0) {
+      loopState.addAttribute(
+          "weight_scales_byte_offset",
+          builder.getI64IntegerAttr(facts.weightScalesLowByteOffset));
+      loopState.addAttribute(
+          "weight_scales_high_byte_offset",
+          builder.getI64IntegerAttr(facts.weightScalesHighByteOffset));
+      loopState.addAttribute("n_subblocks",
+                             builder.getI64IntegerAttr(facts.nSubblocks));
+    }
     loopState.addAttribute("fold_model",
-                           builder.getStringAttr("codebook_flat_single_scale"));
+                           builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
     loopState.addRegion();
@@ -1977,8 +2044,22 @@ private:
                            builder.getI64IntegerAttr(kActivationInterleave));
     loopState.addAttribute("half_lanes",
                            builder.getI64IntegerAttr(emittedHalfLanes));
+    // The iq4_xs SUPER-BLOCK signed-6 scale facts on the loop body op's OPTIONAL attrs
+    // (the emitter reads them only under the codebook super-block fold): the scales_l LOW
+    // pair region + the scales_h HIGH 2-bit region + the sub-block count. ABSENT for the
+    // iq4_nl flat single-scale fold (facts.nSubblocks == 0).
+    if (facts.nSubblocks != 0) {
+      loopState.addAttribute(
+          "weight_scales_byte_offset",
+          builder.getI64IntegerAttr(facts.weightScalesLowByteOffset));
+      loopState.addAttribute(
+          "weight_scales_high_byte_offset",
+          builder.getI64IntegerAttr(facts.weightScalesHighByteOffset));
+      loopState.addAttribute("n_subblocks",
+                             builder.getI64IntegerAttr(facts.nSubblocks));
+    }
     loopState.addAttribute("fold_model",
-                           builder.getStringAttr("codebook_flat_single_scale"));
+                           builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
     loopState.addRegion();

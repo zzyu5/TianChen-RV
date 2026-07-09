@@ -424,8 +424,16 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // (byte-exact PLAIN untiled body to the retired direct emitter).
         {&isRepackGemmMxfp4Q8Body,
          &VariantToEmitCFunc::emitRepackGemmMxfp4Q8},
-        {&isRepackGemmIq4XsQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmIq4XsQ8K},
+        // NOTE (G3 M2-后 iq4_xs codebook front-door): the iq4_xs 16x1-repacked GEMM direct
+        // emitter (emitRepackGemmIq4XsQ8K) + its monolith op
+        // (tcrv_rvv.repack_gemm_iq4_xs_q8_K) + recognizer (isRepackGemmIq4XsQ8KBody) are
+        // RETIRED: the repack front door now constructs the typed
+        // tcrv_rvv.typed_repack_gemm_loop_body region (fold_model
+        // "codebook_superblock_signed6_no_min") carrying the tcrv_rvv.repack_gemm_codebook_core
+        // brick (decode_model "iq4_xs"), lowered below by isTypedRepackGemmLoopBody ->
+        // emitTypedRepackGemmLoopBody (codebook branch) -> emitRepackCodebookGemmBodyIq4Xs
+        // (byte-exact PLAIN untiled body to the retired direct emitter, COMPLETING the iq4
+        // codebook pair with iq4_nl).
         {&isRepackGemmIq2XxsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmIq2XxsQ8K},
         {&isRepackGemmIq2XsQ8KBody,
@@ -479,8 +487,16 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // (byte-exact to the retired direct emitter).
         {&isRepackGemvMxfp4Q8Body,
          &VariantToEmitCFunc::emitRepackGemvMxfp4Q8},
-        {&isRepackGemvIq4XsQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvIq4XsQ8K},
+        // NOTE (G3 M2-后 iq4_xs codebook front-door): the iq4_xs 16x1-repacked GEVM direct
+        // emitter (emitRepackGemvIq4XsQ8K) + its monolith op
+        // (tcrv_rvv.repack_gemv_iq4_xs_q8_K) + recognizer (isRepackGemvIq4XsQ8KBody) are
+        // RETIRED: the repack front door now constructs the typed
+        // tcrv_rvv.typed_repack_gemv_loop_body region (fold_model
+        // "codebook_superblock_signed6_no_min") carrying the tcrv_rvv.repack_gemv_codebook_core
+        // brick (decode_model "iq4_xs"), lowered below by isTypedRepackGemvLoopBody ->
+        // emitTypedRepackGemvLoopBody (codebook branch) -> emitRepackCodebookGemvBodyIq4Xs
+        // (byte-exact to the retired direct emitter; the SECOND codebook decode family, the
+        // codebook super-block sibling of iq4_nl).
         {&isRepackGemvIq2XxsQ8KBody,
          &VariantToEmitCFunc::emitRepackGemvIq2XxsQ8K},
         {&isRepackGemvIq2XsQ8KBody,
@@ -1504,33 +1520,12 @@ bool VariantToEmitCFunc::isRepackGemmMxfp4Q8Body(tcrvrvv::WithVLOp scope) {
     return sawGemm;
   }
 
-bool VariantToEmitCFunc::isRepackGemvIq4XsQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemv = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq4XsQ8KOp>(op)) {
-        if (sawGemv)
-          return false;
-        sawGemv = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemv;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmIq4XsQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool sawGemm = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq4XsQ8KOp>(op)) {
-        if (sawGemm)
-          return false;
-        sawGemm = true;
-      } else {
-        return false;
-      }
-    }
-    return sawGemm;
-  }
+// NOTE (G3 M2-后 iq4_xs codebook front-door): isRepackGemvIq4XsQ8KBody +
+// isRepackGemmIq4XsQ8KBody (+ the emitRepackGem{v,m}Iq4XsQ8K direct emitters + the
+// GgmlRepackGem{v,m}Iq4XsQ8KOp monolith ops) are RETIRED: the iq4_xs repack now flows
+// through the typed_repack_gem{v,m}_loop_body front door (isTypedRepackGem{v,m}LoopBody ->
+// emitTypedRepackGem{v,m}LoopBody codebook branch, fold_model
+// "codebook_superblock_signed6_no_min", decode_model "iq4_xs").
 
 bool VariantToEmitCFunc::isRepackGemvIq2XxsQ8KBody(tcrvrvv::WithVLOp scope) {
     bool sawGemv = false;
