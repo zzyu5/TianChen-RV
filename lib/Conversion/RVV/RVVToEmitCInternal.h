@@ -4462,6 +4462,29 @@ private:
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
       llvm::StringRef format) const;
 
+  /// The SHARED codebook / ternary-grid super-block dequantize_row block-decode body
+  /// for the remaining extended formats (iq1_s/iq1_m ternary iq1s_grid + delta,
+  /// iq4_nl/iq4_xs 16-entry non-linear codebook, mxfp4/nvfp4 FP4 e2m1 codebook with
+  /// E8M0 / UE4M3 scales): the AoS block loop, the per-format scale seam (fp16 d, the
+  /// reconstructed packed iq1m_scale, the E8M0 shared exponent, or the four UE4M3
+  /// sub-block scales), the codebook / ternary grid + optional sign / delta plane emitted
+  /// ONCE as function-local statics (the SAME emitIQ1SCanonicalGridTableDecl /
+  /// emitIQ1MCanonicalGridTableDecl / emitCodebookDecl anchors the block-dot vec_dot
+  /// lowerings emit), then the per-block index/nibble decode folded d*scale*value. This
+  /// is a thin `format`-keyed FORWARDER to emitGgmlDequantizeRowExtended -- the SAME
+  /// hand-written decode the dispatch-wired monolith fallback runs -- so the CONSTRUCTED
+  /// typed lowering (via emitTypedDequantizeRowLoopBody) and the monolith emit
+  /// byte-identical C by construction (modulo only the source-op provenance token threaded
+  /// through opName/role); there is NO duplicated decode leaf. The grid / codebook / scale
+  /// planes are DERIVED at emit (NOT carried as op-attrs), so the leaf is self-contained.
+  /// Byte-exact to ggml's reference dequantize_row_<format> (a scalar AoS block loop; no
+  /// reduction). Streaming sibling of emitDequantizeRowIQGridBodyShared (no accumulator).
+  mlir::LogicalResult emitDequantizeRowCodebookGridBodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      llvm::StringRef format) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the

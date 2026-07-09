@@ -1,11 +1,22 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_nvfp4` block DECODE (block_nvfp4 -> f32 row) as a
-// DISPATCH-WIRED lowering (\[L-6\] wiring != construction): tcrv_rvv.dequantize_row
-// (format="nvfp4") routes to the hand-written monolith emitter reproducing ggml's
-// reference dequantize_row_nvfp4 -- the four per-16-element UE4M3 sub-block scales
-// (ggml_ue4m3_to_fp32 via ldexpf, HALF form) then the 16-entry FP4 codebook gather
-// scaled per sub-block. REUSES the nvfp4 block-dot vec_dot codebook + UE4M3 scale.
+// The ggml `dequantize_row_nvfp4` block DECODE (block_nvfp4 -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the FP4 codebook dequant leaf (G3 line-B negative
+// control, a dequantize_row family member, family-head q8_0): the abstract
+// tcrv_rvv.dequantize_row (format="nvfp4") is FRONT-DOOR CONSTRUCTED --
+// constructOrEmitGgmlDequantizeRow rewrites it into the typed
+// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core
+// (decode_model "nvfp4", qk=64, stride=36); typed_dequantize_row_loop_yield } and lowers it
+// (the emission is DRIVEN by the typed region op-identity + decode_model, [L-6]/[L-8]
+// construction, NOT the abstract format string). The emitted C is BYTE-IDENTICAL to the
+// dispatch-wired nvfp4 monolith modulo ONLY the source-op provenance token (the SHARED
+// decode emitGgmlDequantizeRowExtended, reached via emitDequantizeRowCodebookGridBodyShared,
+// is the SAME code both paths run) -- the four per-16-element UE4M3 sub-block scales
+// (ggml_ue4m3_to_fp32 via ldexpf, HALF form) then the 16-entry FP4 codebook gather scaled
+// per sub-block. The codebook + UE4M3 scale are DERIVED at emit (NO op-attr; that blocker
+// is block-dot-repack-only, not this streaming dequant path). REUSES the nvfp4 block-dot
+// vec_dot codebook + UE4M3 scale. Byte-exact-vs-ggml-reference dequantize_row_nvfp4 (a
+// scalar AoS super-block loop; no reduction).
 
 module {
   tcrv.exec.kernel @dequant_nvfp4_kernel {
@@ -24,6 +35,9 @@ module {
 
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_nvfp4_kernel_dequant_nvfp4(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
 // The FP4 codebook table decl (kvalues_mxfp4, reused by nvfp4), above the loop.
 // CHECK: static const int8_t tcrv_dequant_nvfp4_kvalues
 // The block count nb = k / 64 and the block loop.

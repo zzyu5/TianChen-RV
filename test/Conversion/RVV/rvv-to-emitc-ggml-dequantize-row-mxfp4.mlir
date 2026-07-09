@@ -1,12 +1,23 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_mxfp4` block DECODE (block_mxfp4 -> f32 row) as a
-// DISPATCH-WIRED lowering (\[L-6\] wiring != construction): tcrv_rvv.dequantize_row
-// (format="mxfp4") routes to the hand-written monolith emitter reproducing ggml's
-// reference dequantize_row_mxfp4 -- the E8M0 block scale reconstructed by ggml's exact
-// bit construction (0x00200000u denormal / (e-1)<<23 normal), then the 16-entry FP4
-// (e2m1) codebook gather (kvalues_mxfp4\[qs&0xF\], kvalues_mxfp4\[qs>>4\]) scaled by d.
-// REUSES the mxfp4 block-dot vec_dot codebook + E8M0 scale decode.
+// The ggml `dequantize_row_mxfp4` block DECODE (block_mxfp4 -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the FP4 codebook dequant leaf (G3 line-B negative
+// control, a dequantize_row family member, family-head q8_0): the abstract
+// tcrv_rvv.dequantize_row (format="mxfp4") is FRONT-DOOR CONSTRUCTED --
+// constructOrEmitGgmlDequantizeRow rewrites it into the typed
+// tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core
+// (decode_model "mxfp4", qk=32, stride=17); typed_dequantize_row_loop_yield } and lowers it
+// (the emission is DRIVEN by the typed region op-identity + decode_model, [L-6]/[L-8]
+// construction, NOT the abstract format string). The emitted C is BYTE-IDENTICAL to the
+// dispatch-wired mxfp4 monolith modulo ONLY the source-op provenance token (the SHARED
+// decode emitGgmlDequantizeRowExtended, reached via emitDequantizeRowCodebookGridBodyShared,
+// is the SAME code both paths run) -- the E8M0 block scale reconstructed by ggml's exact
+// bit construction (0x00200000u denormal / (e-1)<<23 normal), then the 16-entry FP4 (e2m1)
+// codebook gather (kvalues_mxfp4[qs&0xF], kvalues_mxfp4[qs>>4]) scaled by d. The codebook +
+// E8M0 scale are DERIVED at emit (NO op-attr; that blocker is block-dot-repack-only, not
+// this streaming dequant path). REUSES the mxfp4 block-dot vec_dot codebook + E8M0 scale
+// decode. Byte-exact-vs-ggml-reference dequantize_row_mxfp4 (a scalar AoS block loop; no
+// reduction).
 
 module {
   tcrv.exec.kernel @dequant_mxfp4_kernel {
@@ -25,6 +36,9 @@ module {
 
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_mxfp4_kernel_dequant_mxfp4(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
 // The FP4 codebook table decl (kvalues_mxfp4), emitted once above the loop.
 // CHECK: static const int8_t tcrv_dequant_mxfp4_kvalues
 // The block count nb = k / 32 and the block loop.

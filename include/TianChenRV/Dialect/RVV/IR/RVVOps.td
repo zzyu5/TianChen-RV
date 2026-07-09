@@ -10098,9 +10098,16 @@ def TypedDequantizeRowLoopBodyOp
     "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s" (the fp16 d seam + the grid-of-N
     codebook gather -- grid-of-8 int64 / 512- and 1024-entry grids / grid-of-4 uint32 --
     with the per-format sign plane signs64/signs256/ksigns/per-lane sign bytes, all
-    DERIVED at emit as function-local statics, folded d*scale*grid*sign). The op does
-    NOT own dtype/route authority; the per-block decode is the separate typed brick
-    carried inside the region.
+    DERIVED at emit as function-local statics, folded d*scale*grid*sign) plus the
+    remaining codebook / ternary-grid extended leaves "iq1_s"/"iq1_m" (the 2048-entry
+    ternary iq1s_grid gather + the qh / packed-scale per-group scale + the +-0.125 delta;
+    iq1_m carries NO fp16 d -- the scale is the reconstructed packed iq1m_scale),
+    "iq4_nl"/"iq4_xs" (the 16-entry non-linear kvalues_iq4nl codebook nibble gather --
+    flat fp16 scale for iq4_nl, the super-block signed-6 scale for iq4_xs), and
+    "mxfp4"/"nvfp4" (the 16-entry FP4 e2m1 kvalues_mxfp4 codebook nibble gather with the
+    E8M0 shared exponent / the four UE4M3 sub-block scales), all DERIVED at emit as
+    function-local statics. The op does NOT own dtype/route authority; the per-block
+    decode is the separate typed brick carried inside the region.
   }];
 
   let arguments = (ins
@@ -10165,12 +10172,19 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     the 2/3/4/5/6-bit quant unpack + fold; for the QK_K=256 IQ grid-table super-block
     leaves "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s": the fp16 d seam + the per-format
     grid-of-N codebook gather + sign plane (all DERIVED at emit as function-local
-    statics), folded d*scale*grid*sign. The block-layout facts (qk,
-    weight_block_stride, scale_byte_offset, quant_byte_offset) are the ggml ABI
-    constants; decode_model pins WHICH decode leaf. For the current bounded surface
-    decode_model is limited to the flat streaming family "q8_0"/"q4_0"/"q4_1"/"q5_0"/
-    "q5_1" + the K-quant super-blocks "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" + the IQ
-    grid-table super-blocks "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s".
+    statics), folded d*scale*grid*sign; for the codebook / ternary-grid extended leaves
+    "iq1_s"/"iq1_m" (the 2048-entry ternary iq1s_grid gather + per-group scale + +-0.125
+    delta), "iq4_nl"/"iq4_xs" (the 16-entry non-linear kvalues_iq4nl codebook nibble
+    gather), and "mxfp4"/"nvfp4" (the 16-entry FP4 e2m1 kvalues_mxfp4 codebook nibble
+    gather + the E8M0 / UE4M3 scale): the per-format scale seam + the codebook / grid
+    gather (all DERIVED at emit as function-local statics), folded d*scale*value. The
+    block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
+    are the ggml ABI constants; decode_model pins WHICH decode leaf. For the current
+    bounded surface decode_model is limited to the flat streaming family
+    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the K-quant super-blocks
+    "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" + the IQ grid-table super-blocks
+    "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s" + the codebook / ternary-grid leaves
+    "iq1_s"/"iq1_m"/"iq4_nl"/"iq4_xs"/"mxfp4"/"nvfp4".
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,

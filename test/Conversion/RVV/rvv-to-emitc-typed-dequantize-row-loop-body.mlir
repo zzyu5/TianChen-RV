@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's/kind = "typed_dequantize_row_loop_body"/kind = "plain_dequant_loop"/' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADKIND
-// RUN: sed 's/"q8_0"/"iq4_nl"/g' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADDECODE
+// RUN: sed 's/"q8_0"/"tq2_0"/g' %s | not tcrv-opt --tcrv-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADDECODE
 
 // G3 line-B dequant FRONT DOOR -- the streaming CONSTRUCTED sibling of the flat
 // block-dot loop scaffold. tcrv_rvv.typed_dequantize_row_loop_body carries the ggml
