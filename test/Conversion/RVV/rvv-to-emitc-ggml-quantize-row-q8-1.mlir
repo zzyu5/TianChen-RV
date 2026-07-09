@@ -36,6 +36,9 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_quantize_row_q8_1_kernel_quantize_row_q8_1(
+// FRONT-DOOR CONSTRUCTED: the abstract tcrv_rvv.quantize_row_q8_1 went THROUGH the
+// typed tcrv_rvv.typed_quantize_row_loop_body region (the provenance token proves it).
+// CHECK: route_source_op=tcrv_rvv.typed_quantize_row_loop_body
 // The AoS block count nb = n / 32 and the block loop.
 // CHECK: div {{.*}}, %{{.*}}
 // CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step

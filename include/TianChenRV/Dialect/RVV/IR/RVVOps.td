@@ -10188,6 +10188,149 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
   let hasVerifier = 1;
 }
 
+def TypedQuantizeRowLoopBodyOp
+    : TCRVRVV_Op<"typed_quantize_row_loop_body",
+    [SingleBlock, TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV block-carried nb loop op for the ggml quantize_row "
+      "family (f32 row -> block_qX); the streaming CONSTRUCTED f32->QUANT "
+      "sibling of tcrv_rvv.typed_dequantize_row_loop_body";
+  let description = [{
+    Records the ggml `quantize_row_<format>` ACTIVATION QUANTIZER's OUTER
+    `nb = k / QK` block loop as ONE typed region-carrying dataflow op -- the
+    STREAMING (no loop-carried f32 accumulator across blocks: each block's amax
+    reduction is block-local) f32 -> QUANT sibling of
+    tcrv_rvv.typed_dequantize_row_loop_body (the MIRROR direction: dequant reads
+    block_qX and writes an f32 row; quantize reads an f32 row and writes the AoS
+    block_qX byte buffer). It is the FRONT-DOOR CONSTRUCTED form of the
+    quantize_row family: where the abstract per-format ops (tcrv_rvv.quantize_row_q8_0
+    / quantize_row_q8_1 / quantize_row_q8_K) are DISPATCH-WIRED (the emitter owns a
+    hand-written per-format monolith quantizer body, [L-6] wiring != construction),
+    the quantize front door instead CONSTRUCTS this typed region -- one per-block
+    ENCODE brick (tcrv_rvv.quantize_row_encode_core) carried inside a single-block
+    region terminated by tcrv_rvv.typed_quantize_row_loop_yield -- and the emitter
+    lowers it by op identity + encode_model, NEVER inferred from candidate-mirror
+    metadata, route ids, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, or q8 names (I5).
+
+    Like the dequant streaming loop op there is NO cross-block loop-carried
+    accumulator: the quantizer WRITES each block's fp16/float scale + int8 quants
+    (+ the optional q8_1 block sum / q8_K bsums) straight through the `output` byte
+    cursor (ggml's block buffer vy), so the region carries ONLY the `block_index`
+    induction variable (index) and the yield is VOID (the per-block store is the
+    sink). It consumes three runtime ABI operands -- the read-only f32 input base
+    pointer `input` (`const float *`, ggml's x[] activations read for the amax
+    reduction + the scale), the written block_qX `output` base pointer (`uint8_t *`,
+    ggml's vy AoS byte buffer), and the runtime element count `n` (= ggml's k).
+    BYTE-EXACTNESS is to ggml's EXACT RVV method (riscv/quants.c: vfncvt/vnclip
+    round-to-nearest-EVEN + native `(_Float16)` casts), NOT the scalar `_ref`
+    (roundf).
+
+    The bounded scheduling facts (qk, the AoS block stride) are the same byte-exact
+    shape constants the monolithic body pins off the per-format op (the ggml ABI
+    layout, NOT tunable knobs). encode_model KEYS which per-format ENCODE leaf the
+    region's brick carries; for the current bounded surface kind is limited to
+    "typed_quantize_row_loop_body" and encode_model to the activation-quantizer
+    family "q8_0" (the family-head block_q8_0 bare fp16-scale int8 narrow, the
+    structurally simplest flat quantizer) plus "q8_1" (the q8_0 amax/scale/narrow
+    SIBLING + the extra vwredsum integer block sum stored as the fp16 block_q8_1.s)
+    plus "q8_K" (the QK_K=256 super-block min/max-symmetric quantizer -- the FLOAT d,
+    the RNE vfcvt/vnclip narrow, the per-16 vwredsum bsums, and the zero-block memset
+    special case). The op does NOT own dtype/route authority; the per-block encode is
+    the separate typed brick carried inside the region.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$n,
+    StrAttr:$kind,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    StrAttr:$encode_model
+  );
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $input `,` $output `,` $n
+    attr-dict-with-keyword $body `:`
+    type($input) `,` type($output) `,` type($n)
+  }];
+  let hasVerifier = 1;
+}
+
+def TypedQuantizeRowLoopYieldOp
+    : TCRVRVV_Op<"typed_quantize_row_loop_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::rvv::TypedQuantizeRowLoopBodyOp">]> {
+  let summary =
+      "VOID terminator of the streaming quantize_row block loop op (the "
+      "per-block block_qX store is the sink; no loop-carried value)";
+  let description = [{
+    Terminates the tcrv_rvv.typed_quantize_row_loop_body region. The quantize_row
+    encoder WRITES each block's scale + int8 quants straight through the output byte
+    cursor, so -- like tcrv_rvv.typed_dequantize_row_loop_yield and unlike
+    tcrv_rvv.typed_flat_block_dot_loop_yield (which names the carried-out f32
+    accumulator) -- this yield carries NO operand: the streaming store IS the loop's
+    only effect, and there is no cross-block dataflow to name. It carries no compute,
+    dtype, memory, or route semantics.
+  }];
+
+  let arguments = (ins);
+  let assemblyFormat = "attr-dict";
+}
+
+def QuantizeRowEncodeCoreOp : TCRVRVV_Op<"quantize_row_encode_core",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV per-block ENCODE brick for the quantize_row family "
+      "(the streaming f32 -> block_qX leaf carried inside "
+      "tcrv_rvv.typed_quantize_row_loop_body)";
+  let description = [{
+    Records ONE per-block ENCODE leaf of the ggml `quantize_row_<format>`
+    activation quantizer as a first-class typed brick, carried inside the
+    tcrv_rvv.typed_quantize_row_loop_body region (the streaming f32->QUANT mirror of
+    the tcrv_rvv.dequantize_row_decode_core DECODE brick). It consumes the f32 input
+    base pointer, the block_qX output byte cursor, and the `block_index` region
+    induction variable, and encodes one AoS block of `qk` f32 inputs into the
+    per-format quant layout -- for encode_model "q8_0": load the 32 f32 lanes in one
+    e32m8 strip, take amax via vfabs + vfredmax, the scalar d = amax/127 + the
+    load-bearing id = d ? 1/d : 0, store the native (_Float16)d, scale by id, narrow
+    f32->i16->i8 via vfncvt (rne) + vncvt, store the 32 int8 qs; for "q8_1": the SAME
+    amax/scale/narrow PLUS the extra vwredsum int8 block sum stored as the fp16
+    block_q8_1.s; for "q8_K": the QK_K=256 super-block min/max-symmetric iscale, the
+    FLOAT d, the vfcvt/vnclip RNE narrow, the per-16 vwredsum bsums, and the zero-block
+    memset special case. The block-layout facts (qk, block_stride, scale_byte_offset,
+    quant_byte_offset) are the ggml ABI constants; encode_model pins WHICH encode leaf
+    (the per-format extra offsets -- the q8_1 sum, the q8_K bsums -- are baked into the
+    per-format encode leaf). For the current bounded surface encode_model is limited to
+    the activation-quantizer family "q8_0"/"q8_1"/"q8_K".
+
+    Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
+    induction variable so the per-block address arithmetic is `base + ib*stride`,
+    not block-0. The op owns no dtype/route authority; emission is determined by op
+    identity + encode_model + the layout facts, never inferred from candidate-mirror
+    metadata, route ids, ABI strings, artifact names, status fields, or exact
+    intrinsic spellings.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$output,
+    AnyType:$block_index,
+    StrAttr:$encode_model,
+    I64Attr:$qk,
+    I64Attr:$block_stride,
+    I64Attr:$scale_byte_offset,
+    I64Attr:$quant_byte_offset
+  );
+
+  let assemblyFormat =
+    "$input `,` $output `,` $block_index attr-dict `:` "
+    "type($input) `,` type($output) `,` type($block_index)";
+  let hasVerifier = 1;
+}
+
 def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
     [TCRVEmitCLowerableOpInterface]> {
   let summary =

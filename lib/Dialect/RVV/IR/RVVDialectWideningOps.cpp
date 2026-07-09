@@ -11452,6 +11452,181 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   return mlir::success();
 }
 
+// The FRONT-DOOR CONSTRUCTED quantize_row family allowlist: for the bounded surface
+// the activation quantizers are constructed -- the family-head block_q8_0 (bare
+// fp16-scale int8 narrow) plus its q8_1 SIBLING (+ the extra integer block sum) plus
+// the q8_K K-quant activation quantizer (QK_K=256 min/max-symmetric, float d, per-16
+// bsums). Shared by the typed loop body op and its per-block encode brick so both
+// fail closed on an unconstructed encode_model (I7).
+static bool isConstructedQuantizeRowEncodeModel(llvm::StringRef encodeModel) {
+  return encodeModel == "q8_0" || encodeModel == "q8_1" ||
+         encodeModel == "q8_K";
+}
+
+mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // The op carries ONLY its bounded mirror attrs (I4): kind, the ggml ABI block
+  // facts (qk / block_stride), and the encode_model leaf key. A forbidden local
+  // element_count/SEW/LMUL/policy attr or an unexpected name is rejected fail-closed
+  // (I7); SEW/LMUL/policy live on setvl/with_vl, runtime k on the ABI.
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "qk" || name == "block_stride" ||
+           name == "encode_model";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.typed_quantize_row_loop_body keeps SEW/LMUL/policy on "
+                "setvl/with_vl and runtime k/AVL/VL in the surrounding "
+                "control-plane IR";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded {kind, qk, block_stride, encode_model} "
+                "attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "typed_quantize_row_loop_body")
+    return emitOpError()
+           << "currently supports only kind \"typed_quantize_row_loop_body\" for "
+              "the bounded streaming quantize_row nb loop surface";
+  if (!isConstructedQuantizeRowEncodeModel(getEncodeModel()))
+    return emitOpError()
+           << "encode_model '" << getEncodeModel()
+           << "' is not a CONSTRUCTED quantize_row encode; the constructed "
+              "front-door allowlist is the activation quantizers q8_0 (the "
+              "block_q8_0 bare fp16-scale int8-narrow family-head) + q8_1 (the "
+              "SIBLING + the integer block sum) + q8_K (the QK_K=256 min/max-"
+              "symmetric K-quant activation quantizer). An unconstructed format "
+              "stays dispatch-wired via the abstract per-format quantize op";
+
+  // qk / block_stride are positive ggml ABI byte counts the per-block address
+  // arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
+  // fail-CLOSES the `<= 0` guard (a uint64_t accessor would zero-extend and
+  // fail-OPEN); mirrors the TypedDequantizeRowLoopBodyOp positivity gate (I7).
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError() << "requires qk > 0 (the QK block element count); got "
+                         << getQkAttr().getInt();
+  if (getBlockStrideAttr().getInt() <= 0)
+    return emitOpError()
+           << "requires block_stride > 0 (the AoS quant block stride); got "
+           << getBlockStrideAttr().getInt();
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one f32 input pointer, one block_qX output byte pointer, "
+              "and one runtime element-count ABI operand, and no results (the "
+              "streaming store is the sink)";
+
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] f32 activations read for the amax "
+              "reduction and the scale)";
+  if (!outputBinding || outputBinding.getCType() != "uint8_t *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'uint8_t *' (the ggml block_qX AoS byte buffer the quant stores "
+              "write)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index value "
+              "feeding the enclosing setvl";
+
+  // Region structure: exactly ONE entry argument -- the block_index induction
+  // variable (index). Unlike the block-dot loop ops there is NO loop-carried
+  // accumulator (the quantizer STORES to memory), so the region is terminated by the
+  // VOID tcrv_rvv.typed_quantize_row_loop_yield.
+  mlir::Block &block = getBody().front();
+  if (block.getNumArguments() != 1)
+    return emitOpError()
+           << "requires the region to carry exactly one entry argument: the "
+              "block_index induction variable (streaming encode has no "
+              "loop-carried accumulator)";
+  if (!llvm::isa<mlir::IndexType>(block.getArgument(0).getType()))
+    return emitOpError()
+           << "requires the first region argument (block_index) to be index-typed "
+              "(the nb block induction variable)";
+
+  TypedQuantizeRowLoopYieldOp yield =
+      block.empty()
+          ? TypedQuantizeRowLoopYieldOp()
+          : llvm::dyn_cast<TypedQuantizeRowLoopYieldOp>(&block.back());
+  if (!yield)
+    return emitOpError()
+           << "requires the region to be terminated by "
+              "tcrv_rvv.typed_quantize_row_loop_yield (the VOID streaming-store "
+              "sink)";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult QuantizeRowEncodeCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs (I4): the encode_model leaf key + the ggml ABI block
+  // layout facts. A forbidden dataflow attr or an unexpected name fails closed (I7).
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "encode_model" || name == "qk" || name == "block_stride" ||
+           name == "scale_byte_offset" || name == "quant_byte_offset";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.quantize_row_encode_core keeps SEW/LMUL/policy on "
+                "setvl/with_vl";
+    if (!isAllowedAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded {encode_model, qk, block_stride, "
+                "scale_byte_offset, quant_byte_offset} attributes; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isConstructedQuantizeRowEncodeModel(getEncodeModel()))
+    return emitOpError()
+           << "encode_model '" << getEncodeModel()
+           << "' is not a CONSTRUCTED quantize_row encode; the constructed "
+              "front-door allowlist is the activation quantizers q8_0/q8_1/q8_K";
+  if (getQkAttr().getInt() <= 0)
+    return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
+  if (getBlockStrideAttr().getInt() <= 0)
+    return emitOpError() << "requires block_stride > 0; got "
+                         << getBlockStrideAttr().getInt();
+  if (getScaleByteOffsetAttr().getInt() < 0)
+    return emitOpError() << "requires scale_byte_offset >= 0; got "
+                         << getScaleByteOffsetAttr().getInt();
+  if (getQuantByteOffsetAttr().getInt() < 0)
+    return emitOpError() << "requires quant_byte_offset >= 0; got "
+                         << getQuantByteOffsetAttr().getInt();
+
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *'";
+  if (!outputBinding || outputBinding.getCType() != "uint8_t *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'uint8_t *'";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the parent "
+              "loop region induction variable)";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult GgmlQuantizeRowQ80Op::verify() {
   mlir::Operation *op = getOperation();
 

@@ -1023,6 +1023,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    // The q8_0 activation quantizer is now FRONT-DOOR CONSTRUCTED (G3 line-B
+    // quantize front door, family-head of the f32->QUANT spectrum): rather than
+    // emit the hand-written monolith directly, CONSTRUCT the typed
+    // tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+    // typed_quantize_row_loop_yield } in place of the abstract
+    // tcrv_rvv.quantize_row_q8_0 and LOWER it via emitTypedQuantizeRowLoopBody ->
+    // the SHARED body emitQuantizeRowQ80BodyShared. The emission is DRIVEN by the
+    // typed region op-identity + encode_model ([L-6]/[L-8] construction), byte-exact
+    // to the retired dispatch-wired q8_0 monolith modulo only the source-op
+    // provenance token.
     tcrvrvv::GgmlQuantizeRowQ80Op quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ80Op>(op))
@@ -1031,14 +1041,30 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     if (!quantOp)
       return rewriter.notifyMatchFailure(scope, "quantize body missing the op");
 
-    mlir::Value input = valueMap.lookup(quantOp.getInput());
-    mlir::Value output = valueMap.lookup(quantOp.getOutput());
-    if (!input || !output)
-      return rewriter.notifyMatchFailure(quantOp,
-                                         "quantize ABI operand unmapped");
+    // block_q8_0 AoS facts (ggml-common.h:241-245 + QK8_0 = 32): the fp16 d at byte
+    // 0, the 32 int8 qs at byte 2, stride 34. The per-format extra offsets baked into
+    // the encode leaf (none for q8_0).
+    return constructQuantizeRowRegionAndLower(
+        rewriter, loc, scope, quantOp.getOperation(), quantOp.getInput(),
+        quantOp.getOutput(), quantOp.getElementCount(), /*encodeModel=*/"q8_0",
+        /*qk=*/32, /*stride=*/34, /*scaleOff=*/0, /*quantOff=*/2, avlArg,
+        sizeType, valueMap);
+  }
 
-    llvm::StringRef opName = quantOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = quantOp.getTCRVEmitCLowerableSourceRole();
+// The SHARED q8_0 quantize_row block-encode body: the AoS `nb = n/32` block loop,
+// the per-block f32 load in ONE e32m8 strip, and the amax/scale/narrow q8_0 core
+// (emitQuantizeQ80BlockBody). Extracted VERBATIM from the block-loop tail of the
+// retired emitGgmlQuantizeRowQ80 monolith so the CONSTRUCTED typed lowering (via
+// emitTypedQuantizeRowLoopBody) emits byte-identical C (modulo only the source-op
+// provenance token threaded through opName/role). Byte-exact to ggml's EXACT RVV
+// method (riscv/quants.c:32-71). Streaming (no cross-block accumulator).
+mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ80BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    // block_q8_0 AoS facts: fp16 d @0, 32 int8 qs @2, stride 34.
+    const int64_t qk = 32, blockStride = 34, scaleOffset = 0, quantOffset = 2;
+
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -1048,14 +1074,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ80(
     // The wide-f32 load type is ggml's exact path type; the per-block
     // amax/scale/narrow body's remaining types live in emitQuantizeQ80BlockBody.
     mlir::Type f32m8Type = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
-
-    // The AoS block-format structural facts come straight off the typed attrs
-    // (I4): qk=32 (block length / lanes), block_stride=34 (the AoS stride), the
-    // fp16 d at byte 0, the 32 int8 qs at byte 2.
-    int64_t qk = quantOp.getQk();
-    int64_t blockStride = quantOp.getBlockStride();
-    int64_t scaleOffset = quantOp.getScaleByteOffset();
-    int64_t quantOffset = quantOp.getQuantByteOffset();
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -1250,10 +1268,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ81(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    // The q8_1 SIBLING of emitGgmlQuantizeRowQ80: the SAME per-32-block amax
-    // reduction + scale + f32->i16->i8 narrow + AoS store, PLUS the extra
-    // vwredsum integer block sum stored as the fp16 block_q8_1.s (ggml
-    // riscv/quants.c). DISPATCH-WIRED ([L-6] wiring != construction).
+    // The q8_1 SIBLING is now FRONT-DOOR CONSTRUCTED (G3 line-B quantize front
+    // door): CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body region
+    // (encode_model "q8_1") in place of the abstract tcrv_rvv.quantize_row_q8_1 and
+    // LOWER it via emitTypedQuantizeRowLoopBody -> the SHARED body
+    // emitQuantizeRowQ81BodyShared (the q8_0 amax/scale/narrow SIBLING + the extra
+    // vwredsum integer block sum stored as the fp16 block_q8_1.s). Byte-exact to the
+    // retired dispatch-wired q8_1 monolith modulo only the source-op provenance token.
     tcrvrvv::GgmlQuantizeRowQ81Op quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ81Op>(op))
@@ -1262,14 +1283,32 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ81(
     if (!quantOp)
       return rewriter.notifyMatchFailure(scope, "quantize body missing the op");
 
-    mlir::Value input = valueMap.lookup(quantOp.getInput());
-    mlir::Value output = valueMap.lookup(quantOp.getOutput());
-    if (!input || !output)
-      return rewriter.notifyMatchFailure(quantOp,
-                                         "quantize ABI operand unmapped");
+    // block_q8_1 AoS facts (ggml-common.h:248-259 + QK8_1 = 32): the fp16 d at byte
+    // 0, the fp16 s at byte 2, the 32 int8 qs at byte 4, stride 36. The sum byte
+    // offset (2) is baked into the q8_1 encode leaf, so the brick carries only the
+    // shared scale/quant offsets.
+    return constructQuantizeRowRegionAndLower(
+        rewriter, loc, scope, quantOp.getOperation(), quantOp.getInput(),
+        quantOp.getOutput(), quantOp.getElementCount(), /*encodeModel=*/"q8_1",
+        /*qk=*/32, /*stride=*/36, /*scaleOff=*/0, /*quantOff=*/4, avlArg,
+        sizeType, valueMap);
+  }
 
-    llvm::StringRef opName = quantOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = quantOp.getTCRVEmitCLowerableSourceRole();
+// The SHARED q8_1 quantize_row block-encode body: the q8_0 amax/scale/narrow SIBLING
+// PLUS the extra vwredsum integer block sum stored as the fp16 block_q8_1.s.
+// Extracted VERBATIM from the block-loop tail of the retired emitGgmlQuantizeRowQ81
+// monolith so the CONSTRUCTED typed lowering (via emitTypedQuantizeRowLoopBody) emits
+// byte-identical C (modulo only the source-op provenance token threaded through
+// opName/role). Byte-exact to ggml's EXACT RVV method. Streaming (no cross-block
+// accumulator).
+mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ81BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    // block_q8_1 AoS facts: fp16 d @0, fp16 s @2, 32 int8 qs @4, stride 36.
+    const int64_t qk = 32, blockStride = 36, scaleOffset = 0, sumOffset = 2,
+                  quantOffset = 4;
+
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -1291,15 +1330,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ81(
     mlir::Type i16m4Type = emitc::OpaqueType::get(ctx, "vint16m4_t");
     mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
-
-    // The AoS block-format structural facts come straight off the typed attrs
-    // (I4): qk=32 (block length / lanes), block_stride=36 (the AoS stride), the
-    // fp16 d at byte 0, the fp16 s at byte 2, the 32 int8 qs at byte 4.
-    int64_t qk = quantOp.getQk();
-    int64_t blockStride = quantOp.getBlockStride();
-    int64_t scaleOffset = quantOp.getScaleByteOffset();
-    int64_t sumOffset = quantOp.getSumByteOffset();
-    int64_t quantOffset = quantOp.getQuantByteOffset();
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -1479,8 +1509,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ8K(
     // The heaviest quantizer (ggml quantize_row_q8_K RVV path, riscv/quants.c):
     // a QK_K=256 super-block loop -- a min/max reduction, a symmetric iscale, the
     // vfcvt/vnclip RNE narrow, the FLOAT d store, the per-16 vwredsum bsums, and
-    // the zero-block memset special case. DISPATCH-WIRED ([L-6] wiring !=
-    // construction).
+    // the zero-block memset special case. Now FRONT-DOOR CONSTRUCTED (G3 line-B
+    // quantize front door): CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body
+    // region (encode_model "q8_K") in place of the abstract tcrv_rvv.quantize_row_q8_K
+    // and LOWER it via emitTypedQuantizeRowLoopBody -> the SHARED body
+    // emitQuantizeRowQ8KBodyShared. Byte-exact to the retired dispatch-wired q8_K
+    // monolith modulo only the source-op provenance token.
     tcrvrvv::GgmlQuantizeRowQ8KOp quantOp;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (auto q = llvm::dyn_cast<tcrvrvv::GgmlQuantizeRowQ8KOp>(op))
@@ -1489,14 +1523,36 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ8K(
     if (!quantOp)
       return rewriter.notifyMatchFailure(scope, "quantize body missing the op");
 
-    mlir::Value input = valueMap.lookup(quantOp.getInput());
-    mlir::Value output = valueMap.lookup(quantOp.getOutput());
-    if (!input || !output)
-      return rewriter.notifyMatchFailure(quantOp,
-                                         "quantize ABI operand unmapped");
+    // block_q8_K AoS facts (ggml-common.h:360-366 + QK_K = 256): the FLOAT d at byte
+    // 0, the 256 int8 qs at byte 4, the 16 int16 bsums at byte 260, stride 292. The
+    // bsums byte offset (260) is baked into the q8_K encode leaf, so the brick
+    // carries only the shared scale/quant offsets.
+    return constructQuantizeRowRegionAndLower(
+        rewriter, loc, scope, quantOp.getOperation(), quantOp.getInput(),
+        quantOp.getOutput(), quantOp.getElementCount(), /*encodeModel=*/"q8_K",
+        /*qk=*/256, /*stride=*/292, /*scaleOff=*/0, /*quantOff=*/4, avlArg,
+        sizeType, valueMap);
+  }
 
-    llvm::StringRef opName = quantOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = quantOp.getTCRVEmitCLowerableSourceRole();
+// The SHARED q8_K quantize_row super-block-encode body: the QK_K=256 min/max-
+// symmetric quantizer -- the vsetvlmax_e32m8-folded min/max strip loop + scalar
+// reduce, the fabsf-symmetric iscale, the STRUCTURED amax==0 zero path (float d=0,
+// memset qs+bsums), else the FLOAT d store + the quantize strip (vfmul + vfcvt/vnclip
+// RNE narrow) + the 256 int8 qs store + the 16 per-16 vslidedown-advanced vwredsum
+// bsums. Extracted VERBATIM from the loop tail of the retired emitGgmlQuantizeRowQ8K
+// monolith so the CONSTRUCTED typed lowering (via emitTypedQuantizeRowLoopBody) emits
+// byte-identical C (modulo only the source-op provenance token threaded through
+// opName/role). Byte-exact to ggml's EXACT RVV method. Streaming (no cross-block
+// accumulator).
+mlir::LogicalResult VariantToEmitCFunc::emitQuantizeRowQ8KBodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+    // block_q8_K AoS facts: FLOAT d @0, 256 int8 qs @4, 16 int16 bsums @260,
+    // stride 292.
+    const int64_t qk = 256, blockStride = 292, scaleOffset = 0, quantOffset = 4,
+                  bsumsOffset = 260;
+
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -1524,15 +1580,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ8K(
     mlir::Type i8m2Type = emitc::OpaqueType::get(ctx, "vint8m2_t");
     mlir::Type i8m1Type = emitc::OpaqueType::get(ctx, "vint8m1_t");
     mlir::Type i16m1Type = emitc::OpaqueType::get(ctx, "vint16m1_t");
-
-    // The AoS block-format structural facts come straight off the typed attrs
-    // (I4): qk=256 (QK_K), block_stride=292, the FLOAT d at byte 0, the 256 int8
-    // qs at byte 4, the 16 int16 bsums at byte 260.
-    int64_t qk = quantOp.getQk();
-    int64_t blockStride = quantOp.getBlockStride();
-    int64_t scaleOffset = quantOp.getScaleByteOffset();
-    int64_t quantOffset = quantOp.getQuantByteOffset();
-    int64_t bsumsOffset = quantOp.getBsumsByteOffset();
 
     auto sizeLit = [&](int64_t v) -> mlir::Value {
       return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
@@ -1918,6 +1965,142 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlQuantizeRowQ8K(
 
     return mlir::success();
   }
+
+// Lower the CONSTRUCTED streaming quantize_row region: walk the
+// tcrv_rvv.typed_quantize_row_loop_body, extract its per-block ENCODE brick
+// (tcrv_rvv.quantize_row_encode_core) + the VOID yield, enforce the anti-bypass
+// invariant (the brick's block_index MUST be the region induction variable / region
+// arg 0, so the ABI bases are sourced from the BRICK not inferred), and re-emit the
+// whole nb block loop + per-block encode via the SHARED body emitter -- byte-exact to
+// the retired dispatch-wired per-format quantize monolith. The MIRROR of
+// emitTypedDequantizeRowLoopBody (f32->QUANT rather than QUANT->f32).
+mlir::LogicalResult VariantToEmitCFunc::emitTypedQuantizeRowLoopBody(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  tcrvrvv::TypedQuantizeRowLoopBodyOp loopBody;
+  for (mlir::Operation &op : scope.getBody().front()) {
+    if (auto lb = llvm::dyn_cast<tcrvrvv::TypedQuantizeRowLoopBodyOp>(op))
+      loopBody = lb;
+  }
+  if (!loopBody)
+    return rewriter.notifyMatchFailure(
+        scope, "typed quantize_row loop body missing the op");
+
+  // Bounded encode_model surface gate (I7): the constructed streaming quantize
+  // family is {q8_0 (family-head), q8_1 (the SIBLING + block sum), q8_K (the K-quant
+  // activation quantizer)}. The verifier already gates encode_model; this fails the
+  // emit closed if a not-yet-lowered encode leaf slips a valid-verify region here.
+  llvm::StringRef encodeModel = loopBody.getEncodeModel();
+  if (encodeModel != "q8_0" && encodeModel != "q8_1" && encodeModel != "q8_K")
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed quantize_row loop body only lowers the constructed "
+                  "streaming encode_models q8_0/q8_1/q8_K");
+
+  tcrvrvv::QuantizeRowEncodeCoreOp coreOp;
+  tcrvrvv::TypedQuantizeRowLoopYieldOp yieldOp;
+  loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
+    if (auto o = llvm::dyn_cast<tcrvrvv::QuantizeRowEncodeCoreOp>(bodyOp))
+      coreOp = o;
+    else if (auto o =
+                 llvm::dyn_cast<tcrvrvv::TypedQuantizeRowLoopYieldOp>(bodyOp))
+      yieldOp = o;
+  });
+  mlir::Block &coreBlock = loopBody.getBody().front();
+  if (!coreOp || !yieldOp)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed quantize_row body requires the "
+                  "quantize_row_encode_core brick + the void loop yield");
+  if (coreBlock.getNumArguments() != 1)
+    return rewriter.notifyMatchFailure(
+        loopBody, "typed quantize_row body region must carry exactly the "
+                  "block_index induction variable");
+  mlir::Value blockIndex = coreBlock.getArgument(0);
+  if (coreOp.getBlockIndex() != blockIndex)
+    return rewriter.notifyMatchFailure(
+        loopBody, "the encode-core brick's block_index must be the loop "
+                  "induction variable (region arg 0) so the emit addresses "
+                  "base + ib*stride, not block-0");
+
+  // Anti-bypass (I7): the ABI bases are sourced from the BRICK's operands.
+  mlir::Value input = valueMap.lookup(coreOp.getInput());
+  mlir::Value output = valueMap.lookup(coreOp.getOutput());
+  if (!input || !output)
+    return rewriter.notifyMatchFailure(loopBody,
+                                       "typed quantize_row ABI operand unmapped");
+
+  llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
+  llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  // Dispatch on encode_model to the per-format leaf: each re-emits the whole nb
+  // block loop + per-block encode via the SHARED body emitter, byte-exact to the
+  // retired per-format monolith.
+  if (encodeModel == "q8_1")
+    return emitQuantizeRowQ81BodyShared(rewriter, loc, input, output, avlArg,
+                                        sizeType, opName, role);
+  if (encodeModel == "q8_K")
+    return emitQuantizeRowQ8KBodyShared(rewriter, loc, input, output, avlArg,
+                                        sizeType, opName, role);
+  return emitQuantizeRowQ80BodyShared(rewriter, loc, input, output, avlArg,
+                                      sizeType, opName, role);
+}
+
+// The quantize FRONT DOOR (the streaming activation-quantizer family {q8_0 family-head
+// + the q8_1 sibling + the q8_K K-quant quantizer}): CONSTRUCT the typed
+// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+// typed_quantize_row_loop_yield } in place of the abstract per-format
+// tcrv_rvv.quantize_row_q8_{0,1,K}, then LOWER it via emitTypedQuantizeRowLoopBody. The
+// construction is a genuine IR rewrite (the emission is DRIVEN by the typed region
+// op-identity + encode_model, not the abstract op identity alone), so these formats are
+// CONSTRUCTED ([L-6]/[L-8]), not dispatch-wired. The MIRROR of
+// constructOrEmitGgmlDequantizeRow's construction half.
+mlir::LogicalResult VariantToEmitCFunc::constructQuantizeRowRegionAndLower(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
+    mlir::Value output, mlir::Value n, llvm::StringRef encodeModel, int64_t qk,
+    int64_t stride, int64_t scaleOff, int64_t quantOff, mlir::Value avlArg,
+    mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::Type indexType = rewriter.getIndexType();
+
+  {
+    mlir::OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPoint(quantOp);
+
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedQuantizeRowLoopBodyOp::getOperationName());
+    loopState.addOperands({input, output, n});
+    loopState.addAttribute(
+        "kind", rewriter.getStringAttr("typed_quantize_row_loop_body"));
+    loopState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
+    loopState.addAttribute("block_stride", rewriter.getI64IntegerAttr(stride));
+    loopState.addAttribute("encode_model", rewriter.getStringAttr(encodeModel));
+    loopState.addRegion();
+    auto loopBody = llvm::cast<tcrvrvv::TypedQuantizeRowLoopBodyOp>(
+        rewriter.create(loopState));
+
+    mlir::Block *block = rewriter.createBlock(
+        &loopBody.getBody(), loopBody.getBody().end(), {indexType}, {loc});
+    mlir::Value blockIndex = block->getArgument(0);
+    rewriter.setInsertionPointToStart(block);
+
+    mlir::OperationState coreState(
+        loc, tcrvrvv::QuantizeRowEncodeCoreOp::getOperationName());
+    coreState.addOperands({input, output, blockIndex});
+    coreState.addAttribute("encode_model", rewriter.getStringAttr(encodeModel));
+    coreState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
+    coreState.addAttribute("block_stride", rewriter.getI64IntegerAttr(stride));
+    coreState.addAttribute("scale_byte_offset",
+                           rewriter.getI64IntegerAttr(scaleOff));
+    coreState.addAttribute("quant_byte_offset",
+                           rewriter.getI64IntegerAttr(quantOff));
+    rewriter.create(coreState);
+    rewriter.create<tcrvrvv::TypedQuantizeRowLoopYieldOp>(loc);
+  }
+  rewriter.eraseOp(quantOp);
+
+  return emitTypedQuantizeRowLoopBody(rewriter, loc, scope, avlArg, sizeType,
+                                      valueMap);
+}
 
 mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,

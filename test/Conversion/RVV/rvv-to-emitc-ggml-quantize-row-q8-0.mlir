@@ -2,8 +2,17 @@
 
 // INC-19 F4 — the COMPLETE ggml `quantize_row_q8_0` RVV-path forward-pass op
 // (the f32 -> block_q8_0 ACTIVATION QUANTIZER; riscv/quants.c:32-71) as
-// STRUCTURED emitc IR (I5; ZERO raw() strings). The single typed op
-// tcrv_rvv.quantize_row_q8_0 lowers to an AoS block loop (nb = n/32) whose body
+// STRUCTURED emitc IR (I5; ZERO raw() strings). This is the CONSTRUCT-FROM-ABSTRACT
+// proof of the quantize FRONT DOOR (G3 line-B, family-head of the f32->QUANT
+// activation-quantizer spectrum, the MIRROR of the dequantize_row front door): the
+// abstract tcrv_rvv.quantize_row_q8_0 is FRONT-DOOR CONSTRUCTED --
+// constructQuantizeRowRegionAndLower rewrites it into the typed
+// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+// typed_quantize_row_loop_yield } and lowers it via emitTypedQuantizeRowLoopBody ->
+// emitQuantizeRowQ80BodyShared (the emission is DRIVEN by the typed region op-identity
+// + encode_model, [L-6]/[L-8] construction). The emitted C is BYTE-IDENTICAL to the
+// retired dispatch-wired q8_0 monolith modulo ONLY the source-op provenance token. The
+// single typed op tcrv_rvv.quantize_row_q8_0 lowers to an AoS block loop (nb = n/32) whose body
 // per block: loads the 32 f32 lanes in ONE e32m8 strip (vl=32), takes amax via
 // vfabs + vfredmax, computes the scalar d = amax/127 and the load-bearing
 // id = d ? 1/d : 0 (a STRUCTURED emitc.cmp + emitc.if), stores the native
@@ -36,6 +45,10 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_quantize_row_q8_0_kernel_quantize_row_q8_0(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_quantize_row_loop_body,
+// not a dispatch-wired monolith).
+// CHECK: route_source_op=tcrv_rvv.typed_quantize_row_loop_body
 // The AoS block count nb = n / 32 and the block loop.
 // CHECK: div {{.*}}, %{{.*}}
 // CHECK: for %[[IB:.*]] = %{{.*}} to %{{.*}} step

@@ -37,6 +37,9 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_quantize_row_q8_K_kernel_quantize_row_q8_K(
+// FRONT-DOOR CONSTRUCTED: the abstract tcrv_rvv.quantize_row_q8_K went THROUGH the
+// typed tcrv_rvv.typed_quantize_row_loop_body region (the provenance token proves it).
+// CHECK: route_source_op=tcrv_rvv.typed_quantize_row_loop_body
 // The super-block count nb = n / 256, the shared e32m8 vlmax, and the loop.
 // CHECK: div {{.*}}, %{{.*}}
 // CHECK: call_opaque "__riscv_vsetvlmax_e32m8"

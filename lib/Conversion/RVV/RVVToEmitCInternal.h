@@ -4228,6 +4228,59 @@ private:
       tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
+  /// The quantize FRONT DOOR (G3 line-B, the f32->QUANT mirror of
+  /// constructOrEmitGgmlDequantizeRow): CONSTRUCT the typed
+  /// tcrv_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
+  /// typed_quantize_row_loop_yield } in place of the abstract per-format quantize op
+  /// `quantOp` (with encode_model + the ggml ABI block facts), then LOWER it via
+  /// emitTypedQuantizeRowLoopBody. Called by the emitGgmlQuantizeRowQ8{0,1,K} entry
+  /// points (each supplying its encode_model + facts). The emission is DRIVEN by the
+  /// typed region op-identity + encode_model ([L-6]/[L-8] construction), byte-exact to
+  /// the retired per-format monolith modulo only the source-op provenance token.
+  mlir::LogicalResult constructQuantizeRowRegionAndLower(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
+      mlir::Value output, mlir::Value n, llvm::StringRef encodeModel,
+      int64_t qk, int64_t stride, int64_t scaleOff, int64_t quantOff,
+      mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Lower the CONSTRUCTED streaming quantize_row region
+  /// (tcrv_rvv.typed_quantize_row_loop_body carrying ONE
+  /// tcrv_rvv.quantize_row_encode_core brick + the VOID
+  /// tcrv_rvv.typed_quantize_row_loop_yield). Walks the region, sources the ABI bases
+  /// from the brick (anti-bypass I7: block_index == region arg 0), gates encode_model,
+  /// and dispatches to the per-format SHARED body emitter
+  /// (emitQuantizeRowQ8{0,1,K}BodyShared) -- byte-exact to the retired per-format
+  /// monolith modulo only the source-op provenance token. The MIRROR of
+  /// emitTypedDequantizeRowLoopBody (f32->QUANT rather than QUANT->f32).
+  mlir::LogicalResult emitTypedQuantizeRowLoopBody(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// The per-format CONSTRUCTED quantize_row block-encode leaves: each re-emits the
+  /// whole AoS `nb = n/QK` block loop + per-block encode, extracted VERBATIM from the
+  /// loop tail of the retired emitGgmlQuantizeRowQ8{0,1,K} monolith, so the CONSTRUCTED
+  /// typed lowering (via emitTypedQuantizeRowLoopBody) is byte-exact to the monolith by
+  /// construction (modulo only the source-op provenance token threaded through
+  /// opName/role). q8_0 = the family-head bare fp16-scale int8 narrow (calls the SHARED
+  /// per-block core emitQuantizeQ80BlockBody); q8_1 = the SIBLING + the vwredsum block
+  /// sum; q8_K = the QK_K=256 min/max-symmetric quantizer (float d, RNE vfcvt/vnclip,
+  /// per-16 bsums, zero-block memset). Streaming siblings (no cross-block accumulator).
+  mlir::LogicalResult emitQuantizeRowQ80BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitQuantizeRowQ81BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitQuantizeRowQ8KBodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// Emit the DISPATCH-WIRED forward-elementwise f32 support body for the single
   /// tcrv_rvv.{vec_add_f32|vec_mul_f32|vec_cpy_f32|gelu_f32} op nested under
   /// `scope`. add/mul/cpy lower to a byte-exact m8 strip loop (vsetvl_e32m8 / vle32
