@@ -129,3 +129,36 @@ jobs:
       # kBlockDotKernels without whitelisting it, or reports a bypass cell as constructed.
       - name: Front-door provenance gate ([F-EMIT] bypass == whitelist, no over-report)
         run: python3 tools/lint/check_frontdoor_provenance.py
+
+  # [G3-cert-hardening 裁决] cert THREE-REQUIREMENTS gate (防复发入宪). The M2c 误诊 root
+  # cause: a q4_K repack-GEMM 'byte-exact' claim backed by (1) a row-quant oracle against a
+  # mat-quant/interleaved dispatch (wrong input path) and (2) a self-comparing / shared-impl
+  # reference (hollow certificate) whose corpus never exercised the dmin-term. This gate
+  # fails closed unless every NUMERICAL-CORRECTNESS cert declared in
+  # schema/cert-lineage.v1.json satisfies -- for a claim='full' -- all THREE requirements:
+  # ① corpus complete (every arithmetic term of the fold EXERCISED, none merely declared);
+  # ② input path same-origin (oracle quantizer == tested-dispatch quantizer AND the tested
+  #    path is the real production dispatch, link-by-link); ③ oracle independent (the
+  #    reference does NOT share the被测物's read impl -- self-compare / shared-impl is
+  #    hollow). An undeclared field, a fold's mandatory term narrowed away, a corpus gap not
+  #    marked partial, a cross-quantizer oracle, or a hollow oracle backing a full claim
+  # fails the job closed. Changes NO kernel / NO numerics -- rule + CI only. Stdlib-Python.
+  cert-requirements-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the classifier DISCRIMINATES (compliant claim=full ->
+      # GREEN; each violation class -- corpus-incomplete / under-declared / input-path-not-
+      # same-origin / not-dispatch-faithful / hollow-cert / undeclared / typo / duplicate ->
+      # RED; honest partial + failure certs -> GREEN) before it judges the committed registry.
+      - name: Cert-requirements gate self-test
+        run: python3 tools/lint/check_cert_requirements.py --self-test
+
+      # Default-path gate on the COMMITTED cert-lineage registry: non-zero exit (a cert whose
+      # declared lineage fails the three requirements for its claim, or setup error) fails the
+      # job. Fires on EVERY PR/push that adds or edits a numeric-correctness cert declaration
+      # that over-claims (claim=full it cannot back).
+      - name: Cert-requirements gate (three requirements per claim=full cert)
+        run: python3 tools/lint/check_cert_requirements.py

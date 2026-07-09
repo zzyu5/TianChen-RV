@@ -1,0 +1,74 @@
+{
+  "$meta": {
+    "schema_version": "cert-lineage.v1",
+    "purpose": "Per-cert LINEAGE declaration registry for every NUMERICAL-CORRECTNESS certificate (fold-numeric / kernel byte-exact / repack-numeric). Consumed by tools/lint/check_cert_requirements.py, which fails CLOSED unless each cert declares -- and its declaration internally satisfies -- the THREE CERT REQUIREMENTS (G3-cert-hardening 裁决, 防复发入宪). Motivated by the M2c 误诊: a q4_K repack-GEMM 'byte-exact' claim backed by (1) a row-quant oracle against a mat-quant/interleaved dispatch (wrong input path) and (2) a self-comparing / shared-impl reference (hollow certificate) -- neither of which the corpus ever exercised the dmin-term against. See docs/reports/2026-07-09-minterm-fold-audit.md §3 for the adjudication 判据 (a)-(d) this schema encodes, and docs/reports/2026-07-09-zero-model-adjudication-method.md for the terminal ZERO-MODEL rule.",
+    "requirement_rule": "claim=full  <=>  (①corpus complete: every arithmetic term of the fold is EXERCISED, none merely declared) AND (②input path same-origin: oracle quantizer == tested-dispatch quantizer AND the tested path is the real dispatch, link-by-link) AND (③oracle independent: the reference does NOT share the被测物's read implementation -- self-compare PRE≡POST / untiled≡tiled / shared-impl is NOT an independent oracle). A cert that cannot meet all three must lower its claim to 'partial' (and DECLARE the gap) or stand as a 'failure' (falsification) cert. Undeclared / self-compare-masquerading-as-independent / corpus-gap-not-marked-partial = RED.",
+    "fail_closed": true,
+    "axes": ["fold-numeric", "kernel-byte-exact", "repack-numeric"],
+    "claim_vocab": ["full", "partial", "failure"],
+    "claim_semantics": {
+      "full": "asserts NUMERIC CORRECTNESS (byte-exact / 0-mismatch). MUST satisfy all three requirements -- this is the only claim the three-requirement gate hard-enforces.",
+      "partial": "asserts correctness only on a DECLARED sub-corpus / with a named caveat (some arithmetic term un-exercised, or input path not dispatch-faithful, or oracle not independent). Allowed to carry gaps -- but must still DECLARE the fold's full required-term set so the gap is visible.",
+      "failure": "a FALSIFICATION cert: it demonstrated the被测物 is WRONG. One-sided evidence -- any corpus that triggers a mismatch is valid, so the strong corpus/same-origin/independence bars are not hard-enforced (a defect found on a narrow corpus is still a real defect)."
+    },
+    "oracle_independence_vocab": ["independent", "self-compare", "shared-impl"],
+    "oracle_independence_semantics": {
+      "independent": "reference recomputed by an implementation that does NOT share the被测物's read/fold code (e.g. a per-element scalar oracle). The ONLY value that may back a claim=full.",
+      "self-compare": "reference is the被测物 in another configuration: PRE≡POST, untiled≡tiled, S1≡S6, golden≡variant. Proves an invariant (order/tiling preservation), NOT absolute correctness -- both sides can carry the SAME defect (M2c proved S1 and S6 were BOTH wrong yet self-compared 0-mismatch).",
+      "shared-impl": "an 'independent' harness that nonetheless reuses the被测物's bsums/fold read layout, so it cannot see a defect in that shared code (the hollow #6/#11 certs)."
+    },
+    "corpus_term_vocab": [
+      "dmin_nonzero",
+      "mins_nonzero",
+      "nondegenerate_scale",
+      "second_scale_nonzero",
+      "sign_coverage_signed",
+      "scale_nonzero",
+      "codebook_full_index",
+      "superblock_boundary"
+    ],
+    "corpus_term_semantics": {
+      "dmin_nonzero": "super-block min offset x->dmin != 0 (the min-TERM is actually activated; a dmin=0 corpus never exercises the min fold).",
+      "mins_nonzero": "per-sub-block mins[] not all zero (non-degenerate min).",
+      "nondegenerate_scale": "block scale d not unit/degenerate (int regime d=dmin=1.0 does NOT count).",
+      "second_scale_nonzero": "the 2nd scale plane exercised (q5_K qh 5th-bit plane / dual d,dmin).",
+      "sign_coverage_signed": "activations span negative AND positive (ri8 -127..127 class).",
+      "scale_nonzero": "flat-format (q4_0/q5_0/q8_0) block scale non-zero + non-unit.",
+      "codebook_full_index": "IQ codebook index space exercised beyond a trivial entry.",
+      "superblock_boundary": "accumulation crosses a sub-block / super-block boundary (interleaving / carry exercised)."
+    },
+    "fold_model_required_terms": {
+      "kquant_dmin_bsums_min": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale"],
+      "kquant_single_scale_no_min": ["nondegenerate_scale"],
+      "flat_scale": ["scale_nonzero"],
+      "codebook": ["codebook_full_index"]
+    },
+    "fold_model_note": "Each cert declares the fold_model of the被测物. Its corpus_terms.required MUST be a SUPERSET of fold_model_required_terms[fold_model] -- a cert may not narrow away a mandatory arithmetic term of the fold it certifies (that is exactly how the min-term hollow certs escaped: they omitted dmin_nonzero from what they exercised). fold_model_required_terms and corpus_term_vocab are a CONTROLLED vocabulary: extend them deliberately (and log in schema/VERSIONLOG.md) when onboarding a new fold family; an entry naming an unknown fold_model or corpus term is RED (typo / undeclared guard).",
+    "input_path_lineage_note": "tested_quantizer = the activation quantizer on the REAL被测 dispatch (mat-quant e.g. ggml_quantize_mat_q8_K_4x1 vs row-quant e.g. quantize_row_q8_K). oracle_quantizer = the quantizer feeding the REFERENCE. For claim=full they MUST be equal (same-origin) AND dispatch_faithful MUST be true (the被测 path is the production dispatch, not an isolated harness). The M2c 误诊 = row-quant oracle vs mat-quant/interleaved dispatch -> this gate would have failed that 'full' claim closed.",
+    "registry_completeness_note": "This registry currently carries ONE SEED entry (M2c) as a WORKED demonstration of the format -- it is the sole fully-adequate cert in the tree (real interleaved dispatch, dmin!=0, independent per-element oracle) and doubles as the reference lineage. The full back-fill of every K-quant / repack / fold / byte-exact cert into this registry is done by the PARALLEL accounting line, not here. The gate validates whatever is declared; it does NOT scan the filesystem for un-declared certs (roster completeness is the accounting line's ledger, T8).",
+    "frontmatter_alternative": "A future variant may inline this declaration as YAML frontmatter inside each cert's MANIFEST.md instead of a central registry; check_cert_requirements.py would then parse frontmatter blocks. The central registry is used first because every other schema/ gate in this repo (frontdoor-provenance, monolith-retire, opponent-facts-pin) reads a central schema/*.v1.json."
+  },
+  "certs": [
+    {
+      "id": "M2c-q4K-repack-gemm-dispatch",
+      "cert_path": "experiments/active/t4b-m2c-dispatch/",
+      "provenance_commit": "53666846",
+      "axis": "repack-numeric",
+      "op_path": "q4_K repack GEMM VLEN128 (kquant_dmin_bsums_min fold)",
+      "fold_model": "kquant_dmin_bsums_min",
+      "claim": "failure",
+      "corpus_terms": {
+        "required": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "sign_coverage_signed"],
+        "exercised": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "sign_coverage_signed"]
+      },
+      "input_path_lineage": {
+        "tested_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "oracle_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "weight_layout": "interleaved-q8_Kx4-repack-vlen128",
+        "dispatch_faithful": true
+      },
+      "oracle_independence": "independent",
+      "note": "SEED / reference lineage. The one fully-adequate cert: real ggml_mul_mat interleaved-q8_Kx4 dispatch, dmin!=0 NORM corpus, per-element independent oracle_dot2 (mins += m0*a8). It is a FAILURE cert -- it caught the q4_K repack-GEMM min-term defect (rel 5%..314% per super-block, per-column R/correct 0.947/0.637 even/odd parity). Its lineage ALSO clears the claim=full bar (all three requirements satisfied), so it doubles as the positive worked example of a compliant declaration. See docs/reports/2026-07-09-minterm-fold-audit.md §3 row 1."
+    }
+  ]
+}
