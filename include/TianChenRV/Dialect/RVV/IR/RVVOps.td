@@ -10086,11 +10086,12 @@ def TypedDequantizeRowLoopBodyOp
     byte-exact shape constants the monolithic body reads off `format` (the ggml ABI
     layout, NOT tunable knobs). decode_model KEYS which per-format DECODE leaf the
     region's brick carries; for the current bounded surface kind is limited to
-    "typed_dequantize_row_loop_body" and decode_model to "q8_0" (the flat block_q8_0
-    bare signed-int8 scale `y[j] = qs[j] * d`, the family-head streaming decode --
-    the structurally simplest flat-block dequant, no nibble unpack). The op does NOT
-    own dtype/route authority; the per-block decode is the separate typed brick
-    carried inside the region.
+    "typed_dequantize_row_loop_body" and decode_model to the flat streaming family
+    "q8_0" (the family-head block_q8_0 bare signed-int8 scale `y[j] = qs[j] * d`, the
+    structurally simplest flat-block dequant, no nibble unpack) plus the 4-bit nibble
+    leaves "q4_0"/"q4_1"/"q5_0"/"q5_1" (the nibble unpack + the optional qh 5th-bit
+    merge / min fold). The op does NOT own dtype/route authority; the per-block decode
+    is the separate typed brick carried inside the region.
   }];
 
   let arguments = (ins
@@ -10147,10 +10148,13 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     induction variable, and reconstructs one AoS block of `qk` f32 outputs from the
     per-format quant layout -- for decode_model "q8_0": read the fp16 block scale d
     via the `(float)*(const _Float16 *)` seam, then the bare signed-int8 scale
-    `y[j] = qs[j] * d` over all qk block lanes (the load sign-extends). The
-    block-layout facts (qk, weight_block_stride, scale_byte_offset,
-    quant_byte_offset) are the ggml ABI constants; decode_model pins WHICH decode
-    leaf. For the current bounded surface decode_model is limited to "q8_0".
+    `y[j] = qs[j] * d` over all qk block lanes (the load sign-extends); for the 4-bit
+    nibble leaves "q4_0"/"q4_1"/"q5_0"/"q5_1": the fp16 d (+ optional min m) seam, the
+    optional qh 5th-bit plane, then the per-nibble unpack + bias/min fold + scale. The
+    block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
+    are the ggml ABI constants; decode_model pins WHICH decode leaf. For the current
+    bounded surface decode_model is limited to the flat streaming family
+    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1".
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,

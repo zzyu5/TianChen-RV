@@ -11268,14 +11268,18 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
   return mlir::success();
 }
 
-// The FRONT-DOOR CONSTRUCTED dequantize_row family-head allowlist: for the
-// bounded surface only the flat block_q8_0 streaming decode is constructed (the
-// structurally simplest flat-block dequant -- bare signed-int8 scale, no nibble
-// unpack). The other 22 dequantize_row formats stay dispatch-wired (the abstract
-// tcrv_rvv.dequantize_row monolith). Shared by the typed loop body op and its
-// per-block decode brick so both fail closed on an unconstructed decode_model (I7).
+// The FRONT-DOOR CONSTRUCTED dequantize_row family allowlist: for the bounded
+// surface the flat streaming decodes are constructed -- the family-head block_q8_0
+// (bare signed-int8 scale, no nibble unpack) plus the flat 4-bit nibble leaves
+// block_q4_0/q4_1/q5_0/q5_1 (nibble unpack + the optional 5th-bit qh merge / min
+// fold). The other (K-quant / FP4 / ternary / codebook / IQ grid) dequantize_row
+// formats stay dispatch-wired (the abstract tcrv_rvv.dequantize_row monolith).
+// Shared by the typed loop body op and its per-block decode brick so both fail
+// closed on an unconstructed decode_model (I7).
 static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
-  return decodeModel == "q8_0";
+  return decodeModel == "q8_0" || decodeModel == "q4_0" ||
+         decodeModel == "q4_1" || decodeModel == "q5_0" ||
+         decodeModel == "q5_1";
 }
 
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
@@ -11313,9 +11317,10 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
     return emitOpError()
            << "decode_model '" << getDecodeModel()
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0 (the flat block_q8_0 bare-int8 scale "
-              "family-head). An unconstructed format stays dispatch-wired via the "
-              "abstract tcrv_rvv.dequantize_row monolith";
+              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 (the flat streaming "
+              "family: the block_q8_0 bare-int8 scale family-head + the 4-bit nibble "
+              "leaves). An unconstructed format stays dispatch-wired via the abstract "
+              "tcrv_rvv.dequantize_row monolith";
 
   // qk / weight_block_stride are positive ggml ABI byte counts the per-block
   // address arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
@@ -11410,7 +11415,7 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     return emitOpError()
            << "decode_model '" << getDecodeModel()
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0";
+              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getWeightBlockStrideAttr().getInt() <= 0)

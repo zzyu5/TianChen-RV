@@ -2386,7 +2386,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     // bare-scale q8_0, uint8 nibble carrier otherwise). `sub` = the pre-scale bias
     // subtracted from the nibble (8 for q4_0, 16 for q5_0), 0 when a min is added
     // instead. hasMin / hasQh gate the q4_1/q5_1 min and the q5_0/q5_1 5th bit.
-    int64_t qk = 32;
     int64_t stride = 0, dOff = 0, mOff = 0, qhOff = 0, qsOff = 0, sub = 0;
     bool hasMin = false, hasQh = false, bareInt8 = false;
     if (format == "q4_0") {
@@ -2414,6 +2413,31 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
       return emitDequantizeRowQ8_0BodyShared(rewriter, loc, input, output, avlArg,
                                              sizeType, opName, role);
 
+    // The 4-bit nibble formats (q4_0/q4_1/q5_0/q5_1) route to the SHARED nibble
+    // decode body -- the SAME emitter the front-door CONSTRUCTED per-format leaves
+    // invoke, so the dispatch-wired fallback and the constructed lowering emit
+    // byte-identical C (modulo only the source-op provenance token). Byte-exact by
+    // construction.
+    return emitDequantizeRowNibbleBodyShared(
+        rewriter, loc, input, output, avlArg, sizeType, opName, role, stride, dOff,
+        mOff, qhOff, qsOff, sub, hasMin, hasQh);
+  }
+
+// The SHARED 4-bit nibble dequantize_row block-decode body (q4_0/q4_1/q5_0/q5_1):
+// the AoS nb=k/32 block loop, the fp16 d (+ optional fp16 min m) seam, the optional
+// byte-assembled uint32 qh 5th-bit plane, then the per-j nibble unpack with the
+// optional 5th-bit merge, the pre-scale bias / min add, and the f32 scale. Extracted
+// VERBATIM from the nibble tail of emitGgmlDequantizeRow so the dispatch-wired
+// monolith fallback and the CONSTRUCTED typed lowering (via the per-format leaves)
+// emit byte-identical C. Byte-exact to ggml's reference dequantize_row_<format>.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowNibbleBodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
+    int64_t sub, bool hasMin, bool hasQh) const {
+    // block_q4_0/q4_1/q5_0/q5_1 AoS facts: all carry qk=32 lanes per block.
+    const int64_t qk = 32;
     mlir::MLIRContext *ctx = rewriter.getContext();
     mlir::Type inputPtrType = input.getType();
     mlir::Type outputPtrType = output.getType();
@@ -2423,8 +2447,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     mlir::Type indexType = rewriter.getIndexType();
     mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
     mlir::Type u8PtrType = emitc::PointerType::get(constU8Type);
-    mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
-    mlir::Type i8PtrType = emitc::PointerType::get(constI8Type);
     mlir::Type floatPtrType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
     llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
@@ -2568,20 +2590,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
                  .getResult();
       }
 
-      // const int8_t/uint8_t *qs = (const .. *)(xb + qsOff);  (the packed quants).
+      // const uint8_t *qs = (const uint8_t *)(xb + qsOff);  (the packed nibbles).
       mlir::Value qsBaseRaw =
           rewriter.create<emitc::AddOp>(loc, inputPtrType, xb, sizeLit(qsOff));
       mlir::Value qsBase =
-          rewriter
-              .create<emitc::CastOp>(loc, bareInt8 ? i8PtrType : u8PtrType,
-                                     qsBaseRaw)
-              .getResult();
-
-      // NOTE: the q8_0 bare signed-int8 scale (`y[j] = qs[j] * d` over all 32 lanes)
-      // is emitted by emitDequantizeRowQ8_0BodyShared (the family-head early-returns
-      // above); it is NOT re-emitted here. `bareInt8` is always false at this point,
-      // so the qsBase cast below picks u8PtrType (the nibble carrier). i8PtrType /
-      // constI8Type stay referenced (the qsBase cast ternary + i8PtrType's init).
+          rewriter.create<emitc::CastOp>(loc, u8PtrType, qsBaseRaw).getResult();
 
       // The 4-bit nibble formats (q4_0/q4_1/q5_0/q5_1): for (j = 0; j < 16; ++j)
       // decode the low nibble -> y[j] and the high nibble -> y[j+16].
@@ -2792,6 +2805,59 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ8_0BodyShared(
   return mlir::success();
 }
 
+// The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble family.
+// Each hard-codes its ggml block_qX AoS layout facts (the byte-exact ABI shape
+// constants, NOT tunable knobs) and calls the SHARED nibble body -- the SAME emitter
+// the dispatch-wired monolith fallback invokes -- so the constructed lowering is
+// byte-exact to the monolith by construction (modulo only the source-op provenance
+// token). Streaming siblings of emitDequantizeRowQ8_0BodyShared (no accumulator).
+
+// block_q4_0: fp16 d @0, 16 packed nibble bytes @2, stride 18; nibble bias -8.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_0BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleBodyShared(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/18, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/0, /*qsOff=*/2,
+      /*sub=*/8, /*hasMin=*/false, /*hasQh=*/false);
+}
+
+// block_q4_1: fp16 d @0, fp16 m @2, 16 packed nibble bytes @4, stride 20; min add.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ4_1BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleBodyShared(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/20, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/0, /*qsOff=*/4,
+      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/false);
+}
+
+// block_q5_0: fp16 d @0, 4-byte qh 5th-bit plane @2, 16 nibble bytes @6, stride 22;
+// nibble+5th-bit bias -16.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_0BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleBodyShared(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/22, /*dOff=*/0, /*mOff=*/0, /*qhOff=*/2, /*qsOff=*/6,
+      /*sub=*/16, /*hasMin=*/false, /*hasQh=*/true);
+}
+
+// block_q5_1: fp16 d @0, fp16 m @2, 4-byte qh 5th-bit plane @4, 16 nibble bytes @8,
+// stride 24; nibble+5th-bit with min add.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_1BodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const {
+  return emitDequantizeRowNibbleBodyShared(
+      rewriter, loc, input, output, avlArg, sizeType, opName, role,
+      /*stride=*/24, /*dOff=*/0, /*mOff=*/2, /*qhOff=*/4, /*qsOff=*/8,
+      /*sub=*/0, /*hasMin=*/true, /*hasQh=*/true);
+}
+
 // Lower the CONSTRUCTED streaming dequantize_row region: walk the
 // tcrv_rvv.typed_dequantize_row_loop_body, extract its per-block DECODE brick
 // (tcrv_rvv.dequantize_row_decode_core) + the VOID yield, enforce the anti-bypass
@@ -2813,13 +2879,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed dequantize_row loop body missing the op");
 
-  // Bounded decode_model surface gate (I7): only the q8_0 family-head is
-  // constructed this cut. The verifier already gates decode_model; this fails the
-  // emit closed if a not-yet-lowered decode leaf slips a valid-verify region here.
-  if (loopBody.getDecodeModel() != "q8_0")
+  // Bounded decode_model surface gate (I7): the constructed streaming family is
+  // {q8_0 (family-head), q4_0/q4_1/q5_0/q5_1 (flat nibble leaves)}. The verifier
+  // already gates decode_model; this fails the emit closed if a not-yet-lowered
+  // decode leaf slips a valid-verify region here.
+  llvm::StringRef decodeModel = loopBody.getDecodeModel();
+  if (decodeModel != "q8_0" && decodeModel != "q4_0" && decodeModel != "q4_1" &&
+      decodeModel != "q5_0" && decodeModel != "q5_1")
     return rewriter.notifyMatchFailure(
-        loopBody, "typed dequantize_row loop body only lowers decode_model "
-                  "\"q8_0\" (the constructed streaming family-head)");
+        loopBody, "typed dequantize_row loop body only lowers the constructed "
+                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1");
 
   tcrvrvv::DequantizeRowDecodeCoreOp coreOp;
   tcrvrvv::TypedDequantizeRowLoopYieldOp yieldOp;
@@ -2855,17 +2924,34 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 
   llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
+  // Dispatch on decode_model to the per-format leaf: each re-emits the whole nb
+  // block loop + per-block decode via the SHARED body emitter, byte-exact to the
+  // dispatch-wired monolith.
+  if (decodeModel == "q4_0")
+    return emitDequantizeRowQ4_0BodyShared(rewriter, loc, weightBase, output,
+                                           avlArg, sizeType, opName, role);
+  if (decodeModel == "q4_1")
+    return emitDequantizeRowQ4_1BodyShared(rewriter, loc, weightBase, output,
+                                           avlArg, sizeType, opName, role);
+  if (decodeModel == "q5_0")
+    return emitDequantizeRowQ5_0BodyShared(rewriter, loc, weightBase, output,
+                                           avlArg, sizeType, opName, role);
+  if (decodeModel == "q5_1")
+    return emitDequantizeRowQ5_1BodyShared(rewriter, loc, weightBase, output,
+                                           avlArg, sizeType, opName, role);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
                                          avlArg, sizeType, opName, role);
 }
 
-// The dequant FRONT DOOR (family-head q8_0): CONSTRUCT the typed
+// The dequant FRONT DOOR (the flat streaming family {q8_0 family-head + the
+// q4_0/q4_1/q5_0/q5_1 nibble leaves}): CONSTRUCT the typed
 // tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
 // typed_dequantize_row_loop_yield } in place of the abstract tcrv_rvv.dequantize_row,
 // then LOWER it via emitTypedDequantizeRowLoopBody. The construction is a genuine IR
 // rewrite (the emission is DRIVEN by the typed region op-identity + decode_model, not
-// the abstract format string), so q8_0 is CONSTRUCTED ([L-6]/[L-8]), not
-// dispatch-wired. The other 22 formats fall through to the dispatch-wired monolith.
+// the abstract format string), so these flat formats are CONSTRUCTED ([L-6]/[L-8]),
+// not dispatch-wired. The other (K-quant / FP4 / ternary / codebook / IQ) formats
+// fall through to the dispatch-wired monolith.
 mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2878,17 +2964,34 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
   if (!deqOp)
     return rewriter.notifyMatchFailure(scope, "dequant body missing the op");
 
-  // The 22 non-family-head formats stay DISPATCH-WIRED (hand-written monolith).
-  if (deqOp.getFormat() != "q8_0")
+  // The flat streaming CONSTRUCTED family + its per-format AoS block-layout facts
+  // (the ggml ABI shape constants, NOT tunable knobs): the block stride, the fp16
+  // scale byte offset (scale_byte_offset), and the packed-quant byte offset
+  // (quant_byte_offset). The min/qh offsets (q4_1/q5_1/q5_0) are baked into the
+  // per-format decode leaf, so the brick carries only the two byte offsets the
+  // shared q8_0-shaped attr surface names.
+  llvm::StringRef format = deqOp.getFormat();
+  int64_t qk = 32, stride = 0, dOff = 0, qsOff = 0;
+  if (format == "q8_0") {
+    stride = 34; qsOff = 2;
+  } else if (format == "q4_0") {
+    stride = 18; qsOff = 2;
+  } else if (format == "q4_1") {
+    stride = 20; qsOff = 4;
+  } else if (format == "q5_0") {
+    stride = 22; qsOff = 6;
+  } else if (format == "q5_1") {
+    stride = 24; qsOff = 8;
+  } else {
+    // The non-flat formats stay DISPATCH-WIRED (hand-written monolith).
     return emitGgmlDequantizeRow(rewriter, loc, scope, avlArg, sizeType,
                                  valueMap);
+  }
 
   mlir::Value input = deqOp.getInput();
   mlir::Value output = deqOp.getOutput();
   mlir::Value n = deqOp.getElementCount();
   mlir::Type indexType = rewriter.getIndexType();
-  // block_q8_0 AoS facts: fp16 d @0, 32 signed int8 quants @2, stride 34.
-  const int64_t qk = 32, stride = 34, dOff = 0, qsOff = 2;
 
   {
     mlir::OpBuilder::InsertionGuard g(rewriter);
@@ -2902,7 +3005,7 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     loopState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
     loopState.addAttribute("weight_block_stride",
                            rewriter.getI64IntegerAttr(stride));
-    loopState.addAttribute("decode_model", rewriter.getStringAttr("q8_0"));
+    loopState.addAttribute("decode_model", rewriter.getStringAttr(format));
     loopState.addRegion();
     auto loopBody = llvm::cast<tcrvrvv::TypedDequantizeRowLoopBodyOp>(
         rewriter.create(loopState));
@@ -2915,7 +3018,7 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     mlir::OperationState coreState(
         loc, tcrvrvv::DequantizeRowDecodeCoreOp::getOperationName());
     coreState.addOperands({input, output, blockIndex});
-    coreState.addAttribute("decode_model", rewriter.getStringAttr("q8_0"));
+    coreState.addAttribute("decode_model", rewriter.getStringAttr(format));
     coreState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
     coreState.addAttribute("weight_block_stride",
                            rewriter.getI64IntegerAttr(stride));

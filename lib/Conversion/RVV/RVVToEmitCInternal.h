@@ -4314,6 +4314,49 @@ private:
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
+  /// The SHARED 4-bit nibble dequantize_row block-decode body emit for the flat
+  /// legacy formats q4_0/q4_1/q5_0/q5_1: the AoS `nb = k/32` block loop, the fp16
+  /// block scale d (+ the optional fp16 min m) via the `(float)*(const _Float16 *)`
+  /// seam, the optional byte-assembled uint32 qh 5th-bit plane (q5_0/q5_1), then the
+  /// per-j nibble unpack (`qs[j]&0x0F` -> y[j], `qs[j]>>4` -> y[j+16]) with the
+  /// optional 5th-bit merge, the pre-scale bias `sub` (q4_0 -8 / q5_0 -16) or the
+  /// min add (q4_1/q5_1), and the f32 scale. The per-format AoS layout facts (the
+  /// block stride, the d/m/qh/qs byte offsets, the bias, the has-min/has-qh gates)
+  /// are passed by the caller (the ggml ABI constants, NOT tunable knobs). Called by
+  /// BOTH the dispatch-wired monolith (emitGgmlDequantizeRow's nibble tail) and the
+  /// CONSTRUCTED typed lowering (via the per-format leaves below), so the two are
+  /// byte-exact by construction. Extracted VERBATIM from the nibble tail of
+  /// emitGgmlDequantizeRow. opName/role thread the source-op provenance token.
+  mlir::LogicalResult emitDequantizeRowNibbleBodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
+      int64_t sub, bool hasMin, bool hasQh) const;
+
+  /// The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble
+  /// family (q4_0/q4_1/q5_0/q5_1): each hard-codes its ggml block_qX AoS layout
+  /// facts and calls emitDequantizeRowNibbleBodyShared -- the SAME shared body the
+  /// dispatch-wired monolith invokes, so the constructed lowering is byte-exact to
+  /// the monolith by construction (modulo only the source-op provenance token). The
+  /// streaming siblings of emitDequantizeRowQ8_0BodyShared; no reduction/accumulator.
+  mlir::LogicalResult emitDequantizeRowQ4_0BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ4_1BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ5_0BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+  mlir::LogicalResult emitDequantizeRowQ5_1BodyShared(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+
   /// Emit the CONSTRUCTED ggml ggml_compute_forward_rope_f32 rotate-model body
   /// (F6: the GGML_ROPE_TYPE_NORMAL rope for ONE head row) as fully STRUCTURED
   /// emitc nodes (I5; no verbatim C-string blob). The outer loop op owns the

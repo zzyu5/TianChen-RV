@@ -1,15 +1,20 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_q4_0` block DECODE (block_q4_0 -> f32 row) as a
-// DISPATCH-WIRED lowering ([L-6] wiring != construction): the single parameterized
-// typed op tcrv_rvv.dequantize_row (format="q4_0") is recognized by production
-// dispatch and routed to a hand-written per-format monolith emitter that lays down
-// the byte-exact AoS block loop reproducing ggml's reference dequantize_row_q4_0 --
-// the fp16 block scale via the (float)*(const _Float16 *) seam, then the nibble
-// unpack (qs[j]&0x0F)-8 -> y[j] and (qs[j]>>4)-8 -> y[j+16]. There is NO typed loop
-// brick -- the body is the hand emitter (dispatch-wired, not constructed). The q4_0
-// nibble decode REUSES the same block-decode already built for the q4_0 block-dot
-// vec_dot.
+// The ggml `dequantize_row_q4_0` block DECODE (block_q4_0 -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the flat nibble dequant leaf (G3 line-B, a
+// dequantize_row family member, family-head q8_0): the abstract tcrv_rvv.dequantize_row
+// (format="q4_0") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
+// it into the typed tcrv_rvv.typed_dequantize_row_loop_body region {
+// dequantize_row_decode_core (decode_model "q4_0"); typed_dequantize_row_loop_yield }
+// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
+// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
+// BYTE-IDENTICAL to the dispatch-wired q4_0 monolith modulo ONLY the source-op
+// provenance token (the shared body emitter emitDequantizeRowNibbleBodyShared, reached
+// via emitDequantizeRowQ4_0BodyShared, is common to both) -- the fp16 block scale via
+// the (float)*(const _Float16 *) seam, then the nibble unpack (qs[j]&0x0F)-8 -> y[j]
+// and (qs[j]>>4)-8 -> y[j+16]. The q4_0 nibble decode REUSES the same block-decode
+// already built for the q4_0 block-dot vec_dot. Byte-exact-vs-ggml-reference
+// dequantize_row_q4_0 (a scalar AoS block loop; no reduction).
 
 module {
   tcrv.exec.kernel @dequant_q4_0_kernel {
@@ -29,6 +34,10 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_q4_0_kernel_dequant_q4_0(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body,
+// not the dispatch-wired monolith).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
 // The AoS block count nb = k / 32 and the block loop.
 // CHECK: div
 // CHECK: for

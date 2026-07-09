@@ -1,15 +1,21 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_q5_0` block DECODE (block_q5_0 -> f32 row) as a
-// DISPATCH-WIRED lowering ([L-6] wiring != construction): tcrv_rvv.dequantize_row
-// (format="q5_0") routes to a hand-written per-format monolith emitter reproducing
-// ggml's reference dequantize_row_q5_0 byte-exactly -- the fp16 scale via the
-// (float)*(const _Float16 *) seam, the byte-assembled little-endian uint32 qh 5th-
-// bit plane (qh[0] | qh[1]<<8 | qh[2]<<16 | qh[3]<<24, matching ggml's memcpy(&qh)),
-// then ((qs[j]&0x0F)|xh0)-16 -> y[j] and ((qs[j]>>4)|xh1)-16 -> y[j+16]. No typed
-// loop brick; the q5_0 qh merge REUSES the block-decode already built for the q5_0
-// block-dot vec_dot. This UPGRADES the prior thin "referenced" dispatch anchor
-// (q5_0 dequant was only implicit inside the repack-gemv q5_0 op) to a real op.
+// The ggml `dequantize_row_q5_0` block DECODE (block_q5_0 -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the flat nibble+5th-bit dequant leaf (G3 line-B, a
+// dequantize_row family member, family-head q8_0): the abstract tcrv_rvv.dequantize_row
+// (format="q5_0") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
+// it into the typed tcrv_rvv.typed_dequantize_row_loop_body region {
+// dequantize_row_decode_core (decode_model "q5_0"); typed_dequantize_row_loop_yield }
+// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
+// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
+// BYTE-IDENTICAL to the dispatch-wired q5_0 monolith modulo ONLY the source-op
+// provenance token (the shared body emitter emitDequantizeRowNibbleBodyShared, reached
+// via emitDequantizeRowQ5_0BodyShared, is common to both) -- the fp16 scale via the
+// (float)*(const _Float16 *) seam, the byte-assembled little-endian uint32 qh 5th-bit
+// plane (qh[0] | qh[1]<<8 | qh[2]<<16 | qh[3]<<24, matching ggml's memcpy(&qh)), then
+// ((qs[j]&0x0F)|xh0)-16 -> y[j] and ((qs[j]>>4)|xh1)-16 -> y[j+16]. The q5_0 qh merge
+// REUSES the block-decode already built for the q5_0 block-dot vec_dot.
+// Byte-exact-vs-ggml-reference dequantize_row_q5_0 (a scalar AoS block loop).
 
 module {
   tcrv.exec.kernel @dequant_q5_0_kernel {
@@ -29,6 +35,9 @@ module {
 // CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_q5_0_kernel_dequant_q5_0(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
 // The AoS block count + the block loop.
 // CHECK: div
 // CHECK: for
