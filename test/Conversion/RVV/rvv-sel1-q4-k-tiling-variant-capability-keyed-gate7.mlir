@@ -1,0 +1,64 @@
+// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=SEL1
+// RUN: tcrv-opt %s --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=REALIZE
+
+// [G3 主线C / SEL-1] T2 gate-(7) format-attribution proof: the SP4 (tiled-vs-plain)
+// output-tiling choice for q4_K is no longer a COMPILE-TIME per-format hardcode inside
+// emitTypedRepackGemmLoopBody -- it is a RUNTIME CAPABILITY-KEYED selection. The
+// front-door pass, at rv64gcv (derived VLEN 128, 32 architectural vregs), classifies
+// the q4_K loop-body's fold_model "kquant_dmin_bsums_min" as the min-fold
+// register-cliff BOTTLENECK SHAPE (the KEY is the shape, NOT the format name),
+// consults the (empty seed) offline-profile measurement library, MISSES, and resolves
+// via the [XFER-1] cold-start capability prior to S6Tiled. The chosen variant + its
+// reason (prior, NOT the capability-blind static_order) are stamped on the loop-body
+// op for the emitter's pure realize; the full [D-4] attribution record (reusing the
+// SAME computeDeclaredInstanceHash) rides an inert in-IR attr. The realize path emits
+// the byte-exact S6-tiled q4_K GEMM body (identical to the retired direct emitter).
+
+module {
+  tcrv.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @ggml_repack_gemm_q4_K_q8_K attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
+      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_q4_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_q4_K_q8_K_kernel", status = "selected-lowering-boundary"} {
+        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q4_K", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", m_regime = "prefill", qk = 256 : i64, weight_layout = "plain", weight_block_stride = 144 : i64, activation_block_stride = 292 : i64, quant_byte_offset = 16 : i64, activation_high_byte_offset = 0 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// ===================== gate-(7) capability-keyed attribution =====================
+// The abstract op is GONE; the compiler CONSTRUCTED the q4_K min-fold GEMM region and
+// STAMPED the SP4 tiling decision (the loop-body op's attrs print alphabetically).
+// The loop-body op prints its attrs alphabetically, so the SEL1-SAME chain tracks
+// that order: fold_model (the KEY) < tcrv_rvv.tiling_selection_reason < ...record <
+// ...variant.
+// SEL1-NOT: tcrv_rvv.quant_contraction
+// SEL1: tcrv_rvv.typed_repack_gemm_loop_body
+// The fold_model that KEYED the selection (the bottleneck SHAPE, not the format name).
+// SEL1-SAME: fold_model = "kquant_dmin_bsums_min"
+// The capability prior selected S6Tiled with reason=prior (NOT static_order).
+// SEL1-SAME: tcrv_rvv.tiling_selection_reason = "prior"
+// The bounded variant registry offered BOTH {plain, s6_tiled}; the [D-4] JSONL
+// attribution record (reused FORM + declared_instance_hash) is inert + in-IR.
+// SEL1-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}candidates{{.*}}plain{{.*}}s6_tiled{{.*}}reason{{.*}}prior
+// SEL1-SAME: tcrv_rvv.tiling_variant = "s6_tiled"
+// The decision is capability-DERIVED, never the capability-blind cold-start fallback.
+// SEL1-NOT: static_order
+
+// ===================== pure realize -> byte-exact S6-tiled body ==================
+// The emitter degenerates to a pure realize: it reads tcrv_rvv.tiling_variant =
+// "s6_tiled" and emits the byte-exact S6-tiled q4_K GEMM body (the same emit as
+// rvv-emit-quant-contraction-q4-K-repack-gemm-prefill-vlen128).
+// REALIZE-NOT: tcrv_rvv.quant_contraction
+// REALIZE-NOT: tcrv_rvv.typed_repack_gemm_loop_body
+// REALIZE: emitc.func @tcrv_emitc_ggml_repack_gemm_q4_K_q8_K_kernel_ggml_repack_gemm_q4_K_q8_K(
+// REALIZE: literal "2304"
+// REALIZE: call_opaque "__riscv_vfmv_v_f_f32m2"
+// REALIZE: call_opaque "__riscv_vwmacc_vv_i32m2"
+// REALIZE: call_opaque "__riscv_vfnmsac_vv_f32m2"
+// REALIZE: return

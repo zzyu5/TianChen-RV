@@ -2562,6 +2562,26 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getWeightInterleave()),
           static_cast<int64_t>(loopBody.getActivationInterleave()),
           static_cast<int64_t>(loopBody.getHalfLanes()));
+    // [G3 主线C / SEL-1] T2 tracer: q4_K SP4 output-tiling PURE REALIZE. The
+    // front-door selection pass stamped tcrv_rvv.tiling_variant on this loop-body op
+    // from capability facts + the (empty seed) measurement library; the emitter is now
+    // a pure REALIZE that reads it. ABSENT => S6Tiled -- the byte-exact default that
+    // keeps every un-wired path (q2_K/q5_K, the hand-authored emitter fixtures)
+    // bit-identical. "s6_tiled" => the register-cliff stack-panel body below. "plain"
+    // is a REGISTERED, legality-filtered SP4 variant whose untiled q4_K GEMM body is
+    // DEFERRED to [SEL-1] T3 (the T2 capability prior always selects s6_tiled for the
+    // q4_K min-fold register cliff, so this fail-closed arm is never taken in
+    // production) -- fail-closed (I7) rather than silently emit the tiled body under a
+    // "plain" label.
+    if (auto tilingVariant = loopBody->getAttrOfType<mlir::StringAttr>(
+            "tcrv_rvv.tiling_variant")) {
+      if (tilingVariant.getValue() == "plain")
+        return rewriter.notifyMatchFailure(
+            loopBody,
+            "q4_K \"plain\" (untiled) SP4 tiling variant is a registered, "
+            "legality-filtered [SEL-1] variant whose untiled GEMM body is deferred "
+            "to T3; the T2 capability prior selects s6_tiled");
+    }
     return emitRepackKQuantGemmBodyQ4K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,

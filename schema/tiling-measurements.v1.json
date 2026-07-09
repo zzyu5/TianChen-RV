@@ -1,0 +1,34 @@
+{
+  "$meta": {
+    "schema_version": "v1.0.0",
+    "declares": "SEL-1 SP4 output-tiling offline-profile measurement cache (C3' capability-keyed pattern library, measurement layer)",
+    "note": "The [SEL-1] measurement library: the OFFLINE-PROFILE cache the capability-keyed SP4 (tiled-vs-plain) tiling selector consults BEFORE its cold-start [XFER-1] prior. Each row memoizes the byte-exact-gated timing of ONE (declared_instance_hash, kernel, variant) instance. This is EVIDENCE-axis mirror data (core-invariants I4): it NEVER chooses route/compute/dtype and it is NEVER a correctness or cost authority in `lib/` -- a measured timing is a cache FACT (authority order: hardware measurement > this cache > static prior). The compiler holds an in-memory VIEW of this file (plugin/rvv RVVRepackTilingSelection.h lookupTilingMeasurement) and, on a HIT for (declared_instance_hash, kernel), picks the memoized argmin variant with reason=measured; on a MISS it falls to the [XFER-1] capability prior (reason=prior). SEED STATE: `measurements` is intentionally EMPTY -- every query is a cold start today, so q4_K (and every wired leaf) resolves via the prior. An offline-profile harness on `ssh rvv` fills a row ONLY after the candidate compiles, runs (micro / llama-bench), and PASSES the byte-exact gate for that instance.",
+    "authority": [
+      "docs/reports/2026-07-09-SEL-1-design.md",
+      "docs/TianChen-RV_科研目标总纲v2.md#PAT-1",
+      "include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h"
+    ],
+    "primary_key": ["declared_instance_hash", "kernel", "variant"],
+    "key_semantics": {
+      "declared_instance_hash": "SHA-256 (lowercase hex) of the EXPANDED normalized capability fact set -- the SAME support::computeDeclaredInstanceHash the [D-4](1) exec / schedule attribution sinks compute (one helper, one hash). Portable across symbol renames; profile-vs-explicit-list declarations hash equal.",
+      "kernel": "the decode_model (the SP4 tiling leaf identity), e.g. \"q4_K\". NOTE the SELECTION keys on the bottleneck SHAPE (fold_model), NEVER this format name; `kernel` is only the measurement-row identity, not a dispatch key.",
+      "variant": "the bounded RVVRepackTilingVariant enum member: \"plain\" | \"s6_tiled\"."
+    },
+    "value_shape": {
+      "measured_ns": "median wall-clock ns of the byte-exact-gated micro/bench run (number, optional if vs_generic_ratio is given).",
+      "vs_generic_ratio": "speedup vs the scalar/naive-autovec baseline (number, optional).",
+      "board_identity": {
+        "vlen": "measured VLEN bits (e.g. 128).",
+        "vreg_count": "architectural vector register count (32 for rvv1.0).",
+        "march": "the -march the measurement was taken under (e.g. \"rv64gcv\")."
+      },
+      "byte_exact_gate": "\"pass\" -- a row is written ONLY past the byte-exact gate (fail-closed: an un-gated timing is never cached).",
+      "samples": "sample count backing the median (number).",
+      "cv": "coefficient of variation across samples (number, the noise floor).",
+      "ts": "ISO-8601 UTC timestamp of the measurement."
+    },
+    "fail_closed_revalidate": "The selector discards a cached winner that is no longer feasible under the current capability facts (Stage-1 legality re-check) and falls back to the prior -- a stale cache never forces an infeasible variant."
+  },
+
+  "measurements": []
+}

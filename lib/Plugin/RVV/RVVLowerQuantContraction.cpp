@@ -60,14 +60,21 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVContractionPathSelection.h"
+#include "TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h"
+#include "TianChenRV/Support/CapabilityModel.h"
+#include "TianChenRV/Support/DeclaredInstanceHash.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
+#include "llvm/Support/Error.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 
 namespace tcrvrvv = ::tianchenrv::tcrv::rvv;
 namespace pluginrvv = ::tianchenrv::plugin::rvv;
@@ -100,6 +107,24 @@ constexpr llvm::StringLiteral kMaterializationAttr =
 // (RVVDialectWideningOps.cpp GgmlRepackGemvQ40Q80Op::verify isAllowedAttr).
 constexpr llvm::StringLiteral kWeightLayoutContractAttr =
     "tcrv_rvv.weight_layout_contract";
+
+// [G3 主线C / SEL-1] the SP4 output-tiling variant + attribution the selection step
+// stamps on the constructed GEMM loop-body op. Pure INERT provenance (the EmitC
+// emitter READS tcrv_rvv.tiling_variant to REALIZE the corresponding body -- absent
+// => the S6Tiled default, so un-wired paths stay byte-identical). tiling_variant /
+// tiling_selection_reason are the discrete lit-CHECKable attrs (gate (7)); the
+// tiling_selection_record carries the full [D-4] JSONL attribution line (reusing the
+// SAME declared_instance_hash), provable in-IR.
+constexpr llvm::StringLiteral kTilingVariantAttr = "tcrv_rvv.tiling_variant";
+constexpr llvm::StringLiteral kTilingReasonAttr =
+    "tcrv_rvv.tiling_selection_reason";
+constexpr llvm::StringLiteral kTilingRecordAttr =
+    "tcrv_rvv.tiling_selection_record";
+
+// The RVV vector register file is 32 architectural vector registers as a HARD ISA
+// fact (rvv1.0 v0..v31), independent of VLEN -- the register-budget capability fact
+// the SP4 legality filter reasons over (alongside the derived minimum VLEN).
+constexpr std::int64_t kRVVArchVectorRegisterCount = 32;
 
 // The repacked weight 16-way interleave (block_q4_0x16: 16 weight rows per group
 // occupy 16 distinct vector lanes). MIRRORS the op verifier's weight_interleave
@@ -704,7 +729,7 @@ private:
         return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
                                                     isRVV0p7, *codebook)
                : kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
-                                                  isRVV0p7, *kquant)
+                                                  isRVV0p7, minVLEN, *kquant)
                : ternary ? lowerToRepackGemmTernary(op, selection, halfLanes,
                                                     isRVV0p7, *ternary)
                          : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
@@ -1647,7 +1672,7 @@ private:
   lowerToRepackGemmKQuant(tcrvrvv::GgmlQuantContractionOp op,
                           const pluginrvv::ContractionSelection &selection,
                           std::int64_t halfLanes, bool isRVV0p7,
-                          const KQuantDecodeFacts &facts) {
+                          std::int64_t minVLEN, const KQuantDecodeFacts &facts) {
     mlir::OpBuilder builder(op);
     mlir::MLIRContext *ctx = builder.getContext();
     mlir::Location loc = op.getLoc();
@@ -1756,6 +1781,66 @@ private:
     loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // [G3 主线C / SEL-1] T2 tracer: SP4 output-tiling variant SELECTION (q4_K ONLY
+    // this round; T3 铺 the remaining K-quant / codebook / q4_0 leaves). The
+    // tiled-vs-plain choice that today is a COMPILE-TIME per-format hardcode inside
+    // emitTypedRepackGemmLoopBody (the gate (7) gap) moves HERE into a runtime
+    // CAPABILITY-KEYED selection: the key is the BOTTLENECK SHAPE derived from
+    // fold_model (a structure/capability fact), NEVER the format name -- so the
+    // pattern migrates "换键不改条目" and format-name dispatch cannot recur. On
+    // rvv/VLEN128 (minVLEN 128, 32 vregs) the q4_K min-fold register-cliff shape has
+    // BOTH {plain, s6_tiled} feasible and an EMPTY offline-profile cache, so the
+    // cold-start [XFER-1] prior returns S6Tiled -- BYTE-EXACT to the current hardcode.
+    // The variant + reason are stamped for the EmitC emitter's PURE REALIZE (absent
+    // => the S6Tiled default, so the un-wired GEVM / other GEMM leaves stay
+    // byte-identical); the full [D-4] attribution record (reusing the SAME
+    // computeDeclaredInstanceHash) rides an inert in-IR attr. The SP4 tiling axis is a
+    // GEMM-only leaf, so this stamp lives only on the prefill loop op.
+    if (facts.decodeModel == "q4_K") {
+      if (std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
+              pluginrvv::classifyTilingBottleneckShape(facts.foldModel)) {
+        // The declared-instance hash: the SAME [D-4](1)/[D-2a] hash the exec /
+        // schedule sinks compute (support::computeDeclaredInstanceHash of the
+        // enclosing kernel's expanded capability instance). Best-effort: an
+        // unbuildable / non-conforming instance leaves it empty (the measurement key
+        // then simply misses => cold start).
+        std::string declaredInstanceHash;
+        if (auto kernel = op->getParentOfType<tcrv::exec::KernelOp>()) {
+          if (llvm::Expected<support::TargetCapabilitySet> capabilities =
+                  support::TargetCapabilitySet::buildFromKernelChecked(kernel))
+            declaredInstanceHash =
+                support::computeDeclaredInstanceHash(*capabilities);
+          else
+            llvm::consumeError(capabilities.takeError());
+        }
+        // Consult the offline-profile measurement cache FIRST (empty seed => cold
+        // start), then run the two-stage capability selection.
+        std::optional<pluginrvv::RVVTilingMeasurementHit> measurement =
+            pluginrvv::lookupTilingMeasurement(declaredInstanceHash,
+                                               facts.decodeModel);
+        pluginrvv::RVVRepackTilingChoice choice =
+            pluginrvv::selectRepackTilingVariant(
+                *shape, minVLEN, kRVVArchVectorRegisterCount, measurement);
+        loop->setAttr(kTilingVariantAttr,
+                      builder.getStringAttr(
+                          pluginrvv::stringifyRVVRepackTilingVariant(
+                              choice.variant)));
+        loop->setAttr(kTilingReasonAttr,
+                      builder.getStringAttr(
+                          pluginrvv::stringifyRVVTilingSelectionReason(
+                              choice.reason)));
+        const pluginrvv::RVVRepackTilingVariant candidates[] = {
+            pluginrvv::RVVRepackTilingVariant::Plain,
+            pluginrvv::RVVRepackTilingVariant::S6Tiled};
+        loop->setAttr(
+            kTilingRecordAttr,
+            builder.getStringAttr(
+                pluginrvv::buildTilingSelectionAttributionRecord(
+                    facts.decodeModel, candidates, choice.variant, choice.reason,
+                    declaredInstanceHash, /*noTimestamp=*/true)));
+      }
+    }
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
