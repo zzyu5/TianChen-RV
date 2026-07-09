@@ -10090,7 +10090,11 @@ def TypedDequantizeRowLoopBodyOp
     "q8_0" (the family-head block_q8_0 bare signed-int8 scale `y[j] = qs[j] * d`, the
     structurally simplest flat-block dequant, no nibble unpack) plus the 4-bit nibble
     leaves "q4_0"/"q4_1"/"q5_0"/"q5_1" (the nibble unpack + the optional qh 5th-bit
-    merge / min fold). The op does NOT own dtype/route authority; the per-block decode
+    merge / min fold) plus the QK_K=256 K-quant super-block leaves
+    "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" (the fp16 d/dmin seam + the per-format
+    super-block scale/min unpack -- get_scale_min_k4 6-bit, the q3_K aux kmask shuffle,
+    the q2_K packed 4-bit scale/min, the q6_K signed int8 scales -- then the 2/3/4/5/6-bit
+    quant unpack + fold). The op does NOT own dtype/route authority; the per-block decode
     is the separate typed brick carried inside the region.
   }];
 
@@ -10150,11 +10154,14 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     via the `(float)*(const _Float16 *)` seam, then the bare signed-int8 scale
     `y[j] = qs[j] * d` over all qk block lanes (the load sign-extends); for the 4-bit
     nibble leaves "q4_0"/"q4_1"/"q5_0"/"q5_1": the fp16 d (+ optional min m) seam, the
-    optional qh 5th-bit plane, then the per-nibble unpack + bias/min fold + scale. The
-    block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
-    are the ggml ABI constants; decode_model pins WHICH decode leaf. For the current
-    bounded surface decode_model is limited to the flat streaming family
-    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1".
+    optional qh 5th-bit plane, then the per-nibble unpack + bias/min fold + scale; for
+    the QK_K=256 K-quant super-block leaves "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K": the
+    fp16 d (+ optional dmin) seam + the per-format super-block scale/min unpack, then
+    the 2/3/4/5/6-bit quant unpack + fold. The block-layout facts (qk,
+    weight_block_stride, scale_byte_offset, quant_byte_offset) are the ggml ABI
+    constants; decode_model pins WHICH decode leaf. For the current bounded surface
+    decode_model is limited to the flat streaming family "q8_0"/"q4_0"/"q4_1"/"q5_0"/
+    "q5_1" + the K-quant super-blocks "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K".
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,

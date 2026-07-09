@@ -1,11 +1,20 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The ggml `dequantize_row_q4_K` super-block DECODE (block_q4_K -> f32 row) as a
-// DISPATCH-WIRED lowering (\[L-6\] wiring != construction): tcrv_rvv.dequantize_row
-// (format="q4_K") routes to the hand-written monolith emitter reproducing ggml's
-// reference dequantize_row_q4_K -- the fp16 d/dmin scales via the (float)*(const
-// _Float16 *) seam, the get_scale_min_k4 6-bit scale/min unpack, then the nibble
-// quant (q&0xF, q>>4) folded d1*q - m1. REUSES the q4_K block-dot vec_dot decode.
+// The ggml `dequantize_row_q4_K` super-block DECODE (block_q4_K -> f32 row) as the
+// CONSTRUCT-FROM-ABSTRACT proof of the K-quant dequant leaf (G3 line-B, a
+// dequantize_row family member, family-head q8_0): the abstract tcrv_rvv.dequantize_row
+// (format="q4_K") is FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites
+// it into the typed tcrv_rvv.typed_dequantize_row_loop_body region {
+// dequantize_row_decode_core (decode_model "q4_K"); typed_dequantize_row_loop_yield }
+// and lowers it (the emission is DRIVEN by the typed region op-identity + decode_model,
+// [L-6]/[L-8] construction, NOT the abstract format string). The emitted C is
+// BYTE-IDENTICAL to the dispatch-wired q4_K monolith modulo ONLY the source-op
+// provenance token (the SHARED super-block decode emitGgmlDequantizeRowExtended, reached
+// via emitDequantizeRowKQuantBodyShared, is the SAME code both paths run) -- the fp16
+// d/dmin scales via the (float)*(const _Float16 *) seam, the get_scale_min_k4 6-bit
+// scale/min unpack, then the nibble quant (q&0xF, q>>4) folded d1*q - m1. REUSES the
+// q4_K block-dot vec_dot decode. Byte-exact-vs-ggml-reference dequantize_row_q4_K (a
+// scalar AoS super-block loop; no reduction).
 
 module {
   tcrv.exec.kernel @dequant_q4_K_kernel {
@@ -22,8 +31,12 @@ module {
   }
 }
 
+// CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_dequant_q4_K_kernel_dequant_q4_K(
+// The construction is real: the emit is DRIVEN by the typed region (the provenance
+// token proves the abstract op went THROUGH tcrv_rvv.typed_dequantize_row_loop_body).
+// CHECK: route_source_op=tcrv_rvv.typed_dequantize_row_loop_body
 // CHECK: for
 // The two fp16 super-block scales (d, dmin).
 // CHECK: call_opaque "(float)*(const _Float16 *)"

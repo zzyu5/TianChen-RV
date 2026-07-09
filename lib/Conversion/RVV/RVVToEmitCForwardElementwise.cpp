@@ -2378,7 +2378,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     // dispatch returns a plain match failure (no ops emitted) for a legacy
     // format, so the legacy nibble/int8 chain below still owns q4_0..q8_0.
     if (mlir::succeeded(emitGgmlDequantizeRowExtended(
-            rewriter, loc, deqOp, input, output, avlArg, sizeType, opName, role)))
+            rewriter, loc, format, input, output, avlArg, sizeType, opName,
+            role)))
       return mlir::success();
 
     // Per-format AoS block layout facts (ggml-common.h + QK*_0/1 = 32). offsets are
@@ -2858,6 +2859,24 @@ mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowQ5_1BodyShared(
       /*sub=*/0, /*hasMin=*/true, /*hasQh=*/true);
 }
 
+// The per-format CONSTRUCTED dequantize_row decode leaf for the QK_K=256 K-quant
+// super-block family (q2_K/q3_K/q4_K/q5_K/q6_K): a thin FORWARDER to the SAME
+// hand-written super-block decode the dispatch-wired monolith fallback runs
+// (emitGgmlDequantizeRowExtended, now keyed by the `format` string alone -- no
+// deqOp). Because BOTH the monolith fallback AND this constructed lowering emit the
+// K-quant decode from the SAME code, the two are byte-exact by construction (modulo
+// only the source-op provenance token threaded through opName/role) -- there is NO
+// duplicated K-quant decode leaf to drift. Streaming sibling of the flat leaves
+// (emitDequantizeRowQ4_0BodyShared etc.); no reduction / no accumulator.
+mlir::LogicalResult VariantToEmitCFunc::emitDequantizeRowKQuantBodyShared(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+    llvm::StringRef format) const {
+  return emitGgmlDequantizeRowExtended(rewriter, loc, format, input, output,
+                                       avlArg, sizeType, opName, role);
+}
+
 // Lower the CONSTRUCTED streaming dequantize_row region: walk the
 // tcrv_rvv.typed_dequantize_row_loop_body, extract its per-block DECODE brick
 // (tcrv_rvv.dequantize_row_decode_core) + the VOID yield, enforce the anti-bypass
@@ -2880,15 +2899,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
         scope, "typed dequantize_row loop body missing the op");
 
   // Bounded decode_model surface gate (I7): the constructed streaming family is
-  // {q8_0 (family-head), q4_0/q4_1/q5_0/q5_1 (flat nibble leaves)}. The verifier
-  // already gates decode_model; this fails the emit closed if a not-yet-lowered
-  // decode leaf slips a valid-verify region here.
+  // {q8_0 (family-head), q4_0/q4_1/q5_0/q5_1 (flat nibble leaves), and the
+  // q2_K/q3_K/q4_K/q5_K/q6_K QK_K=256 super-block leaves}. The verifier already
+  // gates decode_model; this fails the emit closed if a not-yet-lowered decode leaf
+  // slips a valid-verify region here.
   llvm::StringRef decodeModel = loopBody.getDecodeModel();
   if (decodeModel != "q8_0" && decodeModel != "q4_0" && decodeModel != "q4_1" &&
-      decodeModel != "q5_0" && decodeModel != "q5_1")
+      decodeModel != "q5_0" && decodeModel != "q5_1" && decodeModel != "q2_K" &&
+      decodeModel != "q3_K" && decodeModel != "q4_K" && decodeModel != "q5_K" &&
+      decodeModel != "q6_K")
     return rewriter.notifyMatchFailure(
         loopBody, "typed dequantize_row loop body only lowers the constructed "
-                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1");
+                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
+                  "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K");
 
   tcrvrvv::DequantizeRowDecodeCoreOp coreOp;
   tcrvrvv::TypedDequantizeRowLoopYieldOp yieldOp;
@@ -2939,19 +2962,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   if (decodeModel == "q5_1")
     return emitDequantizeRowQ5_1BodyShared(rewriter, loc, weightBase, output,
                                            avlArg, sizeType, opName, role);
+  // The K-quant QK_K=256 super-block leaves (q2_K/q3_K/q4_K/q5_K/q6_K) forward to
+  // the SAME hand-written super-block decode the dispatch-wired monolith runs, so
+  // the constructed emit is byte-exact to the monolith by construction.
+  if (decodeModel == "q2_K" || decodeModel == "q3_K" || decodeModel == "q4_K" ||
+      decodeModel == "q5_K" || decodeModel == "q6_K")
+    return emitDequantizeRowKQuantBodyShared(rewriter, loc, weightBase, output,
+                                             avlArg, sizeType, opName, role,
+                                             decodeModel);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
                                          avlArg, sizeType, opName, role);
 }
 
 // The dequant FRONT DOOR (the flat streaming family {q8_0 family-head + the
-// q4_0/q4_1/q5_0/q5_1 nibble leaves}): CONSTRUCT the typed
+// q4_0/q4_1/q5_0/q5_1 nibble leaves} + the QK_K=256 K-quant super-block family
+// {q2_K/q3_K/q4_K/q5_K/q6_K}): CONSTRUCT the typed
 // tcrv_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
 // typed_dequantize_row_loop_yield } in place of the abstract tcrv_rvv.dequantize_row,
 // then LOWER it via emitTypedDequantizeRowLoopBody. The construction is a genuine IR
 // rewrite (the emission is DRIVEN by the typed region op-identity + decode_model, not
-// the abstract format string), so these flat formats are CONSTRUCTED ([L-6]/[L-8]),
-// not dispatch-wired. The other (K-quant / FP4 / ternary / codebook / IQ) formats
-// fall through to the dispatch-wired monolith.
+// the abstract format string), so these formats are CONSTRUCTED ([L-6]/[L-8]), not
+// dispatch-wired. The remaining (FP4 / ternary / codebook / IQ) formats fall through
+// to the dispatch-wired monolith.
 mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2964,10 +2996,11 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
   if (!deqOp)
     return rewriter.notifyMatchFailure(scope, "dequant body missing the op");
 
-  // The flat streaming CONSTRUCTED family + its per-format AoS block-layout facts
-  // (the ggml ABI shape constants, NOT tunable knobs): the block stride, the fp16
-  // scale byte offset (scale_byte_offset), and the packed-quant byte offset
-  // (quant_byte_offset). The min/qh offsets (q4_1/q5_1/q5_0) are baked into the
+  // The streaming CONSTRUCTED family + its per-format AoS block-layout facts (the
+  // ggml ABI shape constants, NOT tunable knobs): qk (32 flat / 256 K-quant), the
+  // block stride, the fp16 scale byte offset (scale_byte_offset), and the
+  // packed-quant byte offset (quant_byte_offset). The remaining per-format offsets
+  // (min/qh for the flat leaves; dmin/scale-plane/qh for K-quant) are baked into the
   // per-format decode leaf, so the brick carries only the two byte offsets the
   // shared q8_0-shaped attr surface names.
   llvm::StringRef format = deqOp.getFormat();
@@ -2982,8 +3015,19 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     stride = 22; qsOff = 6;
   } else if (format == "q5_1") {
     stride = 24; qsOff = 8;
+  } else if (format == "q2_K") {
+    qk = 256; stride = 84; dOff = 80; qsOff = 16;
+  } else if (format == "q3_K") {
+    qk = 256; stride = 110; dOff = 108; qsOff = 32;
+  } else if (format == "q4_K") {
+    qk = 256; stride = 144; dOff = 0; qsOff = 16;
+  } else if (format == "q5_K") {
+    qk = 256; stride = 176; dOff = 0; qsOff = 48;
+  } else if (format == "q6_K") {
+    qk = 256; stride = 210; dOff = 208; qsOff = 0;
   } else {
-    // The non-flat formats stay DISPATCH-WIRED (hand-written monolith).
+    // The remaining formats (FP4 / ternary / codebook / IQ grid-table) stay
+    // DISPATCH-WIRED (hand-written monolith).
     return emitGgmlDequantizeRow(rewriter, loc, scope, avlArg, sizeType,
                                  valueMap);
   }
@@ -3036,19 +3080,21 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
 }
 
 // The EXTENDED dequantize_row decode: K-quant super-blocks, FP4 codebooks,
-// ternary, and iq4_nl. Each body is a hand-written scalar AoS super-block loop
-// reproducing ggml's reference dequantize_row_<format> byte-exactly (quants.c),
-// reusing the SAME per-format block-decode facts already constructed for that
-// format's block-dot vec_dot (the fp16 seam, the E8M0/UE4M3 scale, the
-// get_scale_min_k4 6-bit unpack, the q3_K aux 6-bit scale shuffle, the base-3
-// tq1_0 unpack, the 16-entry codebook gather). [L-6] wiring != construction.
+// ternary, and iq4_nl. Each body is a scalar AoS super-block loop reproducing
+// ggml's reference dequantize_row_<format> byte-exactly (quants.c), reusing the
+// SAME per-format block-decode facts already constructed for that format's
+// block-dot vec_dot (the fp16 seam, the E8M0/UE4M3 scale, the get_scale_min_k4
+// 6-bit unpack, the q3_K aux 6-bit scale shuffle, the base-3 tq1_0 unpack, the
+// 16-entry codebook gather). Keyed by the `format` string alone (NO deqOp) so the
+// K-quant super-blocks (q2_K/q3_K/q4_K/q5_K/q6_K) -- now FRONT-DOOR CONSTRUCTED --
+// reach this SAME super-block decode from the constructed typed lowering (via
+// emitDequantizeRowKQuantBodyShared), byte-identical to the dispatch-wired monolith
+// fallback by construction; the NON-K-quant extended formats stay [L-6] wiring.
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::GgmlDequantizeRowOp deqOp, mlir::Value input, mlir::Value output,
+    llvm::StringRef format, mlir::Value input, mlir::Value output,
     mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
     llvm::StringRef role) const {
-  llvm::StringRef format = deqOp.getFormat();
-
   enum Fmt {
     Q2K, Q3K, Q4K, Q5K, Q6K, MXFP4, NVFP4, TQ1, TQ2, IQ4NL,
     // The 8 IQ grid-table formats (each reuses its block-dot vec_dot grid decl).

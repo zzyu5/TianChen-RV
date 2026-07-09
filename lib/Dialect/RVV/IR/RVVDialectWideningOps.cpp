@@ -11279,7 +11279,9 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
 static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
   return decodeModel == "q8_0" || decodeModel == "q4_0" ||
          decodeModel == "q4_1" || decodeModel == "q5_0" ||
-         decodeModel == "q5_1";
+         decodeModel == "q5_1" || decodeModel == "q2_K" ||
+         decodeModel == "q3_K" || decodeModel == "q4_K" ||
+         decodeModel == "q5_K" || decodeModel == "q6_K";
 }
 
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
@@ -11319,6 +11321,7 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
               "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 (the flat streaming "
               "family: the block_q8_0 bare-int8 scale family-head + the 4-bit nibble "
+              "leaves) + q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
               "leaves). An unconstructed format stays dispatch-wired via the abstract "
               "tcrv_rvv.dequantize_row monolith";
 
@@ -11415,7 +11418,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     return emitOpError()
            << "decode_model '" << getDecodeModel()
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1";
+              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
+              "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getWeightBlockStrideAttr().getInt() <= 0)
