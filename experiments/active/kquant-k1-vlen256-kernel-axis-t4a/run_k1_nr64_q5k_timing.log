@@ -1,0 +1,15 @@
+loadavg_begin=3.39 3.17 2.80 6/505 63929
+COLUMNS: ROUND i fmt ours_gmacs opp_gmacs ratio_ours_over_opp
+ROUND 1   q5_K ours=1.1071 opp=0.5797 ratio=1.910
+ROUND 2   q5_K ours=1.1113 opp=0.5823 ratio=1.909
+ROUND 3   q5_K ours=1.1164 opp=0.5809 ratio=1.922
+ROUND 4   q5_K ours=1.1182 opp=0.5827 ratio=1.919
+ROUND 5   q5_K ours=1.1181 opp=0.5818 ratio=1.922
+ROUND 6   q5_K ours=1.1143 opp=0.5837 ratio=1.909
+ROUND 7   q5_K ours=1.1185 opp=0.5858 ratio=1.909
+ROUND 8   q5_K ours=1.1159 opp=0.5826 ratio=1.915
+ROUND 9   q5_K ours=1.1178 opp=0.5834 ratio=1.916
+ROUND 10  q5_K ours=1.1224 opp=0.5812 ratio=1.931
+ROUND 11  q5_K ours=1.1289 opp=0.5822 ratio=1.939
+ROUND 12  q5_K ours=1.1179 opp=0.5833 ratio=1.916
+loadavg_end=3.36 3.27 2.93 1/500 64219

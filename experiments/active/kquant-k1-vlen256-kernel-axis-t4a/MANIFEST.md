@@ -82,6 +82,7 @@ Remaining before a sealed 8-gate Win: **②** (VLEN256 codegen-flip lit) and **�
 ## durable files
 
 - `paired_k1_vlen256.csv` — 24 paired rounds (q4_K+q5_K) + summary (median/IQR/min/cv, opponent + [NG-4] notes)
+- `objdump_k1_s6_seal.objdump` — gate-③ k1 S6-tiled variant objdump (spill 81→4, vwmacc 2240 VLEN-invariant, vtype histogram)
 - `objdump_k1_seal.objdump` — gate-③ k1 seal (spill/reload/vwmacc/maxVreg/textB + VLEN256 vtype histograms + hot-region excerpt)
 - `run_k1_kquant_t4a.sh` — board-side runner (preflight/compile/seal/identity/timing). NB: the first pass aborted after
   [2] due to k1 awk (`head -60` SIGPIPE under pipefail); fixed in-file; seal data was already flushed. Sections [3][4] run below.

@@ -1,0 +1,21 @@
+==== T4a k1 RESUME identity+timing  K=2048 nr=64 nc=512 iters=20 N=12 core=7 ====
+textB(.text bytes): gold_O2.o=23248 s6_O2.o=25304 kq5k_O2.o=38822 
+---- [3] BYTE-EXACT IDENTITY (golden vs S6, VLEN256) ----
+  IDENTITY mode=int : IDENTICAL (0 byte mismatch) golden==S6 @VLEN256
+  IDENTITY mode=norm : IDENTICAL (0 byte mismatch) golden==S6 @VLEN256
+  => S6 tiled kernel byte-identical to golden ON k1/VLEN256
+---- [4] KERNEL-AXIS PAIRED (cold N=12; each round fresh proc; ours(S6) vs factory block-dot) ----
+loadavg_begin=3.09 2.94 2.67 1/478 63511
+COLUMNS: ROUND i fmt ours_gmacs opp_gmacs ratio_ours_over_opp
+ROUND 1   q4_K ours=3.5676 opp=1.1513 ratio=3.099
+ROUND 2   q4_K ours=3.5452 opp=1.1506 ratio=3.081
+ROUND 3   q4_K ours=3.5822 opp=1.1522 ratio=3.109
+ROUND 4   q4_K ours=3.5522 opp=1.1502 ratio=3.088
+ROUND 5   q4_K ours=3.5478 opp=1.1442 ratio=3.101
+ROUND 6   q4_K ours=3.5680 opp=1.1461 ratio=3.113
+ROUND 7   q4_K ours=3.5574 opp=1.1403 ratio=3.120
+ROUND 8   q4_K ours=3.5689 opp=1.1468 ratio=3.112
+ROUND 9   q4_K ours=3.5462 opp=1.1415 ratio=3.107
+ROUND 10  q4_K ours=3.5405 opp=1.1408 ratio=3.104
+ROUND 11  q4_K ours=3.5475 opp=1.1375 ratio=3.119
+ROUND 12  q4_K ours=3.5263 opp=1.1547 ratio=3.054

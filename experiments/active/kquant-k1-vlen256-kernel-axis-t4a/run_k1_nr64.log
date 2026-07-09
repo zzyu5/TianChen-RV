@@ -1,0 +1,44 @@
+==== T4a k1 kernel-axis  K=2048 nr=64 nc=512 iters=20 N=12 core=7 ====
+---- [0] PREFLIGHT (board identity + symmetry) ----
+board=k1 uname=Linux 6.6.63 riscv64
+cc=Bianbu clang version 18.1.8 (11bb4)
+march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs  mabi=lp64d  ffp-contract=on (measured -O2)
+_vb.c:3:56: warning: data argument not used by format string [-Wformat-extra-args]
+    3 | int main(){long b=(long)__riscv_vlenb();printf("0 0\n",b,b*8);return 0;}
+      |                                                ~~~~~~~ ^
+1 warning generated.
+vlenb=0 0
+governor(core7)=performance freq=1600000
+loadavg_begin=2.99 2.70 2.49 2/449 62687
+opponent_lib=/data/k1build-stock/bin/libggml-cpu.so
+opp_sym 00000000000a192e T ggml_vec_dot_q4_K_q8_K
+opp_sym 00000000000a1ed8 T ggml_vec_dot_q5_K_q8_K
+md5 emitted C (must match host cache, proves NO regen):
+  b0b5beacac233116b6aaa481e46b8ec4  golden_q4K.c
+  90d454da655f2fc1f88435d2d5826942  s6_q4K.c
+  ba30ba5450f1b9ac4c6f27a0939d7875  gemm_q5_K_q8_K.kernel.c
+---- [1] COMPILE (ours clang-18 -O2 measured + -O3 diagnosis; opponent linked from factory lib) ----
+[libcall-free check ours kernels]:
+  s6_O2.o libcall-free OK
+  kq5k_O2.o libcall-free OK
+---- [2] OBJDUMP SEAL (VLEN256/LMUL codegen; seal method == rvv campaign-canonical) ----
+  OBJD GOLD -O2  vsetvli=53   spill=81   reload=84   vwmacc=2240  maxVreg=v31  textB=
+awk: line 2: function strtonum never defined
+  OBJD S6   -O2  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
+  OBJD Q5K  -O2  vsetvli=53   spill=151  reload=356  vwmacc=2240  maxVreg=v31  textB=
+  OBJD GOLD -O3  vsetvli=52   spill=80   reload=82   vwmacc=2240  maxVreg=v31  textB=
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
+  OBJD S6   -O3  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=
+[vsetvli SEW/LMUL descriptors in S6 -O2 (VLA vtype selection at VLEN256):]
+       33 e16,m1
+       32 e8,mf2
+        4 e32,m2
+[full seal objdump -> objdump_k1_s6_seal.objdump]
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
+awk: line 2: function strtonum never defined
