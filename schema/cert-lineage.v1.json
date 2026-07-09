@@ -45,7 +45,7 @@
     },
     "fold_model_note": "Each cert declares the fold_model of the被测物. Its corpus_terms.required MUST be a SUPERSET of fold_model_required_terms[fold_model] -- a cert may not narrow away a mandatory arithmetic term of the fold it certifies (that is exactly how the min-term hollow certs escaped: they omitted dmin_nonzero from what they exercised). fold_model_required_terms and corpus_term_vocab are a CONTROLLED vocabulary: extend them deliberately (and log in schema/VERSIONLOG.md) when onboarding a new fold family; an entry naming an unknown fold_model or corpus term is RED (typo / undeclared guard).",
     "input_path_lineage_note": "tested_quantizer = the activation quantizer on the REAL被测 dispatch (mat-quant e.g. ggml_quantize_mat_q8_K_4x1 vs row-quant e.g. quantize_row_q8_K). oracle_quantizer = the quantizer feeding the REFERENCE. For claim=full they MUST be equal (same-origin) AND dispatch_faithful MUST be true (the被测 path is the production dispatch, not an isolated harness). The M2c 误诊 = row-quant oracle vs mat-quant/interleaved dispatch -> this gate would have failed that 'full' claim closed.",
-    "registry_completeness_note": "This registry currently carries ONE SEED entry (M2c) as a WORKED demonstration of the format -- it is the sole fully-adequate cert in the tree (real interleaved dispatch, dmin!=0, independent per-element oracle) and doubles as the reference lineage. The full back-fill of every K-quant / repack / fold / byte-exact cert into this registry is done by the PARALLEL accounting line, not here. The gate validates whatever is declared; it does NOT scan the filesystem for un-declared certs (roster completeness is the accounting line's ledger, T8).",
+    "registry_completeness_note": "This registry carries the M2c SEED (a FAILURE / falsification cert that ALSO clears the claim=full bar, doubling as the reference lineage) PLUS the M4 DECISIVE full certs (M4-q4K / M4-q5K repack-GEMM, commit 4f765790) that RECOVERED the M2c-narrowed q4_K/q5_K claims: on a REAL dmin!=0 Q4_K_M model tensor, fed the SAME ggml_quantize_mat_q8_K_4x1 q8 both sides, our compiler-emitted repack-GEMM is INTEGER bit-exact (MAIN/MIN 0 mismatch) and is CLOSER to the integer-exact fold than ggml's own generic repack GEMM is -- so the 'min-term VLEN128 bug' was a cert-harness quantizer-mismatch artifact (row-quant/lrintf oracle vs mat-quant dispatch), not a kernel defect. The full back-fill of every K-quant / repack / fold / byte-exact cert into this registry is done by the PARALLEL accounting line, not here. The gate validates whatever is declared; it does NOT scan the filesystem for un-declared certs (roster completeness is the accounting line's ledger, T8). Still OWED (declared partial in T8 [CERT-3REQ], not yet full certs here): the repack-GEVM path and a DIRECT q2_K dmin!=0 cert (q2_K is presently validated only via the M4-proven SHARED kquant_dmin_bsums_min fold).",
     "frontmatter_alternative": "A future variant may inline this declaration as YAML frontmatter inside each cert's MANIFEST.md instead of a central registry; check_cert_requirements.py would then parse frontmatter blocks. The central registry is used first because every other schema/ gate in this repo (frontdoor-provenance, monolith-retire, opponent-facts-pin) reads a central schema/*.v1.json."
   },
   "certs": [
@@ -68,7 +68,49 @@
         "dispatch_faithful": true
       },
       "oracle_independence": "independent",
-      "note": "SEED / reference lineage. The one fully-adequate cert: real ggml_mul_mat interleaved-q8_Kx4 dispatch, dmin!=0 NORM corpus, per-element independent oracle_dot2 (mins += m0*a8). It is a FAILURE cert -- it caught the q4_K repack-GEMM min-term defect (rel 5%..314% per super-block, per-column R/correct 0.947/0.637 even/odd parity). Its lineage ALSO clears the claim=full bar (all three requirements satisfied), so it doubles as the positive worked example of a compliant declaration. See docs/reports/2026-07-09-minterm-fold-audit.md §3 row 1."
+      "note": "SEED / reference lineage. The one fully-adequate cert: real ggml_mul_mat interleaved-q8_Kx4 dispatch, dmin!=0 NORM corpus, per-element independent oracle_dot2 (mins += m0*a8). It is a FAILURE cert -- it caught a NUMERIC DIVERGENCE (rel 5%..314% per super-block, per-column R/correct 0.947/0.637 even/odd parity) but MIS-ATTRIBUTED it to a kernel 'min-term defect'. M1 (ZERO-MODEL) then M4 (decisive, vs ggml's OWN generic) reversed that attribution: the kernel is bit-exact to the actual mat-quant dispatch; the divergence was the cert-harness quantizing the activation differently (row-quant/lrintf) from what ggml really feeds the GEMM (generic mat-quant). Its lineage ALSO clears the claim=full bar (all three requirements satisfied), so it doubles as the positive worked example of a compliant declaration. See docs/reports/2026-07-09-minterm-fold-audit.md §3 row 1; the reversal is the M4-q4K/M4-q5K certs below."
+    },
+    {
+      "id": "M4-q4K-repack-gemm-decisive",
+      "cert_path": "experiments/active/t4b-m4-decisive/",
+      "provenance_commit": "4f765790",
+      "axis": "repack-numeric",
+      "op_path": "q4_K repack GEMM VLEN128 (kquant_dmin_bsums_min fold) vs ggml's OWN generic + independent int-exact oracle",
+      "fold_model": "kquant_dmin_bsums_min",
+      "claim": "full",
+      "corpus_terms": {
+        "required": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "sign_coverage_signed"],
+        "exercised": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "sign_coverage_signed"]
+      },
+      "input_path_lineage": {
+        "tested_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "oracle_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "weight_layout": "interleaved-block_q4_Kx16-repack-vlen128",
+        "dispatch_faithful": true
+      },
+      "oracle_independence": "independent",
+      "note": "M4 DECISIVE -- CASE CLOSED (commit 4f765790). REAL Q4_K_M model tensor blk.0.attn_k.weight (K=4096,N=1024,nb=16), dmin!=0 = 16384/16384 (min 2.1e-4 .. max 1.1e-2, MIN-TERM ACTIVE), the SAME ggml_quantize_mat_q8_K_4x1 q8 fed to both sides. In-kernel INTEGER MAIN/MIN capture vs recompute-from-mat-quant-q8 = 0/0 mismatches => INTEGER BIT-EXACT. FLOAT: OURS vs independent int-exact oracle max_rel 2.86e-6; OURS vs ggml's OWN ggml_gemm_q4_K_16x1_q8_K_generic max_rel 6.31e-5 (pure FP-reassociation) -- OURS is in fact CLOSER to the integer-exact fold than ggml's own generic is. This RECOVERS the M2c-narrowed q4_K claim: the 'min-term VLEN128 bug' is a cert-harness row-quant/lrintf oracle-mismatch artifact, not a kernel defect. All three requirements met: real mat-quant dispatch (same-origin + dispatch-faithful), dmin!=0 NORM corpus (complete), independent per-element int-exact oracle. See MANIFEST.md / m4_decisive_result.log."
+    },
+    {
+      "id": "M4-q5K-repack-gemm-decisive",
+      "cert_path": "experiments/active/t4b-m4-decisive/",
+      "provenance_commit": "4f765790",
+      "axis": "repack-numeric",
+      "op_path": "q5_K repack GEMM VLEN128 (shared kquant_dmin_bsums_min fold + qh 5th-bit weight plane) vs independent int-exact oracle",
+      "fold_model": "kquant_dmin_bsums_min",
+      "claim": "full",
+      "corpus_terms": {
+        "required": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "second_scale_nonzero", "sign_coverage_signed"],
+        "exercised": ["dmin_nonzero", "mins_nonzero", "nondegenerate_scale", "second_scale_nonzero", "sign_coverage_signed"]
+      },
+      "input_path_lineage": {
+        "tested_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "oracle_quantizer": "ggml_quantize_mat_q8_K_4x1",
+        "weight_layout": "interleaved-block_q5_Kx16-repack-vlen128",
+        "dispatch_faithful": true
+      },
+      "oracle_independence": "independent",
+      "note": "M4 DECISIVE -- CASE CLOSED (commit 4f765790). q5_K REAL-MODEL-DERIVED tensor (dequant Q6_K blk.0.attn_v -> requant Q5_K; the model ships 0 native Q5_K), dmin!=0 = 16384/16384 MIN-TERM ACTIVE, the qh 5th-bit weight plane exercised (5-bit weight = nibble | qh<<4 => second_scale_nonzero). SAME ggml_quantize_mat_q8_K_4x1 q8 into both kernel and oracle. OURS vs independent integer-exact q5_K oracle: max_rel 7.75e-7 (residual = pure FP-reassociation). Certifies the SHARED kquant_dmin_bsums_min min fold jointly with the q4_K head-to-head (ggml ships no q5_K 16x1 gemm so there is no q5_K vs-ggml-own comparison; the shared fold is covered by q4_K's head-to-head vs ggml's own generic + this int-exact q5_K check). Recovers the M2c-narrowed q5_K claim. All three requirements met. See MANIFEST.md / m4_decisive_result.log."
     }
   ]
 }

@@ -1,16 +1,24 @@
 # 论文素材现状清单 — 2026-07-07（裁决二 板批落表后；2026-07-08 G3 四.1 — G2/FMT-PROP whole-model e2e 落表更新；2026-07-08 G3 四(archival) — L3 从性能支柱重定位为机制展示/方法学素材 + FMT-PROP prefill 相传导账 owed 下板批；**2026-07-08/09 G3 K-quant 家族收口 — 五超块全构造退役 + S6 tiling 铺开 + [XFER-1] 4/4 + 传导账,见 §二.4**；**2026-07-09 G3 线D 证据刷新 — SEL-1 T2 关闭 q4_K 门⑦(3/8→4/8 PASS,见 §二.4 + `docs/reports/2026-07-09-q4k-8gate-status.md`) + 记分板加矿脉队列存量行(gemm_tile 8 待战役) + M2-后 iq4 码本对续燃 C_construct 40→42/旁路 10→8**；**2026-07-09 G3 裁决一 — q4_0 e2e 5.9× 归因修正(canon 级)：5.9× 大半=routing 白嫖(上游 ggml `f3e1828` 自带 q4_0 repack 全链路+q8_0 激活+VLEN256 已路由,仅 VLEN128 `case128=//TODO` gate OFF;我方 `repack.cpp:4592` 一行翻开并字节等价构造 kernel-est 5.045×≈routing 5.077×),**净贡献=能力键控机制构造并路由(字节等价已证),非 kernel 质量赢、不可外推 K-quant**,见 `docs/reports/2026-07-09-q4_0-5.9x-routing-attribution-correction.md`**）
 
 > ############################################################################
-> **★[BYTE-EXACT NARROWED — 记账收窄 — 2026-07-09 G3-minterm-fix 裁决一]** M2c 决定性发现（commit 53666846）：
-> q4_K/q5_K/q2_K repack-GEMM 共享的 `kquant_dmin_bsums_min` min fold 在 VLEN128 有 parity-alternating min-term bug、
-> 对真 dmin≠0 数据错；旧 cert 全用 dmin=0 / identity 语料 → 漏抓。**收窄口径**：① 三格 repack-GEMM "byte-exact"
-> = **dmin=0-corpus only；min-term VLEN128 bug pending-修复（53666846）**；② vs-opponent 吞吐（q4_K 1.884×/q5_K 2.193×/q2_K 1.413× 等）
-> = **pending-重测**；③ q2_K 未经 M2c 直测 → **pending-audit**；修复期 q4_K/q5_K/q2_K **一切吞吐叙事禁用**。
-> **★吞吐兑现 4 → 1（+3 pending）**：q4_0 e2e 5.9×（不受影响，成色仍 routing 归因）= **1**；q4_K/q5_K = **pending-correctness**；
-> q2_K = **pending-audit**。**暂持（不改）**：[XFER-1] 分类 + spill 结论 + S6 byte-exact-PRESERVING（相对-untiled、PRE≡POST）不变，
-> 仅 vs-opponent 边际 pending 重测。**不受影响**：q6_K/q3_K（另一 fold `kquant_single_scale_no_min`、无 min-term、本就 LOSS）、
-> iq4 码本、q4_0（flat）。载体表 `T8`/`T3_A` 顶已加同款 banner（T8 逐行 tag）；sealed 4 cell（q4_0 5.9×/G2 融合两腿/iq2_xxs/tq2_0）
-> 已逐一 grep 确认无该 fold、注记"无共享路径、不受影响"。
+> **★[RESTORED — M4 CASE CLOSED — 2026-07-09 G3-cert-hardening 裁决二.1;commit 4f765790]** 此前 [BYTE-EXACT
+> NARROWED 裁决一]（M2c commit 53666846）把 q4_K/q5_K/q2_K repack-GEMM 的 `kquant_dmin_bsums_min` min fold 判为
+> VLEN128 min-term bug 并收窄 byte-exact/吞吐/q2_K —— **该判据经 M1(ZERO-MODEL)+ M4(决定性终审)全部推翻并
+> RESTORED**：M4 cell `experiments/active/t4b-m4-decisive` 用真 Q4_K_M dmin≠0 模型张量 `blk.0.attn_k.weight`、
+> 两侧同喂 `ggml_quantize_mat_q8_K_4x1`（mat-quant）激活 → 我方 repack-GEMM 整数 MAIN/MIN 逐位一致（0/0 mismatch）、
+> 且比 ggml 自己的 generic repack GEMM 更接近 int-exact（OURS vs int-exact rel 2.86e-6 < ggml-generic vs int-exact
+> 6.31e-5）；q5_K（共享 min fold + qh 面）vs int-exact rel 7.75e-7。**"min-term VLEN128 bug" = CERT-HARNESS 激活
+> 量化失配伪影（row-quant/lrintf oracle vs 真 mat-quant dispatch），非 kernel 缺陷**。**RESTORED 口径**：① 三格
+> repack-GEMM byte-exact = **整数-exact vs mat-quant oracle / ggml 自身 GEMM、真 dmin≠0 张量、非 row-quant**；
+> ② vs-opponent 吞吐（q4_K 1.884×/q5_K 2.193×/q2_K 1.413× 等）= **RESTORED**（[XFER-1] 边际测在现已证正确的 kernel）；
+> ③ q2_K = **RESTORED via 共享 fold**（M4-proven `kquant_dmin_bsums_min`），direct dmin≠0 cert **OWED**（排队补测）。
+> cert-lineage 注册两 FULL cert（`M4-q4K`/`M4-q5K-repack-gemm-decisive`，cert-requirements-gate GREEN）；T8 [CERT-3REQ]
+> 补标使 q4_K/q5_K GEMM=FULL、GEVM+q2_K partial(owed)。
+> **★吞吐兑现 1（+3 pending）→ 4 RESTORED**：q4_0 e2e 5.9×（routing 归因不变）= **1** + q4_K kernel-轴 S6 1.884× = **1**
+> + q5_K kernel-轴 S6 2.193× = **1** + q2_K kernel-轴 S6 1.413×（validated-by-shared-fold；direct cert owed）= **1**。
+> **暂持不变**：[XFER-1] 分类 + spill 结论 + S6 byte-exact-PRESERVING（相对-untiled、PRE≡POST）；**不受影响**：q6_K/q3_K
+> （另一 fold `kquant_single_scale_no_min`、无 min-term、本就 LOSS）、iq4 码本、q4_0（flat）。载体表 `T8`/`T3_A`
+> 顶 banner 同款 RESTORED（T8 逐行 tag → RESTORED-M4-CLOSED）；sealed 4 cell（q4_0 5.9×/G2 融合两腿/iq2_xxs/tq2_0）本无该 fold、不受影响。
 > ############################################################################
 
 **目的**：把当前**已落表**的每条论文可用主张，映射到一个具体的证据表行指针，并标注证据成色。
@@ -58,7 +66,7 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 > first-construction correctness-first **un-pipelined** emit（q2_K GEMM 77 vsetvl、q6_K 21、q3_K 13；~0.2–0.3 MAC/cycle ~20× off
 > peak）vs opponent MATURE 手调 `ggml_vec_dot_q{2,3}_K_q8_K_vl128`。**[NG-4] moot（LOSS 不可能是 beat）；八门未走 → 仅 candidate**：
 > 结构 opening + 板上数值双证已立，但当前构造**未把结构 opening 转成吞吐** = marginal-cost / compiler-maturity 证据，perf 轴 pending。
-> **★吞吐兑现格数 1→2→4 →【★收窄 M2c 裁决一 2026-07-09：现 →1（+3 pending）；q4_K/q5_K/q2_K 三格共享 min-fold min-term VLEN128 bug（53666846）→ q4_K/q5_K=pending-correctness、q2_K=pending-audit，吞吐叙事禁用；见顶 banner】（G3 裁决〇 board 2026-07-08 → G3 K-quant 家族收口 board 2026-07-08/09，见 §二.4）**：q4_K repack GEMM 输出**瓦片化**（S1→S6，L1-9）**在 q4_K 上闭合了**上面「结构 opening 未转吞吐」的成熟张力——S1 spill 84→23 / parity 0.962→1.473，S6 spill→0 / parity→**1.884×**（kernel-轴 A/B，byte-exact）。→ 兑现吞吐的格从 **1（q4_0 e2e 5.9×——★披露：该格=routing 白嫖非 kernel 质量赢，上游自带 repack 路径仅 VLEN128 gate OFF、我方键控翻开+字节等价构造，见 `docs/reports/2026-07-09-q4_0-5.9x-routing-attribution-correction.md`）→ 2（+q4_K）**；**家族铺开后再 →4**（+q2_K S6 **1.413×** FLIP LOSS→WIN、+q5_K S6 **2.193×**——两格 S6 tiling **HOLDS**）；q6_K/q3_K tiling **NULL**（weight-bound，~5.3–5.4× LOSS 未救）不加兑现。第 2–4 格均 **kernel-轴（非 e2e）**、八门未走、[NG-4] 非 beat；整模型 e2e 仅 **projection**（§二.4 传导账 prefill Amdahl 上限 ≈1.59×，decode NULL，measured Δ 集成 BLOCKED）。**family rollout = 完成**（K-quant 5/5 全构造退役）。
+> **★吞吐兑现格数 1→2→4 →【★收窄 M2c 裁决一 2026-07-09 →1（+3 pending）经 M4 CASE CLOSED（4f765790）RESTORED 回 4：q4_K/q5_K/q2_K 三格共享 min-fold 判据经 M1(ZERO-MODEL)+M4(决定性终审 vs ggml 自身 generic、真 dmin≠0)推翻（"min-term VLEN128 bug"=cert-harness mat-quant 失配伪影非 kernel 缺陷）；q2_K=validated-by-shared-fold(M4-proven kquant_dmin_bsums_min)、direct dmin≠0 cert owed；见顶 banner + §二.1 banner】（G3 裁决〇 board 2026-07-08 → G3 K-quant 家族收口 board 2026-07-08/09，见 §二.4）**：q4_K repack GEMM 输出**瓦片化**（S1→S6，L1-9）**在 q4_K 上闭合了**上面「结构 opening 未转吞吐」的成熟张力——S1 spill 84→23 / parity 0.962→1.473，S6 spill→0 / parity→**1.884×**（kernel-轴 A/B，byte-exact）。→ 兑现吞吐的格从 **1（q4_0 e2e 5.9×——★披露：该格=routing 白嫖非 kernel 质量赢，上游自带 repack 路径仅 VLEN128 gate OFF、我方键控翻开+字节等价构造，见 `docs/reports/2026-07-09-q4_0-5.9x-routing-attribution-correction.md`）→ 2（+q4_K）**；**家族铺开后再 →4**（+q2_K S6 **1.413×** FLIP LOSS→WIN、+q5_K S6 **2.193×**——两格 S6 tiling **HOLDS**）；q6_K/q3_K tiling **NULL**（weight-bound，~5.3–5.4× LOSS 未救）不加兑现。第 2–4 格均 **kernel-轴（非 e2e）**、八门未走、[NG-4] 非 beat；整模型 e2e 仅 **projection**（§二.4 传导账 prefill Amdahl 上限 ≈1.59×，decode NULL，measured Δ 集成 BLOCKED）。**family rollout = 完成**（K-quant 5/5 全构造退役）。
 
 ---
 
@@ -166,7 +174,7 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 | 指标 | G3 起→终 | 现值 | 权威源 |
 |---|---|---|---|
 | **燃减 C_construct(强义)** | 33 → **42** | **42/93 = 45.2%**（K-quant 收口 40 + M2-后 iq4 码本对 iq4_nl/iq4_xs +2;过 M2≥40% 门，向 ≥70%→90% 推） | `coverage_metrics.py report` / `schema/coverage-sixstate.v1.json`（`C_construct.num=42`） |
-| **吞吐兑现(格数)** | 1 → **1（+3 pending）**（★收窄 M2c 裁决一 2026-07-09，原 →4） | q4_0 e2e 5.9×（不受影响；★routing 白嫖非 kernel 质量赢，见归因修正档 `2026-07-09-q4_0-5.9x-routing-attribution-correction.md`）= **1**；q4_K/q5_K S6 kernel-轴 = **pending-correctness**、q2_K = **pending-audit**（共享 `kquant_dmin_bsums_min` min-term VLEN128 bug 53666846；byte-exact 仅 dmin=0 语料、吞吐叙事禁用）；iq4 码本对 S6 结构 no-op、不加兑现 | `T3_A` §二.1 块（顶 banner 已收窄）+ `l1-tile-s6-q4k`/`l1-t3-q{2,5}k` cells |
+| **吞吐兑现(格数)** | 1 → **4**（★M4 CASE CLOSED 4f765790 RESTORED；M2c 收窄 →1(+3 pending) 已翻案） | q4_0 e2e 5.9×（routing 归因不变）= **1**；q4_K S6 1.884× + q5_K S6 2.193× kernel-轴 = **RESTORED ×2**；q2_K S6 1.413× = **1**（validated-by-shared-fold M4-proven `kquant_dmin_bsums_min`；direct dmin≠0 cert owed）；共享 min fold 判据经 M4 vs ggml 自身 generic + 真 dmin≠0 张量证 kernel 正确（整数-exact、比 generic 更近 int-exact）；iq4 码本对 S6 结构 no-op、不加兑现 | `T3_A` §二.1 块（顶 banner 已 RESTORED）+ `l1-tile-s6-q4k`/`l1-t3-q{2,5}k` cells + `t4b-m4-decisive` |
 | **旁路存量(直连发射器)** | 17 → **8** | K-quant 收口残 10 + M2-后 iq4×2 退役 → 残 8（flat4 + iq2×3 + mxfp4） | `schema/emit-bypass-whitelist.v1.json` `baseline_count=8` |
 | **★矿脉队列存量(gemm_tile 待战役格数)** | — | **8**（+ 9 absent） | `schema/coverage-sixstate.v1.json` gemm_tile 28 = 11 constructed + **8 dispatch-wired** + 9 absent |
 
@@ -180,10 +188,13 @@ T-N=噪声地板，T-PERF1=八门台账）。每条主张的 `T8:<entry_id>` 指
 
 ### 二.1 K-quant 五格汇总（S6 register-cliff transfer；瓶颈形状分类 → tiling 判定）
 
-> ★收窄 M2c 裁决一（2026-07-09）：下表 q4_K/q2_K/q5_K 三格 vs-opponent(untiled→tiled) 吞吐数（1.884×/1.413×/2.193×）
-> 与 byte-exact 均**受 `kquant_dmin_bsums_min` min-term VLEN128 bug（53666846）收窄** → byte-exact 仅 dmin=0 语料、
-> vs-opponent 数 **pending-重测**（q4_K/q5_K=pending-correctness、q2_K=pending-audit）；**[XFER-1] 分类 + spill 前→后
-> + tiling 判定（HOLDS/NULL）暂持不变**（相对-untiled、byte-exact-PRESERVING）。q6_K/q3_K（另一 fold、无 min-term）不受影响。
+> ★RESTORED M4 CASE CLOSED（2026-07-09 裁决二.1，commit 4f765790）：下表 q4_K/q2_K/q5_K 三格 vs-opponent(untiled→tiled)
+> 吞吐数（1.884×/1.413×/2.193×）与 byte-exact **RESTORED** —— M4 决定性终审证共享 `kquant_dmin_bsums_min` min fold 的
+> kernel 对真 mat-quant dispatch 整数-exact（MAIN/MIN 0/0 mismatch）、且比 ggml 自身 generic 更近 int-exact（rel 2.86e-6
+> < 6.31e-5），"min-term VLEN128 bug"=cert-harness 激活量化失配伪影非 kernel 缺陷。byte-exact = 整数-exact vs mat-quant
+> oracle/ggml 自身 generic、真 dmin≠0 张量、非 row-quant；vs-opponent 边际测在现已证正确的 kernel；q2_K=validated-by-
+> shared-fold（M4-proven）、direct dmin≠0 cert owed。**[XFER-1] 分类 + spill 前→后 + tiling 判定（HOLDS/NULL）本就暂持
+> 不变**（相对-untiled、byte-exact-PRESERVING）。q6_K/q3_K（另一 fold、无 min-term）不受影响。
 
 | fmt | 六态 | 瓶颈形状分类 | tiling 判定 | 对手位（VLEN128 dispatch） | spill 前→后（peak vreg） | vs-opponent(untiled→tiled) | [XFER-1] 预测→实测 |
 |---|---|---|---|---|---|---|---|
