@@ -1,0 +1,46 @@
+[m2-q4k-dispatch] board=rvv VLEN128 gcc-15.2.0 ggml=build-gcc15-rv64gcv (tcrv-llamacpp A-tree)
+kernel=/tmp/kquant_tile_s6_ab/golden_q4K.c md5 b0b5beacac233116b6aaa481e46b8ec4 (pre-generated; NO local tcrv-opt run)
+
+=================== ROUTING PROOF (real ggml_mul_mat dispatch, NOT a direct kernel call) ===================
+# Patched libggml-cpu.so loaded (ldd -> build-gcc15-rv64gcv/bin/libggml-cpu.so.0). Weight put in
+# ggml_backend_cpu_repack_buffer_type(); ggml_backend_graph_compute() over a GGML_OP_MUL_MAT node.
+# stderr (>>> / <<< markers bracket the REPACK graph-compute):
+VLEN(bits)=128
+>>> [INT  N=64 K=512 rows=4] REPACK-dispatch compute begin
+repack: repack tensor  with q4_K_16x1                                  <- ggml set_tensor -> repack<block_q4_K,1,16>
+TCRV EMITTED GEMM(q4_K_16x1 VLEN128 compiler-emitted) ENGAGED nr=4 nc=64 nb=2   <- OUR patched VLEN128 branch -> golden kernel
+<<< REPACK-dispatch compute end
+TCRV Q4_K BLOCK-DOT ENGAGED (LMUL=m1 compiler-emitted)                 <- in-tree "stock" is itself a tcrv q4k block-dot swap
+# => real selector (get_optimal_repack_type, patched case128) -> trait q4_K_16x1_q8_K
+#    -> forward_mul_mat -> gemm<block_q4_K,1,16,Q8_K> -> ggml_gemm_q4_K_16x1_q8_K -> golden kernel. ROUTED.
+
+=================== NUMERIC (dispatch output R vs oracles; N%16==0, rows=4 -> pure GEMM path) ===================
+# ORACLE(full)  = independent scalar q4_K x q8_K, main+min term, repack-path quant (iscale=-127/max).
+# ORACLE(main)  = same but min-term forced 0.  tcrv-stock = in-tree swapped block-dot (also a tcrv kernel).
+# M1==ggml-repack: ggml's internal make_block_q4_Kx16 bytes == M1 kqr_repack_q4_K() bytes (the layout the kernel consumes).
+  [INT ] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=4.457e-07 OK  | R-vs-ORACLE(main-only) rel=4.457e-07 | R-vs-tcrv-stock rel=3.142e-06
+  [INT ] N=160  K=2560  rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=2.198e-05 OK  | R-vs-ORACLE(main-only) rel=2.198e-05 | R-vs-tcrv-stock rel=4.546e-05
+  [NORM] N=64   K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=1.998e-01 BAD | R-vs-ORACLE(main-only) rel=5.750e+01 | R-vs-tcrv-stock rel=1.998e-01
+      sample[r0c0..3] R    : -259.8622 -470.7425 -1222.1089 212.1229
+      sample[r0c0..3] Ffull: -260.5272 -471.0747 -1215.1870 207.1149   <- correct (oracle == tcrv-stock)
+      sample[r0c0..3] Fmain: -247.9724 -470.1599 -1321.7618 220.8754
+  [NORM] N=160  K=2560  rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=3.143e+00 BAD | R-vs-ORACLE(main-only) rel=6.634e+01 | R-vs-tcrv-stock rel=3.143e+00
+  [NORM] N=256  K=512   rows=4 : M1==ggml-repack:YES | R-vs-ORACLE(full) rel=1.201e+00 BAD | R-vs-ORACLE(main-only) rel=5.557e+01 | R-vs-tcrv-stock rel=1.201e+00
+
+# READING:
+#  - INT (dmin=0, NO min-term): R matches oracle to <=2.2e-5 (bounded-ULP). MAIN TERM CORRECT through real dispatch.
+#  - NORM (dmin!=0, min-term ACTIVE): R != oracle. R is CLOSE to ORACLE(full) (rel 0.2) and FAR from ORACLE(main-only)
+#    (rel 57) => the kernel DOES apply a min-term but with a per-column-varying ~5% error (min ratios R/correct:
+#    0.95/0.64/0.94/0.64). ORACLE(full) and the independent tcrv-stock AGREE (F==S to 6 digits) and both disagree
+#    with R => the pre-generated golden kernel's MIN-TERM is the outlier, not the harness.
+#  - Error grows with nb (K): K=512 rel 0.2 ; K=2560 rel 3.1  => per-super-block min-term error accumulates.
+
+# VERDICT: M2 routing = PROVEN (real dispatch -> our constructed kernel, byte-exact-capable MAIN term).
+#          M2 byte-exact  = BLOCKED: pre-generated golden q4_K kernel (md5 b0b5beac) computes the min-term
+#          (dmin*mn*bsum) incorrectly when fed ggml's REAL block_q8_Kx4 activation (ggml_quantize_mat_q8_K_4x1,
+#          iscale=-127/max, bsums index g*4+r). M0/M1 certs used the M1 interleaver (positive-d convention) and
+#          never exercised ggml's real quantize_mat -> latent min-term defect surfaced only at M2.
+#          FIX requires re-emitting the golden kernel via tcrv-opt (line-B / FORBIDDEN this session).
+
+[m2-q4k-dispatch] A-tree RESTORED: repack.cpp md5 deb61a29 (orig), arch/riscv/repack.cpp md5 99131cf7 (orig);
+libggml-cpu.so rebuilt pristine (860736 B, golden symbol=0, banner string=0). No local tcrv-opt run.

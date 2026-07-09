@@ -19,7 +19,7 @@ patch (板末强制 restore). NOT a perf probe. NOT M4 (coherent-gen seal).
 - MANIFEST of touched files + byte backups: `/tmp/m2_q4k_dispatch/{repack.cpp.ORIG,arch_riscv_repack.cpp.ORIG}`.
   Restore = `cp *.ORIG` back (md5 verified) + rebuild. NO git stash/rm/mv/add/commit. NO local tcrv-opt.
 
-## Files (this cell)
+## Durable Files
 - `m2_patch.py` — the reversible in-place patcher (asserts unique anchors; applied on board via `ssh rvv python3`).
 - `m2_dispatch.cpp` — the driver: builds a q4_K weight (M0/M1 oracle byte-builders) + F32 activation,
   runs `ggml_mul_mat` twice (weight in `ggml_backend_cpu_repack_buffer_type()` -> our kernel; weight in
