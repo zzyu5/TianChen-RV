@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**39 cells** (active=24, sealed=10, archive=5).
+**40 cells** (active=25, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -30,6 +30,7 @@
 | active | `l1-pipeline-q4k-repack-gemm` | active | repack / [KQUANT-L1] (pipeline — q4_K repack GEMM byte-exact schedule-rearrangement | 5 | — | L1-maturity pipeline A/B evidence. Isolates the "pipelining" (byte-exact reorder) from a |
 | active | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
 | active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
+| active | `kquant-k1-vlen256-kernel-axis-t4a` | active | repack / [KQUANT-L1] · **task**: G3 主线C [SEL-1] **T4a** (k1 dual-board kernel-axis board batch) | 7 | — | close q4_K [PERF-1] eight-gate **③ (dual-board objdump)** and **⑤ (dual-board verified)** on the |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
 | active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 4 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |

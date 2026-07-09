@@ -1,0 +1,68 @@
+# k1/VLEN256 (SpacemiT X60) q4_K S6 seal, Bianbu clang version 18.1.8 (11bb4) -O2 & -O3, march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# vlenb=32 (VLEN256). seal method == rvv canonical (vs[1248]r.v spill / vl[1248]r.v reload / vwmacc / maxVreg).
+  OBJD GOLD -O2  vsetvli=53   spill=81   reload=84   vwmacc=2240  maxVreg=v31  textB=
+  OBJD S6   -O2  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=
+  OBJD Q5K  -O2  vsetvli=53   spill=151  reload=356  vwmacc=2240  maxVreg=v31  textB=
+  OBJD GOLD -O3  vsetvli=52   spill=80   reload=82   vwmacc=2240  maxVreg=v31  textB=
+  OBJD S6   -O3  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=
+# --- S6 -O2 hot-region vsetvli/vwmacc excerpt ---
+      90:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+      98:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     184:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+     1ee:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     212:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     236:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     25a:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     27e:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     2a2:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     2c6:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     2ea:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     316:	f6956b57          	vwmacc.vx	v22,a0,v9
+     324:	f6946b57          	vwmacc.vx	v22,s0,v9
+     342:	f6956b57          	vwmacc.vx	v22,a0,v9
+     350:	f6946b57          	vwmacc.vx	v22,s0,v9
+     36a:	f6956b57          	vwmacc.vx	v22,a0,v9
+     380:	f6956b57          	vwmacc.vx	v22,a0,v9
+     396:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3ac:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3c6:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3dc:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3f2:	f6956b57          	vwmacc.vx	v22,a0,v9
+     410:	f6956b57          	vwmacc.vx	v22,a0,v9
+     432:	f6856b57          	vwmacc.vx	v22,a0,v8
+     448:	f686eb57          	vwmacc.vx	v22,a3,v8
+     45e:	f6856b57          	vwmacc.vx	v22,a0,v8
+     474:	f686eb57          	vwmacc.vx	v22,a3,v8
+     47c:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     498:	f7856457          	vwmacc.vx	v8,a0,v24
+     4a0:	f796e4d7          	vwmacc.vx	v9,a3,v25
+     4ac:	f784e557          	vwmacc.vx	v10,s1,v24
+     4bc:	f79566d7          	vwmacc.vx	v13,a0,v25
+     4c8:	f786eb57          	vwmacc.vx	v22,a3,v24
+     4d0:	f794ebd7          	vwmacc.vx	v23,s1,v25
+     4dc:	f7856257          	vwmacc.vx	v4,a0,v24
+     4ec:	f796e1d7          	vwmacc.vx	v3,a3,v25
+     500:	f7956457          	vwmacc.vx	v8,a0,v25
+     504:	f786e4d7          	vwmacc.vx	v9,a3,v24
+     518:	f7956557          	vwmacc.vx	v10,a0,v25
+     51c:	f786e6d7          	vwmacc.vx	v13,a3,v24
+     520:	f794eb57          	vwmacc.vx	v22,s1,v25
+     524:	f7846bd7          	vwmacc.vx	v23,s0,v24
+     538:	f7956257          	vwmacc.vx	v4,a0,v25
+     53c:	f786e1d7          	vwmacc.vx	v3,a3,v24
+     550:	f7856457          	vwmacc.vx	v8,a0,v24
+     55c:	f796e4d7          	vwmacc.vx	v9,a3,v25
+     564:	f7856557          	vwmacc.vx	v10,a0,v24
+     568:	f794e6d7          	vwmacc.vx	v13,s1,v25
+     570:	f786eb57          	vwmacc.vx	v22,a3,v24
+     584:	f7956bd7          	vwmacc.vx	v23,a0,v25
+     588:	f786e257          	vwmacc.vx	v4,a3,v24
+     58c:	f794e1d7          	vwmacc.vx	v3,s1,v25
+     5a4:	f7856457          	vwmacc.vx	v8,a0,v24
+     5a8:	f796e4d7          	vwmacc.vx	v9,a3,v25
+     5b0:	f784e557          	vwmacc.vx	v10,s1,v24
+     5bc:	f79566d7          	vwmacc.vx	v13,a0,v25
+     5c4:	f786eb57          	vwmacc.vx	v22,a3,v24
+     5c8:	f794ebd7          	vwmacc.vx	v23,s1,v25
+     5d0:	f7856257          	vwmacc.vx	v4,a0,v24
+     5dc:	f796e1d7          	vwmacc.vx	v3,a3,v25

@@ -1,0 +1,41 @@
+# k1/VLEN256 (SpacemiT X60, vlenb=32) q4_K+q5_K repack-GEMM seal — Bianbu clang 18.1.8 -O2/-O3, march=rv64gcv_zfh_zvfh_zba_zbb_zbc_zbs
+# seal method == rvv campaign-canonical (vs[1248]r.v spill / vl[1248]r.v reload / vwmacc / maxVreg / .text bytes).
+# board B (k1) counterpart of experiments/active/l1-tile-s6-q4k-repack-gemm/objdump_tile_s6_seal.objdump (board A rvv/VLEN128).
+  OBJD GOLD -O2  vsetvli=53   spill=81   reload=84   vwmacc=2240  maxVreg=v31  textB=23248
+  OBJD S6   -O2  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=25304
+  OBJD Q5K  -O2  vsetvli=53   spill=151  reload=356  vwmacc=2240  maxVreg=v31  textB=38822
+  OBJD GOLD -O3  vsetvli=52   spill=80   reload=82   vwmacc=2240  maxVreg=v31  textB=23274
+  OBJD S6   -O3  vsetvli=70   spill=4    reload=6    vwmacc=2240  maxVreg=v31  textB=25296
+# --- q4_K S6 -O2 vtype (SEW,LMUL) selection histogram @ VLEN256 (VLA descriptors; == rvv128 shapes) ---
+     33 e16,m1
+     32 e8,mf2
+      5 e32,m2
+# --- q4_K S6 -O2 hot-region excerpt (vsetvli + vwmacc widening MAC) ---
+      90:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+      98:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     184:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+     1ee:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     212:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     236:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     25a:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     27e:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     2a2:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     2c6:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+     2ea:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+     316:	f6956b57          	vwmacc.vx	v22,a0,v9
+     324:	f6946b57          	vwmacc.vx	v22,s0,v9
+     342:	f6956b57          	vwmacc.vx	v22,a0,v9
+     350:	f6946b57          	vwmacc.vx	v22,s0,v9
+     36a:	f6956b57          	vwmacc.vx	v22,a0,v9
+     380:	f6956b57          	vwmacc.vx	v22,a0,v9
+     396:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3ac:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3c6:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3dc:	f6956b57          	vwmacc.vx	v22,a0,v9
+     3f2:	f6956b57          	vwmacc.vx	v22,a0,v9
+     410:	f6956b57          	vwmacc.vx	v22,a0,v9
+     432:	f6856b57          	vwmacc.vx	v22,a0,v8
+# --- q5_K -O2 vtype (SEW,LMUL) histogram @ VLEN256 ---
+     26 e16,m1
+     24 e8,mf2
+      3 e32,m2
