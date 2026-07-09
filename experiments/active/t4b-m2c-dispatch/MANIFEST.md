@@ -55,13 +55,10 @@ S6 §0 gate claimed) AND preserved the defect. Leading hypothesis (b0b5beac stal
 - q5_K (same dmin*mn*bsum min fold / same emitter path): expected to carry the SAME defect through real dispatch;
   do NOT certify q5_K repack-GEMM byte-exact until the shared min-term fold is fixed. (Inferred, not run here.)
 
-## Durable files
-- `m2c_patch.py`, `m2c_board_run.sh` — the reversible deploy (applied on board via ssh).
+## Durable Files
 - `m2c_dispatch_result.log` — captured board run (routing banner + numeric breakdown + forced-restore proof).
+- harness/驱动 relocated to `tools/e2e-harness/board/t4b-m2c-dispatch/` (可复演入口): `m2c_patch.py` (reversible
+  in-place patcher, faithful copy of M2's; only the golden `#include` path differs) + `m2c_board_run.sh`
+  (board baseline-verify/backup/patch/rebuild/run/forced-restore driver).
 - fresh kernel `fresh_q4K.inc` (md5 90d454da) is regenerable (recipe above); board scratch `/tmp/m2c_q4k_dispatch`
   is ephemeral; M2's `/tmp/m2_q4k_dispatch` (b0b5beac) left untouched for the A/B record.
-
-## Durable Files
-- `m2c_patch.py`
-- `m2c_board_run.sh`
-- `m2c_dispatch_result.log`

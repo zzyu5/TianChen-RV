@@ -64,11 +64,10 @@ oracle (q5_K), on REAL dmin!=0 model tensors, same quantizer both sides => **CAS
 the "min-term bug" is a cert-harness quantizer-mismatch artifact (M1), and the narrowed q4_K/q5_K claims are recoverable.
 
 ## Durable Files
-- `m4_decisive_result.log`
-- `m4_probe.cpp` — decisive driver (real gguf tensor -> repack -> mat-quant -> ours vs ggml own generic vs int-exact oracle; q4_K + q5_K).
-- `m4_recon.cpp` — gguf (no_alloc) tensor inventory + dmin!=0 census (194 Q4_K / 33 Q6_K / 0 Q5_K).
-- `instrument_kernel_q4k.py` — pure-observation integer MAIN/MIN capture instrumenter (asserts base md5 90d454da).
-- `m4_patch.py` — minimal non-destructive reversible ARCH-only patch (append include + wrappers; ggml_gemm untouched).
-- `m4_board_run.sh` — board build+run+forced-restore driver (baseline verify, backup, instrument, patch, rebuild, run, objdump, EXIT-trap restore).
 - `m4_decisive_result.log` — captured board run (dmin census + integer bit-exact + float head-to-head + RVV VLEN128 breakage + forced-restore proof).
+- harness/驱动 relocated to `tools/e2e-harness/board/t4b-m4-decisive/` (可复演入口): `m4_probe.cpp` (decisive driver:
+  real gguf tensor -> repack -> mat-quant -> ours vs ggml own generic vs int-exact oracle, q4_K+q5_K), `m4_recon.cpp`
+  (gguf no_alloc tensor inventory + dmin!=0 census, 194 Q4_K / 33 Q6_K / 0 Q5_K), `instrument_kernel_q4k.py`
+  (pure-observation integer MAIN/MIN capture instrumenter), `m4_patch.py` (minimal non-destructive ARCH-only patch),
+  `m4_board_run.sh` (board build+run+forced-restore driver).
 Note (regenerable, not stored): fresh_q4K.inc regenerable md5 90d454da from test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir; fresh_q5K.inc md5 c209226b from …q5-K….mlir.

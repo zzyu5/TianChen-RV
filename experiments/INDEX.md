@@ -5,16 +5,16 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**47 cells** (active=32, sealed=10, archive=5).
+**48 cells** (active=33, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
-| active | `t4b-m1-minterm-bisect` | unknown | — | 5 | `m1_probe.cpp` | — |
+| active | `t4b-m1-minterm-bisect` | unknown | — | 1 | — | — |
 | active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
-| active | `t4b-m2-dispatch` | unknown | — | 3 | `m2_dispatch.cpp` | — |
-| active | `t4b-m2c-dispatch` | unknown | — | 5 | — | — |
-| active | `t4b-m4-decisive` | unknown | — | 7 | `m4_probe.cpp`, `m4_recon.cpp` | — |
+| active | `t4b-m2-dispatch` | unknown | — | 1 | — | — |
+| active | `t4b-m2c-dispatch` | unknown | — | 1 | — | — |
+| active | `t4b-m4-decisive` | unknown | — | 1 | — | — |
 | active | `t4b-model-manifest` | unknown | — | 0 | — | — |
 | active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
@@ -37,7 +37,8 @@
 | active | `l1-pipeline-q4k-repack-gemm` | active | repack / [KQUANT-L1] (pipeline — q4_K repack GEMM byte-exact schedule-rearrangement | 5 | — | L1-maturity pipeline A/B evidence. Isolates the "pipelining" (byte-exact reorder) from a |
 | active | `kquant-l1-q4k-q5k-repack-prefill` | active | repack / [KQUANT-L1] (增补二 — gemm_tile L1 mineral vein: q4_K + q5_K repack GEMM | 6 | — | [KQUANT-L1] q4_K/q5_K prefill repack path-win evidence. Answers the増補二 L1-critical |
 | active | `kquant-l1-q6q2q3-repack` | active | repack / [KQUANT-L1] (增补二 增补 — gemm_tile L1 mineral vein: q6_K + q2_K + q3_K | 8 | — | [KQUANT-L1] q6_K/q2_K/q3_K silicon evidence completing the K-quant L1 family. Answers the |
-| active | `kquant-k1-vlen256-kernel-axis-t4a` | active | repack / [KQUANT-L1] · **task**: G3 主线C [SEL-1] **T4a** (k1 dual-board kernel-axis board batch) | 8 | — | close q4_K [PERF-1] eight-gate **③ (dual-board objdump)** and **⑤ (dual-board verified)** on the |
+| active | `kquant-k1-vlen256-kernel-axis-t4a` | active | repack / [KQUANT-L1] · **task**: G3 主线C [SEL-1] **T4a** (k1 dual-board kernel-axis board batch) | 6 | — | close q4_K [PERF-1] eight-gate **③ (dual-board objdump)** and **⑤ (dual-board verified)** on the |
+| active | `t4b-seal-fix` | active | repack / [KQUANT-L1] · **task**: G3-cert-hardening **T4b seal-fix** (clean q4_K repack GEMM+GEVM VLEN128 vl=8 deploy + kernel-isolated e2e bench) | 0 | — | reversible in-place deploy of the CLEAN compiler-emitted q4_K repack-GEMM (md5 90d454da) + repack-GEVM |
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
 | active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 4 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |

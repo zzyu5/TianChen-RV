@@ -20,12 +20,10 @@ patch (板末强制 restore). NOT a perf probe. NOT M4 (coherent-gen seal).
   Restore = `cp *.ORIG` back (md5 verified) + rebuild. NO git stash/rm/mv/add/commit. NO local tcrv-opt.
 
 ## Durable Files
-- `m2_patch.py` — the reversible in-place patcher (asserts unique anchors; applied on board via `ssh rvv python3`).
-- `m2_dispatch.cpp` — the driver: builds a q4_K weight (M0/M1 oracle byte-builders) + F32 activation,
-  runs `ggml_mul_mat` twice (weight in `ggml_backend_cpu_repack_buffer_type()` -> our kernel; weight in
-  default cpu buffer -> in-tree stock), compares vs a self-contained scalar q4_K oracle + cross-checks
-  ggml's internal repack bytes == M1 `kqr_repack_q4_K`.
 - `m2_dispatch_result.log` — captured board run (routing banner + numeric breakdown + restore proof).
+- harness/驱动 relocated to `tools/e2e-harness/board/t4b-m2-dispatch/` (可复演入口): `m2_patch.py` (reversible
+  in-place ggml dispatch patcher; asserts unique anchors) + `m2_dispatch.cpp` (real `ggml_mul_mat` dispatch driver:
+  repack-vs-stock compared to a self-contained scalar q4_K oracle + cross-check ggml repack bytes == M1 `kqr_repack_q4_K`).
 
 ## Build / rebuild (gcc-15.2, resolves riscv_vector.h; the stale `build/` uses now-replaced Ubuntu gcc-14)
     source /opt/tcrv-toolchains/env.sh ; export LIBRARY_PATH=/opt/tcrv-toolchains/gcc-15.2.0/lib:$LIBRARY_PATH

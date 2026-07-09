@@ -84,10 +84,9 @@ Remaining before a sealed 8-gate Win: **②** (VLEN256 codegen-flip lit) and **�
 - `paired_k1_vlen256.csv` — 24 paired rounds (q4_K+q5_K) + summary (median/IQR/min/cv, opponent + [NG-4] notes)
 - `objdump_k1_s6_seal.objdump` — gate-③ k1 S6-tiled variant objdump (spill 81→4, vwmacc 2240 VLEN-invariant, vtype histogram)
 - `objdump_k1_seal.objdump` — gate-③ k1 seal (spill/reload/vwmacc/maxVreg/textB + VLEN256 vtype histograms + hot-region excerpt)
-- `run_k1_kquant_t4a.sh` — board-side runner (preflight/compile/seal/identity/timing). NB: the first pass aborted after
-  [2] due to k1 awk (`head -60` SIGPIPE under pipefail); fixed in-file; seal data was already flushed. Sections [3][4] run below.
-- `run_k1_identity_timing.sh` — resume runner (identity + q4_K timing, reuses compiled .o; no recompile)
 - `run_k1_nr64.log` — preflight + libcall-free check + compile + seal (first pass)
 - `run_k1_nr64_timing.log` — [3] identity IDENTICAL + [4] q4_K 12 rounds
 - `run_k1_nr64_q5k_timing.log` — q5_K 12 rounds
+- harness/驱动 relocated to `tools/e2e-harness/board/kquant-k1-vlen256-kernel-axis-t4a/` (可复演入口): `run_k1_kquant_t4a.sh`
+  (board runner: preflight/compile/seal/identity/timing) + `run_k1_identity_timing.sh` (resume runner: identity + q4_K timing, no recompile).
 - board scratch: `k1:/tmp/tcrv_k1_kquant_t4a/` (ephemeral); main tree + local build **UNTOUCHED**; governor left as-found (perf/1.6GHz).

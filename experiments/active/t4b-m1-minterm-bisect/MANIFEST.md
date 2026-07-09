@@ -55,10 +55,9 @@ ggml's own repack GEMM; (2) the ggml mat-quant-vs-riscv-row-quant divergence (si
 ggml-side numerics question, orthogonal to our compiler. Awaits ruling.
 
 ## Durable Files
-- `instrument_kernel.py` — pure-observation kernel instrumenter (regenerable reversible harness).
-- `m1_probe.cpp` — the bisect driver.
-- `m1_patch.py` — reversible ggml dispatch patcher.
-- `m1_board_run.sh` — board build+run+restore driver.
 - `m1_bisect_result.log` — captured board run (routing banner + per-(block,row,col) intermediates + q8-FREE +
   ZERO-MODEL decomposition + mat-vs-row divergence dump + objdump min-fold + forced-restore proof).
+- harness/驱动 relocated to `tools/e2e-harness/board/t4b-m1-minterm-bisect/` (可复演入口): `instrument_kernel.py`
+  (pure-observation kernel instrumenter), `m1_probe.cpp` (bisect driver), `m1_patch.py` (reversible ggml dispatch
+  patcher), `m1_board_run.sh` (board build+run+restore driver).
 - Base kernel `fresh_q4K.inc` md5 90d454da regenerable from `test/Conversion/RVV/rvv-to-emitc-repack-gemm-q4-K-q8-K.mlir`.
