@@ -34,7 +34,8 @@
     "07-08-G3-L1-maturity",
     "07-08-G3-frontdoor",
     "07-09-G3-selector",
-    "07-09-B-dequant-family"
+    "07-09-B-dequant-family",
+    "07-09-G3-e2e-seal"
   ],
   "parent": null,
   "relatedFiles": [],
