@@ -58,13 +58,16 @@ module {
 // The row-group count nr/4 (%arg4 = nr) and column-group count nc/16 (%arg5 = nc).
 // CHECK: div %arg4, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
 // CHECK: div %arg5, %{{.*}} : (!emitc.opaque<"size_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"size_t">
-// The OUTER activation-row-GROUP loop over nr/4.
-// CHECK: for %[[Y:.*]] = %{{.*}} to %{{.*}} step
-// Per-group activation base vy + y*nb*1168 (block_q8_Kx4 stride 1168).
-// CHECK: literal "1168"
-// The weight-column-GROUP loop over nc/16; per-group weight base vx + x*nb*2304.
+// [M1b loop-interchange] The OUTER loop is now the weight-column-GROUP over nc/16
+// (capability-keyed col-group-outer: weightStride 2304 >= activationStride 1168, so
+// the larger weight panel is held cache-resident across the inner row sweep). The
+// per-group weight base vx + x*nb*2304 is HOISTED above the row sweep.
 // CHECK: for %[[X:.*]] = %{{.*}} to %{{.*}} step
 // CHECK: literal "2304"
+// The MIDDLE activation-row-GROUP loop over nr/4; per-group activation base
+// vy + y*nb*1168 (block_q8_Kx4 stride 1168).
+// CHECK: for %[[Y:.*]] = %{{.*}} to %{{.*}} step
+// CHECK: literal "1168"
 // The per-column f32 accumulators: vfmv_v_f_f32m2(0.0f, 8) (4 cols x 2 strips).
 // CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
 // The inner contraction-block loop over nb.
