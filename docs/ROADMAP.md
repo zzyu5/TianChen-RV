@@ -22,18 +22,19 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 - **两线共产出**：lane-width × token-tile 两新调度轴入能力键控选择器 = **C3′/选择器故事增量章节**。
 - **底线预案**（两线皆卡时启用、报裁）：sealed Win 退 q4_0 路由格（5.9× 系统账 + 补八门缺项）；当前两线均有静态账支撑，**预案不启动**。
 
-## 当前坐标（2026-07-10）
+## 当前坐标（2026-07-11）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 77/93 = 82.8%**（★主数·论文口径，+forward-support gelu/add/mul/cpy 73→77）｜ labeled 77/93（certified=labeled·RED 0）｜ **矿脉冲 90%: iq2_xs/iq2_s + forward-support(gelu/add/mul/cpy) + tq/mxfp4/iq1/iq3/nvfp4/q1_0** |
+| C_construct | **certified 79/93 = 84.95%**（★主数·论文口径，+tq1_0/tq2_0 dequant 77→79）｜ labeled 79/93（certified=labeled·RED 0）｜ C_construct_plus 80（含 vec_dot/mxfp4 weak）｜ **矿脉冲 90%(需+5→84): mxfp4 gemm_tile 退役 + iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4 gemm_tile codebook 前门** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
-| 矿脉 | **1**（iq2 grid 家族全落 4→1；仅剩 mxfp4；+ absent iq1/iq3/nvfp4/q1_0 gemm_tile） |
+| 矿脉 | **1 dispatch-wired（gemm_tile/mxfp4，双 emitter 退役可证）+ 5 absent gemm_tile（iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4·codebook 前门，oracle 逐格自查）**；在飞 agent aebd7cfa |
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## 在飞
+- **agent aebd7cfa（M4 90% gemm_tile 收官批）**：mxfp4 gemm_tile 退役（双 emitter byte-exact→dispatch-wired 1→0）+ iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4 gemm_tile codebook 前门（absent→constructed，oracle 逐格自查、byte-exact 可证才翻、net-new 需 golden 则诚实留 absent）→ 目标 certified 79→84（90% M4 门）
 - **⚠ 已 flag 待裁新立项**：exec-级跨范式选择器能力先验（SEL-1-T5 Selector-D + IME N3 同一 gap：`rankKernelVariantsByCost` 常量分 RVV 1.0<IME 20.0 = 能力盲；今无害、P7 矩阵接管 GEMM 瞬间静默失效）= IME gating 关门 + P7 enabler
-- ✅ 已收：**★Win-K1-VLEN RATIFIED 双板方法验证** · **CERT-FD 全闭合 dequant×21+quant×3+forward×5（certified 41→70 byte-exact 结构性；forward×5 造 GgmlForwardElementwiseOp abstract source-op + pre-emitc 前门 pass + elementwise_stream_loop cert shape）** · SEL-1-T5（生产 dispatch 零 static_order）· IME gating 报告（N2 CLOSED/N3 缺键控+perf-pending）· 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · FLAT 4/4
+- ✅ 已收：**tq1_0/tq2_0 dequant（dispatch-wired→constructed 77→79 · b1edc0fc）** · **★Win-K1-VLEN RATIFIED 双板方法验证** · **CERT-FD 全闭合 dequant×21+quant×3+forward×5（certified 41→70 byte-exact 结构性）** · SEL-1-T5（生产 dispatch 零 static_order）· IME gating 报告（N2 CLOSED/N3 缺键控+perf-pending）· 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · FLAT 4/4
 
 ## 排队（主线区 · 顺序即优先级）
 1. ~~[巩固队列] Win-K1-VLEN 加固~~ ✅ / ~~[SEL-1-T5] 零 static_order~~ ✅ / ~~IME gating 报告~~ ✅（本轮全落）
