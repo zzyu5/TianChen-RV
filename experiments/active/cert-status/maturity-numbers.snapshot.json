@@ -1,0 +1,262 @@
+{
+  "ref": "HEAD (ae813da2)",
+  "roster_total": 93,
+  "C_construct": {
+    "labeled": 70,
+    "labeled_pct": 75.3,
+    "certified": 26,
+    "certified_pct": 28.0,
+    "red": 44
+  },
+  "dispatch_wired": 10,
+  "absent": 12,
+  "constructed_weak_opaque_baseline": 1,
+  "bypass_whitelist_active": 4,
+  "bypass_whitelist_retired": 13,
+  "mineral_vein_gemm_tile_dispatch_wired": 4,
+  "mineral_vein_cells": [
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xxs"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_xs"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq2_s"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "mxfp4"
+    }
+  ],
+  "red_cells": [
+    {
+      "op": "vec_dot",
+      "format": "q1_0",
+      "reason": "shape non-compliant: flat_loop missing standalone_reduce"
+    },
+    {
+      "op": "vec_dot",
+      "format": "nvfp4",
+      "reason": "shape non-compliant: flat_loop missing standalone_reduce"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_1",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "quantize_row",
+      "format": "q8_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_1",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_1",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q8_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q2_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q3_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q4_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q5_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "q6_K",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq1_s",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq1_m",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_xxs",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_xs",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq2_s",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq3_xxs",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq3_s",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq4_nl",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "iq4_xs",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "mxfp4",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "dequantize_row",
+      "format": "nvfp4",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_1",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_1",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q8_0",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q2_K",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q3_K",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q4_K",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q5_K",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "q6_K",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_nl",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "iq4_xs",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq1_0",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "gemm_tile",
+      "format": "tq2_0",
+      "reason": "auto_readout is NoneType, not a string"
+    },
+    {
+      "op": "rms_norm",
+      "format": "f32",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "softmax",
+      "format": "f32",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "rope",
+      "format": "f32",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "silu",
+      "format": "f32",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    },
+    {
+      "op": "scale",
+      "format": "f32",
+      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
+    }
+  ],
+  "red_reason_buckets": {
+    "shape-non-compliant (unrecognized typed body)": 2,
+    "envelope-mismatch (non-E5 form / hand-labeled pending)": 33,
+    "manifest-absent (auto_readout=None)": 9
+  }
+}

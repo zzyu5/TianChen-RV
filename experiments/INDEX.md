@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**48 cells** (active=33, sealed=10, archive=5).
+**49 cells** (active=34, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -16,6 +16,7 @@
 | active | `t4b-m2c-dispatch` | unknown | — | 1 | — | — |
 | active | `t4b-m4-decisive` | unknown | — | 1 | — | — |
 | active | `t4b-model-manifest` | unknown | — | 0 | — | — |
+| active | `cert-status` | active | DEBT-CERT + DEBT-VIS (construction-manifest certification audit) | 2 | — | labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue |
 | active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
 | active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
