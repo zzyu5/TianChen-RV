@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-dequantize-row-stream-front-door | FileCheck %s --check-prefix=REALIZE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-dequantize-row-stream-front-door --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
-// RUN: sed 's/"q8_0"/"tq2_0"/g' %s | tcrv-opt --tcrv-rvv-materialize-dequantize-row-stream-front-door | FileCheck %s --check-prefix=DISPATCH
+// RUN: sed 's/"q8_0"/"tq2_0"/g' %s | tcrv-opt --tcrv-rvv-materialize-dequantize-row-stream-front-door | FileCheck %s --check-prefix=TERNARY
 
 // CERT-FD首族 (dequant×21) -- the PRE-EMITC dequant-stream FRONT DOOR. It runs ONLY
 // the CONSTRUCTION half of constructOrEmitGgmlDequantizeRow (the shared byte-exact
@@ -16,10 +16,11 @@
 // whether the region is built here (pre-emitc, REALIZE) or in emitc: the EMIT run below (front
 // door THEN --tcrv-rvv-lower-to-emitc) is byte-identical to the atomic
 // `--tcrv-rvv-lower-to-emitc`-only path locked by rvv-to-emitc-ggml-dequantize-row-q8-0.mlir
-// (the 0-diff is verified format-by-format across all 21 constructed formats out-of-band).
-// The dispatch-wired ternary formats (tq1_0/tq2_0) are NOT constructed: the front door LEAVES
-// their abstract op untouched (DISPATCH run below), so they still lower via the hand-written
-// monolith. Numerical semantics: zero change (byte-exact by construction).
+// (the 0-diff is verified format-by-format across all 23 constructed formats out-of-band).
+// The ternary super-blocks (tq1_0/tq2_0) are NOW front-door CONSTRUCTED too: the front door
+// rewrites their abstract op into the SAME typed region (TERNARY run below), completing the
+// whole 23-format dequantize_row spectrum -- NO format remains dispatch-wired. Numerical
+// semantics: zero change (byte-exact by construction).
 
 module {
   tcrv.exec.kernel @dequant_q8_0_kernel {
@@ -54,7 +55,10 @@ module {
 // EMIT: call_opaque "(float)*(const _Float16 *)"
 // EMIT: !emitc.opaque<"const int8_t">
 
-// The dispatch-wired ternary formats are NOT constructed: the front door leaves the abstract
-// tcrv_rvv.dequantize_row (format="tq2_0") untouched (it lowers via the hand-written monolith).
-// DISPATCH: tcrv_rvv.dequantize_row %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} {format = "tq2_0"}
-// DISPATCH-NOT: tcrv_rvv.typed_dequantize_row_loop_body
+// The ternary super-block tq2_0 is NOW front-door CONSTRUCTED: the front door rewrites the
+// abstract tcrv_rvv.dequantize_row (format="tq2_0") into the typed streaming region (decode_model
+// "tq2_0", qk=256, stride=66), byte-exact to the retired tq2_0 monolith by construction.
+// TERNARY-NOT: tcrv_rvv.dequantize_row {{[^_]}}
+// TERNARY: tcrv_rvv.typed_dequantize_row_loop_body %{{.*}}, %{{.*}}, %{{.*}} attributes {decode_model = "tq2_0", kind = "typed_dequantize_row_loop_body", qk = 256 : i64, weight_block_stride = 66 : i64}
+// TERNARY: tcrv_rvv.dequantize_row_decode_core %{{.*}}, %{{.*}}, %{{.*}} {decode_model = "tq2_0", qk = 256 : i64, quant_byte_offset = 0 : i64, scale_byte_offset = 64 : i64, weight_block_stride = 66 : i64}
+// TERNARY: tcrv_rvv.typed_dequantize_row_loop_yield

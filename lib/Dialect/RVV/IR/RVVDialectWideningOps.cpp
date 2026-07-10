@@ -10917,7 +10917,8 @@ static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
          decodeModel == "iq3_s" || decodeModel == "iq1_s" ||
          decodeModel == "iq1_m" || decodeModel == "iq4_nl" ||
          decodeModel == "iq4_xs" || decodeModel == "mxfp4" ||
-         decodeModel == "nvfp4";
+         decodeModel == "nvfp4" || decodeModel == "tq1_0" ||
+         decodeModel == "tq2_0";
 }
 
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
@@ -10960,7 +10961,8 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
               "leaves) + q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
               "leaves) + iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s (the QK_K=256 IQ grid-table "
               "super-block leaves) + iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 (the codebook "
-              "/ ternary-grid extended leaves). An unconstructed format stays "
+              "/ ternary-grid extended leaves) + tq1_0/tq2_0 (the base-3 / 2-bit ternary "
+              "super-block leaves). An unconstructed format stays "
               "dispatch-wired via the abstract tcrv_rvv.dequantize_row monolith";
 
   // qk / weight_block_stride are positive ggml ABI byte counts the per-block
@@ -11059,7 +11061,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
               "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
               "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table super-blocks "
               "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / ternary-grid leaves "
-              "iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4";
+              "iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the ternary super-blocks "
+              "tq1_0/tq2_0";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getWeightBlockStrideAttr().getInt() <= 0)

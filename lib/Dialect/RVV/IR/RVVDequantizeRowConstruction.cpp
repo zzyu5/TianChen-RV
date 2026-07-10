@@ -80,9 +80,17 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
   } else if (format == "nvfp4") {
     // block_nvfp4: four UE4M3 sub-block scale bytes @0, qs[32] @4 (QK_NVFP4=64).
     qk = 64; stride = 36; dOff = 0; qsOff = 4;
+  } else if (format == "tq1_0") {
+    // block_tq1_0: qs[48] @0 (base-3 packed, 5 elems/byte), qh[4] @48, fp16 d @52
+    // (the ternary {-1,0,+1} TriLM super-block; scale is at the END, not @0).
+    qk = 256; stride = 54; dOff = 52; qsOff = 0;
+  } else if (format == "tq2_0") {
+    // block_tq2_0: qs[64] @0 (2-bit packed, 4 elems/byte), fp16 d @64 (the 2-bit
+    // ternary super-block; scale is at the END, not @0).
+    qk = 256; stride = 66; dOff = 64; qsOff = 0;
   } else {
-    // The remaining ternary formats (tq1_0 / tq2_0) stay DISPATCH-WIRED (the
-    // hand-written monolith); the front door does not construct them.
+    // Every modeled dequantize_row format is now front-door CONSTRUCTED; an
+    // unrecognized format falls through to the dispatch-wired monolith.
     return std::nullopt;
   }
   return DequantizeRowStreamFacts{qk, stride, dOff, qsOff};

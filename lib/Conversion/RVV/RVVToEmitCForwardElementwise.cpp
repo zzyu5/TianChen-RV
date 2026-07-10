@@ -3186,13 +3186,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       decodeModel != "iq3_xxs" && decodeModel != "iq3_s" &&
       decodeModel != "iq1_s" && decodeModel != "iq1_m" &&
       decodeModel != "iq4_nl" && decodeModel != "iq4_xs" &&
-      decodeModel != "mxfp4" && decodeModel != "nvfp4")
+      decodeModel != "mxfp4" && decodeModel != "nvfp4" &&
+      decodeModel != "tq1_0" && decodeModel != "tq2_0")
     return rewriter.notifyMatchFailure(
         loopBody, "typed dequantize_row loop body only lowers the constructed "
                   "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
                   "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table "
                   "super-blocks iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / "
-                  "ternary-grid leaves iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4");
+                  "ternary-grid leaves iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the "
+                  "ternary super-blocks tq1_0/tq2_0");
 
   tcrvrvv::DequantizeRowDecodeCoreOp coreOp;
   tcrvrvv::TypedDequantizeRowLoopYieldOp yieldOp;
@@ -3261,12 +3263,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
                                              avlArg, sizeType, opName, role,
                                              decodeModel);
   // The remaining codebook / ternary-grid extended leaves (iq1_s/iq1_m ternary
-  // iq1s_grid, iq4_nl/iq4_xs non-linear codebook, mxfp4/nvfp4 FP4 codebook) forward
-  // to the SAME hand-written extended decode the dispatch-wired monolith runs, so the
-  // constructed emit is byte-exact to the monolith by construction.
+  // iq1s_grid, iq4_nl/iq4_xs non-linear codebook, mxfp4/nvfp4 FP4 codebook, and the
+  // tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks) forward to the SAME hand-written
+  // extended decode the dispatch-wired monolith runs, so the constructed emit is
+  // byte-exact to the monolith by construction.
   if (decodeModel == "iq1_s" || decodeModel == "iq1_m" ||
       decodeModel == "iq4_nl" || decodeModel == "iq4_xs" ||
-      decodeModel == "mxfp4" || decodeModel == "nvfp4")
+      decodeModel == "mxfp4" || decodeModel == "nvfp4" ||
+      decodeModel == "tq1_0" || decodeModel == "tq2_0")
     return emitDequantizeRowCodebookGridBodyShared(rewriter, loc, weightBase,
                                                    output, avlArg, sizeType,
                                                    opName, role, decodeModel);
@@ -3287,8 +3291,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
 // gather + the per-format sign plane -- signs64/signs256/ksigns/per-lane sign bytes)
 // and the remaining codebook / ternary-grid extended leaves {iq1_s/iq1_m (ternary
 // iq1s_grid + delta), iq4_nl/iq4_xs (16-entry non-linear codebook), mxfp4/nvfp4 (FP4
-// e2m1 codebook, E8M0 / UE4M3 scales)}. The remaining ternary (tq1_0/tq2_0) formats
-// fall through to the dispatch-wired monolith.
+// e2m1 codebook, E8M0 / UE4M3 scales), tq1_0/tq2_0 (the base-3 / 2-bit ternary
+// super-blocks)}. Every modeled dequantize_row format is now CONSTRUCTED; only an
+// unrecognized format falls through to the dispatch-wired monolith.
 mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -3304,8 +3309,8 @@ mlir::LogicalResult VariantToEmitCFunc::constructOrEmitGgmlDequantizeRow(
   // The streaming CONSTRUCTED family per-format AoS block-layout facts now live in
   // the SHARED byte-exact construction (RVVDequantizeRowConstruction) so the
   // pre-emitc RVVDequantizeRowStreamFrontDoor pass and THIS in-emitc fallback build
-  // the IDENTICAL typed region. tq1_0/tq2_0 (lookup == nullopt) stay DISPATCH-WIRED
-  // (the hand-written monolith).
+  // the IDENTICAL typed region. Every modeled format now has facts; only an
+  // unrecognized format (lookup == nullopt) stays DISPATCH-WIRED (the monolith).
   std::optional<tcrvrvv::DequantizeRowStreamFacts> facts =
       tcrvrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
   if (!facts)
