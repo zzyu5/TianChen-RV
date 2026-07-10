@@ -785,6 +785,9 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
   int64_t activationHighRow = cx.activationHighRow;
 
   bool unsignedNibble = cx.unsignedNibble;
+  bool hasQh = cx.hasQh;                       // q5_0 5th-bit decode (GEMM)
+  int64_t weightQhByteOffset = cx.weightQhByteOffset;
+  int64_t offsetBias = cx.offsetBias;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
   mlir::Type i16m1Type =
       emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
@@ -794,11 +797,15 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
       emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
   mlir::Type u8mf2Type =
       emitc::OpaqueType::get(ctx, ("vuint8" + l8 + "_t").str());
+  mlir::Type u16m1Type =
+      emitc::OpaqueType::get(ctx, ("vuint16" + l16 + "_t").str());
   mlir::Type immI32Type = emitc::OpaqueType::get(ctx, "int");
   mlir::Type i8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
   mlir::Type u8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+  mlir::Type u16PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint16_t"));
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
@@ -876,6 +883,80 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
                           mlir::ValueRange{packed, four, vl8}, opName, role);
   };
+
+  // ===== q5_0 5th-bit (qh) decode leaf (hasQh), GEMM RUNTIME-strip form ========
+  // The five-bit weight is `A = nibble | (qh_bit << 4)` in [0,31], reinterpreted
+  // u8->i8, then `-offsetBias` (16). The strip's qh bit is selected by the RUNTIME
+  // strip_row_offset `roff` (vid + roff), UNLIKE the GEVM compile-time h*half.
+  std::string orCallee = ("__riscv_vor_vv_u8" + l8).str();
+  std::string subCallee = ("__riscv_vsub_vx_i8" + l8).str();
+  mlir::Value biasLit = sizeLit(offsetBias);
+  auto nibbleLoU8 = [&](mlir::Value packed) -> mlir::Value {
+    return emitOpaqueCallBuilt(
+        rewriter, loc, u8mf2Type, vandCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {packed, sizeLit(15), vl8};
+        });
+  };
+  auto nibbleHiU8 = [&](mlir::Value packed) -> mlir::Value {
+    return emitOpaqueCall(rewriter, loc, u8mf2Type, vsrlCallee,
+                          mlir::ValueRange{packed, four, vl8}, opName, role);
+  };
+  llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
+  auto qhMaskScalar = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
+    mlir::Value full =
+        rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+    mlir::Value cast =
+        rewriter.create<emitc::CastOp>(loc, u16PtrType, full).getResult();
+    return emitOpaqueCall(rewriter, loc, i32Type, u16ReadCallee,
+                          mlir::ValueRange{cast}, opName, role,
+                          llvm::StringRef("qh_mask_scalar"));
+  };
+  std::string vidCallee = ("__riscv_vid_v_u16" + l16).str();
+  std::string vmvU16Callee = riscvIntrinsicName("vmv_v_x", 16, l16, "u16");
+  std::string vaddU16Callee = ("__riscv_vadd_vx_u16" + l16).str();
+  std::string vsrlVvCallee = ("__riscv_vsrl_vv_u16" + l16).str();
+  std::string vandU16Callee = ("__riscv_vand_vx_u16" + l16).str();
+  std::string vsllU16Callee = ("__riscv_vsll_vx_u16" + l16).str();
+  std::string vncvtCallee = ("__riscv_vncvt_x_x_w_u8" + l8).str();
+  // laneShiftVal is the RUNTIME strip_row_offset (index) -- vid + roff selects bit
+  // (l + roff) for lane l of the strip at roff.
+  auto expandQhBit = [&](mlir::Value maskScalar,
+                         mlir::Value laneShiftVal) -> mlir::Value {
+    mlir::Value splat =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vmvU16Callee,
+                       mlir::ValueRange{maskScalar, vl8}, opName, role);
+    mlir::Value vid = emitOpaqueCall(rewriter, loc, u16m1Type, vidCallee,
+                                     mlir::ValueRange{vl8}, opName, role);
+    vid = emitOpaqueCall(rewriter, loc, u16m1Type, vaddU16Callee,
+                         mlir::ValueRange{vid, laneShiftVal, vl8}, opName, role);
+    mlir::Value shifted =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vsrlVvCallee,
+                       mlir::ValueRange{splat, vid, vl8}, opName, role);
+    mlir::Value bit = emitOpaqueCallBuilt(
+        rewriter, loc, u16m1Type, vandU16Callee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {shifted, sizeLit(1), vl8};
+        });
+    mlir::Value bit16 =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vsllU16Callee,
+                       mlir::ValueRange{bit, four, vl8}, opName, role);
+    return emitOpaqueCall(rewriter, loc, u8mf2Type, vncvtCallee,
+                          mlir::ValueRange{bit16, vl8}, opName, role);
+  };
+  auto assemble5 = [&](mlir::Value nibbleU8, mlir::Value bit16) -> mlir::Value {
+    mlir::Value a =
+        emitOpaqueCall(rewriter, loc, u8mf2Type, orCallee,
+                       mlir::ValueRange{nibbleU8, bit16, vl8}, opName, role);
+    mlir::Value as =
+        emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                       mlir::ValueRange{a}, opName, role);
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, subCallee,
+                          mlir::ValueRange{as, biasLit, vl8}, opName, role);
+  };
+
   // A scalar i8 read of the repacked activation quant byte a_ptr[l].qs[k]:
   // *(const int8_t *)(ab + 8 + k).
   llvm::StringRef i8ReadCallee = "*(const int8_t *)";
@@ -943,8 +1024,31 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     mlir::Value wByteOff =
         rewriter.create<emitc::AddOp>(loc, sizeType, qsOff, roff);
     mlir::Value packed = loadNibbles(bl, wByteOff);
-    mlir::Value bLo = decodeLo(packed);
-    mlir::Value bHi = decodeHi(packed);
+    mlir::Value bLo, bHi;
+    if (hasQh) {
+      // q5_0 (hasQh): assemble the 5-bit weight `((nibble) | (qh_bit<<4)) - bias`.
+      // The transposed qh masks: low element i at qh+i*2, high element i+16 at
+      // qh+(16+i)*2 (== qh + nibbleBytes*2 + i*2); the strip lanes are selected by
+      // the RUNTIME roff.
+      step("qh_lo_addr");
+      mlir::Value iTwo =
+          rewriter.create<emitc::MulOp>(loc, sizeType, i, sizeLit(2));
+      mlir::Value qhLoOff = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQhByteOffset), iTwo);
+      step("qh_hi_addr");
+      mlir::Value qhHiBase = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQhByteOffset),
+          sizeLit(nibbleBytes * 2));
+      mlir::Value qhHiOff =
+          rewriter.create<emitc::AddOp>(loc, sizeType, qhHiBase, iTwo);
+      mlir::Value loMaskS = qhMaskScalar(bl, qhLoOff);
+      mlir::Value hiMaskS = qhMaskScalar(bl, qhHiOff);
+      bLo = assemble5(nibbleLoU8(packed), expandQhBit(loMaskS, roff));
+      bHi = assemble5(nibbleHiU8(packed), expandQhBit(hiMaskS, roff));
+    } else {
+      bLo = decodeLo(packed);
+      bHi = decodeHi(packed);
+    }
 
     // i*4 (the activation column-quant stride for the low/high halves).
     mlir::Value i4 = rewriter.create<emitc::MulOp>(
@@ -1335,6 +1439,9 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
   int64_t activationHighRow = cx.activationHighRow;
 
   bool unsignedNibble = cx.unsignedNibble;
+  bool hasQh = cx.hasQh;                       // q5_0 5th-bit decode
+  int64_t weightQhByteOffset = cx.weightQhByteOffset;
+  int64_t offsetBias = cx.offsetBias;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
   mlir::Type i16m1Type =
       emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
@@ -1344,11 +1451,15 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
       emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
   mlir::Type u8mf2Type =
       emitc::OpaqueType::get(ctx, ("vuint8" + l8 + "_t").str());
+  mlir::Type u16m1Type =
+      emitc::OpaqueType::get(ctx, ("vuint16" + l16 + "_t").str());
   mlir::Type immI32Type = emitc::OpaqueType::get(ctx, "int");
   mlir::Type i8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
   mlir::Type u8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
+  mlir::Type u16PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint16_t"));
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
@@ -1426,6 +1537,91 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
                           mlir::ValueRange{packed, four, vl8}, opName, role);
   };
+
+  // ===== q5_0 5th-bit (qh) decode leaf (hasQh) =====================
+  // The five-bit weight is `A = nibble | (qh_bit << 4)` in [0,31], reinterpreted
+  // u8->i8, then `-offsetBias` (16) -- the SAME reconstruct as the retired q5_0
+  // direct emitter (fifthBitLane + reinterpretBias), off the RAW unsigned nibble
+  // peel. The qh masks are read once per element step and each strip selects its
+  // lanes via the (vid + h*half) shift.
+  std::string orCallee = ("__riscv_vor_vv_u8" + l8).str();
+  std::string subCallee = ("__riscv_vsub_vx_i8" + l8).str();
+  mlir::Value biasLit = sizeLit(offsetBias);
+  // lo nibble [0,15] unsigned: vand(b, 0x0F).
+  auto nibbleLoU8 = [&](mlir::Value packed) -> mlir::Value {
+    return emitOpaqueCallBuilt(
+        rewriter, loc, u8mf2Type, vandCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {packed, sizeLit(15), vl8};
+        });
+  };
+  // hi nibble [0,15] unsigned: vsrl(b, 4).
+  auto nibbleHiU8 = [&](mlir::Value packed) -> mlir::Value {
+    return emitOpaqueCall(rewriter, loc, u8mf2Type, vsrlCallee,
+                          mlir::ValueRange{packed, four, vl8}, opName, role);
+  };
+  // A scalar uint16 read of the transposed qh mask for one element step.
+  llvm::StringRef u16ReadCallee = "(uint16_t)*(const uint16_t *)";
+  auto qhMaskScalar = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
+    mlir::Value full =
+        rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+    mlir::Value cast =
+        rewriter.create<emitc::CastOp>(loc, u16PtrType, full).getResult();
+    return emitOpaqueCall(rewriter, loc, i32Type, u16ReadCallee,
+                          mlir::ValueRange{cast}, opName, role,
+                          llvm::StringRef("qh_mask_scalar"));
+  };
+  // Expand a strip's qh mask into a per-lane {0,16} u8 term: splat the 16-bit mask
+  // into u16 lanes, vsrl by (vid + laneShift) so lane l reads bit (l + laneShift),
+  // vand 1, vsll 4 -> {0,16}, narrow u16->u8.
+  std::string vidCallee = ("__riscv_vid_v_u16" + l16).str();
+  std::string vmvU16Callee = riscvIntrinsicName("vmv_v_x", 16, l16, "u16");
+  std::string vaddU16Callee = ("__riscv_vadd_vx_u16" + l16).str();
+  std::string vsrlVvCallee = ("__riscv_vsrl_vv_u16" + l16).str();
+  std::string vandU16Callee = ("__riscv_vand_vx_u16" + l16).str();
+  std::string vsllU16Callee = ("__riscv_vsll_vx_u16" + l16).str();
+  std::string vncvtCallee = ("__riscv_vncvt_x_x_w_u8" + l8).str();
+  auto expandQhBit = [&](mlir::Value maskScalar, int64_t laneShift) -> mlir::Value {
+    mlir::Value splat =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vmvU16Callee,
+                       mlir::ValueRange{maskScalar, vl8}, opName, role);
+    mlir::Value vid = emitOpaqueCall(rewriter, loc, u16m1Type, vidCallee,
+                                     mlir::ValueRange{vl8}, opName, role);
+    if (laneShift != 0)
+      vid = emitOpaqueCallBuilt(
+          rewriter, loc, u16m1Type, vaddU16Callee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            return {vid, sizeLit(laneShift), vl8};
+          });
+    mlir::Value shifted =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vsrlVvCallee,
+                       mlir::ValueRange{splat, vid, vl8}, opName, role);
+    mlir::Value bit = emitOpaqueCallBuilt(
+        rewriter, loc, u16m1Type, vandU16Callee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          return {shifted, sizeLit(1), vl8};
+        });
+    mlir::Value bit16 =
+        emitOpaqueCall(rewriter, loc, u16m1Type, vsllU16Callee,
+                       mlir::ValueRange{bit, four, vl8}, opName, role);
+    return emitOpaqueCall(rewriter, loc, u8mf2Type, vncvtCallee,
+                          mlir::ValueRange{bit16, vl8}, opName, role);
+  };
+  // A = nibble | (qh_bit<<4) -> u8 [0,31], reinterpret u8->i8, then vsub bias.
+  auto assemble5 = [&](mlir::Value nibbleU8, mlir::Value bit16) -> mlir::Value {
+    mlir::Value a =
+        emitOpaqueCall(rewriter, loc, u8mf2Type, orCallee,
+                       mlir::ValueRange{nibbleU8, bit16, vl8}, opName, role);
+    mlir::Value as =
+        emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                       mlir::ValueRange{a}, opName, role);
+    return emitOpaqueCall(rewriter, loc, i8mf2Type, subCallee,
+                          mlir::ValueRange{as, biasLit, vl8}, opName, role);
+  };
+
   // A scalar i8 read of the repacked activation quant byte a_ptr[l].qs[k]:
   // *(const int8_t *)(ab + 2 + k).
   llvm::StringRef i8ReadCallee = "*(const int8_t *)";
@@ -1511,11 +1707,37 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     llvm::SmallVector<mlir::Value> packed;
     for (int64_t h = 0; h < numHalves; ++h)
       packed.push_back(loadNibbles(bl, wByteOff[h]));
-    // DECODE phase: per strip, lo then hi (plain sign-extension, NO vxor).
+    // DECODE phase: per strip, lo then hi. q4_0/q4_1 (4-bit): plain
+    // sign-extension / unsigned peel. q5_0 (hasQh): the 5-bit assembly
+    // `((nibble) | (qh_bit<<4)) - bias`, reading the transposed qh masks once per
+    // element step (low element i at qh+i*2, high element i+16 at qh+(16+i)*2) and
+    // selecting each strip's lanes via the (vid + h*half) shift.
     llvm::SmallVector<mlir::Value> bLo, bHi;
-    for (int64_t h = 0; h < numHalves; ++h) {
-      bLo.push_back(decodeLo(packed[h]));
-      bHi.push_back(decodeHi(packed[h]));
+    if (hasQh) {
+      step("qh_lo_addr");
+      mlir::Value iTwo =
+          rewriter.create<emitc::MulOp>(loc, sizeType, i, sizeLit(2));
+      mlir::Value qhLoOff = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQhByteOffset), iTwo);
+      step("qh_hi_addr");
+      mlir::Value qhHiBase = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQhByteOffset),
+          sizeLit(activationHighRow * 2));
+      mlir::Value qhHiOff =
+          rewriter.create<emitc::AddOp>(loc, sizeType, qhHiBase, iTwo);
+      mlir::Value loMaskS = qhMaskScalar(bl, qhLoOff);
+      mlir::Value hiMaskS = qhMaskScalar(bl, qhHiOff);
+      for (int64_t h = 0; h < numHalves; ++h) {
+        bLo.push_back(
+            assemble5(nibbleLoU8(packed[h]), expandQhBit(loMaskS, h * half)));
+        bHi.push_back(
+            assemble5(nibbleHiU8(packed[h]), expandQhBit(hiMaskS, h * half)));
+      }
+    } else {
+      for (int64_t h = 0; h < numHalves; ++h) {
+        bLo.push_back(decodeLo(packed[h]));
+        bHi.push_back(decodeHi(packed[h]));
+      }
     }
 
     // Single activation column (SHARED across strips, read ONCE -- this is
@@ -2277,6 +2499,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // MIN-fold offset pair from the dual-fp16 FOLD bricks (all fold bricks agree; -1
   // sentinel = the q4_0 no-min fold, byte-identical).
   bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  // q5_0 5th-bit (qh) decode facts sourced from the CORE brick (the anti-bypass
+  // decode-leaf surface): the transposed qh SECOND weight-plane byte offset + the
+  // offset-binary centering bias, PRESENT together only for q5_0.
+  bool coreHasQh = coreBrick.getWeightQhByteOffset().has_value();
+  int64_t coreWeightQhOffset =
+      coreHasQh ? static_cast<int64_t>(*coreBrick.getWeightQhByteOffset()) : 0;
+  int64_t coreOffsetBias =
+      coreBrick.getWeightOffsetBias().has_value()
+          ? static_cast<int64_t>(*coreBrick.getWeightOffsetBias())
+          : 0;
   int64_t weightMinOffset =
       foldByStrip[0].getWeightMinByteOffset().has_value()
           ? static_cast<int64_t>(*foldByStrip[0].getWeightMinByteOffset())
@@ -2404,6 +2636,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           weightInterleave, weightQuantOffset, activationQuantOffset,
           nibbleBytes, vl, sizeType};
       coreCx.unsignedNibble = unsignedNibble;
+      coreCx.hasQh = coreHasQh;
+      coreCx.weightQhByteOffset = coreWeightQhOffset;
+      coreCx.offsetBias = coreOffsetBias;
       llvm::SmallVector<mlir::Value> sumi =
           emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
@@ -3069,6 +3304,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // UNSIGNED-nibble flag from the CORE brick + the single MIN-fold offset pair from
   // the per-column FOLD bricks (-1 sentinel = the q4_0 no-min fold, byte-identical).
   bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  // q5_0 5th-bit (qh) decode facts sourced from the GEMM CORE brick.
+  bool coreHasQh = coreBrick.getWeightQhByteOffset().has_value();
+  int64_t coreWeightQhOffset =
+      coreHasQh ? static_cast<int64_t>(*coreBrick.getWeightQhByteOffset()) : 0;
+  int64_t coreOffsetBias =
+      coreBrick.getWeightOffsetBias().has_value()
+          ? static_cast<int64_t>(*coreBrick.getWeightOffsetBias())
+          : 0;
   int64_t weightMinOffset =
       foldByColumn[0].getWeightMinByteOffset().has_value()
           ? static_cast<int64_t>(*foldByColumn[0].getWeightMinByteOffset())
@@ -3226,6 +3469,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
                 weightQuantOffset, activationQuantOffset, activationInterleave,
                 activationHighRow, vl8, sizeType};
             coreCx.unsignedNibble = unsignedNibble;
+            coreCx.hasQh = coreHasQh;
+            coreCx.weightQhByteOffset = coreWeightQhOffset;
+            coreCx.offsetBias = coreOffsetBias;
             llvm::SmallVector<mlir::Value> sumi32 =
                 emitRepackGemmQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al,
                                                     roff, cLo, cHi);

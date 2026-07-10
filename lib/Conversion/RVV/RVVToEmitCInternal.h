@@ -1300,6 +1300,14 @@ private:
     // q4_1 UNSIGNED-nibble decode selector (GEMM sibling): false = q4_0
     // offset-binary sign-extension; true = q4_1 RAW-nibble unsigned peel.
     bool unsignedNibble = false;
+    // q5_0 5th-bit (qh) decode facts (GEMM sibling): hasQh gates the five-bit
+    // assembly `((nibble) | (qh_bit << 4)) - offsetBias` off the RAW unsigned
+    // nibble peel (unsignedNibble is also set), reading the transposed qh SECOND
+    // weight plane at weightQhByteOffset; the per-strip qh bit is selected by
+    // mask >> strip_row_offset (the RUNTIME strip lane shift). false = four-bit.
+    bool hasQh = false;
+    int64_t weightQhByteOffset = 0;
+    int64_t offsetBias = 0;
   };
 
   /// The shared q4_0 16x1-REPACKED GEMM per-block LANE-WISE integer CORE leaf:
@@ -2180,6 +2188,14 @@ private:
     // offset-binary vsll/vsra sign-extension off a signed i8 load; true = the q4_1
     // RAW-nibble vand(0x0F)/vsrl(4)+vreinterpret peel off an unsigned u8 load.
     bool unsignedNibble = false;
+    // q5_0 5th-bit (qh) decode facts (GEVM): hasQh gates the five-bit assembly
+    // `((nibble) | (qh_bit << 4)) - offsetBias` off the RAW unsigned nibble peel
+    // (unsignedNibble is also set), reading the transposed qh SECOND weight plane
+    // at weightQhByteOffset; the per-strip qh bit is selected by mask >> (h*half),
+    // a COMPILE-TIME lane shift. false (default) = the q4_0/q4_1 four-bit decode.
+    bool hasQh = false;
+    int64_t weightQhByteOffset = 0;
+    int64_t offsetBias = 0;
   };
 
   /// The shared q4_0 16x1-REPACKED per-block LANE-WISE integer CORE leaf: given

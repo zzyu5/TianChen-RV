@@ -368,8 +368,19 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // regions, lowered below by isTypedRepackGemmLoopBody ->
         // emitTypedRepackGemmLoopBody / isTypedRepackGemvLoopBody ->
         // emitTypedRepackGemvLoopBody.
-        {&isRepackGemvQ5_0Q8_0Body,
-         &VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0},
+        // NOTE (G3-lode-flat FLAT-2): the q5_0 16x1-repacked GEVM direct emitter
+        // (emitRepackGemvQ5_0Q8_0) is RETIRED from the production dispatch (the
+        // FIVE-bit family retired to the front door, the SECOND flat tracer after
+        // q4_1): the repack front door now CONSTRUCTS the typed
+        // tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+        // "lane_wise_vector_scale", d-only no min) out of the SHARED q4_0 bricks --
+        // the core stamping weight_nibble_unsigned + weight_qh_byte_offset (@288) +
+        // weight_offset_bias (16) (the q5_0 5th-bit `((nibble)|(qh_bit<<4))-16`
+        // decode leaf), lowered below by isTypedRepackGem{v,m}LoopBody ->
+        // emitTypedRepackGem{v,m}LoopBody (RVVLowerQuantContraction.cpp
+        // lowerToRepackGem{v,m}Q50; byte-exact ZERO-MODEL host cert
+        // tools/e2e-harness/g3-lode-flat-q50). q5_1/q8_0 follow via the SAME
+        // shared-brick template.
         {&isRepackGemvQ5_1Q8_1Body,
          &VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1},
         {&isPackQ4_0ToX16Body,

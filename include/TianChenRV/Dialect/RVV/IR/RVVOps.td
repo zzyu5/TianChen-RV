@@ -11088,7 +11088,21 @@ def RepackLaneWiseQ4Q8DotOp
     // set (unit) the integer-core leaf emits the unsigned peel off a u8 load; ABSENT
     // (the q4_0 default) keeps the offset-binary sign-extension decode byte-identical.
     // A pure decode-leaf mirror, never a route/dtype WHAT.
-    UnitAttr:$weight_nibble_unsigned
+    UnitAttr:$weight_nibble_unsigned,
+    // OPTIONAL q5_0 5th-bit (qh) decode facts (the flat five-bit sibling of the
+    // q4_1 unsigned-nibble decode). q5_0 reconstructs each weight as
+    // `((nibble) | (qh_bit << 4)) - offset_bias`: the RAW unsigned nibble peel
+    // (weight_nibble_unsigned is set), an OR-in of the transposed bit-packed qh
+    // 5th bit (a SECOND weight plane at weight_qh_byte_offset -- for each of the 32
+    // element steps ONE 16-bit mask whose bit b is block b's qh bit; low element i
+    // at qh+i*2, high element i+16 at qh+(16+i)*2, the per-strip lane bit selected
+    // by mask>>(h*half)), reinterpret u8->i8, then a signed vsub of
+    // weight_offset_bias (16 = the offset-binary centering of the 5-bit [0,31]
+    // range to [-16,15]). PRESENT together ONLY for q5_0; ABSENT keeps the q4_0 /
+    // q4_1 four-bit decode byte-identical. A pure decode-leaf mirror, never a
+    // route/dtype WHAT.
+    OptionalAttr<I64Attr>:$weight_qh_byte_offset,
+    OptionalAttr<I64Attr>:$weight_offset_bias
   );
   let results = (outs Variadic<AnyType>:$results);
 
@@ -11415,7 +11429,17 @@ def RepackGemmLaneWiseQ4Q8DotOp
     // core brick's flag): the q4_1 asymmetric weight decodes RAW nibbles [0,15] via
     // the unsigned vand/vsrl+vreinterpret peel, NOT the q4_0 offset-binary
     // vsll/vsra. ABSENT keeps the q4_0 decode byte-identical.
-    UnitAttr:$weight_nibble_unsigned
+    UnitAttr:$weight_nibble_unsigned,
+    // OPTIONAL q5_0 5th-bit (qh) decode facts (the GEMM sibling of the GEVM core
+    // brick's q5_0 flags): the transposed bit-packed qh 5th-bit SECOND weight
+    // plane byte offset + the offset-binary centering bias (16). q5_0 GEMM
+    // reconstructs `((nibble) | (qh_bit << 4)) - offset_bias` -- the RAW unsigned
+    // nibble peel (weight_nibble_unsigned set) OR the per-strip qh bit (selected
+    // by mask>>strip_row_offset, the RUNTIME strip lane shift), reinterpret, then
+    // signed vsub of the bias. PRESENT together ONLY for q5_0; ABSENT keeps the
+    // q4_0 / q4_1 four-bit decode byte-identical.
+    OptionalAttr<I64Attr>:$weight_qh_byte_offset,
+    OptionalAttr<I64Attr>:$weight_offset_bias
   );
   let results = (outs Variadic<AnyType>:$results);
 
