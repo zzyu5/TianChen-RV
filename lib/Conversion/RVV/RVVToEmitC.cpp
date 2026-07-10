@@ -374,10 +374,18 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1},
         {&isPackQ4_0ToX16Body,
          &VariantToEmitCFunc::emitPackQ4_0ToX16},
-        {&isRepackGemvQ4_1Q8_1Body,
-         &VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1},
-        {&isRepackGemmQ4_1Q8_1Body,
-         &VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1},
+        // NOTE (G3-lode-flat 曳光弹): the q4_1 16x1-repacked GEVM+GEMM direct
+        // emitters (emitRepackGem{v,m}Q4_1Q8_1) are RETIRED from the production
+        // dispatch (the FLAT-family FIRST tracer retired to the front door): the
+        // repack front door now CONSTRUCTS the typed
+        // tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+        // "lane_wise_vector_scale_min") out of the SHARED q4_0 bricks -- the core
+        // stamping weight_nibble_unsigned (the q4_1 RAW unsigned nibble decode) + the
+        // fold stamping the single MIN-fold offset pair (RVVLowerQuantContraction.cpp
+        // lowerToRepackGem{v,m}Q41), lowered below by isTypedRepackGem{v,m}LoopBody ->
+        // emitTypedRepackGem{v,m}LoopBody (byte-exact, ZERO-MODEL host cert
+        // experiments/active/g3-lode-flat-q41). q5_0/q5_1/q8_0 follow via the SAME
+        // shared-brick template.
         // NOTE (G3 主线A T2-construct): the q4_K 16x1-repacked GEMM direct emitter
         // (emitRepackGemmQ4KQ8K) + its monolith op (tcrv_rvv.repack_gemm_q4_K_q8_K)
         // + recognizer (isRepackGemmQ4KQ8KBody) are RETIRED (the FIRST K-quant

@@ -1297,6 +1297,9 @@ private:
     int64_t activationHighRow;
     mlir::Value vl8;
     mlir::Type sizeType;
+    // q4_1 UNSIGNED-nibble decode selector (GEMM sibling): false = q4_0
+    // offset-binary sign-extension; true = q4_1 RAW-nibble unsigned peel.
+    bool unsignedNibble = false;
   };
 
   /// The shared q4_0 16x1-REPACKED GEMM per-block LANE-WISE integer CORE leaf:
@@ -1328,6 +1331,11 @@ private:
     llvm::StringRef l32;
     mlir::Value vl8;
     mlir::Type sizeType;
+    // q4_1 single MIN-fold facts (GEMM sibling): >= 0 pair triggers the per-column
+    // `acc += m_x*s_y[c]` correction (per-row fp16 MIN strip @ weightMinByteOffset,
+    // per-COLUMN fp16 scaled-sum s_y @ activationSumByteOffset). -1 = q4_0 no-min.
+    int64_t weightMinByteOffset = -1;
+    int64_t activationSumByteOffset = -1;
   };
 
   /// The shared q4_0 16x1-REPACKED GEMM per-block per-column dual-fp16 scale FOLD
@@ -2168,6 +2176,10 @@ private:
     int64_t activationHighRow;
     mlir::Value vl8;
     mlir::Type sizeType;
+    // q4_1 UNSIGNED-nibble decode selector: false (default) = the q4_0
+    // offset-binary vsll/vsra sign-extension off a signed i8 load; true = the q4_1
+    // RAW-nibble vand(0x0F)/vsrl(4)+vreinterpret peel off an unsigned u8 load.
+    bool unsignedNibble = false;
   };
 
   /// The shared q4_0 16x1-REPACKED per-block LANE-WISE integer CORE leaf: given
@@ -2205,6 +2217,12 @@ private:
     int64_t activationScaleByteOffset;
     mlir::Value vl8;
     mlir::Type sizeType;
+    // q4_1 single MIN-fold facts: >= 0 pair triggers the lane-wise `acc += m_x*s_y`
+    // correction after the dual-fp16 scale fold (per-row fp16 MIN strip @
+    // weightMinByteOffset, block-leading fp16 scaled-sum s_y @ activationSumByteOffset).
+    // -1 (default) = the q4_0 no-min fold, byte-identical.
+    int64_t weightMinByteOffset = -1;
+    int64_t activationSumByteOffset = -1;
   };
 
   /// The shared q4_0 16x1-REPACKED per-block per-strip dual-fp16 scale FOLD leaf:

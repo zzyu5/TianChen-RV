@@ -921,7 +921,7 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" || name == "weight_nibble_unsigned";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -936,7 +936,8 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
       return emitOpError()
              << "only accepts the bounded repacked lane-wise dot attributes "
                 "'kind', 'weight_quant_byte_offset', "
-                "'activation_quant_byte_offset', and 'integer_core_lmul'; "
+                "'activation_quant_byte_offset', 'integer_core_lmul', and the "
+                "optional q4_1 'weight_nibble_unsigned' decode selector; "
                 "unexpected attribute '"
              << attr.getName() << "'";
   }
@@ -1855,6 +1856,14 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   //                  "kquant_dmin_bsums_min") carrying the repack_gem{v,m}_kquant_core
   //                  brick (decode_model "q4_K").
   bool isQ40Family = getScaleModel() == "dual-fp16-per-block-d_x.d_y";
+  // q4_1 -- scale_model "dual-fp16-per-block-d_x.d_y-plus-min" (the asymmetric flat
+  // QK8_1 nibble contraction: the q4_0 dual-fp16 d_x*d_y scale PLUS a single
+  // per-block MIN term m_x*s_y, RAW unsigned nibbles [0,15]). Its repack-SELECTED
+  // lowering CONSTRUCTS the SAME typed_repack_gem{v,m}_loop_body region as q4_0
+  // (fold_model "lane_wise_vector_scale_min") via the SHARED q4_0 bricks -- the core
+  // stamping weight_nibble_unsigned + the fold stamping the single MIN offset pair.
+  bool isQ41Family =
+      getScaleModel() == "dual-fp16-per-block-d_x.d_y-plus-min";
   bool isTernaryTQ20Family =
       getScaleModel() == "superblock-d.fp16-single-scale-2bit-ternary-nomin";
   bool isTernaryTQ10Family =
@@ -1916,13 +1925,15 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // facts (the abstract request carries no codebook and no scales offsets).
   bool isCodebookIq4XsFamily =
       getScaleModel() == "superblock.fp16-signed6-scale-codebook-nomin";
-  if (!isQ40Family && !isTernaryTQ20Family && !isTernaryTQ10Family &&
-      !isKQuantQ4KFamily && !isKQuantQ6KFamily && !isKQuantQ2KFamily &&
-      !isKQuantQ3KFamily && !isKQuantQ5KFamily && !isCodebookIq4NlFamily &&
-      !isCodebookIq4XsFamily)
+  if (!isQ40Family && !isQ41Family && !isTernaryTQ20Family &&
+      !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
+      !isKQuantQ2KFamily && !isKQuantQ3KFamily && !isKQuantQ5KFamily &&
+      !isCodebookIq4NlFamily && !isCodebookIq4XsFamily)
     return emitOpError()
            << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" (the q4_0 "
               "flat dual-fp16 nibble family), "
+              "\"dual-fp16-per-block-d_x.d_y-plus-min\" (the q4_1 flat "
+              "dual-fp16 + single-min nibble family), "
               "\"superblock-d.fp16-single-scale-2bit-ternary-nomin\" (the ternary "
               "tq2_0 2-bit trit super-block family), "
               "\"superblock-d.fp16-single-scale-base3-ternary-nomin\" (the ternary "
@@ -1977,6 +1988,35 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       return emitOpError()
              << "requires activation_high_byte_offset == 16 (q8 high half) for "
                 "the abstract q4_0 block-quantized contraction request";
+  } else if (isQ41Family) {
+    // q4_1: QK8_1 == 32, PLAIN block_q4_1 stride 20 (fp16 d + fp16 m + 16 nibble
+    // bytes), PLAIN block_q8_1 stride 36 (fp16 d + fp16 s + 32 int8 quants),
+    // quants at +4 (after the inline fp16 d + fp16 m), the q8 high half at +16.
+    // The repacked x16 weight (stride 320, nibbles @64, m strip @32) / block_q8_1
+    // activation (36 GEVM, 144 GEMM) facts are a stage-C materialization the q4_1
+    // lowering derives, never carried here.
+    if (getQk() != 32)
+      return emitOpError() << "requires qk == 32 (QK8_1) for the abstract q4_1 "
+                              "block-quantized contraction request";
+    if (getWeightBlockStride() != 20)
+      return emitOpError()
+             << "requires weight_block_stride == 20 (sizeof block_q4_1: fp16 d + "
+                "fp16 m + 16 nibble bytes, the PLAIN weight layout) for the "
+                "abstract q4_1 block-quantized contraction request";
+    if (getActivationBlockStride() != 36)
+      return emitOpError()
+             << "requires activation_block_stride == 36 (sizeof block_q8_1: fp16 "
+                "d + fp16 s + 32 int8 quants) for the abstract q4_1 "
+                "block-quantized contraction request";
+    if (getQuantByteOffset() != 4)
+      return emitOpError()
+             << "requires quant_byte_offset == 4 (quants follow the inline fp16 d "
+                "+ fp16 m) for the abstract q4_1 block-quantized contraction "
+                "request";
+    if (getActivationHighByteOffset() != 16)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 16 (q8 high half) for "
+                "the abstract q4_1 block-quantized contraction request";
   } else if (isTernaryTQ20Family) {
     // ternary tq2_0: QK_K == 256, PLAIN block_tq2_0 weight stride 66 (fp16 d +
     // 64 2-bit quant bytes), PLAIN block_q8_K activation stride 292 (fp32 d + 256
@@ -13060,7 +13100,8 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "weight_scale_byte_offset" ||
            name == "activation_scale_byte_offset" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" || name == "weight_min_byte_offset" ||
+           name == "activation_sum_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -13074,10 +13115,19 @@ mlir::LogicalResult RepackDualFp16ScaleFoldOp::verify() {
       return emitOpError()
              << "only accepts the bounded repacked per-strip scale-fold "
                 "attributes 'kind', 'weight_scale_byte_offset', "
-                "'activation_scale_byte_offset', and 'integer_core_lmul'; "
-                "unexpected attribute '"
+                "'activation_scale_byte_offset', 'integer_core_lmul', and the "
+                "optional q4_1 min-fold pair 'weight_min_byte_offset' / "
+                "'activation_sum_byte_offset'; unexpected attribute '"
              << attr.getName() << "'";
   }
+  // The q4_1 single MIN-fold facts are a PAIR: either both present (the q4_1 fold
+  // adds `acc += m_x*s_y`) or both absent (the q4_0 dual-fp16 fold, no min).
+  if (getWeightMinByteOffsetAttr().operator bool() !=
+      getActivationSumByteOffsetAttr().operator bool())
+    return emitOpError()
+           << "requires the q4_1 min-fold facts weight_min_byte_offset and "
+              "activation_sum_byte_offset to be present together (both) or absent "
+              "together (the q4_0 no-min fold)";
 
   if (getKind() != "repack_dual_fp16_scale_fold")
     return emitOpError()
@@ -13519,25 +13569,36 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   bool isCodebookSuperblockFold =
       getFoldModel() == "codebook_superblock_signed6_no_min";
   bool isCodebookFold = isCodebookFlatFold || isCodebookSuperblockFold;
-  if (getFoldModel() != "lane_wise_vector_scale" && !isTernaryFold &&
-      !isKQuantFold && !isCodebookFold)
+  // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold: the SAME per-strip
+  // lane-wise vfwmul/vfcvt/vfmacc scale tree as q4_0 PLUS the lane-wise `acc +=
+  // m_x*s_y` min correction. It rides the SHARED q4_0 core + fold bricks (the core
+  // stamps weight_nibble_unsigned; the fold stamps the min-fold offset pair), so it
+  // falls through to the SAME emitter default path as q4_0.
+  bool isNibbleMinFold = getFoldModel() == "lane_wise_vector_scale_min";
+  if (getFoldModel() != "lane_wise_vector_scale" && !isNibbleMinFold &&
+      !isTernaryFold && !isKQuantFold && !isCodebookFold)
     return emitOpError()
            << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
               "q4_0 repacked GEVM per-strip vfwmul/vfcvt/vfmacc lane-wise fold "
-              "tree), \"ternary_single_fp16_scale\" (the ternary single-scale "
-              "no-min fold), \"kquant_dmin_bsums_min\" (the K-quant q4_K dual "
-              "d/dmin + bsums-min fold), or \"kquant_single_scale_no_min\" (the "
-              "K-quant q6_K 6-bit two-plane single-accumulator no-min fold), or "
+              "tree), \"lane_wise_vector_scale_min\" (the q4_1 unsigned-nibble "
+              "dual-fp16 + single MIN fold), \"ternary_single_fp16_scale\" (the "
+              "ternary single-scale no-min fold), \"kquant_dmin_bsums_min\" (the "
+              "K-quant q4_K dual d/dmin + bsums-min fold), or "
+              "\"kquant_single_scale_no_min\" (the K-quant q6_K 6-bit two-plane "
+              "single-accumulator no-min fold), or "
               "\"codebook_flat_single_scale\" (the iq4_nl flat non-linear "
               "16-entry codebook single-scale fold), or "
               "\"codebook_superblock_signed6_no_min\" (the iq4_xs super-block "
               "16-entry codebook + 6-bit signed sub-block-scale fold)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold &&
-      getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+      getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
+      getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min")
     return emitOpError()
            << "currently supports only scale_model "
-              "\"dual-fp16-per-block-d_x.d_y\" (the per-block d_x*d_y dual-fp16 "
-              "repacked scale model)";
+              "\"dual-fp16-per-block-d_x.d_y\" (the q4_0 per-block d_x*d_y "
+              "dual-fp16 repacked scale model) or "
+              "\"dual-fp16-per-block-d_x.d_y-plus-min\" (the q4_1 dual-fp16 + "
+              "single min scale model)";
 
   // The OPTIONAL SECOND weight-plane (qh) byte offset (I7): the ternary tq1_0 base-3
   // qh plane, the q6_K high-2-bit / q3_K hmask high-bit no-min qh plane, OR the q5_K
@@ -13759,7 +13820,7 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" || name == "weight_nibble_unsigned";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -13774,7 +13835,8 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
       return emitOpError()
              << "only accepts the bounded repacked GEMM lane-wise dot attributes "
                 "'kind', 'weight_quant_byte_offset', "
-                "'activation_quant_byte_offset', and 'integer_core_lmul'; "
+                "'activation_quant_byte_offset', 'integer_core_lmul', and the "
+                "optional q4_1 'weight_nibble_unsigned' decode selector; "
                 "unexpected attribute '"
              << attr.getName() << "'";
   }
@@ -13858,7 +13920,8 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "weight_scale_byte_offset" ||
            name == "activation_scale_byte_offset" ||
-           name == "integer_core_lmul";
+           name == "integer_core_lmul" || name == "weight_min_byte_offset" ||
+           name == "activation_sum_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -13873,10 +13936,19 @@ mlir::LogicalResult RepackGemmDualFp16ScaleFoldOp::verify() {
       return emitOpError()
              << "only accepts the bounded repacked GEMM per-column scale-fold "
                 "attributes 'kind', 'weight_scale_byte_offset', "
-                "'activation_scale_byte_offset', and 'integer_core_lmul'; "
-                "unexpected attribute '"
+                "'activation_scale_byte_offset', 'integer_core_lmul', and the "
+                "optional q4_1 min-fold pair 'weight_min_byte_offset' / "
+                "'activation_sum_byte_offset'; unexpected attribute '"
              << attr.getName() << "'";
   }
+  // The q4_1 single MIN-fold facts are a PAIR (both present = the q4_1 GEMM fold
+  // adds the per-column `acc += m_x*s_y[c]`; both absent = the q4_0 no-min fold).
+  if (getWeightMinByteOffsetAttr().operator bool() !=
+      getActivationSumByteOffsetAttr().operator bool())
+    return emitOpError()
+           << "requires the q4_1 min-fold facts weight_min_byte_offset and "
+              "activation_sum_byte_offset to be present together (both) or absent "
+              "together (the q4_0 no-min fold)";
 
   if (getKind() != "repack_gemm_dual_fp16_scale_fold")
     return emitOpError()
@@ -13991,25 +14063,37 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   bool isCodebookSuperblockFold =
       getFoldModel() == "codebook_superblock_signed6_no_min";
   bool isCodebookFold = isCodebookFlatFold || isCodebookSuperblockFold;
-  if (getFoldModel() != "lane_wise_vector_scale" && !isTernaryFold &&
-      !isKQuantFold && !isCodebookFold)
+  // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold (the GEMM sibling of the
+  // GEVM q4_1 fold): the SAME per-column lane-wise scale tree as q4_0 PLUS the
+  // per-column `acc += m_x*s_y[c]` min correction, riding the SHARED q4_0 GEMM core
+  // + fold bricks (core stamps weight_nibble_unsigned; fold stamps the min-offset
+  // pair), so it falls through to the SAME emitter default path as q4_0.
+  bool isNibbleMinFold = getFoldModel() == "lane_wise_vector_scale_min";
+  if (getFoldModel() != "lane_wise_vector_scale" && !isNibbleMinFold &&
+      !isTernaryFold && !isKQuantFold && !isCodebookFold)
     return emitOpError()
            << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
               "q4_0 repacked GEMM per-column vfwmul/vfcvt/vfmacc lane-wise fold "
-              "tree), \"ternary_single_fp16_scale\" (the ternary single-scale "
-              "no-min fold), \"kquant_dmin_bsums_min\" (the K-quant q4_K dual "
-              "d/dmin + bsums-min fold), or \"kquant_single_scale_no_min\" (the "
-              "K-quant q6_K 6-bit two-plane single-accumulator no-min fold), or "
+              "tree), \"lane_wise_vector_scale_min\" (the q4_1 unsigned-nibble "
+              "dual-fp16 + single MIN fold), \"ternary_single_fp16_scale\" (the "
+              "ternary single-scale no-min fold), \"kquant_dmin_bsums_min\" (the "
+              "K-quant q4_K dual d/dmin + bsums-min fold), or "
+              "\"kquant_single_scale_no_min\" (the K-quant q6_K 6-bit two-plane "
+              "single-accumulator no-min fold), or "
               "\"codebook_flat_single_scale\" (the iq4_nl flat non-linear "
               "16-entry codebook single-scale fold), or "
               "\"codebook_superblock_signed6_no_min\" (the iq4_xs super-block "
               "16-entry codebook + 6-bit signed sub-block-scale fold)";
   if (!isTernaryFold && !isKQuantFold && !isCodebookFold &&
-      getScaleModel() != "dual-fp16-per-block-d_x.d_y")
+      getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
+      getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min" &&
+      getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min-4col")
     return emitOpError()
            << "currently supports only scale_model "
-              "\"dual-fp16-per-block-d_x.d_y\" (the per-block d_x*d_y dual-fp16 "
-              "repacked scale model)";
+              "\"dual-fp16-per-block-d_x.d_y\" (the q4_0 per-block d_x*d_y "
+              "dual-fp16 repacked scale model) or the q4_1 "
+              "\"dual-fp16-per-block-d_x.d_y-plus-min\" / "
+              "\"dual-fp16-per-block-d_x.d_y-plus-min-4col\" min scale models";
 
   // The OPTIONAL SECOND weight-plane (qh) byte offset (I7): the ternary tq1_0 base-3
   // qh plane, the q6_K high-2-bit / q3_K hmask high-bit no-min qh plane, OR the q5_K

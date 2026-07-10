@@ -11080,7 +11080,15 @@ def RepackLaneWiseQ4Q8DotOp
     StrAttr:$kind,
     I64Attr:$weight_quant_byte_offset,
     I64Attr:$activation_quant_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    // OPTIONAL q4_1 UNSIGNED-nibble decode selector: the asymmetric q4_1 weight
+    // stores RAW nibbles in [0,15] (the offset-binary bias lives in the separate
+    // per-row MIN scale), so its decode is the unsigned vand(b,0x0F)/vsrl(b,4)+
+    // vreinterpret peel -- NOT the q4_0 offset-binary vsll/vsra sign-extension. When
+    // set (unit) the integer-core leaf emits the unsigned peel off a u8 load; ABSENT
+    // (the q4_0 default) keeps the offset-binary sign-extension decode byte-identical.
+    // A pure decode-leaf mirror, never a route/dtype WHAT.
+    UnitAttr:$weight_nibble_unsigned
   );
   let results = (outs Variadic<AnyType>:$results);
 
@@ -11303,7 +11311,16 @@ def RepackDualFp16ScaleFoldOp
     StrAttr:$kind,
     I64Attr:$weight_scale_byte_offset,
     I64Attr:$activation_scale_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    // OPTIONAL q4_1 single MIN-fold facts: the per-row fp16 MIN strip byte offset
+    // (block_q4_1x16 +32, after the 16 fp16 d) and the per-block activation
+    // scaled-sum s_y byte offset (block_q8_1 +2). Present as a PAIR ONLY for the
+    // q4_1 fold, which ADDS the lane-wise MIN correction term `acc += m_x * s_y`
+    // AFTER the shared dual-fp16 scale fold (`acc += (d_x*d_y)*sumi`); ABSENT for the
+    // q4_0 dual-fp16 fold (which has no min), keeping q4_0 byte-identical. A pure I4
+    // shape mirror, never a route/dtype WHAT.
+    OptionalAttr<I64Attr>:$weight_min_byte_offset,
+    OptionalAttr<I64Attr>:$activation_sum_byte_offset
   );
   let results = (outs AnyType:$acc_next);
 
@@ -11393,7 +11410,12 @@ def RepackGemmLaneWiseQ4Q8DotOp
     StrAttr:$kind,
     I64Attr:$weight_quant_byte_offset,
     I64Attr:$activation_quant_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    // OPTIONAL q4_1 UNSIGNED-nibble decode selector (the GEMM sibling of the GEVM
+    // core brick's flag): the q4_1 asymmetric weight decodes RAW nibbles [0,15] via
+    // the unsigned vand/vsrl+vreinterpret peel, NOT the q4_0 offset-binary
+    // vsll/vsra. ABSENT keeps the q4_0 decode byte-identical.
+    UnitAttr:$weight_nibble_unsigned
   );
   let results = (outs Variadic<AnyType>:$results);
 
@@ -11471,7 +11493,15 @@ def RepackGemmDualFp16ScaleFoldOp
     StrAttr:$kind,
     I64Attr:$weight_scale_byte_offset,
     I64Attr:$activation_scale_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul
+    OptionalAttr<StrAttr>:$integer_core_lmul,
+    // OPTIONAL q4_1 single MIN-fold facts (the GEMM sibling of the GEVM fold brick's
+    // pair): the per-row fp16 MIN strip byte offset (block_q4_1x16 +32) and the
+    // per-COLUMN activation scaled-sum s_y byte offset (block_q8_1x4 +8). Present as
+    // a PAIR ONLY for the q4_1 fold (the lane-wise `acc += m_x * s_y[c]` correction
+    // AFTER the shared dual-fp16 scale fold); ABSENT keeps the q4_0 fold
+    // byte-identical.
+    OptionalAttr<I64Attr>:$weight_min_byte_offset,
+    OptionalAttr<I64Attr>:$activation_sum_byte_offset
   );
   let results = (outs AnyType:$acc_next);
 

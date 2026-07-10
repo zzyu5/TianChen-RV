@@ -784,6 +784,7 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
   int64_t activationInterleave = cx.activationInterleave;
   int64_t activationHighRow = cx.activationHighRow;
 
+  bool unsignedNibble = cx.unsignedNibble;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
   mlir::Type i16m1Type =
       emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
@@ -791,8 +792,13 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
       emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
   mlir::Type i8mf2Type =
       emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+  mlir::Type u8mf2Type =
+      emitc::OpaqueType::get(ctx, ("vuint8" + l8 + "_t").str());
+  mlir::Type immI32Type = emitc::OpaqueType::get(ctx, "int");
   mlir::Type i8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+  mlir::Type u8PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
@@ -803,22 +809,50 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
 
-  // A typed i8 contiguous sub-load: __riscv_vle8_v_i8<l8>((int8_t*)ptr, vl).
+  // q4_0: a typed i8 sub-load __riscv_vle8_v_i8<l8> (the repacked nibbles carry the
+  // ^0x88 offset-binary bias). q4_1 (unsignedNibble): the asymmetric weight stores
+  // RAW nibbles, so it loads unsigned __riscv_vle8_v_u8.
   std::string i8LoadCallee = riscvIntrinsicName("vle", 8, l8, "i8");
+  std::string u8LoadCallee = riscvIntrinsicName("vle", 8, l8, "u8");
   auto loadNibbles = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
     mlir::Value full =
         rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+    if (unsignedNibble) {
+      mlir::Value cast =
+          rewriter.create<emitc::CastOp>(loc, u8PtrType, full).getResult();
+      return emitOpaqueCall(rewriter, loc, u8mf2Type, u8LoadCallee,
+                            mlir::ValueRange{cast, vl8}, opName, role);
+    }
     mlir::Value cast =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
     return emitOpaqueCall(rewriter, loc, i8mf2Type, i8LoadCallee,
                           mlir::ValueRange{cast, vl8}, opName, role);
   };
-  // The repacked nibbles already carry the ^0x88 offset-binary bias, so the
-  // decode is a plain sign-extension: b_lo = vsra(vsll(b,4),4); b_hi=vsra(b,4).
+  // q4_0 offset-binary decode = plain sign-extension: b_lo = vsra(vsll(b,4),4);
+  // b_hi = vsra(b,4). q4_1 UNSIGNED decode = the RAW-nibble peel: b_lo =
+  // vreinterpret_i8(vand(b,0x0F)); b_hi = vreinterpret_i8(vsrl(b,4)) (value-identity
+  // for 0..15 -- the q4_1 bias lives in the separate MIN scale, NO sign-extend).
   std::string sllCallee = ("__riscv_vsll_vx_i8" + l8).str();
   std::string sraCallee = ("__riscv_vsra_vx_i8" + l8).str();
+  std::string vandCallee = ("__riscv_vand_vx_u8" + l8).str();
+  std::string vsrlCallee = ("__riscv_vsrl_vx_u8" + l8).str();
+  std::string reinterpretCallee =
+      ("__riscv_vreinterpret_v_u8" + l8 + "_i8" + l8).str();
   mlir::Value four = sizeLit(4);
   auto decodeLo = [&](mlir::Value packed) -> mlir::Value {
+    if (unsignedNibble) {
+      mlir::Value lo = emitOpaqueCallBuilt(
+          rewriter, loc, u8mf2Type, vandCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value mask =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0x0F")
+                    .getResult();
+            return {packed, mask, vl8};
+          });
+      return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                            mlir::ValueRange{lo}, opName, role);
+    }
     mlir::Value shl =
         emitOpaqueCall(rewriter, loc, i8mf2Type, sllCallee,
                        mlir::ValueRange{packed, four, vl8}, opName, role);
@@ -826,6 +860,19 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
                           mlir::ValueRange{shl, four, vl8}, opName, role);
   };
   auto decodeHi = [&](mlir::Value packed) -> mlir::Value {
+    if (unsignedNibble) {
+      mlir::Value hi = emitOpaqueCallBuilt(
+          rewriter, loc, u8mf2Type, vsrlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sh =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0x04")
+                    .getResult();
+            return {packed, sh, vl8};
+          });
+      return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                            mlir::ValueRange{hi}, opName, role);
+    }
     return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
                           mlir::ValueRange{packed, four, vl8}, opName, role);
   };
@@ -974,6 +1021,10 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
   llvm::StringRef l32 = cx.l32;
   mlir::Type sizeType = cx.sizeType;
   mlir::Value vl8 = cx.vl8;
+  // q4_1 single MIN-fold facts (>= 0 pair => per-column `acc += m_x*s_y[c]`).
+  bool hasMin = cx.weightMinByteOffset >= 0 && cx.activationSumByteOffset >= 0;
+  int64_t weightMinOffset = cx.weightMinByteOffset;
+  int64_t activationSumOffset = cx.activationSumByteOffset;
 
   mlir::Type f32m2Type =
       emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
@@ -991,6 +1042,7 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
 
+  std::string f16LoadCallee = riscvIntrinsicName("vle", 16, l16, "f16");
   // vfloat16m1_t b_d = vle16(&bl.d[roff], 8);  byte = roff*2.
   step("weight_scale_addr");
   mlir::Value dByteOff =
@@ -999,15 +1051,28 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
       rewriter.create<emitc::AddOp>(loc, weightPtrType, bl, dByteOff);
   mlir::Value dCast =
       rewriter.create<emitc::CastOp>(loc, f16PtrType, dFull).getResult();
-  std::string f16LoadCallee = riscvIntrinsicName("vle", 16, l16, "f16");
   mlir::Value bD = emitOpaqueCall(rewriter, loc, f16m1Type, f16LoadCallee,
                                   mlir::ValueRange{dCast, vl8}, opName, role);
+  // q4_1: the per-row fp16 MIN strip m_x = vle16(&bl.m[roff]); byte =
+  // weightMinOffset + roff*2 (loaded ONCE per strip, folded per column below).
+  mlir::Value bM;
+  if (hasMin) {
+    mlir::Value mByteOff = rewriter.create<emitc::AddOp>(
+        loc, sizeType, sizeLit(weightMinOffset), dByteOff);
+    mlir::Value mFull =
+        rewriter.create<emitc::AddOp>(loc, weightPtrType, bl, mByteOff);
+    mlir::Value mCast =
+        rewriter.create<emitc::CastOp>(loc, f16PtrType, mFull).getResult();
+    bM = emitOpaqueCall(rewriter, loc, f16m1Type, f16LoadCallee,
+                        mlir::ValueRange{mCast, vl8}, opName, role);
+  }
 
   // d_c = vfwmul_vf(b_d, *(const _Float16 *)&al.d[c], 8);  -- the raw
   // _Float16 activation scale (NO float cast).
   std::string vfwmulCallee = ("__riscv_vfwmul_vf_f32" + l32).str();
   std::string vfcvtCallee = riscvIntrinsicName("vfcvt_f_x_v", 32, l32, "f32");
   std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
+  std::string vfaddCallee = ("__riscv_vfadd_vv_f32" + l32).str();
   llvm::StringRef f16ReadCallee = "*(const _Float16 *)";
   for (int64_t c = cLo; c < cHi; ++c) {
     mlir::Type f16ScalarType = emitc::OpaqueType::get(ctx, "_Float16");
@@ -1034,6 +1099,28 @@ void VariantToEmitCFunc::emitRepackGemmDualFp16ScaleFold(
     mlir::Value nextF =
         emitOpaqueCall(rewriter, loc, f32m2Type, vfmaccCallee,
                        mlir::ValueRange{curF, sumiF, dC, vl8}, opName, role);
+    // q4_1: the per-column MIN term m_c = vfwmul_vf(b_m, s_y[c]); sumf_c =
+    // vfadd_vv(sumf_c, m_c) -- s_y at activationSumOffset + c*2.
+    if (hasMin) {
+      mlir::Value aS = emitOpaqueCallBuilt(
+          rewriter, loc, f16ScalarType, f16ReadCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value aSOff = rewriter.create<emitc::AddOp>(
+                loc, activationPtrType, al,
+                sizeLit(activationSumOffset + c * 2));
+            mlir::Value aSCast =
+                rewriter.create<emitc::CastOp>(loc, f16PtrType, aSOff)
+                    .getResult();
+            return {aSCast};
+          },
+          llvm::StringRef("act_sum_scalar"));
+      mlir::Value mC =
+          emitOpaqueCall(rewriter, loc, f32m2Type, vfwmulCallee,
+                         mlir::ValueRange{bM, aS, vl8}, opName, role);
+      nextF = emitOpaqueCall(rewriter, loc, f32m2Type, vfaddCallee,
+                             mlir::ValueRange{nextF, mC, vl8}, opName, role);
+    }
     rewriter.create<emitc::AssignOp>(loc, sumfVar[c], nextF);
   }
 }
@@ -1247,6 +1334,7 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
   int64_t activationQuantOffset = cx.activationQuantOffset;
   int64_t activationHighRow = cx.activationHighRow;
 
+  bool unsignedNibble = cx.unsignedNibble;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
   mlir::Type i16m1Type =
       emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
@@ -1254,8 +1342,13 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
       emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
   mlir::Type i8mf2Type =
       emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
+  mlir::Type u8mf2Type =
+      emitc::OpaqueType::get(ctx, ("vuint8" + l8 + "_t").str());
+  mlir::Type immI32Type = emitc::OpaqueType::get(ctx, "int");
   mlir::Type i8PtrType =
       emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const int8_t"));
+  mlir::Type u8PtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const uint8_t"));
   mlir::Type weightPtrType = bl.getType();
   mlir::Type activationPtrType = al.getType();
 
@@ -1266,22 +1359,50 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     rewriter.create<emitc::VerbatimOp>(loc, stepComment(opName, role, s));
   };
 
-  // A typed i8 contiguous sub-load: __riscv_vle8_v_i8<l8>((int8_t*)ptr, vl).
+  // q4_0: a typed i8 sub-load __riscv_vle8_v_i8<l8> (the repacked nibbles carry the
+  // ^0x88 offset-binary bias). q4_1 (unsignedNibble): the asymmetric weight stores
+  // RAW nibbles, so it loads unsigned __riscv_vle8_v_u8.
   std::string i8LoadCallee = riscvIntrinsicName("vle", 8, l8, "i8");
+  std::string u8LoadCallee = riscvIntrinsicName("vle", 8, l8, "u8");
   auto loadNibbles = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
     mlir::Value full =
         rewriter.create<emitc::AddOp>(loc, weightPtrType, base, byteOff);
+    if (unsignedNibble) {
+      mlir::Value cast =
+          rewriter.create<emitc::CastOp>(loc, u8PtrType, full).getResult();
+      return emitOpaqueCall(rewriter, loc, u8mf2Type, u8LoadCallee,
+                            mlir::ValueRange{cast, vl8}, opName, role);
+    }
     mlir::Value cast =
         rewriter.create<emitc::CastOp>(loc, i8PtrType, full).getResult();
     return emitOpaqueCall(rewriter, loc, i8mf2Type, i8LoadCallee,
                           mlir::ValueRange{cast, vl8}, opName, role);
   };
-  // The repacked nibbles already carry the ^0x88 offset-binary bias, so the
-  // decode is a plain sign-extension: b_lo = vsra(vsll(b,4),4); b_hi=vsra(b,4).
+  // q4_0 offset-binary decode = plain sign-extension: b_lo = vsra(vsll(b,4),4);
+  // b_hi = vsra(b,4). q4_1 UNSIGNED decode = the RAW-nibble peel: b_lo =
+  // vreinterpret_i8(vand(b,0x0F)); b_hi = vreinterpret_i8(vsrl(b,4)) (value-identity
+  // for 0..15 -- the q4_1 bias lives in the separate MIN scale, NO sign-extend).
   std::string sllCallee = ("__riscv_vsll_vx_i8" + l8).str();
   std::string sraCallee = ("__riscv_vsra_vx_i8" + l8).str();
+  std::string vandCallee = ("__riscv_vand_vx_u8" + l8).str();
+  std::string vsrlCallee = ("__riscv_vsrl_vx_u8" + l8).str();
+  std::string reinterpretCallee =
+      ("__riscv_vreinterpret_v_u8" + l8 + "_i8" + l8).str();
   mlir::Value four = sizeLit(4);
   auto decodeLo = [&](mlir::Value packed) -> mlir::Value {
+    if (unsignedNibble) {
+      mlir::Value lo = emitOpaqueCallBuilt(
+          rewriter, loc, u8mf2Type, vandCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value mask =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0x0F")
+                    .getResult();
+            return {packed, mask, vl8};
+          });
+      return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                            mlir::ValueRange{lo}, opName, role);
+    }
     mlir::Value shl =
         emitOpaqueCall(rewriter, loc, i8mf2Type, sllCallee,
                        mlir::ValueRange{packed, four, vl8}, opName, role);
@@ -1289,6 +1410,19 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
                           mlir::ValueRange{shl, four, vl8}, opName, role);
   };
   auto decodeHi = [&](mlir::Value packed) -> mlir::Value {
+    if (unsignedNibble) {
+      mlir::Value hi = emitOpaqueCallBuilt(
+          rewriter, loc, u8mf2Type, vsrlCallee, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value sh =
+                rewriter.create<emitc::LiteralOp>(loc, immI32Type, "0x04")
+                    .getResult();
+            return {packed, sh, vl8};
+          });
+      return emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
+                            mlir::ValueRange{hi}, opName, role);
+    }
     return emitOpaqueCall(rewriter, loc, i8mf2Type, sraCallee,
                           mlir::ValueRange{packed, four, vl8}, opName, role);
   };
@@ -1460,6 +1594,11 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
   int64_t half = cx.half;
   int64_t weightScaleOffset = cx.weightScaleByteOffset;
   int64_t activationScaleOffset = cx.activationScaleByteOffset;
+  // q4_1 single MIN-fold facts (>= 0 pair => the lane-wise `acc += m_x*s_y`
+  // correction after the dual-fp16 scale fold; -1 => q4_0 no-min, byte-identical).
+  bool hasMin = cx.weightMinByteOffset >= 0 && cx.activationSumByteOffset >= 0;
+  int64_t weightMinOffset = cx.weightMinByteOffset;
+  int64_t activationSumOffset = cx.activationSumByteOffset;
 
   mlir::Type f32m2Type =
       emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
@@ -1497,6 +1636,21 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
   llvm::SmallVector<mlir::Value> bD;
   for (int64_t h = 0; h < numHalves; ++h)
     bD.push_back(loadScales(h * half));
+  // q4_1: the per-row fp16 MIN strips m_x (at weightMinOffset + h*half*2), one per
+  // strip, loaded the SAME way as the d strips.
+  llvm::SmallVector<mlir::Value> bM;
+  if (hasMin)
+    for (int64_t h = 0; h < numHalves; ++h) {
+      int64_t totalOff = weightMinOffset + h * half * 2;
+      mlir::Value mFull = bl;
+      if (totalOff != 0)
+        mFull = rewriter.create<emitc::AddOp>(loc, weightPtrType, bl,
+                                              sizeLit(totalOff));
+      mlir::Value mCast =
+          rewriter.create<emitc::CastOp>(loc, f16PtrType, mFull).getResult();
+      bM.push_back(emitOpaqueCall(rewriter, loc, f16m1Type, f16LoadCallee,
+                                  mlir::ValueRange{mCast, vl8}, opName, role));
+    }
 
   // The single activation scale *(const _Float16 *)&al.d (NO float cast),
   // broadcast into both halves' vfwmul. The block-leading scale byte offset (0)
@@ -1515,14 +1669,32 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
         return {aDCast};
       },
       llvm::StringRef("act_scale_scalar"));
+  // q4_1: the single activation scaled-sum s_y = *(const _Float16 *)&al.s (at
+  // activationSumOffset), broadcast into the lane-wise MIN term m_x * s_y.
+  mlir::Value aS;
+  if (hasMin)
+    aS = emitOpaqueCallBuilt(
+        rewriter, loc, f16ScalarType, f16ReadCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value aSFull = rewriter.create<emitc::AddOp>(
+              loc, al.getType(), al, sizeLit(activationSumOffset));
+          mlir::Value aSCast =
+              rewriter.create<emitc::CastOp>(loc, f16PtrType, aSFull)
+                  .getResult();
+          return {aSCast};
+        },
+        llvm::StringRef("act_sum_scalar"));
 
   // d_h = vfwmul_vf(b_d_h, aD, vl);
   // sumf_h = vfmacc_vv(sumf_h, vfcvt_f_x_v(sumi_h, vl), d_h, vl);
+  // q4_1 min: m_h = vfwmul_vf(b_m_h, aS, vl); sumf_h = vfadd_vv(sumf_h, m_h, vl).
   std::string vfwmulCallee = ("__riscv_vfwmul_vf_f32" + l32).str();
   std::string vfcvtCallee = riscvIntrinsicName("vfcvt_f_x_v", 32, l32, "f32");
   std::string vfmaccCallee = ("__riscv_vfmacc_vv_f32" + l32).str();
-  auto fold = [&](mlir::Value bDStrip, mlir::Value sumiStrip,
-                  mlir::Value sumfVarStrip) {
+  std::string vfaddCallee = ("__riscv_vfadd_vv_f32" + l32).str();
+  auto fold = [&](mlir::Value bDStrip, mlir::Value bMStrip,
+                  mlir::Value sumiStrip, mlir::Value sumfVarStrip) {
     mlir::Value dC =
         emitOpaqueCall(rewriter, loc, f32m2Type, vfwmulCallee,
                        mlir::ValueRange{bDStrip, aD, vl8}, opName, role);
@@ -1535,10 +1707,17 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
     mlir::Value nextF =
         emitOpaqueCall(rewriter, loc, f32m2Type, vfmaccCallee,
                        mlir::ValueRange{curF, sumiF, dC, vl8}, opName, role);
+    if (hasMin) {
+      mlir::Value mC =
+          emitOpaqueCall(rewriter, loc, f32m2Type, vfwmulCallee,
+                         mlir::ValueRange{bMStrip, aS, vl8}, opName, role);
+      nextF = emitOpaqueCall(rewriter, loc, f32m2Type, vfaddCallee,
+                             mlir::ValueRange{nextF, mC, vl8}, opName, role);
+    }
     rewriter.create<emitc::AssignOp>(loc, sumfVarStrip, nextF);
   };
   for (int64_t h = 0; h < numHalves; ++h)
-    fold(bD[h], sumi[h], sumfVar[h]);
+    fold(bD[h], hasMin ? bM[h] : mlir::Value(), sumi[h], sumfVar[h]);
 }
 
 // M-FLAT REPACK loop-scaffold Phase B (full-body byte-exact, ALL arms): the typed
@@ -2093,6 +2272,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   int64_t activationQuantOffset = coreBrick.getActivationQuantByteOffset();
   int64_t weightScaleOffset = foldByStrip[0].getWeightScaleByteOffset();
   int64_t activationScaleOffset = foldByStrip[0].getActivationScaleByteOffset();
+  // q4_1 decode-leaf facts sourced from the region BRICKS (the anti-bypass
+  // surface): the UNSIGNED-nibble flag from the integer CORE brick, and the single
+  // MIN-fold offset pair from the dual-fp16 FOLD bricks (all fold bricks agree; -1
+  // sentinel = the q4_0 no-min fold, byte-identical).
+  bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  int64_t weightMinOffset =
+      foldByStrip[0].getWeightMinByteOffset().has_value()
+          ? static_cast<int64_t>(*foldByStrip[0].getWeightMinByteOffset())
+          : -1;
+  int64_t activationSumOffset =
+      foldByStrip[0].getActivationSumByteOffset().has_value()
+          ? static_cast<int64_t>(*foldByStrip[0].getActivationSumByteOffset())
+          : -1;
 
   // The integer-core LMUL anchor (the *how*, never the *what*): "mf2" default
   // (RVV1.0 fractional chain i8mf2 -> i16m1 -> i32m2 -> f32m2, f16 scale m1) or
@@ -2211,6 +2403,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           opName, role, l8, l16, l32, numHalves, half, nibbleBytes,
           weightInterleave, weightQuantOffset, activationQuantOffset,
           nibbleBytes, vl, sizeType};
+      coreCx.unsignedNibble = unsignedNibble;
       llvm::SmallVector<mlir::Value> sumi =
           emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
@@ -2226,6 +2419,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
       RepackDualFp16ScaleFoldContext foldCx{
           opName, role, l16, l32, numHalves, half, weightScaleOffset,
           activationScaleOffset, vl, sizeType};
+      foldCx.weightMinByteOffset = weightMinOffset;
+      foldCx.activationSumByteOffset = activationSumOffset;
       emitRepackDualFp16ScaleFold(rewriter, loc, foldCx, bl, al, sumi, sumfVar);
     }
 
@@ -2870,6 +3065,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // the monolith); they are gate-verified consistent above.
   int64_t weightQuantOffset = coreBrick.getWeightQuantByteOffset();
   int64_t activationQuantOffset = coreBrick.getActivationQuantByteOffset();
+  // q4_1 decode-leaf facts from the region BRICKS (anti-bypass surface): the
+  // UNSIGNED-nibble flag from the CORE brick + the single MIN-fold offset pair from
+  // the per-column FOLD bricks (-1 sentinel = the q4_0 no-min fold, byte-identical).
+  bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  int64_t weightMinOffset =
+      foldByColumn[0].getWeightMinByteOffset().has_value()
+          ? static_cast<int64_t>(*foldByColumn[0].getWeightMinByteOffset())
+          : -1;
+  int64_t activationSumOffset =
+      foldByColumn[0].getActivationSumByteOffset().has_value()
+          ? static_cast<int64_t>(*foldByColumn[0].getActivationSumByteOffset())
+          : -1;
 
   mlir::Type f32AccType =
       emitc::OpaqueType::get(ctx, ("vfloat32" + l32 + "_t").str());
@@ -3018,6 +3225,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
                 opName, role, l8, l16, l32, nibbleBytes, weightInterleave,
                 weightQuantOffset, activationQuantOffset, activationInterleave,
                 activationHighRow, vl8, sizeType};
+            coreCx.unsignedNibble = unsignedNibble;
             llvm::SmallVector<mlir::Value> sumi32 =
                 emitRepackGemmQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al,
                                                     roff, cLo, cHi);
@@ -3030,6 +3238,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
             // back), byte-exact to the monolith's fold part. =====
             RepackGemmDualFp16ScaleFoldContext foldCx{opName, role, l16, l32,
                                                       vl8, sizeType};
+            foldCx.weightMinByteOffset = weightMinOffset;
+            foldCx.activationSumByteOffset = activationSumOffset;
             emitRepackGemmDualFp16ScaleFold(rewriter, loc, foldCx, bl, al, roff,
                                             sumi32, sumfVar, cLo, cHi);
           }
