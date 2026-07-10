@@ -71,6 +71,7 @@
 #include "llvm/Support/Error.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -773,6 +774,23 @@ private:
         pluginrvv::selectRepackTilingVariant(*shape, minVLEN,
                                              kRVVArchVectorRegisterCount,
                                              measurement);
+
+    // [SEL-1-T5] PRODUCTION-PATH INVARIANT (生产 dispatch 路径零 static_order):
+    // stampTilingSelection is reached ONLY from the repack GEMM builders, and
+    // lowerOne gates EVERY such builder behind `isRepack && halfLanes != 0`
+    // (deriveRepackHalfLanes returns 0 for minVLEN < 128). So on every WIRED leaf
+    // minVLEN >= 128 AND kRVVArchVectorRegisterCount == 32 > 0, hence the Stage-1
+    // feasible set is {plain, s6_tiled} (never empty) and the capability-blind
+    // static_order fallback in selectRepackTilingVariant is UNREACHABLE here. The
+    // header retains that fallback as an honest fail-safe, but no reachable path
+    // (production or lit) exercises it today, so it is INERT on the production
+    // dispatch path. Assert it so a future un-gated wiring can NEVER silently stamp
+    // the capability-blind fallback -- the reason on a wired leaf is always
+    // measured / prior / only_feasible, never static_order.
+    assert(choice.reason != pluginrvv::RVVTilingSelectionReason::StaticOrder &&
+           "SEL-1 production repack leaf stamped the capability-blind static_order "
+           "fallback: a wired path reached stampTilingSelection with minVLEN < 128 "
+           "(the isRepack && halfLanes != 0 gate should make this unreachable)");
 
     loop->setAttr(kTilingVariantAttr,
                   builder.getStringAttr(pluginrvv::stringifyRVVRepackTilingVariant(

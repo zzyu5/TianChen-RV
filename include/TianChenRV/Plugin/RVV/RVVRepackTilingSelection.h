@@ -220,6 +220,17 @@ selectRepackTilingVariant(RVVTilingBottleneckShape shape, std::int64_t vlenBits,
 
   // Fail-safe: no guaranteed capability fact => no capability-keyed decision. Return
   // the shape's byte-exact-preserving default, HONESTLY labelled static_order.
+  //
+  // [SEL-1-T5] INERT on the PRODUCTION dispatch path: the front-door pass
+  // (RVVLowerQuantContraction stampTilingSelection) only reaches this selector from
+  // the repack GEMM builders, which lowerOne gates behind `isRepack && halfLanes !=
+  // 0` (deriveRepackHalfLanes == 0 for minVLEN < 128). So a WIRED leaf always calls
+  // in with vlenBits >= 128 and vregCount == 32 => a non-empty feasible set => this
+  // branch never fires. It is retained purely as an honest fail-safe; NO reachable
+  // path today exercises it (the pass gates it away, and no direct-call unit test
+  // supplies vlenBits < 128), so it is fully INERT. The call site asserts the
+  // returned reason is never StaticOrder, so a future un-gated wiring cannot
+  // silently regress the "生产 dispatch 路径零 static_order" invariant.
   if (feasible.empty())
     return {priorTilingVariantForShape(shape),
             RVVTilingSelectionReason::StaticOrder};
