@@ -29,11 +29,12 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
-| sealed Win | **1 · Win-K1-VLEN（★加固升双板 · 待 ratify）**：k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs block-dot **1.336×**（两板编译器对称干净 kernel-account、各按能力事实派生杠杆 k1=lane-width/rvv=schedule）；3 caveat 全 resolved（FU-1 正交/FU-2 定⑤/FU-3 零 shim）；登记册 + 加固报告 `docs/reports/2026-07-10-Win-K1-VLEN-加固报告.md` |
+| sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## 在飞
-- （无板批在飞；加固队列 FU-1/2/3 全落，Win 升双板待 ratify）
-- ✅ 已收：**★Win-K1-VLEN 加固升双板**（FU-2 rvv 1.336× clang-对称 / FU-1 正交 null / FU-3 零 shim）· 定位升级 canon 修订 · [CASE-MICRO-E2E] 卷宗 · col-outer M1c · RVV-E2E 全线 · certified 26→41 · C1/C2 正名 · FLAT 4/4 · Stage-0/1/2
+- **[M4] 触碰集核查**（CERT-FD ∥ iq2-grid 并行/串行判定，30-min）→ 据此开 CERT-FD 按族批量（dequant×21→quant×3→forward×5）+ iq2-grid 曳光弹
+- **⚠ 已 flag 待裁新立项**：**exec-级跨范式选择器能力先验**（SEL-1-T5 的 Selector-D + IME N3 gating 同一 gap：`rankKernelVariantsByCost` 常量分 RVV 1.0<IME 20.0 = 能力盲；今无害、P7 矩阵接管 GEMM 瞬间=向量静默胜/矩阵静默败）——非"收尾"域、必问/新立项，是 IME gating 关门 + P7 enabler
+- ✅ 已收：**★Win-K1-VLEN RATIFIED 双板方法验证** · SEL-1-T5（生产 dispatch 零 static_order：A/B/C 全能力键、D flag、223/223）· IME gating 报告（N2 CLOSED / N3=(b)缺键控+(c)perf-pending）· 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · certified 26→41 · FLAT 4/4
 
 ## 排队（主线区 · 顺序即优先级 · 2026-07-10 Win-K1-VLEN 后重排）
 1. ~~[巩固队列] Win-K1-VLEN 加固~~ **✅ 完成（2026-07-10）**：FU-1 正交 null（col-outer rvv-specific）/ FU-2 定⑤ **1.336× clang-对称 → 升双板** / FU-3 零 shim；加固报告出、**Win 升双板待用户 ratify** → 队首推进 [SEL-1-T5]
