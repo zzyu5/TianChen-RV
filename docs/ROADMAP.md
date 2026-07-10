@@ -22,13 +22,24 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 - **两线共产出**：lane-width × token-tile 两新调度轴入能力键控选择器 = **C3′/选择器故事增量章节**。
 - **底线预案**（两线皆卡时启用、报裁）：sealed Win 退 q4_0 路由格（5.9× 系统账 + 补八门缺项）；当前两线均有静态账支撑，**预案不启动**。
 
-## 当前坐标（2026-07-11）
+## 当前坐标（2026-07-11 · ★byte-exact-by-retirement 路径穷尽）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 79/93 = 84.95%**（★主数·论文口径，+tq1_0/tq2_0 dequant 77→79）｜ labeled 79/93（certified=labeled·RED 0）｜ C_construct_plus 80（含 vec_dot/mxfp4 weak）｜ **矿脉冲 90%(需+5→84): mxfp4 gemm_tile 退役 + iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4 gemm_tile codebook 前门** |
+| C_construct | **certified 80/93 = 86.02%**（★主数·论文口径，+mxfp4 gemm_tile 退役 79→80）｜ labeled 80/93（certified=labeled·RED 0）｜ **每个有 in-code emitter 的格已全部前门构造+认证 → 退役路径完全穷尽** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
-| 旁路 | **4**（FLAT 4 格全退役 8→4） |
-| 矿脉 | **1 dispatch-wired（gemm_tile/mxfp4，双 emitter 退役可证）+ 5 absent gemm_tile（iq1_s/iq1_m/iq3_xxs/iq3_s/nvfp4·codebook 前门，oracle 逐格自查）**；在飞 agent aebd7cfa |
+| 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
+| 矿脉 | **0 可退役格剩余**；absent 13 格全 net-new/aspirational/out-of-scope（见下 M4 门去向 fork） |
+
+## ⚠ M4 门去向 fork（2026-07-11 · 预注册退役路径触底 · 必问待裁）
+**certified 80/93=86.02% = byte-exact-by-retirement 路径完全穷尽**（旁路 0 / dispatch-wired 0 / RED 0）。剩余 13 absent 格无一可经预注册退役翻：
+- **net-new quant kernel（7）**：dequant/q1_0 + gemm_tile/{q1_0,iq1_s,iq1_m,iq3_xxs,iq3_s,nvfp4}——无 in-code emitter → 无 cheap 退役 oracle，构造需 **board/ggml golden 执行**（新工作种类 + board 依赖 + 部分 exotic codebook GEMM 路径疑非热路 = padding 风险）
+- **IME-GEMM aspirational（3）**：gemm_tile/{q4_0,q8_0,q4_K}——IME MMAOp format-agnostic、无 format-keyed tile = N3/IME 独立战役
+- **out-of-scope（2）**：flash_attn（注意力非量化 kernel）· bf16（float 类型 · [G-2] 排除）
+
+**冲 84（90%）需 +4，全落在 net-new/aspirational——预注册路径无法触及。** 三选项待裁：
+- **(A) M4 实质达成**：86% + 旁路清零 + RED 0 + dispatch-wired 0 = 每个可退役格已认证；residual 归类 out-of-scope/aspirational/net-new-board-work；转 **论文三贡献证据链闭合 + [RENAME]**。
+- **(B) 冲字面 90%**：立 board golden-oracle net-new GEMM harness（新立项 · board 依赖 · ≥4 net-new GEMM · exotic 格 padding 风险）。
+- **(C) 重定分母**：排 out-of-scope（bf16/flash_attn 非量化 kernel）+ IME-aspirational（独立 N3）后按 certifiable-scope 重算门（如 80/(93−2 oos)=87.9% 或 80/(93−5 oos+asp)=90.9%），再定去向。
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## 在飞
