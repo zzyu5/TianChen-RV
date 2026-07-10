@@ -2335,7 +2335,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // direct emitter is by construction. The grid decode facts (grid-index / ls-scale /
   // sign-selector byte offsets + n_subblocks) ride on the grid core brick; the FIXED grid +
   // DERIVED signs64 planes are emit-period static const decls (NEVER op attrs). ----
-  if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth") {
+  if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth" ||
+      loopBody.getFoldModel() == "grid_sign_dualscale_eighth") {
     tcrvrvv::RepackGemvGridCoreOp coreBrick;
     loopBody.getBody().walk(
         [&](tcrvrvv::RepackGemvGridCoreOp o) { coreBrick = o; });
@@ -2353,10 +2354,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           coreBrick, "the grid core brick's weight/activation bases must be the "
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
-    if (coreBrick.getDecodeModel() != "iq2_xxs")
+    llvm::StringRef decodeModel = coreBrick.getDecodeModel();
+    if (decodeModel != "iq2_xxs" && decodeModel != "iq2_xs" &&
+        decodeModel != "iq2_s")
       return rewriter.notifyMatchFailure(
           coreBrick, "grid repack GEVM decode_model not recognized (expected "
-                     "\"iq2_xxs\")");
+                     "\"iq2_xxs\", \"iq2_xs\", or \"iq2_s\")");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
     mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -2367,9 +2370,27 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
-    return emitRepackGridGemvBodyIq2Xxs(
-        rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
-        sizeType, opName, role, coreLmul,
+    // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
+    // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
+    if (decodeModel == "iq2_xxs")
+      return emitRepackGridGemvBodyIq2Xxs(
+          rewriter, loc, weightBase, activationBase, output, columnCount, avlArg,
+          sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(coreBrick.getWeightQuantByteOffset()),
+          static_cast<int64_t>(coreBrick.getWeightLsByteOffset()),
+          static_cast<int64_t>(coreBrick.getWeightSignByteOffset()),
+          static_cast<int64_t>(coreBrick.getActivationQuantByteOffset()),
+          static_cast<int64_t>(coreBrick.getNSubblocks()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
+    Iq2DualGridVariant variant =
+        decodeModel == "iq2_xs" ? Iq2DualGridVariant::Xs : Iq2DualGridVariant::S;
+    return emitRepackGemvIq2DualScaleQ8K(
+        rewriter, loc, variant, weightBase, activationBase, output, columnCount,
+        avlArg, sizeType, opName, role, coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
         static_cast<int64_t>(loopBody.getActivationBlockStride()),
@@ -3145,7 +3166,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // construction. The grid decode facts ride on the grid core brick; the fixed grid +
   // signs64 planes are DERIVED static const decls. iq2_xxs ships PLAIN (untiled): a
   // memory-gather grid decode already <= the 32-vreg cliff. ----
-  if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth") {
+  if (loopBody.getFoldModel() == "grid_sign_single_scale_eighth" ||
+      loopBody.getFoldModel() == "grid_sign_dualscale_eighth") {
     tcrvrvv::RepackGemmGridCoreOp coreBrick;
     loopBody.getBody().walk(
         [&](tcrvrvv::RepackGemmGridCoreOp o) { coreBrick = o; });
@@ -3167,10 +3189,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           coreBrick, "the grid core brick's weight/activation bases must be the "
                      "loop-body's own repacked-weight / q8_K-activation ABI "
                      "buffers");
-    if (coreBrick.getDecodeModel() != "iq2_xxs")
+    llvm::StringRef decodeModel = coreBrick.getDecodeModel();
+    if (decodeModel != "iq2_xxs" && decodeModel != "iq2_xs" &&
+        decodeModel != "iq2_s")
       return rewriter.notifyMatchFailure(
           coreBrick, "grid repack GEMM decode_model not recognized (expected "
-                     "\"iq2_xxs\")");
+                     "\"iq2_xxs\", \"iq2_xs\", or \"iq2_s\")");
     mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
     mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
     mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -3184,9 +3208,28 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     llvm::StringRef opName = loopBody.getTCRVEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getTCRVEmitCLowerableSourceRole();
     llvm::StringRef coreLmul = loopBody.getIntegerCoreLmul().value_or("mf2");
-    return emitRepackGridGemmBodyIq2Xxs(
-        rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
-        outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+    // iq2_xxs (single ls) rides the iq2_xxs body leaf; iq2_xs / iq2_s (dual ls) share the
+    // Iq2DualGridVariant dual-ls body leaf (grid table + sign plane selected by variant).
+    if (decodeModel == "iq2_xxs")
+      return emitRepackGridGemmBodyIq2Xxs(
+          rewriter, loc, weightBase, activationBase, output, rowCount,
+          columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
+          static_cast<int64_t>(loopBody.getQk()),
+          static_cast<int64_t>(loopBody.getWeightBlockStride()),
+          static_cast<int64_t>(loopBody.getActivationBlockStride()),
+          static_cast<int64_t>(coreBrick.getWeightQuantByteOffset()),
+          static_cast<int64_t>(coreBrick.getWeightLsByteOffset()),
+          static_cast<int64_t>(coreBrick.getWeightSignByteOffset()),
+          static_cast<int64_t>(coreBrick.getActivationQuantByteOffset()),
+          static_cast<int64_t>(coreBrick.getNSubblocks()),
+          static_cast<int64_t>(loopBody.getWeightInterleave()),
+          static_cast<int64_t>(loopBody.getActivationInterleave()),
+          static_cast<int64_t>(loopBody.getHalfLanes()));
+    Iq2DualGridVariant variant =
+        decodeModel == "iq2_xs" ? Iq2DualGridVariant::Xs : Iq2DualGridVariant::S;
+    return emitRepackGemmIq2DualScaleQ8K(
+        rewriter, loc, variant, weightBase, activationBase, output, rowCount,
+        columnCount, outputRowStride, avlArg, sizeType, opName, role, coreLmul,
         static_cast<int64_t>(loopBody.getQk()),
         static_cast<int64_t>(loopBody.getWeightBlockStride()),
         static_cast<int64_t>(loopBody.getActivationBlockStride()),
@@ -21930,13 +21973,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     Iq2DualGridVariant variant, mlir::Value weightBase,
     mlir::Value activationBase, mlir::Value output, mlir::Value columnCount,
-    mlir::Value resultValue, llvm::StringRef opName, llvm::StringRef role,
-    llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
-    int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
-    int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
-    int64_t weightInterleave, int64_t half, mlir::Value avlArg,
-    mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+    int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
+    int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
+    int64_t nSubblocks, int64_t weightInterleave, int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -21949,7 +21990,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
         emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
     mlir::Type i32m2Type =
         emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
-    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     mlir::Type i8mf2Type =
         emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
     mlir::Type u8mf2Type =
@@ -21987,7 +22027,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(resultValue.getDefiningOp(),
+      return rewriter.notifyMatchFailure(loc,
                                          "repack-gemv-iq2-dual output not pointer");
 
     mlir::Value vl8 = sizeLit(half);
@@ -22372,16 +22412,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2DualScaleQ8K(
       }
     }
 
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[resultValue] = resultTok;
+    // RESULT-LESS (no monolith token): the front-door typed_repack_gemv_loop_body region
+    // has NO result -- the lane-wise vector store is the sole sink (byte-exact to the
+    // retired direct emitter modulo the dropped dead result-token vmv).
     return mlir::success();
   }
 
@@ -22394,14 +22427,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     Iq2DualGridVariant variant, mlir::Value weightBase,
     mlir::Value activationBase, mlir::Value output, mlir::Value rowCount,
-    mlir::Value columnCount, mlir::Value outputRowStride,
-    mlir::Value resultValue, llvm::StringRef opName, llvm::StringRef role,
+    mlir::Value columnCount, mlir::Value outputRowStride, mlir::Value avlArg,
+    mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
     llvm::StringRef coreLmul, int64_t qk, int64_t weightStride,
     int64_t activationStride, int64_t gridIdxOffset, int64_t lsOffset,
     int64_t signOffset, int64_t activationQuantOffset, int64_t nSubblocks,
-    int64_t weightInterleave, int64_t activationInterleave, int64_t half,
-    mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+    int64_t weightInterleave, int64_t activationInterleave,
+    int64_t half) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     llvm::StringRef l8 = coreLmul;
@@ -22414,7 +22446,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
         emitc::OpaqueType::get(ctx, ("vint16" + l16 + "_t").str());
     mlir::Type i32m2Type =
         emitc::OpaqueType::get(ctx, ("vint32" + l32 + "_t").str());
-    mlir::Type i32m1Type = emitc::OpaqueType::get(ctx, "vint32m1_t");
     mlir::Type i8mf2Type =
         emitc::OpaqueType::get(ctx, ("vint8" + l8 + "_t").str());
     mlir::Type u8mf2Type =
@@ -22455,7 +22486,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
     if (!llvm::isa<mlir::TypedValue<emitc::PointerType>>(output))
-      return rewriter.notifyMatchFailure(resultValue.getDefiningOp(),
+      return rewriter.notifyMatchFailure(loc,
                                          "repack-gemm-iq2-dual output not pointer");
 
     mlir::Value vl8 = sizeLit(half);
@@ -22891,145 +22922,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
       }
     }
 
-    std::string seedCallee = riscvIntrinsicName("vmv_v_x", 32, "m1", "i32");
-    mlir::Value zeroLane =
-        rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
-    mlir::Value resultTok =
-        rewriter
-            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32m1Type},
-                                         seedCallee,
-                                         mlir::ValueRange{zeroLane, sizeLit(1)})
-            .getResult(0);
-    valueMap[resultValue] = resultTok;
+    // RESULT-LESS (no monolith token): the front-door typed_repack_gemm_loop_body region
+    // has NO result -- the lane-wise vector store is the sole sink (byte-exact to the
+    // retired direct emitter modulo the dropped dead result-token vmv).
     return mlir::success();
   }
 
-// ---- The four thin dispatch entry points (op lookup + operand map + facts). ----
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2XsQ8K(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvIq2XsQ8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front())
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvIq2XsQ8KOp>(op))
-        gemv = g;
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope, "repack-gemv-iq2_xs body missing op");
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-iq2_xs ABI operand unmapped");
-    return emitRepackGemvIq2DualScaleQ8K(
-        rewriter, loc, Iq2DualGridVariant::Xs, weightBase, activationBase, output,
-        columnCount, gemv.getResult(), gemv.getTCRVEmitCLowerableSourceOpName(),
-        gemv.getTCRVEmitCLowerableSourceRole(),
-        gemv.getIntegerCoreLmul().value_or("mf2"), gemv.getQk(),
-        gemv.getWeightBlockStride(), gemv.getActivationBlockStride(),
-        gemv.getWeightQuantByteOffset(), gemv.getWeightScaleByteOffset(),
-        gemv.getWeightSignByteOffset(), gemv.getActivationQuantByteOffset(),
-        gemv.getNSubblocks(), gemv.getWeightInterleave(), gemv.getHalfLanes(),
-        avlArg, sizeType, valueMap);
-  }
-
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2XsQ8K(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmIq2XsQ8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front())
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmIq2XsQ8KOp>(op))
-        gemm = g;
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope, "repack-gemm-iq2_xs body missing op");
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount || !columnCount ||
-        !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-iq2_xs ABI operand unmapped");
-    return emitRepackGemmIq2DualScaleQ8K(
-        rewriter, loc, Iq2DualGridVariant::Xs, weightBase, activationBase, output,
-        rowCount, columnCount, outputRowStride, gemm.getResult(),
-        gemm.getTCRVEmitCLowerableSourceOpName(),
-        gemm.getTCRVEmitCLowerableSourceRole(),
-        gemm.getIntegerCoreLmul().value_or("mf2"), gemm.getQk(),
-        gemm.getWeightBlockStride(), gemm.getActivationBlockStride(),
-        gemm.getWeightQuantByteOffset(), gemm.getWeightScaleByteOffset(),
-        gemm.getWeightSignByteOffset(), gemm.getActivationQuantByteOffset(),
-        gemm.getNSubblocks(), gemm.getWeightInterleave(),
-        gemm.getActivationInterleave(), gemm.getHalfLanes(), avlArg, sizeType,
-        valueMap);
-  }
-
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvIq2SQ8K(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemvIq2SQ8KOp gemv;
-    for (mlir::Operation &op : scope.getBody().front())
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemvIq2SQ8KOp>(op))
-        gemv = g;
-    if (!gemv)
-      return rewriter.notifyMatchFailure(scope, "repack-gemv-iq2_s body missing op");
-    mlir::Value weightBase = valueMap.lookup(gemv.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemv.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemv.getOutput());
-    mlir::Value columnCount = valueMap.lookup(gemv.getColumnCount());
-    if (!weightBase || !activationBase || !output || !columnCount)
-      return rewriter.notifyMatchFailure(gemv,
-                                         "repack-gemv-iq2_s ABI operand unmapped");
-    return emitRepackGemvIq2DualScaleQ8K(
-        rewriter, loc, Iq2DualGridVariant::S, weightBase, activationBase, output,
-        columnCount, gemv.getResult(), gemv.getTCRVEmitCLowerableSourceOpName(),
-        gemv.getTCRVEmitCLowerableSourceRole(),
-        gemv.getIntegerCoreLmul().value_or("mf2"), gemv.getQk(),
-        gemv.getWeightBlockStride(), gemv.getActivationBlockStride(),
-        gemv.getWeightQuantByteOffset(), gemv.getWeightScaleByteOffset(),
-        gemv.getWeightSignByteOffset(), gemv.getActivationQuantByteOffset(),
-        gemv.getNSubblocks(), gemv.getWeightInterleave(), gemv.getHalfLanes(),
-        avlArg, sizeType, valueMap);
-  }
-
-mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2SQ8K(
-    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    tcrvrvv::GgmlRepackGemmIq2SQ8KOp gemm;
-    for (mlir::Operation &op : scope.getBody().front())
-      if (auto g = llvm::dyn_cast<tcrvrvv::GgmlRepackGemmIq2SQ8KOp>(op))
-        gemm = g;
-    if (!gemm)
-      return rewriter.notifyMatchFailure(scope, "repack-gemm-iq2_s body missing op");
-    mlir::Value weightBase = valueMap.lookup(gemm.getWeightBase());
-    mlir::Value activationBase = valueMap.lookup(gemm.getActivationBase());
-    mlir::Value output = valueMap.lookup(gemm.getOutput());
-    mlir::Value rowCount = valueMap.lookup(gemm.getRowCount());
-    mlir::Value columnCount = valueMap.lookup(gemm.getColumnCount());
-    mlir::Value outputRowStride = valueMap.lookup(gemm.getOutputRowStride());
-    if (!weightBase || !activationBase || !output || !rowCount || !columnCount ||
-        !outputRowStride)
-      return rewriter.notifyMatchFailure(gemm,
-                                         "repack-gemm-iq2_s ABI operand unmapped");
-    return emitRepackGemmIq2DualScaleQ8K(
-        rewriter, loc, Iq2DualGridVariant::S, weightBase, activationBase, output,
-        rowCount, columnCount, outputRowStride, gemm.getResult(),
-        gemm.getTCRVEmitCLowerableSourceOpName(),
-        gemm.getTCRVEmitCLowerableSourceRole(),
-        gemm.getIntegerCoreLmul().value_or("mf2"), gemm.getQk(),
-        gemm.getWeightBlockStride(), gemm.getActivationBlockStride(),
-        gemm.getWeightQuantByteOffset(), gemm.getWeightScaleByteOffset(),
-        gemm.getWeightSignByteOffset(), gemm.getActivationQuantByteOffset(),
-        gemm.getNSubblocks(), gemm.getWeightInterleave(),
-        gemm.getActivationInterleave(), gemm.getHalfLanes(), avlArg, sizeType,
-        valueMap);
-  }
+// NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the four thin direct-emit
+// dispatch entry points emitRepackGem{v,m}Iq2{Xs,S}Q8K + their monolith ops
+// (tcrv_rvv.repack_gem{v,m}_iq2_{xs,s}_q8_K) + recognizers (isRepackGem{v,m}Iq2{Xs,S}Q8KBody)
+// are RETIRED: the iq2_xs / iq2_s repack GEVM/GEMM now flow through the typed-region front
+// door (grid branch of emitTypedRepackGem{v,m}LoopBody -> emitRepackGem{v,m}Iq2DualScaleQ8K,
+// the SAME dual-ls body leaf now result-less + fact-parameterized). The iq2 grid family is
+// COMPLETE at the front door.
 
 } // namespace detail
 } // namespace rvv

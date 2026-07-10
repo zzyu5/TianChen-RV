@@ -610,6 +610,27 @@ constexpr llvm::StringLiteral kGridIq2XxsScaleModel =
 constexpr llvm::StringLiteral kGridIq2XxsGemmScaleModel =
     "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth-4col";
 
+// The iq2_xs / iq2_s DUAL-scale GRID CODEBOOK + SIGN-PLANE decode-FAMILY discriminators
+// (the abstract request's committed scale_model WHAT): the DUAL-ls grid decode siblings of
+// iq2_xxs (retirement_batch 3). Same QK_K=256 super-block / 8-byte grid ENTRY gather / sign
+// fold / NO min / trailing 0.125 as iq2_xxs, with TWO structural deltas: (a) the grid INDEX
+// is a u16 strip (9-bit iq2_xs / 10-bit iq2_s, cannot live in a byte, so vle16 direct, NO
+// vzext); (b) each 32-lane sub-block splits into TWO ls-weighted group-halves (ls1 groups
+// 0-1, ls2 groups 2-3). iq2_xs signs are DERIVED signs64 (7-bit selector, like iq2_xxs);
+// iq2_s signs are DIRECT signs256 (explicit 8-bit sign byte). A request carrying either
+// scale_model is a grid contraction whose repack-SELECTED lowering CONSTRUCTS the grid
+// typed_repack_gem{v,m}_loop_body region (fold_model "grid_sign_dualscale_eighth",
+// decode_model "iq2_xs" / "iq2_s") carrying the SAME repack_gem{v,m}_grid_core brick. The
+// FIXED grid + signs planes stay DERIVED canonical static const tables (NEVER op attrs).
+constexpr llvm::StringLiteral kGridIq2XsScaleModel =
+    "superblock-d.fp16-grid-sign-dualscale-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq2XsGemmScaleModel =
+    "superblock-d.fp16-grid-sign-dualscale-4col-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq2SScaleModel =
+    "superblock-d.fp16-grid-explicitsign-dualscale-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq2SGemmScaleModel =
+    "superblock-d.fp16-grid-explicitsign-dualscale-4col-nomin-eighth";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -713,6 +734,45 @@ constexpr Iq2GridDecodeFacts kIq2XxsDecodeFacts = {
     /*weightGridIdxByteOffset=*/160,
     /*weightLsByteOffset=*/32,
     /*weightSignByteOffset=*/672,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*nSubblocks=*/8,
+};
+
+// The block_iq2_xsx16 / block_iq2_sx16 DUAL-scale grid facts the GRID lowering
+// RECONSTRUCTS (the stage-C x16 materialization). Both share the SAME repacked strip layout
+// (stride 1824: 16 fp16 d + 256 dual ls @32 + 1024 u16 grid-index @288 + 512 sign-selector
+// @1312) and the SAME plain block_q8_K GEVM (292/4) / interleaved block_q8_Kx4 GEMM
+// (1168/16) activation facts -- iq2_xs and iq2_s differ ONLY in the DERIVED grid table
+// (512-entry iq2xs_grid + signs64 vs 1024-entry iq2s_grid + explicit signs256), selected in
+// the emitter by the decode_model (the FIXED planes stay DERIVED static const, NEVER op
+// attrs). The dual foldModel "grid_sign_dualscale_eighth" splits each sub-block into ls1
+// (groups 0-1) / ls2 (groups 2-3), sharing the SAME weight_ls_byte_offset base.
+constexpr Iq2GridDecodeFacts kIq2XsDecodeFacts = {
+    /*decodeModel=*/"iq2_xs",
+    /*gemmScaleModel=*/kGridIq2XsGemmScaleModel,
+    /*foldModel=*/"grid_sign_dualscale_eighth",
+    /*weightBlockStride=*/1824,
+    /*weightGridIdxByteOffset=*/288,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/1312,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*nSubblocks=*/8,
+};
+
+constexpr Iq2GridDecodeFacts kIq2SDecodeFacts = {
+    /*decodeModel=*/"iq2_s",
+    /*gemmScaleModel=*/kGridIq2SGemmScaleModel,
+    /*foldModel=*/"grid_sign_dualscale_eighth",
+    /*weightBlockStride=*/1824,
+    /*weightGridIdxByteOffset=*/288,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/1312,
     /*gevmActivationBlockStride=*/292,
     /*gevmActivationQuantByteOffset=*/4,
     /*gemmActivationBlockStride=*/1168,
@@ -1005,7 +1065,9 @@ private:
       // and the grid/ls/sign byte offsets + n_subblocks ride on the grid core brick.
       const Iq2GridDecodeFacts *grid =
           op.getScaleModel() == kGridIq2XxsScaleModel ? &kIq2XxsDecodeFacts
-                                                      : nullptr;
+          : op.getScaleModel() == kGridIq2XsScaleModel ? &kIq2XsDecodeFacts
+          : op.getScaleModel() == kGridIq2SScaleModel  ? &kIq2SDecodeFacts
+                                                       : nullptr;
       // The q4_1 family (unsigned nibble + single MIN fold) builds the SAME typed
       // q4_0 repack region via lowerToRepackGem{v,m}Q41 (the SHARED q4_0 core + fold
       // bricks, the core stamping weight_nibble_unsigned and the fold stamping the
@@ -1074,6 +1136,8 @@ private:
         op.getScaleModel() == kCodebookIq4NlScaleModel ||
         op.getScaleModel() == kCodebookIq4XsScaleModel ||
         op.getScaleModel() == kGridIq2XxsScaleModel ||
+        op.getScaleModel() == kGridIq2XsScaleModel ||
+        op.getScaleModel() == kGridIq2SScaleModel ||
         op.getScaleModel() == kNibbleQ50ScaleModel ||
         op.getScaleModel() == kNibbleQ51ScaleModel ||
         op.getScaleModel() == kNibbleQ80ScaleModel)

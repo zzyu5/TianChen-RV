@@ -25,10 +25,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 71/93 = 76.3%**（★主数·论文口径，CERT-FD 41→70 + iq2-grid iq2_xxs 70→71）｜ labeled 71/93（certified=labeled·RED 0）｜ **矿脉冲 90%: iq2_xs/iq2_s + forward-support(gelu/add/mul/cpy) + tq/mxfp4/iq1/iq3/nvfp4/q1_0** |
+| C_construct | **certified 73/93 = 78.5%**（★主数·论文口径，CERT-FD 41→70 + iq2-grid 全家族 70→73）｜ labeled 73/93（certified=labeled·RED 0）｜ **矿脉冲 90%: iq2_xs/iq2_s + forward-support(gelu/add/mul/cpy) + tq/mxfp4/iq1/iq3/nvfp4/q1_0** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
-| 矿脉 | **3**（iq2_xxs gemm_tile 落 4→3；余 iq2_xs/iq2_s/mxfp4 + absent iq1/iq3/nvfp4/q1_0） |
+| 矿脉 | **1**（iq2 grid 家族全落 4→1；仅剩 mxfp4；+ absent iq1/iq3/nvfp4/q1_0 gemm_tile） |
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## 在飞

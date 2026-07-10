@@ -79,8 +79,9 @@ stringifyRVVTilingSelectionReason(RVVTilingSelectionReason reason) {
 //   - DualPlaneWeightBound (fold_model "kquant_single_scale_no_min", q6_K/q3_K): the
 //     peak is two-plane weight reconstruction, so output tiling is a NULL lever.
 //     Prior => Plain.
-//   - AlreadyLean (the codebook fold_models iq4_nl/iq4_xs, the iq2 GRID fold
-//     "grid_sign_single_scale_eighth", AND the flat q4_0 linear fold
+//   - AlreadyLean (the codebook fold_models iq4_nl/iq4_xs, the iq2 GRID folds
+//     "grid_sign_single_scale_eighth" (iq2_xxs single ls) / "grid_sign_dualscale_eighth"
+//     (iq2_xs/iq2_s dual ls), AND the flat q4_0 linear fold
 //     "lane_wise_vector_scale"): the body already sits <= the 32-vreg cliff (a
 //     memory-gather codebook decode, or the flat single-plane nibble + dual-fp16
 //     fold), so S6 output tiling is a structural no-op. Prior => Plain. This is the
@@ -108,6 +109,7 @@ classifyTilingBottleneckShape(llvm::StringRef foldModel) {
   if (foldModel == "codebook_flat_single_scale" ||
       foldModel == "codebook_superblock_signed6_no_min" ||
       foldModel == "grid_sign_single_scale_eighth" ||
+      foldModel == "grid_sign_dualscale_eighth" ||
       foldModel == "lane_wise_vector_scale")
     return RVVTilingBottleneckShape::AlreadyLean;
   return std::nullopt;

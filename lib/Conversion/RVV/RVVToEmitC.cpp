@@ -474,11 +474,17 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // brick (decode_model "iq2_xxs"), lowered below by isTypedRepackGemmLoopBody ->
         // emitTypedRepackGemmLoopBody (grid branch) -> emitRepackGridGemmBodyIq2Xxs
         // (byte-exact PLAIN untiled body to the retired direct emitter; the FIRST GRID
-        // decode family). iq2_xs / iq2_s remain dispatch-wired (batch 3) below.
-        {&isRepackGemmIq2XsQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmIq2XsQ8K},
-        {&isRepackGemmIq2SQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemmIq2SQ8K},
+        // decode family).
+        // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the iq2_xs / iq2_s
+        // DUAL-scale 16x1-repacked GEMM direct emitters (emitRepackGemmIq2{Xs,S}Q8K) + their
+        // monolith ops (tcrv_rvv.repack_gemm_iq2_{xs,s}_q8_K) + recognizers
+        // (isRepackGemmIq2{Xs,S}Q8KBody) are RETIRED, COMPLETING the iq2 grid family: the
+        // repack front door now constructs the typed tcrv_rvv.typed_repack_gemm_loop_body
+        // region (fold_model "grid_sign_dualscale_eighth") carrying the SAME
+        // tcrv_rvv.repack_gemm_grid_core brick (decode_model "iq2_xs" / "iq2_s"), lowered
+        // below by isTypedRepackGemmLoopBody -> emitTypedRepackGemmLoopBody (grid branch) ->
+        // emitRepackGemmIq2DualScaleQ8K (byte-exact PLAIN untiled dual-ls body leaf to the
+        // retired direct emitters).
         // NOTE (G3-lode-flat FLAT-4 收官格): the q8_0 16x1-repacked GEVM direct
         // emitter (emitRepackGemvQ8_0Q8_0) + recognizer (isRepackGemvQ8_0Q8_0Body)
         // are RETIRED from the production dispatch (the monolith op
@@ -556,12 +562,17 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // "grid_sign_single_scale_eighth") carrying the NEW tcrv_rvv.repack_gemv_grid_core
         // brick (decode_model "iq2_xxs"), lowered below by isTypedRepackGemvLoopBody ->
         // emitTypedRepackGemvLoopBody (grid branch) -> emitRepackGridGemvBodyIq2Xxs
-        // (byte-exact to the retired direct emitter; the FIRST GRID decode family). The
-        // iq2_xs / iq2_s DUAL-scale siblings remain dispatch-wired (batch 3) below.
-        {&isRepackGemvIq2XsQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvIq2XsQ8K},
-        {&isRepackGemvIq2SQ8KBody,
-         &VariantToEmitCFunc::emitRepackGemvIq2SQ8K},
+        // (byte-exact to the retired direct emitter; the FIRST GRID decode family).
+        // NOTE (G3 M4 iq2-grid front-door, cells iq2_xs + iq2_s): the iq2_xs / iq2_s
+        // DUAL-scale 16x1-repacked GEVM direct emitters (emitRepackGemvIq2{Xs,S}Q8K) + their
+        // monolith ops (tcrv_rvv.repack_gemv_iq2_{xs,s}_q8_K) + recognizers
+        // (isRepackGemvIq2{Xs,S}Q8KBody) are RETIRED, COMPLETING the iq2 grid family: the
+        // repack front door now constructs the typed tcrv_rvv.typed_repack_gemv_loop_body
+        // region (fold_model "grid_sign_dualscale_eighth") carrying the SAME
+        // tcrv_rvv.repack_gemv_grid_core brick (decode_model "iq2_xs" / "iq2_s"), lowered
+        // below by isTypedRepackGemvLoopBody -> emitTypedRepackGemvLoopBody (grid branch) ->
+        // emitRepackGemvIq2DualScaleQ8K (byte-exact dual-ls body leaf to the retired direct
+        // emitters).
         {&isTypedFlatBlockDotLoopBody,
          &VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody},
         // The FRONT-DOOR CONSTRUCTED streaming dequantize_row family-head (q8_0):
@@ -1607,67 +1618,12 @@ bool VariantToEmitCFunc::isRepackGemmMxfp4Q8Body(tcrvrvv::WithVLOp scope) {
 // emitTypedRepackGem{v,m}LoopBody codebook branch, fold_model
 // "codebook_superblock_signed6_no_min", decode_model "iq4_xs").
 
-// NOTE (G3 M4 iq2-grid front-door, first cell iq2_xxs): isRepackGemvIq2XxsQ8KBody +
-// isRepackGemmIq2XxsQ8KBody RETIRED with the iq2_xxs monolith ops -- the iq2_xxs repack
-// GEVM/GEMM now flow through the typed_repack_gem{v,m}_loop_body front door (grid branch of
-// emitTypedRepackGem{v,m}LoopBody -> emitRepackGridGem{v,m}BodyIq2Xxs). iq2_xs / iq2_s
-// recognizers below remain (batch 3 dispatch-wired).
-
-bool VariantToEmitCFunc::isRepackGemvIq2XsQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool saw = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq2XsQ8KOp>(op)) {
-        if (saw)
-          return false;
-        saw = true;
-      } else {
-        return false;
-      }
-    }
-    return saw;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmIq2XsQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool saw = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq2XsQ8KOp>(op)) {
-        if (saw)
-          return false;
-        saw = true;
-      } else {
-        return false;
-      }
-    }
-    return saw;
-  }
-
-bool VariantToEmitCFunc::isRepackGemvIq2SQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool saw = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemvIq2SQ8KOp>(op)) {
-        if (saw)
-          return false;
-        saw = true;
-      } else {
-        return false;
-      }
-    }
-    return saw;
-  }
-
-bool VariantToEmitCFunc::isRepackGemmIq2SQ8KBody(tcrvrvv::WithVLOp scope) {
-    bool saw = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlRepackGemmIq2SQ8KOp>(op)) {
-        if (saw)
-          return false;
-        saw = true;
-      } else {
-        return false;
-      }
-    }
-    return saw;
-  }
+// NOTE (G3 M4 iq2-grid front-door): isRepackGem{v,m}Iq2XxsQ8KBody (first cell) AND
+// isRepackGem{v,m}Iq2{Xs,S}Q8KBody (dual-scale siblings, COMPLETING the iq2 grid family) are
+// RETIRED with their monolith ops -- the whole iq2 grid family (iq2_xxs / iq2_xs / iq2_s)
+// repack GEVM/GEMM now flows through the typed_repack_gem{v,m}_loop_body front door (grid
+// branch of emitTypedRepackGem{v,m}LoopBody -> emitRepackGridGem{v,m}BodyIq2Xxs for iq2_xxs
+// single-ls / emitRepackGem{v,m}Iq2DualScaleQ8K for iq2_xs / iq2_s dual-ls).
 
 bool VariantToEmitCFunc::isTypedFlatBlockDotLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;

@@ -681,7 +681,7 @@ REPACK_DUAL_PATHS = [
      "gemm_input": _REPACK_PROBE_DIR / f"{fmt}-repack-gemm-cert-probe.mlir",
      "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv"}
     for fmt in ["q8_0", "q2_K", "q3_K", "q4_K", "q5_K", "q6_K",
-                "iq4_nl", "iq4_xs", "iq2_xxs", "tq2_0", "tq1_0"]
+                "iq4_nl", "iq4_xs", "iq2_xxs", "iq2_xs", "iq2_s", "tq2_0", "tq1_0"]
 ]
 
 # --- CERT-FD首族: the 21 CONSTRUCTED streaming dequantize_row cells (FIX-5) --------
