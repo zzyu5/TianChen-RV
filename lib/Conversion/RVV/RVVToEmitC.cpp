@@ -379,10 +379,22 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // decode leaf), lowered below by isTypedRepackGem{v,m}LoopBody ->
         // emitTypedRepackGem{v,m}LoopBody (RVVLowerQuantContraction.cpp
         // lowerToRepackGem{v,m}Q50; byte-exact ZERO-MODEL host cert
-        // tools/e2e-harness/g3-lode-flat-q50). q5_1/q8_0 follow via the SAME
+        // tools/e2e-harness/g3-lode-flat-q50). q8_0 follows via the SAME
         // shared-brick template.
-        {&isRepackGemvQ5_1Q8_1Body,
-         &VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1},
+        // NOTE (G3-lode-flat FLAT-3): the q5_1 16x1-repacked GEVM direct emitter
+        // (emitRepackGemvQ5_1Q8_1) is RETIRED from the production dispatch (the
+        // FIVE-bit-with-min family, the THIRD flat tracer after q4_1/q5_0): the
+        // repack front door now CONSTRUCTS the typed
+        // tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+        // "lane_wise_vector_scale_min", the q4_1 min fold) out of the SHARED q4_0
+        // bricks -- the core stamping weight_nibble_unsigned + weight_qh_byte_offset
+        // (@320) with NO weight_offset_bias (the q5_1 UNSIGNED 5-bit
+        // `(nibble)|(qh_bit<<4)` decode leaf) + the fold stamping the single
+        // MIN-fold offset pair, lowered below by isTypedRepackGem{v,m}LoopBody ->
+        // emitTypedRepackGem{v,m}LoopBody (RVVLowerQuantContraction.cpp
+        // lowerToRepackGem{v,m}Q51; byte-exact ZERO-MODEL host cert
+        // tools/e2e-harness/g3-lode-flat-q51). q5_1 = q5_0's qh gather (unsigned/no
+        // -16) + q4_1's min fold. q8_0 follows via the SAME shared-brick template.
         {&isPackQ4_0ToX16Body,
          &VariantToEmitCFunc::emitPackQ4_0ToX16},
         // NOTE (G3-lode-flat 曳光弹): the q4_1 16x1-repacked GEVM+GEMM direct

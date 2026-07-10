@@ -546,6 +546,21 @@ constexpr llvm::StringLiteral kNibbleQ41GemmScaleModel =
 constexpr llvm::StringLiteral kNibbleQ50ScaleModel =
     "dual-fp16-per-block-d_x.d_y-five-bit";
 
+// The q5_1 decode-FAMILY discriminator (the abstract request's committed scale_model
+// WHAT): the flat FIVE-bit nibble+qh format WITH a min -- the UNION of q5_0's 5th-bit
+// qh decode and q4_1's single per-block MIN fold. Each weight is
+// `(nibble) | (qh_bit << 4)` UNSIGNED in [0,31] (NO offset-binary -16, unlike q5_0 --
+// the asymmetric bias lives in the separate per-block MIN scale); the fold is q4_1's
+// dual-fp16 d_x*d_y PLUS the m_x*s_y min term over a block_q8_1 activation. A request
+// carrying it CONSTRUCTS the SAME typed_repack gem{v,m}_loop_body region as q4_1
+// (fold_model "lane_wise_vector_scale_min") -- the SHARED q4_0 core + fold bricks, the
+// core stamping weight_nibble_unsigned + weight_qh_byte_offset (@320) with NO
+// weight_offset_bias (the unsigned 5th-bit decode leaf), the fold stamping the single
+// MIN offset pair. The constructed loop body carries the q4_1 fold scale_model (the
+// ...-plus-min-five-bit string is the routing discriminator only).
+constexpr llvm::StringLiteral kNibbleQ51ScaleModel =
+    "dual-fp16-per-block-d_x.d_y-plus-min-five-bit";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -841,6 +856,13 @@ private:
       // weight_qh_byte_offset + weight_offset_bias). Keyed off the committed q5_0
       // scale_model WHAT.
       bool isQ50 = op.getScaleModel() == kNibbleQ50ScaleModel;
+      // The q5_1 family (unsigned 5-bit nibble+qh + single MIN fold) builds the SAME
+      // typed q4_0 repack region via lowerToRepackGem{v,m}Q51 (the SHARED q4_0 core +
+      // fold bricks, the core stamping weight_nibble_unsigned + weight_qh_byte_offset
+      // with NO weight_offset_bias -- the UNSIGNED 5th-bit decode -- and the fold
+      // stamping the MIN-fold offset pair). = q5_0's qh gather (unsigned/no -16) +
+      // q4_1's min fold. Keyed off the committed q5_1 scale_model WHAT.
+      bool isQ51 = op.getScaleModel() == kNibbleQ51ScaleModel;
       if (*mRegime == pluginrvv::MRegime::Prefill)
         return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
                                                     isRVV0p7, *codebook)
@@ -850,6 +872,7 @@ private:
                                                     isRVV0p7, *ternary)
                : isQ41 ? lowerToRepackGemmQ41(op, selection, halfLanes, isRVV0p7)
                : isQ50 ? lowerToRepackGemmQ50(op, selection, halfLanes, isRVV0p7)
+               : isQ51 ? lowerToRepackGemmQ51(op, selection, halfLanes, isRVV0p7)
                        : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
       return codebook ? lowerToRepackGemvCodebook(op, selection, halfLanes,
                                                   isRVV0p7, *codebook)
@@ -859,6 +882,7 @@ private:
                                                   isRVV0p7, *ternary)
              : isQ41 ? lowerToRepackGemvQ41(op, selection, halfLanes, isRVV0p7)
              : isQ50 ? lowerToRepackGemvQ50(op, selection, halfLanes, isRVV0p7)
+             : isQ51 ? lowerToRepackGemvQ51(op, selection, halfLanes, isRVV0p7)
                      : lowerToRepackGemv(op, selection, halfLanes, isRVV0p7);
     }
 
@@ -877,13 +901,14 @@ private:
         op.getScaleModel() == kKQuantQ5KScaleModel ||
         op.getScaleModel() == kCodebookIq4NlScaleModel ||
         op.getScaleModel() == kCodebookIq4XsScaleModel ||
-        op.getScaleModel() == kNibbleQ50ScaleModel)
+        op.getScaleModel() == kNibbleQ50ScaleModel ||
+        op.getScaleModel() == kNibbleQ51ScaleModel)
       return op.emitError()
-             << "ternary / K-quant / codebook / q5_0 quant_contraction requires a "
-                "repack-affording capability (a valid e16m1 strip width, minVLEN "
-                ">= 128); there is no ternary / K-quant / codebook / q5_0 block-dot "
-                "decline path (the block-dot identity lowering is q4_0-nibble-only, "
-                "which would drop the q5_0 qh 5th bit)";
+             << "ternary / K-quant / codebook / q5_0 / q5_1 quant_contraction "
+                "requires a repack-affording capability (a valid e16m1 strip width, "
+                "minVLEN >= 128); there is no ternary / K-quant / codebook / q5_0 / "
+                "q5_1 block-dot decline path (the block-dot identity lowering is "
+                "q4_0-nibble-only, which would drop the q5_0/q5_1 qh 5th bit)";
 
     return lowerToBlockDot(op, selection);
   }
@@ -1933,6 +1958,337 @@ private:
     if (!op.getResult().use_empty())
       return op.emitError()
              << "q5_0 repack-GEMM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "GEMM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (q5_1 REPACK, GEVM region form): the five-bit-with-min sibling
+  // of lowerToRepackGemv -- the UNION of the q5_0 5th-bit qh decode and the q4_1
+  // single MIN fold. Realize a repack-SELECTED, capability-afforded q5_1 DECODE
+  // request as the SAME typed tcrv_rvv.typed_repack_gemv_loop_body REGION as q4_1 --
+  // the SHARED q4_0 decomposed bricks (the per-block lane-wise integer CORE
+  // tcrv_rvv.repack_lane_wise_q4_x_i8_dot + the per-strip dual-fp16 scale FOLD
+  // tcrv_rvv.repack_dual_fp16_scale_fold with the q4_1 MIN pair) -- with the CORE
+  // brick stamping weight_nibble_unsigned + weight_qh_byte_offset (@320 = the
+  // transposed bit-packed qh 5th-bit plane after the 256 nibbles) but NO
+  // weight_offset_bias, so the 5-bit weight assembles UNSIGNED `(nibble) |
+  // (qh_bit << 4)` in [0,31] off the RAW nibble peel (the asymmetric bias lives in
+  // the q4_1 min fold, unlike q5_0's -16 centering), and the FOLD stamping the
+  // single MIN offset pair (weight_min @+32, per-block s_y @+2). It reconstructs the
+  // block_q5_1x16 x16 facts (stride 384 = 16 d + 16 m + 256 nibbles + 64 transposed
+  // qh bytes, weight quant offset 64, m strip @32, qh @320) + the PLAIN block_q8_1
+  // activation facts (stride 36 / quant offset 4 / scaled-sum @2 the op carries),
+  // derives the resource-aware half_lanes from the capability VLEN, and stamps the
+  // DECLARED OUTPUT CONTRACT weight_layout_contract = "x16". The constructed loop
+  // body carries the q4_1 fold scale_model (the abstract ...-plus-min-five-bit
+  // string is the routing discriminator only). SAFETY: identical to
+  // lowerToRepackGemv (lit-only, NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemvQ51(tcrvrvv::GgmlQuantContractionOp op,
+                       const pluginrvv::ContractionSelection &selection,
+                       std::int64_t halfLanes, bool isRVV0p7) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+
+    // The block_q5_1x16 x16 weight facts (stride 384, weight nibble quant offset 64,
+    // per-row fp16 MIN strip @32, transposed qh 5th-bit plane @320) + the plain
+    // block_q8_1 activation scaled-sum @2.
+    std::int64_t weightQuantByteOffset = 64;
+    std::int64_t weightMinByteOffset = 32;
+    std::int64_t weightQhByteOffset = 320;
+    std::int64_t activationSumByteOffset = 2;
+    std::int64_t activationQuantByteOffset =
+        static_cast<std::int64_t>(op.getQuantByteOffset());
+
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemvLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(),
+                           op.getColumnCount()});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
+    loopState.addAttribute(
+        "scale_model", builder.getStringAttr(kNibbleQ41ScaleModel));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute("weight_block_stride", builder.getI64IntegerAttr(384));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(op.getActivationBlockStride()));
+    loopState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    loopState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("lane_wise_vector_scale_min"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // Integer CORE brick (SHARED q4_0 nibble dot) with the q5_1 UNSIGNED-nibble + qh
+    // 5th-bit decode selector -- NO weight_offset_bias (unsigned [0,31]).
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackLaneWiseQ4Q8DotOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
+    coreState.addAttribute(
+        "kind", builder.getStringAttr("repack_lane_wise_q4_x_i8_dot"));
+    coreState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    coreState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    coreState.addAttribute("weight_nibble_unsigned", builder.getUnitAttr());
+    coreState.addAttribute("weight_qh_byte_offset",
+                           builder.getI64IntegerAttr(weightQhByteOffset));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      coreState.addTypes(i32ResType);
+    mlir::Operation *core = builder.create(coreState);
+
+    // numHalves dual-fp16 scale FOLD bricks (SHARED q4_0 fold) with the q4_1 single
+    // MIN-fold offset pair (the q5_1 min term).
+    llvm::SmallVector<mlir::Value> accNext;
+    for (std::int64_t h = 0; h < numHalves; ++h) {
+      mlir::OperationState foldState(
+          loc, tcrvrvv::RepackDualFp16ScaleFoldOp::getOperationName());
+      foldState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                             core->getResult(h), accArgs[h], vl, blockIndex});
+      foldState.addAttribute(
+          "kind", builder.getStringAttr("repack_dual_fp16_scale_fold"));
+      foldState.addAttribute("weight_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      foldState.addAttribute("activation_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      foldState.addAttribute("weight_min_byte_offset",
+                             builder.getI64IntegerAttr(weightMinByteOffset));
+      foldState.addAttribute("activation_sum_byte_offset",
+                             builder.getI64IntegerAttr(activationSumByteOffset));
+      if (integerCoreLmul)
+        foldState.addAttribute("integer_core_lmul", integerCoreLmul);
+      foldState.addTypes(f32AccType);
+      accNext.push_back(builder.create(foldState)->getResult(0));
+    }
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemvLoopYieldOp::getOperationName());
+    yieldState.addOperands(accNext);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "q5_1 repack-GEVM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "GEVM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (q5_1 REPACK GEMM finale, region form): the five-bit-with-min
+  // sibling of lowerToRepackGemm -- the UNION of the q5_0 5th-bit qh decode and the
+  // q4_1 per-column MIN fold. Realize a repack-SELECTED, capability-afforded q5_1
+  // PREFILL request as the SAME typed tcrv_rvv.typed_repack_gemm_loop_body REGION as
+  // q4_1 -- the SHARED q4_0 GEMM bricks (integer CORE
+  // tcrv_rvv.repack_gemm_lane_wise_q4_x_i8_dot + per-column dual-fp16 scale FOLD
+  // tcrv_rvv.repack_gemm_dual_fp16_scale_fold) -- with the CORE stamping
+  // weight_nibble_unsigned + weight_qh_byte_offset (@320) but NO weight_offset_bias
+  // (the per-strip qh bit selected by mask >> strip_row_offset, the RUNTIME strip
+  // lane shift), and the FOLD stamping the per-column MIN-fold offset pair
+  // (weight_min @+32, per-column s_y @+8). It reconstructs the block_q5_1x16 weight
+  // facts (stride 384, weight quant offset 64, m @32, qh @320) AND the INTERLEAVED
+  // block_q8_1x4 activation facts (stride 144, quant offset 16, per-column sum offset
+  // 8), MATERIALIZES the two GEMM ABI values (nr, bs), and stamps
+  // weight_layout_contract = "x16". SAFETY: identical to lowerToRepackGemm (lit-only,
+  // NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemmQ51(tcrvrvv::GgmlQuantContractionOp op,
+                       const pluginrvv::ContractionSelection &selection,
+                       std::int64_t halfLanes, bool isRVV0p7) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+
+    // The block_q5_1x16 weight facts + block_q8_1x4 interleaved activation facts.
+    std::int64_t weightBlockStride = 384;
+    std::int64_t weightQuantByteOffset = 64;
+    std::int64_t weightMinByteOffset = 32;
+    std::int64_t weightQhByteOffset = 320;
+    std::int64_t activationBlockStride = 144;
+    std::int64_t activationQuantByteOffset = 16;
+    std::int64_t activationSumByteOffset = 8;
+
+    auto variant = op->getParentOfType<tcrv::exec::VariantOp>();
+    if (!variant)
+      return op.emitError() << "q5_1 repack-GEMM region lowering requires the "
+                               "quant_contraction to sit inside a tcrv.exec.variant";
+    mlir::Value rowCount, outputRowStride;
+    {
+      mlir::OpBuilder::InsertionGuard abiGuard(builder);
+      builder.setInsertionPointToStart(&variant.getBody().front());
+      auto makeAbi = [&](llvm::StringRef cName, llvm::StringRef role,
+                         llvm::StringRef purpose) -> mlir::Value {
+        mlir::OperationState st(
+            loc, tcrvrvv::RuntimeABIValueOp::getOperationName());
+        st.addAttribute("role", builder.getStringAttr(role));
+        st.addAttribute("c_name", builder.getStringAttr(cName));
+        st.addAttribute("c_type", builder.getStringAttr("size_t"));
+        st.addAttribute("ownership",
+                        builder.getStringAttr("target-export-abi-owned"));
+        st.addAttribute("purpose", builder.getStringAttr(purpose));
+        st.addTypes(builder.getIndexType());
+        return builder.create(st)->getResult(0);
+      };
+      rowCount = makeAbi("nr", "source-byte-stride", "nr");
+      outputRowStride = makeAbi("bs", "output-stride", "bs");
+    }
+
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemmLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(), rowCount,
+                           op.getColumnCount(), outputRowStride});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemm_loop_body"));
+    loopState.addAttribute(
+        "scale_model", builder.getStringAttr(kNibbleQ41GemmScaleModel));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute("weight_block_stride",
+                           builder.getI64IntegerAttr(weightBlockStride));
+    loopState.addAttribute("activation_block_stride",
+                           builder.getI64IntegerAttr(activationBlockStride));
+    loopState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    loopState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("activation_interleave",
+                           builder.getI64IntegerAttr(kActivationInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr("lane_wise_vector_scale_min"));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    stampTilingSelection(builder, loop, "lane_wise_vector_scale", "q5_1", op);
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    mlir::Value stripOffset = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemmLaneWiseQ4Q8DotOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex, stripOffset});
+    coreState.addAttribute(
+        "kind", builder.getStringAttr("repack_gemm_lane_wise_q4_x_i8_dot"));
+    coreState.addAttribute("weight_quant_byte_offset",
+                           builder.getI64IntegerAttr(weightQuantByteOffset));
+    coreState.addAttribute("activation_quant_byte_offset",
+                           builder.getI64IntegerAttr(activationQuantByteOffset));
+    coreState.addAttribute("weight_nibble_unsigned", builder.getUnitAttr());
+    coreState.addAttribute("weight_qh_byte_offset",
+                           builder.getI64IntegerAttr(weightQhByteOffset));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      coreState.addTypes(i32ResType);
+    mlir::Operation *core = builder.create(coreState);
+
+    llvm::SmallVector<mlir::Value> accNext;
+    for (std::int64_t c = 0; c < columnsPerPass; ++c) {
+      mlir::OperationState foldState(
+          loc, tcrvrvv::RepackGemmDualFp16ScaleFoldOp::getOperationName());
+      foldState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                             core->getResult(c), accArgs[c], vl, blockIndex,
+                             stripOffset});
+      foldState.addAttribute(
+          "kind", builder.getStringAttr("repack_gemm_dual_fp16_scale_fold"));
+      foldState.addAttribute("weight_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      foldState.addAttribute("activation_scale_byte_offset",
+                             builder.getI64IntegerAttr(0));
+      foldState.addAttribute("weight_min_byte_offset",
+                             builder.getI64IntegerAttr(weightMinByteOffset));
+      foldState.addAttribute("activation_sum_byte_offset",
+                             builder.getI64IntegerAttr(activationSumByteOffset));
+      if (integerCoreLmul)
+        foldState.addAttribute("integer_core_lmul", integerCoreLmul);
+      foldState.addTypes(f32AccType);
+      accNext.push_back(builder.create(foldState)->getResult(0));
+    }
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemmLoopYieldOp::getOperationName());
+    yieldState.addOperands(accNext);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "q5_1 repack-GEMM region lowering requires the abstract "
                 "quant_contraction result to be unused (the repacked lane-wise "
                 "GEMM sinks through the output pointer, not an SSA vector)";
     op.erase();

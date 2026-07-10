@@ -944,30 +944,33 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
              << attr.getName() << "'";
   }
 
-  // OPTIONAL q5_0 5th-bit (qh) decode facts (I7): the transposed qh plane byte
-  // offset + the offset-binary centering bias. They are PRESENT TOGETHER only for
-  // q5_0, which reconstructs `((nibble) | (qh_bit << 4)) - bias` off a RAW unsigned
-  // nibble peel, so weight_nibble_unsigned must also be set. Each, when present,
-  // must be a positive within-block byte count / bias.
+  // OPTIONAL 5th-bit (qh) decode facts (I7): the transposed qh plane byte offset +
+  // an OPTIONAL offset-binary centering bias. The qh plane assembles the 5-bit
+  // weight `(nibble) | (qh_bit << 4)` off a RAW unsigned nibble peel, so
+  // weight_nibble_unsigned must also be set. The bias is q5_0's `-16` offset-binary
+  // centering (`... - 16`, weights in [-16,15]); q5_1 carries NO bias (UNSIGNED
+  // weights in [0,31], the asymmetric bias living in the separate per-block MIN
+  // scale). So: qh may appear WITH bias (q5_0) OR WITHOUT bias (q5_1); a bias with
+  // NO qh is meaningless and rejected. Each fact, when present, must be positive.
   {
     mlir::IntegerAttr qhAttr = getWeightQhByteOffsetAttr();
     mlir::IntegerAttr biasAttr = getWeightOffsetBiasAttr();
-    if (static_cast<bool>(qhAttr) != static_cast<bool>(biasAttr))
+    if (biasAttr && !qhAttr)
       return emitOpError()
-             << "requires weight_qh_byte_offset and weight_offset_bias TOGETHER "
-                "(the q5_0 5th-bit decode facts) or NEITHER (the q4_0/q4_1 "
-                "four-bit decode)";
+             << "requires weight_offset_bias only TOGETHER with "
+                "weight_qh_byte_offset (the offset-binary centering bias is "
+                "meaningless without the qh 5th-bit plane)";
     if (qhAttr) {
       if (!getWeightNibbleUnsigned())
         return emitOpError()
-               << "requires weight_nibble_unsigned when carrying the q5_0 "
+               << "requires weight_nibble_unsigned when carrying the "
                   "weight_qh_byte_offset (the 5-bit weight assembles off the RAW "
                   "unsigned nibble peel)";
       if (qhAttr.getInt() <= 0)
-        return emitOpError() << "requires weight_qh_byte_offset > 0 (the q5_0 qh "
+        return emitOpError() << "requires weight_qh_byte_offset > 0 (the qh "
                                 "SECOND weight-plane byte offset); got "
                              << qhAttr.getInt();
-      if (biasAttr.getInt() <= 0)
+      if (biasAttr && biasAttr.getInt() <= 0)
         return emitOpError() << "requires weight_offset_bias > 0 (the q5_0 "
                                 "offset-binary centering bias); got "
                              << biasAttr.getInt();
@@ -1906,6 +1909,18 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // + weight_offset_bias (the 5th-bit decode leaf); the d-only fold is q4_0's WHOLE.
   bool isQ50Family =
       getScaleModel() == "dual-fp16-per-block-d_x.d_y-five-bit";
+  // q5_1 -- scale_model "dual-fp16-per-block-d_x.d_y-plus-min-five-bit" (the
+  // asymmetric flat QK8_1 FIVE-bit nibble+qh contraction: the UNION of q5_0's
+  // 5th-bit qh decode and q4_1's single per-block MIN fold. Each weight is
+  // `(nibble) | (qh_bit << 4)` UNSIGNED in [0,31] -- NO offset-binary -16 (unlike
+  // q5_0); the fold is q4_1's dual-fp16 d_x*d_y PLUS the m_x*s_y min term over a
+  // block_q8_1 activation). Its repack-SELECTED lowering CONSTRUCTS the SAME
+  // typed_repack_gem{v,m}_loop_body region as q4_1 (fold_model
+  // "lane_wise_vector_scale_min") via the SHARED q4_0 core + fold bricks -- the core
+  // stamping weight_nibble_unsigned + weight_qh_byte_offset (NO bias) + the fold
+  // stamping the single MIN offset pair.
+  bool isQ51Family =
+      getScaleModel() == "dual-fp16-per-block-d_x.d_y-plus-min-five-bit";
   bool isTernaryTQ20Family =
       getScaleModel() == "superblock-d.fp16-single-scale-2bit-ternary-nomin";
   bool isTernaryTQ10Family =
@@ -1967,7 +1982,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // facts (the abstract request carries no codebook and no scales offsets).
   bool isCodebookIq4XsFamily =
       getScaleModel() == "superblock.fp16-signed6-scale-codebook-nomin";
-  if (!isQ40Family && !isQ41Family && !isQ50Family && !isTernaryTQ20Family &&
+  if (!isQ40Family && !isQ41Family && !isQ50Family && !isQ51Family &&
+      !isTernaryTQ20Family &&
       !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
       !isKQuantQ2KFamily && !isKQuantQ3KFamily && !isKQuantQ5KFamily &&
       !isCodebookIq4NlFamily && !isCodebookIq4XsFamily)
@@ -1978,6 +1994,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "dual-fp16 + single-min nibble family), "
               "\"dual-fp16-per-block-d_x.d_y-five-bit\" (the q5_0 flat "
               "dual-fp16 five-bit nibble+qh family), "
+              "\"dual-fp16-per-block-d_x.d_y-plus-min-five-bit\" (the q5_1 flat "
+              "dual-fp16 + single-min five-bit nibble+qh family), "
               "\"superblock-d.fp16-single-scale-2bit-ternary-nomin\" (the ternary "
               "tq2_0 2-bit trit super-block family), "
               "\"superblock-d.fp16-single-scale-base3-ternary-nomin\" (the ternary "
@@ -2088,6 +2106,36 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       return emitOpError()
              << "requires activation_high_byte_offset == 16 (q8 high half) for "
                 "the abstract q5_0 block-quantized contraction request";
+  } else if (isQ51Family) {
+    // q5_1: QK5_1 == 32, PLAIN block_q5_1 stride 24 (fp16 d + fp16 m + uint8 qh[4]
+    // + 16 nibble bytes), PLAIN block_q8_1 stride 36 (fp16 d + fp16 s + 32 int8
+    // quants), activation quants at +4 (after the inline fp16 d + fp16 s), the q8
+    // high half at +16. The repacked x16 weight (stride 384, nibbles @64, m strip
+    // @32, the transposed qh plane @320) / block_q8_1 activation (36 GEVM, 144 GEMM)
+    // facts are a stage-C materialization the q5_1 lowering derives, never carried
+    // here.
+    if (getQk() != 32)
+      return emitOpError() << "requires qk == 32 (QK5_1) for the abstract q5_1 "
+                              "block-quantized contraction request";
+    if (getWeightBlockStride() != 24)
+      return emitOpError()
+             << "requires weight_block_stride == 24 (sizeof block_q5_1: fp16 d + "
+                "fp16 m + uint8 qh[4] + 16 nibble bytes, the PLAIN weight layout) "
+                "for the abstract q5_1 block-quantized contraction request";
+    if (getActivationBlockStride() != 36)
+      return emitOpError()
+             << "requires activation_block_stride == 36 (sizeof block_q8_1: fp16 "
+                "d + fp16 s + 32 int8 quants) for the abstract q5_1 "
+                "block-quantized contraction request";
+    if (getQuantByteOffset() != 4)
+      return emitOpError()
+             << "requires quant_byte_offset == 4 (block_q8_1 quants follow the "
+                "inline fp16 d + fp16 s) for the abstract q5_1 block-quantized "
+                "contraction request";
+    if (getActivationHighByteOffset() != 16)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 16 (q8 high half) for "
+                "the abstract q5_1 block-quantized contraction request";
   } else if (isTernaryTQ20Family) {
     // ternary tq2_0: QK_K == 256, PLAIN block_tq2_0 weight stride 66 (fp16 d +
     // 64 2-bit quant bytes), PLAIN block_q8_K activation stride 292 (fp32 d + 256
@@ -13914,25 +13962,28 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
              << attr.getName() << "'";
   }
 
-  // OPTIONAL q5_0 5th-bit (qh) decode facts (I7): PRESENT TOGETHER only for q5_0
-  // (off a RAW unsigned nibble peel, so weight_nibble_unsigned must also be set),
-  // each a positive within-block byte count / bias.
+  // OPTIONAL 5th-bit (qh) decode facts (I7): qh may appear WITH bias (q5_0
+  // offset-binary `-16`) OR WITHOUT bias (q5_1 UNSIGNED [0,31], the asymmetric bias
+  // living in the separate per-block MIN scale); a bias with NO qh is meaningless.
+  // qh assembles off a RAW unsigned nibble peel, so weight_nibble_unsigned must
+  // also be set; each fact, when present, must be positive.
   {
     mlir::IntegerAttr qhAttr = getWeightQhByteOffsetAttr();
     mlir::IntegerAttr biasAttr = getWeightOffsetBiasAttr();
-    if (static_cast<bool>(qhAttr) != static_cast<bool>(biasAttr))
+    if (biasAttr && !qhAttr)
       return emitOpError()
-             << "requires weight_qh_byte_offset and weight_offset_bias TOGETHER "
-                "(the q5_0 5th-bit decode facts) or NEITHER";
+             << "requires weight_offset_bias only TOGETHER with "
+                "weight_qh_byte_offset (the offset-binary centering bias is "
+                "meaningless without the qh 5th-bit plane)";
     if (qhAttr) {
       if (!getWeightNibbleUnsigned())
         return emitOpError()
-               << "requires weight_nibble_unsigned when carrying the q5_0 "
+               << "requires weight_nibble_unsigned when carrying the "
                   "weight_qh_byte_offset";
       if (qhAttr.getInt() <= 0)
         return emitOpError() << "requires weight_qh_byte_offset > 0; got "
                              << qhAttr.getInt();
-      if (biasAttr.getInt() <= 0)
+      if (biasAttr && biasAttr.getInt() <= 0)
         return emitOpError() << "requires weight_offset_bias > 0; got "
                              << biasAttr.getInt();
     }

@@ -946,6 +946,11 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     return emitOpaqueCall(rewriter, loc, u8mf2Type, vncvtCallee,
                           mlir::ValueRange{bit16, vl8}, opName, role);
   };
+  // q5_0 (offsetBias > 0) assembles `((nibble) | (qh_bit << 4)) - bias`; q5_1
+  // (offsetBias == 0, the bias ABSENT sentinel) assembles the UNSIGNED 5-bit weight
+  // `(nibble) | (qh_bit << 4)` in [0,31] with NO centering vsub (the asymmetric bias
+  // lives in the separate per-block MIN fold), byte-identical to the q5_1 direct
+  // emitter's assemble5Unsigned (or + reinterpret only).
   auto assemble5 = [&](mlir::Value nibbleU8, mlir::Value bit16) -> mlir::Value {
     mlir::Value a =
         emitOpaqueCall(rewriter, loc, u8mf2Type, orCallee,
@@ -953,6 +958,8 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     mlir::Value as =
         emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
                        mlir::ValueRange{a}, opName, role);
+    if (offsetBias == 0)
+      return as;
     return emitOpaqueCall(rewriter, loc, i8mf2Type, subCallee,
                           mlir::ValueRange{as, biasLit, vl8}, opName, role);
   };
@@ -1611,6 +1618,11 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
                           mlir::ValueRange{bit16, vl8}, opName, role);
   };
   // A = nibble | (qh_bit<<4) -> u8 [0,31], reinterpret u8->i8, then vsub bias.
+  // q5_0 (offsetBias > 0) assembles `((nibble) | (qh_bit << 4)) - bias`; q5_1
+  // (offsetBias == 0, the bias ABSENT sentinel) assembles the UNSIGNED 5-bit weight
+  // `(nibble) | (qh_bit << 4)` in [0,31] with NO centering vsub (the asymmetric bias
+  // lives in the separate per-block MIN fold), byte-identical to the q5_1 direct
+  // emitter's assemble5Unsigned (or + reinterpret only).
   auto assemble5 = [&](mlir::Value nibbleU8, mlir::Value bit16) -> mlir::Value {
     mlir::Value a =
         emitOpaqueCall(rewriter, loc, u8mf2Type, orCallee,
@@ -1618,6 +1630,8 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
     mlir::Value as =
         emitOpaqueCall(rewriter, loc, i8mf2Type, reinterpretCallee,
                        mlir::ValueRange{a}, opName, role);
+    if (offsetBias == 0)
+      return as;
     return emitOpaqueCall(rewriter, loc, i8mf2Type, subCallee,
                           mlir::ValueRange{as, biasLit, vl8}, opName, role);
   };
