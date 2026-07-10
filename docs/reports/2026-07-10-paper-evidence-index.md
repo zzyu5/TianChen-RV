@@ -19,7 +19,7 @@
 - **min-term 案 = CASE CLOSED（M4 定案 commit `4f765790`）**：吞吐/byte-exact 全 RESTORED；perf 数立在**现已证正确的 kernel** 上。
 - **★kernel-轴 K-quant 数按编译器对称性重读（[CASE-COMPILER-ASYMMETRY] CASE CLOSED 2026-07-10）**：
   - **rvv/VLEN128 vs-opponent 数（1.884×/2.193×/1.413×/1.50-1.62×）= 撤回**（kernel 账）：= clang-ours-vs-gcc-shipped **编译器不对称 artifact**；对称 gcc/gcc 重测蒸发（0.272/0.775/0.386/0.120×），e2e 对称 = 0.334/0.764× LOSS。**系统账保留**为 clang-域 codegen 观察（LLVM17≫gcc15 pattern-specific，生态碎片化素材，非 beat ggml）。
-  - **幸存 kernel-轴 = k1/VLEN256（对称-clang as-shipped，k1 出货 ggml=clang-18）**：q4_K 3.106×、q5_K 1.916×（Stage1 三口径复现）；**kernel-轴 micro，NON-e2e**（k1 e2e 另线 K1-SEAL，禁外推）。仍 [NG-4] 非 sealed 8-gate beat。
+  - **幸存 kernel-轴 = k1/VLEN256（对称-clang，k1 出货 ggml=clang-18）**：q4_K 3.106×、q5_K 1.916×（Stage1 三口径复现）；**kernel-轴 micro，NON-e2e**。★**K1-SEAL post-close caveat（2026-07-10，casefile §10 / `2026-07-10-k1-seal-e2e-transduction.md`）**：此 3.106× 是 **vs block-dot（非 k1 出货路径——stock 与 tcrv 都 repack hand-brick vl=16）= non-shipping strawman**；vs 真 as-shipped hand-brick，我方 emitted vl=8 kernel **LOSES 0.75×**（S6 半 VLEN256 宽 → emitter VLEN-adaptivity gap，归 [VLEN-ADAPT]）；**deployed g₄ vs block-dot = 2.80×（micro 90% 保留）= kernel 本质健全**。仍 [NG-4] 非 sealed beat；两板皆无 e2e Win vs as-shipped。
   - 判别键 = **板出货编译器**（rvv=gcc / k1=clang）；台账 `T-VALIDITY_compiler_symmetry_ledger.md`、casefile `2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md`。
 
 ---
