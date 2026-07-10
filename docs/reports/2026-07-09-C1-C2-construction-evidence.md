@@ -1,23 +1,40 @@
-# C1 / C2 构造证据链 synthesis (G3, 2026-07-09)
+# C3′ 构造/覆盖证据链 synthesis(原 "C1/C2 构造证据",2026-07-10 正名)(G3, 2026-07-09)
 
-**这份文档只综合"稳定构造事实"层的 C1/C2 证据。它刻意 *不* 依赖任何 perf 数**
+> **贡献归属(2026-07-10 正名)**:本文综合的"稳定构造事实"(front-door 构造协议 + 前门化
+> LOC 台账)**主体归 C3′**(能力键控优化模式库的构造 + 成熟编译器覆盖轴),**不是 C1 的
+> 合取存在性、也不是 C2 的泛化代价律**。澄清:
+> - **C1**(合取存在性 → 可复制协议)的真锚 = **capability schema 跨计算范式 × 跨独立
+>   extension family 原封复用 + 外部贡献者接入协议**(见 [C1-1];IME N2 已证 `2eeabff9`)。本文
+>   §A.3「跨 decode 格式成员复用」是 **decode 格式内**复用,只作 C3′ 可复制构造证据,**不**充当 C1 的
+>   跨独立-extension-family 合取。
+> - **C2**(泛化代价 → 边际成本规律)的真对象 = **独立 extension family 接入成本**,锚 IME
+>   ≈2484 行,曲线尚缺失(见 `experiments/active/visibility/T2-ledger-anchor.md`)。本文
+>   Part B 的前门化 LOC 摊销 = **C3′ 构造经济学**;decode 格式闭包 ∩ rvv.*≠∅,[F-6] 不进 C2 分母。
+> **数值一个不改,仅正名归属标签 + "家族"→"decode 格式"用词。**
+
+**这份文档只综合"稳定构造事实"层的证据(主体 = C3′ 构造/覆盖 + C1 schema-复用推论)。它刻意 *不* 依赖任何 perf 数**
 —— 全部主张都是**结构 / 表征 / LOC** 命题(front-door 协议的存在性与可复制性、
-边际成本的 LOC 台账),因此对正在进行的 min-term / M4 终审结局**完全鲁棒**。
-(C1/C2 的 pending-M4 依赖数 = **0**。见 §C 独立性核对。)
+构造边际成本的 LOC 台账),因此对正在进行的 min-term / M4 终审结局**完全鲁棒**。
+(pending-M4 依赖数 = **0**。见 §C 独立性核对。)
 
-- **C1** = *合取存在性 → 可复制协议*(the front-door construction protocol)。
-- **C2** = *泛化代价 → 边际成本规律*(the front-door-ization marginal-cost law)。
+- **C3′ 构造/覆盖**(本文主体) = *front-door 构造协议(可复制)+ 前门化边际成本谱系(the front-door-ization construction-cost law)*。
+- **C1 推论** = schema 跨独立 extension family 原封复用(真锚在 [C1-1] + N1/N2 bridge,**非**本文 decode-格式内复用)。
 
 **接地源(全部只读)**
 - `experiments/active/frontdoor-framework/frontdoor_framework_ledger.csv`(seq 0–31,32 flip)
 - `experiments/active/frontdoor-framework/{MANIFEST.md, NOTES.md}`(分解口径 + 首点拆解)
 - `schema/coverage-sixstate.v1.json`(六态 ladder + C_construct 计数;roster 93 格)
 - `lib/Plugin/RVV/RVVLowerQuantContraction.cpp`(family dispatch,只读)
-- `docs/method/C2_marginal_cost_ledger.md`(C2 layer-A 台账,交叉参照)
+- `docs/method/C2_marginal_cost_ledger.md`(layer-A 构造台账,已正名 C3′,交叉参照)
 
 ---
 
-## Part A — C1: The Front-Door Construction Protocol(合取存在性 → 可复制协议)
+## Part A — C3′/覆盖构造: The Front-Door Construction Protocol(可复制构造配方)
+
+> **正名注**:本节的 front-door 构造协议(abstract op→typed region 可复制构造)归 **C3′ 模式库构造 /
+> 成熟编译器覆盖轴**,**不是** C1 的"合取存在性"。C1 的"可复制协议"另有真锚 = capability schema 跨独立
+> extension family 复用 + 外部接入([C1-1] + N1/N2 bridge)。本节的"可复制"= 同一构造配方跨 decode
+> **格式**复用,是 C3′ 证据,不充当 C1 的跨独立-extension-family 合取。
 
 ### A.1 协议 = abstract op → typed region → construction-from-abstract
 
@@ -46,7 +63,7 @@
 
 ### A.2 框架当前触达面(代码锚 = `RVVLowerQuantContraction.cpp:772–837`)
 
-**4 个 matmul decode 家族**(RepackGem 谱,seq 0–7),同一 `scale_model`→family 表:
+**4 个 matmul decode 格式家族**(RepackGem 谱,seq 0–7;C3′ 覆盖构造轴,**非** C1 的跨独立-extension-family),同一 `scale_model`→decode 表:
 
 ```
 scale_model WHAT (结构键)          → decode FAMILY  → 构造函数
@@ -81,11 +98,15 @@ abstract→typed→emit 配方、且新成员对框架的 re-pay 系统性归零
 - **跨 op 谱**:同一 construction 配方在 contraction(matmul,带 reduction/累加器/tiling)
   与 streaming(dequant/quantize,无累加器/无 tiling)两类 op 形状上都成立;quantize 谱
   更是 dequant 谱的 MIRROR copy-adapt(authoring cost < 从零一个谱)。
-- **跨家族成员**:同一家族内首格建框架、次格起 **facts-branch 复用**(dequant K-quant
-  尾格 q3_K = 3-line constructOrEmit facts 分支,decode 整体从单源复用)。
+- **跨 decode 格式成员**(同一 decode 谱内,**非**跨独立 extension family):首格建框架、
+  次格起 **facts-branch 复用**(dequant K-quant 尾格 q3_K = 3-line constructOrEmit facts
+  分支,decode 整体从单源复用)。
 
-即:协议是一份**可参数化的配置**(per-family DecodeFacts + scale_model 键),不是每格
-重新推导。这就是 C1"合取存在性 → 可复制协议"的构造实证。
+即:协议是一份**可参数化的配置**(per-format DecodeFacts + scale_model 键),不是每格
+重新推导。这就是 **C3′ 模式库可复制构造** 的实证(能力键控模式的构造配方);C1 的
+"合取存在性 → 可复制协议"另有真锚 = **capability schema 跨独立 extension family 复用 +
+外部贡献者接入协议**([C1-1] + N1/N2 bridge;IME N2 已证 `2eeabff9`),**不由本节
+decode-格式内复用充当**。
 
 ### A.4 证据指针(commits / recompute anchors)
 
@@ -109,7 +130,11 @@ abstract→typed→emit 配方、且新成员对框架的 re-pay 系统性归零
 
 ---
 
-## Part B — C2: 边际成本规律(泛化代价 → 边际成本规律)
+## Part B — C3′ 构造经济学: 前门化边际成本谱系(construction marginal-cost)
+
+> **正名注**:本节的前门化 LOC 摊销律归 **C3′ 模式库构造经济学 / 成熟编译器覆盖轴**,**不是** C2 的
+> 泛化代价律。C2 的真对象 = 独立 extension family(RVV/IME/scalar/zvfh)接入成本,锚 IME≈2484、曲线
+> 待 X-SCALAR(见 `experiments/active/visibility/T2-ledger-anchor.md`);decode 格式不进 C2 分母。
 
 ### B.1 台账口径(framework paid-once vs family-specific)
 
@@ -202,14 +227,14 @@ family-specific 残差,其中残差 ∝ decode-leaf 到已覆盖原语空间的*
      format-keyed **单源**整体复用,残差 = ~3 行 constructOrEmit facts 分支,是最干净
      的"泛化代价 → ~0"证据。
 
-**与 C2 layer-A 的关系(交叉复证,非重复)**:`docs/method/C2_marginal_cost_ledger.md`
-(layer-A)测的是 *原语内部* monolith→constructed 的边际成本,给出最锐利刻画
-**"边际成本 ∝ 结构距离而非表面复杂度"**(q3_K 表面最难 hmask 却最便宜 +16,因结构已被
+**与 layer-A 构造台账的关系(交叉复证,非重复)**:`docs/method/C2_marginal_cost_ledger.md`
+(layer-A,同已正名 C3′)测的是 *原语内部* monolith→constructed 的构造边际成本,给出最锐利刻画
+**"构造成本 ∝ 结构距离而非表面复杂度"**(q3_K 表面最难 hmask 却最便宜 +16,因结构已被
 q6_K 覆盖;q2_K 不起眼却最贵 +388,因需第三 arity 标量 fold)。本台账(**layer-B**)测的是
-*front-door 装置泛化* 到接受新家族的成本,在**同一律**上跨轴复证:framework 摊销到 ~0、
-残差随结构距离与"是否单源可复用"塌缩。二者交叉参照相同 flip、回答不同 C2 问题
-(原语内部 vs 装置泛化),共同构成 **C2 层-B 证据(L1-path / L2-schedule 两条 perf-cost
-谱系之后的第三谱系,纯结构/LOC)**。
+*front-door 装置泛化* 到接受新 decode 格式的成本,在**同一律**上跨轴复证:framework 摊销到 ~0、
+残差随结构距离与"是否单源可复用"塌缩。二者交叉参照相同 flip、回答不同构造经济学问题
+(原语内部 vs 装置泛化),共同构成 **C3′ 构造经济学证据(L1-path / L2-schedule 两条 perf-cost
+谱系之后的第三条纯结构/LOC 谱系)**。
 
 ### B.4 摊销曲线(每谱 net_LOC · head → tail)
 
@@ -244,16 +269,17 @@ q6_K 覆盖;q2_K 不起眼却最贵 +388,因需第三 arity 标量 fold)。本�
 本 synthesis 的**每一个数都是结构 / 表征 / LOC**,与 kernel 数值正确性、min-term
 quantizer 争议、以及 M4 终审的任何结局**正交**:
 
-- **C1** = front-door dispatch 表 + typed-region 构造 + [F-EMIT] 六态执法 + 覆盖率
+- **C3′ 构造/覆盖**(原 Part A) = front-door dispatch 表 + typed-region 构造 + [F-EMIT] 六态执法 + 覆盖率
   66/93 —— 全部是 op-identity / 静态结构事实,`git show --numstat` 与
-  `coverage-sixstate.v1.json` 可重算,不跑硬件。
-- **C2** = ledger 的 paid-once / family-specific / net_LOC 三列 —— 全部 numstat-可锚,
+  `coverage-sixstate.v1.json` 可重算,不跑硬件。(C1 的 schema 跨独立-extension-family 复用推论
+  同为结构事实,真锚在 [C1-1] + N1/N2 bridge,不在本文 decode-格式内复用。)
+- **C3′ 构造经济学**(原 Part B) = ledger 的 paid-once / family-specific / net_LOC 三列 —— 全部 numstat-可锚,
   与 perf 台账(T3/T8、Win-B 八门)完全脱钩。
-- **pending-M4 计数 = 0**:C1/C2 无任何一个数标 `pending-hardware` 或
-  `pending-M4`。(六态 row 里 `pending-hardware` 标的是**数值/perf**主张;它们不进 C1/C2
+- **pending-M4 计数 = 0**:上述 C3′/C1 结构证据无任何一个数标 `pending-hardware` 或
+  `pending-M4`。(六态 row 里 `pending-hardware` 标的是**数值/perf**主张;它们不进本文
   的结构论证。)min-term 证伪与否**不改动本文任何表格**。
 
-因此 C1/C2 证据链可先行定稿、独立于 M4 终审入论文素材。
+因此 C3′ 构造证据链(+C1 schema-复用推论)可先行定稿、独立于 M4 终审入论文素材。
 
 ---
 

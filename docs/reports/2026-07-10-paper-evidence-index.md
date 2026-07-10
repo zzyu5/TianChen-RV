@@ -4,9 +4,9 @@
 所有数字与定性住在被指向的表行/doc/cert 里；本索引只做**导航 + 成色 + 诚实状态**，[NG-4] 措辞锁沿用。
 
 **三贡献框架**（权威 = `.trellis/spec/index.md` §Novelty 表 + N1/N2/N3↔C bridge）：
-- **C1** = 合取机制存在性 → 可复制协议（front-door construction protocol）。
-- **C2** = 泛化代价 → 边际成本规律（front-door-ization marginal-cost law）。
-- **C3′** = 能力键控优化模式库 → 带实测与迁移的模板。
+- **C1** = 合取机制存在性 → 可复制协议（capability schema 跨计算范式 × 跨独立 **extension family** 复用 + 外部贡献者接入协议）。
+- **C2** = 泛化代价 → 边际成本规律（独立 **extension family**（RVV/IME/scalar/zvfh）逐家族接入的边际成本；锚 IME≈2484，曲线待 [X-SCALAR]）。
+- **C3′** = 能力键控优化模式库 → 带实测与迁移的模板（含 front-door 构造协议 + 前门化边际成本谱系）。
 - （+ 工程面「成熟编译器」= 覆盖率/正确性门，进 CI 不作 slide 卖点。）
 
 **★诚实现状口径（全文锁）**：
@@ -28,25 +28,31 @@
 
 | 主张（成立所需证据见 spec 表） | 主证据指针 | 成色 |
 |---|---|---|
-| C1 协议 = abstract op → typed region → construction-from-abstract（4 decode 家族 × 3 op 谱同构） | `docs/reports/2026-07-09-C1-C2-construction-evidence.md` Part A（§A.1 配方 / §A.2 家族表 / §A.3 可复制性 / §A.4 commit 锚） | structural（`git show --numstat` 可重算，不跑硬件） |
+| C1「可复制协议」= capability schema 跨独立 extension family 复用 + **外部贡献者按文档接入新 family**（[C1-1] 末句）—— front-door decode 构造协议 **≠ 此处**，已正名 C3′/覆盖（见 C3′ 段） | 科研目标总纲v2 [C1-1] L145 / [C1-3] L147；N2 接入已证 memory `[[k1-ime-n2-hardware-candidate]]`（commit 2eeabff9） | proven（N2 接入 DONE）+ structural |
 | 合取四事实逐格机器可检（IR-op ∧ verifier 可拒 ∧ pass 可 lower ∧ provenance 可溯） | `experiments/active/result-tables/T1_C1_structural_conjunction.csv`（逐格 fact1–4 + realized_body_manifest + conjunction_holds） | machine-checked（[F-1..F-6] falsifier + [L-8] 六态执法 CI） |
 | 跨计算范式（向量 SIMD → 整矩阵 MAC）× 跨独立家族（向量缺席标量家族）同 schema 复用 | N1/N2 bridge `.trellis/spec/index.md`；N2 已证 memory `[[k1-ime-n2-hardware-candidate]]`（IME plugin 同 common pipeline、零-core-branch、K1 bit-exact） | proven（N2 结构主张 DONE，commit 2eeabff9） |
 | 六态 ladder 自动读出 + [F-EMIT] 旁路护栏（constructed=STRONG 才计 C_construct） | `schema/coverage-sixstate.v1.json`（`$meta.g3_bypass_provenance` + states）；`.trellis/scripts/e5_strong_readout.py`；`tools/lint/check_frontdoor_provenance.py` | machine-checked（fail-closed） |
 | 覆盖率现值 | **C_construct 66/93 = 71.0%**（过 M3 70% 门，commit `0e39f60a` 60→66；schema snapshot 停 42 未 regen，见 T7 对账） | machine-anchored |
 
-## C2 — 泛化代价 → 边际成本规律
+## C2 — 泛化代价 → 边际成本规律（独立 extension family 接入成本）
+
+> **对象锁（2026-07-10 正名）**：C2 的"家族"= 独立 **extension family**（RVV/IME/scalar/zvfh，[F-6] 闭包 ∩ rvv.*=∅），**不是** decode 格式。decode-format 前门化 LOC 摊销 = **C3′ 构造经济学**（已下移 C3′ 段）。数值全留、仅正名归属。
 
 | 主张 | 主证据指针 | 成色 |
 |---|---|---|
-| 边际成本 = framework-re-pay（付一次、尾格系统性归零）+ family-specific 残差 ∝ 结构距离 | `docs/reports/2026-07-09-C1-C2-construction-evidence.md` Part B（§B.2 per-family head/tail LOC 表 + §B.3 三印证 + §B.4 摊销曲线） | structural/LOC（numstat-可锚，与 perf 脱钩） |
-| 逐 flip LOC 台账（paid-once / family-specific / net_LOC 三列） | `experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv`；`experiments/active/frontdoor-framework/frontdoor_framework_ledger.csv`（seq 0–31） | machine-anchored（recompute_ref HEAD 锚） |
-| 原语内部 monolith→constructed 边际成本（layer-A，与 layer-B 交叉复证同一律） | `docs/method/C2_marginal_cost_ledger.md`（q3_K 表面最难却最便宜 +16；q2_K 不起眼却最贵 +388 = 成本住结构距离非表面复杂度） | structural/LOC |
-| NULL 也是边际数据点（q6_K/q3_K tiling NULL = weight-bound 迁移边界；C2/C3′ 共用） | `T8:q6_K-repack-gemm-tile-T3-stackpanel-NULL-…` + `T8:q3_K-repack-gemm-tile-T3-NULL-XFER1-…`；T7 [XFER-1] 表 | kernel-axis（objdump spill/maxVreg） |
+| [C2-1] 逐 extension family 接入代价成边际递减曲线（IME≈2484 → 标量家族<300 → zvfh<100） | 科研目标总纲v2 [C2-1] L154 / [LED-1..3]；执行总纲v2 [LED-1] L93 | canon（权威口径） |
+| C2 首点可复算锚 = IME 家族 raw wc-l **2484** | `experiments/active/visibility/T2-ledger-anchor.md`；`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` **seq 0**（axis=C2-extension-family） | machine-anchored（recompute PASS 2484==2484） |
+| **曲线现状 = 缺失（1/≥3 点）** | 仅 IME 一个真 extension family 落地；家族#3（标量<300）依赖 [X-SCALAR]、子扩展 zvfh（<100）依赖 [zvfh]，均未落地 | **honest-missing**（[LED-2] 缺失级；诚实标） |
 
 ## C3′ — 能力键控优化模式库（带实测与迁移的模板）
 
 | 主张 | 主证据指针 | 成色 |
 |---|---|---|
+| **front-door 构造协议**（abstract op→typed region 可复制构造；4 decode 格式家族 × 3 op 谱同构）— **原 C1-C2-construction Part A，2026-07-10 从 C1 正名 C3′/覆盖** | `docs/reports/2026-07-09-C1-C2-construction-evidence.md` Part A（§A.1 配方 / §A.2 家族表 / §A.3 可复制性 / §A.4 commit 锚） | structural（`git show --numstat` 可重算，不跑硬件） |
+| **前门化边际成本谱系**（framework-re-pay 付一次、尾格系统性归零 + family-specific 残差 ∝ 结构距离）— **原 Part B，从 C2 正名 C3′** | `docs/reports/2026-07-09-C1-C2-construction-evidence.md` Part B（§B.2 LOC 表 / §B.3 三印证 / §B.4 摊销曲线）；`experiments/active/frontdoor-framework/frontdoor_framework_ledger.csv`（seq 0–31） | structural/LOC（numstat-可锚，与 perf 脱钩） |
+| 逐 flip 构造 LOC 台账（paid-once / family-specific / net_LOC 三列） | `experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` **seq 1–13**（axis=C3'-construction）；`experiments/active/frontdoor-framework/frontdoor_framework_ledger.csv`（seq 0–31） | machine-anchored（recompute_ref HEAD 锚） |
+| 原语内部 monolith→constructed 构造边际成本（成本住结构距离非表面复杂度） | `docs/method/C2_marginal_cost_ledger.md`（q3_K 表面最难却最便宜 +16；q2_K 不起眼却最贵 +388） | structural/LOC |
+| NULL 也是构造/迁移边界数据点（q6_K/q3_K tiling NULL = weight-bound 迁移边界） | `T8:q6_K-repack-gemm-tile-T3-stackpanel-NULL-…` + `T8:q3_K-repack-gemm-tile-T3-NULL-XFER1-…`；T7 [XFER-1] 表 | kernel-axis（objdump spill/maxVreg） |
 | **主体综合**（[XFER-1] 迁移律 + [PAT-S6] 注册表 + SEL-1 选择器一条链） | `docs/reports/2026-07-10-C3-pattern-library-evidence.md`（§1 3-类迁移 / §2 PAT-S6 / §3 SEL-1 / §4 方法学背书 / §5 commit 索引） | 见分行 |
 | [XFER-1] 3-类迁移预测律（一条判据 → HOLDS/NULL/no-op，硅上 **7/7** 命中） | `experiments/active/visibility/T7-three-curve-G3-closure.md` [XFER-1] 登记表；`T8` 7 条 XFER-1 行（tile-S6 HOLDS×3 / tile-T3 NULL×2 / frontdoor-tile-NOOP×2） | **kernel-axis-measured（7/7；非 e2e、非 sealed）** |
 | 模式作为一等数据对象（status 随证据流转） | `schema/pattern-registry.v1.json`（`PAT-S6-repack-gemm-output-tiling-register-cliff-XFER-1` status=mechanized；`MFLAT-P2c`=measured-negative；`WIDE-DECODE-salvage`=deferred-backlog） | machine-readable |

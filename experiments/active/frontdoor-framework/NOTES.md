@@ -1,11 +1,14 @@
 # frontdoor-framework — method + tq2_0 first-point decomposition
 
-C2 evidence line **layer B**: the cost to lift a decode family from a **direct-emit
-bypass** to a **front-door typed-region CONSTRUCTION**, split so that the reusable
-portion (paid once) is separated from the family-specific portion (paid per family).
-The load-bearing C2 claim is that the split predicts a **decreasing marginal cost** for
-the next decode family, and that the drop is dominated by **structural distance of the
-decode leaf**, not by re-paying the apparatus.
+**C3′ construction-cost evidence line** (2026-07-10 re-named from "C2 layer-B"; NOT C2 —
+C2 = per-**extension-family** onboarding, anchored IME ≈2484, curve MISSING; a decode
+FORMAT is `∩ rvv.* ≠ ∅` so [F-6]-not-independent, out of the C2 denominator): the cost to
+lift a decode FORMAT from a **direct-emit bypass** to a **front-door typed-region
+CONSTRUCTION**, split so that the reusable portion (paid once) is separated from the
+format-specific portion (paid per decode FORMAT; the CSV column keeps the name
+`family_specific_LOC`). The load-bearing C3′ claim is that the split predicts a
+**decreasing construction cost** for the next decode FORMAT, and that the drop is
+dominated by **structural distance of the decode leaf**, not by re-paying the apparatus.
 
 ## Decomposition rule (how a flip commit's LOC is split)
 
@@ -95,7 +98,7 @@ msg: "钩子已就位").
   math but full re-pay for a differently-decoded sibling).
 - **decode/decl plumbing** (`RVVToEmitC.cpp` +19, `RVVToEmitCInternal.h` +38, ≈56 LOC).
 
-## C2 prediction — the tq1_0 datapoint (to be measured at its flip)
+## C3′ construction-cost prediction — the tq1_0 datapoint (to be measured at its flip)
 
 Framework (tier-1) is **paid**; tq1_0 re-pays 0 there. The construction template (tier-2) is
 **copy-adaptable**; tq1_0 re-pays only a fraction. The open question is tier-3: the commit
@@ -107,10 +110,10 @@ near-zero.
 - **Prediction:** tq1_0 marginal ≈ **0 (tier-1) + fraction (tier-2) + substantial (tier-3)**
   → a LOWER total than tq2_0's +948 gross (framework + template amortized) but **not** a
   q5_K-grade near-free reuse, because the decode leaf is structurally far.
-- This is the C2 headline from `docs/method/C2_marginal_cost_ledger.md` restated on the
-  front-door axis: **marginal cost ∝ structural distance of the decode leaf to the covered
-  primitive space, with the apparatus amortized to ~0.** The tq1_0 measurement will either
-  confirm (tier-3 dominates, total drops mostly via tier-1/2 amortization) or refine it.
+- This is the C3′ construction-economics headline from `docs/method/C2_marginal_cost_ledger.md`
+  restated on the front-door axis: **construction cost ∝ structural distance of the decode leaf
+  to the covered primitive space, with the apparatus amortized to ~0.** The tq1_0 measurement
+  will either confirm (tier-3 dominates, total drops mostly via tier-1/2 amortization) or refine it.
 
 ## labor proxy — 2 authoring passes (the emission↛construction discipline)
 
