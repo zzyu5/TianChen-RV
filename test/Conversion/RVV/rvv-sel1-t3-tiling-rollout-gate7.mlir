@@ -29,6 +29,10 @@
 // CHECK-LABEL: tcrv.exec.variant @ggml_repack_gemm_q6_K_q8_K
 // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
+// [M1c] loop-order axis: keyed on the layout stride fact (weight x16 panel > activation
+// panel => col_outer); NO loop-order A/B seed here (only q4_K is) => cold-start prior.
+// CHECK-SAME: tcrv_rvv.loop_order = "col_outer"
+// CHECK-SAME: tcrv_rvv.loop_order_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_reason = "measured"
 // CHECK-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}measured
 // CHECK-SAME: tcrv_rvv.tiling_variant = "plain"
@@ -55,6 +59,8 @@ module {
 // CHECK-LABEL: tcrv.exec.variant @ggml_repack_gemm_q2_K_q8_K
 // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
+// CHECK-SAME: tcrv_rvv.loop_order = "col_outer"
+// CHECK-SAME: tcrv_rvv.loop_order_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_reason = "measured"
 // CHECK-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}measured
 // CHECK-SAME: tcrv_rvv.tiling_variant = "s6_tiled"
@@ -81,6 +87,8 @@ module {
 // CHECK-LABEL: tcrv.exec.variant @ggml_repack_gemm_q5_K_q8_K
 // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
+// CHECK-SAME: tcrv_rvv.loop_order = "col_outer"
+// CHECK-SAME: tcrv_rvv.loop_order_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_reason = "measured"
 // CHECK-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}measured
 // CHECK-SAME: tcrv_rvv.tiling_variant = "s6_tiled"
@@ -107,6 +115,8 @@ module {
 // CHECK-LABEL: tcrv.exec.variant @ggml_gemm_q4_0_q8_0
 // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "lane_wise_vector_scale"
+// CHECK-SAME: tcrv_rvv.loop_order = "col_outer"
+// CHECK-SAME: tcrv_rvv.loop_order_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_0{{.*}}reason{{.*}}prior
 // CHECK-SAME: tcrv_rvv.tiling_variant = "plain"
@@ -133,6 +143,8 @@ module {
 // CHECK-LABEL: tcrv.exec.variant @ggml_repack_gemm_iq4_nl_q8_0
 // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "codebook_flat_single_scale"
+// CHECK-SAME: tcrv_rvv.loop_order = "col_outer"
+// CHECK-SAME: tcrv_rvv.loop_order_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_reason = "prior"
 // CHECK-SAME: tcrv_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}iq4_nl{{.*}}reason{{.*}}prior
 // CHECK-SAME: tcrv_rvv.tiling_variant = "plain"

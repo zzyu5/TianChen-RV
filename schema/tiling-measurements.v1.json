@@ -1,7 +1,7 @@
 {
   "$meta": {
-    "schema_version": "v1.0.0",
-    "declares": "SEL-1 SP4 output-tiling offline-profile measurement cache (C3' capability-keyed pattern library, measurement layer)",
+    "schema_version": "v1.1.0",
+    "declares": "SEL-1 SP schedule-axis offline-profile measurement cache (C3' capability-keyed pattern library, measurement layer): SP4 output-tiling (measurements) + M1c loop-order (loop_order_measurements)",
     "note": "The [SEL-1] measurement library: the OFFLINE-PROFILE cache the capability-keyed SP4 (tiled-vs-plain) tiling selector consults BEFORE its cold-start [XFER-1] prior. Each row memoizes the byte-exact-gated timing of ONE (declared_instance_hash, kernel, variant) instance. This is EVIDENCE-axis mirror data (core-invariants I4): it NEVER chooses route/compute/dtype and it is NEVER a correctness or cost authority in `lib/` -- a measured timing is a cache FACT (authority order: hardware measurement > this cache > static prior). The compiler holds an in-memory VIEW of this file (plugin/rvv RVVRepackTilingSelection.h lookupTilingMeasurement) and, on a HIT for (declared_instance_hash, kernel), picks the memoized argmin variant with reason=measured; on a MISS it falls to the [XFER-1] capability prior (reason=prior).",
     "seed_state": "SEEDED (T3): the 5 K-quant GEMM leaves from the REAL T8 rvv/VLEN128 board (experiments/active/result-tables/T8_winloss_gap_ledger.csv, the [XFER-1] tiling win/loss rows), keyed on the declared_instance_hash the @rvv fixture kernels expand to (3cd23a4e..., the SAME support::computeDeclaredInstanceHash the exec/schedule attribution sinks compute). q4_0 and the iq4 codebook pair carry NO seed row => the compiler cold-starts them via the [XFER-1] prior (reason=prior). A different (un-profiled) board hashes differently => a MISS => the prior. An offline-profile harness on `ssh rvv` fills a row ONLY after the candidate compiles, runs (micro / llama-bench), and PASSES the byte-exact gate for that instance.",
     "authority": [
@@ -41,6 +41,18 @@
       "double_ledger": "kernel-account (source-quality claim) = compiler-symmetry FORCED; system-account (product comparison) = each side own full stack + toolchain disclosure + strongest-baseline column. Deployment SOP: ship clang .o object export (front door); never inject our .inc into the opponent's gcc build chain. See docs/canon/TianChen-RV_执行总纲v2.md §7 items 4/5.",
       "k1_reversal": "On k1/VLEN256 the shipped ggml is CLANG-18 (CMakeCache + objdump 19/0 four-proof), so k1 kernel-axis 3.106x/1.916x are ALREADY symmetric-clang and SURVIVE as as-shipped micro beats (NON-e2e). Discriminator key = board-shipped compiler (rvv=gcc, k1=clang).",
       "authority": ["docs/reports/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md", "experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md", "experiments/active/result-tables/T-VALIDITY-STAGE1_rvv_symmetric_remeasure.md"]
+    },
+    "loop_order_axis": {
+      "added": "v1.1.0 (M1c 2026-07-10)",
+      "note": "The SECOND SP schedule axis the capability-keyed selector consults: the repack PREFILL-GEMM OUTER group-loop ORDER (col_outer / row_outer). The two group loops (activation ROW-group nr/4, weight COLUMN-group nc/16) are INDEPENDENT -- each out[y,x] is a private K-accumulation -- so the orders are BYTE-IDENTICAL and share an identical hot inner core; WHICH is outer is a pure SCHEDULE choice. Lifted (M1c) from the M1b emitter-inlined `weightStride >= activationStride` predicate to a first-class selector axis (RVVRepackTilingSelection.h selectRepackLoopOrder), stamped tcrv_rvv.loop_order and REALIZED by the EmitC emitter's q4_K min-fold GEMM two-arm body. The rows below live in loop_order_measurements (NOT measurements); the in-memory view is lookupLoopOrderMeasurement.",
+      "primary_key": ["declared_instance_hash", "kernel", "order"],
+      "key_semantics": {
+        "order": "the bounded RVVRepackLoopOrder enum member: \"col_outer\" | \"row_outer\"."
+      },
+      "selection_key": "The SELECTION keys on the repack LAYOUT STRIDE fact (repackColGroupOuterForLayout: weightStride >= activationStride => col_outer, hold the larger x16-interleaved weight panel loop-resident) + the e2e REGIME (only the two-group prefill GEMM affords the axis; decode GEVM has a single row group), NEVER the format name. So the key MIGRATES across formats with zero per-format entries (换键不改条目). The compiler-symmetric A/B schedule ratio (ab_schedule_ratio_colouter_over_rowouter, both legs ours-clang) is the valid selection input; the system-account absolutes (vs_blockdot_shipped_ratio / vs_upstream_stock_ratio) are DISCLOSURE-only成色 notes the selector never keys on.",
+      "decision_rule": "The memoized winner of a (declared_instance_hash, kernel) group is the order that holds the larger repacked stream loop-resident AND is measured decisively faster (paired-cold A/B). For q4_K on rvv/VLEN128 the weight x16 panel (2304 B) > the activation x4 panel (1168 B) => col_outer, measured 2.47x throughput over row_outer => col_outer is the seeded winner. Only q4_K is A/B loop-interchange-profiled this round; the other repack GEMM leaves cold-start the layout prior (reason=prior).",
+      "case_compiler_asymmetry": "SAME double-ledger discipline as the SP4 axis. The kernel-account selection input ab_schedule_ratio_colouter_over_rowouter is compiler-SYMMETRIC (both legs ours-clang, byte-exact hot core -- only the loop scaffold differs) so it SURVIVES [CASE-COMPILER-ASYMMETRY] and is a valid before/after schedule win. The absolute vs_blockdot_shipped_ratio (1.87x, vs the board-SHIPPED gcc-15 block-dot with q4_K-repack OFF) and vs_upstream_stock_ratio (1.33x, vs native gcc-15 llama.cpp) are clang-ours-vs-gcc-shipped SYSTEM-account observations pending a clang-symmetric block-dot remeasure -- toolchain-disclosed, never a kernel-account beat and never a selection input.",
+      "authority": ["docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md", "include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h"]
     }
   },
 
@@ -143,6 +155,39 @@
       "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q3_K-repack-gemm S6 tiled (+8% wall shave but v31 no cliff, still ~5.2x loss = NOT the register-cliff lever); G3-主线A-T3-q3_K",
+      "ts": "0"
+    }
+  ],
+
+  "loop_order_measurements": [
+    {
+      "declared_instance_hash": "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7",
+      "kernel": "q4_K", "order": "col_outer", "selected": true,
+      "weight_panel_larger_stream": true,
+      "ab_schedule_ratio_colouter_over_rowouter": 2.47,
+      "llc_load_miss_ratio_rowouter_over_colouter": 5.2,
+      "backend_idle_pct": 66.20,
+      "vs_blockdot_shipped_ratio": 1.87,
+      "vs_upstream_stock_ratio": 1.33,
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "taskset": "8-15", "threads": 8, "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
+      "byte_exact_gate": "pass",
+      "account": "kernel-account (ab_schedule_ratio_colouter_over_rowouter 2.47x) is compiler-SYMMETRIC (both legs ours-clang .o, byte-exact hot core: vwmacc=2240/vset=71/spill=3/reload=8 IDENTICAL, only loop scaffold differs) -- SURVIVES [CASE-COMPILER-ASYMMETRY], a valid before/after schedule win. vs_blockdot_shipped_ratio (1.87x vs Bq4kOFF) and vs_upstream_stock_ratio (1.33x vs Bstock) are SYSTEM-account, opponent=gcc-15 board-shipped, PENDING clang-symmetric block-dot remeasure -- toolchain-disclosed, never a selection input.",
+      "source": "M1b-board row col-outer clang-object (LLC-load-miss 4.62e9->0.89e9 down 5.2x, backend-idle 85.81->66.20, avg_ts 2.793->6.896 = 2.47x, cycles 2.87e12->1.20e12, IPC 0.41->0.98; 3-round interleaved median, IQR 0.19%, DRAM-bound load-robust); docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md, committed emitter d33dd545",
+      "ts": "0"
+    },
+    {
+      "declared_instance_hash": "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7",
+      "kernel": "q4_K", "order": "row_outer", "selected": false,
+      "weight_panel_larger_stream": true,
+      "ab_schedule_ratio_colouter_over_rowouter": 2.47,
+      "llc_load_miss_ratio_rowouter_over_colouter": 5.2,
+      "backend_idle_pct": 85.81,
+      "vs_blockdot_shipped_ratio": 0.76,
+      "vs_upstream_stock_ratio": 0.54,
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "taskset": "8-15", "threads": 8, "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
+      "byte_exact_gate": "pass",
+      "account": "row_outer = the A_pre M0 baseline (0.764x e2e prefill): the weight x16 panel is re-streamed from DRAM nr/4 (=32x) times per row-group => H-B cold-stream stall (backend-idle 85.81%, LLC-load-miss 4.62e9). This is the loser leg of the paired-cold A/B; the vs-block-dot / vs-stock absolutes (~0.76x / ~0.54x, derived from the col-outer absolutes / 2.47x schedule ratio) are SYSTEM-account, opponent=gcc-15 shipped, disclosure-only.",
+      "source": "M1b-board row row-outer clang-object (M0 0.764x baseline, the cold-stream regression the loop-interchange repairs); docs/reports/2026-07-10-rvv-e2e-m1b-loop-interchange-board.md",
       "ts": "0"
     }
   ]

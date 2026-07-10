@@ -2,6 +2,7 @@
 #include "TianChenRV/Conversion/RVV/RVVToEmitCSupport.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -3195,6 +3196,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           static_cast<int64_t>(loopBody.getHalfLanes()));
     // q4_K: the min-fold family default arm (the s6_tiled PURE REALIZE was gated for
     // the WHOLE min-fold family above). RE-EMITs the byte-exact S6-tiled q4_K GEMM body.
+    // [M1c] Resolve the loop-order schedule axis: PREFER the front-door SEL-1 stamp
+    // (tcrv_rvv.loop_order = "col_outer" | "row_outer"), else fall back to the SAME
+    // repackColGroupOuterForLayout stride predicate the selector keys on -- so the stamp
+    // and the emitter carry ONE stride fact and an un-stamped (emitter-direct) fixture
+    // stays byte-identical to the M1b-committed behavior.
+    bool colGroupOuter = tianchenrv::plugin::rvv::repackColGroupOuterForLayout(
+        static_cast<int64_t>(loopBody.getWeightBlockStride()),
+        static_cast<int64_t>(loopBody.getActivationBlockStride()));
+    if (auto loopOrder = loopBody->getAttrOfType<mlir::StringAttr>(
+            "tcrv_rvv.loop_order")) {
+      if (loopOrder.getValue() == "col_outer")
+        colGroupOuter = true;
+      else if (loopOrder.getValue() == "row_outer")
+        colGroupOuter = false;
+    }
     return emitRepackKQuantGemmBodyQ4K(
         rewriter, loc, weightBase, activationBase, output, rowCount, columnCount,
         outputRowStride, avlArg, sizeType, opName, role, coreLmul,
@@ -3207,7 +3223,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
         static_cast<int64_t>(*bsumsOff), static_cast<int64_t>(*nSub),
         static_cast<int64_t>(loopBody.getWeightInterleave()),
         static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+        static_cast<int64_t>(loopBody.getHalfLanes()), colGroupOuter);
   }
 
   // ---- K-QUANT q6_K NO-MIN front-door dispatch (the retired emitRepackGemmQ6KQ8K
@@ -6754,7 +6770,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     int64_t activationQuantOffset, int64_t weightDminOffset,
     int64_t weightScalesOffset, int64_t activationBsumsOffset,
     int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-    int64_t half) const {
+    int64_t half, bool colGroupOuter) const {
     mlir::MLIRContext *ctx = rewriter.getContext();
 
     // The integer-product core LMUL anchor (the *how*, never the *what*; the
@@ -7021,28 +7037,29 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     mlir::Type floatPtrConstType =
         emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
 
-    // ===== [M1b loop-interchange] Capability-keyed OUTER group-loop order =====
+    // ===== [M1c loop-interchange] SEL-1 loop-order schedule axis (PURE REALIZE) =====
     // The two group loops -- activation ROW-GROUP `y` (over nr/4) and weight
     // COLUMN-GROUP `x` (over nc/16) -- are INDEPENDENT: every out[y,x] is a private
     // K-accumulation, so either nesting order produces BYTE-IDENTICAL results and an
-    // identical hot inner core. Which loop is OUTER is therefore a SCHEDULE axis
-    // keyed on a LAYOUT/cache FACT (NOT a hardcoded constant) -- exactly as
-    // numHalves = weight_interleave / half is a VLEN-derived tile count, not a magic
-    // 2. Key: hold the DRAM-DOMINANT repacked stream cache-resident across the hot
-    // inner sweep and restream the SMALLER one. For the K-quant prefill GEMM the
-    // per-block weight panel (block_q4_Kx16 stride = weightStride, 2304 B) is the
-    // larger stream vs the activation panel (block_q8_Kx4 stride = activationStride,
-    // 1168 B), so weightStride >= activationStride => the col-group WEIGHT panel is
-    // made loop-OUTER (resident) and the row groups sweep INSIDE it. Then the weight
-    // bytes of a col-group stream from DRAM ONCE instead of once per row-group; the
-    // row-outer form re-reads that weight panel nr/4 (=32x on the board) -- the H-B
-    // cold-stream root of the 0.764x e2e prefill gap (M0 attribution). A cacheline/
-    // L1d-SIZE board capability is a known GAP (not yet plumbed); once present this
-    // ">=" tightens to a "col-group weight panel <= L1d" residency test. Absent it,
-    // "hold the strictly-larger repacked stream" is the conservative layout key.
-    // The ROW-OUTER (activation-resident) nest is RETAINED as the other arm for the
-    // layout where the activation panel is the larger stream.
-    bool colGroupOuter = weightStride >= activationStride;
+    // identical hot inner core. Which loop is OUTER is therefore a SCHEDULE axis keyed
+    // on a LAYOUT/cache FACT (NOT a hardcoded constant). Under M1b this predicate was
+    // INLINED here (`weightStride >= activationStride`); under M1c it is LIFTED to the
+    // first-class SEL-1 loop-order selector (RVVRepackTilingSelection selectRepackLoopOrder,
+    // stamped as tcrv_rvv.loop_order) and this emitter degenerates to a PURE REALIZE:
+    // `colGroupOuter` is resolved by the caller from the stamped attr, falling back to
+    // the SAME repackColGroupOuterForLayout stride predicate the selector keys on -- so
+    // the front-door selection and the emitter carry ONE stride fact (同源同事实), never
+    // two divergent copies. Key rationale (unchanged): hold the DRAM-DOMINANT repacked
+    // stream cache-resident across the hot inner sweep and restream the SMALLER one. For
+    // the K-quant prefill GEMM the per-block weight panel (block_q4_Kx16 stride =
+    // weightStride, 2304 B) is the larger stream vs the activation panel (block_q8_Kx4
+    // stride = activationStride, 1168 B), so weightStride >= activationStride => the
+    // col-group WEIGHT panel is made loop-OUTER (resident) and the row groups sweep
+    // INSIDE it. Then the weight bytes of a col-group stream from DRAM ONCE instead of
+    // once per row-group; the row-outer form re-reads that weight panel nr/4 (=32x on
+    // the board) -- the H-B cold-stream root of the 0.764x e2e prefill gap (M0
+    // attribution). The ROW-OUTER (activation-resident) nest is RETAINED as the other
+    // arm for the layout where the activation panel is the larger stream.
 
     // a = vy + y*nb*activationStride  (the q8_Kx4 row-group base; a fn of y ONLY).
     auto emitAGroupBase = [&](mlir::Value y) -> mlir::Value {

@@ -121,6 +121,21 @@ constexpr llvm::StringLiteral kTilingReasonAttr =
 constexpr llvm::StringLiteral kTilingRecordAttr =
     "tcrv_rvv.tiling_selection_record";
 
+// [M1c / SEL-1] the SECOND SP schedule axis the selection step stamps on the same
+// constructed prefill-GEMM loop-body op: the OUTER group-loop ORDER (col_outer /
+// row_outer). Parallel to the SP4 tiling attrs. tcrv_rvv.loop_order = the
+// capability-keyed order; loop_order_selection_reason the discrete lit-CHECKable
+// reason; loop_order_selection_record the full [D-4] JSONL line (SAME
+// declared_instance_hash). The EmitC emitter REALIZES tcrv_rvv.loop_order in the
+// q4_K min-fold GEMM two-arm body (the M1b interchange); ABSENT => the byte-exact
+// layout fallback (weightStride >= activationStride, the SAME predicate the selector
+// keys on), so un-wired paths stay byte-identical.
+constexpr llvm::StringLiteral kLoopOrderAttr = "tcrv_rvv.loop_order";
+constexpr llvm::StringLiteral kLoopOrderReasonAttr =
+    "tcrv_rvv.loop_order_selection_reason";
+constexpr llvm::StringLiteral kLoopOrderRecordAttr =
+    "tcrv_rvv.loop_order_selection_record";
+
 // The RVV vector register file is 32 architectural vector registers as a HARD ISA
 // fact (rvv1.0 v0..v31), independent of VLEN -- the register-budget capability fact
 // the SP4 legality filter reasons over (alongside the derived minimum VLEN).
@@ -773,6 +788,52 @@ private:
                       pluginrvv::buildTilingSelectionAttributionRecord(
                           kernel, candidates, choice.variant, choice.reason,
                           declaredInstanceHash, /*noTimestamp=*/true)));
+
+    // [M1c / SEL-1] the SECOND SP schedule axis: the repack prefill-GEMM OUTER
+    // group-loop ORDER (col-outer / row-outer), lifted from the M1b emitter-inlined
+    // `weightStride >= activationStride` to this first-class capability-keyed
+    // selector axis. Keyed on the e2e REGIME (only the two-group PREFILL GEMM affords
+    // the interchange; the decode GEVM has a single row group) + the repack LAYOUT
+    // STRIDE fact (which repacked panel is the larger DRAM stream), NEVER the format
+    // name. q4_K carries the M1b-board offline A/B seed (reason=measured, col-outer
+    // 2.47x schedule); every other leaf cold-starts the layout prior (reason=prior).
+    // The stride key uses the loop op's OWN declared block strides (the x16-repacked
+    // weight panel vs the x4-repacked activation panel) -- so the key MIGRATES across
+    // formats with zero per-format entries. REALIZATION SCOPE: the EmitC emitter
+    // REALIZES tcrv_rvv.loop_order in the q4_K min-fold GEMM two-arm body (M1b); the
+    // sibling K-quant / flat / codebook GEMM emitters currently carry a single fixed
+    // nest and do NOT yet read it -- the stamp there is the capability-keyed SELECTION
+    // record (a burn-down pointer to the same latent H-B cold-stream gap), NOT an
+    // emission claim (mirroring the min-fold "plain" tiling body being fail-closed /
+    // deferred rather than emitted).
+    bool isPrefillGemm = op.getMRegime() == "prefill";
+    std::int64_t weightStride =
+        static_cast<std::int64_t>(loop.getWeightBlockStride());
+    std::int64_t activationStride =
+        static_cast<std::int64_t>(loop.getActivationBlockStride());
+    std::optional<pluginrvv::RVVLoopOrderMeasurementHit> loopOrderMeasurement =
+        pluginrvv::lookupLoopOrderMeasurement(declaredInstanceHash, kernel);
+    pluginrvv::RVVRepackLoopOrderChoice loopOrderChoice =
+        pluginrvv::selectRepackLoopOrder(weightStride, activationStride,
+                                         isPrefillGemm, minVLEN,
+                                         kRVVArchVectorRegisterCount,
+                                         loopOrderMeasurement);
+    loop->setAttr(kLoopOrderAttr,
+                  builder.getStringAttr(pluginrvv::stringifyRVVRepackLoopOrder(
+                      loopOrderChoice.order)));
+    loop->setAttr(
+        kLoopOrderReasonAttr,
+        builder.getStringAttr(
+            pluginrvv::stringifyRVVTilingSelectionReason(loopOrderChoice.reason)));
+    const pluginrvv::RVVRepackLoopOrder loopOrderCandidates[] = {
+        pluginrvv::RVVRepackLoopOrder::RowOuter,
+        pluginrvv::RVVRepackLoopOrder::ColOuter};
+    loop->setAttr(kLoopOrderRecordAttr,
+                  builder.getStringAttr(
+                      pluginrvv::buildLoopOrderSelectionAttributionRecord(
+                          kernel, loopOrderCandidates, loopOrderChoice.order,
+                          loopOrderChoice.reason, declaredInstanceHash,
+                          /*noTimestamp=*/true)));
   }
 
   // The IN-COMPILER selection: derive the target VLEN from the pass's -march (the

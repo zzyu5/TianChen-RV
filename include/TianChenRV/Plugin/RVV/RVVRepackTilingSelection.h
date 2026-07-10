@@ -287,6 +287,174 @@ inline std::string buildTilingSelectionAttributionRecord(
   return line;
 }
 
+// ============================================================================
+// [M1c / SEL-1] The SECOND SP schedule axis: the repack PREFILL-GEMM OUTER
+// group-loop ORDER (col-outer / row-outer). Hung on the SAME two-stage
+// capability-keyed selection mechanism as the SP4 output-tiling axis above; the
+// loop-order M1b decision that was an emitter-inlined `weightStride >=
+// activationStride` (RVVToEmitCBlockQuantLinear emitRepackKQuantGemmBodyQ4K) is
+// lifted here to a first-class selector schedule axis.
+// ============================================================================
+// The prefill GEMM has TWO INDEPENDENT group loops -- the activation ROW-group
+// (over nr/4) and the weight COLUMN-group (over nc/16). Every out[y,x] is a
+// PRIVATE K-accumulation, so the two nesting orders are BYTE-IDENTICAL and share
+// an identical hot inner core; WHICH loop is OUTER is a pure SCHEDULE axis. The
+// selection KEY is a LAYOUT/cache capability FACT -- which repacked panel is the
+// larger DRAM stream -- NEVER a format name, exactly mirroring the SP4 axis's
+// fold_model SHAPE keying. Hold the DRAM-DOMINANT (larger) repacked stream
+// loop-OUTER (cache-resident across the hot sweep) and restream the smaller one:
+// weightStride >= activationStride => the x16-interleaved WEIGHT col-group panel
+// is the larger stream => col-OUTER (its bytes stream from DRAM ONCE per col-group
+// instead of once per row-group; the row-outer form re-reads the weight panel nr/4
+// times -- the H-B cold-stream root of the 0.764x e2e prefill gap, M0 attribution).
+// This is the M0-attributed cold-stream fix the M1b-board proved (2026-07-10:
+// col-outer LLC-load-miss down 5.2x, backend-idle 85.8->66.2, 2.47x schedule
+// throughput, byte-exact hot core). The axis is a LEVER ONLY for the two-group
+// PREFILL GEMM; the DECODE GEVM has a single row group so both nests degenerate.
+
+enum class RVVRepackLoopOrder { RowOuter, ColOuter };
+
+inline llvm::StringRef stringifyRVVRepackLoopOrder(RVVRepackLoopOrder order) {
+  switch (order) {
+  case RVVRepackLoopOrder::RowOuter:
+    return "row_outer";
+  case RVVRepackLoopOrder::ColOuter:
+    return "col_outer";
+  }
+  return "";
+}
+
+// The loop-order LAYOUT KEY -- the SINGLE SOURCE of the stride fact, shared by the
+// front-door selector Stage-2b prior AND the EmitC emitter's byte-exact fallback
+// (RVVToEmitCBlockQuantLinear emitRepackKQuantGemmBodyQ4K), so the two never carry
+// divergent copies of the rule (the "同源同事实" invariant -- no double logic).
+// col-outer <=> the repacked WEIGHT col-group panel is the >= (larger-or-equal)
+// DRAM stream. A cacheline / L1d-SIZE board capability is a known GAP; once plumbed
+// this ">=" tightens to a "weight col-group panel <= L1d" residency test. Absent it,
+// "hold the strictly-larger repacked stream" is the conservative layout key.
+inline bool repackColGroupOuterForLayout(std::int64_t weightStride,
+                                         std::int64_t activationStride) {
+  return weightStride >= activationStride;
+}
+
+struct RVVRepackLoopOrderChoice {
+  RVVRepackLoopOrder order = RVVRepackLoopOrder::ColOuter;
+  RVVTilingSelectionReason reason = RVVTilingSelectionReason::Prior;
+};
+
+// A single offline-profile loop-order A/B measurement HIT (the memoized argmin
+// winner for a (declared_instance_hash, kernel) key). Parallel to
+// RVVTilingMeasurementHit; std::nullopt at the call site => cold start.
+struct RVVLoopOrderMeasurementHit {
+  RVVRepackLoopOrder winner;
+};
+
+// Consult the offline-profile loop-order A/B cache. Seeded (T3 / M1c) from the REAL
+// M1b-board rvv/VLEN128 paired-cold A/B (docs/reports/2026-07-10-rvv-e2e-m1b-loop-
+// interchange-board.md): q4_K col-outer wins 2.47x throughput over row-outer. BOTH
+// legs are OURS-clang, byte-exact hot core => compiler-SYMMETRIC, so this A/B ratio
+// is a VALID kernel-account selection input that SURVIVES [CASE-COMPILER-ASYMMETRY]
+// (exactly like the SP4 axis's ab_wall_ratio_tiled_over_untiled; NEVER the
+// system-account vs-gcc-shipped absolutes 1.87x / 1.33x, which the selector never
+// keys on). Keyed on the SAME @rvv declared-instance hash (3cd23a4e...). Only q4_K
+// carries a loop-order seed (the SOLE leaf A/B loop-interchange-profiled this round);
+// every OTHER (hash, kernel) MISSES => the caller's cold-start layout prior
+// (reason=prior). A different (un-profiled) board hashes differently => a MISS.
+inline std::optional<RVVLoopOrderMeasurementHit>
+lookupLoopOrderMeasurement(llvm::StringRef declaredInstanceHash,
+                           llvm::StringRef kernel) {
+  struct SeededLoopOrder {
+    llvm::StringRef declaredInstanceHash;
+    llvm::StringRef kernel;
+    RVVRepackLoopOrder winner;
+  };
+  static constexpr llvm::StringLiteral kBoardInstanceHash =
+      "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
+  const SeededLoopOrder kSeeded[] = {
+      {kBoardInstanceHash, "q4_K", RVVRepackLoopOrder::ColOuter},
+  };
+  if (declaredInstanceHash.empty())
+    return std::nullopt;
+  for (const SeededLoopOrder &row : kSeeded)
+    if (row.declaredInstanceHash == declaredInstanceHash && row.kernel == kernel)
+      return RVVLoopOrderMeasurementHit{row.winner};
+  return std::nullopt;
+}
+
+// The two-stage [SEL-1] loop-order selection (parallel to selectRepackTilingVariant).
+// PURE + COST-MODEL-FREE: f(strides, regime, vlenBits, vregCount, measurement).
+// Stage-1 legality: the axis is a lever ONLY for the two-group PREFILL GEMM on a
+// capability-afforded board; a DECODE GEVM (single row group) or a degenerate board
+// (no VLEN / vreg fact) affords NO schedule choice => the byte-exact layout default,
+// HONESTLY labelled OnlyFeasible (not a prior). Stage-2a: a memoized offline-profile
+// A/B winner (reason=measured; the M1b q4_K col-outer seed) -- both nests are always
+// feasible for the prefill GEMM (pure schedule, no legality difference), so no
+// fail-closed-revalidate is needed. Stage-2b: the cold-start capability prior keyed
+// on the layout STRIDE fact (reason=prior).
+inline RVVRepackLoopOrderChoice
+selectRepackLoopOrder(std::int64_t weightStride, std::int64_t activationStride,
+                      bool isPrefillGemm, std::int64_t vlenBits,
+                      std::int64_t vregCount,
+                      std::optional<RVVLoopOrderMeasurementHit> measurement) {
+  RVVRepackLoopOrder layoutPrior =
+      repackColGroupOuterForLayout(weightStride, activationStride)
+          ? RVVRepackLoopOrder::ColOuter
+          : RVVRepackLoopOrder::RowOuter;
+
+  // Stage-1: no two-group GEMM / no capability fact => no schedule choice.
+  if (!isPrefillGemm || vlenBits < 128 || vregCount <= 0)
+    return {layoutPrior, RVVTilingSelectionReason::OnlyFeasible};
+
+  // Stage-2a: the memoized offline-profile A/B winner.
+  if (measurement)
+    return {measurement->winner, RVVTilingSelectionReason::Measured};
+
+  // Stage-2b: the cold-start capability prior keyed on the layout STRIDE fact.
+  return {layoutPrior, RVVTilingSelectionReason::Prior};
+}
+
+// [D-4] the loop-order selection attribution record (canonical-JSON line parallel to
+// buildTilingSelectionAttributionRecord; candidates = the bounded loop-order set,
+// reusing the SAME declared_instance_hash and reason enum). Canonical key order:
+// candidates, chosen, declared_instance_hash, kernel, reason, ts.
+inline std::string buildLoopOrderSelectionAttributionRecord(
+    llvm::StringRef kernel, llvm::ArrayRef<RVVRepackLoopOrder> candidates,
+    RVVRepackLoopOrder chosen, RVVTilingSelectionReason reason,
+    llvm::StringRef declaredInstanceHash, bool noTimestamp) {
+  std::string line;
+  line += '{';
+  line += "\"candidates\":[";
+  for (std::size_t i = 0; i < candidates.size(); ++i) {
+    if (i)
+      line += ',';
+    line += '"';
+    line += stringifyRVVRepackLoopOrder(candidates[i]);
+    line += '"';
+  }
+  line += ']';
+  line += ",\"chosen\":\"";
+  line += stringifyRVVRepackLoopOrder(chosen);
+  line += "\",\"declared_instance_hash\":\"";
+  line += declaredInstanceHash;
+  line += "\",\"kernel\":\"";
+  line += kernel;
+  line += "\",\"reason\":\"";
+  line += stringifyRVVTilingSelectionReason(reason);
+  line += "\",\"ts\":\"";
+  if (noTimestamp) {
+    line += '0';
+  } else {
+    std::time_t now = std::time(nullptr);
+    std::tm utc{};
+    gmtime_r(&now, &utc);
+    char buffer[32];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    line += buffer;
+  }
+  line += "\"}";
+  return line;
+}
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVREPACKTILINGSELECTION_H

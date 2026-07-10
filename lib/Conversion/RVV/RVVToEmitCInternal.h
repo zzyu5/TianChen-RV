@@ -1496,7 +1496,12 @@ private:
       int64_t activationQuantOffset, int64_t weightDminOffset,
       int64_t weightScalesOffset, int64_t activationBsumsOffset,
       int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
-      int64_t half) const;
+      int64_t half,
+      // [M1c] the REALIZED outer group-loop order (col-outer vs row-outer): the
+      // SEL-1 loop-order schedule axis the caller resolves from the stamped
+      // tcrv_rvv.loop_order attr, falling back to the SAME repackColGroupOuterForLayout
+      // predicate the selector keys on (so both sides carry one stride fact).
+      bool colGroupOuter) const;
 
   /// FAMILY-A (symmetric, full-int8) block-as-lane sibling of
   /// emitRepackGemvQ4_0Q8_0: the q8_0 16x1-REPACKED single-column GEMV (decode).

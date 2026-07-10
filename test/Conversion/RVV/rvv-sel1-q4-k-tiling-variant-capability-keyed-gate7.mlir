@@ -44,6 +44,13 @@ module {
 // SEL1: tcrv_rvv.typed_repack_gemm_loop_body
 // The fold_model that KEYED the selection (the bottleneck SHAPE, not the format name).
 // SEL1-SAME: fold_model = "kquant_dmin_bsums_min"
+// [M1c] the loop-order schedule axis (attrs print alphabetically, so loop_order < tiling):
+// the M1b col-outer decision, lifted from emitter-inline to the SEL-1 selector, keyed on
+// the repack layout STRIDE fact (weight x16 panel 2304 >= activation x4 panel 1168) +
+// the prefill regime. q4_K carries the M1b-board offline A/B seed => reason=measured.
+// SEL1-SAME: tcrv_rvv.loop_order = "col_outer"
+// SEL1-SAME: tcrv_rvv.loop_order_selection_reason = "measured"
+// SEL1-SAME: tcrv_rvv.loop_order_selection_record = "{{.*}}candidates{{.*}}row_outer{{.*}}col_outer
 // The offline-profile measurement argmin selected S6Tiled with reason=measured (the
 // byte-exact-gated rvv/VLEN128 seed winner; NOT the capability-blind static_order).
 // SEL1-SAME: tcrv_rvv.tiling_selection_reason = "measured"
