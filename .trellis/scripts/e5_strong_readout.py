@@ -760,6 +760,13 @@ FORWARD_STREAM_PATHS = [
         ("rms_norm", "elementwise_rms_norm_reduce_core", "rms-norm"),
         ("softmax", "elementwise_soft_max_reduce_core", "soft-max"),
         ("rope", "elementwise_rope_rotate_core", "rope"),
+        # The 4 forward SUPPORT ops widened into the SAME front door (all MAP
+        # family): add/mul share the BINARY map core, cpy the COPY map, gelu the
+        # scalar GELU map. The six-state `op` key matches the model name here.
+        ("add", "elementwise_binary_map", "add"),
+        ("mul", "elementwise_binary_map", "mul"),
+        ("cpy", "elementwise_copy_map", "cpy"),
+        ("gelu", "elementwise_gelu_map", "gelu"),
     ]
 ]
 

@@ -794,20 +794,21 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    // The four forward-elementwise f32 SUPPORT ops (add/mul/cpy/gelu) are
-    // DISPATCH-WIRED (not constructed): the op identity routes to a hand-written
-    // monolith emitter body -- an m8 strip loop (vsetvl_e32m8 / vle32 / vfadd_vv |
-    // vfmul_vv | copy / vse32) for the bare per-lane add/mul/cpy, or a scalar
-    // per-element tanhf loop for gelu. Void-return, like the quantize bridge above.
-    // Marker: the op identity ([L-6] wiring != construction).
-    if (isGgmlForwardElementwiseF32Body(scope)) {
-      if (mlir::failed(emitGgmlForwardElementwiseF32(rewriter, loc, scope, avlArg,
-                                                     sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
+    // NOTE: the four forward-elementwise f32 SUPPORT ops (add/mul/cpy/gelu) were
+    // RETIRED at the support flip (dispatch-wired -> constructed, C_construct 73->77):
+    // the retired monolith recognizer {isGgmlForwardElementwiseF32Body,
+    // emitGgmlForwardElementwiseF32} + the support ops tcrv_rvv.{vec_add,vec_mul,
+    // vec_cpy,gelu}_f32 are GONE. They are now CONSTRUCTED through the SAME abstract
+    // tcrv_rvv.ggml_forward_elementwise source op + pre-emitc front door as
+    // scale/silu/rms_norm/soft_max/rope: the front door constructs the typed
+    // tcrv_rvv.typed_elementwise_loop_body region (reduce_map_model "map") carrying
+    // the per-op elementwise_binary_map (add/mul) / elementwise_copy_map (cpy) /
+    // elementwise_gelu_map (gelu) core brick, dispatched via the
+    // {isTypedElementwiseLoopBody, emitTypedElementwiseLoopBody} entry in
+    // kBlockDotKernels above. The map re-emit reuses the SHARED byte-exact strip/loop
+    // helpers (emitForwardVecMapStrip / emitForwardGeluScalarLoop), so the emitted C
+    // is byte-identical to the retired monolith modulo ONLY the source-op provenance
+    // token.
 
     // The dequantize_row family (block_qX -> f32 row): the FAMILY-HEAD q8_0 is
     // FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites the
@@ -2009,24 +2010,12 @@ bool VariantToEmitCFunc::isGgmlQuantizeRowQ8KBody(tcrvrvv::WithVLOp scope) {
     return sawQuantize;
   }
 
-bool VariantToEmitCFunc::isGgmlForwardElementwiseF32Body(
-    tcrvrvv::WithVLOp scope) {
-    // DISPATCH-WIRED marker: the body is EXACTLY one forward-elementwise f32
-    // support op (add/mul/cpy/gelu). The op identity is the dispatch key; the
-    // emitter owns the hand-written monolith body (NOT a typed loop brick).
-    bool sawForward = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlVecAddF32Op, tcrvrvv::GgmlVecMulF32Op,
-                    tcrvrvv::GgmlVecCpyF32Op, tcrvrvv::GgmlGeluF32Op>(op)) {
-        if (sawForward)
-          return false;
-        sawForward = true;
-      } else {
-        return false;
-      }
-    }
-    return sawForward;
-  }
+// NOTE: isGgmlForwardElementwiseF32Body was RETIRED at the support flip
+// (dispatch-wired -> constructed, C_construct 73->77): add/mul/cpy/gelu are now
+// CONSTRUCTED through the abstract tcrv_rvv.ggml_forward_elementwise source op +
+// the pre-emitc front door (the SAME path as scale/silu/rms_norm/soft_max/rope),
+// recognized by isTypedElementwiseLoopBody, so no dedicated support recognizer
+// remains.
 
 bool VariantToEmitCFunc::isGgmlDequantizeRowBody(tcrvrvv::WithVLOp scope) {
     // DISPATCH-WIRED marker: the body is EXACTLY one tcrv_rvv.dequantize_row op.
@@ -6191,7 +6180,16 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // position-dependent 2x2 rotation + scalar cos/sin angle seam + theta
       // recurrence are re-emitted by the loop op's rotate branch. The union stays
       // strictly MORE permissive (zero block-dot / map / reduce regression).
-      tcrv::rvv::ElementwiseRopeRotateCoreOp>(op);
+      tcrv::rvv::ElementwiseRopeRotateCoreOp,
+      // The THREE forward SUPPORT-op MAP core bricks (the add/mul BINARY two-input
+      // map, the cpy pass-through COPY map, and the gelu scalar tanh map), reusing
+      // the SAME loop op + terminator + validator + reduce_map_model "map". Their
+      // per-strip/per-element bodies are re-emitted by the loop op's map branch
+      // via the SHARED byte-exact strip/loop helpers. The union stays strictly
+      // MORE permissive (zero block-dot / map / reduce / rotate regression).
+      tcrv::rvv::ElementwiseBinaryMapOp,
+      tcrv::rvv::ElementwiseCopyMapOp,
+      tcrv::rvv::ElementwiseGeluMapOp>(op);
 }
 
 // Shared recursive allowlist walk over a loop-body region: fail-close on any op

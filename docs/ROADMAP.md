@@ -25,7 +25,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 73/93 = 78.5%**（★主数·论文口径，CERT-FD 41→70 + iq2-grid 全家族 70→73）｜ labeled 73/93（certified=labeled·RED 0）｜ **矿脉冲 90%: iq2_xs/iq2_s + forward-support(gelu/add/mul/cpy) + tq/mxfp4/iq1/iq3/nvfp4/q1_0** |
+| C_construct | **certified 77/93 = 82.8%**（★主数·论文口径，+forward-support gelu/add/mul/cpy 73→77）｜ labeled 77/93（certified=labeled·RED 0）｜ **矿脉冲 90%: iq2_xs/iq2_s + forward-support(gelu/add/mul/cpy) + tq/mxfp4/iq1/iq3/nvfp4/q1_0** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **1**（iq2 grid 家族全落 4→1；仅剩 mxfp4；+ absent iq1/iq3/nvfp4/q1_0 gemm_tile） |

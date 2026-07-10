@@ -619,13 +619,11 @@ private:
   /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
   static bool isGgmlQuantizeRowQ8KBody(tcrvrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY one forward-elementwise f32 support op
-  /// (tcrv_rvv.vec_add_f32 | tcrv_rvv.vec_mul_f32 | tcrv_rvv.vec_cpy_f32 |
-  /// tcrv_rvv.gelu_f32). DISPATCH-WIRED: the op identity is the dispatch key; the
-  /// emitter owns the hand-written monolith body (an m8 strip loop for add/mul/cpy,
-  /// a scalar tanhf loop for gelu). NOT constructed ([L-6] wiring != construction:
-  /// no typed_elementwise_loop_body brick, no pattern-library primitive).
-  static bool isGgmlForwardElementwiseF32Body(tcrvrvv::WithVLOp scope);
+  // NOTE: isGgmlForwardElementwiseF32Body was RETIRED at the support flip
+  // (dispatch-wired -> constructed, C_construct 73->77): add/mul/cpy/gelu are now
+  // CONSTRUCTED through the abstract tcrv_rvv.ggml_forward_elementwise source op
+  // (recognized by isTypedElementwiseLoopBody after the front door constructs the
+  // typed region), so no dedicated support recognizer remains.
 
   /// True iff the with_vl body is EXACTLY one tcrv_rvv.dequantize_row op.
   /// DISPATCH-WIRED: the op identity (+ its bounded `format`) is the dispatch key;
@@ -4334,17 +4332,66 @@ private:
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
-  /// Emit the DISPATCH-WIRED forward-elementwise f32 support body for the single
-  /// tcrv_rvv.{vec_add_f32|vec_mul_f32|vec_cpy_f32|gelu_f32} op nested under
-  /// `scope`. add/mul/cpy lower to a byte-exact m8 strip loop (vsetvl_e32m8 / vle32
-  /// (x2 for the binary add/mul, x1 for cpy) / vfadd_vv|vfmul_vv (none for cpy) /
-  /// vse32); gelu lowers to a SCALAR per-element loop computing ggml's tanh gelu
-  /// (0.5*x*(1+tanhf(SQRT_2_OVER_PI*x*(1+GELU_COEF_A*x*x)))) with one `tanhf`
-  /// opaque-seam call per element. Hand-written monolith body (wiring, not
-  /// construction: no typed loop brick).
-  mlir::LogicalResult emitGgmlForwardElementwiseF32(
+  // NOTE: emitGgmlForwardElementwiseF32 (the DISPATCH-WIRED support-op monolith
+  // dispatcher) was RETIRED at the support flip (dispatch-wired -> constructed,
+  // C_construct 73->77): add/mul/cpy/gelu are now CONSTRUCTED through the abstract
+  // source op + front door, re-emitted by emitElementwise{Binary,Copy,Gelu}MapStrip
+  // (which delegate to the SHARED byte-exact helpers below).
+
+  /// The ONE byte-exact m8 per-lane MAP strip shared by BOTH the CONSTRUCTED binary
+  /// map re-emit AND the copy map re-emit (emitElementwise{Binary,Copy}MapStrip): a
+  /// pre-loop VLMAX + the
+  /// strip loop (vsetvl_e32m8(n-i) / one vle32 per `inputs` / an optional
+  /// `binaryCallee` combiner (empty for the copy pass-through) / vse32). ABI
+  /// pointers arrive already valueMap-resolved. Sharing the body makes the
+  /// constructed lowering byte-exact to the retired atomic emit by construction,
+  /// modulo only the opName/role provenance token.
+  mlir::LogicalResult emitForwardVecMapStrip(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
+      mlir::ValueRange inputs, mlir::Value output, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef binaryCallee, mlir::Type sizeType,
+      mlir::Value avlArg) const;
+
+  /// The ONE byte-exact SCALAR per-element gelu loop the constructed gelu re-emit
+  /// (emitElementwiseGeluMapStrip) delegates to: the
+  /// `for (i=0;i<n;++i) y[i] = 0.5f*x[i]*(1+tanhf(SQRT_2_OVER_PI*x[i]*(1+
+  /// GELU_COEF_A*x[i]*x[i])))` reference tanh gelu with one `tanhf` opaque-seam
+  /// call per element. ABI pointers arrive already valueMap-resolved.
+  mlir::LogicalResult emitForwardGeluScalarLoop(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      mlir::Value input, mlir::Value output, llvm::StringRef opName,
+      llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg) const;
+
+  /// Re-emit the CONSTRUCTED forward BINARY map (add/mul) from the region's
+  /// tcrv_rvv.elementwise_binary_map brick: anti-bypass check the strip_index, look
+  /// up the lhs/rhs/output ABI, then call emitForwardVecMapStrip with the
+  /// binary_op-selected vfadd_vv | vfmul_vv combiner (byte-exact to the support-op
+  /// emit modulo the source-op provenance token).
+  mlir::LogicalResult emitElementwiseBinaryMapStrip(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
+      mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Re-emit the CONSTRUCTED forward COPY map (cpy) from the region's
+  /// tcrv_rvv.elementwise_copy_map brick: anti-bypass, look up input/output, then
+  /// call emitForwardVecMapStrip with an EMPTY combiner (the pass-through copy).
+  mlir::LogicalResult emitElementwiseCopyMapStrip(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
+      mlir::Type sizeType,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+
+  /// Re-emit the CONSTRUCTED forward GELU map (gelu) from the region's
+  /// tcrv_rvv.elementwise_gelu_map brick: anti-bypass, look up input/output, then
+  /// call emitForwardGeluScalarLoop (the scalar per-element tanh gelu).
+  mlir::LogicalResult emitElementwiseGeluMapStrip(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+      tcrvrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
+      mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
   /// Emit the DISPATCH-WIRED dequantize_row body for the single

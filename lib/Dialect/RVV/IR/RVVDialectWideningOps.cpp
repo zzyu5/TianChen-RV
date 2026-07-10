@@ -9959,6 +9959,218 @@ mlir::LogicalResult ElementwiseSiluMapOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult ElementwiseBinaryMapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind, the byte-exact combiner
+  // selector 'binary_op', and the optional resource/scheduling strip-LMUL knob.
+  // A forbidden local element_count/SEW/LMUL/policy attr or an unexpected name
+  // fails closed (I7). The knob is named "strip_lmul" (not the with_vl/setvl
+  // "lmul" spelling), exactly as the sibling scale map.
+  auto isAllowedBinaryAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "binary_op" || name == "strip_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_binary_map keeps SEW/LMUL/policy on "
+                "setvl/with_vl and rejects deleted local element_count metadata";
+    if (!isAllowedBinaryAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded binary-map attributes 'kind', "
+                "'binary_op', and 'strip_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_binary_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_binary_map\" for the "
+              "bounded per-strip f32 two-input map brick";
+  // The byte-exact combiner: "add" -> vfadd_vv, "mul" -> vfmul_vv. Fail-closed.
+  if (getBinaryOp() != "add" && getBinaryOp() != "mul")
+    return emitOpError()
+           << "only accepts binary_op \"add\" (vfadd_vv) or \"mul\" (vfmul_vv); "
+              "got \""
+           << getBinaryOp() << "\"";
+  if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
+    if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
+        *stripLmul != "m8")
+      return emitOpError()
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\"; got "
+                "\""
+             << *stripLmul << "\"";
+  }
+
+  // The TWO read-only inputs (const float *) + the written output (float *) --
+  // add/mul read x[]/y[] and write z[] (a THREE-buffer binary map).
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the lhs operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] input)";
+  if (!rhsBinding || rhsBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the rhs operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml y[] input)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml z[] output buffer)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  // ANTI-BYPASS (I7): the strip_index MUST be the enclosing loop op's region
+  // induction variable (region argument 0).
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return emitOpError()
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 1 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0) so the emit addresses "
+              "lhs/rhs/output + strip_index, not the loop-invariant strip 0 "
+              "(anti-bypass)";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult ElementwiseCopyMapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind + the optional
+  // resource/scheduling strip-LMUL knob. Fail-closed (I7).
+  auto isAllowedCopyAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "strip_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_copy_map keeps SEW/LMUL/policy on "
+                "setvl/with_vl and rejects deleted local element_count metadata";
+    if (!isAllowedCopyAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded copy-map attributes 'kind' and "
+                "'strip_lmul'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_copy_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_copy_map\" for the "
+              "bounded per-strip f32 pass-through copy map brick";
+  if (std::optional<llvm::StringRef> stripLmul = getStripLmul()) {
+    if (*stripLmul != "m1" && *stripLmul != "m2" && *stripLmul != "m4" &&
+        *stripLmul != "m8")
+      return emitOpError()
+             << "only accepts strip_lmul \"m1\", \"m2\", \"m4\", or \"m8\"; got "
+                "\""
+             << *stripLmul << "\"";
+  }
+
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] row copied)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml y[] copy destination)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return emitOpError()
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 1 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0) so the emit addresses input/output + "
+              "strip_index, not the loop-invariant strip 0 (anti-bypass)";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult ElementwiseGeluMapOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  // Bounded mirror attrs only (I4): the operation kind. Gelu's reference body is
+  // a SCALAR per-element tanhf loop (no vector strip), so there is NO
+  // resource/scheduling strip_lmul knob -- the ONLY allowed attr is "kind".
+  // Fail-closed (I7).
+  auto isAllowedGeluAttr = [](llvm::StringRef name) { return name == "kind"; };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.elementwise_gelu_map keeps SEW/LMUL/policy on "
+                "setvl/with_vl and rejects deleted local element_count metadata";
+    if (!isAllowedGeluAttr(attrName))
+      return emitOpError()
+             << "only accepts the bounded gelu-map attribute 'kind'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (getKind() != "elementwise_gelu_map")
+    return emitOpError()
+           << "currently supports only kind \"elementwise_gelu_map\" for the "
+              "bounded per-element f32 tanh-gelu map brick";
+
+  RuntimeABIValueOp inputBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outputBinding =
+      getOutput().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires the input operand to bind a runtime ABI value of C type "
+              "'const float *' (the ggml x[] row read for the gelu)";
+  if (!outputBinding || outputBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires the output operand to bind a runtime ABI value of C type "
+              "'float *' (the ggml y[] gelu output buffer)";
+  if (!llvm::isa<mlir::IndexType>(getN().getType()))
+    return emitOpError()
+           << "requires the element-count operand to be the runtime n index "
+              "value feeding the enclosing setvl";
+
+  auto parent = op->getParentOfType<TypedElementwiseLoopBodyOp>();
+  if (!parent)
+    return emitOpError()
+           << "must be carried inside a tcrv_rvv.typed_elementwise_loop_body "
+              "region";
+  mlir::Block &parentBlock = parent.getBody().front();
+  if (parentBlock.getNumArguments() < 1 ||
+      getStripIndex() != parentBlock.getArgument(0))
+    return emitOpError()
+           << "requires strip_index to be the enclosing loop's induction "
+              "variable (region argument 0) so the emit addresses input/output + "
+              "strip_index, not the loop-invariant strip 0 (anti-bypass)";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult ElementwiseRmsNormReduceCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -10535,18 +10747,24 @@ mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
   // dataflow SEW/LMUL/policy knob (those live on setvl/with_vl); the ONLY optional
   // knob is `strip_lmul` (the scale/rms_norm normalize strip anchor).
   llvm::StringRef model = getElementwiseModel();
-  // model -> required abi_operands arity (n is always the last operand).
+  // model -> required abi_operands arity (n is always the last operand). The MAP
+  // family now includes the four forward SUPPORT ops (add/mul binary, cpy/gelu
+  // unary), each constructed into the SAME typed_elementwise_loop_body region as
+  // scale/silu (a per-strip elementwise_binary_map / elementwise_copy_map /
+  // elementwise_gelu_map core brick).
   unsigned wantArity = 0;
-  if (model == "scale" || model == "silu")
+  if (model == "scale" || model == "silu" || model == "cpy" || model == "gelu")
     wantArity = 3; // (buf0, buf1, n)
-  else if (model == "rms_norm" || model == "soft_max")
-    wantArity = 4; // (x, y, {eps|max}, n)
+  else if (model == "rms_norm" || model == "soft_max" || model == "add" ||
+           model == "mul")
+    wantArity = 4; // rms_norm/soft_max: (x, y, {eps|max}, n); add/mul: (x, y, z, n)
   else if (model == "rope")
     wantArity = 5; // (x, y, theta_base, theta_scale, n)
   else
     return emitOpError()
            << "currently supports only elementwise_model in "
-              "{\"scale\",\"silu\",\"rms_norm\",\"soft_max\",\"rope\"}; got \""
+              "{\"scale\",\"silu\",\"rms_norm\",\"soft_max\",\"rope\",\"add\","
+              "\"mul\",\"cpy\",\"gelu\"}; got \""
            << model << "\"";
 
   mlir::OperandRange operands = getAbiOperands();
@@ -10561,163 +10779,27 @@ mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
            << "requires the last abi_operand to be the runtime n `index` value "
               "(the runtime element count feeding the enclosing setvl)";
 
-  // The two leading buffer operands bind runtime ABI values (the in/out f32
-  // buffers); the CORE brick verifier pins their exact C-types post-construction.
-  for (unsigned i = 0; i < 2; ++i)
+  // Every leading operand (all but the trailing n) binds a runtime ABI value (the
+  // in/out f32 buffers + the scalar broadcasts eps/max/v/theta); the CORE brick
+  // verifier pins their exact C-types post-construction. The BINARY support ops
+  // (add/mul) thus require all THREE leading buffers (lhs/rhs/output) to bind ABI
+  // values, not just the two the map family carries.
+  for (unsigned i = 0; i + 1 < operands.size(); ++i)
     if (!operands[i].getDefiningOp<RuntimeABIValueOp>())
       return emitOpError() << "requires abi_operand #" << i
-                           << " to bind a runtime ABI value (the in/out f32 buffer)";
+                           << " to bind a runtime ABI value (the in/out f32 "
+                              "buffer or scalar broadcast)";
 
   return mlir::success();
 }
 
-// Shared fail-closed (I7) checks for the four forward-elementwise f32 support ops
-// (add/mul/cpy/gelu): the op carries ONLY its bounded `kind` mirror attr (no
-// forbidden dataflow SEW/LMUL/policy/element_count knob), its result is the f32
-// LMUL m1 store-boundary token, its VL operand is the active !tcrv_rvv.vl, and it
-// is nested under a policy-carrying tcrv_rvv.with_vl whose VL it consumes. The
-// per-op verify() checks the operand ABI ctypes + the exact `kind` first, then
-// defers the common shape here.
-static mlir::LogicalResult
-verifyForwardElementwiseF32Common(mlir::Operation *op, mlir::Value result,
-                                  mlir::Value vl) {
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return op->emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; the forward-elementwise f32 support op keeps SEW/LMUL/policy "
-                "on setvl/with_vl and runtime n/AVL/VL in the surrounding "
-                "control-plane IR";
-    if (attrName != "kind")
-      return op->emitOpError()
-             << "only accepts the bounded 'kind' attribute; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-  if (!isGenericRVVVectorF32M1(result.getType()))
-    return op->emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<f32, \"m1\"> "
-              "for the forward-elementwise f32 store boundary";
-  if (!llvm::isa<VLType>(vl.getType()))
-    return op->emitOpError() << "requires runtime VL operand to have "
-                                "!tcrv_rvv.vl type";
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, vl)))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the forward-elementwise f32 support op";
-  return mlir::success();
-}
-
-mlir::LogicalResult GgmlVecAddF32Op::verify() {
-  mlir::Operation *op = getOperation();
-  if (getKind() != "ggml_vec_add_f32")
-    return emitOpError() << "currently supports only kind \"ggml_vec_add_f32\" "
-                            "for the bounded ggml f32 binary-add typed surface";
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires two read-only f32 input pointers (lhs/rhs), one f32 "
-              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
-              "operand, and one f32 LMUL m1 result";
-  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!lhsBinding || lhsBinding.getCType() != "const float *")
-    return emitOpError() << "requires the lhs operand to bind a runtime ABI value "
-                            "of C type 'const float *' (ggml's x[])";
-  if (!rhsBinding || rhsBinding.getCType() != "const float *")
-    return emitOpError() << "requires the rhs operand to bind a runtime ABI value "
-                            "of C type 'const float *' (ggml's y[])";
-  if (!outBinding || outBinding.getCType() != "float *")
-    return emitOpError() << "requires the output operand to bind a runtime ABI "
-                            "value of C type 'float *' (ggml's z[])";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError() << "requires the element-count operand to be the runtime "
-                            "n index value feeding the enclosing setvl";
-  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
-}
-
-mlir::LogicalResult GgmlVecMulF32Op::verify() {
-  mlir::Operation *op = getOperation();
-  if (getKind() != "ggml_vec_mul_f32")
-    return emitOpError() << "currently supports only kind \"ggml_vec_mul_f32\" "
-                            "for the bounded ggml f32 binary-multiply typed "
-                            "surface";
-  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires two read-only f32 input pointers (lhs/rhs), one f32 "
-              "output pointer, one runtime element-count, one !tcrv_rvv.vl "
-              "operand, and one f32 LMUL m1 result";
-  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!lhsBinding || lhsBinding.getCType() != "const float *")
-    return emitOpError() << "requires the lhs operand to bind a runtime ABI value "
-                            "of C type 'const float *' (ggml's x[])";
-  if (!rhsBinding || rhsBinding.getCType() != "const float *")
-    return emitOpError() << "requires the rhs operand to bind a runtime ABI value "
-                            "of C type 'const float *' (ggml's y[])";
-  if (!outBinding || outBinding.getCType() != "float *")
-    return emitOpError() << "requires the output operand to bind a runtime ABI "
-                            "value of C type 'float *' (ggml's z[])";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError() << "requires the element-count operand to be the runtime "
-                            "n index value feeding the enclosing setvl";
-  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
-}
-
-mlir::LogicalResult GgmlVecCpyF32Op::verify() {
-  mlir::Operation *op = getOperation();
-  if (getKind() != "ggml_vec_cpy_f32")
-    return emitOpError() << "currently supports only kind \"ggml_vec_cpy_f32\" "
-                            "for the bounded ggml f32 copy typed surface";
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one read-only f32 input pointer, one f32 output pointer, "
-              "one runtime element-count, one !tcrv_rvv.vl operand, and one f32 "
-              "LMUL m1 result";
-  RuntimeABIValueOp inBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!inBinding || inBinding.getCType() != "const float *")
-    return emitOpError() << "requires the input operand to bind a runtime ABI "
-                            "value of C type 'const float *' (ggml's x[])";
-  if (!outBinding || outBinding.getCType() != "float *")
-    return emitOpError() << "requires the output operand to bind a runtime ABI "
-                            "value of C type 'float *' (ggml's y[])";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError() << "requires the element-count operand to be the runtime "
-                            "n index value feeding the enclosing setvl";
-  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
-}
-
-mlir::LogicalResult GgmlGeluF32Op::verify() {
-  mlir::Operation *op = getOperation();
-  if (getKind() != "ggml_gelu_f32")
-    return emitOpError() << "currently supports only kind \"ggml_gelu_f32\" for "
-                            "the bounded ggml tanh-approximation gelu typed "
-                            "surface";
-  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one read-only f32 input pointer, one f32 output pointer, "
-              "one runtime element-count, one !tcrv_rvv.vl operand, and one f32 "
-              "LMUL m1 result";
-  RuntimeABIValueOp inBinding = getInput().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outBinding = getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!inBinding || inBinding.getCType() != "const float *")
-    return emitOpError() << "requires the input operand to bind a runtime ABI "
-                            "value of C type 'const float *' (ggml's x[])";
-  if (!outBinding || outBinding.getCType() != "float *")
-    return emitOpError() << "requires the output operand to bind a runtime ABI "
-                            "value of C type 'float *' (ggml's y[])";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError() << "requires the element-count operand to be the runtime "
-                            "n index value feeding the enclosing setvl";
-  return verifyForwardElementwiseF32Common(op, getResult(), getVl());
-}
+// NOTE: verifyForwardElementwiseF32Common + the four forward-elementwise f32 support-op
+// verifiers (GgmlVecAddF32Op / GgmlVecMulF32Op / GgmlVecCpyF32Op / GgmlGeluF32Op::verify)
+// were RETIRED at the support flip (dispatch-wired -> constructed, C_construct 73->77):
+// add/mul/cpy/gelu are now CONSTRUCTED through the abstract GgmlForwardElementwiseOp
+// source op + the typed_elementwise_loop_body region carrying the per-op
+// elementwise_binary_map / elementwise_copy_map / elementwise_gelu_map core brick, whose
+// own verifiers (above) are the live bounded-surface gates.
 
 // The wired dequantize_row format allowlist. ONE parameterized op stands in for
 // the family; only formats whose per-format decode is actually emitted (a real

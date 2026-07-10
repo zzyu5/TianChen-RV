@@ -41,6 +41,17 @@ lookupForwardElementwiseFacts(llvm::StringRef model) {
     return ForwardElementwiseFacts{"reduce", 4};
   if (model == "rope")
     return ForwardElementwiseFacts{"rotate", 5};
+  // The four forward SUPPORT ops -- all MAP family (no loop-carried accumulator):
+  // add/mul are BINARY (x, y, z, n -> elementwise_binary_map), cpy/gelu are UNARY
+  // (x, y, n -> elementwise_copy_map / elementwise_gelu_map).
+  if (model == "add")
+    return ForwardElementwiseFacts{"map", 4};
+  if (model == "mul")
+    return ForwardElementwiseFacts{"map", 4};
+  if (model == "cpy")
+    return ForwardElementwiseFacts{"map", 3};
+  if (model == "gelu")
+    return ForwardElementwiseFacts{"map", 3};
   return std::nullopt;
 }
 
@@ -92,7 +103,11 @@ constructTypedElementwiseLoopBody(mlir::RewriterBase &rewriter,
     loopState.addAttribute("reduce_map_model",
                            rewriter.getStringAttr(facts.reduceMapModel));
     loopState.addAttribute("element_sew", rewriter.getI64IntegerAttr(32));
-    if (model == "scale")
+    // The m8-strip MAP family (scale in-place + add/mul binary + cpy copy) anchors
+    // its strip at m8 on the LOOP op too (matching the hand-authored region + the
+    // brick); silu is m2-pinned and gelu is scalar, so neither carries a loop-op
+    // strip knob.
+    if (model == "scale" || model == "add" || model == "mul" || model == "cpy")
       loopState.addAttribute("strip_lmul", rewriter.getStringAttr("m8"));
     loopState.addRegion();
     auto loopBody =
@@ -125,6 +140,37 @@ constructTypedElementwiseLoopBody(mlir::RewriterBase &rewriter,
       mlir::OperationState core(loc, ElementwiseSiluMapOp::getOperationName());
       core.addOperands({op0, op1, n, stripIndex});
       core.addAttribute("kind", rewriter.getStringAttr("elementwise_silu_map"));
+      rewriter.create(core);
+      rewriter.create<TypedElementwiseLoopYieldOp>(loc, mlir::ValueRange{});
+    } else if (model == "add" || model == "mul") {
+      // The BINARY two-input map (add/mul): the abstract ABI is (lhs, rhs, output,
+      // n); op0=lhs, op1=rhs, output=operands[2]. The brick carries all three
+      // buffers + the byte-exact combiner selector binary_op.
+      mlir::Value output = operands[2];
+      mlir::OperationState core(loc, ElementwiseBinaryMapOp::getOperationName());
+      core.addOperands({op0, op1, output, n, stripIndex});
+      core.addAttribute("kind",
+                        rewriter.getStringAttr("elementwise_binary_map"));
+      core.addAttribute("binary_op", rewriter.getStringAttr(model));
+      core.addAttribute("strip_lmul", rewriter.getStringAttr("m8"));
+      rewriter.create(core);
+      rewriter.create<TypedElementwiseLoopYieldOp>(loc, mlir::ValueRange{});
+    } else if (model == "cpy") {
+      // The pass-through copy (cpy): abstract ABI (input, output, n); op0=input,
+      // op1=output. The brick is the byte-exact load->store copy strip.
+      mlir::OperationState core(loc, ElementwiseCopyMapOp::getOperationName());
+      core.addOperands({op0, op1, n, stripIndex});
+      core.addAttribute("kind", rewriter.getStringAttr("elementwise_copy_map"));
+      core.addAttribute("strip_lmul", rewriter.getStringAttr("m8"));
+      rewriter.create(core);
+      rewriter.create<TypedElementwiseLoopYieldOp>(loc, mlir::ValueRange{});
+    } else if (model == "gelu") {
+      // The scalar-libm tanh gelu (gelu): abstract ABI (input, output, n);
+      // op0=input, op1=output. The brick lowers to the scalar per-element tanhf
+      // loop (no strip knob).
+      mlir::OperationState core(loc, ElementwiseGeluMapOp::getOperationName());
+      core.addOperands({op0, op1, n, stripIndex});
+      core.addAttribute("kind", rewriter.getStringAttr("elementwise_gelu_map"));
       rewriter.create(core);
       rewriter.create<TypedElementwiseLoopYieldOp>(loc, mlir::ValueRange{});
     } else if (model == "rms_norm") {

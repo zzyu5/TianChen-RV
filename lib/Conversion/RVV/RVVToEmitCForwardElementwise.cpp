@@ -86,32 +86,58 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedElementwiseLoopBody(
     }
 
     // The "map" model's core brick is a per-strip elementwise map: the scale map
-    // (elementwise_scale_map, y[i] *= v, in-place single buffer) or the silu map
-    // (elementwise_silu_map, y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map).
+    // (elementwise_scale_map, y[i] *= v, in-place single buffer), the silu map
+    // (elementwise_silu_map, y[i] = x[i]*sigmoid(x[i]), a two-buffer x->y map), the
+    // BINARY map (elementwise_binary_map, z[i] = x[i]{+|*}y[i], the add/mul support
+    // ops), the COPY map (elementwise_copy_map, y[i] = x[i], the cpy support op), or
+    // the GELU map (elementwise_gelu_map, y[i] = gelu(x[i]), the gelu support op).
     // Find the brick + yield.
     tcrvrvv::ElementwiseScaleMapOp mapOp;
     tcrvrvv::ElementwiseSiluMapOp siluOp;
+    tcrvrvv::ElementwiseBinaryMapOp binaryOp;
+    tcrvrvv::ElementwiseCopyMapOp copyOp;
+    tcrvrvv::ElementwiseGeluMapOp geluOp;
     tcrvrvv::TypedElementwiseLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
       if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseScaleMapOp>(bodyOp))
         mapOp = o;
       else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseSiluMapOp>(bodyOp))
         siluOp = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseBinaryMapOp>(bodyOp))
+        binaryOp = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseCopyMapOp>(bodyOp))
+        copyOp = o;
+      else if (auto o = llvm::dyn_cast<tcrvrvv::ElementwiseGeluMapOp>(bodyOp))
+        geluOp = o;
       else if (auto o =
                    llvm::dyn_cast<tcrvrvv::TypedElementwiseLoopYieldOp>(bodyOp))
         yieldOp = o;
     });
-    if (!yieldOp || (!mapOp && !siluOp))
+    if (!yieldOp || (!mapOp && !siluOp && !binaryOp && !copyOp && !geluOp))
       return rewriter.notifyMatchFailure(
           loopBody, "map-model elementwise loop body requires a recognized map "
-                    "core brick (elementwise_scale_map | elementwise_silu_map) + "
-                    "the loop yield");
+                    "core brick (elementwise_scale_map | elementwise_silu_map | "
+                    "elementwise_binary_map | elementwise_copy_map | "
+                    "elementwise_gelu_map) + the loop yield");
 
     // The SILU map reuses the SAME outer strip-loop op + map model, but its
     // per-strip decode is the m2 exp polynomial over two buffers (x->y), so it
     // owns a dedicated core-brick emit. Dispatch to it before the scale path.
     if (siluOp)
       return emitElementwiseSiluMapStrip(rewriter, loc, loopBody, siluOp, avlArg,
+                                         sizeType, valueMap);
+
+    // The forward SUPPORT-op maps (add/mul binary, cpy copy, gelu scalar) each own
+    // a dedicated re-emit that sources the ABI from the region brick (anti-bypass)
+    // and delegates to the SHARED byte-exact strip/loop body.
+    if (binaryOp)
+      return emitElementwiseBinaryMapStrip(rewriter, loc, loopBody, binaryOp,
+                                           avlArg, sizeType, valueMap);
+    if (copyOp)
+      return emitElementwiseCopyMapStrip(rewriter, loc, loopBody, copyOp, avlArg,
+                                         sizeType, valueMap);
+    if (geluOp)
+      return emitElementwiseGeluMapStrip(rewriter, loc, loopBody, geluOp, avlArg,
                                          sizeType, valueMap);
 
     // Anti-bypass (I7): the brick's strip_index MUST be the loop induction
@@ -2287,223 +2313,257 @@ mlir::LogicalResult VariantToEmitCFunc::emitElementwiseRopeRotateStrip(
     return mlir::success();
   }
 
-mlir::LogicalResult VariantToEmitCFunc::emitGgmlForwardElementwiseF32(
+// The ONE byte-exact m8 per-lane MAP strip, shared by the CONSTRUCTED typed-region
+// binary/copy re-emits (emitElementwise{Binary,Copy}MapStrip). Byte-exact to the
+// retired support-op monolith emit modulo the source-op provenance token. See the
+// header for the WHY.
+mlir::LogicalResult VariantToEmitCFunc::emitForwardVecMapStrip(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-    tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    // The DISPATCH-WIRED forward-elementwise f32 support body (add/mul/cpy/gelu):
-    // a hand-written monolith emit, NOT a constructed typed loop brick ([L-6]
-    // wiring != construction). The recognizer guarantees the with_vl body is
-    // EXACTLY one of the four ops; find it and route by op identity.
-    mlir::Operation *fwd = nullptr;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<tcrvrvv::GgmlVecAddF32Op, tcrvrvv::GgmlVecMulF32Op,
-                    tcrvrvv::GgmlVecCpyF32Op, tcrvrvv::GgmlGeluF32Op>(op))
-        fwd = &op;
-    }
-    if (!fwd)
-      return rewriter.notifyMatchFailure(
-          scope, "forward-elementwise body missing the op");
+    mlir::ValueRange inputs, mlir::Value output, llvm::StringRef opName,
+    llvm::StringRef role, llvm::StringRef binaryCallee, mlir::Type sizeType,
+    mlir::Value avlArg) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type constFloatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+  mlir::Type floatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+  // The bare per-lane add/mul/cpy are byte-exact at any LMUL (no reduction), so m8
+  // is a fixed resource fact ggml's apply path uses, not a knob.
+  llvm::StringRef lmul = "m8";
+  mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
+  std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
+  std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
+  std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
 
-    mlir::MLIRContext *ctx = rewriter.getContext();
-    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
-    mlir::Type constFloatPtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
-    mlir::Type floatPtrType =
-        emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
-    mlir::Type indexType = rewriter.getIndexType();
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
-    // The support ops pin the m8 strip anchor ggml's apply path uses. The bare
-    // per-lane add/mul/cpy are byte-exact at any LMUL (no reduction), so m8 is a
-    // fixed resource fact, not a knob (matching silu/quantize precedent).
-    llvm::StringRef lmul = "m8";
-    mlir::Type f32VecType = emitc::OpaqueType::get(ctx, "vfloat32m8_t");
-    std::string setvlCallee = riscvIntrinsicName("vsetvl", 32, lmul, "");
-    std::string loadCallee = riscvIntrinsicName("vle", 32, lmul, "f32");
-    std::string storeCallee = riscvIntrinsicName("vse", 32, lmul, "f32");
+  // size_t vlmax = __riscv_vsetvl_e32m8(n);
+  mlir::Value vlmax = emitOpaqueCall(rewriter, loc, sizeType, setvlCallee,
+                                     mlir::ValueRange{avlArg}, opName, role);
+  // for (size_t i = 0; i < n; i += vlmax) { ... }
+  mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+  auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
+                                             /*bodyBuilder=*/nullptr);
+  mlir::Value iv = forOp.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(forOp.getBody());
 
-    // The vectorized m8 strip loop for the bare per-lane maps (add/mul/cpy): load
-    // each input strip, combine (or pass through, for cpy), store the output
-    // strip. `binaryCallee` is empty for cpy (a pure load->store copy).
-    auto emitVectorStrip =
-        [&](mlir::ValueRange inputs, mlir::Value output, llvm::StringRef opName,
-            llvm::StringRef role,
-            llvm::StringRef binaryCallee) -> mlir::LogicalResult {
-      rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+    // size_t vl = __riscv_vsetvl_e32m8(n - i);
+    mlir::Value bodyVL = emitOpaqueCallBuilt(
+        rewriter, loc, sizeType, setvlCallee, opName, role,
+        [&](mlir::OpBuilder &b,
+            mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+          mlir::Value remaining =
+              b.create<emitc::SubOp>(l, sizeType, avlArg, iv);
+          return {remaining};
+        });
 
-      // size_t vlmax = __riscv_vsetvl_e32m8(n);
-      mlir::Value vlmax = emitOpaqueCall(rewriter, loc, sizeType, setvlCallee,
-                                         mlir::ValueRange{avlArg}, opName, role);
-      // for (size_t i = 0; i < n; i += vlmax) { ... }
-      mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
-      auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, vlmax,
-                                                 /*bodyBuilder=*/nullptr);
-      mlir::Value iv = forOp.getInductionVar();
-      {
-        mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
-        rewriter.setInsertionPointToStart(forOp.getBody());
-
-        // size_t vl = __riscv_vsetvl_e32m8(n - i);
-        mlir::Value bodyVL = emitOpaqueCallBuilt(
-            rewriter, loc, sizeType, setvlCallee, opName, role,
-            [&](mlir::OpBuilder &b,
-                mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              mlir::Value remaining =
-                  b.create<emitc::SubOp>(l, sizeType, avlArg, iv);
-              return {remaining};
-            });
-
-        // vfloat32m8_t v_k = __riscv_vle32_v_f32m8((const float *)(in_k + i), vl);
-        llvm::SmallVector<mlir::Value> loaded;
-        for (mlir::Value in : inputs) {
-          mlir::Value pRaw =
-              rewriter.create<emitc::AddOp>(loc, in.getType(), in, iv);
-          mlir::Value p =
-              rewriter.create<emitc::CastOp>(loc, constFloatPtrType, pRaw)
-                  .getResult();
-          loaded.push_back(emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
-                                          mlir::ValueRange{p, bodyVL}, opName,
-                                          role));
-        }
-
-        // v_out = __riscv_vfadd_vv_f32m8 | __riscv_vfmul_vv_f32m8 (or the loaded
-        // strip itself for the copy).
-        mlir::Value result;
-        if (binaryCallee.empty()) {
-          result = loaded.front();
-        } else {
-          result = emitOpaqueCall(
-              rewriter, loc, f32VecType, binaryCallee,
-              mlir::ValueRange{loaded[0], loaded[1], bodyVL}, opName, role);
-        }
-
-        // __riscv_vse32_v_f32m8((float *)(out + i), v_out, vl);
-        mlir::Value oRaw =
-            rewriter.create<emitc::AddOp>(loc, output.getType(), output, iv);
-        mlir::Value o =
-            rewriter.create<emitc::CastOp>(loc, floatPtrType, oRaw).getResult();
-        emitOpaqueCallVoid(rewriter, loc, storeCallee,
-                           mlir::ValueRange{o, result, bodyVL}, opName, role);
-      }
-      return mlir::success();
-    };
-
-    if (auto addOp = llvm::dyn_cast<tcrvrvv::GgmlVecAddF32Op>(fwd)) {
-      mlir::Value lhs = valueMap.lookup(addOp.getLhs());
-      mlir::Value rhs = valueMap.lookup(addOp.getRhs());
-      mlir::Value output = valueMap.lookup(addOp.getOutput());
-      if (!lhs || !rhs || !output)
-        return rewriter.notifyMatchFailure(addOp, "vec_add ABI operand unmapped");
-      return emitVectorStrip({lhs, rhs}, output,
-                             addOp.getTCRVEmitCLowerableSourceOpName(),
-                             addOp.getTCRVEmitCLowerableSourceRole(),
-                             riscvIntrinsicName("vfadd", 32, lmul, "f32"));
-    }
-    if (auto mulOp = llvm::dyn_cast<tcrvrvv::GgmlVecMulF32Op>(fwd)) {
-      mlir::Value lhs = valueMap.lookup(mulOp.getLhs());
-      mlir::Value rhs = valueMap.lookup(mulOp.getRhs());
-      mlir::Value output = valueMap.lookup(mulOp.getOutput());
-      if (!lhs || !rhs || !output)
-        return rewriter.notifyMatchFailure(mulOp, "vec_mul ABI operand unmapped");
-      return emitVectorStrip({lhs, rhs}, output,
-                             mulOp.getTCRVEmitCLowerableSourceOpName(),
-                             mulOp.getTCRVEmitCLowerableSourceRole(),
-                             riscvIntrinsicName("vfmul", 32, lmul, "f32"));
-    }
-    if (auto cpyOp = llvm::dyn_cast<tcrvrvv::GgmlVecCpyF32Op>(fwd)) {
-      mlir::Value input = valueMap.lookup(cpyOp.getInput());
-      mlir::Value output = valueMap.lookup(cpyOp.getOutput());
-      if (!input || !output)
-        return rewriter.notifyMatchFailure(cpyOp, "vec_cpy ABI operand unmapped");
-      return emitVectorStrip({input}, output,
-                             cpyOp.getTCRVEmitCLowerableSourceOpName(),
-                             cpyOp.getTCRVEmitCLowerableSourceRole(),
-                             /*binaryCallee=*/"");
-    }
-
-    // gelu: the SCALAR per-element tanh gelu loop. tanhf is the sanctioned
-    // scalar-libm opaque seam (the sibling of rope's cosf/sinf, rms_norm's sqrtf),
-    // so the faithful thin body is ggml's reference formula, one call per element.
-    auto geluOp = llvm::cast<tcrvrvv::GgmlGeluF32Op>(fwd);
-    mlir::Value input = valueMap.lookup(geluOp.getInput());
-    mlir::Value output = valueMap.lookup(geluOp.getOutput());
-    if (!input || !output)
-      return rewriter.notifyMatchFailure(geluOp, "gelu ABI operand unmapped");
-    llvm::StringRef opName = geluOp.getTCRVEmitCLowerableSourceOpName();
-    llvm::StringRef role = geluOp.getTCRVEmitCLowerableSourceRole();
-    mlir::Type inputPtrType = input.getType();
-    mlir::Type outputPtrType = output.getType();
-
-    rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
-
-    // for (size_t i = 0; i < n; i += 1) { y[i] = gelu(x[i]); }
-    mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
-    mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
-    auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, one,
-                                               /*bodyBuilder=*/nullptr);
-    mlir::Value iv = forOp.getInductionVar();
-    {
-      mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
-      rewriter.setInsertionPointToStart(forOp.getBody());
-
-      // const float *xp = (const float *)(x + i);  float x_i = xp[0];
-      mlir::Value xpRaw =
-          rewriter.create<emitc::AddOp>(loc, inputPtrType, input, iv);
-      auto xp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
-          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xpRaw)
-              .getResult());
-      mlir::Value idx0 = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
-      emitc::SubscriptOp xSub =
-          rewriter.create<emitc::SubscriptOp>(loc, xp, idx0);
-      auto xLValueType =
-          llvm::cast<emitc::LValueType>(xSub.getResult().getType());
-      mlir::Value xv =
-          rewriter
-              .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
-                                     xSub.getResult())
+    // vfloat32m8_t v_k = __riscv_vle32_v_f32m8((const float *)(in_k + i), vl);
+    llvm::SmallVector<mlir::Value> loaded;
+    for (mlir::Value in : inputs) {
+      mlir::Value pRaw =
+          rewriter.create<emitc::AddOp>(loc, in.getType(), in, iv);
+      mlir::Value p =
+          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, pRaw)
               .getResult();
-
-      // The ggml reference tanh gelu (ggml_gelu_f32):
-      //   0.5f*x*(1.0f + tanhf(SQRT_2_OVER_PI*x*(1.0f + GELU_COEF_A*x*x)))
-      mlir::Value oneF =
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
-      mlir::Value halfF =
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
-      mlir::Value coefA =
-          rewriter.create<emitc::LiteralOp>(loc, floatType, "0.044715f");
-      mlir::Value sqrt2pi = rewriter.create<emitc::LiteralOp>(
-          loc, floatType, "0.79788456080286535587989211986876f");
-      mlir::Value x2 = rewriter.create<emitc::MulOp>(loc, floatType, xv, xv);
-      mlir::Value coefX2 =
-          rewriter.create<emitc::MulOp>(loc, floatType, coefA, x2);
-      mlir::Value innerA =
-          rewriter.create<emitc::AddOp>(loc, floatType, oneF, coefX2);
-      mlir::Value sqrtX =
-          rewriter.create<emitc::MulOp>(loc, floatType, sqrt2pi, xv);
-      mlir::Value inner =
-          rewriter.create<emitc::MulOp>(loc, floatType, sqrtX, innerA);
-      mlir::Value tanhV = emitOpaqueCall(rewriter, loc, floatType, "tanhf",
-                                         mlir::ValueRange{inner}, opName, role);
-      mlir::Value onePlusTanh =
-          rewriter.create<emitc::AddOp>(loc, floatType, oneF, tanhV);
-      mlir::Value halfX =
-          rewriter.create<emitc::MulOp>(loc, floatType, halfF, xv);
-      mlir::Value gv =
-          rewriter.create<emitc::MulOp>(loc, floatType, halfX, onePlusTanh);
-
-      // float *yp = (float *)(y + i);  yp[0] = gelu(x_i);
-      mlir::Value ypRaw =
-          rewriter.create<emitc::AddOp>(loc, outputPtrType, output, iv);
-      auto yp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
-          rewriter.create<emitc::CastOp>(loc, floatPtrType, ypRaw).getResult());
-      mlir::Value idx0y = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
-      emitc::SubscriptOp ySub =
-          rewriter.create<emitc::SubscriptOp>(loc, yp, idx0y);
-      rewriter.create<emitc::AssignOp>(loc, ySub.getResult(), gv);
+      loaded.push_back(emitOpaqueCall(rewriter, loc, f32VecType, loadCallee,
+                                      mlir::ValueRange{p, bodyVL}, opName,
+                                      role));
     }
 
-    return mlir::success();
+    // v_out = __riscv_vfadd_vv_f32m8 | __riscv_vfmul_vv_f32m8 (or the loaded
+    // strip itself for the copy).
+    mlir::Value result;
+    if (binaryCallee.empty()) {
+      result = loaded.front();
+    } else {
+      result = emitOpaqueCall(
+          rewriter, loc, f32VecType, binaryCallee,
+          mlir::ValueRange{loaded[0], loaded[1], bodyVL}, opName, role);
+    }
+
+    // __riscv_vse32_v_f32m8((float *)(out + i), v_out, vl);
+    mlir::Value oRaw =
+        rewriter.create<emitc::AddOp>(loc, output.getType(), output, iv);
+    mlir::Value o =
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, oRaw).getResult();
+    emitOpaqueCallVoid(rewriter, loc, storeCallee,
+                       mlir::ValueRange{o, result, bodyVL}, opName, role);
   }
+  return mlir::success();
+}
+
+// The ONE byte-exact SCALAR per-element tanh gelu loop, shared by the support emit
+// AND the constructed gelu re-emit. tanhf is the sanctioned scalar-libm opaque seam
+// (the sibling of rope's cosf/sinf, rms_norm's sqrtf).
+mlir::LogicalResult VariantToEmitCFunc::emitForwardGeluScalarLoop(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    mlir::Value input, mlir::Value output, llvm::StringRef opName,
+    llvm::StringRef role, mlir::Type sizeType, mlir::Value avlArg) const {
+  mlir::MLIRContext *ctx = rewriter.getContext();
+  mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
+  mlir::Type constFloatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "const float"));
+  mlir::Type floatPtrType =
+      emitc::PointerType::get(emitc::OpaqueType::get(ctx, "float"));
+  mlir::Type indexType = rewriter.getIndexType();
+  mlir::Type inputPtrType = input.getType();
+  mlir::Type outputPtrType = output.getType();
+
+  rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
+
+  // for (size_t i = 0; i < n; i += 1) { y[i] = gelu(x[i]); }
+  mlir::Value zero = rewriter.create<emitc::LiteralOp>(loc, sizeType, "0");
+  mlir::Value one = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+  auto forOp = rewriter.create<emitc::ForOp>(loc, zero, avlArg, one,
+                                             /*bodyBuilder=*/nullptr);
+  mlir::Value iv = forOp.getInductionVar();
+  {
+    mlir::OpBuilder::InsertionGuard bodyGuard(rewriter);
+    rewriter.setInsertionPointToStart(forOp.getBody());
+
+    // const float *xp = (const float *)(x + i);  float x_i = xp[0];
+    mlir::Value xpRaw =
+        rewriter.create<emitc::AddOp>(loc, inputPtrType, input, iv);
+    auto xp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+        rewriter.create<emitc::CastOp>(loc, constFloatPtrType, xpRaw)
+            .getResult());
+    mlir::Value idx0 = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+    emitc::SubscriptOp xSub =
+        rewriter.create<emitc::SubscriptOp>(loc, xp, idx0);
+    auto xLValueType =
+        llvm::cast<emitc::LValueType>(xSub.getResult().getType());
+    mlir::Value xv =
+        rewriter
+            .create<emitc::LoadOp>(loc, xLValueType.getValueType(),
+                                   xSub.getResult())
+            .getResult();
+
+    // The ggml reference tanh gelu (ggml_gelu_f32):
+    //   0.5f*x*(1.0f + tanhf(SQRT_2_OVER_PI*x*(1.0f + GELU_COEF_A*x*x)))
+    mlir::Value oneF = rewriter.create<emitc::LiteralOp>(loc, floatType, "1.0f");
+    mlir::Value halfF =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.5f");
+    mlir::Value coefA =
+        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.044715f");
+    mlir::Value sqrt2pi = rewriter.create<emitc::LiteralOp>(
+        loc, floatType, "0.79788456080286535587989211986876f");
+    mlir::Value x2 = rewriter.create<emitc::MulOp>(loc, floatType, xv, xv);
+    mlir::Value coefX2 =
+        rewriter.create<emitc::MulOp>(loc, floatType, coefA, x2);
+    mlir::Value innerA =
+        rewriter.create<emitc::AddOp>(loc, floatType, oneF, coefX2);
+    mlir::Value sqrtX =
+        rewriter.create<emitc::MulOp>(loc, floatType, sqrt2pi, xv);
+    mlir::Value inner =
+        rewriter.create<emitc::MulOp>(loc, floatType, sqrtX, innerA);
+    mlir::Value tanhV = emitOpaqueCall(rewriter, loc, floatType, "tanhf",
+                                       mlir::ValueRange{inner}, opName, role);
+    mlir::Value onePlusTanh =
+        rewriter.create<emitc::AddOp>(loc, floatType, oneF, tanhV);
+    mlir::Value halfX =
+        rewriter.create<emitc::MulOp>(loc, floatType, halfF, xv);
+    mlir::Value gv =
+        rewriter.create<emitc::MulOp>(loc, floatType, halfX, onePlusTanh);
+
+    // float *yp = (float *)(y + i);  yp[0] = gelu(x_i);
+    mlir::Value ypRaw =
+        rewriter.create<emitc::AddOp>(loc, outputPtrType, output, iv);
+    auto yp = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+        rewriter.create<emitc::CastOp>(loc, floatPtrType, ypRaw).getResult());
+    mlir::Value idx0y = rewriter.create<emitc::LiteralOp>(loc, indexType, "0");
+    emitc::SubscriptOp ySub =
+        rewriter.create<emitc::SubscriptOp>(loc, yp, idx0y);
+    rewriter.create<emitc::AssignOp>(loc, ySub.getResult(), gv);
+  }
+
+  return mlir::success();
+}
+
+// NOTE: emitGgmlForwardElementwiseF32 (the DISPATCH-WIRED support-op monolith
+// dispatcher over tcrv_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32) was RETIRED at the
+// support flip (dispatch-wired -> constructed, C_construct 73->77). add/mul/cpy/gelu
+// are now CONSTRUCTED through the abstract tcrv_rvv.ggml_forward_elementwise source
+// op + the pre-emitc front door, re-emitted below from the region core brick by
+// emitElementwise{Binary,Copy,Gelu}MapStrip -- which delegate to the SAME SHARED
+// byte-exact helpers (emitForwardVecMapStrip / emitForwardGeluScalarLoop) the retired
+// dispatcher called, so the emitted C is byte-identical modulo ONLY the source-op
+// provenance token.
+
+// The CONSTRUCTED forward BINARY / COPY / GELU re-emits: source the ABI from the
+// region's core brick (anti-bypass: the strip_index MUST be the loop induction
+// variable), then delegate to the SHARED byte-exact strip/loop body. Byte-exact to
+// the support-op emit modulo the source-op provenance token
+// (tcrv_rvv.{vec_add,vec_mul,vec_cpy,gelu}_f32 ->
+// tcrv_rvv.elementwise_{binary,copy,gelu}_map).
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseBinaryMapStrip(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseBinaryMapOp binaryOp, mlir::Value avlArg,
+    mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
+  if (binaryOp.getStripIndex() != stripIndex)
+    return rewriter.notifyMatchFailure(
+        binaryOp, "the elementwise_binary_map brick's strip_index must be the "
+                  "loop induction variable (region arg 0)");
+  mlir::Value lhs = valueMap.lookup(binaryOp.getLhs());
+  mlir::Value rhs = valueMap.lookup(binaryOp.getRhs());
+  mlir::Value output = valueMap.lookup(binaryOp.getOutput());
+  if (!lhs || !rhs || !output)
+    return rewriter.notifyMatchFailure(binaryOp,
+                                       "binary-map ABI operand unmapped");
+  // binary_op "add" -> vfadd_vv, "mul" -> vfmul_vv (the verifier bounds it).
+  llvm::StringRef intrin = binaryOp.getBinaryOp() == "add" ? "vfadd" : "vfmul";
+  return emitForwardVecMapStrip(
+      rewriter, loc, {lhs, rhs}, output,
+      binaryOp.getTCRVEmitCLowerableSourceOpName(),
+      binaryOp.getTCRVEmitCLowerableSourceRole(),
+      riscvIntrinsicName(intrin, 32, "m8", "f32"), sizeType, avlArg);
+}
+
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseCopyMapStrip(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseCopyMapOp copyOp, mlir::Value avlArg,
+    mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
+  if (copyOp.getStripIndex() != stripIndex)
+    return rewriter.notifyMatchFailure(
+        copyOp, "the elementwise_copy_map brick's strip_index must be the loop "
+                "induction variable (region arg 0)");
+  mlir::Value input = valueMap.lookup(copyOp.getInput());
+  mlir::Value output = valueMap.lookup(copyOp.getOutput());
+  if (!input || !output)
+    return rewriter.notifyMatchFailure(copyOp, "copy-map ABI operand unmapped");
+  return emitForwardVecMapStrip(rewriter, loc, {input}, output,
+                                copyOp.getTCRVEmitCLowerableSourceOpName(),
+                                copyOp.getTCRVEmitCLowerableSourceRole(),
+                                /*binaryCallee=*/"", sizeType, avlArg);
+}
+
+mlir::LogicalResult VariantToEmitCFunc::emitElementwiseGeluMapStrip(
+    mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+    tcrvrvv::TypedElementwiseLoopBodyOp loopBody,
+    tcrvrvv::ElementwiseGeluMapOp geluOp, mlir::Value avlArg,
+    mlir::Type sizeType,
+    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
+  mlir::Value stripIndex = loopBody.getBody().front().getArgument(0);
+  if (geluOp.getStripIndex() != stripIndex)
+    return rewriter.notifyMatchFailure(
+        geluOp, "the elementwise_gelu_map brick's strip_index must be the loop "
+                "induction variable (region arg 0)");
+  mlir::Value input = valueMap.lookup(geluOp.getInput());
+  mlir::Value output = valueMap.lookup(geluOp.getOutput());
+  if (!input || !output)
+    return rewriter.notifyMatchFailure(geluOp, "gelu-map ABI operand unmapped");
+  return emitForwardGeluScalarLoop(
+      rewriter, loc, input, output,
+      geluOp.getTCRVEmitCLowerableSourceOpName(),
+      geluOp.getTCRVEmitCLowerableSourceRole(), sizeType, avlArg);
+}
 
 mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRow(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,

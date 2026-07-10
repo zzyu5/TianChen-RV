@@ -87,7 +87,10 @@ ALLOWED_WRAPPERS = {
 FORWARD_CORE_RE = re.compile(
     r"(elementwise_scale_map|elementwise_silu_map|"
     r"elementwise_rms_norm_reduce_core|elementwise_soft_max_reduce_core|"
-    r"elementwise_rope_rotate_core)")
+    r"elementwise_rope_rotate_core|"
+    # The 3 forward SUPPORT-op MAP core bricks (add/mul BINARY, cpy COPY, gelu
+    # scalar) widened into the SAME elementwise_stream_loop shape.
+    r"elementwise_binary_map|elementwise_copy_map|elementwise_gelu_map)")
 
 REPACK_BODY_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_body$")
 REPACK_YIELD_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_yield$")
