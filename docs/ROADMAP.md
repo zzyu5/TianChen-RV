@@ -15,26 +15,33 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **67/93 = 72%** |
-| 吞吐兑现 | **冻结中**（待 Stage-0 定案；[CASE-COMPILER-ASYMMETRY] 口径冻结） |
-| 旁路 | **7**（q4_1 退役后 8→7） |
-| 矿脉 | **7**（FLAT 首格 q4_1 落，8→7） |
+| C_construct | **70/93 = 75.3%**（labeled；certified 待 [DEBT-CERT] 核） |
+| 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
+| 旁路 | **4**（FLAT 4 格全退役 8→4） |
+| 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
 | sealed Win | **0**（q4_K e2e 终审 CONFIRMED：部署身份修复 clang-.o 回升 2.29×，但 0.764× 仍 <parity → 非 win；kernel 账 gcc-对称 0.272×；micro↛e2e） |
 
 ## 在飞
-- **[CASE-COMPILER-ASYMMETRY]** Stage-0/1 **全收 ✓** → **Stage-2 双账本落宪**（执行中，一次改禁双改）
-- **[K1-SEAL]** 冲刺（sealed Win 关键路径：k1 clang .o 正门 + 五验 + 传导账 + e2e；结果兼作 RVV-E2E H2 跨板对照臂）
-- **[RVV-E2E]**（G3-rvv-e2e-gap）M0 归因审计（H-A repack 计时 / H-B 冷流布局 / H-C 形状失配；禁提前动刀）
-- **FLAT** q5_1 构造（后二格第一格）
+- **[CASE-COMPILER-ASYMMETRY]** **结案 ✓**（Stage-0/1/2 全收，双账本落宪 commit 15cb0589）
+- **[K1-SEAL]** 冲刺（k1 板 e2e 传导判读 = sealed Win 关键路径 + M0 跨板对照臂）
+- **[RVV-E2E]** M0 归因 ✓（0.764× = 单因 H-B 内存停顿）→ **M1a 静态账**（token-tile 选型；M1b 曳光弹等 K1 对照臂齐）
+- **FLAT** **4/4 完成 ✓**（q4_1/q5_0/q5_1/q8_0 全 constructed）
+- **工程债**（本地并行）：[DEBT-CERT]+[DEBT-VIS]（机器认证 + 单一数据源）· C1/C2 证据对象正名核查
 
-## 排队（顺序即优先级）
-1. **Stage-2 双账本落宪**（执行中 · kernel 账对称强制 / 系统账工具链披露 + 宪章修订 + 部署 SOP + 结案）
-2. **[K1-SEAL] 冲刺**（sealed Win 关键路径 · M0 并行同板批）
-3. **[RVV-E2E] 攻坚**（M0 归因 → M1 对号修复[tile-schedule 轴 + Zicbop [CACHE-HINT] 首客] → M2 复测：≥parity 翻正 / 否则 e2e-regime 诚实回退）
-4. **FLAT 后二格**（q5_1 / q8_0，正确性、编译器无关）
-5. **iq2-grid 立项裁决**（retirement 蓝图已备，排 FLAT 收口）
-6. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口）
-7. **矿脉余格** · **M4 门冲刺**（C_construct ≥90%） · **写作期裁决**
+## 排队（主线区 · 顺序即优先级）
+1. **[K1-SEAL] 冲刺**（sealed Win 关键路径 · 判读预注册：传导→注册首个 sealed Win + 定谳 rvv 板特异；不传导→M0 式归因，同因则 M1 升双板共用）
+2. **[RVV-E2E] M1**（M1a 选型自决 → M1b 曳光弹 q4_K 单格实现[token-tile 作 schedule 轴，front-door 禁旁路]+板 A/B → M1c 翻正则入选择器 e2e-regime 键控 · cache-hint 只组合不单独）
+3. **iq2-grid 立项**（retirement 蓝图已备，q8_0 收口后提交立项包）
+4. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口 = **均已达成**，可上桌）
+5. **矿脉余格** · **M4 门冲刺**（C_construct ≥90% certified） · **写作期裁决**
+
+## 工程债区（与主线【并行】的卫生工作 · 排主线之后但不阻塞主线）
+> 原则（2026-07-10 入档）：工程债 = 与主线并行的卫生工作；凡提"X 完成后才回主线"必附"X 具体阻塞主线"的证据，否则默认并行。
+1. **[DEBT-CERT]**（P0）机器认证补强：逐格严格 checker → C_construct 拆 labeled/certified，对外/论文只认 certified，RED 项按成因入修复队列。
+2. **[DEBT-VIS]**（P0）单一数据源：成熟度数字 schema+checker 自动生成，ROADMAP/简报只引自动数，CI drift 检查。
+3. **[C1/C2 正名]**（P0 canon）：核查 C2 是否误挂前门化 decode-format 边际成本（应属 C3′）；先核查报告 → 用户确认 → 一次改（禁双改）。
+4. **[DEBT-CI]**（P1 背景）：CI 五项（full build + full lit[hw-required 拆独立 job] + object-export smoke + strong-construction checker + visibility-drift）+ 下游编译器身份进 target contract + 多编译器 codegen regression。
+5. **[DEBT-TASK]**（P2）：task status 与真实提交对账。
 
 ## 论文素材现状
 - **C1** 完整 ｜ **C2** 三谱系 ｜ **C3′** 7/7 + [XFER-1]
