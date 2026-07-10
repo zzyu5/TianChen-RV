@@ -26,20 +26,20 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
-| sealed Win | **0**（q4_K e2e 终审 CONFIRMED：部署身份修复 clang-.o 回升 2.29×，但 0.764× 仍 <parity → 非 win；kernel 账 gcc-对称 0.272×；micro↛e2e） |
+| sealed Win | **1 · Win-K1-VLEN**（★首个：k1 VLEN256 q4_K e2e prefill 满宽 vl=16 vs 真出货 hand-brick **1.085×** CI[1.083,1.088]、byte-exact、编译器对称 clean、修法=纯 capability-input；⑤双板开放待 [FU-2]；登记册 `docs/reports/SEALED-WIN-REGISTRY.md`） |
 
 ## 在飞
-- **[RVV-E2E] M1b** 构造（loop-interchange 曳光弹，byte-exact + objdump 不变；板 A/B 待 M1b-board）
-- **[VLEN-ADAPT] M0** 静态账（vl=16 native 寄存器账，sealed Win 第二条腿）
-- **certified 修复队列**（FIX-1 checker-bug → FIX-5/6 walker → FIX-3 FLAT envelope）
-- **C1/C2 正名 fix**（5 处 C2→C3′，一次改）
-- ✅ 已收：K1-SEAL 终审（sealed Win=NO）· FLAT 4/4 · Stage-0/1/2 全收 · RVV-E2E M0/M1a · DEBT-CERT
+- **[CASE-MICRO-E2E] 立卷**（热 micro 赢→冷 e2e 输→计数器归因→单变量 schedule 修→翻正 全链，C3′ 系统边界章）
+- **col-outer M1c**（loop-order schedule 轴入选择器、e2e-regime 键控、测量库回填）
+- ✅ 已收：**★首个 sealed Win = Win-K1-VLEN（1.085×）** · RVV-E2E M1b 翻正（schedule 2.47×）· certified 26→41 · C1/C2 正名 · K1-SEAL/VLEN-ADAPT/FLAT 4/4/Stage-0/1/2 全收
 
-## 排队（主线区 · 顺序即优先级）
-1. **性能收敛双线（并行，sealed Win 最短路）**：**[RVV-E2E] M1b** loop-interchange（rvv 线，在飞）+ **[VLEN-ADAPT] M0→M1** vl=16 native（k1 线）→ 各自 ≥parity vs 真出货对手；VLEN-ADAPT ≥parity → K1-SEAL 重开八门 → 首个 sealed Win。两轴（lane-width × token-tile）入选择器。
-2. **certified 修复队列**（在办 · FIX-1 checker-bug → FIX-5/6 walker → FIX-3 FLAT envelope；目标 certified 逼近 labeled 仅剩真缺陷）
-3. **[SEL-1-T5]** dispatcher 收尾（盘点剩余选择点位标 {capability-keyed/measured/常量序}、常量序改造、生产路径零 static_order；排 K1-SEAL 后与 M1 并行）
-4. **iq2-grid 立项**（retirement 蓝图已备，q8_0 收口后提交立项包）
+## 排队（主线区 · 顺序即优先级 · 2026-07-10 Win-K1-VLEN 后重排）
+1. **[巩固队列] Win-K1-VLEN 加固**（板批攒批、不阻塞其他）：FU-1 vl16×col-outer 叠加（k1，正交性+margin 上探）· FU-2 rvv clang-symmetric 对手建+补测（定⑤双板 kernel-account：正则升双板/负则维持单板）· FU-3 ABI 纯 drop-in（消 shim）→ 三成即出"Win-K1-VLEN 加固报告"
+2. **[SEL-1-T5]** dispatcher 收尾（剩余选择点位标 {capability-keyed/measured/常量序}、常量序改造、生产 dispatch 零 static_order）
+3. **iq2-grid 立项包 + [CERT-FD] 优先级裁决**（CERT-FD = dequant×21/quant×3/forward×5 补显式 construction pass、按族批量 → 认证剩 29 格）
+4. **IME gating 报告**（触发条件已齐：asymmetry 案结 ∧ FLAT 收口=q8_0 已收 → 可上桌）
+5. **矿脉余格** · **M4 门冲刺**（certified 计，路径 = [CERT-FD] + 矿脉 4 + 旁路 4）
+6. **论文素材统一收口**（headline 组合已具雏形：q4_0 5.9× 路由 / Win-K1-VLEN 1.085× / RVV 翻正闭环 [CASE-MICRO-E2E] / [XFER-1] 7 命中 / 双案例卷宗 [MINTERM]+[COMPILER-ASYMMETRY] / C2 诚实 1 点）
 4. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口 = **均已达成**，可上桌）
 5. **矿脉余格** · **M4 门冲刺**（C_construct ≥90% certified） · **写作期裁决**
 
