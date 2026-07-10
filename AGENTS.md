@@ -23,13 +23,13 @@ Keep this managed block so 'trellis update' can refresh the instructions.
 
 ## Project Scope
 
-This project is **TianChen-RV MLIR: A Capability-Driven Execution Layer for Extensible RISC-V AI Kernels**.
+This project is **TianChen-RV MLIR: a reference template for a capability-driven, extensible MLIR execution-layer software stack** — with RISC-V quantized LLM inference as its *first high-performance instance*. The headline is the **extensibility** (a reproducible way to organize the stack: capability schema / plugin five-piece protocol / falsifiers / selector skeleton); on-silicon wins over hand-written shipped kernels are the **proof of the template's quality, not the goal itself**. (Positioning updated 2026-07-10; canonical one-pager: `docs/canon/TianChen-RV_定位-v2.md`.)
 
 Before changing design, code, experiments, or task plans, read `.trellis/spec/index.md` and the relevant spec layer under `.trellis/spec/`.
 
 The stable project boundary is:
 
-- TianChen-RV is a capability-driven RISC-V execution layer after high-level MLIR, not a new high-level tensor/tile IR.
+- TianChen-RV is a capability-driven RISC-V execution-layer software stack (a reference template) after high-level MLIR, not a new high-level tensor/tile IR. **Template ≠ general-purpose compiler**: "extensible" means the *stack-organization* is reproducible (schema/plugins/falsifiers/selector), not that it admits arbitrary workload domains — the input side stops at a kernel-level interface and the load domain stays locked to ggml-style quantized inference kernels.
 - The `tcrv.exec` core dialect only expresses kernel, target, capability, variant, hart_parallel, dispatch, and fallback.
 - Computation and hardware execution details belong in extension dialects such as `tcrv.rvv`, `tcrv.ime`, `tcrv.offload`, or future plugin dialects.
 - The current real hardware mainline is RVV 1.0 via `ssh rvv`, with a 64-core CPU and sudo access.

@@ -9,6 +9,29 @@
 - **C3′** = 能力键控优化模式库 → 带实测与迁移的模板（含 front-door 构造协议 + 前门化边际成本谱系）。
 - （+ 工程面「成熟编译器」= 覆盖率/正确性门，进 CI 不作 slide 卖点。）
 
+---
+
+## 模板叙事主视图（2026-07-10 定位升级 · 挂载顺序：可扩展性主证 → 性能证词 → 元证据）
+
+> **定位 = 基于 MLIR 的能力驱动可扩展执行层软件栈之参考模板；RISC-V 量化推理为首个高性能实例**（权威 `docs/canon/TianChen-RV_定位-v2.md`）。
+> **本视图不产新证据、不改任何数字/成色/指针**——只把下方 C1/C2/C3′ 分节的**同一批指针**按"可扩展性主证在前、性能证词在后"重新陈列，供写作期以模板叙事主线取用。原分节口径全部保留。
+
+**① 主证 = 可扩展性（模板本体 C1 / 模板经济学 C2）**
+- C1 模板协议本体：合取四事实逐格机器可检（→ C1 段「合取四事实」行 + `T1_C1_structural_conjunction.csv`）；falsifier 组 [F-1..F-6] + schema.def 逐 PR 审计（→ C1 段「六态 ladder + [F-EMIT]」行）。
+- front-door 五族复用 + 前门化接入边际成本（→ C3′ 段「front-door 构造协议」+「前门化边际成本谱系」行；`frontdoor_framework_ledger.csv`）。
+- [XFER-1] 3-类迁移预测律 **7/7** 命中（→ C3′ 段 [XFER-1] 行；`T7-three-curve-G3-closure.md`）。
+- C2 IME 首点边际成本锚（→ C2 段「首点可复算」行）；**诚实：曲线 1/≥3 缺失**（→ C2 段「曲线现状=缺失」行，honest-missing 不省略）。
+
+**② 证词 = 性能（模板产出质量 C3′；均沿用原成色/账本/八门锁）**
+- q4_0 routing 5.9×（L1 路径赢，routing 白嫖非 kernel 质量赢）（→ 头条数段）。
+- Win-K1-VLEN 1.085×（一条 vlen 事实换满宽；对称-clang kernel 账）（→ C3′ 段「q4_K 吞吐兑现」行 + `SEALED-WIN-REGISTRY.md`）。
+- RVV 翻正闭环 [CASE-MICRO-E2E]（→ 在飞卷宗；ROADMAP）。
+
+**③ 元证据 = 诚实清算史（测量宪法可信）**
+- 撤回编译器不对称数 [CASE-COMPILER-ASYMMETRY]（→ 跨切面·方法学段）；双账本方法学（kernel 账/系统账，判别键=板出货编译器）（→ 同段「双账本」行）；certified 双列口径（→ C1 段「覆盖率现值」+ ROADMAP certified/labeled 双列）。
+
+---
+
 **★诚实现状口径（全文锁）**：
 - **e2e = correct-proven + perf-pending(board-gated)**：full-construct q4_K 集成正确性**已兑现**
   （PPL 12.008≈stock 12.05、OUR compiler-emitted VLEN128 GEVM ENGAGED、greedy 相干）；**e2e-PERF 未闭**，缺口 = 门④

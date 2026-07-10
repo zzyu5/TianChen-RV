@@ -4,6 +4,9 @@
 > **更新权**：坐标数字随事实更新（agent 可改）；**排队顺序仅随用户裁决变更**（agent 不得自改优先级）。
 > 建立：2026-07-10（[裁决 · 全局地图工件化]，治感知丢失）。
 
+## 定位（canon · 2026-07-10 升级 · 权威 = `docs/canon/TianChen-RV_定位-v2.md`）
+**基于 MLIR 的能力驱动（capability-driven）可扩展执行层软件栈之参考模板（reference template）；RISC-V 量化 LLM 推理为其首个高性能实例。** 主角 = 可扩展性（栈的组织方式可复制：能力 schema / 插件五件套 / falsifier / 选择器骨架）；性能 = 模板质量的证明书（不是终极目标）。三贡献 = **C1（头牌）模板协议本体 · C2 模板经济学 · C3′ 模板产出质量**（编号/数值不变，仅叙事主次升级）。**边界钉死**：模板 ≠ 通用编译器（[NG-2] 照旧、输入止于 kernel 级接口）；负载域仍锁 ggml 型量化推理 kernel（[G-2] 不动）。
+
 ## 北极星（成熟 compiler 终态）
 C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** + **sealed Win ≥1** + **论文三贡献证据链闭合**
 
@@ -29,9 +32,8 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | sealed Win | **1 · Win-K1-VLEN**（★首个：k1 VLEN256 q4_K e2e prefill 满宽 vl=16 vs 真出货 hand-brick **1.085×** CI[1.083,1.088]、byte-exact、编译器对称 clean、修法=纯 capability-input；⑤双板开放待 [FU-2]；登记册 `docs/reports/SEALED-WIN-REGISTRY.md`） |
 
 ## 在飞
-- **[CASE-MICRO-E2E] 立卷**（热 micro 赢→冷 e2e 输→计数器归因→单变量 schedule 修→翻正 全链，C3′ 系统边界章）
-- **col-outer M1c**（loop-order schedule 轴入选择器、e2e-regime 键控、测量库回填）
-- ✅ 已收：**★首个 sealed Win = Win-K1-VLEN（1.085×）** · RVV-E2E M1b 翻正（schedule 2.47×）· certified 26→41 · C1/C2 正名 · K1-SEAL/VLEN-ADAPT/FLAT 4/4/Stage-0/1/2 全收
+- **[FU-2] rvv clang-symmetric**（定 ⑤双板 kernel-account）‖ **[FU-1] k1 vl16×col-outer**（margin 上探）
+- ✅ 已收：**★首个 sealed Win = Win-K1-VLEN（1.085×）** · 定位升级 canon 修订 · [CASE-MICRO-E2E] 卷宗 · col-outer M1c · RVV-E2E 全线（M0/M1a/M1b/M1c）· certified 26→41 · C1/C2 正名 · FLAT 4/4 · Stage-0/1/2
 
 ## 排队（主线区 · 顺序即优先级 · 2026-07-10 Win-K1-VLEN 后重排）
 1. **[巩固队列] Win-K1-VLEN 加固**（板批攒批、不阻塞其他）：FU-1 vl16×col-outer 叠加（k1，正交性+margin 上探）· FU-2 rvv clang-symmetric 对手建+补测（定⑤双板 kernel-account：正则升双板/负则维持单板）· FU-3 ABI 纯 drop-in（消 shim）→ 三成即出"Win-K1-VLEN 加固报告"
@@ -39,22 +41,24 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 3. **iq2-grid 立项包 + [CERT-FD] 优先级裁决**（CERT-FD = dequant×21/quant×3/forward×5 补显式 construction pass、按族批量 → 认证剩 29 格）
 4. **IME gating 报告**（触发条件已齐：asymmetry 案结 ∧ FLAT 收口=q8_0 已收 → 可上桌）
 5. **矿脉余格** · **M4 门冲刺**（certified 计，路径 = [CERT-FD] + 矿脉 4 + 旁路 4）
-6. **论文素材统一收口**（headline 组合已具雏形：q4_0 5.9× 路由 / Win-K1-VLEN 1.085× / RVV 翻正闭环 [CASE-MICRO-E2E] / [XFER-1] 7 命中 / 双案例卷宗 [MINTERM]+[COMPILER-ASYMMETRY] / C2 诚实 1 点）
-4. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口 = **均已达成**，可上桌）
-5. **矿脉余格** · **M4 门冲刺**（C_construct ≥90% certified） · **写作期裁决**
+6. **论文素材统一收口**（headline 组合已具雏形：q4_0 5.9× 路由 / Win-K1-VLEN 1.085× / RVV 翻正闭环 [CASE-MICRO-E2E] / [XFER-1] 7 命中 / 三案例卷宗 [MINTERM]+[COMPILER-ASYMMETRY]+[MICRO-E2E] / C2 诚实 1 点）
 
 ## 工程债区（与主线【并行】的卫生工作 · 排主线之后但不阻塞主线）
 > 原则（2026-07-10 入档）：工程债 = 与主线并行的卫生工作；凡提"X 完成后才回主线"必附"X 具体阻塞主线"的证据，否则默认并行。
+> **[RENAME] 待排（FU-1/2/3 落地后 · 单独会话）**：定位升级已落，命名统一（[RENAME]）另开专会话，触发 = FU-1/2/3 全落地；本次定位修订不做改名。
 1. **[DEBT-CERT]**（P0）机器认证补强：逐格严格 checker → C_construct 拆 labeled/certified，对外/论文只认 certified，RED 项按成因入修复队列。
 2. **[DEBT-VIS]**（P0）单一数据源：成熟度数字 schema+checker 自动生成，ROADMAP/简报只引自动数，CI drift 检查。
 3. **[C1/C2 正名]**（P0 canon）：核查 C2 是否误挂前门化 decode-format 边际成本（应属 C3′）；先核查报告 → 用户确认 → 一次改（禁双改）。
 4. **[DEBT-CI]**（P1 背景）：CI 五项（full build + full lit[hw-required 拆独立 job] + object-export smoke + strong-construction checker + visibility-drift）+ 下游编译器身份进 target contract + 多编译器 codegen regression。
 5. **[DEBT-TASK]**（P2）：task status 与真实提交对账。
 
-## 论文素材现状
-- **C1** 完整 ｜ **C2** 三谱系 ｜ **C3′** 7/7 + [XFER-1]
+## 论文素材现状（模板叙事主线 · 2026-07-10 定位升级：可扩展性主证、性能证词 · 证据指针不变、仅换挂载顺序）
+- **主证（可扩展性 = 模板本体/经济学）**：C1 模板协议本体（合取四事实机检 + falsifier 组 + schema.def 逐 PR 审计）｜ front-door 五族复用 + 1 workflow/格 接入边际成本 ｜ [XFER-1] 7/7 迁移预测命中 ｜ C2 IME 首点（**诚实：1/≥3 曲线缺失**）
+- **证词（性能 = C3′ 模板产出质量）**：q4_0 routing 5.9×（L1 路径赢）｜ Win-K1-VLEN 1.085×（一条 vlen 事实换满宽 0.750×→1.085×）｜ RVV 翻正闭环 [CASE-MICRO-E2E]｜双账本方法学（撤回不对称数 + certified 双列 = 测量宪法可信）
 - 案例卷宗 ×2：**[CASE-MINTERM]**（结）/ **[CASE-COMPILER-ASYMMETRY]**（待结）
-- **headline**：待 Stage 定案（候选：L1 routing 5.9× 幸存 + 双账本方法学）
+- **headline**：待 Stage 定案（候选：可扩展性主证 + L1 routing 5.9× 证词 + 双账本方法学）
+
+> **叙事权重备注（2026-07-10 定位升级 · 仅备注、不改排队顺序）**：IME（家族#2）/ [X-SCALAR]（家族#3）/ zvfh（子扩展）接入 = 模板经济学（C2）的**叙事刚需**——第二/第三个异质家族接入多顺是模板故事最强证据。**开工仍按既定触发条件**（IME gating 触发已齐见排队 #4；X-SCALAR 按 [X-1] 顺序），本备注不解锁新战役、不提前排队。
 
 ## 测量闸门 SOP（2026-07-10 改革 · 替代 loadavg<4 硬闸）
 板可用性 = **实测噪声自检**，非 loadavg：

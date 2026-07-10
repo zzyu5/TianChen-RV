@@ -6,9 +6,9 @@
 2. [`.trellis/spec/architecture/core-invariants.md`](.trellis/spec/architecture/core-invariants.md) — I1–I9 硬规则（其他 spec 引用它，不重抄）。
 3. 选下一步做什么时读 [`.trellis/spec/guides/trunk-discipline.md`](.trellis/spec/guides/trunk-discipline.md) — 单一尺子 = distance to C1/C2/C3′，别挑相邻枝节。
 
-**项目**：能力驱动的统一 RISC-V MLIR execution layer（边界见 [AGENTS.md](AGENTS.md) 的 Project Scope）。主栈 C++/MLIR/LLVM/TableGen/CMake/lit；Python 只做 tooling。RVV 是当前真实硬件 family（`ssh rvv`）。
+**项目（定位 · 2026-07-10 升级）**：基于 MLIR 的能力驱动可扩展执行层软件栈之**参考模板（reference template）**；RISC-V 量化 LLM 推理为其**首个高性能实例**（主角 = 可扩展性、性能 = 证明书；定位权威 [`docs/canon/TianChen-RV_定位-v2.md`](docs/canon/TianChen-RV_定位-v2.md)，边界见 [AGENTS.md](AGENTS.md) 的 Project Scope）。**模板 ≠ 通用编译器**（[NG-2] 输入止于 kernel 级接口、负载域锁 ggml 型量化推理 kernel 不变）。主栈 C++/MLIR/LLVM/TableGen/CMake/lit；Python 只做 tooling。RVV 是当前真实硬件 family（`ssh rvv`）。
 
-**论文贡献（headline，三条）**：C1 合取存在性 → 可复制协议；C2 泛化代价 → 边际成本规律；C3′ 能力键控优化模式库 → 带实测与迁移的模板。终态定义与证据门见 [`.trellis/spec/index.md`](.trellis/spec/index.md) 的三贡献表。N1/N2/N3 是命名的机制子主张，映射进 C1/C2/C3′（唯一 bridge 在 index.md），**不得再当三个并列贡献**。
+**论文贡献（headline，三条 · 同一"可扩展软件栈参考模板"的三面）**：**C1（头牌）模板协议本体** = 合取存在性 → 可复制扩展接入协议；**C2 模板经济学** = 泛化代价 → 边际成本规律；**C3′ 模板产出质量** = 能力键控优化模式库 → 带实测与迁移的模板（性能数字是 C3′ 证词、不另立贡献）。终态定义与证据门见 [`.trellis/spec/index.md`](.trellis/spec/index.md) 的三贡献表。N1/N2/N3 是命名的机制子主张，映射进 C1/C2/C3′（唯一 bridge 在 index.md），**不得再当三个并列贡献**。
 
 **关键纪律**：
 - spec 是给 agent 的**稳定契约 + 判断依据，不是状态机/门禁**。当前进度/状态属于 `tasks/` 和 `workspace/` journal，不写进 spec。

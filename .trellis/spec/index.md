@@ -8,7 +8,11 @@
 
 ## 项目定位
 
-TianChen-RV 是 high-level MLIR 之后的**能力驱动统一 RISC-V 执行层**。它把 RISC-V 的目标能力（ISA 扩展、VLEN/uarch、toolchain、runtime/offload）建成 first-class、可查询、可验证、可参与 pass 决策的 MLIR 对象，并用这些能力对象：
+TianChen-RV 是**基于 MLIR 的能力驱动（capability-driven）可扩展执行层软件栈之参考模板（reference template）**——为碎片化硬件生态（RISC-V 是极端案例：VLEN 任意、扩展组合爆炸、厂商专有单元各异）给出一个可复制的**栈组织方式**（接入成本可预期 + 正确性机检 + 选择可归因），而不是又一个手写库。**RISC-V 量化 LLM 推理是该模板的首个高性能实例**：真硅上打赢手写出货物是模板质量的证明书，不是定位本身（主角 = 可扩展性；性能 = 证据）。
+
+> **定位沿革（2026-07-10 定位升级 · 用户裁定）**：主角从"高性能 RISC-V 算子编译器"换位为"可扩展执行层软件栈参考模板"。旧句存档："TianChen-RV 是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层。" 三贡献 C1/C2/C3′ 编号与数值不变，仅叙事主次升级；详见 [`docs/canon/TianChen-RV_定位-v2.md`](../../docs/canon/TianChen-RV_定位-v2.md)。
+
+作为软件栈，它是 high-level MLIR 之后的能力驱动统一 RISC-V 执行层：把 RISC-V 的目标能力（ISA 扩展、VLEN/uarch、toolchain、runtime/offload）建成 first-class、可查询、可验证、可参与 pass 决策的 MLIR 对象，并用这些能力对象：
 
 1. 驱动 **plugin-local** 的 variant 生成 / 合法性 / 选择 / dispatch —— 驯服 RISC-V 扩展的组合异构性；
 2. 参数化一个 **resource-aware 的 tuning / realization 层（Gearbox）** —— 把选中的 extension body 变成调优过的可执行 body。
@@ -21,11 +25,13 @@ TianChen-RV 是 high-level MLIR 之后的**能力驱动统一 RISC-V 执行层**
 
 论文主张按科研目标总纲 v2 的**三条贡献 C1/C2/C3′ + 成熟编译器**组织；旧的 N1/N2/N3 不作废，而是**下沉为机制轴的构件**（映射见下方 bridge，本树其他文件与 CLAUDE.md 仍按 N1/N2/N3 引用，不推倒）。
 
+**模板叙事（2026-07-10 定位升级）**：三贡献是同一"可扩展软件栈参考模板"的三个面——**C1（头牌）= 模板协议本体**、**C2 = 模板经济学**、**C3′ = 模板产出质量**；性能数字是 C3′ 模板产出质量的**证词**，不另立贡献。编号与全部数值不变。
+
 | # | 主张（终态） | 成立所需证据（缺证据就只是工程，不是贡献） |
 |---|---|---|
-| **C1** | **合取机制的存在性 → 可复制协议**：一份带关系的能力 schema 同时驱动编译期变体生成与 fail-closed 运行期（装载期解析形态起步）调度守卫，**跨计算范式（向量 SIMD → 整矩阵 MAC）且跨独立家族（向量缺席的标量家族）**原封复用；接入升级为外部贡献者可循的**协议** | 零家族分支由 falsifier 组 [F-1..F-6]（含独立性判据 [core-invariants](./architecture/core-invariants.md) [F-6]、操作门 [F-2′]）机检并 CI 常绿；schema.def 自第二家族起未被接入触及（[F-2′] 逐 PR 审计）；≥3 家族下证据阶梯成立 |
-| **C2** | **泛化代价 → 边际成本规律**：零分支/零核心改动不变量下，逐家族接入代价形成**边际递减曲线**，并给出结构解释（成本住模式/谓词/测试哪一处） | 成本 ledger 脚本自动生成且首点可复算（cloc、测试单列）；≥3 数据点成曲线；术语按 [L-2] integrated/independent-attached；对照锚在位。"第三家族小"正是主张本身（边际递减），不是弱点 |
-| **C3′** | **能力键控优化模式库 → 带实测与迁移的模板**：模式以能力谓词表达、由机制选出（归因日志）、跨 VLEN/微结构**换键不改条目**地迁移，对 tuned 框架内核**分相**报告增量 | 注册表是**数据文件**（[PAT-1..3]）；迁移判据双板 diff=0 CI 常绿；对框架自身同-ISA kernel 实测胜出/持平（[core-invariants](./architecture/core-invariants.md) [L-6] vs-framework，过 [PERF-1] 八门）；scalar/naive 只作内部 sanity，**绝不**作贡献倍数 |
+| **C1**（头牌） | **模板协议本体 · 合取机制的存在性 → 可复制扩展接入协议**：一份带关系的能力 schema + 插件协议（接入五件套）+ falsifier 机检 = 可复制的扩展接入协议，同时驱动编译期变体生成与 fail-closed 运行期（装载期解析形态起步）调度守卫，**跨计算范式（向量 SIMD → 整矩阵 MAC）且跨独立家族（向量缺席的标量家族）**原封复用；接入升级为外部贡献者可循的**协议** | 零家族分支由 falsifier 组 [F-1..F-6]（含独立性判据 [core-invariants](./architecture/core-invariants.md) [F-6]、操作门 [F-2′]）机检并 CI 常绿；schema.def 自第二家族起未被接入触及（[F-2′] 逐 PR 审计）；≥3 家族下证据阶梯成立 |
+| **C2** | **模板经济学 · 泛化代价 → 边际成本规律**：零分支/零核心改动不变量下，逐家族接入代价形成**边际递减曲线**，并给出结构解释（成本住模式/谓词/测试哪一处）；第二/第三个异质家族（IME/标量/zvfh）接入多顺 = 模板故事最强证据 | 成本 ledger 脚本自动生成且首点可复算（cloc、测试单列）；≥3 数据点成曲线；术语按 [L-2] integrated/independent-attached；对照锚在位。**诚实标注：曲线现缺（1 点 / 需 ≥3）**——"第三家族小"正是主张本身（边际递减），不是弱点 |
+| **C3′** | **模板产出质量 · 能力键控优化模式库 → 带实测与迁移的模板**：模式以能力谓词表达、由机制选出（归因日志）、跨 VLEN/微结构**换键不改条目**地迁移，**正例负例边界齐备、迁移可预测**，对 tuned 框架内核**分相**报告增量 | 注册表是**数据文件**（[PAT-1..3]）；迁移判据双板 diff=0 CI 常绿；对框架自身同-ISA kernel 实测胜出/持平（[core-invariants](./architecture/core-invariants.md) [L-6] vs-framework，过 [PERF-1] 八门）；scalar/naive 只作内部 sanity，**绝不**作贡献倍数。**性能数字在此陈列为模板质量证词，不另立贡献** |
 | **成熟编译器** | 覆盖率与正确性门槛达标，成为本负载域内**真正可用的编译器** | 六态阶梯（[core-invariants](./architecture/core-invariants.md) [K-4]）自动读出、四覆盖率指标 + 燃减曲线进 CI；正确性门（字节精确 / ULP 上界 / VLEN 翻转 / objdump golden）全绿。**成熟度进 CI，不进 slides**（见双轴组织原则） |
 
 ### 双轴组织原则（引擎轴 × 证据轴）
