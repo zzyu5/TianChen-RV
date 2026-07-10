@@ -500,10 +500,10 @@
    "op": "gemm_tile",
    "format": "q8_0",
    "engine": "rvv",
-   "provenance": "direct-emitter (transitional scaffolding)",
-   "retirement_batch": 0,
-   "state": "dispatch-wired",
-   "anchor": "emitRepackGemm/Gemv q8_0"
+   "state": "constructed",
+   "auto_readout": "pending-E5-repack: constructed (STRONG); realized-body manifest=typed_repack_gem{v,m}_loop_body+repack_lane_wise_q4_x_i8_dot(weight_full_i8)+repack_dual_fp16_scale_fold+typed_repack_gem{v,m}_loop_yield; fold_model lane_wise_vector_scale (d-only); opaque_helper=false; the FULL-int8 flat core brick variant (NO nibble decode: vle8 i8 strip + per-position vwmul i8xi8->i16 + vwadd_wv i32 in-block accumulation). NOTE: the e5_strong_readout.py [L-8] walker is vec_dot-shaped so it does NOT yet cover the repack gemm_tile family -- HAND-LABELED like the other constructed repack cells (q4_0/q4_1/q5_0/q5_1/K-quant/ternary/codebook).",
+   "anchor": "FRONT-DOOR CONSTRUCTED repack (G3-lode-flat FLAT-4 收官格, the LAST flat tracer, COMPLETING flat-mainline batch0 q4_1/q5_0/q5_1/q8_0): RVVLowerQuantContraction.cpp lowerToRepackGemvQ80 (decode) / lowerToRepackGemmQ80 (prefill) CONSTRUCT the typed tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model \"lane_wise_vector_scale\", the q4_0 d-only dual-fp16 fold WHOLE) carrying the SHARED tcrv_rvv.repack_lane_wise_q4_x_i8_dot / repack_gemm_lane_wise_q4_x_i8_dot CORE brick stamping the NEW weight_full_i8 decode selector, lowered by isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody default path -> emitRepackQ4LaneWiseIntegerCore / emitRepackGemmQ4LaneWiseIntegerCore's fullI8 early branch (byte-exact GEVM to the retired emitRepackGemvQ8_0Q8_0; NET-NEW oracle-validated GEMM). The GEVM direct emitter is UNWIRED from kBlockDotKernels; the monolith op + emitter remain lit-only scaffolding. weight_full_i8 is mutually exclusive with the nibble decode selectors (verifier fail-closed).",
+   "note": "coverage/representation maturity (kernel-axis construction), NOT an e2e/perf claim. The SIMPLEST flat gemm_tile: FULL signed int8 weights (qk=32 positions/block, one int8 each), NO nibble unpack, NO qh, NO offset, NO min -- the d-only fold reuses q4_0's WHOLE. q8_0 had NO GEMM direct emitter before (whitelist entry was GEVM-only); the GEMM front door is NET-NEW construction validated by the INDEPENDENT ZERO-MODEL oracle (GEMM sumi==GEVM sumi under the x4 interleaved activation). byte-exact ZERO-MODEL host cert tools/e2e-harness/g3-lode-flat-q80/q80_repack_cert.c. This COMPLETES the flat-mainline retirement batch0."
   },
   {
    "op": "gemm_tile",

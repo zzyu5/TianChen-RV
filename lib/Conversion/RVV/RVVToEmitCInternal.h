@@ -1308,6 +1308,12 @@ private:
     bool hasQh = false;
     int64_t weightQhByteOffset = 0;
     int64_t offsetBias = 0;
+    // q8_0 FULL-int8 decode selector (GEMM sibling): true = the SIMPLEST flat core
+    // (NO nibble unpack; the strip is a FULL int8 vle8 load, per-position vwmul
+    // i8xi8 -> i16 folded into an i32 in-block accumulator via vwadd_wv, over qk
+    // positions -- NO lo/hi nibble split). Mutually exclusive with the nibble
+    // selectors. false (default) = the q4_x nibble decode.
+    bool fullI8 = false;
   };
 
   /// The shared q4_0 16x1-REPACKED GEMM per-block LANE-WISE integer CORE leaf:
@@ -2196,6 +2202,12 @@ private:
     bool hasQh = false;
     int64_t weightQhByteOffset = 0;
     int64_t offsetBias = 0;
+    // q8_0 FULL-int8 decode selector (GEVM): true = the SIMPLEST flat core (NO
+    // nibble unpack; the strip is a FULL int8 vle8 load, per-position vwmul
+    // i8xi8 -> i16 folded into an i32 in-block accumulator via vwadd_wv, over qk
+    // positions -- NO lo/hi nibble split). Mutually exclusive with the nibble
+    // selectors. false (default) = the q4_x nibble decode.
+    bool fullI8 = false;
   };
 
   /// The shared q4_0 16x1-REPACKED per-block LANE-WISE integer CORE leaf: given

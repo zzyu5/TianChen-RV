@@ -786,6 +786,7 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
 
   bool unsignedNibble = cx.unsignedNibble;
   bool hasQh = cx.hasQh;                       // q5_0 5th-bit decode (GEMM)
+  bool fullI8 = cx.fullI8;                      // q8_0 full-int8 decode (GEMM)
   int64_t weightQhByteOffset = cx.weightQhByteOffset;
   int64_t offsetBias = cx.offsetBias;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -983,6 +984,82 @@ VariantToEmitCFunc::emitRepackGemmQ4LaneWiseIntegerCore(
     return emitOpaqueCall(rewriter, loc, i16m1Type, vwmaccCallee,
                           mlir::ValueRange{acc, scalar, vec, vl8}, opName, role);
   };
+
+  // ===== q8_0 FULL-int8 core (fullI8), GEMM ONE-strip N-column form: the SIMPLEST
+  // flat integer dot -- NO nibble unpack, NO lo/hi split. Per position i in [0,qk):
+  // reuse the SHARED signed-i8 strip load (loadNibbles = vle8 i8 at qs[i*16 + roff],
+  // NO decode) + per interleaved activation column c in [cLo,cHi) the SHARED plain
+  // q8_0x4 scalar read (i8Read al.qs[i*4 + c]), vwmul (i8xi8 -> i16), then vwadd_wv
+  // into the column's i32 IN-BLOCK accumulator (full int8 products overflow i16, so
+  // NO i16 vwmacc + lo/hi combine). Returns the per-column i32 sumi directly. This
+  // is NET-NEW construction (no q8_0 GEMM direct emitter ever existed), validated by
+  // the INDEPENDENT oracle (GEMM sumi == GEVM sumi under the x4 activation). =====
+  if (fullI8) {
+    int64_t positions = nibbleBytes * 2;  // qk (32)
+    std::string vwmulCalleeQ8 = ("__riscv_vwmul_vx_i16" + l16).str();
+    auto vwmulQ8 = [&](mlir::Value scalar, mlir::Value vec) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, i16m1Type, vwmulCalleeQ8,
+                            mlir::ValueRange{vec, scalar, vl8}, opName, role);
+    };
+    std::string vwaddwCalleeQ8 = ("__riscv_vwadd_wv_i32" + l32).str();
+    auto vwaddwQ8 = [&](mlir::Value acc, mlir::Value prod) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, i32m2Type, vwaddwCalleeQ8,
+                            mlir::ValueRange{acc, prod, vl8}, opName, role);
+    };
+    std::string mvCalleeQ8 = riscvIntrinsicName("vmv_v_x", 32, l32, "i32");
+    llvm::SmallVector<mlir::Value> sumiVar(activationInterleave);
+    for (int64_t c = cLo; c < cHi; ++c) {
+      auto v = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(i32m2Type),
+          emitc::OpaqueAttr::get(ctx, ""));
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m2Type, mvCalleeQ8, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zero =
+                rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+            return {zero, vl8};
+          });
+      rewriter.create<emitc::AssignOp>(loc, v, seed);
+      sumiVar[c] = v;
+    }
+    auto posLoop = rewriter.create<emitc::ForOp>(
+        loc, sizeLit(0), sizeLit(positions), sizeLit(1),
+        /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard ng(rewriter);
+      rewriter.setInsertionPointToStart(posLoop.getBody());
+      mlir::Value i = posLoop.getInductionVar();
+      step("weight_quant_addr");
+      mlir::Value i16 = rewriter.create<emitc::MulOp>(
+          loc, sizeType, i, sizeLit(weightInterleave));
+      mlir::Value qsOff = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQuantOffset), i16);
+      mlir::Value wByteOff =
+          rewriter.create<emitc::AddOp>(loc, sizeType, qsOff, roff);
+      mlir::Value wStrip = loadNibbles(bl, wByteOff);
+      mlir::Value i4 = rewriter.create<emitc::MulOp>(
+          loc, sizeType, i, sizeLit(activationInterleave));
+      for (int64_t c = cLo; c < cHi; ++c) {
+        step("act_quant_addr");
+        mlir::Value idx =
+            rewriter.create<emitc::AddOp>(loc, sizeType, i4, sizeLit(c));
+        mlir::Value aOff = rewriter.create<emitc::AddOp>(
+            loc, sizeType, sizeLit(activationQuantOffset), idx);
+        mlir::Value aQuant = i8Read(al, aOff);
+        mlir::Value prod = vwmulQ8(aQuant, wStrip);
+        mlir::Value cur =
+            rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                .getResult();
+        rewriter.create<emitc::AssignOp>(loc, sumiVar[c], vwaddwQ8(cur, prod));
+      }
+    }
+    llvm::SmallVector<mlir::Value> sumi32(activationInterleave);
+    for (int64_t c = cLo; c < cHi; ++c)
+      sumi32[c] = rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[c])
+                      .getResult();
+    return sumi32;
+  }
 
   // vint16m1_t sumi_{0..3}_{lo,hi} = vmv_v_x(0, 8);
   std::string mvCallee = riscvIntrinsicName("vmv_v_x", 16, l16, "i16");
@@ -1447,6 +1524,7 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
 
   bool unsignedNibble = cx.unsignedNibble;
   bool hasQh = cx.hasQh;                       // q5_0 5th-bit decode
+  bool fullI8 = cx.fullI8;                      // q8_0 full-int8 decode
   int64_t weightQhByteOffset = cx.weightQhByteOffset;
   int64_t offsetBias = cx.offsetBias;
   mlir::Type i32Type = emitc::OpaqueType::get(ctx, "int32_t");
@@ -1479,7 +1557,8 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
 
   // q4_0: a typed i8 sub-load __riscv_vle8_v_i8<l8> (the repacked nibbles carry the
   // ^0x88 offset-binary bias). q4_1 (unsignedNibble): the asymmetric weight stores
-  // RAW nibbles, so it loads unsigned __riscv_vle8_v_u8.
+  // RAW nibbles, so it loads unsigned __riscv_vle8_v_u8. q8_0 (fullI8): the SAME
+  // signed vle8 i8 load (unsignedNibble is false), reused as the full-int8 strip.
   std::string i8LoadCallee = riscvIntrinsicName("vle", 8, l8, "i8");
   std::string u8LoadCallee = riscvIntrinsicName("vle", 8, l8, "u8");
   auto loadNibbles = [&](mlir::Value base, mlir::Value byteOff) -> mlir::Value {
@@ -1656,6 +1735,88 @@ VariantToEmitCFunc::emitRepackQ4LaneWiseIntegerCore(
                           mlir::ValueRange{acc, scalar, vec, vl8}, opName,
                           role);
   };
+
+  // ===== q8_0 FULL-int8 core (cx.fullI8): the SIMPLEST flat integer dot -- NO
+  // nibble unpack, NO lo/hi split. The repacked q8_0 weight bytes are FULL signed
+  // int8 (one weight per contraction position; qk == nibbleBytes*2 == 32 positions
+  // per block, each reading ALL 16 lanes of a strip at 32 + i*16 + h*half). Per
+  // position: reuse the SHARED signed-i8 strip load (loadNibbles at unsignedNibble
+  // == false is exactly a vle8 i8 load, NO decode) + the SHARED plain q8_0
+  // activation scalar read (i8Read al.qs[i]), vwmul (i8xi8 -> i16), then vwadd_wv
+  // into an i32 IN-BLOCK accumulator (full int8 products overflow i16 after 3 terms,
+  // so the q4_0 i16 vwmacc + end-of-block vwadd combine is REPLACED by i32 in-block
+  // accumulation). Byte-exact to the retired emitRepackGemvQ8_0Q8_0 integer part.
+  // Returns the numHalves per-strip i32 sumi directly (no lo/hi combine). =====
+  if (fullI8) {
+    int64_t positions = nibbleBytes * 2;  // qk (32)
+    std::string vwmulCalleeQ8 = ("__riscv_vwmul_vx_i16" + l16).str();
+    auto vwmulQ8 = [&](mlir::Value scalar, mlir::Value vec) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, i16m1Type, vwmulCalleeQ8,
+                            mlir::ValueRange{vec, scalar, vl8}, opName, role);
+    };
+    std::string vwaddwCalleeQ8 = ("__riscv_vwadd_wv_i32" + l32).str();
+    auto vwaddwQ8 = [&](mlir::Value acc, mlir::Value prod) -> mlir::Value {
+      return emitOpaqueCall(rewriter, loc, i32m2Type, vwaddwCalleeQ8,
+                            mlir::ValueRange{acc, prod, vl8}, opName, role);
+    };
+    std::string mvCalleeQ8 = riscvIntrinsicName("vmv_v_x", 32, l32, "i32");
+    llvm::SmallVector<mlir::Value> sumiVar;
+    for (int64_t h = 0; h < numHalves; ++h) {
+      auto v = rewriter.create<emitc::VariableOp>(
+          loc, emitc::LValueType::get(i32m2Type),
+          emitc::OpaqueAttr::get(ctx, ""));
+      mlir::Value seed = emitOpaqueCallBuilt(
+          rewriter, loc, i32m2Type, mvCalleeQ8, opName, role,
+          [&](mlir::OpBuilder &b,
+              mlir::Location l) -> llvm::SmallVector<mlir::Value> {
+            mlir::Value zero =
+                rewriter.create<emitc::LiteralOp>(loc, i32Type, "0").getResult();
+            return {zero, vl8};
+          });
+      rewriter.create<emitc::AssignOp>(loc, v, seed);
+      sumiVar.push_back(v);
+    }
+    auto posLoop = rewriter.create<emitc::ForOp>(
+        loc, sizeLit(0), sizeLit(positions), sizeLit(1),
+        /*bodyBuilder=*/nullptr);
+    {
+      mlir::OpBuilder::InsertionGuard ng(rewriter);
+      rewriter.setInsertionPointToStart(posLoop.getBody());
+      mlir::Value i = posLoop.getInductionVar();
+      step("weight_quant_addr");
+      mlir::Value i16 = rewriter.create<emitc::MulOp>(
+          loc, sizeType, i, sizeLit(weightInterleave));
+      mlir::Value qsOff = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(weightQuantOffset), i16);
+      llvm::SmallVector<mlir::Value> wByteOff;
+      for (int64_t h = 0; h < numHalves; ++h) {
+        if (h == 0)
+          wByteOff.push_back(qsOff);
+        else
+          wByteOff.push_back(rewriter.create<emitc::AddOp>(
+              loc, sizeType, qsOff, sizeLit(h * half)));
+      }
+      llvm::SmallVector<mlir::Value> wStrip;
+      for (int64_t h = 0; h < numHalves; ++h)
+        wStrip.push_back(loadNibbles(bl, wByteOff[h]));
+      step("act_quant_addr");
+      mlir::Value aOff = rewriter.create<emitc::AddOp>(
+          loc, sizeType, sizeLit(activationQuantOffset), i);
+      mlir::Value aQuant = i8Read(al, aOff);
+      for (int64_t h = 0; h < numHalves; ++h) {
+        mlir::Value prod = vwmulQ8(aQuant, wStrip[h]);
+        mlir::Value cur =
+            rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[h])
+                .getResult();
+        rewriter.create<emitc::AssignOp>(loc, sumiVar[h], vwaddwQ8(cur, prod));
+      }
+    }
+    llvm::SmallVector<mlir::Value> sumi;
+    for (int64_t h = 0; h < numHalves; ++h)
+      sumi.push_back(rewriter.create<emitc::LoadOp>(loc, i32m2Type, sumiVar[h])
+                         .getResult());
+    return sumi;
+  }
 
   // vint16m1_t sumi_{a,b}_{lo,hi} = vmv_v_x(0, 8);
   std::string mvCallee = riscvIntrinsicName("vmv_v_x", 16, l16, "i16");
@@ -2513,6 +2674,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // MIN-fold offset pair from the dual-fp16 FOLD bricks (all fold bricks agree; -1
   // sentinel = the q4_0 no-min fold, byte-identical).
   bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  // q8_0 FULL-int8 decode selector sourced from the CORE brick (the anti-bypass
+  // decode-leaf surface): the SIMPLEST flat core (no nibble unpack, i32 in-block
+  // accumulation over qk positions).
+  bool coreFullI8 = coreBrick.getWeightFullI8();
   // q5_0 5th-bit (qh) decode facts sourced from the CORE brick (the anti-bypass
   // decode-leaf surface): the transposed qh SECOND weight-plane byte offset + the
   // offset-binary centering bias, PRESENT together only for q5_0.
@@ -2653,6 +2818,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
       coreCx.hasQh = coreHasQh;
       coreCx.weightQhByteOffset = coreWeightQhOffset;
       coreCx.offsetBias = coreOffsetBias;
+      coreCx.fullI8 = coreFullI8;
       llvm::SmallVector<mlir::Value> sumi =
           emitRepackQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al);
 
@@ -3318,6 +3484,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // UNSIGNED-nibble flag from the CORE brick + the single MIN-fold offset pair from
   // the per-column FOLD bricks (-1 sentinel = the q4_0 no-min fold, byte-identical).
   bool unsignedNibble = coreBrick.getWeightNibbleUnsigned();
+  // q8_0 FULL-int8 decode selector sourced from the GEMM CORE brick.
+  bool coreFullI8 = coreBrick.getWeightFullI8();
   // q5_0 5th-bit (qh) decode facts sourced from the GEMM CORE brick.
   bool coreHasQh = coreBrick.getWeightQhByteOffset().has_value();
   int64_t coreWeightQhOffset =
@@ -3486,6 +3654,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
             coreCx.hasQh = coreHasQh;
             coreCx.weightQhByteOffset = coreWeightQhOffset;
             coreCx.offsetBias = coreOffsetBias;
+            coreCx.fullI8 = coreFullI8;
             llvm::SmallVector<mlir::Value> sumi32 =
                 emitRepackGemmQ4LaneWiseIntegerCore(rewriter, loc, coreCx, bl, al,
                                                     roff, cLo, cHi);

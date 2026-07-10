@@ -11102,7 +11102,18 @@ def RepackLaneWiseQ4Q8DotOp
     // q4_1 four-bit decode byte-identical. A pure decode-leaf mirror, never a
     // route/dtype WHAT.
     OptionalAttr<I64Attr>:$weight_qh_byte_offset,
-    OptionalAttr<I64Attr>:$weight_offset_bias
+    OptionalAttr<I64Attr>:$weight_offset_bias,
+    // OPTIONAL q8_0 FULL-int8 decode selector (the SIMPLEST flat sibling: NO nibble
+    // unpack). q8_0's repacked weight bytes are FULL signed int8 (one weight per
+    // contraction position, qk=32 positions per block, NOT the q4_0 16-nibble-byte
+    // lo/hi split), so the integer core loads the strip directly (vle8 i8) and does
+    // a per-position vwmul (i8xi8 -> i16) folded into an i32 IN-BLOCK accumulator
+    // (vwadd_wv i32 -- full int8 products overflow i16 after 3 terms, so the q4_0
+    // i16 vwmacc + end-of-block combine is REPLACED by i32 in-block accumulation).
+    // When set (unit) the integer-core leaf emits this full-i8 path; it is mutually
+    // exclusive with the nibble decode selectors (weight_nibble_unsigned /
+    // weight_qh_byte_offset / weight_offset_bias). A pure decode-leaf mirror.
+    UnitAttr:$weight_full_i8
   );
   let results = (outs Variadic<AnyType>:$results);
 
@@ -11439,7 +11450,15 @@ def RepackGemmLaneWiseQ4Q8DotOp
     // signed vsub of the bias. PRESENT together ONLY for q5_0; ABSENT keeps the
     // q4_0 / q4_1 four-bit decode byte-identical.
     OptionalAttr<I64Attr>:$weight_qh_byte_offset,
-    OptionalAttr<I64Attr>:$weight_offset_bias
+    OptionalAttr<I64Attr>:$weight_offset_bias,
+    // OPTIONAL q8_0 FULL-int8 decode selector (the GEMM sibling of the GEVM core
+    // brick's flag): q8_0's repacked weight bytes are FULL signed int8, so the GEMM
+    // integer core loads the ONE runtime strip directly (vle8 i8 at qs[i*16 + roff])
+    // and does a per-position/per-column vwmul (i8xi8 -> i16) folded into an i32
+    // IN-BLOCK accumulator (vwadd_wv i32), over qk=32 positions -- NO nibble lo/hi
+    // split. When set (unit) the GEMM integer-core leaf emits this full-i8 path;
+    // mutually exclusive with the nibble decode selectors. A pure decode-leaf mirror.
+    UnitAttr:$weight_full_i8
   );
   let results = (outs Variadic<AnyType>:$results);
 

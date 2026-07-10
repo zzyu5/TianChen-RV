@@ -471,8 +471,20 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
          &VariantToEmitCFunc::emitRepackGemmIq2XsQ8K},
         {&isRepackGemmIq2SQ8KBody,
          &VariantToEmitCFunc::emitRepackGemmIq2SQ8K},
-        {&isRepackGemvQ8_0Q8_0Body,
-         &VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0},
+        // NOTE (G3-lode-flat FLAT-4 收官格): the q8_0 16x1-repacked GEVM direct
+        // emitter (emitRepackGemvQ8_0Q8_0) + recognizer (isRepackGemvQ8_0Q8_0Body)
+        // are RETIRED from the production dispatch (the monolith op
+        // tcrv_rvv.repack_gemv_q8_0_q8_0 + emitter remain defined as lit-only
+        // scaffolding): the repack front door now CONSTRUCTS the typed
+        // tcrv_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
+        // "lane_wise_vector_scale", the q4_0 d-only fold WHOLE) carrying the SHARED
+        // tcrv_rvv.repack_lane_wise_q4_x_i8_dot / repack_gemm_lane_wise_q4_x_i8_dot
+        // CORE brick stamping weight_full_i8 (the FULL-int8 variant: vle8 i8 +
+        // per-position vwmul/vwadd_wv i32 in-block accumulation, NO nibble decode),
+        // lowered by isTypedRepackGem{v,m}LoopBody -> emitTypedRepackGem{v,m}LoopBody's
+        // default path -> emitRepackQ4LaneWiseIntegerCore / emitRepackGemmQ4LaneWise
+        // IntegerCore's fullI8 branch (byte-exact GEVM to the retired direct emitter;
+        // NET-NEW oracle-validated GEMM). The SIMPLEST flat family, the LAST FLAT-4.
         // NOTE (G3 主线A T2-construct): the q4_K 16x1-repacked GEVM direct emitter
         // (emitRepackGemvQ4KQ8K) + its monolith op (tcrv_rvv.repack_gemv_q4_K_q8_K)
         // + recognizer (isRepackGemvQ4KQ8KBody) are RETIRED: the repack front door

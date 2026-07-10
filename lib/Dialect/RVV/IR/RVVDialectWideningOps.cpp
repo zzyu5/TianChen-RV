@@ -922,7 +922,8 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
     return name == "kind" || name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "weight_nibble_unsigned" ||
-           name == "weight_qh_byte_offset" || name == "weight_offset_bias";
+           name == "weight_qh_byte_offset" || name == "weight_offset_bias" ||
+           name == "weight_full_i8";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -938,10 +939,24 @@ mlir::LogicalResult RepackLaneWiseQ4Q8DotOp::verify() {
              << "only accepts the bounded repacked lane-wise dot attributes "
                 "'kind', 'weight_quant_byte_offset', "
                 "'activation_quant_byte_offset', 'integer_core_lmul', the "
-                "optional q4_1 'weight_nibble_unsigned' decode selector, and the "
+                "optional q4_1 'weight_nibble_unsigned' decode selector, the "
                 "optional q5_0 'weight_qh_byte_offset' / 'weight_offset_bias' "
-                "5th-bit decode facts; unexpected attribute '"
+                "5th-bit decode facts, and the optional q8_0 'weight_full_i8' "
+                "full-int8 decode selector; unexpected attribute '"
              << attr.getName() << "'";
+  }
+
+  // OPTIONAL q8_0 FULL-int8 decode selector (I7): the SIMPLEST flat decode (no
+  // nibble unpack, i32 in-block accumulation over qk positions). It is mutually
+  // exclusive with the nibble decode selectors -- the full-i8 core has no nibble
+  // lo/hi split, no unsigned peel, and no qh 5th-bit plane.
+  if (getWeightFullI8()) {
+    if (getWeightNibbleUnsigned() || getWeightQhByteOffsetAttr() ||
+        getWeightOffsetBiasAttr())
+      return emitOpError()
+             << "weight_full_i8 (the q8_0 full-int8 decode) is mutually exclusive "
+                "with the nibble decode selectors weight_nibble_unsigned / "
+                "weight_qh_byte_offset / weight_offset_bias";
   }
 
   // OPTIONAL 5th-bit (qh) decode facts (I7): the transposed qh plane byte offset +
@@ -1921,6 +1936,17 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // stamping the single MIN offset pair.
   bool isQ51Family =
       getScaleModel() == "dual-fp16-per-block-d_x.d_y-plus-min-five-bit";
+  // q8_0 -- scale_model "dual-fp16-per-block-d_x.d_y-full-i8" (the flat QK8_0
+  // FULL-int8 contraction: the SAME q4_0 dual-fp16 d_x*d_y scale + plain q8_0
+  // activation, NO min, but each weight is a FULL signed int8 -- NO nibble unpack,
+  // qk=32 positions per block, i32 in-block accumulation). Its repack-SELECTED
+  // lowering CONSTRUCTS the SAME typed_repack_gem{v,m}_loop_body region as q4_0
+  // (fold_model "lane_wise_vector_scale", the d-only fold WHOLE) via the SHARED
+  // dual-fp16 fold brick + the q8_0 full-i8 CORE brick variant (the core stamping
+  // weight_full_i8: vle8 i8 + vwmul/vwadd_wv i32, NO nibble decode). The SIMPLEST
+  // flat family (no nibble unpack, no qh, no offset, no min).
+  bool isQ80Family =
+      getScaleModel() == "dual-fp16-per-block-d_x.d_y-full-i8";
   bool isTernaryTQ20Family =
       getScaleModel() == "superblock-d.fp16-single-scale-2bit-ternary-nomin";
   bool isTernaryTQ10Family =
@@ -1983,7 +2009,7 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   bool isCodebookIq4XsFamily =
       getScaleModel() == "superblock.fp16-signed6-scale-codebook-nomin";
   if (!isQ40Family && !isQ41Family && !isQ50Family && !isQ51Family &&
-      !isTernaryTQ20Family &&
+      !isQ80Family && !isTernaryTQ20Family &&
       !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
       !isKQuantQ2KFamily && !isKQuantQ3KFamily && !isKQuantQ5KFamily &&
       !isCodebookIq4NlFamily && !isCodebookIq4XsFamily)
@@ -1996,6 +2022,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "dual-fp16 five-bit nibble+qh family), "
               "\"dual-fp16-per-block-d_x.d_y-plus-min-five-bit\" (the q5_1 flat "
               "dual-fp16 + single-min five-bit nibble+qh family), "
+              "\"dual-fp16-per-block-d_x.d_y-full-i8\" (the q8_0 flat "
+              "dual-fp16 full-int8 family), "
               "\"superblock-d.fp16-single-scale-2bit-ternary-nomin\" (the ternary "
               "tq2_0 2-bit trit super-block family), "
               "\"superblock-d.fp16-single-scale-base3-ternary-nomin\" (the ternary "
@@ -2136,6 +2164,34 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
       return emitOpError()
              << "requires activation_high_byte_offset == 16 (q8 high half) for "
                 "the abstract q5_1 block-quantized contraction request";
+  } else if (isQ80Family) {
+    // q8_0: QK8_0 == 32, PLAIN block_q8_0 weight stride 34 (fp16 d + 32 int8
+    // quants -- the weight is itself a block_q8_0), PLAIN block_q8_0 activation
+    // stride 34, quants at +2 (after the inline fp16 scale), the q8 high half at
+    // +16. The repacked x16 weight (stride 544, FULL int8 quants @32) / block_q8_0
+    // activation (34 GEVM, interleaved block_q8_0x4 136 GEMM) facts are a stage-C
+    // materialization the q8_0 lowering derives, never carried here.
+    if (getQk() != 32)
+      return emitOpError() << "requires qk == 32 (QK8_0) for the abstract q8_0 "
+                              "block-quantized contraction request";
+    if (getWeightBlockStride() != 34)
+      return emitOpError()
+             << "requires weight_block_stride == 34 (sizeof block_q8_0: fp16 d + "
+                "32 int8 quants, the PLAIN full-int8 weight layout) for the "
+                "abstract q8_0 block-quantized contraction request";
+    if (getActivationBlockStride() != 34)
+      return emitOpError()
+             << "requires activation_block_stride == 34 (sizeof block_q8_0) for "
+                "the abstract q8_0 block-quantized contraction request";
+    if (getQuantByteOffset() != 2)
+      return emitOpError()
+             << "requires quant_byte_offset == 2 (block_q8_0 quants follow the "
+                "inline fp16 scale) for the abstract q8_0 block-quantized "
+                "contraction request";
+    if (getActivationHighByteOffset() != 16)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 16 (q8 high half) for "
+                "the abstract q8_0 block-quantized contraction request";
   } else if (isTernaryTQ20Family) {
     // ternary tq2_0: QK_K == 256, PLAIN block_tq2_0 weight stride 66 (fp16 d +
     // 64 2-bit quant bytes), PLAIN block_q8_K activation stride 292 (fp32 d + 256
@@ -13940,7 +13996,8 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
     return name == "kind" || name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "weight_nibble_unsigned" ||
-           name == "weight_qh_byte_offset" || name == "weight_offset_bias";
+           name == "weight_qh_byte_offset" || name == "weight_offset_bias" ||
+           name == "weight_full_i8";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -13956,10 +14013,23 @@ mlir::LogicalResult RepackGemmLaneWiseQ4Q8DotOp::verify() {
              << "only accepts the bounded repacked GEMM lane-wise dot attributes "
                 "'kind', 'weight_quant_byte_offset', "
                 "'activation_quant_byte_offset', 'integer_core_lmul', the "
-                "optional q4_1 'weight_nibble_unsigned' decode selector, and the "
+                "optional q4_1 'weight_nibble_unsigned' decode selector, the "
                 "optional q5_0 'weight_qh_byte_offset' / 'weight_offset_bias' "
-                "5th-bit decode facts; unexpected attribute '"
+                "5th-bit decode facts, and the optional q8_0 'weight_full_i8' "
+                "full-int8 decode selector; unexpected attribute '"
              << attr.getName() << "'";
+  }
+
+  // OPTIONAL q8_0 FULL-int8 decode selector (I7): mutually exclusive with the
+  // nibble decode selectors (the full-i8 core has no nibble lo/hi split, no
+  // unsigned peel, no qh 5th-bit plane).
+  if (getWeightFullI8()) {
+    if (getWeightNibbleUnsigned() || getWeightQhByteOffsetAttr() ||
+        getWeightOffsetBiasAttr())
+      return emitOpError()
+             << "weight_full_i8 (the q8_0 full-int8 decode) is mutually exclusive "
+                "with the nibble decode selectors weight_nibble_unsigned / "
+                "weight_qh_byte_offset / weight_offset_bias";
   }
 
   // OPTIONAL 5th-bit (qh) decode facts (I7): qh may appear WITH bias (q5_0
