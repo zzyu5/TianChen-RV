@@ -108,6 +108,7 @@ classifyTilingBottleneckShape(llvm::StringRef foldModel) {
     return RVVTilingBottleneckShape::DualPlaneWeightBound;
   if (foldModel == "codebook_flat_single_scale" ||
       foldModel == "codebook_superblock_signed6_no_min" ||
+      foldModel == "codebook_flat_e8m0_scale" ||
       foldModel == "grid_sign_single_scale_eighth" ||
       foldModel == "grid_sign_dualscale_eighth" ||
       foldModel == "lane_wise_vector_scale")

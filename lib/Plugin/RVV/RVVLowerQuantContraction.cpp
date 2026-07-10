@@ -528,6 +528,23 @@ constexpr llvm::StringLiteral kCodebookIq4XsScaleModel =
 constexpr llvm::StringLiteral kCodebookIq4XsGemmScaleModel =
     "superblock.fp16-signed6-scale-codebook-4col-nomin";
 
+// The mxfp4 codebook decode-family discriminator (retirement_batch 4, the THIRD codebook
+// sibling): the FLAT 32-element block analogue of iq4_nl WITH an E8M0 (micro-exponent)
+// shared-exponent per-column scale instead of the fp16 single scale. It rides the SAME
+// codebook core brick (RepackGem{v,m}CodebookCoreOp) + a 16-entry DOUBLED-E2M1 int8 fp4
+// codebook, but the flat single-fp16-scale fold is replaced by the E8M0 bit-construction
+// scale: each per-column weight scale is ONE E8M0 exponent BYTE reconstructed to
+// 2^(e-128) by ggml's EXACT u32-domain bit dance (vzext_vf4 -> vsll/vmerge -> vreinterpret
+// to f32, NO min, NO sub-block). A request carrying it is a flat codebook contraction whose
+// repack-SELECTED lowering CONSTRUCTS the codebook typed_repack_gem{v,m}_loop_body region
+// (fold_model "codebook_flat_e8m0_scale", decode_model "mxfp4") carrying the SHARED codebook
+// core brick. The GEMM lowering sets the 4-column-amortized variant on the constructed loop
+// body (a pure I4 mirror).
+constexpr llvm::StringLiteral kCodebookMxfp4ScaleModel =
+    "flat.e8m0-single-scale-codebook-nomin";
+constexpr llvm::StringLiteral kCodebookMxfp4GemmScaleModel =
+    "flat.e8m0-single-scale-codebook-4col-nomin";
+
 // The q4_1 decode-FAMILY discriminator (the abstract request's committed
 // scale_model WHAT): the asymmetric q4_1 flat nibble format = the q4_0 dual-fp16
 // per-block scale (d_x * d_y) PLUS a single per-block MIN term (m_x * s_y). Routing
@@ -637,6 +654,12 @@ constexpr llvm::StringLiteral kGridIq2SGemmScaleModel =
 constexpr int8_t kvalues_iq4nl[16] = {-127, -104, -83, -65, -49, -35, -22, -10,
                                       1,    13,   25,  38,  53,  69,  89,  113};
 
+// The mxfp4 DOUBLED-E2M1 int8 fp4 codebook (kvalues_mxfp4) the codebook decode indexes.
+// The abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS
+// this table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
+constexpr int8_t kvalues_mxfp4[16] = {0, 1, 2, 3, 4, 6, 8, 12,
+                                      0, -1, -2, -3, -4, -6, -8, -12};
+
 // The repacked block_iq4_nlx16 / block_q8_0{,x4} byte facts the codebook lowering
 // RECONSTRUCTS (the stage-C x16 materialization the DECLARED weight_layout_contract
 // asserts): the 16-inline-fp16-d + 256-nibble weight super-block stride (288), the weight
@@ -699,6 +722,28 @@ constexpr CodebookDecodeFacts kIq4XsDecodeFacts = {
     /*weightScalesHighByteOffset=*/32,
     /*nSubblocks=*/8,
     /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_iq4nl),
+};
+
+// mxfp4: the FLAT codebook sibling WITH the E8M0 shared-exponent scale (retirement_batch 4).
+// It RECONSTRUCTS the block_mxfp4x16 x16 weight facts (stride 272, E8M0 exponent strip @0,
+// nibbles @16) + the plain block_q8_0 activation facts (34/2 GEVM, interleaved block_q8_0x4
+// 136/8 GEMM) + the 16-entry DOUBLED-E2M1 int8 codebook (the abstract request carries none).
+// It is the FLAT sibling of iq4_nl (nSubblocks == 0, no super-block scales), so the E8M0 fold
+// rides the codebook flat fold with NO scales_l/scales_h/n_subblocks attrs.
+constexpr CodebookDecodeFacts kMxfp4DecodeFacts = {
+    /*decodeModel=*/"mxfp4",
+    /*gemmScaleModel=*/kCodebookMxfp4GemmScaleModel,
+    /*foldModel=*/"codebook_flat_e8m0_scale",
+    /*weightBlockStride=*/272,
+    /*weightQuantByteOffset=*/16,
+    /*gevmActivationBlockStride=*/34,
+    /*gevmActivationQuantByteOffset=*/2,
+    /*gemmActivationBlockStride=*/136,
+    /*gemmActivationQuantByteOffset=*/8,
+    /*weightScalesLowByteOffset=*/0,
+    /*weightScalesHighByteOffset=*/0,
+    /*nSubblocks=*/0,
+    /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_mxfp4),
 };
 
 // The block_iq2_xxsx16 / block_q8_K{,x4} byte facts the GRID lowering RECONSTRUCTS (the
@@ -1056,6 +1101,7 @@ private:
       const CodebookDecodeFacts *codebook =
           op.getScaleModel() == kCodebookIq4NlScaleModel   ? &kIq4NlDecodeFacts
           : op.getScaleModel() == kCodebookIq4XsScaleModel ? &kIq4XsDecodeFacts
+          : op.getScaleModel() == kCodebookMxfp4ScaleModel ? &kMxfp4DecodeFacts
                                                            : nullptr;
       // The GRID family (iq2_xxs GRID CODEBOOK + SIGN-PLANE single ls-scale, the FIRST
       // grid sibling) builds the grid typed_repack region + the NEW
@@ -1135,6 +1181,7 @@ private:
         op.getScaleModel() == kKQuantQ5KScaleModel ||
         op.getScaleModel() == kCodebookIq4NlScaleModel ||
         op.getScaleModel() == kCodebookIq4XsScaleModel ||
+        op.getScaleModel() == kCodebookMxfp4ScaleModel ||
         op.getScaleModel() == kGridIq2XxsScaleModel ||
         op.getScaleModel() == kGridIq2XsScaleModel ||
         op.getScaleModel() == kGridIq2SScaleModel ||

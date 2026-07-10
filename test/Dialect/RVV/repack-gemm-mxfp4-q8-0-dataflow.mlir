@@ -1,28 +1,34 @@
 // RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
 
-// The tcrv_rvv.repack_gemm_mxfp4_q8_0 op makes the ggml mxfp4 16x1-REPACKED GEMM
-// (prefill, M>>1) hot kernel first-class in the typed RVV body -- the PREFILL sibling
-// of the mxfp4 repacked GEVM: the SAME fp4-codebook memory vluxei16 gather + E8M0
-// shared-exponent scale (2^(e-128)) + i32-accumulator no-min fold, with the codebook
-// decode AMORTIZED across the 4 interleaved block_q8_0x4 activation columns. The
-// verifier is fail-closed (I7) on a wrong kind / scale model / block fact / activation
-// interleave / codebook size / a forbidden K-quant attr / a bad strip width.
+// G3 retirement_batch 4 mxfp4 codebook front-door: the monolithic
+// tcrv_rvv.repack_gemm_mxfp4_q8_0 op is RETIRED; the ggml mxfp4 16x1-REPACKED GEMM (prefill)
+// hot kernel -- the FP4-CODEBOOK + E8M0 prefill sibling of the mxfp4 GEVM -- is now
+// CONSTRUCTED as the typed tcrv_rvv.typed_repack_gemm_loop_body region (fold_model
+// "codebook_flat_e8m0_scale") carrying the tcrv_rvv.repack_gemm_codebook_core integer-core
+// brick (decode_model "mxfp4" + the 16-entry DOUBLED-E2M1 int8 codebook), block_index +
+// strip_row_offset tied (anti-bypass). The core verifier (verifyRepackCodebookCoreCommon) is
+// fail-closed (I7) on a wrong kind / decode_model / codebook size.
 
 module {
-// CHECK-LABEL: tcrv.exec.kernel @repack_gemm_mxfp4_accepts_16x1_abi
-  tcrv.exec.kernel @repack_gemm_mxfp4_accepts_16x1_abi {
+// CHECK-LABEL: tcrv.exec.kernel @repack_gemm_codebook_mxfp4_accepts_16x1_abi
+  tcrv.exec.kernel @repack_gemm_codebook_mxfp4_accepts_16x1_abi {
     tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8x4-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %nr = tcrv_rvv.runtime_abi_value {c_name = "nr", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nr", role = "source-byte-stride"} : index
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_mxfp4_accepts_16x1_abi", status = "selected-lowering-boundary"} {
-        // CHECK: tcrv_rvv.repack_gemm_mxfp4_q8_0
-        %g = tcrv_rvv.repack_gemm_mxfp4_q8_0 %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_mxfp4_q8_0", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>, integer_core_lmul = "mf2"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_codebook_mxfp4_accepts_16x1_abi", status = "selected-lowering-boundary"} {
+        // CHECK: tcrv_rvv.typed_repack_gemm_loop_body
+        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, fold_model = "codebook_flat_e8m0_scale"} {
+        ^bb0(%block_index: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
+          // CHECK: tcrv_rvv.repack_gemm_codebook_core
+          %sumi:4 = tcrv_rvv.repack_gemm_codebook_core %vx, %vy, %vl block %block_index strip %roff : index, index {kind = "repack_gemm_codebook_core", decode_model = "mxfp4", weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemm_loop_yield %acc0, %acc1, %acc2, %acc3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
       } : !tcrv_rvv.vl
     }
   }
@@ -30,62 +36,26 @@ module {
 
 // -----
 
+// The codebook GEMM core is fail-closed (I7) on a non-16-entry codebook under decode_model
+// "mxfp4" (the SHARED verifyRepackCodebookCoreCommon widened to accept "mxfp4").
 module {
-  tcrv.exec.kernel @repack_gemm_mxfp4_rejects_wrong_activation_stride {
+  tcrv.exec.kernel @repack_gemm_codebook_mxfp4_rejects_bad_codebook_size {
     tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8x4-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %nr = tcrv_rvv.runtime_abi_value {c_name = "nr", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nr", role = "source-byte-stride"} : index
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_mxfp4_rejects_wrong_activation_stride", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires activation_block_stride == 136}}
-        %g = tcrv_rvv.repack_gemm_mxfp4_q8_0 %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_mxfp4_q8_0", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @repack_gemm_mxfp4_rejects_wrong_activation_interleave {
-    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8x4-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %nr = tcrv_rvv.runtime_abi_value {c_name = "nr", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nr", role = "source-byte-stride"} : index
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
-      %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_mxfp4_rejects_wrong_activation_interleave", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires activation_interleave == 4}}
-        %g = tcrv_rvv.repack_gemm_mxfp4_q8_0 %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_mxfp4_q8_0", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 8 : i64, half_lanes = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @repack_gemm_mxfp4_rejects_bad_codebook_size {
-    tcrv.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
-      %s = tcrv_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "mxfp4-weight", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8x4-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %nr = tcrv_rvv.runtime_abi_value {c_name = "nr", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nr", role = "source-byte-stride"} : index
-      %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
-      %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_mxfp4_rejects_bad_codebook_size", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires a 16-entry doubled-E2M1 int8 codebook}}
-        %g = tcrv_rvv.repack_gemm_mxfp4_q8_0 %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_mxfp4_q8_0", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "repack_gemm_codebook_mxfp4_rejects_bad_codebook_size", status = "selected-lowering-boundary"} {
+        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "flat.e8m0-single-scale-codebook-4col-nomin", qk = 32 : i64, weight_block_stride = 272 : i64, activation_block_stride = 136 : i64, weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, fold_model = "codebook_flat_e8m0_scale"} {
+        ^bb0(%block_index: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
+          // expected-error @+1 {{requires a 16-entry non-linear int8 codebook}}
+          %sumi:4 = tcrv_rvv.repack_gemm_codebook_core %vx, %vy, %vl block %block_index strip %roff : index, index {kind = "repack_gemm_codebook_core", decode_model = "mxfp4", weight_quant_byte_offset = 16 : i64, activation_quant_byte_offset = 8 : i64, codebook = array<i8: 0, 1, 2, 3>} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemm_loop_yield %acc0, %acc1, %acc2, %acc3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
       } : !tcrv_rvv.vl
     }
   }

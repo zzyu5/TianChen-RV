@@ -402,14 +402,11 @@ private:
   // typed_repack_gem{v,m}_loop_body front door (isTypedRepackGem{v,m}LoopBody -> the
   // codebook branch, keyed off the in-region repack_gem{v,m}_codebook_core brick's
   // decode_model "iq4_nl" + its 16-entry non-linear codebook).
-  /// The FP4-CODEBOOK + E8M0 16x1-REPACKED single-output-column GEVM recognizer for
-  /// mxfp4: the nibble indexes a 16-entry doubled-E2M1 int8 codebook (fractional-
-  /// anchor MEMORY vluxei16 gather, the SAME as iq4_nl), scaled by ONE E8M0 shared-
-  /// exponent byte per column reconstructed to 2^(e-128), i32-accumulator no-min fold.
-  static bool isRepackGemvMxfp4Q8Body(tcrvrvv::WithVLOp scope);
-  /// The FP4-CODEBOOK + E8M0 16x1-REPACKED multi-output-column GEMM recognizer for
-  /// mxfp4.
-  static bool isRepackGemmMxfp4Q8Body(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 retirement_batch 4 mxfp4 codebook front-door): isRepackGem{v,m}Mxfp4Q8Body +
+  // emitRepackGem{v,m}Mxfp4Q8 are RETIRED with the mxfp4 monolith repack ops; the mxfp4
+  // repack now flows through the typed_repack_gem{v,m}_loop_body front door (the codebook
+  // branch keyed off the in-region repack_gem{v,m}_codebook_core decode_model "mxfp4" +
+  // fold_model "codebook_flat_e8m0_scale") -> emitRepackCodebookGem{v,m}BodyMxfp4.
   // NOTE (G3 M2-后 iq4_xs codebook front-door): isRepackGem{v,m}Iq4XsQ8KBody +
   // emitRepackGem{v,m}Iq4XsQ8K are RETIRED with the iq4_xs monolith repack ops; the
   // iq4_xs repack now flows through the typed_repack_gem{v,m}_loop_body front door
@@ -1853,31 +1850,46 @@ private:
       int64_t weightInterleave, int64_t activationInterleave,
       int64_t half) const;
 
-  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane GEVM (decode)
-  /// for one tcrv_rvv.repack_gemv_mxfp4_q8_0 op. The FP4-CODEBOOK + E8M0 sibling of
-  /// emitRepackGemvIq4NlQ80: the SAME 16-entry MEMORY codebook GATHER (vzext -> u16
-  /// byte offset -> vluxei16_v_i8 through the doubled-E2M1 kvalues_mxfp4 table) and
-  /// i32-accumulator (vwmul + vwadd_wv) no-min integer core, but the per-column weight
-  /// scale is ONE E8M0 shared-exponent BYTE (not fp16): the strip loads the 16 E8M0
-  /// bytes as a lane vector and reconstructs 2^(e-128) per lane by ggml's EXACT bit
-  /// construction (vzext_vf4 -> vsll/vmerge -> vreinterpret to f32), then folds
-  /// dC = scale_x * fp16(y.d) via vfmul_vf. The 16-entry codebook is emitted ONCE as
-  /// a `static const int8_t[16]` decl above the loop.
-  mlir::LogicalResult emitRepackGemvMxfp4Q8(
+  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane GEVM (decode) body
+  /// from the FRONT DOOR: the byte-exact body of the mxfp4 direct emitter, refactored to
+  /// take the mapped ABI values + block-format facts (including the doubled-e2m1 codebook)
+  /// as PARAMETERS. Called ONLY from emitTypedRepackGemvLoopBody's codebook branch (gated
+  /// on the in-region tcrv_rvv.repack_gemv_codebook_core anti-bypass brick, decode_model
+  /// "mxfp4", fold_model "codebook_flat_e8m0_scale"). The E8M0 sibling of
+  /// emitRepackCodebookGemvBodyIq4Nl: the SAME 16-entry memory codebook GATHER (vluxei16) +
+  /// i32-accumulator no-min integer core, but the per-column weight scale is ONE E8M0
+  /// shared-exponent BYTE reconstructed to 2^(e-128) by the u32-domain bit dance
+  /// (vzext_vf4 -> vsll/vmerge -> vreinterpret to f32), folded via vfmul_vf. RESULT-LESS.
+  mlir::LogicalResult emitRepackCodebookGemvBodyMxfp4(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t weightQuantOffset, int64_t activationQuantOffset,
+      llvm::ArrayRef<int8_t> codebook, int64_t weightInterleave,
+      int64_t half) const;
 
-  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM for
-  /// one tcrv_rvv.repack_gemm_mxfp4_q8_0 op. The mxfp4 prefill sibling of
-  /// emitRepackGemvMxfp4Q8: the SAME memory fp4-codebook-gather decode + E8M0 vector
-  /// scale reconstruction + i32-accumulator no-min fold, with the codebook decode and
-  /// E8M0 reconstruction AMORTIZED across the 4 interleaved block_q8_0x4 activation
-  /// columns.
-  mlir::LogicalResult emitRepackGemmMxfp4Q8(
+  /// Emit the COMPLETE ggml mxfp4 x q8_0 16x1-REPACKED block-as-lane PREFILL GEMM body
+  /// from the FRONT DOOR: the byte-exact body of the mxfp4 direct emitter, refactored to
+  /// take the mapped ABI values + block-format facts as PARAMETERS. Called ONLY from
+  /// emitTypedRepackGemmLoopBody's codebook branch (gated on the in-region
+  /// tcrv_rvv.repack_gemm_codebook_core anti-bypass brick, decode_model "mxfp4"). The mxfp4
+  /// prefill sibling of emitRepackCodebookGemvBodyMxfp4: the SAME memory fp4-codebook-gather
+  /// decode + E8M0 vector scale reconstruction + i32-accumulator no-min fold, with the
+  /// codebook decode and E8M0 reconstruction AMORTIZED across the 4 interleaved
+  /// block_q8_0x4 activation columns. Ships PLAIN (untiled): the memory-gather decode already
+  /// sits at the <=32-vreg cliff, so S6 output tiling is a structural no-op. RESULT-LESS.
+  mlir::LogicalResult emitRepackCodebookGemmBodyMxfp4(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t weightQuantOffset,
+      int64_t activationQuantOffset, llvm::ArrayRef<int8_t> codebook,
+      int64_t weightInterleave, int64_t activationInterleave,
+      int64_t half) const;
 
   /// Emit the COMPLETE ggml iq4_xs x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
   /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
