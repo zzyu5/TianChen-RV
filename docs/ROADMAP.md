@@ -7,6 +7,11 @@
 ## 北极星（成熟 compiler 终态）
 C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** + **sealed Win ≥1** + **论文三贡献证据链闭合**
 
+## 方向定调（2026-07-10 合并裁决入档）
+- **rvv 四格蒸发 = gcc 后端质量 + 历史赛制不对称清算，非 kernel 实力问题**。我方出货 = **clang .o 正门**（L3 定义），**永不立项"适配 gcc"**。
+- **但 rvv e2e 0.764× 内含真问题**：micro +88% → e2e −24% 的蒸发（clang 对称口径下仍在）**未归因**，定性为 **L2 布局/调度对内存层级的适配缺口**——在我方刀域内，立 [RVV-E2E] 攻坚（GAP-1 最大客户）。
+- **sealed Win 通道 = [K1-SEAL]**（k1 出货即 clang → kernel-轴幸存，是最可能兑现 e2e 传导的板）。
+
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
@@ -17,18 +22,19 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | sealed Win | **0**（q4_K e2e 终审 CONFIRMED：部署身份修复 clang-.o 回升 2.29×，但 0.764× 仍 <parity → 非 win；kernel 账 gcc-对称 0.272×；micro↛e2e） |
 
 ## 在飞
-**[CASE-COMPILER-ASYMMETRY]** Stage-0 **定案 CONFIRMED ✓**（0a 双编译 71/3 vs 820/742 + 0b 对称 gcc 0.272× + 0c clang-.o 部署回升 2.29× 但 <parity，三发咬合无第四反转）→ **Stage-1 重测段**（rvv 3 + k1 2 承重-不对称格对称重测）
+- **[CASE-COMPILER-ASYMMETRY]** Stage-0/1 **全收 ✓** → **Stage-2 双账本落宪**（执行中，一次改禁双改）
+- **[K1-SEAL]** 冲刺（sealed Win 关键路径：k1 clang .o 正门 + 五验 + 传导账 + e2e；结果兼作 RVV-E2E H2 跨板对照臂）
+- **[RVV-E2E]**（G3-rvv-e2e-gap）M0 归因审计（H-A repack 计时 / H-B 冷流布局 / H-C 形状失配；禁提前动刀）
+- **FLAT** q5_1 构造（后二格第一格）
 
 ## 排队（顺序即优先级）
-1. **Stage-1 重测段**（承重-不对称格对称重测）
-2. **Stage-2 双账本落宪**（kernel 账对称强制 / 系统账工具链披露 + 宪章修订 + 部署 SOP）
-3. **FLAT 后三格**（q5_0 / q5_1 / q8_0，正确性、编译器无关）
-4. ~~q4_K sealed 重评（若 0c 回升 → 八门重走）~~ — **条件不满足 MOOT**（0c 回升 2.29× 但 0.764× 未达 parity；q4_K e2e = 诚实 null/loss，非 sealed 候选）
-5. **iq2-grid 立项裁决**（retirement 蓝图已备）
-6. **IME gating 报告**（**当前确定触发点 = asymmetry 案结 ∧ FLAT 收口**）
-7. **矿脉余格**
-8. **M4 门冲刺**（C_construct ≥90%）
-9. **写作期裁决**
+1. **Stage-2 双账本落宪**（执行中 · kernel 账对称强制 / 系统账工具链披露 + 宪章修订 + 部署 SOP + 结案）
+2. **[K1-SEAL] 冲刺**（sealed Win 关键路径 · M0 并行同板批）
+3. **[RVV-E2E] 攻坚**（M0 归因 → M1 对号修复[tile-schedule 轴 + Zicbop [CACHE-HINT] 首客] → M2 复测：≥parity 翻正 / 否则 e2e-regime 诚实回退）
+4. **FLAT 后二格**（q5_1 / q8_0，正确性、编译器无关）
+5. **iq2-grid 立项裁决**（retirement 蓝图已备，排 FLAT 收口）
+6. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口）
+7. **矿脉余格** · **M4 门冲刺**（C_construct ≥90%） · **写作期裁决**
 
 ## 论文素材现状
 - **C1** 完整 ｜ **C2** 三谱系 ｜ **C3′** 7/7 + [XFER-1]

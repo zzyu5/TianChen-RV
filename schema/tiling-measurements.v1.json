@@ -21,18 +21,27 @@
       "variant": "the RVVRepackTilingVariant this row measures (\"plain\" | \"s6_tiled\").",
       "selected": "true on the winning variant of its (declared_instance_hash, kernel) group (the memoized argmin the in-memory view returns); false on the runner-up.",
       "register_cliff_reached": "true iff the S6 stack-panel drove hot-loop live-value spill to 0 and maxVreg <= v30 (the <=32-vreg cliff) for this variant -- the structural decision gate.",
-      "vs_ggml_blockdot_ratio": "measured speedup of this variant vs the REAL-dispatched ggml factory block-dot (>1 = our kernel faster). Board rvv/VLEN128, single core.",
-      "ab_wall_ratio_tiled_over_untiled": "the paired-cold A/B wall-time ratio s6_tiled/plain (>1 = s6_tiled faster). Recorded on the group, mirrored on both rows.",
+      "vs_ggml_blockdot_ratio": "measured speedup of this variant vs the REAL-dispatched ggml factory block-dot (>1 = our kernel faster). Board rvv/VLEN128, single core. ***[CASE-COMPILER-ASYMMETRY 2026-07-10] CAVEAT***: the opponent here = board-SHIPPED libggml-cpu.so (rvv board = GCC-15) while ours = clang-17 => this ratio is a clang-ours-vs-gcc-shipped COMPILER-ASYMMETRY artifact, NOT a same-compiler kernel-quality result. Symmetric gcc/gcc remeasure EVAPORATES the seed values (q4_K 1.884->0.272, q2_K 1.413->0.386, q5_K 2.193->0.775). This field is a KERNEL-ACCOUNT-WITHDRAWN成色 note ONLY; the SELECTOR never keys on it (see case_compiler_asymmetry.selector_unaffected).",
+      "ab_wall_ratio_tiled_over_untiled": "the paired-cold A/B wall-time ratio s6_tiled/plain (>1 = s6_tiled faster). Recorded on the group, mirrored on both rows. NOTE: both legs are OURS-clang (internal PRE/POST) => compiler-SYMMETRIC => this ratio SURVIVES [CASE-COMPILER-ASYMMETRY] and is a valid selection input.",
       "board_identity": {
         "vlen": "measured VLEN bits (128).",
         "vreg_count": "architectural vector register count (32 for rvv1.0).",
-        "march": "the -march the measurement was taken under (rv64gcv)."
+        "march": "the -march the measurement was taken under (rv64gcv).",
+        "toolchain": "***[CASE-COMPILER-ASYMMETRY 2026-07-10] deployment-toolchain dimension*** (now part of the measurement key). {ours, opp_shipped}: for the rvv/VLEN128 seed rows ours=clang-17, opp_shipped=gcc-15 (board's shipped ggml). A vs_ggml_blockdot_ratio is only same-compiler-valid when ours==opp_shipped; when they differ it is a system-account observation (clang-domain codegen), not a kernel-account beat."
       },
       "byte_exact_gate": "\"pass\" -- a row is written ONLY past the byte-exact gate (fail-closed: an un-gated timing is never cached; both variants are bit-identical vs the construction oracle).",
       "source": "the T8 ledger row + originating commit the measurement is transcribed from.",
       "ts": "ISO-8601 UTC timestamp of the measurement (sentinel \"0\" for the transcribed seed rows)."
     },
-    "fail_closed_revalidate": "The selector discards a cached winner that is no longer feasible under the current capability facts (Stage-1 legality re-check) and falls back to the prior -- a stale cache never forces an infeasible variant."
+    "fail_closed_revalidate": "The selector discards a cached winner that is no longer feasible under the current capability facts (Stage-1 legality re-check) and falls back to the prior -- a stale cache never forces an infeasible variant.",
+    "case_compiler_asymmetry": {
+      "status": "CASE CLOSED 2026-07-10 (user-approved); parallel to [CASE-MINTERM].",
+      "finding": "The seed vs_ggml_blockdot_ratio values on the rvv/VLEN128 s6_tiled rows (q4_K 1.884, q2_K 1.413, q5_K 2.193) are clang-ours(-O2)-vs-gcc-shipped-block-dot COMPILER-ASYMMETRY artifacts. Symmetric gcc/gcc remeasure evaporates them to LOSS (0.272 / 0.386 / 0.775; q5_K-L1 1.5-1.62->0.120). The rvv board ships a GCC-15-compiled ggml; ours is clang-17. gcc 820-vsetvli/742-spill vs clang 71/3-spill = the 5.6x codegen gap that manufactured the apparent win.",
+      "selector_unaffected": "THE SELECTION IS UNAFFECTED. SP4 (tiled-vs-plain) keys on register_cliff_reached (spill->0, maxVreg<=v30 = objdump/codegen fact, compiler-symmetric) AND the internal ab_wall_ratio_tiled_over_untiled (both legs ours-clang, compiler-symmetric). It NEVER keys on vs_ggml_blockdot_ratio. So the memoized argmin winner (s6_tiled where the cliff is reached) is correct regardless of the artifact; vs_ggml_blockdot_ratio is a成色/reporting note only.",
+      "double_ledger": "kernel-account (source-quality claim) = compiler-symmetry FORCED; system-account (product comparison) = each side own full stack + toolchain disclosure + strongest-baseline column. Deployment SOP: ship clang .o object export (front door); never inject our .inc into the opponent's gcc build chain. See docs/canon/TianChen-RV_执行总纲v2.md §7 items 4/5.",
+      "k1_reversal": "On k1/VLEN256 the shipped ggml is CLANG-18 (CMakeCache + objdump 19/0 four-proof), so k1 kernel-axis 3.106x/1.916x are ALREADY symmetric-clang and SURVIVE as as-shipped micro beats (NON-e2e). Discriminator key = board-shipped compiler (rvv=gcc, k1=clang).",
+      "authority": ["docs/reports/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md", "experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md", "experiments/active/result-tables/T-VALIDITY-STAGE1_rvv_symmetric_remeasure.md"]
+    }
   },
 
   "measurements": [
@@ -41,7 +50,7 @@
       "kernel": "q4_K", "variant": "s6_tiled", "selected": true,
       "register_cliff_reached": true, "vs_ggml_blockdot_ratio": 1.884,
       "ab_wall_ratio_tiled_over_untiled": 1.96,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q4_K-repack-gemm-tile-S6-minfold-stackpanel (spill 84->23->3, v30 cliff, parity 1.473->1.884); commit 5f194cbd",
       "ts": "0"
@@ -51,7 +60,7 @@
       "kernel": "q4_K", "variant": "plain", "selected": false,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.962,
       "ab_wall_ratio_tiled_over_untiled": 1.96,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q4_K-repack-gemm golden/S1 untiled (parity 0.962x reproduces the L1-candidate 0.94-0.97 band); commit d5a28efc",
       "ts": "0"
@@ -61,7 +70,7 @@
       "kernel": "q2_K", "variant": "s6_tiled", "selected": true,
       "register_cliff_reached": true, "vs_ggml_blockdot_ratio": 1.413,
       "ab_wall_ratio_tiled_over_untiled": 6.653,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q2_K-repack-gemm-tile-S6-minfold-stackpanel (spill 619->7, v30 cliff, parity 0.212->1.413, A/B 6.653x); G3-主线A-T3-q2_K",
       "ts": "0"
@@ -71,7 +80,7 @@
       "kernel": "q2_K", "variant": "plain", "selected": false,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.212,
       "ab_wall_ratio_tiled_over_untiled": 6.653,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q2_K-repack-gemm untiled (0.212x reproduces board-harvest2 ~0.20x loss); G3-主线A-T3-q2_K",
       "ts": "0"
@@ -81,7 +90,7 @@
       "kernel": "q5_K", "variant": "s6_tiled", "selected": true,
       "register_cliff_reached": true, "vs_ggml_blockdot_ratio": 2.193,
       "ab_wall_ratio_tiled_over_untiled": 1.417,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q5_K-repack-gemm-tile-T3-S6-HOLDS (min-fold survives qh plane; spill 155->105, v30 cliff, parity 1.547->2.193, A/B +41.7%); G3-主线A-T3-q5_K",
       "ts": "0"
@@ -91,7 +100,7 @@
       "kernel": "q5_K", "variant": "plain", "selected": false,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 1.547,
       "ab_wall_ratio_tiled_over_untiled": 1.417,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q5_K-repack-gemm untiled (already lean, already a 1.547x win); G3-主线A-T3-q5_K",
       "ts": "0"
@@ -101,7 +110,7 @@
       "kernel": "q6_K", "variant": "plain", "selected": true,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.184,
       "ab_wall_ratio_tiled_over_untiled": 0.985,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q6_K-repack-gemm-tile-T3-stackpanel-NULL (S6 does NOT transfer: spill 913->949 ROSE, v31 no cliff, A/B 0.985 tiled slower); commit 924dc31f-baseline. HONEST weight-bound measured fallback: tiling is a NULL lever, plain wins.",
       "ts": "0"
@@ -111,7 +120,7 @@
       "kernel": "q6_K", "variant": "s6_tiled", "selected": false,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.181,
       "ab_wall_ratio_tiled_over_untiled": 0.985,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q6_K-repack-gemm S6 tiled (spill ROSE to 949, v31, -1.5% regression, still ~5.4x loss); commit 924dc31f-baseline",
       "ts": "0"
@@ -121,7 +130,7 @@
       "kernel": "q3_K", "variant": "plain", "selected": true,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.176,
       "ab_wall_ratio_tiled_over_untiled": 1.080,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q3_K-repack-gemm-tile-T3-NULL-XFER1-weight-bound ([XFER-1] validation#1 HIT: weight-bound NULL predicted AND confirmed; spill 978->894, v31 no cliff). PLAIN wins per 更简单者胜: the tiled +8% is a non-cliff byte-exact overhead-shave that does NOT flip the ~5.2x loss (order-of-magnitude short of q2_K +565%). G3-主线A-T3-q3_K",
       "ts": "0"
@@ -131,7 +140,7 @@
       "kernel": "q3_K", "variant": "s6_tiled", "selected": false,
       "register_cliff_reached": false, "vs_ggml_blockdot_ratio": 0.191,
       "ab_wall_ratio_tiled_over_untiled": 1.080,
-      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv"},
+      "board_identity": {"vlen": 128, "vreg_count": 32, "march": "rv64gcv", "toolchain": {"ours": "clang-17", "opp_shipped": "gcc-15"}},
       "byte_exact_gate": "pass",
       "source": "T8 row q3_K-repack-gemm S6 tiled (+8% wall shave but v31 no cliff, still ~5.2x loss = NOT the register-cliff lever); G3-主线A-T3-q3_K",
       "ts": "0"

@@ -17,8 +17,10 @@
   全链路、VLEN256 已路由、仅 VLEN128 gate OFF；我方一行翻开 + 字节等价构造）。链 memory `[[q4-0-e2e-is-routing-not-kernel]]`；
   **禁以 5.9× 外推 K-quant**（K-quant VLEN128 无可翻 gate）。
 - **min-term 案 = CASE CLOSED（M4 定案 commit `4f765790`）**：吞吐/byte-exact 全 RESTORED；perf 数立在**现已证正确的 kernel** 上。
-- **kernel-轴 ≠ e2e**：K-quant S6 tiling 数（1.884×/2.193×/1.413×）是 **kernel-轴 A/B**（单核、opponent=单线程 block-dot proxy、
-  8 [PERF-1] 门未走、[NG-4] 非 beat）；整模型 e2e = **projection**（prefill Amdahl 上限 ≈1.59×，decode NULL，measured Δ board-gated）。
+- **★kernel-轴 K-quant 数按编译器对称性重读（[CASE-COMPILER-ASYMMETRY] CASE CLOSED 2026-07-10）**：
+  - **rvv/VLEN128 vs-opponent 数（1.884×/2.193×/1.413×/1.50-1.62×）= 撤回**（kernel 账）：= clang-ours-vs-gcc-shipped **编译器不对称 artifact**；对称 gcc/gcc 重测蒸发（0.272/0.775/0.386/0.120×），e2e 对称 = 0.334/0.764× LOSS。**系统账保留**为 clang-域 codegen 观察（LLVM17≫gcc15 pattern-specific，生态碎片化素材，非 beat ggml）。
+  - **幸存 kernel-轴 = k1/VLEN256（对称-clang as-shipped，k1 出货 ggml=clang-18）**：q4_K 3.106×、q5_K 1.916×（Stage1 三口径复现）；**kernel-轴 micro，NON-e2e**（k1 e2e 另线 K1-SEAL，禁外推）。仍 [NG-4] 非 sealed 8-gate beat。
+  - 判别键 = **板出货编译器**（rvv=gcc / k1=clang）；台账 `T-VALIDITY_compiler_symmetry_ledger.md`、casefile `2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md`。
 
 ---
 
@@ -51,7 +53,7 @@
 | SEL-1 能力键控选择器（编译期 per-format 硬编码 → 运行时能力键控；键=瓶颈 SHAPE 非 format 名） | `include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h`（纯函数族）；门⑦ lit `test/Conversion/RVV/rvv-sel1-q4-k-tiling-variant-capability-keyed-gate7.mlir`（524/524 PASS）；commit `4624740f` | machine-checked（lit）；kernel-轴 |
 | 「换键不改条目」机制证明（q4_0 `lane_wise_vector_scale` 与 iq4 码本 co-map `AlreadyLean`） | C3 doc §3a；`RVVRepackTilingSelection.h` `classifyTilingBottleneckShape` | structural |
 | L1 路径赢 / L2 调度赢 / L3 字节轴（正反双证 + 缺口闭环两案例 + 家族双向） | `docs/reports/2026-07-07-paper-material-inventory.md`（L1/L2/L3 全表 + [GAP-SB]/[GAP-P1]/[GAP-RP] + 家族机理双向） | 逐行标 board-proven/kernel-only/pending/structural-block/e2e-diluted-Amdahl |
-| q4_K 吞吐兑现（S1→S6 把结构 opening 转 kernel-轴吞吐） | `T8:q4_K-repack-gemm-tile-S1-hstrip-…` + `…-tile-S6-minfold-stackpanel-…`；设计尺子 `docs/reports/2026-07-08-G3-L1-tiling-schemes.md` | **kernel-axis（[NG-4] 非 beat、非 e2e）** |
+| q4_K 吞吐兑现（S1→S6 把结构 opening 转 kernel-轴吞吐） | `T8:q4_K-repack-gemm-tile-S1-hstrip-…` + `…-tile-S6-minfold-stackpanel-…`；设计尺子 `docs/reports/2026-07-08-G3-L1-tiling-schemes.md` | **★重读（CASE-COMPILER-ASYMMETRY）**：rvv 1.884× kernel-轴数**撤回**（编译器不对称 artifact）；**internal-A/B（+52.4%/+27.9% register-cliff，均 ours-clang）+ objdump 封 = 幸存**（构造/成熟度轴，compiler-symmetric）；vs-opponent 吞吐兑现仅 **k1/VLEN256 对称-clang 3.106×**（micro，非 e2e、非 beat） |
 
 ---
 
@@ -63,15 +65,17 @@
 | ZERO-MODEL 终审法（rule spec） | `docs/reports/2026-07-09-zero-model-adjudication-method.md`（顶 CASE-CLOSED 指针）；memory `[[zero-model-adjudication-cert-hardening]]` | 入宪；首判例 CLOSED |
 | 证书三要件 CI gate（语料完备 ∧ 输入同源 ∧ oracle 独立） | `schema/cert-lineage.v1.json`（7 cert：1 failure + 2 full[M4] + 4 partial[owed/hollow 补标]）；`tools/lint/check_cert_requirements.py`（**GREEN**）；`.github/workflows/falsifier-gate.yml` `cert-requirements-gate` | **GREEN**；仍 owed = q2_K direct dmin≠0 + repack-GEVM mat-quant 头对头 |
 | ggml q8 双路径备忘（mat-quant vs row-quant） | `docs/reports/2026-07-09-ggml-q8-quant-dual-path-memo.md` | canon |
+| **[CASE-COMPILER-ASYMMETRY] 卷宗（同源反汇编→对称重测→k1 反转→双账本）** | `docs/reports/2026-07-10-CASE-COMPILER-ASYMMETRY-casefile.md`（§9 终审）+ `experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md` + Stage-1 `T-VALIDITY-STAGE1_{rvv,k1}_symmetric_remeasure.md` | **CASE CLOSED**（与 [CASE-MINTERM] 并列） |
+| **★双账本方法学（perf 主张的两把尺 = 论文素材）** | kernel 账（编译器对称强制，源码质量）/ 系统账（各方自有栈+工具链披露+最强基线列，产品对拼）；判别键=板出货编译器；`docs/canon/TianChen-RV_执行总纲v2.md` §7 第 4/5 条 | **入宪**；方法学贡献（诚实分账、避免把工具链后端成熟度差误报成算法赢） |
 
 ## 跨切面 — e2e 状态（correct-proven + perf-pending）
 
 | 项 | 指针 | 状态 |
 |---|---|---|
 | full-construct q4_K 集成正确性 | `T8:q4_K-e2e-integration-CORRECT-full-construct-rvv-vlen128`；harness `tools/e2e-harness/board/t4b_*`；`docs/reports/2026-07-10-t4b-e2e-seal-integration-proven-kernel-variant-residual.md`（部署变体残差已由 kernel-swap RESOLVED） | **correct-proven**（PPL 12.008≈12.05、OUR emitted GEVM engaged、coherent）；**perf-pending** |
-| q4_K [PERF-1] 八门 | `docs/reports/2026-07-09-q4k-8gate-status.md`（Verdict 7/8）；`T8` `[8-GATE-STATUS]` banner | **7/8 PASS · 1 partial**；④ e2e-perf = board-availability-gated（非能力缺口） |
+| q4_K [PERF-1] 八门 | `docs/reports/2026-07-09-q4k-8gate-status.md`（★Stage-2 reconcile）；`T8` `[8-GATE-STATUS]` banner | **★Stage-2 revised**：characterization 门（①②③⑥⑦⑧ = byte-exact/VLEN-flip-lit/codegen-objdump-封/纪律/selector/措辞）**稳**；perf 门塌（**④ e2e = LOSS 0.334/0.764×**、**⑤ = 板A死板B活 reframe**）；非 sealed win；kernel-轴 perf rvv 撤回 / k1 幸存 micro |
 | void gate④ = 测量纪律正面案例 | `T8` `[CASE-GATE4-VOID]`（workflow w5y3n36v8：loadavg 8-11 板测中止、0 样本、拒造数、A-tree 复原） | 正面教材（部署变体≠证过变体） |
-| 传导账 / e2e projection | `experiments/active/kquant-family-closure/transmission_account.md`；`docs/reports/2026-07-10-t4b-e2e-seal-integration-proven-kernel-variant-residual.md` | projection（prefill Amdahl ≈1.59×，decode NULL；measured Δ board-gated） |
+| 传导账 / e2e projection | `experiments/active/kquant-family-closure/transmission_account.md`；`docs/reports/2026-07-10-t4b-e2e-seal-integration-proven-kernel-variant-residual.md` | **★Stage-2 更正**：~~prefill Amdahl ≈1.59×~~ = garbage-in（喂了 clang-micro 因子 1.884 而非部署 gcc 真因子 0.334）；**measured e2e = LOSS 0.334/0.764×**（对称口径，`T-PERF1b`），非 pending。decode NULL。projection 的 kernel 因子须在部署目标同一编译器下测得。 |
 
 ## 头条数（disclosure 绑定）
 
@@ -84,7 +88,7 @@
 ## 燃减/矿脉当前状态（覆盖-构造轴，与正确性/吞吐无关）
 
 - **C_construct 66/93 = 71.0%**（过 M3 70% 门）；42→66 的 +24 全在 dequant/quantize 前门（线B），非 repack gemm_tile 轴。
-- **吞吐兑现 = 4**（RESTORED）：q4_0 e2e 5.9×（routing）+ q4_K/q5_K/q2_K S6 kernel-轴。
+- **★吞吐兑现重记（[CASE-COMPILER-ASYMMETRY] CASE CLOSED 2026-07-10）**：~~=4（q4_0 e2e 5.9× + q4_K/q5_K/q2_K S6 kernel-轴）~~。**幸存 perf 叙事** = ① **q4_0 e2e 5.9×**（routing 白嫖，byte-identical kernel 共模，对称-gcc，稳）+ ② **k1 kernel-轴**（q4_K 3.106×/q5_K 1.916×，对称-clang as-shipped micro，NON-e2e）+ ③ **clang-域 rvv**（1.884× 等，带 caveat = 系统账 codegen 观察 LLVM17≫gcc15，非 beat）+ ④ **format-micro parity**（batch2c 对称-gcc）。**撤回** = rvv vs-gcc-shipped kernel wins（q4_K/q2_K/q5_K S6 kernel-轴 = 对称 gcc/gcc 重测蒸发）。
 - **矿脉队列 = 8 待战役 gemm_tile**（flat4 `q4_1/q5_0/q5_1/q8_0` + iq2×3 + mxfp4；**FLAT 启动、`q4_1` 曳光弹在飞**）+ 9 absent；SEL-1 T4 后逐格战役、禁批量。
 - 权威三曲线 cell = `experiments/active/visibility/T7-three-curve-G3-closure.md`（顶 M4 RESTORED banner + 追认 66/93 记分板；本索引不复述曲线，只指针）。
 

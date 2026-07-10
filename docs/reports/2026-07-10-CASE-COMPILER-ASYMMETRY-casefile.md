@@ -1,8 +1,16 @@
 # [CASE-COMPILER-ASYMMETRY] 卷宗 — clang-ours vs gcc-shipped 编译器不对称 perf 主张普查
 
+> ## ★★ CASE CLOSED（2026-07-10 · 用户全批 · 与 [CASE-MINTERM] 并列结案）★★
+> **终审 = 三发咬合 CONFIRMED**（同源双编译器反汇编 → Stage-0b/Stage-1 对称重测 → 双账本落宪）。**判别键 = 板出货编译器**（rvv=gcc-15 / k1=clang-18）。
+> - **rvv 4 承重格 EVAPORATED**（kernel 账**撤回-EXECUTED**）：对称 gcc/gcc 重测 q4_K-S6 **1.884→0.272×**、q2_K-S6 **1.413→0.386×**、q5_K-T3-S6 **2.193→0.775×**、q5_K-L1 **1.50-1.62→0.120×** 全翻 LOSS；系统账保留为 clang-域 codegen 观察（LLVM17≫gcc15 pattern-specific）+ allocator/spill-bound。
+> - **k1 2 承重格 SURVIVED**（不对称→**对称-clang 幸存** reclassify）：★根因 = **k1 出货 factory ggml = clang-18**（四证），"same asymmetry as board A" 自陈**事实错误**；q4_K-k1 **3.106×**、q5_K-k1 **1.916×** 本就对称-clang（as-shipped kernel-轴 **micro** beat，**NON-e2e**，k1 e2e 另线 K1-SEAL 禁外推）。
+> - **rvv-e2e 真问题移交 [RVV-E2E] 线**（q4_K e2e 对称 gcc=0.334× / clang=0.764×，均 <parity，是真 LOSS 非 pending）。
+> - **纪律缺口修复入宪**：same-compiler 断言接线全 harness（gate4/tiling/kernel-axis），测前先查对手编译器身份。落宪见 `执行总纲v2` §7 第 4/5 条 + `实验总纲v1` §1 第 9/10 条奠基假设失效标记。
+> - 终审细节见文末 **§9 Stage-2 终审定案**。下方 §1-§8 = Stage-1 sweep 原文（保留为过程记录）。
+
 > 建档 2026-07-10 · 分支 `refactor/full-refactor-m1` · Stage-1 sweep（纯文档/元数据，零 build/板/perf）。
 > 与 `[CASE-MINTERM]`（T8 r101-131 banner）并列结构。append-only；数值不改、既有 verdict 不改。
-> **口径冻结**：分类诊断，非 canon 重写。不对称格只标「撤回候选 pending Stage-0 定案」，不标「已撤回」。
+> **口径冻结（Stage-1 段，下方 §1-§8）**：分类诊断，非 canon 重写。不对称格只标「撤回候选 pending Stage-0 定案」，不标「已撤回」。**（Stage-2 定案见 §9，已解冻并落宪。）**
 >
 > **一句话**：q4_K micro 1.884× 及一整族 K-quant repack「vs-opponent kernel-轴」数是
 > **clang(ours) vs gcc(shipped-block-dot) 的编译器不对称测量**——同源 EmitC md5 90d454da，clang-17
@@ -38,10 +46,9 @@
 
 ## 3. 三阶段处置
 
-- **Stage-0（终审定案，未启动 / 用户裁）**：统一裁定所有「撤回候选」的最终去向（撤回 / 收窄 / clang-域保留）。本卷宗只**列**、不**定**。
-- **Stage-1（本段 = 分类诊断底账，DONE）**：翻全部 perf 格逐格标编译器对称性，产出
-  `experiments/active/result-tables/T-VALIDITY_compiler_symmetry_ledger.md`（44 行，四分类 + 承重清单 + 纪律缺口）。
-- **Stage-2（canon 修订，未启动）**：Stage-0 定案后改 T8/8-gate doc 的 verdict、措辞、memory。**本表无此职权。**
+- **Stage-0（终审定案）★DONE（2026-07-10 用户全批）**：rvv 4 承重格 = 撤回（kernel 账）+ clang-域保留（系统账）；k1 2 格 = reclassify 对称-clang 幸存。定案细节见 §9。
+- **Stage-1（分类诊断底账 + 对称重测，DONE）**：产出 `T-VALIDITY_compiler_symmetry_ledger.md`（四分类 + 承重清单 + 纪律缺口）+ 两段对称重测 `T-VALIDITY-STAGE1_{rvv,k1}_symmetric_remeasure.md`。
+- **Stage-2（canon 修订）★DONE（2026-07-10）**：双账本入宪、T8/T-VALIDITY/8-gate/paper-index/schema 落地、奠基假设失效标记。touch-set 见 §9.6。**memory + CLAUDE.md 需改点 FLAG 主会话**。
 
 ## 4. 四分类结果（详见 T-VALIDITY 底账）
 
@@ -87,13 +94,13 @@ same-compiler 断言未成为**所有 vs-opponent 计时腿的 fail-closed 前�
 | q4_K/q5_K vs-opponent kernel 账 | **撤回候选** pending Stage-0 | ✅ 不对称（clang-ours vs gcc-shipped）；含 q2_K + k1-board-B |
 | dequantize 10.8× vs true-scalar / 3.3× vs clang-autovec | 逐一判对手编译器 | ✅ 3.3× = 对称-clang（autovec 显名 clang，幸存 clang-域）；10.8× = **指纹缺失**（scalar 侧编译器未记，partial-降级、待回定位 cell） |
 
-## 8. Pending Stage-0 终审的 items（清单，等用户裁）
+## 8. Stage-0 终审 items → ★已裁（2026-07-10 用户全批；细节见 §9）
 
-1. **13 不对称格**的统一去向：撤回 / 收窄为「clang-vs-gcc RVV 成熟度陈述」/ clang-域保留？（诚实残留 = 「LLVM-17/18 RVV 后端在此 mixed-SEW 全展开 kernel 上 ≫ GCC-15」——**非** 我方 beat ggml block-dot）。
-2. **q4_K 8-gate 台账**：③⑤ 由 r74/r75 不对称数关闭——Stage-0 需裁这两门是否随不对称撤回而重开（本表不动 8-gate verdict）。
-3. **「吞吐兑现=4」记分**：q4_K/q5_K/q2_K S6 三项 vs-opponent 承重腿撤回候选后，兑现数是否降（→ 仅 q4_0 routing 稳）？
-4. **dequantize gate4 finale**（10.8×/3.3×）：回定位存档 cell、补记双侧 {compiler,flags}，据实升/降类。
-5. **Stage-2 纪律修复立项**：same-compiler gate → 所有 vs-opponent 计时腿 fail-closed 前置（新立项，用户裁）。
+1. ~~13 不对称格统一去向~~ → **裁定**：rvv vs-opp 4 承重 = kernel 账**撤回**（对称重测蒸发）+ 系统账 clang-域观察保留（LLVM17≫gcc15 pattern-specific 生态素材，非 beat ggml）；k1 2 格 = **reclassify 对称-clang 幸存**；LOSS/NULL 腿 = moot。
+2. ~~q4_K 8-gate ③⑤~~ → **裁定**：③（objdump codegen 封）+ ⑦②（selector/lit）= codegen/机制轴**稳**（compiler-symmetric）；**④=e2e LOSS**（0.334/0.764×）、**⑤=板A死板B活 reframe**（"same asymmetry" 事实错误）；q4_K = 非 sealed win（一贯）。
+3. ~~「吞吐兑现=4」记分~~ → **裁定**：q4_0 routing 5.9×（稳）+ k1 kernel-轴 q4_K/q5_K（对称-clang 幸存,micro）；rvv S6 三项 kernel-轴**撤回**。paper-index 已更新（幸存/撤回叙事）。
+4. **dequantize gate4 finale**（10.8×/3.3×）：仍 = 指纹缺失（scalar 侧编译器未记），**留 [RVV-E2E]/后续回定位 cell 补记**（本案不阻塞结案；非承重）。
+5. ~~Stage-2 纪律修复立项~~ → **裁定 = 直接入宪**（非新立项）：same-compiler gate → 所有 vs-opponent 计时腿 fail-closed 前置（`执行总纲v2` §7 + `实验总纲v1` §1 第 10 条）。
 
 ---
 
@@ -106,4 +113,42 @@ same-compiler 断言未成为**所有 vs-opponent 计时腿的 fail-closed 前�
 - fair 已重测对照：`experiments/archive/perf-historical/ondevice-q5_K/*_ab_raw.txt`（PREFLIGHT(3) same-compiler clang 双侧实证）。
 - 相关 memory：`[[perf-finale-metric3-selector-capability]]`（dequantize gate4）、`[[q4-0-e2e-is-routing-not-kernel]]`（5.9× routing）、`[[kernel-wins-dont-transplant-to-e2e]]`、g1-hygiene-selfcheck 九.2/九.4/九.5（同构守卫未接电）。
 
-*本卷宗未 commit；touch-set = 本文件 + T-VALIDITY 底账。所有裁定 pending [CASE-COMPILER-ASYMMETRY] Stage-0 终审。*
+---
+
+## §9 Stage-2 终审定案（2026-07-10 · 用户全批 · CASE CLOSED）
+
+### 9.1 三发咬合 CONFIRMED（终审证据链）
+1. **同源双编译器反汇编**（§1，contention-immune）：部署源 md5 `90d454da` 同板同 march 编 —— gcc-15 = 820 vsetvli/742 spill、clang-17 = 71/3（gap ≈5.6×）。⇒ micro 1.884× = clang(ours)/gcc(block-dot) 编译器不对称。
+2. **对称重测蒸发**（Stage-0b + Stage-1）：对称 gcc/gcc 下 rvv 4 承重格全翻 LOSS（0.272/0.386/0.775/0.120×），clang-域参照逐格复现 historical（坐实 artifact，非噪声）。证据 `T-VALIDITY-STAGE1_rvv_symmetric_remeasure.md`。
+3. **k1 反转**（Stage-1 board B）：预测「蒸发」被证伪 —— k1 出货 factory ggml = **clang-18**（下 §9.3 四证），故 k1 原测本就对称-clang → q4_K 3.106×/q5_K 1.916× 三口径复现 SURVIVED。证据 `T-VALIDITY-STAGE1_k1_symmetric_remeasure.md`。
+
+### 9.2 板出货编译器 = 判别键
+| 板 | 出货 ggml 编译器 | 我方 | 对拼对称性 | 承重格结局 |
+|---|---|---|---|---|
+| **rvv/VLEN128** | **gcc-15.2.0** | clang-17 | **不对称** | 4 格对称 gcc/gcc 重测**蒸发** → kernel 账**撤回** / 系统账 clang-域观察保留 |
+| **k1/VLEN256** | **clang-18.1.8-Bianbu** | clang-18 | **本就对称-clang** | 2 格**幸存**（as-shipped kernel-轴 micro beat，NON-e2e） |
+
+判别键唯一决定 kernel 账去留。iq4_xs batch2b→2c（1.4556→0.7178）= 最早先例（同机制）。
+
+### 9.3 k1 反转 — factory=clang-18 四证
+1. **CMakeCache** `/data/k1build-stock/CMakeCache.txt`：`CMAKE_C_COMPILER=/usr/bin/clang-18`。
+2. **build log** `build_m1_final.log`：clang 专属诊断（`-Wdouble-promotion` `_Float16`→`float` 等）编 `quants.c.o`。
+3. **.comment 双串**：`GCC:(Bianbu 13.2.0)` **和** `Bianbu clang 18.1.8` = `-fno-integrated-as`（clang 编 + gas 汇编，gas 盖 GCC 戳）= clang-18 全程。
+4. **反汇编指纹**：factory `_vl256` = 19 vsetvli/0 spill == 我方 clang-18 重建 19/0（byte-exact）。
+⇒ "same asymmetry as board A" 自陈**事实错误**（board A/rvv=gcc → 不对称蒸发；board B/k1=clang → 对称幸存 = 一死一活）。gcc/gcc 对称在 k1 **不可行且 MOOT**（k1 无 gcc-15、gcc-13 编不了 zvfh 向量类型）。
+
+### 9.4 rvv-e2e 真问题移交 [RVV-E2E]
+q4_K micro（撤回后）不再是 perf 主张；剩下的**真问题 = rvv e2e prefill 的诚实 LOSS**：编译器对称口径 **0.334×（对称 gcc/.inc）/ 0.764×（clang/.o），均 <parity**（`T-PERF1b_q4k_e2e_prefill_regression.md`）。这是**部署 gcc 全展开 spill 病理**（S6 stack-panel 在 gcc RVV 后端退化成整寄存器访存流）+ 集成层问题,**移交 [RVV-E2E] 线**（本案不管辖 e2e perf 修复）。e2e 集成**正确性**独立成立（PPL 12.008≈stock、OUR emitted GEVM ENGAGED、贪心相干）。
+
+### 9.5 纪律缺口修复（入宪）
+**共同失效模式 = 「守卫写好了却没接电」**（同构 g1-hygiene 九.2/九.4/九.5）：same-compiler preflight 断言**存在且在 format-micro 有效**，但**未接到 repack-tiling/kernel-axis/gate4 的 vs-opponent 计时腿**。**修复（fail-closed 入宪）**：
+- same-compiler gate 提为**所有 vs-opponent 计时腿的前置**（`执行总纲v2` §7 第 1/4 条 + `实验总纲v1` §1 第 10 条）。
+- **测前先查对手出货编译器身份**（避免 k1-幸存误撤 / rvv-蒸发误关门的双向失配）。
+- **双账本 + 部署 SOP 入宪**（`执行总纲v2` §7 第 4/5 条）：kernel 账（对称强制）/ 系统账（栈披露 + 最强基线列）；出货 = clang `.o` 正门、禁 `.inc` 注入 gcc 链；测量库 `schema/tiling-measurements.v1.json` 加部署工具链维度。
+
+### 9.6 落宪 touch-set（Stage-2，未 commit，主会话提交）
+`执行总纲v2.md` §7（双账本+SOP+奠基失效）· `实验总纲v1.md` §1 第 9/10 条 · `T8_winloss_gap_ledger.csv`（6 格 `★CASE-COMPILER-ASYMMETRY` 注）· `T-VALIDITY_compiler_symmetry_ledger.md`（Stage-2 banner+reclassify）· `2026-07-09-q4k-8gate-status.md`（门④LOSS/⑤reframe）· `2026-07-10-paper-evidence-index.md`（幸存/撤回叙事）· `schema/tiling-measurements.v1.json`（toolchain 维度）。**FLAG 主会话**：`CLAUDE.md` 性能常驻规则负面清单 + memory `perf-constitution-three-layers.md` 需同步双账本（红线级/memory 级，主会话+用户处理）。
+
+---
+
+*本卷宗 Stage-1（§1-§8）为分类诊断；★Stage-2（§9）= 终审定案 + 双账本落宪,CASE CLOSED(与 [CASE-MINTERM] 并列)。未 commit；主会话提交。*
