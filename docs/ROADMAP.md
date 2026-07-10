@@ -29,14 +29,14 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
-| sealed Win | **1 · Win-K1-VLEN**（★首个：k1 VLEN256 q4_K e2e prefill 满宽 vl=16 vs 真出货 hand-brick **1.085×** CI[1.083,1.088]、byte-exact、编译器对称 clean、修法=纯 capability-input；⑤双板开放待 [FU-2]；登记册 `docs/reports/SEALED-WIN-REGISTRY.md`） |
+| sealed Win | **1 · Win-K1-VLEN（★加固升双板 · 待 ratify）**：k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs block-dot **1.336×**（两板编译器对称干净 kernel-account、各按能力事实派生杠杆 k1=lane-width/rvv=schedule）；3 caveat 全 resolved（FU-1 正交/FU-2 定⑤/FU-3 零 shim）；登记册 + 加固报告 `docs/reports/2026-07-10-Win-K1-VLEN-加固报告.md` |
 
 ## 在飞
-- **[FU-2] rvv clang-symmetric**（定 ⑤双板 kernel-account）‖ **[FU-1] k1 vl16×col-outer**（margin 上探）
-- ✅ 已收：**★首个 sealed Win = Win-K1-VLEN（1.085×）** · 定位升级 canon 修订 · [CASE-MICRO-E2E] 卷宗 · col-outer M1c · RVV-E2E 全线（M0/M1a/M1b/M1c）· certified 26→41 · C1/C2 正名 · FLAT 4/4 · Stage-0/1/2
+- （无板批在飞；加固队列 FU-1/2/3 全落，Win 升双板待 ratify）
+- ✅ 已收：**★Win-K1-VLEN 加固升双板**（FU-2 rvv 1.336× clang-对称 / FU-1 正交 null / FU-3 零 shim）· 定位升级 canon 修订 · [CASE-MICRO-E2E] 卷宗 · col-outer M1c · RVV-E2E 全线 · certified 26→41 · C1/C2 正名 · FLAT 4/4 · Stage-0/1/2
 
 ## 排队（主线区 · 顺序即优先级 · 2026-07-10 Win-K1-VLEN 后重排）
-1. **[巩固队列] Win-K1-VLEN 加固**（板批攒批、不阻塞其他）：FU-1 vl16×col-outer 叠加（k1，正交性+margin 上探）· FU-2 rvv clang-symmetric 对手建+补测（定⑤双板 kernel-account：正则升双板/负则维持单板）· FU-3 ABI 纯 drop-in（消 shim）→ 三成即出"Win-K1-VLEN 加固报告"
+1. ~~[巩固队列] Win-K1-VLEN 加固~~ **✅ 完成（2026-07-10）**：FU-1 正交 null（col-outer rvv-specific）/ FU-2 定⑤ **1.336× clang-对称 → 升双板** / FU-3 零 shim；加固报告出、**Win 升双板待用户 ratify** → 队首推进 [SEL-1-T5]
 2. **[SEL-1-T5]** dispatcher 收尾（剩余选择点位标 {capability-keyed/measured/常量序}、常量序改造、生产 dispatch 零 static_order）
 3. **iq2-grid 立项包 + [CERT-FD] 优先级裁决**（CERT-FD = dequant×21/quant×3/forward×5 补显式 construction pass、按族批量 → 认证剩 29 格）
 4. **IME gating 报告**（触发条件已齐：asymmetry 案结 ∧ FLAT 收口=q8_0 已收 → 可上桌）

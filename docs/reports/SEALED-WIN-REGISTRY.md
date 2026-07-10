@@ -9,10 +9,13 @@
 **措辞（逐字入册，八门措辞门口径）**：
 > 在 K1 板（VLEN256）、q4_K、e2e prefill：由 VLEN 能力事实驱动的满宽（vl=16）机制构造 kernel，对该板真实出货 hand-brick（clang 对称）交付 **1.085×**（中位数，95% CI [1.0828, 1.0884]，10 轮配对），byte-exact，部署五验在案。
 
-**随附已知限制（登记档不可分割部分，禁删）**：
-1. **⑤双板门开放**——rvv 侧 kernel-account 待 clang-symmetric 补测（[FU-2]）；**禁用"跨板共同 win"表述**。
-2. **ABI shim 在途**——零逻辑转发（不影响测量效度），排 follow-up 消除（[FU-3]）。
-3. **未叠加 col-outer**——上探空间（[FU-1]），非成立条件。
+**随附已知限制（登记时；★加固后状态见下）**：
+1. ~~⑤双板门开放~~——**[FU-2] RESOLVED（2026-07-10）**：rvv col-outer vs block-dot **1.336× CI[1.329,1.344]**，block-dot 编译器不敏感（1.002×）→ **编译器对称干净 kernel-account 赢 → ⑤升双板**。
+2. ~~ABI shim 在途~~——**[FU-3] RESOLVED**：fixture 路径原生符号 ABI 直配正门、**零 shim**，win 纯态成立。
+3. ~~未叠加 col-outer~~——**[FU-1] RESOLVED**：col-outer 在 k1 无显著 margin（正交、rvv-specific），vl=16 满宽即承载全部 1.085×。
+
+**★加固升格（提议，待用户 ratify · 预注册"FU-2 正→升双板"已满足；加固报告 `docs/reports/2026-07-10-Win-K1-VLEN-加固报告.md`）**：
+> **Win-K1-VLEN（升双板）** = 能力键控 schedule/lane-width 方法在两块硬件家族上各自交付干净 kernel-account e2e prefill 赢——**k1（VLEN256）vl=16 满宽 vs 真出货 hand-brick 1.085×** + **rvv（VLEN128）col-outer loop-interchange vs block-dot 1.336×**（两板皆编译器对称干净），每板经其能力事实派生对应杠杆（k1=lane-width / rvv=schedule）。**"禁跨板共同 win"限制解除** → 改述"方法双板验证"（**非同-kernel-双板、是方法跨板泛化**，更强）。
 
 **证据指针**：`docs/reports/2026-07-10-vlen-adapt-m1-k1-sealed-win-candidate.md`（1.085× CI + 五验 + byte-exact 8/8 + genuine + k1 复原）· `docs/reports/2026-07-10-k1-seal-e2e-transduction.md`（K1-SEAL 0.750× 基线 + hand-brick 对手身份）· `experiments/active/vlen-adapt/vl16_static_account.md`（M0 GREEN 判定）· 板证据 `k1:/tmp/tcrv_k1_vlen_adapt/`。
 
