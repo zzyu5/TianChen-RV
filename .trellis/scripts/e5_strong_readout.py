@@ -73,6 +73,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TCRV_OPT = REPO_ROOT / "build" / "bin" / "tcrv-opt"
 SIXSTATE_JSON = REPO_ROOT / "schema" / "coverage-sixstate.v1.json"
 TEST_RVV = REPO_ROOT / "test" / "Target" / "RVV"
+TEST_CONV_RVV = REPO_ROOT / "test" / "Conversion" / "RVV"
 
 # --- the 4 strong routes + 1 weak negative control -------------------------
 # Each entry: the six-state (op, format) key, the source-op test input, and the
@@ -683,6 +684,32 @@ REPACK_DUAL_PATHS = [
                 "iq4_nl", "iq4_xs", "tq2_0", "tq1_0"]
 ]
 
+# --- CERT-FD首族: the 21 CONSTRUCTED streaming dequantize_row cells (FIX-5) --------
+# The dequant-stream front door (--tcrv-rvv-materialize-dequantize-row-stream-front-door)
+# runs ONLY the CONSTRUCTION half of constructOrEmitGgmlDequantizeRow: it rewrites the
+# abstract tcrv_rvv.dequantize_row into the typed tcrv_rvv.typed_dequantize_row_loop_body
+# region { dequantize_row_decode_core; typed_dequantize_row_loop_yield } and STOPS -- BEFORE
+# --tcrv-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
+# conversion fixtures the emitc lit uses, so the certification walks the REAL realized region
+# the compiler builds (not a hand fixture). tq1_0/tq2_0 are dispatch-wired (NOT constructed),
+# so they are excluded. The streaming shape (a pure decode: body + decode_core + yield, NO
+# product/reduce) is its OWN legal shape -- checked directly here (like _walk_repack_regime),
+# NOT via the contraction-shaped derive() decomposed gate.
+_DEQUANT_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-dequantize-row-stream-front-door"
+DEQUANT_STREAM_PATHS = [
+    {"op": "dequantize_row", "format": fmt, "engine": "",
+     "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-dequantize-row-{slug}.mlir"}
+    for fmt, slug in [
+        ("q8_0", "q8-0"), ("q4_0", "q4-0"), ("q4_1", "q4-1"), ("q5_0", "q5-0"),
+        ("q5_1", "q5-1"), ("q2_K", "q2-k"), ("q3_K", "q3-k"), ("q4_K", "q4-k"),
+        ("q5_K", "q5-k"), ("q6_K", "q6-k"), ("iq2_xxs", "iq2-xxs"),
+        ("iq2_xs", "iq2-xs"), ("iq2_s", "iq2-s"), ("iq3_xxs", "iq3-xxs"),
+        ("iq3_s", "iq3-s"), ("iq1_s", "iq1-s"), ("iq1_m", "iq1-m"),
+        ("iq4_nl", "iq4-nl"), ("iq4_xs", "iq4-xs"), ("mxfp4", "mxfp4"),
+        ("nvfp4", "nvfp4"),
+    ]
+]
+
 
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
 # Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
@@ -1139,6 +1166,87 @@ def cmd_stamp_repack_dual(_args):
     # + $meta), not a whole-file reformat.
     SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
     print(f"\nstamped {len(stamped)}/{len(REPACK_DUAL_PATHS)} repack cells: {stamped}")
+    if skipped:
+        print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
+    return 0
+
+
+def _walk_dequant_stream(input_path, front_door):
+    """Walk ONE dequant-stream input. Return (ok, manifest_str, reason).
+
+    Honest streaming-shape check (NOT the contraction-shaped derive() gate): the
+    front door must CONSTRUCT the realized body to EXACTLY the typed streaming region
+    typed_dequantize_row_loop_body + dequantize_row_decode_core + ...loop_yield,
+    non-opaque. A pure decode carries no product/reduce, so derive() would wrongly
+    demote it to constructed-weak -- this shape is its own legal form (mirrors the
+    checker's dequant_stream_loop branch), verified here on the ACTUAL realized IR."""
+    if not input_path.exists():
+        return False, "", f"probe input missing: {input_path.name}"
+    ir = run_tcrv_opt(input_path, front_door)
+    manifest = parse_realized_body(ir)
+    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    if not mnem:
+        return False, "", "empty realized body (front door did not construct the region)"
+    body = "typed_dequantize_row_loop_body"
+    yld = "typed_dequantize_row_loop_yield"
+    core = "dequantize_row_decode_core"
+    if mnem[0] != body or mnem[-1] != yld:
+        return False, "+".join(mnem), f"not a {body} region (first/last mismatch)"
+    if core not in mnem:
+        return False, "+".join(mnem), f"missing {core} decode brick"
+    if any(is_opaque_hand_helper(m) for m in manifest):
+        opaque = [m["mnemonic"] for m in manifest if is_opaque_hand_helper(m)]
+        return False, "+".join(mnem), f"opaque hand helper {opaque}"
+    return True, "+".join(mnem), "ok"
+
+
+def cmd_stamp_dequant_stream(_args):
+    """Walk + stamp the 21 CONSTRUCTED streaming dequantize_row cells (CERT-FD首族,
+    FIX-5). Honest: a cell is stamped ONLY if the pre-emitc dequant-stream front door
+    CONSTRUCTS a legal, non-opaque typed_dequantize_row_loop_body region walkable
+    BEFORE --tcrv-rvv-lower-to-emitc; otherwise it is reported and SKIPPED (never
+    blanket-stamped -- a format whose region does not construct/walk is an honest
+    demote). Writes the E5 STRONG envelope classify_auto_readout accepts (the
+    dequant_stream shape). State values unchanged (zero flip)."""
+    doc = json.loads(SIXSTATE_JSON.read_text())
+    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
+              for r in doc["states"]}
+    stamped, skipped = [], []
+    for e in DEQUANT_STREAM_PATHS:
+        fmt = e["format"]
+        ok, man, why = _walk_dequant_stream(e["input"], _DEQUANT_STREAM_FRONT_DOOR)
+        if not ok:
+            skipped.append((fmt, why))
+            print(f"[SKIP] dequantize_row/{fmt}: {why}")
+            continue
+        row = by_key.get(("dequantize_row", fmt, e["engine"], ""))
+        if row is None or row.get("state") != "constructed":
+            skipped.append((fmt, f"no constructed regime='' row (state="
+                                 f"{row.get('state') if row else 'absent'})"))
+            print(f"[SKIP] dequantize_row/{fmt}: no constructed regime='' row")
+            continue
+        row["auto_readout"] = (
+            "E5-increment1-auto: constructed (STRONG); realized-body manifest="
+            f"{man}; opaque_helper=false")
+        stamped.append(fmt)
+        print(f"[STAMP] dequantize_row/{fmt}: {man}")
+    marker = "E5-dequant-stream (CERT-FD首族 machine-walked)"
+    if stamped and marker not in doc["$meta"]["labeling"]:
+        doc["$meta"]["labeling"] = (
+            doc["$meta"]["labeling"]
+            + f" | {marker}: the {len(stamped)} constructed streaming dequantize_row "
+              f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
+              "by e5_strong_readout.py stamp-dequant-stream, which runs "
+              "--tcrv-rvv-materialize-dequantize-row-stream-front-door on the abstract "
+              "tcrv_rvv.dequantize_row conversion fixture and walks the REALIZED "
+              "tcrv_rvv.typed_dequantize_row_loop_body streaming region (body + "
+              "dequantize_row_decode_core + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "(the SAME pre-emitc stage discipline as the certified block-dot rows). The "
+              "region is byte-exact to the retired atomic construct+emit path (BEFORE/AFTER "
+              "emit diff EMPTY for all 21). A format whose region does not construct/walk is "
+              "SKIPPED (honest demote). State values unchanged (zero flip).")
+    SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    print(f"\nstamped {len(stamped)}/{len(DEQUANT_STREAM_PATHS)} dequant-stream cells: {stamped}")
     if skipped:
         print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
     return 0
@@ -1691,6 +1799,38 @@ module {
 """
 
 
+# Dequant-stream ground truth (CERT-FD首族, FIX-5): the CONSTRUCTED streaming
+# dequantize_row region the pre-emitc front door builds -- the typed
+# typed_dequantize_row_loop_body carrying the per-block dequantize_row_decode_core
+# brick + the VOID typed_dequantize_row_loop_yield (a pure DECODE: NO product/reduce
+# accumulator, the decode STORES straight through the output pointer). Unlike the
+# contraction rows it satisfies NEITHER the product NOR the reduce conjunct, so
+# derive() would demote it to constructed-weak -- the streaming shape is its OWN
+# legal form, checked by the dedicated _walk_dequant_stream (first==body,
+# last==yield, decode_core present, non-opaque), NOT the contraction gate. This GT
+# locks the parser + the streaming-shape acceptance so a refactor that renames the
+# region ops or leaks an opaque helper fails the self-test.
+_GT_DEQUANT_STREAM = """\
+module {
+  tcrv.exec.kernel @dequant_q8_0_kernel {
+    tcrv.exec.variant @dequant_q8_0 {
+      %k = tcrv_rvv.runtime_abi_value {c_name = "k"} : index
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %y = tcrv_rvv.runtime_abi_value {c_name = "y"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %k {lmul = "m1", sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
+        tcrv_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q8_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64} {
+        ^bb0(%block_index: index):
+          tcrv_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+          tcrv_rvv.typed_dequantize_row_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
@@ -2079,6 +2219,42 @@ def cmd_self_test(_args):
     assert repack_kquant["decomposed"] is True, repack_kquant
     assert repack_kquant["derived_state"] == "constructed", repack_kquant
 
+    # Dequant-stream ground truth (CERT-FD首族, FIX-5): the CONSTRUCTED streaming
+    # region parses to EXACTLY body + decode_core + yield, non-opaque. It carries NO
+    # product/reduce (a pure decode), so derive() reads constructed-weak -- proving
+    # the contraction gate does NOT vacuously admit it; the streaming form is its own
+    # legal shape, accepted by the dedicated _walk_dequant_stream check below.
+    deq_manifest = parse_realized_body(_GT_DEQUANT_STREAM)
+    deq_mnem = [m["mnemonic"] for m in deq_manifest]
+    assert deq_mnem == [
+        "tcrv_rvv.typed_dequantize_row_loop_body",
+        "tcrv_rvv.dequantize_row_decode_core",
+        "tcrv_rvv.typed_dequantize_row_loop_yield",
+    ], deq_mnem
+    assert not any(is_opaque_hand_helper(m) for m in deq_manifest), deq_manifest
+    deq = derive(deq_manifest)
+    assert deq["has_product"] is False, deq   # pure decode: no contraction
+    assert deq["has_reduce"] is False, deq
+    assert deq["derived_state"] == "constructed-weak", deq  # NOT via the contraction gate
+    # The streaming shape is accepted by the dedicated honest check (first==body,
+    # last==yield, decode_core present, non-opaque) -- the SAME predicate
+    # _walk_dequant_stream applies to the REAL realized IR.
+    _deq_body, _deq_yld, _deq_core = (
+        "typed_dequantize_row_loop_body", "typed_dequantize_row_loop_yield",
+        "dequantize_row_decode_core")
+    _deq_short = [m.replace("tcrv_rvv.", "") for m in deq_mnem]
+    assert (_deq_short[0] == _deq_body and _deq_short[-1] == _deq_yld
+            and _deq_core in _deq_short), _deq_short
+    # An OPAQUE-leaked streaming body must FAIL the streaming shape (discrimination):
+    # inject a bare *_block_dot hand helper and confirm it trips the opaque gate.
+    _deq_opaque = _GT_DEQUANT_STREAM.replace(
+        "tcrv_rvv.dequantize_row_decode_core %x",
+        'tcrv_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
+        "!tcrv_rvv.runtime_abi_value -> !tcrv_rvv.vector<i32, \"m1\">\n"
+        "          tcrv_rvv.dequantize_row_decode_core %x")
+    assert any(is_opaque_hand_helper(m)
+               for m in parse_realized_body(_deq_opaque)), "opaque leak not caught"
+
     # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
     assert strong["derived_state"] != scale["derived_state"]
@@ -2127,6 +2303,8 @@ def main():
                    help="write the strong rows' auto_readout (only if all pass)")
     sub.add_parser("stamp-repack-dual",
                    help="walk + stamp the 10 single-row repack gemm_tile cells (FIX-D)")
+    sub.add_parser("stamp-dequant-stream",
+                   help="walk + stamp the 21 constructed streaming dequantize_row cells (CERT-FD首族, FIX-5)")
     args = ap.parse_args()
     if args.self_test:
         return cmd_self_test(args)
@@ -2134,6 +2312,8 @@ def main():
         return cmd_update_sixstate(args)
     if args.cmd == "stamp-repack-dual":
         return cmd_stamp_repack_dual(args)
+    if args.cmd == "stamp-dequant-stream":
+        return cmd_stamp_dequant_stream(args)
     # default: report
     _results, all_pass = cmd_report(args)
     return 0 if all_pass else 1

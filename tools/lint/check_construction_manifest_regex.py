@@ -70,6 +70,8 @@ ALLOWED_WRAPPERS = {
     "typed_super_block_block_dot_loop_body", "typed_super_block_block_dot_loop_yield",
     "typed_repack_gemv_loop_body", "typed_repack_gemv_loop_yield",
     "typed_repack_gemm_loop_body", "typed_repack_gemm_loop_yield",
+    # CERT-FD首族 (FIX-5): the streaming dequantize_row loop wrappers.
+    "typed_dequantize_row_loop_body", "typed_dequantize_row_loop_yield",
 }
 
 REPACK_BODY_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_body$")
@@ -136,6 +138,23 @@ def classify_shape(tokens):
         if not core:
             return None, "super_block_loop empty core (body/yield only)"
         return "super_block_loop", "typed super-block block-dot loop body/yield"
+
+    if (first == "typed_dequantize_row_loop_body"
+            and last == "typed_dequantize_row_loop_yield"):
+        # CERT-FD首族 streaming shape (FIX-5): the CONSTRUCTED dequantize_row family
+        # (block_qX -> f32 row) is a PURE DECODE -- the region carries ONE per-block
+        # dequantize_row_decode_core brick and stores straight through the output
+        # pointer (NO product/reduce/accumulator, so NOT a flat/super/repack dot).
+        # The core must be exactly the decode brick (kept NARROW: an empty body or a
+        # stray non-decode core is rejected). The wrappers/core carry no opaque
+        # *_block_dot token (is_opaque_helper_token already gated it), so a decode
+        # front door is checkable, not a hand wave.
+        core = [t for t in tokens if t not in ALLOWED_WRAPPERS]
+        if not core:
+            return None, "dequant_stream_loop empty core (body/yield only)"
+        if "dequantize_row_decode_core" not in core:
+            return None, "dequant_stream_loop missing dequantize_row_decode_core brick"
+        return "dequant_stream_loop", "typed dequantize-row streaming loop body/yield"
 
     mb, my = REPACK_BODY_RE.match(first), REPACK_YIELD_RE.match(last)
     if mb and my and mb.group(1) == my.group(1):
@@ -228,6 +247,14 @@ def self_test():
             "repack_gemm_dual_fp16_scale_fold+typed_repack_gemm_loop_yield")
     nroute = "load+load+widening_product+standalone_reduce+dequantize+store"
 
+    # CERT-FD首族 streaming dequantize_row shape (FIX-5).
+    deq_stream = ("typed_dequantize_row_loop_body+dequantize_row_decode_core+"
+                  "typed_dequantize_row_loop_yield")
+    deq_stream_empty = ("typed_dequantize_row_loop_body+"
+                        "typed_dequantize_row_loop_yield")
+    deq_stream_nocore = ("typed_dequantize_row_loop_body+some_scale_only_brick+"
+                         "typed_dequantize_row_loop_yield")
+
     flat_compact_binary = ("typed_flat_block_dot_loop_body+q1_0_q8_0_binary_sign_core+"
                            "typed_flat_block_dot_loop_yield")
     flat_compact_codebook = ("typed_flat_block_dot_loop_body+nvfp4_q8_0_codebook_core+"
@@ -245,6 +272,9 @@ def self_test():
         ("repack gemv loop", strong(gemv), True),
         ("repack gemm loop", strong(gemm), True),
         ("N-operand product_reduce route", strong(nroute), True),
+        ("dequant-stream loop (CERT-FD首族)", strong(deq_stream), True),
+        ("dequant-stream body/yield only (empty core, rejected)", strong(deq_stream_empty), False),
+        ("dequant-stream missing decode_core (rejected)", strong(deq_stream_nocore), False),
         ("opaque_helper=true", strong(flat, opaque="true"), False),
         ("empty manifest", strong(""), False),
         ("opaque hand-helper token injected", strong(

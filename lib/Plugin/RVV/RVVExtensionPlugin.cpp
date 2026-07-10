@@ -8,6 +8,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
+#include "TianChenRV/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
@@ -602,6 +603,9 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
   if (llvm::Error error = rvv::registerRVVDequantDotSourceFrontDoorPasses(
+          kRVVPluginName, registry, out))
+    return error;
+  if (llvm::Error error = rvv::registerRVVDequantizeRowStreamFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
   if (llvm::Error error = rvv::registerRVVPackedI4DotSourceFrontDoorPasses(

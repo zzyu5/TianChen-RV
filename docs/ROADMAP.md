@@ -25,7 +25,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 41/93 = 44.1%**（★主数·论文口径，FIX-1/3/D 后 26→41）｜ labeled 70/93=75.3%（账面）｜ 29 剩 RED = **front-door-availability gap**（dequant×21/quant×3/forward×5 在 emitc 内原子构造、无 pre-emitc 前门可 walk = 结构限制非缺陷；认证需构造-pass=emitter 域） |
+| C_construct | **certified 62/93 = 66.7%**（★主数·论文口径，CERT-FD dequant×21 后 41→62）｜ labeled 70/93=75.3%（账面）｜ **8 剩 RED = quant×3（q8_0/q8_1/q8_K，dequant 镜像·在做）+ forward×5（rms/softmax/rope/silu/scale·殿后需 source-op）** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |

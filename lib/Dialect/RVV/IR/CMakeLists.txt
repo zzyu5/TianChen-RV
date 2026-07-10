@@ -3,6 +3,7 @@ add_mlir_dialect_library(TianChenRVRVVDialect
   RVVDialect.cpp
   RVVDialectArithmeticOps.cpp
   RVVDialectControlOps.cpp
+  RVVDequantizeRowConstruction.cpp
   RVVDialectMemoryOps.cpp
   RVVDialectPreRealizedMemoryOps.cpp
   RVVDialectPreRealizedOps.cpp
