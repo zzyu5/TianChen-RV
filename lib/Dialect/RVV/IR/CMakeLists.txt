@@ -5,6 +5,7 @@ add_mlir_dialect_library(TianChenRVRVVDialect
   RVVDialectControlOps.cpp
   RVVDequantizeRowConstruction.cpp
   RVVQuantizeRowConstruction.cpp
+  RVVElementwiseStreamConstruction.cpp
   RVVDialectMemoryOps.cpp
   RVVDialectPreRealizedMemoryOps.cpp
   RVVDialectPreRealizedOps.cpp

@@ -11238,6 +11238,53 @@ mlir::LogicalResult ElementwiseRopeRotateCoreOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
+  // The abstract SOURCE op for the 5 CONSTRUCTED forward-elementwise operators.
+  // Fail-closed (I7): the bounded `elementwise_model` MUST be one of the 5-op
+  // allowlist, the abi_operands arity MUST match the model's ABI, the runtime
+  // element count (LAST operand) MUST be the `index` n feeding the enclosing setvl,
+  // and the leading buffer operands MUST bind runtime ABI values (the front-door
+  // construction threads them verbatim into the per-op CORE brick, whose OWN
+  // verifier then pins the exact C-types after construction). The op carries NO
+  // dataflow SEW/LMUL/policy knob (those live on setvl/with_vl); the ONLY optional
+  // knob is `strip_lmul` (the scale/rms_norm normalize strip anchor).
+  llvm::StringRef model = getElementwiseModel();
+  // model -> required abi_operands arity (n is always the last operand).
+  unsigned wantArity = 0;
+  if (model == "scale" || model == "silu")
+    wantArity = 3; // (buf0, buf1, n)
+  else if (model == "rms_norm" || model == "soft_max")
+    wantArity = 4; // (x, y, {eps|max}, n)
+  else if (model == "rope")
+    wantArity = 5; // (x, y, theta_base, theta_scale, n)
+  else
+    return emitOpError()
+           << "currently supports only elementwise_model in "
+              "{\"scale\",\"silu\",\"rms_norm\",\"soft_max\",\"rope\"}; got \""
+           << model << "\"";
+
+  mlir::OperandRange operands = getAbiOperands();
+  if (operands.size() != wantArity)
+    return emitOpError() << "elementwise_model \"" << model << "\" requires "
+                         << wantArity << " abi_operands (n last), got "
+                         << operands.size();
+
+  // The LAST operand is the runtime element count n (the index feeding setvl).
+  if (!llvm::isa<mlir::IndexType>(operands.back().getType()))
+    return emitOpError()
+           << "requires the last abi_operand to be the runtime n `index` value "
+              "(the runtime element count feeding the enclosing setvl)";
+
+  // The two leading buffer operands bind runtime ABI values (the in/out f32
+  // buffers); the CORE brick verifier pins their exact C-types post-construction.
+  for (unsigned i = 0; i < 2; ++i)
+    if (!operands[i].getDefiningOp<RuntimeABIValueOp>())
+      return emitOpError() << "requires abi_operand #" << i
+                           << " to bind a runtime ABI value (the in/out f32 buffer)";
+
+  return mlir::success();
+}
+
 // Shared fail-closed (I7) checks for the four forward-elementwise f32 support ops
 // (add/mul/cpy/gelu): the op carries ONLY its bounded `kind` mirror attr (no
 // forbidden dataflow SEW/LMUL/policy/element_count knob), its result is the f32

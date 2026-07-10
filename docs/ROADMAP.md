@@ -25,24 +25,23 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 65/93 = 69.9%**（★主数·论文口径，CERT-FD dequant×21+quant×3 后 41→65）｜ labeled 70/93=75.3%（账面）｜ **5 剩 RED = forward×5（rms/softmax/rope/silu/scale·CERT-FD 殿后族·无 abstract source op 需先造）** |
+| C_construct | **certified 70/93 = 75.3%**（★主数·论文口径，CERT-FD dequant×21+quant×3+forward×5 后 41→70）｜ labeled 70/93=75.3%（账面·certified=labeled）｜ **RED 0 · CERT-FD 全 29 格闭合（forward×5 = elementwise_stream_loop shape 机器认证）** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
 ## 在飞
-- **[M4] 触碰集核查**（CERT-FD ∥ iq2-grid 并行/串行判定，30-min）→ 据此开 CERT-FD 按族批量（dequant×21→quant×3→forward×5）+ iq2-grid 曳光弹
-- **⚠ 已 flag 待裁新立项**：**exec-级跨范式选择器能力先验**（SEL-1-T5 的 Selector-D + IME N3 gating 同一 gap：`rankKernelVariantsByCost` 常量分 RVV 1.0<IME 20.0 = 能力盲；今无害、P7 矩阵接管 GEMM 瞬间=向量静默胜/矩阵静默败）——非"收尾"域、必问/新立项，是 IME gating 关门 + P7 enabler
-- ✅ 已收：**★Win-K1-VLEN RATIFIED 双板方法验证** · SEL-1-T5（生产 dispatch 零 static_order：A/B/C 全能力键、D flag、223/223）· IME gating 报告（N2 CLOSED / N3=(b)缺键控+(c)perf-pending）· 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · certified 26→41 · FLAT 4/4
+- **⚠ 已 flag 待裁新立项**：exec-级跨范式选择器能力先验（SEL-1-T5 Selector-D + IME N3 同一 gap：`rankKernelVariantsByCost` 常量分 RVV 1.0<IME 20.0 = 能力盲；今无害、P7 矩阵接管 GEMM 瞬间静默失效）= IME gating 关门 + P7 enabler
+- ✅ 已收：**★Win-K1-VLEN RATIFIED 双板方法验证** · **CERT-FD 全闭合 dequant×21+quant×3+forward×5（certified 41→70 byte-exact 结构性；forward×5 造 GgmlForwardElementwiseOp abstract source-op + pre-emitc 前门 pass + elementwise_stream_loop cert shape）** · SEL-1-T5（生产 dispatch 零 static_order）· IME gating 报告（N2 CLOSED/N3 缺键控+perf-pending）· 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · FLAT 4/4
 
-## 排队（主线区 · 顺序即优先级 · 2026-07-10 Win-K1-VLEN 后重排）
-1. ~~[巩固队列] Win-K1-VLEN 加固~~ **✅ 完成（2026-07-10）**：FU-1 正交 null（col-outer rvv-specific）/ FU-2 定⑤ **1.336× clang-对称 → 升双板** / FU-3 零 shim；加固报告出、**Win 升双板待用户 ratify** → 队首推进 [SEL-1-T5]
-2. **[SEL-1-T5]** dispatcher 收尾（剩余选择点位标 {capability-keyed/measured/常量序}、常量序改造、生产 dispatch 零 static_order）
-3. **iq2-grid 立项包 + [CERT-FD] 优先级裁决**（CERT-FD = dequant×21/quant×3/forward×5 补显式 construction pass、按族批量 → 认证剩 29 格）
-4. **IME gating 报告**（触发条件已齐：asymmetry 案结 ∧ FLAT 收口=q8_0 已收 → 可上桌）
-5. **矿脉余格** · **M4 门冲刺**（certified 计，路径 = [CERT-FD] + 矿脉 4 + 旁路 4）
-6. **论文素材统一收口**（headline 组合已具雏形：q4_0 5.9× 路由 / Win-K1-VLEN 1.085× / RVV 翻正闭环 [CASE-MICRO-E2E] / [XFER-1] 7 命中 / 三案例卷宗 [MINTERM]+[COMPILER-ASYMMETRY]+[MICRO-E2E] / C2 诚实 1 点）
+## 排队（主线区 · 顺序即优先级）
+1. ~~[巩固队列] Win-K1-VLEN 加固~~ ✅ / ~~[SEL-1-T5] 零 static_order~~ ✅ / ~~IME gating 报告~~ ✅（本轮全落）
+2. ~~**[CERT-FD]**：dequant×21 / quant×3 / forward×5~~ ✅（certified 41→70=75.3% · CERT-FD 全 29 格闭合 · RED 0）
+3. **iq2-grid 立项 + 矿脉余格**（CERT-FD 后串行 · iq2-grid 蓝图已备 retirement 低风险 + mxfp4/…）
+4. **M4 门冲刺**（certified ≥90% · 路径 = CERT-FD ~70 + 矿脉/旁路）
+5. **exec-级选择器新立项**（待裁 · IME gating 关门 + P7 enabler）
+6. **论文素材统一收口** + **[RENAME] 改名会话**（FU 已落 · 排写作期前单独会话）
 
 ## 工程债区（与主线【并行】的卫生工作 · 排主线之后但不阻塞主线）
 > 原则（2026-07-10 入档）：工程债 = 与主线并行的卫生工作；凡提"X 完成后才回主线"必附"X 具体阻塞主线"的证据，否则默认并行。

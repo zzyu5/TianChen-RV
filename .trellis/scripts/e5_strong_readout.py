@@ -734,6 +734,36 @@ QUANT_STREAM_PATHS = [
 ]
 
 
+# --- CERT-FD殿后族: the 5 CONSTRUCTED streaming forward-elementwise cells ----------
+# The forward-elementwise front door (--tcrv-rvv-materialize-forward-elementwise-stream-
+# front-door) is the forward sibling of the dequant/quant stream front doors: it runs
+# ONLY the CONSTRUCTION half of the shared byte-exact
+# tcrv::rvv::constructTypedElementwiseLoopBody -- it rewrites each abstract
+# tcrv_rvv.ggml_forward_elementwise (elementwise_model scale/silu/rms_norm/soft_max/rope)
+# into the typed tcrv_rvv.typed_elementwise_loop_body region { <map/reduce/rotate core
+# brick>; typed_elementwise_loop_yield } and STOPS -- BEFORE --tcrv-rvv-lower-to-emitc
+# (stage discipline). The walk feeds the abstract-op conversion fixtures the emitc lit
+# uses. Unlike the dequant/quant PURE decode/encode streams, the 5 forward operators
+# split into THREE loop shapes (MAP scale/silu, REDUCE rms_norm/soft_max, ROTATE rope),
+# but ALL realize the SAME body/yield wrapper carrying ONE forward map/reduce/rotate
+# core brick (NO product/reduce contraction, so derive()'s contraction gate would
+# wrongly demote them) -- this streaming shape is its OWN legal form (mirrors the
+# checker's elementwise_stream_loop branch), verified here on the ACTUAL realized IR.
+# NOTE the six-state `op` key uses "softmax" (not "soft_max", the elementwise_model).
+_FORWARD_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-forward-elementwise-stream-front-door"
+FORWARD_STREAM_PATHS = [
+    {"op": op, "format": "f32", "engine": "", "core": core,
+     "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-forward-elementwise-{slug}.mlir"}
+    for op, core, slug in [
+        ("scale", "elementwise_scale_map", "scale"),
+        ("silu", "elementwise_silu_map", "silu"),
+        ("rms_norm", "elementwise_rms_norm_reduce_core", "rms-norm"),
+        ("softmax", "elementwise_soft_max_reduce_core", "soft-max"),
+        ("rope", "elementwise_rope_rotate_core", "rope"),
+    ]
+]
+
+
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
 # Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
 # indent), optional `%result = ` prefix (a SINGLE result `%r =`, a comma-separated
@@ -1354,6 +1384,93 @@ def cmd_stamp_quant_stream(_args):
               "construct/walk is SKIPPED (honest demote). State values unchanged (zero flip).")
     SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
     print(f"\nstamped {len(stamped)}/{len(QUANT_STREAM_PATHS)} quant-stream cells: {stamped}")
+    if skipped:
+        print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
+    return 0
+
+
+def _walk_forward_stream(input_path, front_door, core):
+    """Walk ONE forward-elementwise-stream input. Return (ok, manifest_str, reason).
+
+    The forward sibling of _walk_dequant_stream / _walk_quant_stream. Honest
+    streaming-shape check (NOT the contraction-shaped derive() gate): the front door
+    must CONSTRUCT the realized body to EXACTLY the typed streaming region
+    typed_elementwise_loop_body + <core> + typed_elementwise_loop_yield, non-opaque.
+    `core` is the model-specific brick (elementwise_scale_map | elementwise_silu_map |
+    elementwise_rms_norm_reduce_core | elementwise_soft_max_reduce_core |
+    elementwise_rope_rotate_core). A forward map/reduce/rotate carries no
+    product/reduce contraction, so derive() would wrongly demote it to
+    constructed-weak -- this shape is its own legal form (mirrors the checker's
+    elementwise_stream_loop branch), verified here on the ACTUAL realized IR."""
+    if not input_path.exists():
+        return False, "", f"probe input missing: {input_path.name}"
+    ir = run_tcrv_opt(input_path, front_door)
+    manifest = parse_realized_body(ir)
+    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    if not mnem:
+        return False, "", "empty realized body (front door did not construct the region)"
+    body = "typed_elementwise_loop_body"
+    yld = "typed_elementwise_loop_yield"
+    if mnem[0] != body or mnem[-1] != yld:
+        return False, "+".join(mnem), f"not a {body} region (first/last mismatch)"
+    if core not in mnem:
+        return False, "+".join(mnem), f"missing {core} core brick"
+    if any(is_opaque_hand_helper(m) for m in manifest):
+        opaque = [m["mnemonic"] for m in manifest if is_opaque_hand_helper(m)]
+        return False, "+".join(mnem), f"opaque hand helper {opaque}"
+    return True, "+".join(mnem), "ok"
+
+
+def cmd_stamp_forward_stream(_args):
+    """Walk + stamp the 5 CONSTRUCTED streaming forward-elementwise cells (CERT-FD
+    殿后族, closing CERT-FD). Honest: a cell is stamped ONLY if the pre-emitc
+    forward-elementwise-stream front door CONSTRUCTS a legal, non-opaque
+    typed_elementwise_loop_body region walkable BEFORE --tcrv-rvv-lower-to-emitc;
+    otherwise it is reported and SKIPPED (never blanket-stamped -- a model whose
+    region does not construct/walk is an honest demote). Writes the E5 STRONG envelope
+    classify_auto_readout accepts (the elementwise_stream shape). State values
+    unchanged (zero flip). NOTE the six-state `op` key is "softmax" (the
+    elementwise_model is "soft_max")."""
+    doc = json.loads(SIXSTATE_JSON.read_text())
+    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
+              for r in doc["states"]}
+    stamped, skipped = [], []
+    for e in FORWARD_STREAM_PATHS:
+        op = e["op"]
+        ok, man, why = _walk_forward_stream(e["input"], _FORWARD_STREAM_FRONT_DOOR,
+                                            e["core"])
+        if not ok:
+            skipped.append((op, why))
+            print(f"[SKIP] {op}/f32: {why}")
+            continue
+        row = by_key.get((op, "f32", e["engine"], ""))
+        if row is None or row.get("state") != "constructed":
+            skipped.append((op, f"no constructed regime='' row (state="
+                                f"{row.get('state') if row else 'absent'})"))
+            print(f"[SKIP] {op}/f32: no constructed regime='' row")
+            continue
+        row["auto_readout"] = (
+            "E5-increment1-auto: constructed (STRONG); realized-body manifest="
+            f"{man}; opaque_helper=false")
+        stamped.append(op)
+        print(f"[STAMP] {op}/f32: {man}")
+    marker = "E5-forward-stream (CERT-FD殿后族 machine-walked)"
+    if stamped and marker not in doc["$meta"]["labeling"]:
+        doc["$meta"]["labeling"] = (
+            doc["$meta"]["labeling"]
+            + f" | {marker}: the {len(stamped)} constructed streaming forward-elementwise "
+              f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
+              "by e5_strong_readout.py stamp-forward-stream, which runs "
+              "--tcrv-rvv-materialize-forward-elementwise-stream-front-door on the abstract "
+              "tcrv_rvv.ggml_forward_elementwise conversion fixture and walks the REALIZED "
+              "tcrv_rvv.typed_elementwise_loop_body streaming region (body + <map/reduce/"
+              "rotate core brick> + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "(the SAME pre-emitc stage discipline as the certified block-dot + dequant/"
+              "quant-stream rows). The region is byte-exact to the hand-authored typed-region "
+              "emit (BEFORE/AFTER emit diff EMPTY for all 5). A model whose region does not "
+              "construct/walk is SKIPPED (honest demote). State values unchanged (zero flip).")
+    SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    print(f"\nstamped {len(stamped)}/{len(FORWARD_STREAM_PATHS)} forward-stream cells: {stamped}")
     if skipped:
         print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
     return 0
@@ -2482,6 +2599,8 @@ def main():
                    help="walk + stamp the 21 constructed streaming dequantize_row cells (CERT-FD首族, FIX-5)")
     sub.add_parser("stamp-quant-stream",
                    help="walk + stamp the 3 constructed streaming quantize_row cells (CERT-FD次族)")
+    sub.add_parser("stamp-forward-stream",
+                   help="walk + stamp the 5 constructed streaming forward-elementwise cells (CERT-FD殿后族)")
     args = ap.parse_args()
     if args.self_test:
         return cmd_self_test(args)
@@ -2493,6 +2612,8 @@ def main():
         return cmd_stamp_dequant_stream(args)
     if args.cmd == "stamp-quant-stream":
         return cmd_stamp_quant_stream(args)
+    if args.cmd == "stamp-forward-stream":
+        return cmd_stamp_forward_stream(args)
     # default: report
     _results, all_pass = cmd_report(args)
     return 0 if all_pass else 1

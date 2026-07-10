@@ -74,7 +74,20 @@ ALLOWED_WRAPPERS = {
     "typed_dequantize_row_loop_body", "typed_dequantize_row_loop_yield",
     # CERT-FD次族: the streaming quantize_row loop wrappers (f32->QUANT mirror).
     "typed_quantize_row_loop_body", "typed_quantize_row_loop_yield",
+    # CERT-FD殿后族: the streaming forward-elementwise loop wrappers (the forward-pass
+    # map/reduce/rotate sibling of the dequant/quant streams).
+    "typed_elementwise_loop_body", "typed_elementwise_loop_yield",
 }
+
+# The 5 CONSTRUCTED forward-elementwise CORE bricks (the map/reduce/rotate primitive
+# carried inside a typed_elementwise_loop_body). A forward operator is NEITHER a
+# contraction NOR a plain dot, so it carries none of the flat/super/repack dot tokens;
+# its decomposed evidence is ONE of these forward map/reduce/rotate bricks. Kept NARROW
+# (a scale-only fp16 body carries none of them), so the check stays discriminating.
+FORWARD_CORE_RE = re.compile(
+    r"(elementwise_scale_map|elementwise_silu_map|"
+    r"elementwise_rms_norm_reduce_core|elementwise_soft_max_reduce_core|"
+    r"elementwise_rope_rotate_core)")
 
 REPACK_BODY_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_body$")
 REPACK_YIELD_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_yield$")
@@ -174,6 +187,26 @@ def classify_shape(tokens):
         if "quantize_row_encode_core" not in core:
             return None, "quant_stream_loop missing quantize_row_encode_core brick"
         return "quant_stream_loop", "typed quantize-row streaming loop body/yield"
+
+    if (first == "typed_elementwise_loop_body"
+            and last == "typed_elementwise_loop_yield"):
+        # CERT-FD殿后族 streaming shape (the forward-pass sibling of the dequant/quant
+        # streams): the 5 CONSTRUCTED forward operators (scale/silu = MAP,
+        # rms_norm/soft_max = REDUCE, rope = ROTATE) realize a typed
+        # tcrv_rvv.typed_elementwise_loop_body carrying ONE forward map/reduce/rotate
+        # CORE brick + the yield. A forward operator is NEITHER a contraction NOR a
+        # dot (no product/reduce/accumulator token), so it is NOT a flat/super/repack
+        # dot; the core must be exactly one of the 5 forward bricks (FORWARD_CORE_RE,
+        # kept NARROW: an empty body or a stray non-forward core is rejected). The
+        # wrappers/core carry no opaque *_block_dot token (is_opaque_helper_token
+        # already gated it), so a forward front door is checkable, not a hand wave.
+        core = [t for t in tokens if t not in ALLOWED_WRAPPERS]
+        if not core:
+            return None, "elementwise_stream_loop empty core (body/yield only)"
+        if not any(FORWARD_CORE_RE.search(t) for t in core):
+            return None, ("elementwise_stream_loop missing a forward map/reduce/rotate "
+                          "core brick")
+        return "elementwise_stream_loop", "typed forward-elementwise streaming loop body/yield"
 
     mb, my = REPACK_BODY_RE.match(first), REPACK_YIELD_RE.match(last)
     if mb and my and mb.group(1) == my.group(1):
@@ -282,6 +315,21 @@ def self_test():
     qnt_stream_nocore = ("typed_quantize_row_loop_body+some_scale_only_brick+"
                          "typed_quantize_row_loop_yield")
 
+    # CERT-FD殿后族 streaming forward-elementwise shapes (MAP / REDUCE / ROTATE).
+    fwd_scale = ("typed_elementwise_loop_body+elementwise_scale_map+"
+                 "typed_elementwise_loop_yield")
+    fwd_silu = ("typed_elementwise_loop_body+elementwise_silu_map+"
+                "typed_elementwise_loop_yield")
+    fwd_rms = ("typed_elementwise_loop_body+elementwise_rms_norm_reduce_core+"
+               "typed_elementwise_loop_yield")
+    fwd_softmax = ("typed_elementwise_loop_body+elementwise_soft_max_reduce_core+"
+                   "typed_elementwise_loop_yield")
+    fwd_rope = ("typed_elementwise_loop_body+elementwise_rope_rotate_core+"
+                "typed_elementwise_loop_yield")
+    fwd_empty = "typed_elementwise_loop_body+typed_elementwise_loop_yield"
+    fwd_nocore = ("typed_elementwise_loop_body+some_scale_only_brick+"
+                  "typed_elementwise_loop_yield")
+
     flat_compact_binary = ("typed_flat_block_dot_loop_body+q1_0_q8_0_binary_sign_core+"
                            "typed_flat_block_dot_loop_yield")
     flat_compact_codebook = ("typed_flat_block_dot_loop_body+nvfp4_q8_0_codebook_core+"
@@ -305,6 +353,13 @@ def self_test():
         ("quant-stream loop (CERT-FD次族)", strong(qnt_stream), True),
         ("quant-stream body/yield only (empty core, rejected)", strong(qnt_stream_empty), False),
         ("quant-stream missing encode_core (rejected)", strong(qnt_stream_nocore), False),
+        ("forward-stream MAP scale (CERT-FD殿后族)", strong(fwd_scale), True),
+        ("forward-stream MAP silu", strong(fwd_silu), True),
+        ("forward-stream REDUCE rms_norm", strong(fwd_rms), True),
+        ("forward-stream REDUCE soft_max", strong(fwd_softmax), True),
+        ("forward-stream ROTATE rope", strong(fwd_rope), True),
+        ("forward-stream body/yield only (empty core, rejected)", strong(fwd_empty), False),
+        ("forward-stream non-forward core (rejected)", strong(fwd_nocore), False),
         ("opaque_helper=true", strong(flat, opaque="true"), False),
         ("empty manifest", strong(""), False),
         ("opaque hand-helper token injected", strong(

@@ -9621,6 +9621,71 @@ def ElementwiseRopeRotateCoreOp
   let hasVerifier = 1;
 }
 
+def GgmlForwardElementwiseOp
+    : TCRVRVV_Op<"ggml_forward_elementwise",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "abstract source op for the 5 CONSTRUCTED forward-pass elementwise "
+      "operators (scale / silu / rms_norm / soft_max / rope), pre-emitc "
+      "front-door constructed into the typed_elementwise_loop_body region";
+  let description = [{
+    Records ONE of the five forward-pass f32 elementwise operators
+    (scale / silu / rms_norm / soft_max / rope) as ONE bounded abstract source op
+    nested directly under tcrv_rvv.with_vl, so the streaming CONSTRUCTION half is a
+    first-class PRE-EMITC step (the forward sibling of the abstract
+    tcrv_rvv.dequantize_row / tcrv_rvv.quantize_row_q8_{0,1,K} source ops). The
+    pre-emitc front door (RVVElementwiseStreamFrontDoor) rewrites it into the typed
+    tcrv_rvv.typed_elementwise_loop_body region carrying the per-op map/reduce/rotate
+    CORE brick + the yield, and STOPS -- BEFORE --tcrv-rvv-lower-to-emitc -- so the
+    certification walker (e5_strong_readout.py) can walk (and hence machine-certify)
+    the constructed region. The downstream emit (emitTypedElementwiseLoopBody) is
+    byte-exact unchanged and consumes the constructed region when
+    --tcrv-rvv-lower-to-emitc runs next.
+
+    The bounded `elementwise_model` fact pins WHICH forward operator, and picks BOTH
+    the reduce_map_model loop SHAPE and the CORE brick constructed:
+      - "scale"    -> reduce_map_model "map",    elementwise_scale_map (in-place
+                       y[i] *= v; the MAP family)
+      - "silu"     -> reduce_map_model "map",    elementwise_silu_map (two-buffer
+                       y[i] = x[i]*sigmoid(x[i]); the MAP family)
+      - "rms_norm" -> reduce_map_model "reduce", elementwise_rms_norm_reduce_core
+                       (Σx² f64 scalar fold + rsqrt + normalize; the REDUCE family)
+      - "soft_max" -> reduce_map_model "reduce", elementwise_soft_max_reduce_core
+                       (Σe^{x-max} f64m1 widening fold; the REDUCE family)
+      - "rope"     -> reduce_map_model "rotate", elementwise_rope_rotate_core
+                       (per-pair 2x2 rotation + f32 theta recurrence; the ROTATE
+                       family)
+    The MAP family carries no loop-carried accumulator (yield names no operand); the
+    REDUCE family carries a loop-carried f64 (rms_norm) / f64m1 (soft_max)
+    accumulator; the ROTATE family carries a loop-carried f32 theta recurrence.
+
+    The op consumes the operator's runtime ABI operands as `abi_operands` in a
+    model-specific ORDER (the FRONT-DOOR construction contract):
+      - scale:    y (`float *` inout), v (`float`), n (index)
+      - silu:     x (`const float *`), y (`float *`), n (index)
+      - rms_norm: x (`const float *`), y (`float *`), eps (`float`), n (index)
+      - soft_max: x (`const float *`), y (`float *`), max (`float`), n (index)
+      - rope:     x (`const float *`), y (`float *`), theta_base (`float`),
+                  theta_scale (`float`), n (index)
+    n is ALWAYS the last operand (the runtime element count index). The op has NO
+    result: the typed region is void; soft_max's f64 sum return is materialized at
+    emit time. Numerical semantics: identical to the authored typed region --
+    BYTE-EXACT by construction (the constructed region is op-identity/attr-identical
+    to the hand-authored typed_elementwise_loop_body). Route ids / helper names / ABI
+    strings / status fields must not infer or choose these ops' semantics.
+  }];
+
+  let arguments = (ins
+    Variadic<AnyType>:$abi_operands,
+    StrAttr:$elementwise_model,
+    OptionalAttr<StrAttr>:$strip_lmul
+  );
+
+  let assemblyFormat =
+    "$abi_operands attr-dict `:` type($abi_operands)";
+  let hasVerifier = 1;
+}
+
 // The four forward-elementwise f32 support ops (add / mul / cpy / gelu) are the
 // non-headline forward-pass support family: each is ONE bounded generic
 // plugin-local typed RVV op nested directly under tcrv_rvv.with_vl, DISPATCH-WIRED
