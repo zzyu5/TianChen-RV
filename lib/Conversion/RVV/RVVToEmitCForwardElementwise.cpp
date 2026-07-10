@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -2061,43 +2062,18 @@ mlir::LogicalResult VariantToEmitCFunc::constructQuantizeRowRegionAndLower(
     int64_t stride, int64_t scaleOff, int64_t quantOff, mlir::Value avlArg,
     mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-  mlir::Type indexType = rewriter.getIndexType();
-
-  {
-    mlir::OpBuilder::InsertionGuard g(rewriter);
-    rewriter.setInsertionPoint(quantOp);
-
-    mlir::OperationState loopState(
-        loc, tcrvrvv::TypedQuantizeRowLoopBodyOp::getOperationName());
-    loopState.addOperands({input, output, n});
-    loopState.addAttribute(
-        "kind", rewriter.getStringAttr("typed_quantize_row_loop_body"));
-    loopState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
-    loopState.addAttribute("block_stride", rewriter.getI64IntegerAttr(stride));
-    loopState.addAttribute("encode_model", rewriter.getStringAttr(encodeModel));
-    loopState.addRegion();
-    auto loopBody = llvm::cast<tcrvrvv::TypedQuantizeRowLoopBodyOp>(
-        rewriter.create(loopState));
-
-    mlir::Block *block = rewriter.createBlock(
-        &loopBody.getBody(), loopBody.getBody().end(), {indexType}, {loc});
-    mlir::Value blockIndex = block->getArgument(0);
-    rewriter.setInsertionPointToStart(block);
-
-    mlir::OperationState coreState(
-        loc, tcrvrvv::QuantizeRowEncodeCoreOp::getOperationName());
-    coreState.addOperands({input, output, blockIndex});
-    coreState.addAttribute("encode_model", rewriter.getStringAttr(encodeModel));
-    coreState.addAttribute("qk", rewriter.getI64IntegerAttr(qk));
-    coreState.addAttribute("block_stride", rewriter.getI64IntegerAttr(stride));
-    coreState.addAttribute("scale_byte_offset",
-                           rewriter.getI64IntegerAttr(scaleOff));
-    coreState.addAttribute("quant_byte_offset",
-                           rewriter.getI64IntegerAttr(quantOff));
-    rewriter.create(coreState);
-    rewriter.create<tcrvrvv::TypedQuantizeRowLoopYieldOp>(loc);
-  }
-  rewriter.eraseOp(quantOp);
+  // CONSTRUCT the typed tcrv_rvv.typed_quantize_row_loop_body region in place of
+  // the abstract quantOp via the SHARED byte-exact construction
+  // (RVVQuantizeRowConstruction) so the pre-emitc RVVQuantizeRowStreamFrontDoor pass
+  // and THIS in-emitc fallback build the IDENTICAL typed region. The per-format ABI
+  // block facts (qk/stride/scale/quant) supplied by the emitGgmlQuantizeRowQ8{0,1,K}
+  // entry points are the SAME facts lookupQuantizeRowStreamFacts returns, so the
+  // region is byte-identical either way. Then LOWER it -- the emission is DRIVEN by
+  // the typed region op-identity + encode_model ([L-6]/[L-8] construction).
+  tcrvrvv::QuantizeRowStreamFacts facts{qk, stride, scaleOff, quantOff};
+  if (mlir::failed(tcrvrvv::constructTypedQuantizeRowLoopBody(
+          rewriter, quantOp, input, output, n, encodeModel, facts)))
+    return mlir::failure();
 
   return emitTypedQuantizeRowLoopBody(rewriter, loc, scope, avlArg, sizeType,
                                       valueMap);

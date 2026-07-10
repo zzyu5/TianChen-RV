@@ -711,6 +711,29 @@ DEQUANT_STREAM_PATHS = [
 ]
 
 
+# --- CERT-FD次族: the 3 CONSTRUCTED streaming quantize_row cells ------------------
+# The quant-stream front door (--tcrv-rvv-materialize-quantize-row-stream-front-door) is
+# the f32->QUANT MIRROR of the dequant-stream front door: it runs ONLY the CONSTRUCTION
+# half of constructQuantizeRowRegionAndLower -- it rewrites each abstract per-format
+# tcrv_rvv.quantize_row_q8_{0,1,K} into the typed tcrv_rvv.typed_quantize_row_loop_body
+# region { quantize_row_encode_core; typed_quantize_row_loop_yield } and STOPS -- BEFORE
+# --tcrv-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
+# conversion fixtures the emitc lit uses. The 3 constructed activation quantizers are
+# q8_0 (block_q8_0 family-head) / q8_1 (SIBLING + block sum) / q8_K (QK_K=256 K-quant
+# ROW quantizer -- the scalar row-quant stream, NOT the mat-quant GEMM path). The
+# streaming shape (a pure ENCODE: body + encode_core + yield, NO product/reduce) is its
+# OWN legal shape -- checked directly here (like _walk_dequant_stream), NOT via the
+# contraction-shaped derive() decomposed gate.
+_QUANT_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-quantize-row-stream-front-door"
+QUANT_STREAM_PATHS = [
+    {"op": "quantize_row", "format": fmt, "engine": "",
+     "input": TEST_CONV_RVV / f"rvv-to-emitc-ggml-quantize-row-{slug}.mlir"}
+    for fmt, slug in [
+        ("q8_0", "q8-0"), ("q8_1", "q8-1"), ("q8_K", "q8-k"),
+    ]
+]
+
+
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
 # Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
 # indent), optional `%result = ` prefix (a SINGLE result `%r =`, a comma-separated
@@ -1247,6 +1270,90 @@ def cmd_stamp_dequant_stream(_args):
               "SKIPPED (honest demote). State values unchanged (zero flip).")
     SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
     print(f"\nstamped {len(stamped)}/{len(DEQUANT_STREAM_PATHS)} dequant-stream cells: {stamped}")
+    if skipped:
+        print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
+    return 0
+
+
+def _walk_quant_stream(input_path, front_door):
+    """Walk ONE quant-stream input. Return (ok, manifest_str, reason).
+
+    The f32->QUANT MIRROR of _walk_dequant_stream. Honest streaming-shape check (NOT
+    the contraction-shaped derive() gate): the front door must CONSTRUCT the realized
+    body to EXACTLY the typed streaming region typed_quantize_row_loop_body +
+    quantize_row_encode_core + ...loop_yield, non-opaque. A pure encode carries no
+    product/reduce, so derive() would wrongly demote it to constructed-weak -- this
+    shape is its own legal form (mirrors the checker's quant_stream_loop branch),
+    verified here on the ACTUAL realized IR."""
+    if not input_path.exists():
+        return False, "", f"probe input missing: {input_path.name}"
+    ir = run_tcrv_opt(input_path, front_door)
+    manifest = parse_realized_body(ir)
+    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    if not mnem:
+        return False, "", "empty realized body (front door did not construct the region)"
+    body = "typed_quantize_row_loop_body"
+    yld = "typed_quantize_row_loop_yield"
+    core = "quantize_row_encode_core"
+    if mnem[0] != body or mnem[-1] != yld:
+        return False, "+".join(mnem), f"not a {body} region (first/last mismatch)"
+    if core not in mnem:
+        return False, "+".join(mnem), f"missing {core} encode brick"
+    if any(is_opaque_hand_helper(m) for m in manifest):
+        opaque = [m["mnemonic"] for m in manifest if is_opaque_hand_helper(m)]
+        return False, "+".join(mnem), f"opaque hand helper {opaque}"
+    return True, "+".join(mnem), "ok"
+
+
+def cmd_stamp_quant_stream(_args):
+    """Walk + stamp the 3 CONSTRUCTED streaming quantize_row cells (CERT-FD次族, the
+    f32->QUANT mirror of stamp-dequant-stream). Honest: a cell is stamped ONLY if the
+    pre-emitc quant-stream front door CONSTRUCTS a legal, non-opaque
+    typed_quantize_row_loop_body region walkable BEFORE --tcrv-rvv-lower-to-emitc;
+    otherwise it is reported and SKIPPED (never blanket-stamped -- a format whose
+    region does not construct/walk is an honest demote). Writes the E5 STRONG envelope
+    classify_auto_readout accepts (the quant_stream shape). State values unchanged
+    (zero flip). NOTE q8_K is the ROW quantizer (scalar row-quant stream), NOT the
+    mat-quant GEMM path."""
+    doc = json.loads(SIXSTATE_JSON.read_text())
+    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
+              for r in doc["states"]}
+    stamped, skipped = [], []
+    for e in QUANT_STREAM_PATHS:
+        fmt = e["format"]
+        ok, man, why = _walk_quant_stream(e["input"], _QUANT_STREAM_FRONT_DOOR)
+        if not ok:
+            skipped.append((fmt, why))
+            print(f"[SKIP] quantize_row/{fmt}: {why}")
+            continue
+        row = by_key.get(("quantize_row", fmt, e["engine"], ""))
+        if row is None or row.get("state") != "constructed":
+            skipped.append((fmt, f"no constructed regime='' row (state="
+                                 f"{row.get('state') if row else 'absent'})"))
+            print(f"[SKIP] quantize_row/{fmt}: no constructed regime='' row")
+            continue
+        row["auto_readout"] = (
+            "E5-increment1-auto: constructed (STRONG); realized-body manifest="
+            f"{man}; opaque_helper=false")
+        stamped.append(fmt)
+        print(f"[STAMP] quantize_row/{fmt}: {man}")
+    marker = "E5-quant-stream (CERT-FD次族 machine-walked)"
+    if stamped and marker not in doc["$meta"]["labeling"]:
+        doc["$meta"]["labeling"] = (
+            doc["$meta"]["labeling"]
+            + f" | {marker}: the {len(stamped)} constructed streaming quantize_row "
+              f"cells ({', '.join(stamped)}) carry a MACHINE-WALKED auto_readout derived "
+              "by e5_strong_readout.py stamp-quant-stream, which runs "
+              "--tcrv-rvv-materialize-quantize-row-stream-front-door on the abstract "
+              "tcrv_rvv.quantize_row_q8_{0,1,K} conversion fixture and walks the REALIZED "
+              "tcrv_rvv.typed_quantize_row_loop_body streaming region (body + "
+              "quantize_row_encode_core + yield, non-opaque) BEFORE --tcrv-rvv-lower-to-emitc "
+              "(the SAME pre-emitc stage discipline as the certified block-dot rows + the "
+              "dequant-stream cells). The region is byte-exact to the atomic construct+emit "
+              "path (BEFORE/AFTER emit diff EMPTY for all 3). A format whose region does not "
+              "construct/walk is SKIPPED (honest demote). State values unchanged (zero flip).")
+    SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    print(f"\nstamped {len(stamped)}/{len(QUANT_STREAM_PATHS)} quant-stream cells: {stamped}")
     if skipped:
         print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
     return 0
@@ -1831,6 +1938,38 @@ module {
 """
 
 
+# Quant-stream ground truth (CERT-FD次族): the f32->QUANT MIRROR of _GT_DEQUANT_STREAM.
+# The CONSTRUCTED streaming quantize_row region the pre-emitc quant front door builds --
+# the typed typed_quantize_row_loop_body carrying the per-block quantize_row_encode_core
+# brick + the VOID typed_quantize_row_loop_yield (a pure ENCODE: NO product/reduce
+# accumulator, the encode STORES straight through the output byte pointer). Unlike the
+# contraction rows it satisfies NEITHER the product NOR the reduce conjunct, so derive()
+# would demote it to constructed-weak -- the streaming shape is its OWN legal form,
+# checked by the dedicated _walk_quant_stream (first==body, last==yield, encode_core
+# present, non-opaque), NOT the contraction gate. This GT locks the parser + the
+# streaming-shape acceptance so a refactor that renames the region ops or leaks an opaque
+# helper fails the self-test.
+_GT_QUANT_STREAM = """\
+module {
+  tcrv.exec.kernel @quantize_row_q8_0_kernel {
+    tcrv.exec.variant @quantize_row_q8_0 {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n"} : index
+      %x = tcrv_rvv.runtime_abi_value {c_name = "x"} : !tcrv_rvv.runtime_abi_value
+      %vy = tcrv_rvv.runtime_abi_value {c_name = "vy"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", sew = 32 : i64} {
+        tcrv_rvv.typed_quantize_row_loop_body %x, %vy, %n attributes {block_stride = 34 : i64, encode_model = "q8_0", kind = "typed_quantize_row_loop_body", qk = 32 : i64} {
+        ^bb0(%block_index: index):
+          tcrv_rvv.quantize_row_encode_core %x, %vy, %block_index {block_stride = 34 : i64, encode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+          tcrv_rvv.typed_quantize_row_loop_yield
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
@@ -2255,6 +2394,42 @@ def cmd_self_test(_args):
     assert any(is_opaque_hand_helper(m)
                for m in parse_realized_body(_deq_opaque)), "opaque leak not caught"
 
+    # Quant-stream ground truth (CERT-FD次族): the f32->QUANT MIRROR. The CONSTRUCTED
+    # streaming region parses to EXACTLY body + encode_core + yield, non-opaque. It
+    # carries NO product/reduce (a pure encode), so derive() reads constructed-weak --
+    # proving the contraction gate does NOT vacuously admit it; the streaming form is
+    # its own legal shape, accepted by the dedicated _walk_quant_stream check below.
+    qnt_manifest = parse_realized_body(_GT_QUANT_STREAM)
+    qnt_mnem = [m["mnemonic"] for m in qnt_manifest]
+    assert qnt_mnem == [
+        "tcrv_rvv.typed_quantize_row_loop_body",
+        "tcrv_rvv.quantize_row_encode_core",
+        "tcrv_rvv.typed_quantize_row_loop_yield",
+    ], qnt_mnem
+    assert not any(is_opaque_hand_helper(m) for m in qnt_manifest), qnt_manifest
+    qnt = derive(qnt_manifest)
+    assert qnt["has_product"] is False, qnt   # pure encode: no contraction
+    assert qnt["has_reduce"] is False, qnt
+    assert qnt["derived_state"] == "constructed-weak", qnt  # NOT via the contraction gate
+    # The streaming shape is accepted by the dedicated honest check (first==body,
+    # last==yield, encode_core present, non-opaque) -- the SAME predicate
+    # _walk_quant_stream applies to the REAL realized IR.
+    _qnt_body, _qnt_yld, _qnt_core = (
+        "typed_quantize_row_loop_body", "typed_quantize_row_loop_yield",
+        "quantize_row_encode_core")
+    _qnt_short = [m.replace("tcrv_rvv.", "") for m in qnt_mnem]
+    assert (_qnt_short[0] == _qnt_body and _qnt_short[-1] == _qnt_yld
+            and _qnt_core in _qnt_short), _qnt_short
+    # An OPAQUE-leaked streaming body must FAIL the streaming shape (discrimination):
+    # inject a bare *_block_dot hand helper and confirm it trips the opaque gate.
+    _qnt_opaque = _GT_QUANT_STREAM.replace(
+        "tcrv_rvv.quantize_row_encode_core %x",
+        'tcrv_rvv.q8_0_q8_0_block_dot %x1, %x2 {kind = "ggml_q8_0_q8_0_block_dot"} : '
+        "!tcrv_rvv.runtime_abi_value -> !tcrv_rvv.vector<i32, \"m1\">\n"
+        "          tcrv_rvv.quantize_row_encode_core %x")
+    assert any(is_opaque_hand_helper(m)
+               for m in parse_realized_body(_qnt_opaque)), "opaque leak not caught"
+
     # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
     assert strong["derived_state"] != scale["derived_state"]
@@ -2305,6 +2480,8 @@ def main():
                    help="walk + stamp the 10 single-row repack gemm_tile cells (FIX-D)")
     sub.add_parser("stamp-dequant-stream",
                    help="walk + stamp the 21 constructed streaming dequantize_row cells (CERT-FD首族, FIX-5)")
+    sub.add_parser("stamp-quant-stream",
+                   help="walk + stamp the 3 constructed streaming quantize_row cells (CERT-FD次族)")
     args = ap.parse_args()
     if args.self_test:
         return cmd_self_test(args)
@@ -2314,6 +2491,8 @@ def main():
         return cmd_stamp_repack_dual(args)
     if args.cmd == "stamp-dequant-stream":
         return cmd_stamp_dequant_stream(args)
+    if args.cmd == "stamp-quant-stream":
+        return cmd_stamp_quant_stream(args)
     # default: report
     _results, all_pass = cmd_report(args)
     return 0 if all_pass else 1

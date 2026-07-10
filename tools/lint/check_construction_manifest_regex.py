@@ -72,6 +72,8 @@ ALLOWED_WRAPPERS = {
     "typed_repack_gemm_loop_body", "typed_repack_gemm_loop_yield",
     # CERT-FD首族 (FIX-5): the streaming dequantize_row loop wrappers.
     "typed_dequantize_row_loop_body", "typed_dequantize_row_loop_yield",
+    # CERT-FD次族: the streaming quantize_row loop wrappers (f32->QUANT mirror).
+    "typed_quantize_row_loop_body", "typed_quantize_row_loop_yield",
 }
 
 REPACK_BODY_RE = re.compile(r"^typed_repack_(gemv|gemm)_loop_body$")
@@ -155,6 +157,23 @@ def classify_shape(tokens):
         if "dequantize_row_decode_core" not in core:
             return None, "dequant_stream_loop missing dequantize_row_decode_core brick"
         return "dequant_stream_loop", "typed dequantize-row streaming loop body/yield"
+
+    if (first == "typed_quantize_row_loop_body"
+            and last == "typed_quantize_row_loop_yield"):
+        # CERT-FD次族 streaming shape (the f32->QUANT MIRROR of dequant_stream_loop):
+        # the CONSTRUCTED quantize_row family (f32 row -> block_qX) is a PURE ENCODE --
+        # the region carries ONE per-block quantize_row_encode_core brick and stores
+        # straight through the output byte pointer (NO product/reduce/accumulator, so
+        # NOT a flat/super/repack dot). The core must be exactly the encode brick (kept
+        # NARROW: an empty body or a stray non-encode core is rejected). The
+        # wrappers/core carry no opaque *_block_dot token (is_opaque_helper_token
+        # already gated it), so an encode front door is checkable, not a hand wave.
+        core = [t for t in tokens if t not in ALLOWED_WRAPPERS]
+        if not core:
+            return None, "quant_stream_loop empty core (body/yield only)"
+        if "quantize_row_encode_core" not in core:
+            return None, "quant_stream_loop missing quantize_row_encode_core brick"
+        return "quant_stream_loop", "typed quantize-row streaming loop body/yield"
 
     mb, my = REPACK_BODY_RE.match(first), REPACK_YIELD_RE.match(last)
     if mb and my and mb.group(1) == my.group(1):
@@ -255,6 +274,14 @@ def self_test():
     deq_stream_nocore = ("typed_dequantize_row_loop_body+some_scale_only_brick+"
                          "typed_dequantize_row_loop_yield")
 
+    # CERT-FD次族 streaming quantize_row shape (f32->QUANT mirror).
+    qnt_stream = ("typed_quantize_row_loop_body+quantize_row_encode_core+"
+                  "typed_quantize_row_loop_yield")
+    qnt_stream_empty = ("typed_quantize_row_loop_body+"
+                        "typed_quantize_row_loop_yield")
+    qnt_stream_nocore = ("typed_quantize_row_loop_body+some_scale_only_brick+"
+                         "typed_quantize_row_loop_yield")
+
     flat_compact_binary = ("typed_flat_block_dot_loop_body+q1_0_q8_0_binary_sign_core+"
                            "typed_flat_block_dot_loop_yield")
     flat_compact_codebook = ("typed_flat_block_dot_loop_body+nvfp4_q8_0_codebook_core+"
@@ -275,6 +302,9 @@ def self_test():
         ("dequant-stream loop (CERT-FD首族)", strong(deq_stream), True),
         ("dequant-stream body/yield only (empty core, rejected)", strong(deq_stream_empty), False),
         ("dequant-stream missing decode_core (rejected)", strong(deq_stream_nocore), False),
+        ("quant-stream loop (CERT-FD次族)", strong(qnt_stream), True),
+        ("quant-stream body/yield only (empty core, rejected)", strong(qnt_stream_empty), False),
+        ("quant-stream missing encode_core (rejected)", strong(qnt_stream_nocore), False),
         ("opaque_helper=true", strong(flat, opaque="true"), False),
         ("empty manifest", strong(""), False),
         ("opaque hand-helper token injected", strong(

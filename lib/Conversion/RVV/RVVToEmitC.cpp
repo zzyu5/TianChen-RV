@@ -554,6 +554,15 @@ VariantToEmitCFunc::matchAndRewrite(tcrv::exec::VariantOp variant, OpAdaptor /*a
         // the shared q8_0 body -- byte-exact to the retired dispatch-wired monolith.
         {&isTypedDequantizeRowLoopBody,
          &VariantToEmitCFunc::emitTypedDequantizeRowLoopBody},
+        // The PRE-EMITC FRONT-DOOR CONSTRUCTED streaming quantize_row family
+        // {q8_0/q8_1/q8_K}: a pre-constructed tcrv_rvv.typed_quantize_row_loop_body
+        // region (from the RVVQuantizeRowStreamFrontDoor pass -- the abstract
+        // quantize_row_q8_{0,1,K} is already rewritten away) lowers here via the
+        // shared per-format body -- byte-exact to the in-emitc construct+emit path
+        // (constructQuantizeRowRegionAndLower). The f32->QUANT mirror of the dequant
+        // stream entry above.
+        {&isTypedQuantizeRowLoopBody,
+         &VariantToEmitCFunc::emitTypedQuantizeRowLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
         // elementwise strip-loop body (constructed sibling of the flat block-dot
         // loop body). It replaced the retired monolith tcrv_rvv.ggml_vec_scale_f32
@@ -1684,6 +1693,20 @@ bool VariantToEmitCFunc::isTypedDequantizeRowLoopBody(tcrvrvv::WithVLOp scope) {
     bool sawLoopBody = false;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (llvm::isa<tcrvrvv::TypedDequantizeRowLoopBodyOp>(op)) {
+        if (sawLoopBody)
+          return false;
+        sawLoopBody = true;
+      } else {
+        return false;
+      }
+    }
+    return sawLoopBody;
+  }
+
+bool VariantToEmitCFunc::isTypedQuantizeRowLoopBody(tcrvrvv::WithVLOp scope) {
+    bool sawLoopBody = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      if (llvm::isa<tcrvrvv::TypedQuantizeRowLoopBodyOp>(op)) {
         if (sawLoopBody)
           return false;
         sawLoopBody = true;

@@ -4389,6 +4389,14 @@ private:
   /// isTypedFlatBlockDotLoopBody; the recognizer for the constructed dequant path.
   static bool isTypedDequantizeRowLoopBody(tcrvrvv::WithVLOp scope);
 
+  /// True iff `scope`'s body is exactly ONE tcrv_rvv.typed_quantize_row_loop_body
+  /// (the PRE-EMITC FRONT-DOOR CONSTRUCTED streaming quantize_row region, from the
+  /// RVVQuantizeRowStreamFrontDoor pass -- the abstract quantize_row_q8_{0,1,K} is
+  /// already rewritten away). Mirrors isTypedDequantizeRowLoopBody; the recognizer
+  /// for the pre-constructed quant path so the emit dispatches to
+  /// emitTypedQuantizeRowLoopBody (byte-exact to the in-emitc construct+emit path).
+  static bool isTypedQuantizeRowLoopBody(tcrvrvv::WithVLOp scope);
+
   /// Lower the CONSTRUCTED streaming dequantize_row region
   /// (tcrv_rvv.typed_dequantize_row_loop_body carrying ONE
   /// tcrv_rvv.dequantize_row_decode_core brick + the VOID

@@ -30,6 +30,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVReductionSourceFrontDoor.cpp
   RVVDequantDotSourceFrontDoor.cpp
   RVVDequantizeRowStreamFrontDoor.cpp
+  RVVQuantizeRowStreamFrontDoor.cpp
   RVVPackedI4DotSourceFrontDoor.cpp
   RVVCodebookDotSourceFrontDoor.cpp
   RVVMonolithicBlockDotSourceFrontDoor.cpp

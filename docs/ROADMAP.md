@@ -25,7 +25,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 62/93 = 66.7%**（★主数·论文口径，CERT-FD dequant×21 后 41→62）｜ labeled 70/93=75.3%（账面）｜ **8 剩 RED = quant×3（q8_0/q8_1/q8_K，dequant 镜像·在做）+ forward×5（rms/softmax/rope/silu/scale·殿后需 source-op）** |
+| C_construct | **certified 65/93 = 69.9%**（★主数·论文口径，CERT-FD dequant×21+quant×3 后 41→65）｜ labeled 70/93=75.3%（账面）｜ **5 剩 RED = forward×5（rms/softmax/rope/silu/scale·CERT-FD 殿后族·无 abstract source op 需先造）** |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
