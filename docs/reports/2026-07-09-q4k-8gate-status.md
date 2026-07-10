@@ -47,19 +47,21 @@
 | 缺项 | 门 | 类型 | 负责批 | 内容 |
 |---|---|---|---|---|
 | ~~VLEN256 flip lit~~ | ② | **CLOSED(2026-07-10)** | — | ✅ 已补：`rvv-q4-k-repack-gemm-march-vlen-flip-gate2.mlir`（prefill GEMM strip vl 8↔16 键控于 `-march` 派生 VLEN）+ GEVM 佐证 lit。emitter 源未改（现有 emitter 已真 flip）。剩 {m1,m2,m4} LMUL-变体扫描仍属 SEL-1 T4 旋钮范围，但 gate② 的 {128,256} codegen-flip 主张本身已闭。 |
-| k1 双板 objdump + 复测 | ③(k1半)+⑤ | PARTIAL(③)/MISSING(⑤) | **SEL-1 T4 板批** | 板B(k1/VLEN256)上部署 q4_K repack GEMM + objdump seal + kernel-轴复测(与门③的 k1 半、门⑤同一次 k1 run 收)。 |
+| ~~k1 双板 objdump + 复测~~ | ③(k1半)+⑤ | **CLOSED(T4a 追认)** | — | ✅ 板B(k1/VLEN256)q4_K repack GEMM 经 **T4a**(commit `5b339407`)objdump-sealed(spill 81→4、vtype VLA 同 rvv128)+ kernel-轴复测(k1 q4_K 3.106×/q5_K 1.916×)；门③⑤ 均 PASS(见上表 §③§⑤)。此前 doc 漏计 T4a、故列缺项、现追认闭合。 |
 | e2e 集成兑现 | ④(e2e半) | PARTIAL | **独立 e2e-seal 战役**(非 T4) | (a) 离线把 q4_K 权重 repack 成 `block_q4_Kx16` 布局;(b) ggml mul_mat 新 dispatch 入口 + q8_K 激活量化胶水。历史难点(q4_K emitter scaffold timed out 2×)。 |
 
-> ★ 门⑦（2026-07-09）+ 门②（2026-07-10）关闭后，q4_K 剩 2 类缺项：**⑤(+③k1半) = SEL-1 T4 板批一次
-> k1/VLEN256 run 可同收**；**④ e2e = 独立集成战役**（措辞锁下不阻塞 kernel-轴 candidate 结论）。在
-> ③(k1半)④e2e⑤ 闭合前，q4_K = **5/8 characterized kernel-axis path-win**（板A / VLEN128 / prefill 条件），
-> beat 措辞 LOCKED（[NG-4]）。注：门② PASS 是 codegen-flip lit 证据（VLEN128/256 两臂 in-tree），
-> **非**在 VLEN256 硬件上 objdump-验封（那属门③/⑤ 的 k1 板批）。
+> ★ 门⑦（2026-07-09）+ 门②（2026-07-10）关闭 + 门③⑤（T4a `5b339407` 追认）后，q4_K = **7/8 PASS ·
+> 1 partial**：唯一未闭 = **④ e2e-perf**（board-availability-gated，共享板 SPEC+vllm 争用致机会窗中止；
+> **非能力缺口**——e2e 集成已证**正确**：seal-fix `98717158` 部署 VLEN128 vl=8 kernel、PPL 12.008≈stock、
+> banner ENGAGED、贪心相干；剩 prefill perf 数待安静板窗，机会轮询 + 用户协调中）。④ 闭合前
+> q4_K = **7/8 characterized kernel-axis path-win**（板A/B 双板 / prefill 条件），beat 措辞 LOCKED（[NG-4]）。
+> 注：门② PASS 是 codegen-flip lit 证据（VLEN128/256 两臂 in-tree）；VLEN256 硬件 objdump-验封已由门③/⑤ 的
+> T4a k1 板批达成。
 
 ## 落地指针（doc-only；无 lib/schema 改动，deliverable 未 commit，留用户提交）
 
 - 本文：`docs/reports/2026-07-09-q4k-8gate-status.md`（缺项清单 + 负责批）。
-- 同步：`docs/reports/2026-07-07-paper-material-inventory.md` §二.4「q4_K 八门」段（→5/8、②⑦ PASS）。
+- 同步：`docs/reports/2026-07-07-paper-material-inventory.md` §二.4「q4_K 八门」段（→7/8、②③⑤⑦ PASS、④e2e-perf pending·board-gated）。
 - **门② 一手证据（NEW 2026-07-10，未 commit，留用户提交）**：`test/Conversion/RVV/rvv-q4-k-repack-gemm-march-vlen-flip-gate2.mlir`（prefill GEMM strip vl 8↔16）+ `test/Conversion/RVV/rvv-q4-k-repack-gevm-march-vlen-keyed-gate2.mlir`（decode GEVM VLEN-keyed）；机制源（未改）：`lib/Plugin/RVV/RVVLowerQuantContraction.cpp` `deriveRepackHalfLanes`/`lowerToRepackGem{m,v}KQuant`（half_lanes/numHalves 由 `deriveMinimumVLEN(-march)` 派生）+ `lib/Plugin/RVV/RVVContractionPathSelection.cpp` `vlenOrPrefillFavorsRepack`（decode@256 decline 路）。
 - 门⑦ 一手证据：commit `4624740f`（SEL-1 T2）+ gate-7 lit `test/Conversion/RVV/rvv-sel1-q4-k-tiling-variant-capability-keyed-gate7.mlir` + 变体注册表 `include/TianChenRV/Plugin/RVV/RVVRepackTilingSelection.h` + 测量库 `schema/tiling-measurements.v1.json`。
 - 前一版 3/8 账（家族收口批，⑦ MISSING 判据已 supersede）：`experiments/active/kquant-family-closure/T-PERF1_q4_K_vlen128_prefill_8gate.md`。

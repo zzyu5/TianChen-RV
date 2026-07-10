@@ -1,5 +1,17 @@
 # ZERO-MODEL 终审法 — 数值正确性争议的标准裁决工具 (G3-cert-hardening 方法学 codify)
 
+> ############################################################################
+> **★[CASE CLOSED — 本法已被 M4 应用并裁死 min-term 案,commit `4f765790`(2026-07-10 线D 收尾指针)]**
+> 本 spec 确立的 ZERO-MODEL 对位终审法**已被 M4 决定性终审实际执行**并**推翻了 M2c 的 min-term 误诊**:kernel 对真
+> mat-quant dispatch **整数逐位一致**、且比 ggml 自身 generic 更近 int-exact(见 `docs/reports/2026-07-09-minterm-fold-audit.md`
+> 顶 CASE-CLOSED 指针 + T8 `[CASE-MINTERM]` 卷宗)。**故文末"待逐项对位"队列的结局(2026-07-10 更新)**:
+> `q4_K/q5_K repack-GEMM` 由 `inferred-defective` → **CASE CLOSED = 正确(FULL cert,`schema/cert-lineage.v1.json`
+> M4-q4K/M4-q5K,cert-requirements-gate GREEN)**;`q2_K` = validated-via-shared-fold(M4-proven `kquant_dmin_bsums_min`)、
+> **direct dmin≠0 cert OWED**;`repack GEVM` = **OWED**(M4 头对头走 GEMM 路径);`block-dot q4_k_min_term` = 低风险未直测,
+> 仍在未来 dmin≠0 直测清单。**方法本身不变、入宪有效**(定罪与翻案同等严谨;默认走 ZERO-MODEL 对位终审两步、不再多轮 oracle 互搏);
+> 本收尾仅登记该法**首个判例(min-term)已 CASE CLOSED**,不重写正文(append-only)。链 memory `[[zero-model-adjudication-cert-hardening]]`。
+> ############################################################################
+
 **性质**: 方法学 spec（防复发入宪的 *rule* 半边；CI *gate* 半边见 `tools/lint/check_cert_requirements.py`
 + `schema/cert-lineage.v1.json` + `.github/workflows/falsifier-gate.yml` 的 `cert-requirements-gate`）。
 不改任何 kernel / 任何数值。

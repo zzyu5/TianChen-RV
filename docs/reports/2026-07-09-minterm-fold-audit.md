@@ -1,5 +1,21 @@
 # 2026-07-09 min-fold 血缘 + cert 语料审计 (G3-minterm-fix M0)
 
+> ############################################################################
+> **★[CASE CLOSED — M4 决定性终审,commit `4f765790`(2026-07-10 线D 收尾指针)]**
+> 本文写于 M0/M1 阶段,正文（§0–§3）把 M2c 的 "VLEN128 parity-alternating min-term bug" 当作 **HYPOTHESIS/inferred-defective**
+> 处理。**该归因经 3 次反转后已 CASE CLOSED,推翻为 cert-harness 伪影**:M2c 误诊 → M1(ZERO-MODEL 逐项对位)翻案 →
+> **M4 决定性终审**。M4(cell `experiments/active/t4b-m4-decisive`)用真 Q4_K_M `dmin≠0` 模型张量、两侧同喂
+> `ggml_quantize_mat_q8_K_4x1`(mat-quant)激活、call ggml **自己的** generic GEMM + 独立 int-exact oracle → 我方 repack-GEMM
+> **整数 MAIN/MIN 逐位一致(0/0 mismatch)**、且**比 ggml 自身 generic 更接近 int-exact**(OURS rel 2.86e-6 < generic 6.31e-5);
+> q5_K(共享 min fold + qh 面)vs int-exact rel 7.75e-7。**"min-term bug" = cert-harness 激活量化路径失配伪影(row-quant/lrintf
+> oracle vs 真 mat-quant dispatch),非 kernel 缺陷**;kernel 对其被喂的 mat-quant 激活 bit-exact。
+> **正文的 "bug"/"inferred-defective"/"pending-audit" 措辞按此收尾更新读**(append-only,不重写正文;§3 逐 cert 三要件判据仍有效,
+> 且已被 M4 用于 recover:q4_K/q5_K repack-GEMM → FULL,q2_K via 共享 fold、direct dmin≠0 cert OWED,GEVM OWED)。
+> **指针**:T8 `[CASE-MINTERM]` 卷宗(全链 CASE CLOSED)+ `[CERT-3REQ · M4 补标]`;`schema/cert-lineage.v1.json`
+> M4-q4K/M4-q5K FULL(cert-requirements-gate GREEN);`docs/reports/2026-07-09-ggml-q8-quant-dual-path-memo.md`;
+> `docs/reports/2026-07-09-zero-model-adjudication-method.md`(方法学 codify)。链 memory `[[zero-model-adjudication-cert-hardening]]`。
+> ############################################################################
+
 **性质**: 纯 read + doc 审计扫描,先于动刀。零 lib/schema/T8 改。别 commit(由用户提交)。
 **背景**: M2c 决定性发现(`experiments/active/t4b-m2c-dispatch/`,snapshot commit 53666846) —
 q4_K repack-GEMM 共享 min fold `kquant_dmin_bsums_min` 在 VLEN128 有 **parity-alternating min-term bug**:

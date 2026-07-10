@@ -1,6 +1,13 @@
 # T4b e2e seal 板批 — 逐环归因 (2026-07-10)
 
-**VERDICT: NOT sealed Win / NOT 2nd e2e headline — 但 full-construct 集成支柱板上证正确，剩单点 kernel-变体缺陷。**
+> **★更新 2026-07-10（残差已 RESOLVED，seal-fix commit 98717158）**：本文 §「下一步」(line 22-23) 的单点
+> kernel-变体缺陷**已修复**。部署 8 门证过的 **VLEN128 vl=8** kernel 进集成树后：PPL **12.008 ≈ stock 12.05**、
+> route banner `TCRV EMITTED GEMV(q4_K_16x1 VLEN128 compiler-emitted) ENGAGED`、贪心相干。即 ⑤/⑥ 的
+> kernel-变体错误**不复存在**——**我方 VLEN128 发射 kernel 现经集成真调用证正确**（非仅 standalone/M4）。
+> 剩唯一未闭 = **④ e2e-perf**（board-availability-gated，共享板 SPEC+vllm 争用，非能力缺口；机会轮询 + 用户协调窗中）。
+> 下方逐环表是 seal-fix **之前**的历史记录，保留不改；口径以本 banner + T8 [8-GATE-STATUS] 为准。
+
+**VERDICT（历史·seal-fix 前）: NOT sealed Win / NOT 2nd e2e headline — 但 full-construct 集成支柱板上证正确，剩单点 kernel-变体缺陷（★已于 seal-fix 修复，见顶部更新）。**
 
 ## 一句话
 全模型 q4_K 路由 + 权重 repack + q8_K 激活 + dispatch 自建集成 **整条链路经 ggml-generic 对照证正确**（PPL 11.97 ≈ stock upstream block-dot 12.05、相干生成）；**唯一缺陷 = 集成树部署的 q4_K 向量 kernel 是 VLEN256 变体（arch/riscv/repack.cpp `vint32m2`+`vl=16`，66 处），在 VLEN128 上 vl 钳到 8 → 只算 16 交织列的一半 → 输出垃圾（PPL 822057、贪心全 `?`）**。8 门证过的 VLEN128 S6-tiled kernel（`vsetivli…,8`=vl=8）从未部署进集成树。
