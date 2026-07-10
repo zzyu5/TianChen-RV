@@ -662,6 +662,28 @@ PATHS = [
     },
 ]
 
+# --- repack gemm_tile DUAL-regime cert paths (FIX-D: the 10 single-row repack
+# cells beyond q4_0). Each is ONE six-state row (regime="") covering BOTH the GEVM
+# (decode) and GEMM (prefill) construction. Unlike q4_0 (split into two regime rows
+# already stamped E5-increment1-auto), these carry a single [F-EMIT] DUAL manifest.
+# The walk feeds a synthesized quant_contraction request (verifier-pinned PLAIN byte
+# facts per format) through the SAME `--tcrv-rvv-lower-quant-contraction` front door
+# the certified q4_0 uses -- a construction stage UPSTREAM of emitc (independent of
+# any emitc-side edit). `cmd_stamp_repack_dual` walks BOTH regimes, requires BOTH to
+# derive constructed + a legal repack shape + opaque_helper=false, then writes the
+# machine dual manifest. Inputs live OUTSIDE the lit tree (cert probes, not lit
+# tests). q4_0 is intentionally ABSENT (its two regime rows are already certified).
+_REPACK_PROBE_DIR = REPO_ROOT / "experiments" / "active" / "cert-status" / "repack-probes"
+REPACK_DUAL_PATHS = [
+    {"op": "gemm_tile", "format": fmt, "engine": "rvv",
+     "gevm_input": _REPACK_PROBE_DIR / f"{fmt}-repack-gevm-cert-probe.mlir",
+     "gemm_input": _REPACK_PROBE_DIR / f"{fmt}-repack-gemm-cert-probe.mlir",
+     "front_door": "--tcrv-rvv-lower-quant-contraction=march=rv64gcv"}
+    for fmt in ["q8_0", "q2_K", "q3_K", "q4_K", "q5_K", "q6_K",
+                "iq4_nl", "iq4_xs", "tq2_0", "tq1_0"]
+]
+
+
 # --- op-identity parse (position-anchored; I4-safe) ------------------------
 # Match a tcrv_rvv op mnemonic ONLY in operation position: line-leading (after
 # indent), optional `%result = ` prefix (a SINGLE result `%r =`, a comma-separated
@@ -715,7 +737,7 @@ _MIRROR_GUARD = re.compile(r"^tcrv_rvv\.(low_precision_resource|gearbox)$")
 # purpose: `block_fp16_scale_product` is a per-block fp16 SCALE multiply — not a
 # contraction — and carries none of these tokens, so it is excluded. A bare
 # "product" substring would wrongly admit it.
-_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+_DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|product_reduce|scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|kquant_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # Fused dot-reduce primitives that carry the reduction INSIDE the product op (no
 # separate standalone_reduce in the manifest): the q4_K/q5_K super-block
@@ -759,7 +781,18 @@ _DOT_PRODUCT_RE = re.compile(r"(widening_product|_x_i8_product|_unpack_product|p
 # sumi_block, which the emitter-inlined two-level fp32 fold consumes -- NO separate
 # standalone_reduce, the fold that follows is a scale/add, not a reduce), so its
 # `binary_sign_core` token joins this whitelist too.
-_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
+# The q4_K/q5_K/q2_K/q3_K/q6_K super-block REPACK GEVM/GEMM core brick
+# `repack_gem{v,m}_kquant_core` is the K-quant SIBLING of the already-whitelisted
+# repack codebook/ternary cores (`repack_gem{v,m}_codebook_core` matches
+# `codebook_core`; `..._ternary_core` matches `ternary_core`). It is the per-block
+# integer MAC constructed by the SAME repack front door (lowerToRepackGem{v,m}KQuant)
+# that built the certified q4_0 `repack_lane_wise_q4_x_i8_dot`, a FUSED dot-reduce
+# (its per-sub-block vwmacc accumulates into the running aux32, then the per-strip
+# scale fold consumes it -- NO separate standalone_reduce). It is NOT opaque (does
+# not end `_block_dot`, no `ggml_…block_dot` kind), so `kquant_core` joins this
+# fused-dot-reduce whitelist -- the ONLY reason the K-quant repack cells derived
+# constructed-weak before was the missing token, not a construction defect.
+_FUSED_DOT_REDUCE_RE = re.compile(r"(scaled_dot|aux32_partial|integer_core|grid_core|codebook_core|ternary_core|binary_sign_core|kquant_core|repack_lane_wise_q4_x_i8_dot|repack_gemm_lane_wise_q4_x_i8_dot)")
 
 # M-FLAT forward-elementwise scaffold (line C, ① 之后): the reduce/MAP model. The
 # forward-pass (non-dot) operators are NOT contractions -- a pure elementwise MAP
@@ -1034,6 +1067,80 @@ def cmd_update_sixstate(_args):
     SIXSTATE_JSON.write_text(
         json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"\nupdated auto_readout on {updated} strong rows in {SIXSTATE_JSON}")
+    return 0
+
+
+def _walk_repack_regime(input_path, front_door, want):
+    """Walk ONE repack regime input. Return (ok, manifest_str, reason)."""
+    if not input_path.exists():
+        return False, "", f"probe input missing: {input_path.name}"
+    ir = run_tcrv_opt(input_path, front_door)
+    manifest = parse_realized_body(ir)
+    der = derive(manifest)
+    mnem = [m["mnemonic"].replace("tcrv_rvv.", "") for m in manifest]
+    if not mnem:
+        return False, "", "empty realized body"
+    body, yld = f"typed_repack_{want}_loop_body", f"typed_repack_{want}_loop_yield"
+    if mnem[0] != body or mnem[-1] != yld:
+        return False, "+".join(mnem), f"not a typed_repack_{want} region (first/last mismatch)"
+    if der["has_opaque"]:
+        return False, "+".join(mnem), f"opaque hand helper {der['opaque_ops']}"
+    if der["derived_state"] != "constructed":
+        return False, "+".join(mnem), f"derived {der['derived_state']} (decomposed gate failed)"
+    return True, "+".join(mnem), "ok"
+
+
+def cmd_stamp_repack_dual(_args):
+    """Walk + stamp the 10 single-row repack gemm_tile cells (FIX-D). Honest:
+    a cell is stamped ONLY if BOTH its GEVM and GEMM regimes walk to a legal,
+    non-opaque, constructed typed_repack region; otherwise it is reported and
+    SKIPPED (never blanket-stamped). Writes a machine [F-EMIT] dual manifest that
+    the strict checker's classify_femit_repack accepts."""
+    doc = json.loads(SIXSTATE_JSON.read_text())
+    by_key = {(r.get("op"), r.get("format"), r.get("engine", ""), r.get("regime", "")): r
+              for r in doc["states"]}
+    stamped, skipped = [], []
+    for e in REPACK_DUAL_PATHS:
+        fmt = e["format"]
+        gv_ok, gv_man, gv_why = _walk_repack_regime(e["gevm_input"], e["front_door"], "gemv")
+        gm_ok, gm_man, gm_why = _walk_repack_regime(e["gemm_input"], e["front_door"], "gemm")
+        if not (gv_ok and gm_ok):
+            skipped.append((fmt, f"GEVM:{gv_why} | GEMM:{gm_why}"))
+            print(f"[SKIP] gemm_tile/{fmt}: GEVM {gv_why} ; GEMM {gm_why}")
+            continue
+        row = by_key.get(("gemm_tile", fmt, e["engine"], ""))
+        if row is None or row.get("state") != "constructed":
+            skipped.append((fmt, f"no constructed regime='' row (state="
+                                 f"{row.get('state') if row else 'absent'})"))
+            print(f"[SKIP] gemm_tile/{fmt}: no constructed regime='' row")
+            continue
+        envelope = (
+            "[F-EMIT] e5-auto-repack-dual (machine-walked GEVM+GEMM via "
+            "--tcrv-rvv-lower-quant-contraction): constructed (STRONG); "
+            f"realized-body manifest (GEVM decode)={gv_man}; "
+            f"(GEMM prefill)={gm_man}; opaque_helper=false")
+        row["auto_readout"] = envelope
+        stamped.append(fmt)
+        print(f"[STAMP] gemm_tile/{fmt}: GEVM={gv_man} ;; GEMM={gm_man}")
+    marker = "E5-repack-dual (FIX-D machine-walked)"
+    if stamped and marker not in doc["$meta"]["labeling"]:
+        doc["$meta"]["labeling"] = (
+            doc["$meta"]["labeling"]
+            + f" | {marker}: the single-row repack gemm_tile cells "
+              f"({', '.join(stamped)}) carry a MACHINE-WALKED [F-EMIT] dual manifest "
+              "(GEVM decode + GEMM prefill) derived by e5_strong_readout.py "
+              "stamp-repack-dual, which runs --tcrv-rvv-lower-quant-contraction on a "
+              "synthesized quant_contraction request and walks BOTH realized "
+              "tcrv_rvv.typed_repack_gem{v,m}_loop_body regions (the same front door + "
+              "[L-8] rule as the certified q4_0 repack rows). Both regimes must derive "
+              "constructed or the cell is skipped. State values unchanged (zero flip).")
+    # Write with the committed schema's OWN 1-space indent (verified byte-identical
+    # round-trip) so the stamp diff stays minimal (only the changed auto_readout rows
+    # + $meta), not a whole-file reformat.
+    SIXSTATE_JSON.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    print(f"\nstamped {len(stamped)}/{len(REPACK_DUAL_PATHS)} repack cells: {stamped}")
+    if skipped:
+        print(f"skipped {len(skipped)}: {[s[0] for s in skipped]}")
     return 0
 
 
@@ -1559,6 +1666,31 @@ module {
 """
 
 
+# Repack GEVM K-quant ground truth (FIX-D): the super-block repack GEVM region whose
+# CORE brick is the fused `repack_gemv_kquant_core` (the K-quant sibling of the
+# codebook/ternary repack cores). It satisfies BOTH product AND reduce via the
+# `kquant_core` token (fused per-block vwmacc into aux32); no opaque *_block_dot, so
+# it derives constructed. Locks the kquant_core whitelist addition — a refactor that
+# drops it would flip this to constructed-weak and fail the self-test.
+_GT_REPACK_KQUANT = """\
+module {
+  tcrv.exec.kernel @k {
+    tcrv.exec.variant @v {
+      %vx = tcrv_rvv.runtime_abi_value {c_name = "vx"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1"} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1"} {
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %bs attributes {kind = "typed_repack_gemv_loop_body", fold_model = "lane_wise_vector_scale_min"} {
+        ^bb0(%ib: index, %acc0: !tcrv_rvv.vector<f32, "m2">):
+          %sumi = tcrv_rvv.repack_gemv_kquant_core %vx, %vy, %vl block %ib : index {kind = "repack_gemv_kquant_core", decode_model = "q4_K"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc0 : !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+"""
+
+
 def cmd_self_test(_args):
     # Strong ground truth: decomposed primitives, no opaque, no mirror leak.
     strong = derive(parse_realized_body(_GT_STRONG))
@@ -1933,6 +2065,20 @@ def cmd_self_test(_args):
     assert repack_gemm["decomposed"] is True, repack_gemm
     assert repack_gemm["derived_state"] == "constructed", repack_gemm
 
+    # Repack GEVM K-quant ground truth (FIX-D): the fused kquant_core brick must
+    # derive constructed (locks the kquant_core whitelist addition).
+    repack_kquant = derive(parse_realized_body(_GT_REPACK_KQUANT))
+    assert repack_kquant["manifest"] == [
+        "tcrv_rvv.typed_repack_gemv_loop_body",
+        "tcrv_rvv.repack_gemv_kquant_core",
+        "tcrv_rvv.typed_repack_gemv_loop_yield",
+    ], repack_kquant["manifest"]
+    assert repack_kquant["has_opaque"] is False, repack_kquant
+    assert repack_kquant["has_product"] is True, repack_kquant
+    assert repack_kquant["has_reduce"] is True, repack_kquant
+    assert repack_kquant["decomposed"] is True, repack_kquant
+    assert repack_kquant["derived_state"] == "constructed", repack_kquant
+
     # Discrimination: same rule, opposite verdicts — including the non-opaque hole.
     assert strong["derived_state"] != weak["derived_state"]
     assert strong["derived_state"] != scale["derived_state"]
@@ -1979,11 +2125,15 @@ def main():
     sub.add_parser("report", help="run the machine-check and print the read-out")
     sub.add_parser("update-sixstate",
                    help="write the strong rows' auto_readout (only if all pass)")
+    sub.add_parser("stamp-repack-dual",
+                   help="walk + stamp the 10 single-row repack gemm_tile cells (FIX-D)")
     args = ap.parse_args()
     if args.self_test:
         return cmd_self_test(args)
     if args.cmd == "update-sixstate":
         return cmd_update_sixstate(args)
+    if args.cmd == "stamp-repack-dual":
+        return cmd_stamp_repack_dual(args)
     # default: report
     _results, all_pass = cmd_report(args)
     return 0 if all_pass else 1

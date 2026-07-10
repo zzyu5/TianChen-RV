@@ -1,12 +1,12 @@
 {
-  "ref": "HEAD (ae813da2)",
+  "ref": "WORKTREE",
   "roster_total": 93,
   "C_construct": {
     "labeled": 70,
     "labeled_pct": 75.3,
-    "certified": 26,
-    "certified_pct": 28.0,
-    "red": 44
+    "certified": 41,
+    "certified_pct": 44.1,
+    "red": 29
   },
   "dispatch_wired": 10,
   "absent": 12,
@@ -33,16 +33,6 @@
     }
   ],
   "red_cells": [
-    {
-      "op": "vec_dot",
-      "format": "q1_0",
-      "reason": "shape non-compliant: flat_loop missing standalone_reduce"
-    },
-    {
-      "op": "vec_dot",
-      "format": "nvfp4",
-      "reason": "shape non-compliant: flat_loop missing standalone_reduce"
-    },
     {
       "op": "quantize_row",
       "format": "q8_0",
@@ -164,71 +154,6 @@
       "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
     },
     {
-      "op": "gemm_tile",
-      "format": "q4_1",
-      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q5_0",
-      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q5_1",
-      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q8_0",
-      "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q2_K",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q3_K",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q4_K",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q5_K",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "q6_K",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "iq4_nl",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "iq4_xs",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "tq1_0",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
-      "op": "gemm_tile",
-      "format": "tq2_0",
-      "reason": "auto_readout is NoneType, not a string"
-    },
-    {
       "op": "rms_norm",
       "format": "f32",
       "reason": "envelope mismatch (not the E5 STRONG-constructed form)"
@@ -255,8 +180,6 @@
     }
   ],
   "red_reason_buckets": {
-    "shape-non-compliant (unrecognized typed body)": 2,
-    "envelope-mismatch (non-E5 form / hand-labeled pending)": 33,
-    "manifest-absent (auto_readout=None)": 9
+    "envelope-mismatch (non-E5 form / hand-labeled pending)": 29
   }
 }
