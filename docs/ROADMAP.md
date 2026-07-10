@@ -12,26 +12,34 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 - **但 rvv e2e 0.764× 内含真问题**：micro +88% → e2e −24% 的蒸发（clang 对称口径下仍在）**未归因**，定性为 **L2 布局/调度对内存层级的适配缺口**——在我方刀域内，立 [RVV-E2E] 攻坚（GAP-1 最大客户）。
 - **sealed Win 通道 = [K1-SEAL]**（k1 出货即 clang → kernel-轴幸存，是最可能兑现 e2e 传导的板）。
 
+## 性能收敛作战图（2026-07-10 置顶 · 回答"性能怎么达到" · sealed Win 最短路）
+**双板双缺口、各一把刀、同终点**——两缺口都是"发射器按板形状出核"的成熟度题（与项目核心主张同路、非物理墙、非算法败）。deployed g₄ vs block-dot **2.80×（micro 90% 保留不 wash）= kernel 本质健全铁证**。
+- **rvv 线**：**[RVV-E2E M1b]** loop-interchange/token-tile（在飞）→ 目标 **0.764×→≥parity** → 若成 rvv e2e 翻正 + micro↛e2e 案例闭环。
+- **k1 线**：**[VLEN-ADAPT M1]** vl=16 native → 目标 **0.75×→≥parity vs hand-brick**（真出货对手）→ 若成 K1-SEAL 重开 → 八门 → **首个 sealed Win 的最短路**。
+- **两线共产出**：lane-width × token-tile 两新调度轴入能力键控选择器 = **C3′/选择器故事增量章节**。
+- **底线预案**（两线皆卡时启用、报裁）：sealed Win 退 q4_0 路由格（5.9× 系统账 + 补八门缺项）；当前两线均有静态账支撑，**预案不启动**。
+
 ## 当前坐标（2026-07-10）
 | 维度 | 值 |
 |---|---|
-| C_construct | **70/93 = 75.3%**（labeled；certified 待 [DEBT-CERT] 核） |
+| C_construct | **certified 26/93 = 28.0%**（★主数·论文口径）｜ labeled 70/93=75.3%（账面·括号随附）｜ 修复队列在办 |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **4**（FLAT 4 格全退役 8→4） |
 | 矿脉 | **4**（FLAT 族 4/4 落 8→4；余 iq2-grid + mxfp4 + …） |
 | sealed Win | **0**（q4_K e2e 终审 CONFIRMED：部署身份修复 clang-.o 回升 2.29×，但 0.764× 仍 <parity → 非 win；kernel 账 gcc-对称 0.272×；micro↛e2e） |
 
 ## 在飞
-- **[CASE-COMPILER-ASYMMETRY]** **结案 ✓**（Stage-0/1/2 全收，双账本落宪 commit 15cb0589）
-- **[K1-SEAL]** 冲刺（k1 板 e2e 传导判读 = sealed Win 关键路径 + M0 跨板对照臂）
-- **[RVV-E2E]** M0 归因 ✓（0.764× = 单因 H-B 内存停顿）→ **M1a 静态账**（token-tile 选型；M1b 曳光弹等 K1 对照臂齐）
-- **FLAT** **4/4 完成 ✓**（q4_1/q5_0/q5_1/q8_0 全 constructed）
-- **工程债**（本地并行）：[DEBT-CERT]+[DEBT-VIS]（机器认证 + 单一数据源）· C1/C2 证据对象正名核查
+- **[RVV-E2E] M1b** 构造（loop-interchange 曳光弹，byte-exact + objdump 不变；板 A/B 待 M1b-board）
+- **[VLEN-ADAPT] M0** 静态账（vl=16 native 寄存器账，sealed Win 第二条腿）
+- **certified 修复队列**（FIX-1 checker-bug → FIX-5/6 walker → FIX-3 FLAT envelope）
+- **C1/C2 正名 fix**（5 处 C2→C3′，一次改）
+- ✅ 已收：K1-SEAL 终审（sealed Win=NO）· FLAT 4/4 · Stage-0/1/2 全收 · RVV-E2E M0/M1a · DEBT-CERT
 
 ## 排队（主线区 · 顺序即优先级）
-1. **[K1-SEAL] 冲刺**（sealed Win 关键路径 · 判读预注册：传导→注册首个 sealed Win + 定谳 rvv 板特异；不传导→M0 式归因，同因则 M1 升双板共用）
-2. **[RVV-E2E] M1**（M1a 选型自决 → M1b 曳光弹 q4_K 单格实现[token-tile 作 schedule 轴，front-door 禁旁路]+板 A/B → M1c 翻正则入选择器 e2e-regime 键控 · cache-hint 只组合不单独）
-3. **iq2-grid 立项**（retirement 蓝图已备，q8_0 收口后提交立项包）
+1. **性能收敛双线（并行，sealed Win 最短路）**：**[RVV-E2E] M1b** loop-interchange（rvv 线，在飞）+ **[VLEN-ADAPT] M0→M1** vl=16 native（k1 线）→ 各自 ≥parity vs 真出货对手；VLEN-ADAPT ≥parity → K1-SEAL 重开八门 → 首个 sealed Win。两轴（lane-width × token-tile）入选择器。
+2. **certified 修复队列**（在办 · FIX-1 checker-bug → FIX-5/6 walker → FIX-3 FLAT envelope；目标 certified 逼近 labeled 仅剩真缺陷）
+3. **[SEL-1-T5]** dispatcher 收尾（盘点剩余选择点位标 {capability-keyed/measured/常量序}、常量序改造、生产路径零 static_order；排 K1-SEAL 后与 M1 并行）
+4. **iq2-grid 立项**（retirement 蓝图已备，q8_0 收口后提交立项包）
 4. **IME gating 报告**（触发点 = 本案结 ∧ FLAT 收口 = **均已达成**，可上桌）
 5. **矿脉余格** · **M4 门冲刺**（C_construct ≥90% certified） · **写作期裁决**
 

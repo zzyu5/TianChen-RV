@@ -149,6 +149,14 @@ q4_K micro（撤回后）不再是 perf 主张；剩下的**真问题 = rvv e2e 
 ### 9.6 落宪 touch-set（Stage-2，未 commit，主会话提交）
 `执行总纲v2.md` §7（双账本+SOP+奠基失效）· `实验总纲v1.md` §1 第 9/10 条 · `T8_winloss_gap_ledger.csv`（6 格 `★CASE-COMPILER-ASYMMETRY` 注）· `T-VALIDITY_compiler_symmetry_ledger.md`（Stage-2 banner+reclassify）· `2026-07-09-q4k-8gate-status.md`（门④LOSS/⑤reframe）· `2026-07-10-paper-evidence-index.md`（幸存/撤回叙事）· `schema/tiling-measurements.v1.json`（toolchain 维度）。**FLAG 主会话**：`CLAUDE.md` 性能常驻规则负面清单 + memory `perf-constitution-three-layers.md` 需同步双账本（红线级/memory 级，主会话+用户处理）。
 
+## §10 K1-SEAL post-close 精修（2026-07-10 · 新 finding · 非双改 · 不改动 §9 原有条文）
+K1-SEAL e2e 传导终审（`docs/reports/2026-07-10-k1-seal-e2e-transduction.md`）对 §9.3 的"k1 kernel-轴幸存 3.10×/1.92×"补一条 **validity caveat**（追加，不改原条）：
+- **幸存成色收窄**：k1 3.10× 是 **vs factory block-dot** 测的，**但 block-dot 不是 k1 q4_K@VLEN256 的出货路径**（stock 与 tcrv 都 repack hand-brick vl=16）→ micro 打的是 **non-shipping strawman**；vs 真 as-shipped hand-brick，我方 emitted kernel（vl=8）**LOSES 0.75×**（S6 是 VLEN128-tuned、半 VLEN256 宽）。
+- **归属**：此 0.75× 缺口 = **emitter VLEN-adaptivity 成熟 gap（board-无关）→ 归 [VLEN-ADAPT] 战役**（非编译器不对称、非本案管辖）。
+- **kernel 本质健全铁证**：**deployed g₄ vs block-dot = 2.80×（micro 3.10× 的 90% 保留、NOT washed）**（区别于 rvv-gcc 的 wash）。
+- **净口径**：k1 kernel-轴"幸存"= 对称-clang vs block-dot（成立、但**对手非出货物**）；vs 真出货 hand-brick 输（vl-width，[VLEN-ADAPT] 修中）。**两板皆无 e2e Win vs as-shipped**（rvv=gcc/H-B、k1=vl-width，两机制同底线）。
+- 同步待办：`2026-07-09-q4k-8gate-status.md` 门⑤ k1 半 + `paper-evidence-index.md` 加此 caveat（paper-index 待 C1/C2 fix 收口后一并）。
+
 ---
 
-*本卷宗 Stage-1（§1-§8）为分类诊断；★Stage-2（§9）= 终审定案 + 双账本落宪,CASE CLOSED(与 [CASE-MINTERM] 并列)。未 commit；主会话提交。*
+*本卷宗 Stage-1（§1-§8）为分类诊断；★Stage-2（§9）= 终审定案 + 双账本落宪,CASE CLOSED(与 [CASE-MINTERM] 并列)；§10 = K1-SEAL post-close validity 精修（新 finding 追加）。未 commit；主会话提交。*
