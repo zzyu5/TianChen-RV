@@ -4,18 +4,25 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=SCALE
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
-// The ggml iq2_xxs x q8_K 16x1-REPACKED GEVM (decode) hot kernel -- the FIRST
-// SUPER-BLOCK GRID CODEBOOK + SIGN-PLANE block-as-lane repack. iq2_xxs is a QK_K=256
-// super-block of 8 sub-blocks of 32 = 4 GRID groups of 8. The block_iq2_xxsx16 repack
-// stores, per (sub-block, group, column): a raw 8-bit grid INDEX (into the fixed
-// 256-entry iq2xxs_grid) + a raw 7-bit sign SELECTOR (into the derived signs64 +-1
-// plane); plus a per-(sub-block, column) int8 ls scale + the per-column fp16 d. The
-// weight is decoded LANE-WISE by TWO REAL memory GATHERS: grid byte grid[index*8+j]
-// (vluxei16 over the flat int8 grid table) and sign byte signs64[sel*8+j] (vluxei16
-// over the +-1 plane), folded via vmul-onto-grid; the 32-element sub-block dot is
-// accumulated in i32 (vwmul + vwadd_wv), the unsigned ls scale weights it via
-// vmacc_vv_i32, and the per-column output is scaled by 0.125 before the vse32 store.
-// block_iq2_xxsx16 stride 1184; activation is one plain block_q8_K (stride 292).
+// G3 M4 iq2-grid front-door (first cell iq2_xxs): the ggml iq2_xxs x q8_K 16x1-REPACKED
+// GEVM (decode) hot kernel -- the FIRST SUPER-BLOCK GRID CODEBOOK + SIGN-PLANE decode
+// family -- is now CONSTRUCTED through the typed-region FRONT DOOR (the q4_0 / ternary /
+// K-quant / iq4 codebook typed_repack precedent), NOT the retired monolithic
+// emitRepackGemvIq2XxsQ8K direct emitter. The tcrv_rvv.typed_repack_gemv_loop_body region
+// (fold_model "grid_sign_single_scale_eighth") carries the NEW
+// tcrv_rvv.repack_gemv_grid_core integer-core BRICK (decode_model "iq2_xxs" + the grid /
+// ls / sign byte offsets + n_subblocks), block_index-tied (anti-bypass) and named off the
+// loop-body's own weight / activation ABI bases. The lowering GATES the emit on that
+// brick's anti-bypass ties, then RE-EMITS the byte-exact iq2_xxs GEVM body via
+// emitTypedRepackGemvLoopBody's grid branch -> emitRepackGridGemvBodyIq2Xxs (byte-identical
+// to the retired direct emitter). Each (sub-block, group, column) stores a raw 8-bit grid
+// INDEX (into the fixed 256-entry iq2xxs_grid) + a raw 7-bit sign SELECTOR (into the DERIVED
+// signs64 +-1 plane); the weight is decoded LANE-WISE by TWO REAL memory GATHERS
+// (grid[index*8+j], signs64[sel*8+j], both vluxei16), folded via vmul-onto-grid; the
+// 32-element sub-block dot accumulates in i32 (vwmul + vwadd_wv), the unsigned ls scale
+// weights it via vmacc_vv_i32, and the per-column output is scaled by 0.125 before vse32.
+// block_iq2_xxsx16 stride 1184; activation is one plain block_q8_K (stride 292). VLEN=128
+// => TWO strips.
 
 module {
   tcrv.exec.kernel @ggml_repack_gemv_iq2_xxs_q8_K_kernel {
@@ -28,13 +35,25 @@ module {
       %nc = tcrv_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_iq2_xxs_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_iq2_xxs_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemv_iq2_xxs_q8_K %vx, %vy, %s, %n, %nc, %vl {kind = "ggml_repack_gemv_iq2_xxs_q8_K", scale_model = "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1184 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 160 : i64, weight_scale_byte_offset = 32 : i64, weight_sign_byte_offset = 672 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth", qk = 256 : i64, weight_block_stride = 1184 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 160 : i64, activation_quant_byte_offset = 4 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, fold_model = "grid_sign_single_scale_eighth"} {
+        ^bb0(%block_index: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index-tied GRID integer-core BRICK: per-block lane-wise iq2_xxs
+          // grid + sign memory-gather ls-scaled dot -> the numHalves (2) per-strip i32
+          // sumi. The typed emitter re-emits the whole byte-exact iq2_xxs body (grid
+          // gather + sign-plane gather + i32 dot + per-sub-block ls-scale vmacc fold) from
+          // this brick's identity + its grid/ls/sign offsets; the yield passes through the
+          // carried-in accs.
+          %sumi:2 = tcrv_rvv.repack_gemv_grid_core %vx, %vy, %vl block %block_index : index {kind = "repack_gemv_grid_core", decode_model = "iq2_xxs", weight_quant_byte_offset = 160 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 672 : i64, activation_quant_byte_offset = 4 : i64, n_subblocks = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemv_loop_yield %acc0, %acc1 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemv_iq2_xxs_q8_K %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemv_grid_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemv_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemv_iq2_xxs_q8_K_kernel_ggml_repack_gemv_iq2_xxs_q8_K(
 // The FIXED 256-entry GRID-of-8 table + the DERIVED 128-selector signs64 +-1 plane,
@@ -84,6 +103,8 @@ module {
 // Grid + sign decode are MEMORY gathers (vluxei16), NOT a register vrgather (the mf2
 // anchor's VLMAX < the 2048-byte grid / 1024-byte sign table). iq2_xxs is scale-ONLY:
 // NO min term (no vfnmsac), NO cross-lane reduction wall (no vredsum -- block-as-lane).
+// Also NO trailing dead result-token vmv (the region is result-less, unlike the retired
+// direct emitter).
 // NOWALL-NOT: vrgather
 // NOWALL-NOT: redsum
 // NOWALL-NOT: vfnmsac

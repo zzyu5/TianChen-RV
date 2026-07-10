@@ -589,6 +589,27 @@ constexpr llvm::StringLiteral kNibbleQ51ScaleModel =
 constexpr llvm::StringLiteral kNibbleQ80ScaleModel =
     "dual-fp16-per-block-d_x.d_y-full-i8";
 
+// The iq2_xxs GRID CODEBOOK + SIGN-PLANE decode-FAMILY discriminator (the abstract
+// request's committed scale_model WHAT): the FIRST grid decode sibling (retirement_batch
+// 3). A QK_K=256 super-block whose per-(sub-block, group, column) 8-bit GRID INDEX selects
+// an 8-byte ENTRY from the FIXED 256-entry iq2xxs_grid (each entry = 8 packed int8 grid
+// bytes), whose 7-bit SIGN SELECTOR gathers a +-1 byte from the DERIVED signs64 plane
+// (folded onto the grid), with a per-sub-block int8 ls scale ([1,31], NO -32 bias, NO min)
+// and a trailing 0.125 (1/8) factor. NO dmin, NO 6-bit scales, NO bsums, NO qh second
+// plane, NO codebook array -- the ONLY grid-specific decode facts (grid-index / ls-scale /
+// sign-selector byte offsets + n_subblocks) ride on the NEW grid core brick, and the FIXED
+// grid + signs64 planes stay DERIVED canonical static const tables (NEVER op attrs -- the
+// signs64 op-attr blocker never recurs). A request carrying it is a grid contraction whose
+// repack-SELECTED lowering CONSTRUCTS the grid typed_repack_gem{v,m}_loop_body region
+// (fold_model "grid_sign_single_scale_eighth", decode_model "iq2_xxs") carrying the
+// repack_gem{v,m}_grid_core brick. The GEMM lowering sets the 4-column-amortized scale_model
+// variant on the constructed loop body (a pure I4 mirror). The next grid siblings (iq2_xs /
+// iq2_s) will ride the SAME core brick with a DUAL per-group ls scale.
+constexpr llvm::StringLiteral kGridIq2XxsScaleModel =
+    "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth";
+constexpr llvm::StringLiteral kGridIq2XxsGemmScaleModel =
+    "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth-4col";
+
 // The iq4_nl NON-LINEAR int8 codebook (kvalues_iq4nl) the codebook decode indexes. The
 // abstract quant_contraction request carries NO codebook; the compiler RECONSTRUCTS this
 // table (the load-bearing WHAT the memory gather reads, stamped onto the core brick).
@@ -657,6 +678,46 @@ constexpr CodebookDecodeFacts kIq4XsDecodeFacts = {
     /*weightScalesHighByteOffset=*/32,
     /*nSubblocks=*/8,
     /*codebook=*/llvm::ArrayRef<int8_t>(kvalues_iq4nl),
+};
+
+// The block_iq2_xxsx16 / block_q8_K{,x4} byte facts the GRID lowering RECONSTRUCTS (the
+// stage-C x16 materialization the DECLARED weight_layout_contract asserts): the
+// 16-inline-fp16-d + 8 per-sub-block int8 ls strips (+32) + 512 grid-index bytes (+160) +
+// 512 sign-selector bytes (+672) weight super-block (stride 1184); the plain block_q8_K
+// GEVM activation (stride 292, fp32 d @0, int8 quants @4) + the INTERLEAVED block_q8_Kx4
+// GEMM activation (stride 1168, quants @16). Unlike the codebook facts there is NO codebook
+// array: the FIXED 256-entry grid + the DERIVED signs64 +-1 plane are emit-period static
+// const tables (NEVER op attrs). The grid-index / ls-scale / sign-selector byte offsets +
+// n_subblocks ride on the grid core brick (NOT the loop body op). These MIRROR the retired
+// monolithic iq2_xxs repack op verifiers' pins.
+struct Iq2GridDecodeFacts {
+  llvm::StringRef decodeModel;              // "iq2_xxs" (core brick)
+  llvm::StringRef gemmScaleModel;           // the 4-col GEMM loop-op scale_model
+  llvm::StringRef foldModel;                // loop-body fold_model
+  std::int64_t weightBlockStride;           // 1184
+  std::int64_t weightGridIdxByteOffset;     // 160 (grid-index plane)
+  std::int64_t weightLsByteOffset;          // 32 (per-sub-block int8 ls plane)
+  std::int64_t weightSignByteOffset;        // 672 (sign-selector plane)
+  std::int64_t gevmActivationBlockStride;   // 292 (plain block_q8_K)
+  std::int64_t gevmActivationQuantByteOffset;    // 4
+  std::int64_t gemmActivationBlockStride;   // 1168 (block_q8_Kx4)
+  std::int64_t gemmActivationQuantByteOffset;    // 16
+  std::int64_t nSubblocks;                  // 8
+};
+
+constexpr Iq2GridDecodeFacts kIq2XxsDecodeFacts = {
+    /*decodeModel=*/"iq2_xxs",
+    /*gemmScaleModel=*/kGridIq2XxsGemmScaleModel,
+    /*foldModel=*/"grid_sign_single_scale_eighth",
+    /*weightBlockStride=*/1184,
+    /*weightGridIdxByteOffset=*/160,
+    /*weightLsByteOffset=*/32,
+    /*weightSignByteOffset=*/672,
+    /*gevmActivationBlockStride=*/292,
+    /*gevmActivationQuantByteOffset=*/4,
+    /*gemmActivationBlockStride=*/1168,
+    /*gemmActivationQuantByteOffset=*/16,
+    /*nSubblocks=*/8,
 };
 
 // Derives the resource-aware e16m1 strip width (half_lanes) from the guaranteed
@@ -936,6 +997,15 @@ private:
           op.getScaleModel() == kCodebookIq4NlScaleModel   ? &kIq4NlDecodeFacts
           : op.getScaleModel() == kCodebookIq4XsScaleModel ? &kIq4XsDecodeFacts
                                                            : nullptr;
+      // The GRID family (iq2_xxs GRID CODEBOOK + SIGN-PLANE single ls-scale, the FIRST
+      // grid sibling) builds the grid typed_repack region + the NEW
+      // repack_gem{v,m}_grid_core brick via lowerToRepackGem{v,m}Grid, parameterized by
+      // the per-family Iq2GridDecodeFacts. Unlike the codebook family there is NO codebook
+      // array: the FIXED grid + DERIVED signs64 planes are emit-period static const tables,
+      // and the grid/ls/sign byte offsets + n_subblocks ride on the grid core brick.
+      const Iq2GridDecodeFacts *grid =
+          op.getScaleModel() == kGridIq2XxsScaleModel ? &kIq2XxsDecodeFacts
+                                                      : nullptr;
       // The q4_1 family (unsigned nibble + single MIN fold) builds the SAME typed
       // q4_0 repack region via lowerToRepackGem{v,m}Q41 (the SHARED q4_0 core + fold
       // bricks, the core stamping weight_nibble_unsigned and the fold stamping the
@@ -960,7 +1030,9 @@ private:
       // weight_full_i8). Keyed off the committed q8_0 scale_model WHAT.
       bool isQ80 = op.getScaleModel() == kNibbleQ80ScaleModel;
       if (*mRegime == pluginrvv::MRegime::Prefill)
-        return codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
+        return grid ? lowerToRepackGemmGrid(op, selection, halfLanes, isRVV0p7,
+                                            *grid)
+               : codebook ? lowerToRepackGemmCodebook(op, selection, halfLanes,
                                                     isRVV0p7, *codebook)
                : kquant ? lowerToRepackGemmKQuant(op, selection, halfLanes,
                                                   isRVV0p7, *kquant)
@@ -971,7 +1043,9 @@ private:
                : isQ51 ? lowerToRepackGemmQ51(op, selection, halfLanes, isRVV0p7)
                : isQ80 ? lowerToRepackGemmQ80(op, selection, halfLanes, isRVV0p7)
                        : lowerToRepackGemm(op, selection, halfLanes, isRVV0p7);
-      return codebook ? lowerToRepackGemvCodebook(op, selection, halfLanes,
+      return grid ? lowerToRepackGemvGrid(op, selection, halfLanes, isRVV0p7,
+                                          *grid)
+             : codebook ? lowerToRepackGemvCodebook(op, selection, halfLanes,
                                                   isRVV0p7, *codebook)
              : kquant ? lowerToRepackGemvKQuant(op, selection, halfLanes, isRVV0p7,
                                                 *kquant)
@@ -999,16 +1073,17 @@ private:
         op.getScaleModel() == kKQuantQ5KScaleModel ||
         op.getScaleModel() == kCodebookIq4NlScaleModel ||
         op.getScaleModel() == kCodebookIq4XsScaleModel ||
+        op.getScaleModel() == kGridIq2XxsScaleModel ||
         op.getScaleModel() == kNibbleQ50ScaleModel ||
         op.getScaleModel() == kNibbleQ51ScaleModel ||
         op.getScaleModel() == kNibbleQ80ScaleModel)
       return op.emitError()
-             << "ternary / K-quant / codebook / q5_0 / q5_1 / q8_0 "
+             << "ternary / K-quant / codebook / grid / q5_0 / q5_1 / q8_0 "
                 "quant_contraction requires a repack-affording capability (a valid "
                 "e16m1 strip width, minVLEN >= 128); there is no ternary / K-quant / "
-                "codebook / q5_0 / q5_1 / q8_0 block-dot decline path (the block-dot "
-                "identity lowering is q4_0-nibble-only, which would MISCOMPILE the "
-                "q8_0 full-int8 weights as nibbles)";
+                "codebook / grid / q5_0 / q5_1 / q8_0 block-dot decline path (the "
+                "block-dot identity lowering is q4_0-nibble-only, which would "
+                "MISCOMPILE the iq2_xxs grid/sign weights as nibbles)";
 
     return lowerToBlockDot(op, selection);
   }
@@ -3688,6 +3763,310 @@ private:
              << "codebook repack-GEMM region lowering requires the abstract "
                 "quant_contraction result to be unused (the repacked lane-wise "
                 "codebook GEMM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (GRID REPACK GEVM, region form): the iq2_xxs GRID CODEBOOK +
+  // SIGN-PLANE sibling of lowerToRepackGemvCodebook. Realize a repack-SELECTED,
+  // capability-afforded iq2_xxs DECODE request as the typed
+  // tcrv_rvv.typed_repack_gemv_loop_body REGION carrying the SINGLE decomposed grid GEVM
+  // integer CORE brick (tcrv_rvv.repack_gemv_grid_core, decode_model "iq2_xxs") -- the
+  // front-door CONSTRUCTION of the RETIRED monolithic emitRepackGemvIq2XxsQ8K direct
+  // emitter. It reconstructs the block_iq2_xxsx16 weight facts (stride 1184, grid-index
+  // @160, ls @32, sign @672) + the plain block_q8_K activation facts (292/4), stamps
+  // weight_layout_contract = "x16", and emplaces the grid decode facts (grid/ls/sign byte
+  // offsets + n_subblocks) onto the grid core brick. The FIXED grid + DERIVED signs64
+  // planes are NOT reconstructed here (the emitter spells them as static const decls).
+  // SAFETY: identical to lowerToRepackGemvCodebook (lit-only, NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemvGrid(tcrvrvv::GgmlQuantContractionOp op,
+                        const pluginrvv::ContractionSelection &selection,
+                        std::int64_t halfLanes, bool isRVV0p7,
+                        const Iq2GridDecodeFacts &facts) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    std::int64_t numHalves = kWeightInterleave / emittedHalfLanes;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+
+    // The region-carrying loop op: FIVE ABI operands (weight base, activation base,
+    // output, element count n, column count nc), NO vl operand and NO result. The grid
+    // fold carries NO super-block attrs on the loop body -- the grid/ls/sign offsets +
+    // n_subblocks ride on the grid core brick.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemvLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(),
+                           op.getColumnCount()});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemv_loop_body"));
+    loopState.addAttribute("scale_model",
+                           builder.getStringAttr(op.getScaleModel()));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(facts.weightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(facts.gevmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightGridIdxByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr(facts.foldModel));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemvLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemv_grid_core producing the numHalves
+    // per-strip i32 sumi. block_index-tied (anti-bypass) + named off the loop body's OWN
+    // weight/activation ABI bases + the grid/ls/sign decode facts. The typed emitter
+    // RE-EMITS the whole byte-exact iq2_xxs GEVM body from this brick's identity; the yield
+    // passes the carried-in per-strip accumulators through.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemvGridCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemv_grid_core"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightGridIdxByteOffset));
+    coreState.addAttribute(
+        "weight_ls_byte_offset",
+        builder.getI64IntegerAttr(facts.weightLsByteOffset));
+    coreState.addAttribute(
+        "weight_sign_byte_offset",
+        builder.getI64IntegerAttr(facts.weightSignByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gevmActivationQuantByteOffset));
+    coreState.addAttribute("n_subblocks",
+                           builder.getI64IntegerAttr(facts.nSubblocks));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t h = 0; h < numHalves; ++h)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemvLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "grid repack-GEVM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "grid GEVM sinks through the output pointer, not an SSA vector)";
+    op.erase();
+    return mlir::success();
+  }
+
+  // STAGE C1 bridge (GRID REPACK GEMM, region form): the iq2_xxs sibling of
+  // lowerToRepackGemmCodebook. Realize a repack-SELECTED, capability-afforded iq2_xxs
+  // PREFILL request as the typed tcrv_rvv.typed_repack_gemm_loop_body REGION carrying the
+  // SINGLE decomposed grid GEMM integer CORE brick (tcrv_rvv.repack_gemm_grid_core,
+  // decode_model "iq2_xxs") -- the front-door CONSTRUCTION of the RETIRED monolithic
+  // emitRepackGemmIq2XxsQ8K direct emitter. It reconstructs the block_iq2_xxsx16 weight
+  // facts (stride 1184, grid-index @160, ls @32, sign @672) AND the INTERLEAVED
+  // block_q8_Kx4 activation facts (stride 1168, quant @16), MATERIALIZES the two GEMM ABI
+  // values (row count nr, output row stride bs) the abstract op does not carry, stamps
+  // weight_layout_contract = "x16", and emplaces the grid decode facts onto the grid core
+  // brick. The grid GEMM ships PLAIN (untiled): iq2_xxs already sits at the <=32-vreg cliff
+  // (a memory-gather grid decode, NO min-fold weight-panel spill), so S6 output tiling is a
+  // structural no-op. SAFETY: identical to lowerToRepackGemvGrid (lit-only, NO e2e/perf).
+  mlir::LogicalResult
+  lowerToRepackGemmGrid(tcrvrvv::GgmlQuantContractionOp op,
+                        const pluginrvv::ContractionSelection &selection,
+                        std::int64_t halfLanes, bool isRVV0p7,
+                        const Iq2GridDecodeFacts &facts) {
+    mlir::OpBuilder builder(op);
+    mlir::MLIRContext *ctx = builder.getContext();
+    mlir::Location loc = op.getLoc();
+
+    std::int64_t emittedHalfLanes = isRVV0p7 ? 16 : halfLanes;
+    bool isM1 = isRVV0p7;
+    llvm::StringRef accLmul = isM1 ? "m4" : "m2";
+    mlir::Type f32AccType =
+        tcrvrvv::VectorType::get(ctx, builder.getF32Type(), accLmul);
+    mlir::Type i32ResType =
+        tcrvrvv::VectorType::get(ctx, builder.getI32Type(), accLmul);
+    mlir::StringAttr integerCoreLmul =
+        isM1 ? builder.getStringAttr("m1") : mlir::StringAttr();
+    std::int64_t columnsPerPass = isM1 ? 1 : kActivationInterleave;
+
+    // Materialize the two runtime ABI values the internalized M-tiling GEMM nest needs but
+    // the abstract op does not carry (row count nr, output row stride bs) -- the SAME
+    // declared-contract move as the q4_0 / ternary / K-quant / codebook repack GEMM.
+    auto variant = op->getParentOfType<tcrv::exec::VariantOp>();
+    if (!variant)
+      return op.emitError() << "grid repack-GEMM region lowering requires the "
+                               "quant_contraction to sit inside a tcrv.exec.variant";
+    mlir::Value rowCount, outputRowStride;
+    {
+      mlir::OpBuilder::InsertionGuard abiGuard(builder);
+      builder.setInsertionPointToStart(&variant.getBody().front());
+      auto makeAbi = [&](llvm::StringRef cName, llvm::StringRef role,
+                         llvm::StringRef purpose) -> mlir::Value {
+        mlir::OperationState st(
+            loc, tcrvrvv::RuntimeABIValueOp::getOperationName());
+        st.addAttribute("role", builder.getStringAttr(role));
+        st.addAttribute("c_name", builder.getStringAttr(cName));
+        st.addAttribute("c_type", builder.getStringAttr("size_t"));
+        st.addAttribute("ownership",
+                        builder.getStringAttr("target-export-abi-owned"));
+        st.addAttribute("purpose", builder.getStringAttr(purpose));
+        st.addTypes(builder.getIndexType());
+        return builder.create(st)->getResult(0);
+      };
+      rowCount = makeAbi("nr", "source-byte-stride", "nr");
+      outputRowStride = makeAbi("bs", "output-stride", "bs");
+    }
+
+    // The region-carrying loop op: SEVEN ABI operands (weight base, activation base,
+    // output, element count n, row count nr, column count nc, output row stride bs), NO vl
+    // operand and NO result. The grid fold carries NO super-block attrs on the loop body.
+    mlir::OperationState loopState(
+        loc, tcrvrvv::TypedRepackGemmLoopBodyOp::getOperationName());
+    loopState.addOperands({op.getWeightBase(), op.getActivationBase(),
+                           op.getOutput(), op.getElementCount(), rowCount,
+                           op.getColumnCount(), outputRowStride});
+    loopState.addAttribute(
+        "kind", builder.getStringAttr("typed_repack_gemm_loop_body"));
+    loopState.addAttribute(
+        "scale_model", builder.getStringAttr(facts.gemmScaleModel));
+    loopState.addAttribute("qk", builder.getI64IntegerAttr(op.getQk()));
+    loopState.addAttribute(
+        "weight_block_stride",
+        builder.getI64IntegerAttr(facts.weightBlockStride));
+    loopState.addAttribute(
+        "activation_block_stride",
+        builder.getI64IntegerAttr(facts.gemmActivationBlockStride));
+    loopState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightGridIdxByteOffset));
+    loopState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    loopState.addAttribute("weight_interleave",
+                           builder.getI64IntegerAttr(kWeightInterleave));
+    loopState.addAttribute("activation_interleave",
+                           builder.getI64IntegerAttr(kActivationInterleave));
+    loopState.addAttribute("half_lanes",
+                           builder.getI64IntegerAttr(emittedHalfLanes));
+    loopState.addAttribute("fold_model",
+                           builder.getStringAttr(facts.foldModel));
+    if (integerCoreLmul)
+      loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    loopState.addRegion();
+    auto loop = llvm::cast<tcrvrvv::TypedRepackGemmLoopBodyOp>(
+        builder.create(loopState));
+
+    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
+    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
+    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
+
+    // [SEL-1] the grid GEMM SP4 tiling selection. The grid fold_model
+    // ("grid_sign_single_scale_eighth") classifies AlreadyLean (a memory-gather grid decode
+    // already <= the 32-vreg cliff, output tiling a structural no-op) => Plain; no offline
+    // seed => the cold-start [XFER-1] prior (reason=prior). Byte-exact: the grid emitter
+    // does not read tiling_variant, so the stamp is inert to the untiled body.
+    stampTilingSelection(builder, loop, facts.foldModel, facts.decodeModel, op);
+
+    mlir::Block &body = loop.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    mlir::Value stripOffset = body.addArgument(builder.getIndexType(), loc);
+    llvm::SmallVector<mlir::Value> accArgs;
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      accArgs.push_back(body.addArgument(f32AccType, loc));
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    mlir::Value vl = op.getVl();
+
+    // The SOLE in-region brick: ONE tcrv_rvv.repack_gemm_grid_core producing the
+    // columnsPerPass per-column i32 sumi. block_index + strip_row_offset tied (anti-bypass)
+    // + named off the loop body's OWN weight/activation ABI bases + the grid decode facts.
+    // The typed emitter RE-EMITS the whole byte-exact iq2_xxs GEMM body (PLAIN untiled) from
+    // this brick's identity; the accumulators pass through.
+    mlir::OperationState coreState(
+        loc, tcrvrvv::RepackGemmGridCoreOp::getOperationName());
+    coreState.addOperands(
+        {op.getWeightBase(), op.getActivationBase(), vl, blockIndex, stripOffset});
+    coreState.addAttribute("kind",
+                           builder.getStringAttr("repack_gemm_grid_core"));
+    coreState.addAttribute("decode_model",
+                           builder.getStringAttr(facts.decodeModel));
+    coreState.addAttribute(
+        "weight_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.weightGridIdxByteOffset));
+    coreState.addAttribute(
+        "weight_ls_byte_offset",
+        builder.getI64IntegerAttr(facts.weightLsByteOffset));
+    coreState.addAttribute(
+        "weight_sign_byte_offset",
+        builder.getI64IntegerAttr(facts.weightSignByteOffset));
+    coreState.addAttribute(
+        "activation_quant_byte_offset",
+        builder.getI64IntegerAttr(facts.gemmActivationQuantByteOffset));
+    coreState.addAttribute("n_subblocks",
+                           builder.getI64IntegerAttr(facts.nSubblocks));
+    if (integerCoreLmul)
+      coreState.addAttribute("integer_core_lmul", integerCoreLmul);
+    for (std::int64_t c = 0; c < columnsPerPass; ++c)
+      coreState.addTypes(i32ResType);
+    (void)builder.create(coreState);
+
+    mlir::OperationState yieldState(
+        loc, tcrvrvv::TypedRepackGemmLoopYieldOp::getOperationName());
+    yieldState.addOperands(accArgs);
+    (void)builder.create(yieldState);
+
+    if (!op.getResult().use_empty())
+      return op.emitError()
+             << "grid repack-GEMM region lowering requires the abstract "
+                "quant_contraction result to be unused (the repacked lane-wise "
+                "grid GEMM sinks through the output pointer, not an SSA vector)";
     op.erase();
     return mlir::success();
   }

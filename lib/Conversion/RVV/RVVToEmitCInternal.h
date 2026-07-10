@@ -415,11 +415,10 @@ private:
   // iq4_xs repack now flows through the typed_repack_gem{v,m}_loop_body front door
   // (fold_model "codebook_superblock_signed6_no_min") -> emitRepackCodebookGem{v,m}BodyIq4Xs
   // (declared below, byte-exact to the retired direct emitter body verbatim).
-  /// The SUPER-BLOCK GRID+SIGN 16x1-REPACKED GEVM recognizer for iq2_xxs: real
-  /// grid vluxei16 gather + sign-plane vluxei16 gather + per-sub-block ls scale.
-  static bool isRepackGemvIq2XxsQ8KBody(tcrvrvv::WithVLOp scope);
-  /// The SUPER-BLOCK GRID+SIGN 16x1-REPACKED GEMM recognizer for iq2_xxs.
-  static bool isRepackGemmIq2XxsQ8KBody(tcrvrvv::WithVLOp scope);
+  // NOTE (G3 M4 iq2-grid front-door): isRepackGem{v,m}Iq2XxsQ8KBody recognizers RETIRED
+  // with the iq2_xxs monolith ops -- the iq2_xxs repack GEVM/GEMM now flow through the
+  // typed_repack_gem{v,m}_loop_body front door (grid branch of emitTypedRepackGem{v,m}
+  // LoopBody -> emitRepackGridGem{v,m}BodyIq2Xxs). iq2_xs / iq2_s recognizers remain.
   /// The SUPER-BLOCK 512-GRID + ksigns SIGN + DUAL-scale 16x1-REPACKED GEVM/GEMM
   /// recognizers for iq2_xs (u16 grid index, 7-bit sign selector, ls1/ls2 halves).
   static bool isRepackGemvIq2XsQ8KBody(tcrvrvv::WithVLOp scope);
@@ -1934,32 +1933,52 @@ private:
       llvm::ArrayRef<int8_t> codebook, int64_t weightInterleave,
       int64_t activationInterleave, int64_t half) const;
 
-  /// Emit the COMPLETE ggml iq2_xxs x q8_K 16x1-REPACKED block-as-lane GEVM
-  /// (decode) for one tcrv_rvv.repack_gemv_iq2_xxs_q8_K op. The FIRST SUPER-BLOCK
-  /// GRID CODEBOOK + SIGN-PLANE repack: each (sub-block, group, column) stores a
-  /// raw 8-bit grid INDEX + a raw 7-bit sign SELECTOR; the decode does a REAL grid
-  /// GATHER (zero-extend index to a u16 byte offset index*8+j, vluxei16_v_i8 over
-  /// the flat 256*8 int8 grid table -- the fractional mf2 anchor forbids a register
-  /// vrgather) + a REAL sign-plane GATHER (sel*8+j, vluxei16_v_i8 over the derived
-  /// signs64 +-1 plane) + a vmul-onto-grid sign fold, then the i32-accumulator dot
-  /// (vwmul + vwadd_wv). The per-sub-block ls scale (int8 [1,31]) weights it via
-  /// vmacc_vv_i32; the end-of-block fp16*fp32 fold has NO min and the per-column
-  /// output is scaled by 0.125 before the store. Reuses the canonical grid + signs64
-  /// table decls (emitIQ2XXSCanonicalGridTableDecl / ...Signs64TableDecl).
-  mlir::LogicalResult emitRepackGemvIq2XxsQ8K(
+  /// Emit the COMPLETE ggml iq2_xxs x q8_K 16x1-REPACKED block-as-lane GEVM (decode) body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemvIq2XxsQ8K, refactored to take the mapped ABI values + block-format facts
+  /// (grid-index / ls-scale / sign-selector byte offsets + n_subblocks) as PARAMETERS.
+  /// Called ONLY from emitTypedRepackGemvLoopBody's grid branch (gated on the in-region
+  /// tcrv_rvv.repack_gemv_grid_core anti-bypass brick, decode_model "iq2_xxs"). The FIRST
+  /// SUPER-BLOCK GRID CODEBOOK + SIGN-PLANE repack: each (sub-block, group, column) stores a
+  /// raw 8-bit grid INDEX + a raw 7-bit sign SELECTOR; the decode does a REAL grid GATHER
+  /// (zero-extend index to a u16 byte offset index*8+j, vluxei16_v_i8 over the flat 256*8
+  /// int8 grid table -- the fractional mf2 anchor forbids a register vrgather) + a REAL
+  /// sign-plane GATHER (sel*8+j, vluxei16_v_i8 over the DERIVED signs64 +-1 plane) + a
+  /// vmul-onto-grid sign fold, then the i32-accumulator dot (vwmul + vwadd_wv). The
+  /// per-sub-block ls scale (int8 [1,31]) weights it via vmacc_vv_i32; the end-of-block
+  /// fp16*fp32 fold has NO min and the per-column output is scaled by 0.125 before the
+  /// store. Reuses the canonical grid + signs64 table decls (emitIQ2XXSCanonicalGridTableDecl
+  /// / ...Signs64TableDecl). RESULT-LESS (no monolith token).
+  mlir::LogicalResult emitRepackGridGemvBodyIq2Xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value columnCount, mlir::Value avlArg, mlir::Type sizeType,
+      llvm::StringRef opName, llvm::StringRef role, llvm::StringRef coreLmul,
+      int64_t qk, int64_t weightStride, int64_t activationStride,
+      int64_t gridIdxOffset, int64_t lsOffset, int64_t signOffset,
+      int64_t activationQuantOffset, int64_t nSubblocks,
+      int64_t weightInterleave, int64_t half) const;
 
-  /// Emit the COMPLETE ggml iq2_xxs x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM
-  /// for one tcrv_rvv.repack_gemm_iq2_xxs_q8_K op. The iq2_xxs prefill sibling of
-  /// emitRepackGemvIq2XxsQ8K: the SAME real grid gather + sign-plane gather + ls
-  /// scale + 0.125 fold, with the grid+sign weight decode AMORTIZED across the 4
-  /// interleaved block_q8_Kx4 activation columns.
-  mlir::LogicalResult emitRepackGemmIq2XxsQ8K(
+  /// Emit the COMPLETE ggml iq2_xxs x q8_K 16x1-REPACKED block-as-lane PREFILL GEMM body
+  /// from the FRONT DOOR: the byte-exact body of the RETIRED monolithic direct emitter
+  /// emitRepackGemmIq2XxsQ8K, refactored to take the mapped ABI values + facts as
+  /// PARAMETERS. Called ONLY from emitTypedRepackGemmLoopBody's grid branch (gated on the
+  /// in-region tcrv_rvv.repack_gemm_grid_core anti-bypass brick, decode_model "iq2_xxs").
+  /// The iq2_xxs prefill sibling of emitRepackGridGemvBodyIq2Xxs: the SAME real grid gather
+  /// + sign-plane gather + ls scale + 0.125 fold, with the grid+sign weight decode AMORTIZED
+  /// across the 4 interleaved block_q8_Kx4 activation columns. Ships PLAIN (untiled):
+  /// iq2_xxs already sits at the <=32-vreg cliff, so S6 output tiling is a structural no-op.
+  /// RESULT-LESS.
+  mlir::LogicalResult emitRepackGridGemmBodyIq2Xxs(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      tcrvrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
+      mlir::Value weightBase, mlir::Value activationBase, mlir::Value output,
+      mlir::Value rowCount, mlir::Value columnCount, mlir::Value outputRowStride,
+      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
+      llvm::StringRef role, llvm::StringRef coreLmul, int64_t qk,
+      int64_t weightStride, int64_t activationStride, int64_t gridIdxOffset,
+      int64_t lsOffset, int64_t signOffset, int64_t activationQuantOffset,
+      int64_t nSubblocks, int64_t weightInterleave, int64_t activationInterleave,
+      int64_t half) const;
 
   /// The two DUAL-scale GRID+SIGN repack variants that share the iq2_xxs block-as-
   /// lane scaffold VERBATIM but split each sub-block into TWO ls-weighted group

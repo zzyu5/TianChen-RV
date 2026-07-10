@@ -2008,11 +2008,22 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // facts (the abstract request carries no codebook and no scales offsets).
   bool isCodebookIq4XsFamily =
       getScaleModel() == "superblock.fp16-signed6-scale-codebook-nomin";
+  // iq2_xxs -- scale_model "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth" (the
+  // SUPER-BLOCK GRID CODEBOOK + SIGN-PLANE: QK_K=256, each (sub-block, group, column) 8-bit
+  // grid INDEX selects an 8-byte ENTRY from the FIXED 256-entry iq2xxs_grid, a 7-bit sign
+  // SELECTOR gathers a +-1 byte from the DERIVED signs64 plane folded onto the grid, a
+  // per-sub-block int8 ls scale [1,31] (NO -32 bias, NO min), ONE fp16 d, a trailing 0.125
+  // factor, 8 sub-blocks). Its repack-SELECTED lowering CONSTRUCTS the grid
+  // typed_repack_gem{v,m}_loop_body region (fold_model "grid_sign_single_scale_eighth")
+  // carrying the repack_gem{v,m}_grid_core brick (decode_model "iq2_xxs"); the compiler
+  // RECONSTRUCTS the fixed grid + signs64 planes (the abstract request carries neither).
+  bool isGridIq2XxsFamily =
+      getScaleModel() == "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth";
   if (!isQ40Family && !isQ41Family && !isQ50Family && !isQ51Family &&
       !isQ80Family && !isTernaryTQ20Family &&
       !isTernaryTQ10Family && !isKQuantQ4KFamily && !isKQuantQ6KFamily &&
       !isKQuantQ2KFamily && !isKQuantQ3KFamily && !isKQuantQ5KFamily &&
-      !isCodebookIq4NlFamily && !isCodebookIq4XsFamily)
+      !isCodebookIq4NlFamily && !isCodebookIq4XsFamily && !isGridIq2XxsFamily)
     return emitOpError()
            << "requires scale_model \"dual-fp16-per-block-d_x.d_y\" (the q4_0 "
               "flat dual-fp16 nibble family), "
@@ -2042,7 +2053,9 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
               "family), or \"flat.fp16-single-scale-codebook-nomin\" (the iq4_nl "
               "flat non-linear 16-entry codebook family), or "
               "\"superblock.fp16-signed6-scale-codebook-nomin\" (the iq4_xs "
-              "super-block 16-entry codebook + 6-bit signed sub-block-scale family) "
+              "super-block 16-entry codebook + 6-bit signed sub-block-scale family), or "
+              "\"superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth\" (the iq2_xxs "
+              "super-block grid-codebook + sign-plane family) "
               "for the abstract block-quantized contraction request; got \""
            << getScaleModel() << "\"";
   if (getMRegime() != "decode" && getMRegime() != "prefill")
@@ -2460,6 +2473,38 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
              << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
                 "packed high half; the 0 sentinel is unused) for the abstract iq4_xs "
                 "codebook block-quantized contraction request";
+  } else if (isGridIq2XxsFamily) {
+    // iq2_xxs grid codebook: QK_K == 256, PLAIN block_iq2_xxs weight stride 66 (fp16 d +
+    // 32 uint16 qs = 2 + 64), PLAIN block_q8_K activation stride 292 (fp32 d + 256 int8
+    // quants + 16 int16 bsums). The plain qs start at +2 (after the inline fp16 d);
+    // block_q8_K carries no packed high half (activation_high_byte_offset == 0 sentinel,
+    // unused, like the K-quant / iq4_xs super-blocks). The repacked x16 weight (stride
+    // 1184, grid-index @160, ls @32, sign @672) / block_q8_K{,x4} activation (292/4 GEVM,
+    // 1168/16 GEMM) facts + the FIXED 256-entry grid + the DERIVED signs64 plane are a
+    // stage-C materialization the grid lowering RECONSTRUCTS, never carried here.
+    if (getQk() != 256)
+      return emitOpError() << "requires qk == 256 (QK_K) for the abstract iq2_xxs "
+                              "grid block-quantized contraction request";
+    if (getWeightBlockStride() != 66)
+      return emitOpError()
+             << "requires weight_block_stride == 66 (sizeof block_iq2_xxs: fp16 d + "
+                "32 uint16 qs bytes, the PLAIN super-block grid weight layout) for the "
+                "abstract iq2_xxs grid block-quantized contraction request";
+    if (getActivationBlockStride() != 292)
+      return emitOpError()
+             << "requires activation_block_stride == 292 (sizeof block_q8_K: fp32 d + "
+                "256 int8 quants + 16 int16 bsums) for the abstract iq2_xxs grid "
+                "block-quantized contraction request";
+    if (getQuantByteOffset() != 2)
+      return emitOpError()
+             << "requires quant_byte_offset == 2 (the plain iq2_xxs qs follow the "
+                "inline fp16 d) for the abstract iq2_xxs grid block-quantized "
+                "contraction request";
+    if (getActivationHighByteOffset() != 0)
+      return emitOpError()
+             << "requires activation_high_byte_offset == 0 (block_q8_K carries no "
+                "packed high half; the 0 sentinel is unused) for the abstract iq2_xxs "
+                "grid block-quantized contraction request";
   } else {
     // K-quant q5_K: QK_K == 256, PLAIN block_q5_K weight stride 176 (fp16 d + fp16 dmin
     // + 12 K_SCALE_SIZE 6-bit scales/mins bytes + 32 qh high-bit bytes + 128 nibble
@@ -3819,6 +3864,177 @@ mlir::LogicalResult RepackGemmCodebookCoreOp::verify() {
   return mlir::success();
 }
 
+// The SHARED grid-core (iq2 GRID CODEBOOK + SIGN-PLANE) bounded-surface verifier: pins
+// the closed attr set, the kind, the decode_model family, the positive byte offsets, and
+// the optional integer_core_lmul knob. The FIXED grid + signs64 planes are DERIVED static
+// const tables (NEVER op attrs), so -- unlike the codebook core -- there is NO array attr
+// here (the signs64 op-attr blocker cannot recur).
+static mlir::LogicalResult
+verifyRepackGridCoreCommon(mlir::Operation *op,
+                           const std::function<mlir::InFlightDiagnostic()> &err,
+                           llvm::StringRef expectedKind, llvm::StringRef kindGot,
+                           llvm::StringRef decodeModel,
+                           std::optional<llvm::StringRef> coreLmul) {
+  auto isAllowedAttr = [](llvm::StringRef name) {
+    return name == "kind" || name == "decode_model" ||
+           name == "weight_quant_byte_offset" ||
+           name == "weight_ls_byte_offset" ||
+           name == "weight_sign_byte_offset" ||
+           name == "activation_quant_byte_offset" || name == "n_subblocks" ||
+           name == "integer_core_lmul";
+  };
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return err()
+             << "does not accept attribute '" << attr.getName()
+             << "'; the grid repack core keeps SEW/LMUL/policy on setvl/with_vl "
+                "and runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+    if (!isAllowedAttr(attrName))
+      return err() << "only accepts the bounded grid repack core attributes "
+                      "'kind', 'decode_model', 'weight_quant_byte_offset', "
+                      "'weight_ls_byte_offset', 'weight_sign_byte_offset', "
+                      "'activation_quant_byte_offset', 'n_subblocks', and "
+                      "'integer_core_lmul'; unexpected attribute '"
+                   << attr.getName() << "'";
+  }
+  if (kindGot != expectedKind)
+    return err() << "currently supports only kind \"" << expectedKind
+                 << "\" for the bounded grid 16x1-repacked per-block lane-wise "
+                    "dual memory-gather ls-scale dot integer-core typed surface";
+  // The bounded grid decode family: iq2_xxs (the FIRST grid sibling: single ls-scale, u8
+  // grid index, signs64 DERIVED). iq2_xs / iq2_s (dual-scale) are the future siblings.
+  if (decodeModel != "iq2_xxs")
+    return err() << "only accepts decode_model \"iq2_xxs\" (the flat single-ls "
+                    "256-entry grid + signs64 repack); got \""
+                 << decodeModel << "\"";
+  if (coreLmul.has_value() && *coreLmul != "mf2" && *coreLmul != "m1")
+    return err() << "only accepts integer_core_lmul \"mf2\" (the RVV1.0 "
+                    "fractional chain) or \"m1\" (the RVV0.7 whole-LMUL chain); "
+                    "got \""
+                 << *coreLmul << "\"";
+  return mlir::success();
+}
+
+mlir::LogicalResult RepackGemvGridCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+  if (mlir::failed(verifyRepackGridCoreCommon(
+          op, [&]() { return emitOpError(); }, "repack_gemv_grid_core", getKind(),
+          getDecodeModel(), getIntegerCoreLmul())))
+    return mlir::failure();
+
+  if (getWeightQuantByteOffsetAttr().getInt() <= 0 ||
+      getWeightLsByteOffsetAttr().getInt() <= 0 ||
+      getWeightSignByteOffsetAttr().getInt() <= 0 ||
+      getActivationQuantByteOffsetAttr().getInt() <= 0 ||
+      getNSubblocksAttr().getInt() <= 0)
+    return emitOpError()
+           << "requires positive grid-index / ls-scale / sign-selector / "
+              "activation-quant byte offsets and n_subblocks (the iq2_xxs "
+              "block decode plane locations + sub-block count)";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() < 1)
+    return emitOpError()
+           << "requires the repacked block_iq2_xxsx16 weight base, the plain "
+              "block_q8_K activation base, one !tcrv_rvv.vl operand, one "
+              "block_index induction operand, and one or more per-strip i32 "
+              "vector results (one per disjoint strip -- numHalves total)";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  for (mlir::Value result : getResults()) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+      return emitOpError()
+             << "requires every per-strip result to be an i32 "
+                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "(the m1 core) -- the per-strip combined grid sumi";
+    if (result.getType() != getResults().front().getType())
+      return emitOpError()
+             << "requires all per-strip results to share the ONE integer-core "
+                "LMUL rung (all i32m2 or all i32m4)";
+  }
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked lane-wise grid ls-scale core";
+  return mlir::success();
+}
+
+mlir::LogicalResult RepackGemmGridCoreOp::verify() {
+  mlir::Operation *op = getOperation();
+  if (mlir::failed(verifyRepackGridCoreCommon(
+          op, [&]() { return emitOpError(); }, "repack_gemm_grid_core", getKind(),
+          getDecodeModel(), getIntegerCoreLmul())))
+    return mlir::failure();
+
+  if (getWeightQuantByteOffsetAttr().getInt() <= 0 ||
+      getWeightLsByteOffsetAttr().getInt() <= 0 ||
+      getWeightSignByteOffsetAttr().getInt() <= 0 ||
+      getActivationQuantByteOffsetAttr().getInt() <= 0 ||
+      getNSubblocksAttr().getInt() <= 0)
+    return emitOpError()
+           << "requires positive grid-index / ls-scale / sign-selector / "
+              "activation-quant byte offsets and n_subblocks (the iq2_xxs "
+              "block decode plane locations + sub-block count)";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() < 1)
+    return emitOpError()
+           << "requires the repacked block_iq2_xxsx16 weight base, the "
+              "interleaved block_q8_Kx4 activation base, one !tcrv_rvv.vl operand, "
+              "one block_index induction operand, one strip_row_offset operand, "
+              "and one or more per-column i32 vector results (columnsPerPass total)";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (!llvm::isa<mlir::IndexType>(getBlockIndex().getType()))
+    return emitOpError()
+           << "requires the block_index operand to be index-typed (the nb block "
+              "induction variable)";
+  if (!llvm::isa<mlir::IndexType>(getStripRowOffset().getType()))
+    return emitOpError()
+           << "requires the strip_row_offset operand to be index-typed (the "
+              "runtime strip row offset, region argument 1)";
+  for (mlir::Value result : getResults()) {
+    if (!isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM2()) &&
+        !isGenericRVVSignedOrSignlessIntegerVectorType(
+            result.getType(), getRVVSEW32Bits(), getRVVLMULM4()))
+      return emitOpError()
+             << "requires every per-column result to be an i32 "
+                "!tcrv_rvv.vector<i32, \"m2\"> (the mf2 core) or <i32, \"m4\"> "
+                "(the m1 core) -- the per-column combined grid sumi";
+    if (result.getType() != getResults().front().getType())
+      return emitOpError()
+             << "requires all per-column results to share the ONE integer-core "
+                "LMUL rung (all i32m2 or all i32m4)";
+  }
+
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for the repacked lane-wise grid ls-scale core";
+  return mlir::success();
+}
+
 // NOTE (G3 主线A T3 format4): GgmlRepackGemvQ5KQ8KOp::verify() +
 // GgmlRepackGemmQ5KQ8KOp::verify() are RETIRED with the q5_K K-quant super-block
 // monolith direct-emitter ops (the FIFTH K-quant super-block retired to the front
@@ -4217,349 +4433,18 @@ mlir::LogicalResult GgmlRepackGemmMxfp4Q8Op::verify() {
 // abstract quant_contraction fact-set (block_iq4_xs stride 136, nibbles @8, q8_K
 // activation) is validated by GgmlQuantContractionOp::verify's codebook super-block branch.
 
-mlir::LogicalResult GgmlRepackGemvIq2XxsQ8KOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  // The bounded mirror attrs (I4): the super-block GRID + SIGN-plane 4-bit-scale
-  // no-min-eighth scale model + the 16x1 REPACKED super-block facts (grid-index /
-  // ls-scale / sign-selector byte offsets, n_subblocks). NO codebook attr (the
-  // 256-entry grid + signs64 plane are FIXED canonical tables, not op attrs), NO
-  // weight_dmin / activation_bsums (iq2_xxs has scale-only sub-blocks, no min).
-  // Fail-closed (I7).
-  auto isAllowedAttr = [](llvm::StringRef name) {
-    return name == "kind" || name == "scale_model" || name == "qk" ||
-           name == "weight_block_stride" ||
-           name == "activation_block_stride" ||
-           name == "weight_quant_byte_offset" ||
-           name == "weight_scale_byte_offset" ||
-           name == "weight_sign_byte_offset" ||
-           name == "activation_quant_byte_offset" ||
-           name == "n_subblocks" || name == "weight_interleave" ||
-           name == "half_lanes" || name == "integer_core_lmul";
-  };
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemv_iq2_xxs_q8_K keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/nc in the surrounding control-plane "
-                "IR, and rejects deleted local element_count metadata";
-    if (!isAllowedAttr(attrName))
-      return emitOpError()
-             << "only accepts the bounded ggml IQ2_XXS x Q8_K 16x1-repacked GEVM "
-                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
-                "'activation_block_stride', 'weight_quant_byte_offset', "
-                "'weight_scale_byte_offset', 'weight_sign_byte_offset', "
-                "'activation_quant_byte_offset', 'n_subblocks', "
-                "'weight_interleave', 'half_lanes', and 'integer_core_lmul'; "
-                "unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (getKind() != "ggml_repack_gemv_iq2_xxs_q8_K")
-    return emitOpError()
-           << "currently supports only kind \"ggml_repack_gemv_iq2_xxs_q8_K\" "
-              "for the bounded ggml IQ2_XXS x Q8_K 16x1-repacked GEVM typed "
-              "surface";
-  if (getScaleModel() !=
-      "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth")
-    return emitOpError()
-           << "requires scale_model "
-              "\"superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth\" for the "
-              "ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-
-  if (getQk() != 256)
-    return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ2_XXS x "
-                            "Q8_K 16x1-repacked GEVM route";
-  if (getWeightBlockStride() != 1184)
-    return emitOpError()
-           << "requires weight_block_stride == 1184 (sizeof block_iq2_xxsx16: 16 "
-              "fp16 d + 128 ls + 512 grid-index + 512 sign-selector bytes) for "
-              "the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getActivationBlockStride() != 292)
-    return emitOpError()
-           << "requires activation_block_stride == 292 (sizeof block_q8_K) for "
-              "the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getWeightQuantByteOffset() != 160)
-    return emitOpError()
-           << "requires weight_quant_byte_offset == 160 (the grid-index plane) "
-              "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getWeightScaleByteOffset() != 32)
-    return emitOpError()
-           << "requires weight_scale_byte_offset == 32 (the per-sub-block ls "
-              "scale strips) for the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM "
-              "route";
-  if (getWeightSignByteOffset() != 672)
-    return emitOpError()
-           << "requires weight_sign_byte_offset == 672 (the sign-selector plane) "
-              "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getActivationQuantByteOffset() != 4)
-    return emitOpError()
-           << "requires activation_quant_byte_offset == 4 for the ggml IQ2_XXS x "
-              "Q8_K 16x1-repacked GEVM route";
-  if (getNSubblocks() != 8)
-    return emitOpError() << "requires n_subblocks == 8 (QK_K/32) for the ggml "
-                            "IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getWeightInterleave() != 16)
-    return emitOpError() << "requires weight_interleave == 16 for the ggml "
-                            "IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (getHalfLanes() != 8 && getHalfLanes() != 16)
-    return emitOpError()
-           << "requires half_lanes in {8, 16} for the ggml IQ2_XXS x Q8_K "
-              "16x1-repacked GEVM route";
-  if (getWeightInterleave() % getHalfLanes() != 0)
-    return emitOpError()
-           << "requires half_lanes to divide weight_interleave (16) for the "
-              "ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-
-  if (getIntegerCoreLmul().has_value()) {
-    llvm::StringRef coreLmul = *getIntegerCoreLmul();
-    if (coreLmul != "mf2" && coreLmul != "m1")
-      return emitOpError()
-             << "requires integer_core_lmul in {\"mf2\", \"m1\"} for the ggml "
-                "IQ2_XXS x Q8_K 16x1-repacked GEVM route; got \""
-             << coreLmul << "\"";
-    if (coreLmul == "m1" && getHalfLanes() != 16)
-      return emitOpError()
-             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" for "
-                "the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  }
-
-  if (op->getNumOperands() != 6 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one repacked weight base pointer, one plain activation "
-              "base pointer, one output pointer, one runtime element-count, one "
-              "runtime column-count, one !tcrv_rvv.vl operand, and one i32 LMUL "
-              "m1 result";
-
-  RuntimeABIValueOp weightBinding =
-      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp activationBinding =
-      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the weight base operand to bind a runtime ABI value of "
-              "C type 'const uint8_t *' (the AoS block_iq2_xxsx16 repacked "
-              "weight byte array)";
-  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the activation base operand to bind a runtime ABI "
-              "value of C type 'const uint8_t *' (the AoS block_q8_K plain "
-              "activation byte array)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the ggml *s scalar destination, nc outputs)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError()
-           << "requires the element-count operand to be the runtime n index "
-              "value feeding the enclosing setvl";
-  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
-    return emitOpError()
-           << "requires the column-count operand to be a runtime index value "
-              "(nc, the number of weight columns)";
-
-  if (!isGenericRVVVectorI32M1(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
-              "\"m1\"> for the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
-
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml IQ2_XXS x Q8_K 16x1-repacked GEVM";
-
-  return mlir::success();
-}
-
-mlir::LogicalResult GgmlRepackGemmIq2XxsQ8KOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  // The bounded mirror attrs (I4): the super-block GRID + SIGN-plane 4-bit-scale
-  // 4-column no-min-eighth scale model + the 16x1 REPACKED super-block facts +
-  // the activation_interleave. NO codebook attr (fixed canonical tables), NO min.
-  // Fail-closed (I7).
-  auto isAllowedAttr = [](llvm::StringRef name) {
-    return name == "kind" || name == "scale_model" || name == "qk" ||
-           name == "weight_block_stride" ||
-           name == "activation_block_stride" ||
-           name == "weight_quant_byte_offset" ||
-           name == "weight_scale_byte_offset" ||
-           name == "weight_sign_byte_offset" ||
-           name == "activation_quant_byte_offset" ||
-           name == "n_subblocks" || name == "weight_interleave" ||
-           name == "activation_interleave" || name == "half_lanes" ||
-           name == "integer_core_lmul";
-  };
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.repack_gemm_iq2_xxs_q8_K keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/nr/nc/bs in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-    if (!isAllowedAttr(attrName))
-      return emitOpError()
-             << "only accepts the bounded ggml IQ2_XXS x Q8_K 16x1-repacked GEMM "
-                "attributes 'kind', 'scale_model', 'qk', 'weight_block_stride', "
-                "'activation_block_stride', 'weight_quant_byte_offset', "
-                "'weight_scale_byte_offset', 'weight_sign_byte_offset', "
-                "'activation_quant_byte_offset', 'n_subblocks', "
-                "'weight_interleave', 'activation_interleave', 'half_lanes', and "
-                "'integer_core_lmul'; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (getKind() != "ggml_repack_gemm_iq2_xxs_q8_K")
-    return emitOpError()
-           << "currently supports only kind \"ggml_repack_gemm_iq2_xxs_q8_K\" "
-              "for the bounded ggml IQ2_XXS x Q8_K 16x1-repacked GEMM typed "
-              "surface";
-  if (getScaleModel() !=
-      "superblock-d.fp16-grid-sign-4bit-scale-4col-nomin-eighth")
-    return emitOpError()
-           << "requires scale_model "
-              "\"superblock-d.fp16-grid-sign-4bit-scale-4col-nomin-eighth\" for "
-              "the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-
-  if (getQk() != 256)
-    return emitOpError() << "requires qk == 256 (QK_K) for the ggml IQ2_XXS x "
-                            "Q8_K 16x1-repacked GEMM route";
-  if (getWeightBlockStride() != 1184)
-    return emitOpError()
-           << "requires weight_block_stride == 1184 (sizeof block_iq2_xxsx16) "
-              "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (getActivationBlockStride() != 1168)
-    return emitOpError()
-           << "requires activation_block_stride == 1168 (sizeof block_q8_Kx4: 4 "
-              "fp32 d + 1024 int8 quants + 64 int16 bsums) for the ggml IQ2_XXS "
-              "x Q8_K 16x1-repacked GEMM route";
-  if (getWeightQuantByteOffset() != 160)
-    return emitOpError()
-           << "requires weight_quant_byte_offset == 160 (the grid-index plane) "
-              "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (getWeightScaleByteOffset() != 32)
-    return emitOpError()
-           << "requires weight_scale_byte_offset == 32 (the per-sub-block ls "
-              "scale strips) for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM "
-              "route";
-  if (getWeightSignByteOffset() != 672)
-    return emitOpError()
-           << "requires weight_sign_byte_offset == 672 (the sign-selector plane) "
-              "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (getActivationQuantByteOffset() != 16)
-    return emitOpError()
-           << "requires activation_quant_byte_offset == 16 (the 4 fp32 d precede "
-              "the interleaved int8 quants) for the ggml IQ2_XXS x Q8_K "
-              "16x1-repacked GEMM route";
-  if (getNSubblocks() != 8)
-    return emitOpError() << "requires n_subblocks == 8 for the ggml IQ2_XXS x "
-                            "Q8_K 16x1-repacked GEMM route";
-  if (getWeightInterleave() != 16)
-    return emitOpError() << "requires weight_interleave == 16 for the ggml "
-                            "IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (getActivationInterleave() != 4)
-    return emitOpError() << "requires activation_interleave == 4 (block_q8_Kx4) "
-                            "for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (getHalfLanes() != 8 && getHalfLanes() != 16)
-    return emitOpError()
-           << "requires half_lanes in {8, 16} for the ggml IQ2_XXS x Q8_K "
-              "16x1-repacked GEMM route";
-  if (getWeightInterleave() % getHalfLanes() != 0)
-    return emitOpError()
-           << "requires half_lanes to divide weight_interleave (16) for the "
-              "ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-
-  if (getIntegerCoreLmul().has_value()) {
-    llvm::StringRef coreLmul = *getIntegerCoreLmul();
-    if (coreLmul != "mf2" && coreLmul != "m1")
-      return emitOpError()
-             << "requires integer_core_lmul in {\"mf2\", \"m1\"} for the ggml "
-                "IQ2_XXS x Q8_K 16x1-repacked GEMM route; got \""
-             << coreLmul << "\"";
-    if (coreLmul == "m1" && getHalfLanes() != 16)
-      return emitOpError()
-             << "requires half_lanes == 16 when integer_core_lmul is \"m1\" for "
-                "the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  }
-
-  if (op->getNumOperands() != 8 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires one repacked weight base pointer, one repacked "
-              "activation base pointer, one output pointer, one runtime "
-              "element-count, one runtime row-count, one runtime column-count, "
-              "one runtime output-row-stride, one !tcrv_rvv.vl operand, and one "
-              "i32 LMUL m1 result";
-
-  RuntimeABIValueOp weightBinding =
-      getWeightBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp activationBinding =
-      getActivationBase().getDefiningOp<RuntimeABIValueOp>();
-  RuntimeABIValueOp outputBinding =
-      getOutput().getDefiningOp<RuntimeABIValueOp>();
-  if (!weightBinding || weightBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the weight base operand to bind a runtime ABI value of "
-              "C type 'const uint8_t *' (the AoS block_iq2_xxsx16 repacked "
-              "weight byte array)";
-  if (!activationBinding || activationBinding.getCType() != "const uint8_t *")
-    return emitOpError()
-           << "requires the activation base operand to bind a runtime ABI "
-              "value of C type 'const uint8_t *' (the AoS block_q8_Kx4 "
-              "interleaved activation byte array)";
-  if (!outputBinding || outputBinding.getCType() != "float *")
-    return emitOpError()
-           << "requires the output operand to bind a runtime ABI value of C "
-              "type 'float *' (the ggml *s scalar destination)";
-  if (!llvm::isa<mlir::IndexType>(getElementCount().getType()))
-    return emitOpError()
-           << "requires the element-count operand to be the runtime n index "
-              "value feeding the enclosing setvl";
-  if (!llvm::isa<mlir::IndexType>(getRowCount().getType()))
-    return emitOpError()
-           << "requires the row-count operand to be a runtime index value (nr)";
-  if (!llvm::isa<mlir::IndexType>(getColumnCount().getType()))
-    return emitOpError()
-           << "requires the column-count operand to be a runtime index value "
-              "(nc)";
-  if (!llvm::isa<mlir::IndexType>(getOutputRowStride().getType()))
-    return emitOpError()
-           << "requires the output-row-stride operand to be a runtime index "
-              "value (bs, in floats)";
-
-  if (!isGenericRVVVectorI32M1(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type !tcrv_rvv.vector<i32, "
-              "\"m1\"> for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM route";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError() << "requires runtime VL operand to have "
-                            "!tcrv_rvv.vl type";
-
-  auto withVL = verifyNestedDataflowOp(op);
-  if (mlir::failed(withVL))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for the ggml IQ2_XXS x Q8_K 16x1-repacked GEMM";
-
-  return mlir::success();
-}
+// NOTE (G3 M4 iq2-grid front-door, first cell iq2_xxs): GgmlRepackGemvIq2XxsQ8KOp::verify()
+// + GgmlRepackGemmIq2XxsQ8KOp::verify() are RETIRED with the iq2_xxs GRID CODEBOOK +
+// SIGN-PLANE monolith direct-emitter ops (the FIRST grid decode family retired to the
+// typed-region front door). The iq2_xxs repack GEVM/GEMM now flow through the
+// typed_repack_gem{v,m}_loop_body front door: the NEW grid core brick
+// (RepackGem{v,m}GridCoreOp::verify, verifyRepackGridCoreCommon) accepts decode_model
+// "iq2_xxs" (single ls-scale, u8 grid index, DERIVED signs64 plane), and the loop body
+// verifier (TypedRepackGem{v,m}LoopBodyOp::verify) accepts fold_model
+// "grid_sign_single_scale_eighth". The FIXED 256-entry grid + signs64 planes stay DERIVED
+// static const tables (NEVER op attrs); the grid/ls/sign byte offsets + n_subblocks ride
+// on the grid core brick. iq2_xs / iq2_s (dual-scale) monolith verifiers remain (batch 3
+// dispatch-wired) until this first cell is through.
 
 mlir::LogicalResult GgmlRepackGemvIq2XsQ8KOp::verify() {
   mlir::Operation *op = getOperation();
@@ -13791,6 +13676,13 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   bool isCodebookSuperblockFold =
       getFoldModel() == "codebook_superblock_signed6_no_min";
   bool isCodebookFold = isCodebookFlatFold || isCodebookSuperblockFold;
+  // The iq2_xxs GRID CODEBOOK + SIGN-PLANE single ls-scale fold (the FIRST grid decode
+  // family, retirement_batch 3): the SAME per-strip lane-wise fp16*fp32 no-min fold as the
+  // codebook flat fold PLUS the 0.125 (1/8) trailing factor and the per-sub-block int8 ls
+  // scale (i32 vmacc). It rides the NEW repack_gem{v,m}_grid_core brick (decode_model
+  // "iq2_xxs"), which carries the grid/ls/sign byte offsets + n_subblocks; the FIXED grid
+  // + signs64 planes are DERIVED static const tables (NEVER op attrs).
+  bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth";
   // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold: the SAME per-strip
   // lane-wise vfwmul/vfcvt/vfmacc scale tree as q4_0 PLUS the lane-wise `acc +=
   // m_x*s_y` min correction. It rides the SHARED q4_0 core + fold bricks (the core
@@ -13798,7 +13690,7 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
   // falls through to the SAME emitter default path as q4_0.
   bool isNibbleMinFold = getFoldModel() == "lane_wise_vector_scale_min";
   if (getFoldModel() != "lane_wise_vector_scale" && !isNibbleMinFold &&
-      !isTernaryFold && !isKQuantFold && !isCodebookFold)
+      !isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold)
     return emitOpError()
            << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
               "q4_0 repacked GEVM per-strip vfwmul/vfcvt/vfmacc lane-wise fold "
@@ -13811,8 +13703,10 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
               "\"codebook_flat_single_scale\" (the iq4_nl flat non-linear "
               "16-entry codebook single-scale fold), or "
               "\"codebook_superblock_signed6_no_min\" (the iq4_xs super-block "
-              "16-entry codebook + 6-bit signed sub-block-scale fold)";
-  if (!isTernaryFold && !isKQuantFold && !isCodebookFold &&
+              "16-entry codebook + 6-bit signed sub-block-scale fold), or "
+              "\"grid_sign_single_scale_eighth\" (the iq2_xxs grid + sign-plane "
+              "single ls-scale 0.125 fold)";
+  if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min")
     return emitOpError()
@@ -14328,6 +14222,13 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   bool isCodebookSuperblockFold =
       getFoldModel() == "codebook_superblock_signed6_no_min";
   bool isCodebookFold = isCodebookFlatFold || isCodebookSuperblockFold;
+  // The iq2_xxs GRID CODEBOOK + SIGN-PLANE single ls-scale fold (the FIRST grid decode
+  // family, retirement_batch 3): the SAME per-strip lane-wise fp16*fp32 no-min fold as the
+  // codebook flat fold PLUS the 0.125 (1/8) trailing factor and the per-sub-block int8 ls
+  // scale (i32 vmacc). It rides the NEW repack_gem{v,m}_grid_core brick (decode_model
+  // "iq2_xxs"), which carries the grid/ls/sign byte offsets + n_subblocks; the FIXED grid
+  // + signs64 planes are DERIVED static const tables (NEVER op attrs).
+  bool isGridFold = getFoldModel() == "grid_sign_single_scale_eighth";
   // The q4_1 UNSIGNED-nibble dual-fp16 + single MIN fold (the GEMM sibling of the
   // GEVM q4_1 fold): the SAME per-column lane-wise scale tree as q4_0 PLUS the
   // per-column `acc += m_x*s_y[c]` min correction, riding the SHARED q4_0 GEMM core
@@ -14335,7 +14236,7 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
   // pair), so it falls through to the SAME emitter default path as q4_0.
   bool isNibbleMinFold = getFoldModel() == "lane_wise_vector_scale_min";
   if (getFoldModel() != "lane_wise_vector_scale" && !isNibbleMinFold &&
-      !isTernaryFold && !isKQuantFold && !isCodebookFold)
+      !isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold)
     return emitOpError()
            << "currently supports only fold_model \"lane_wise_vector_scale\" (the "
               "q4_0 repacked GEMM per-column vfwmul/vfcvt/vfmacc lane-wise fold "
@@ -14348,8 +14249,10 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "\"codebook_flat_single_scale\" (the iq4_nl flat non-linear "
               "16-entry codebook single-scale fold), or "
               "\"codebook_superblock_signed6_no_min\" (the iq4_xs super-block "
-              "16-entry codebook + 6-bit signed sub-block-scale fold)";
-  if (!isTernaryFold && !isKQuantFold && !isCodebookFold &&
+              "16-entry codebook + 6-bit signed sub-block-scale fold), or "
+              "\"grid_sign_single_scale_eighth\" (the iq2_xxs grid + sign-plane "
+              "single ls-scale 0.125 fold)";
+  if (!isTernaryFold && !isKQuantFold && !isCodebookFold && !isGridFold &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min" &&
       getScaleModel() != "dual-fp16-per-block-d_x.d_y-plus-min-4col")

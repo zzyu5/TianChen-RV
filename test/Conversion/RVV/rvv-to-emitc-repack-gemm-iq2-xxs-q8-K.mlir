@@ -4,13 +4,21 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=SCALE
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOWALL
 
-// The ggml iq2_xxs x q8_K 16x1-REPACKED PREFILL GEMM (M>>1) -- the prefill sibling of
-// the iq2_xxs GEVM. The SAME real grid GATHER + sign-plane GATHER + per-sub-block ls
-// scale (i32 accumulator, no min) + trailing 0.125 factor; the DISTINGUISHING fact is
-// the interleaved block_q8_Kx4 activation (4 rows, 4 fp32 d at +0, interleaved int8
-// quants at +16 as pos*4+c). The grid+sign weight decode is AMORTIZED once per
-// 16-weight group and reused across the 4 activation columns. block_iq2_xxsx16 stride
-// 1184; activation block_q8_Kx4 stride 1168.
+// G3 M4 iq2-grid front-door (first cell iq2_xxs): the ggml iq2_xxs x q8_K 16x1-REPACKED
+// PREFILL GEMM (M>>1) -- the prefill sibling of the iq2_xxs GEVM -- is now CONSTRUCTED
+// through the typed-region FRONT DOOR, NOT the retired monolithic emitRepackGemmIq2XxsQ8K
+// direct emitter. The tcrv_rvv.typed_repack_gemm_loop_body region (fold_model
+// "grid_sign_single_scale_eighth") carries the NEW tcrv_rvv.repack_gemm_grid_core BRICK
+// (decode_model "iq2_xxs"), block_index + strip_row_offset tied (double anti-bypass) and
+// named off the loop-body's own ABI bases. The lowering RE-EMITS the byte-exact iq2_xxs
+// GEMM body via emitTypedRepackGemmLoopBody's grid branch -> emitRepackGridGemmBodyIq2Xxs
+// (byte-identical to the retired direct emitter). The SAME real grid GATHER + sign-plane
+// GATHER + per-sub-block ls scale (i32 accumulator, no min) + trailing 0.125 factor; the
+// DISTINGUISHING fact is the interleaved block_q8_Kx4 activation (4 rows, 4 fp32 d at +0,
+// interleaved int8 quants at +16 as pos*4+c). The grid+sign weight decode is AMORTIZED
+// once per 16-weight group and reused across the 4 activation columns. block_iq2_xxsx16
+// stride 1184; activation block_q8_Kx4 stride 1168. Ships PLAIN (untiled): iq2_xxs sits at
+// the <=32-vreg cliff. VLEN=128 => TWO strips, columnsPerPass 4.
 
 module {
   tcrv.exec.kernel @ggml_repack_gemm_iq2_xxs_q8_K_kernel {
@@ -25,13 +33,25 @@ module {
       %bs = tcrv_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_iq2_xxs_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_iq2_xxs_q8_K_kernel", status = "selected-lowering-boundary"} {
-        %g = tcrv_rvv.repack_gemm_iq2_xxs_q8_K %vx, %vy, %s, %n, %nr, %nc, %bs, %vl {kind = "ggml_repack_gemm_iq2_xxs_q8_K", scale_model = "superblock-d.fp16-grid-sign-4bit-scale-4col-nomin-eighth", qk = 256 : i64, weight_block_stride = 1184 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 160 : i64, weight_scale_byte_offset = 32 : i64, weight_sign_byte_offset = 672 : i64, activation_quant_byte_offset = 16 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "superblock-d.fp16-grid-sign-4bit-scale-nomin-eighth-4col", qk = 256 : i64, weight_block_stride = 1184 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 160 : i64, activation_quant_byte_offset = 16 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, fold_model = "grid_sign_single_scale_eighth"} {
+        ^bb0(%block_index: index, %roff: index, %acc0: !tcrv_rvv.vector<f32, "m2">, %acc1: !tcrv_rvv.vector<f32, "m2">, %acc2: !tcrv_rvv.vector<f32, "m2">, %acc3: !tcrv_rvv.vector<f32, "m2">):
+          // The block_index + strip_row_offset tied GRID GEMM integer-core BRICK: per-block
+          // lane-wise iq2_xxs grid + sign memory-gather ls-scaled dot across the 4
+          // interleaved columns -> the columnsPerPass (4) per-column i32 sumi. The typed
+          // emitter re-emits the whole byte-exact iq2_xxs GEMM body from this brick's
+          // identity + its grid/ls/sign offsets; the yield passes through the carried-in
+          // per-column accs.
+          %sumi:4 = tcrv_rvv.repack_gemm_grid_core %vx, %vy, %vl block %block_index strip %roff : index, index {kind = "repack_gemm_grid_core", decode_model = "iq2_xxs", weight_quant_byte_offset = 160 : i64, weight_ls_byte_offset = 32 : i64, weight_sign_byte_offset = 672 : i64, activation_quant_byte_offset = 16 : i64, n_subblocks = 8 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">
+          tcrv_rvv.typed_repack_gemm_loop_yield %acc0, %acc1, %acc2, %acc3 : !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">, !tcrv_rvv.vector<f32, "m2">
+        } : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, index, index
       } : !tcrv_rvv.vl
     }
   }
 }
 
-// CHECK-NOT: tcrv_rvv.repack_gemm_iq2_xxs_q8_K %
+// The front door leaves NO typed op behind (fully lowered to emitc).
+// CHECK-NOT: tcrv_rvv.repack_gemm_grid_core %
+// CHECK-NOT: tcrv_rvv.typed_repack_gemm_loop_body
 // CHECK-NOT: unrealized_conversion_cast
 // CHECK: emitc.func @tcrv_emitc_ggml_repack_gemm_iq2_xxs_q8_K_kernel_ggml_repack_gemm_iq2_xxs_q8_K(
 // The FIXED 256-entry GRID-of-8 table + the DERIVED signs64 +-1 plane (static decls).
