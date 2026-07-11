@@ -1,0 +1,217 @@
+
+/tmp/g5_q5/libggml-cpu.so.q5ON:     file format elf64-littleriscv
+
+
+Disassembly of section .plt:
+
+Disassembly of section .text:
+
+0000000000096be8 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0>:
+   96be8:	7175                	addi	sp,sp,-144
+   96bea:	fcca                	sd	s2,120(sp)
+   96bec:	e522                	sd	s0,136(sp)
+   96bee:	e126                	sd	s1,128(sp)
+   96bf0:	f8ce                	sd	s3,112(sp)
+   96bf2:	f4d2                	sd	s4,104(sp)
+   96bf4:	f0d6                	sd	s5,96(sp)
+   96bf6:	ecda                	sd	s6,88(sp)
+   96bf8:	e8de                	sd	s7,80(sp)
+   96bfa:	e4e2                	sd	s8,72(sp)
+   96bfc:	e0e6                	sd	s9,64(sp)
+   96bfe:	fc6a                	sd	s10,56(sp)
+   96c00:	f86e                	sd	s11,48(sp)
+   96c02:	c22022f3          	csrr	t0,vlenb
+   96c06:	00255913          	srli	s2,a0,0x2
+   96c0a:	40510133          	sub	sp,sp,t0
+   96c0e:	26090063          	beqz	s2,96e6e <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x286>
+   96c12:	8311                	srli	a4,a4,0x4
+   96c14:	24070d63          	beqz	a4,96e6e <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x286>
+   96c18:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+   96c1c:	00565e93          	srli	t4,a2,0x5
+   96c20:	5e003b57          	vmv.v.i	v22,0
+   96c24:	21dec2b3          	sh2add	t0,t4,t4
+   96c28:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96c2c:	21d2a2b3          	sh1add	t0,t0,t4
+   96c30:	5e003157          	vmv.v.i	v2,0
+   96c34:	14078493          	addi	s1,a5,320
+   96c38:	0296                	slli	t0,t0,0x5
+   96c3a:	5208a0d7          	vid.v	v1
+   96c3e:	8ac2                	mv	s5,a6
+   96c40:	00471f13          	slli	t5,a4,0x4
+   96c44:	00548a33          	add	s4,s1,t0
+   96c48:	4701                	li	a4,0
+   96c4a:	4801                	li	a6,0
+   96c4c:	4601                	li	a2,0
+   96c4e:	43a1                	li	t2,8
+   96c50:	8fca                	mv	t6,s2
+   96c52:	2105a933          	sh1add	s2,a1,a6
+   96c56:	00471413          	slli	s0,a4,0x4
+   96c5a:	01258b33          	add	s6,a1,s2
+   96c5e:	943a                	add	s0,s0,a4
+   96c60:	01e80bb3          	add	s7,a6,t5
+   96c64:	f43a                	sd	a4,40(sp)
+   96c66:	88c2                	mv	a7,a6
+   96c68:	41090933          	sub	s2,s2,a6
+   96c6c:	410b09b3          	sub	s3,s6,a6
+   96c70:	21546433          	sh3add	s0,s0,s5
+   96c74:	20d84333          	sh2add	t1,a6,a3
+   96c78:	8e52                	mv	t3,s4
+   96c7a:	4781                	li	a5,0
+   96c7c:	e87e                	sd	t6,16(sp)
+   96c7e:	ec32                	sd	a2,24(sp)
+   96c80:	f05a                	sd	s6,32(sp)
+   96c82:	e45e                	sd	s7,8(sp)
+   96c84:	8752                	mv	a4,s4
+   96c86:	20f7c833          	sh2add	a6,a5,a5
+   96c8a:	20f82833          	sh1add	a6,a6,a5
+   96c8e:	0816                	slli	a6,a6,0x5
+   96c90:	9826                	add	a6,a6,s1
+   96c92:	861a                	mv	a2,t1
+   96c94:	4501                	li	a0,0
+   96c96:	8ffa                	mv	t6,t5
+   96c98:	9f60ba57          	vmv2r.v	v20,v22
+   96c9c:	9f60b957          	vmv2r.v	v18,v22
+   96ca0:	9f60b857          	vmv2r.v	v16,v22
+   96ca4:	9f60b757          	vmv2r.v	v14,v22
+   96ca8:	160e8d63          	beqz	t4,96e22 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x23a>
+   96cac:	e076                	sd	t4,0(sp)
+   96cae:	03010e93          	addi	t4,sp,48
+   96cb2:	028e80a7          	vs1r.v	v1,(t4)
+   96cb6:	02154657          	vadd.vx	v12,v1,a0
+   96cba:	00151c93          	slli	s9,a0,0x1
+   96cbe:	8c42                	mv	s8,a6
+   96cc0:	8ba2                	mv	s7,s0
+   96cc2:	ee050d13          	addi	s10,a0,-288
+   96cc6:	ec0c8c93          	addi	s9,s9,-320
+   96cca:	9e203257          	vmv1r.v	v4,v2
+   96cce:	9e203357          	vmv1r.v	v6,v2
+   96cd2:	9e203457          	vmv1r.v	v8,v2
+   96cd6:	9e203557          	vmv1r.v	v10,v2
+   96cda:	9e2032d7          	vmv1r.v	v5,v2
+   96cde:	9e2033d7          	vmv1r.v	v7,v2
+   96ce2:	9e2034d7          	vmv1r.v	v9,v2
+   96ce6:	9e2035d7          	vmv1r.v	v11,v2
+   96cea:	018d0a33          	add	s4,s10,s8
+   96cee:	fe0c0f13          	addi	t5,s8,-32
+   96cf2:	008b8e93          	addi	t4,s7,8
+   96cf6:	a019                	j	96cfc <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x114>
+   96cf8:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96cfc:	020f0b13          	addi	s6,t5,32
+   96d00:	0a0b5187          	vlse16.v	v3,(s6),zero
+   96d04:	0a0f5687          	vlse16.v	v13,(t5),zero
+   96d08:	020a0087          	vle8.v	v1,(s4)
+   96d0c:	040ecd83          	lbu	s11,64(t4)
+   96d10:	041ecb03          	lbu	s6,65(t4)
+   96d14:	0f09                	addi	t5,t5,2
+   96d16:	a23601d7          	vsrl.vv	v3,v3,v12
+   96d1a:	a2d60c57          	vsrl.vv	v24,v13,v12
+   96d1e:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   96d22:	a21236d7          	vsrl.vi	v13,v1,4
+   96d26:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96d2a:	2630b1d7          	vand.vi	v3,v3,1
+   96d2e:	2780bc57          	vand.vi	v24,v24,1
+   96d32:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   96d36:	2617b0d7          	vand.vi	v1,v1,15
+   96d3a:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96d3e:	963231d7          	vsll.vi	v3,v3,4
+   96d42:	97823c57          	vsll.vi	v24,v24,4
+   96d46:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   96d4a:	b23031d7          	vnsrl.wi	v3,v3,0
+   96d4e:	b3803c57          	vnsrl.wi	v24,v24,0
+   96d52:	0a41                	addi	s4,s4,16
+   96d54:	2ad181d7          	vor.vv	v3,v13,v3
+   96d58:	2a1c00d7          	vor.vv	v1,v1,v24
+   96d5c:	0e91                	addi	t4,t4,4
+   96d5e:	023831d7          	vadd.vi	v3,v3,-16
+   96d62:	021830d7          	vadd.vi	v1,v1,-16
+   96d66:	f63de557          	vwmacc.vx	v10,s11,v3
+   96d6a:	f63b6457          	vwmacc.vx	v8,s6,v3
+   96d6e:	03eecd83          	lbu	s11,62(t4)
+   96d72:	03fecb03          	lbu	s6,63(t4)
+   96d76:	f63de357          	vwmacc.vx	v6,s11,v3
+   96d7a:	f63b6257          	vwmacc.vx	v4,s6,v3
+   96d7e:	ffcecd83          	lbu	s11,-4(t4)
+   96d82:	ffdecb03          	lbu	s6,-3(t4)
+   96d86:	f61de5d7          	vwmacc.vx	v11,s11,v1
+   96d8a:	f61b64d7          	vwmacc.vx	v9,s6,v1
+   96d8e:	ffeecd83          	lbu	s11,-2(t4)
+   96d92:	fffecb03          	lbu	s6,-1(t4)
+   96d96:	f61de3d7          	vwmacc.vx	v7,s11,v1
+   96d9a:	f61b62d7          	vwmacc.vx	v5,s6,v1
+   96d9e:	f5ec1de3          	bne	s8,t5,96cf8 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x110>
+   96da2:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96da6:	018c8eb3          	add	t4,s9,s8
+   96daa:	020ed187          	vle16.v	v3,(t4)
+   96dae:	000b9607          	flh	fa2,0(s7)
+   96db2:	002b9687          	flh	fa3,2(s7)
+   96db6:	004b9707          	flh	fa4,4(s7)
+   96dba:	006b9787          	flh	fa5,6(s7)
+   96dbe:	c6b52c57          	vwadd.vv	v24,v11,v10
+   96dc2:	e2365057          	vfwmul.vf	v0,v3,fa2
+   96dc6:	c6942557          	vwadd.vv	v10,v9,v8
+   96dca:	e236df57          	vfwmul.vf	v30,v3,fa3
+   96dce:	c6732457          	vwadd.vv	v8,v7,v6
+   96dd2:	e2375e57          	vfwmul.vf	v28,v3,fa4
+   96dd6:	e237dd57          	vfwmul.vf	v26,v3,fa5
+   96dda:	c6522357          	vwadd.vv	v6,v5,v4
+   96dde:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+   96de2:	4b819c57          	vfcvt.f.x.v	v24,v24
+   96de6:	4aa19557          	vfcvt.f.x.v	v10,v10
+   96dea:	4a819457          	vfcvt.f.x.v	v8,v8
+   96dee:	4a619357          	vfcvt.f.x.v	v6,v6
+   96df2:	160c0c13          	addi	s8,s8,352
+   96df6:	b20c1a57          	vfmacc.vv	v20,v24,v0
+   96dfa:	b3e51957          	vfmacc.vv	v18,v10,v30
+   96dfe:	b3c41857          	vfmacc.vv	v16,v8,v28
+   96e02:	b3a31757          	vfmacc.vv	v14,v6,v26
+   96e06:	088b8b93          	addi	s7,s7,136
+   96e0a:	018e0563          	beq	t3,s8,96e14 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x22c>
+   96e0e:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96e12:	bd65                	j	96cca <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0xe2>
+   96e14:	03010f13          	addi	t5,sp,48
+   96e18:	028f5087          	vl1re16.v	v1,(t5)
+   96e1c:	6e82                	ld	t4,0(sp)
+   96e1e:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   96e22:	02066a27          	vse32.v	v20,(a2)
+   96e26:	20c5cc33          	sh2add	s8,a1,a2
+   96e2a:	20c94bb3          	sh2add	s7,s2,a2
+   96e2e:	20c9cf33          	sh2add	t5,s3,a2
+   96e32:	02060613          	addi	a2,a2,32
+   96e36:	020c6927          	vse32.v	v18,(s8)
+   96e3a:	020be827          	vse32.v	v16,(s7)
+   96e3e:	020f6727          	vse32.v	v14,(t5)
+   96e42:	04751763          	bne	a0,t2,96e90 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x2a8>
+   96e46:	6622                	ld	a2,8(sp)
+   96e48:	08c1                	addi	a7,a7,16
+   96e4a:	8f7e                	mv	t5,t6
+   96e4c:	04030313          	addi	t1,t1,64
+   96e50:	9e16                	add	t3,t3,t0
+   96e52:	97f6                	add	a5,a5,t4
+   96e54:	e31619e3          	bne	a2,a7,96c86 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x9e>
+   96e58:	6662                	ld	a2,24(sp)
+   96e5a:	7b02                	ld	s6,32(sp)
+   96e5c:	8a3a                	mv	s4,a4
+   96e5e:	6fc2                	ld	t6,16(sp)
+   96e60:	7722                	ld	a4,40(sp)
+   96e62:	0605                	addi	a2,a2,1
+   96e64:	01658833          	add	a6,a1,s6
+   96e68:	9776                	add	a4,a4,t4
+   96e6a:	decf94e3          	bne	t6,a2,96c52 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0x6a>
+   96e6e:	c22022f3          	csrr	t0,vlenb
+   96e72:	9116                	add	sp,sp,t0
+   96e74:	642a                	ld	s0,136(sp)
+   96e76:	648a                	ld	s1,128(sp)
+   96e78:	7966                	ld	s2,120(sp)
+   96e7a:	79c6                	ld	s3,112(sp)
+   96e7c:	7a26                	ld	s4,104(sp)
+   96e7e:	7a86                	ld	s5,96(sp)
+   96e80:	6b66                	ld	s6,88(sp)
+   96e82:	6bc6                	ld	s7,80(sp)
+   96e84:	6c26                	ld	s8,72(sp)
+   96e86:	6c86                	ld	s9,64(sp)
+   96e88:	7d62                	ld	s10,56(sp)
+   96e8a:	7dc2                	ld	s11,48(sp)
+   96e8c:	6149                	addi	sp,sp,144
+   96e8e:	8082                	ret
+   96e90:	4521                	li	a0,8
+   96e92:	b519                	j	96c98 <tcrv_emitc_ggml_gemm_q5_0_q8_0_kernel_ggml_gemm_q5_0_q8_0+0xb0>

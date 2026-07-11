@@ -1,0 +1,2 @@
+# patched ggml scaffold source: regenerable via tools/e2e-harness/board/g5-m2-q5_0/deploy_patch_q5_0_emitted.py · 320KB · avoid bloat
+board-src/

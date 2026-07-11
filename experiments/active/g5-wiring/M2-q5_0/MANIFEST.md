@@ -1,14 +1,31 @@
-# G5-M2 q5_0 曳光弹 — L-接线② 净新 scaffold · CASEFILE (phase-1 recon+emit+design)
+# G5-M2 q5_0 曳光弹 — L-接线② 净新 scaffold · CASEFILE
 
-> **campaign**: G5 接线战役 · **M2 L-接线② q5_0**（首个真净新上游 scaffold·验证 template 建 upstream scaffold 能力=C1 extensibility）
-> **board**: `ssh rvv` openEuler VLEN128 gcc-15.2.0 · A-tree f3e1828（**零改动**·read-only recon + host emit only）
-> **workflow**: `wtpdeaoes`（phase-1）· **HEAD (TianChen-RV)** = a7cacf68
-> **结论 (phase-1)**: **upstream_absent 确证**（q5_0 GEN+ARCH grep=0·block<K,N> 模板无法表达第 5 位 qh·与 q4_K 全-present 决定性相反）· **kernel EMITTED**（vl=8 全 AVL·zero 16/64·VLEN128-safe）· **12-piece 净新 scaffold DEFERRED**（downgrade rule·远超 q4_K deploy·correctness-critical = make_block_q5_0x16 interleaver·MIRAGE trap 若 qh bit-order 微错）。
-> **perf 预期（诚实·非预设绿）**: FLAT kernel-axis 1.23× gcc-symmetric 小 margin·**可能 washes to yellow**（micro↛e2e·q4_K 先例）·perf 只在 correctness GREEN 后。
+> **campaign**: G5 接线战役 · **M2 L-接线② q5_0**（首个真净新上游 scaffold·验证 template 建 upstream scaffold 能力 = C1 extensibility）
+> **board**: `ssh rvv` openEuler VLEN128 gcc-15.2.0 · A-tree f3e1828（restore 中·workflow glitch 后 board-restore agent 收尾）
+> **workflow**: `wtpdeaoes`（phase-1 recon）+ `w7cwrau8d`（phase-2 build·**末尾 StructuredOutput glitch FAILED·但工作已完成**）· **HEAD (TianChen-RV)** = a7cacf68
+> **★结论**: **净新 12-piece scaffold BUILT + correctness GREEN**（make_block_q5_0x16 interleaver 成功·5/5 byte-identical·45 banner·PPL 17.88 coherent·objdump vl=8 never-16/64）→ **L-接线② 净新方法学验证成功 = C1 template extensibility 实证**（template 能从零建 upstream repack scaffold + correctness-carrier）。**但 workflow glitch → phase-2 perf 未测 → perf-covered 维持 3/84**（q5_0 = correctness-carrier·perf 待重测·不冒绿）。
+
+## 一、phase-1 recon（wtpdeaoes·02bfa2c4）
+- **upstream_absent 确证**（q5_0 GEN+ARCH grep=0·block<K,N> 模板无法表达第 5 位 qh·与 q4_K 全-present 决定性相反）·kernel EMITTED（vl=8·VLEN128-safe）·12-piece 净新 scaffold recipe 全设计（evidence.md §三）。
+
+## 二、phase-2 build+correctness（w7cwrau8d·从 workflow 残留恢复·board-src + seal + correctness 落盘）
+- **12-piece 净新 scaffold BUILT**（seal_raw.txt：HDR struct/decls·GEN make_block_q5_0x16/repack_tmpl/gemv_tmpl/gemm_tmpl/trait/dispatch/generics·ARCH gemv/gemm body+call 全 True）——**make_block_q5_0x16 transposed-qh interleaver 一次成功**（correctness-critical MIRAGE trap 过关）。
+- **★correctness GREEN**（correctness_GREEN_raw.txt）：DeepSeek-8B-Q5_0 · 5/5 prompt byte-identical A(emit)==B(stock) coherent · 45 emitted-kernel banner fires · PPL(ON)=17.88 finite/coherent · no NaN/Inf · **CORRECTNESS_GATE GREEN**。
+- **objdump vl-seal**（objdump_gemm/gevm_q5_0_seal.txt）：q5_0 emitted 符号 `vsetivli imm=8=1·imm=16=0·imm=64=0` = VLEN128-safe·部署==证过。nm 两符号在·ON≠OFF。
+- **perf UNMEASURED**：workflow 末尾 StructuredOutput glitch failed → phase-2 measure agent 未跑 → **无 perf 分相数**。perf-covered **维持 3/84**（不以未测冒绿·q5_0=correctness-carrier·perf 待 clean 重测·预期 FLAT 1.23× 小 margin 可能 wash）。
+
+## 三、L-接线② 方法学产出（★C1 extensibility 实证·独立于 perf）
+- **net-new scaffold 建法验证成功**：template 从零建 upstream repack scaffold（12-piece·GEN trait+dispatch+repack fns+generic fallback·ARCH gemv/gemm skeleton·repack.h struct block_q5_0x16）→ correctness-carrier GREEN。**q4_K 是复用（上游 present）·q5_0 是真净新**——证 L-接线② 的"template 能建 upstream scaffold"主张（C1）。
+- **q5_1 复用**：deploy_patch_q5_0_emitted.py + build_seal/correctness/phase_split harness（`tools/e2e-harness/board/g5-m2-q5_0/`）· recipe 见 evidence.md §三 + board-src patched 源（swap q5_0→q5_1·GGML_TYPE_Q8_1 激活·block_q5_1x16 加 m 字段）。
 
 ## durable files
-- `evidence.md`（recon + emit recipe + 12-piece 净新 scaffold recipe·全锚点·供 q5_1 复用）
-- `tcrv_emitted_gemm_q5_0.inc`（host-emitted GEMM·md5 f03c6566·VLEN128-safe·27KB）
-- `tcrv_emitted_gevm_q5_0.inc`（host-emitted GEVM·md5 f3892049·VLEN128-safe·20KB）
+- `evidence.md`（recon + emit recipe + 12-piece 净新 scaffold recipe·全锚点）
+- `correctness_GREEN_raw.txt`（phase-2 correctness 证据·5/5 byte-identical·PPL·banner）
+- `seal_raw.txt`（build+patch+seal 全 log·12-piece 建成证据）
+- `objdump_gemm_q5_0_seal.txt`（GEMM vl=8 objdump seal）
+- `objdump_gevm_q5_0_seal.txt`（GEVM vl=8 objdump seal）
+- `tcrv_emitted_gemm_q5_0.inc`（host-emitted GEMM·md5 f03c6566·27KB）
+- `tcrv_emitted_gevm_q5_0.inc`（host-emitted GEVM·md5 f3892049·20KB）
+- `.gitignore`（gitignore board-src patched 源·regenerable）
 
-> .inc 小（47KB total·直接 tracked·不同于 q4_K 2.5MB gitignored）。scaffold 建设 harness 将复用 `tools/e2e-harness/board/g5-m2-q4k/`（3 挂点模板不变·adapt names）。
+> `board-src/`（patched ggml 源·GEN 196KB/ARCH 103KB/repack.h·320KB total）= **gitignored**（regenerable via `tools/e2e-harness/board/g5-m2-q5_0/deploy_patch_q5_0_emitted.py` 套 baseline·避 bloat）。board harness 住 `tools/e2e-harness/board/g5-m2-q5_0/`。
