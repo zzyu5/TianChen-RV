@@ -93,9 +93,17 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · X-SCALAR 收口 XS-M4 LED-2 · 队列自动衔接·禁停机制）
-- **XS-M4（LED-2 C2 经济学第二点·schema/ledger 域）· agent（下派）**：Scalar 家族进 `schema/family-dirs.v1.json`（LED-2 阻塞项）+ C2 ledger 记 X-SCALAR 接入成本第二点（实测 1501 行·对照锚 IME 2484）= C2 曲线家族#3 证据核心（1/≥3→2 点）。<300 口径已入累积必问 batch 留裁（factual 记录不阻）。
-- ✅ **★X-SCALAR N2 boundary 收口核心完成**：XS-M0+M1（a820e87a·zvfh 早 landed·仅正名）· XS-M3（61f0c8fe·判据④机制早 landed·补独立 F-6 门·N2 boundary PASS 完整）· F-6 门进 CI（bcd3c6bd·[F-1..F-6] 第二个真进 CI）· owned 内核+zvfh+判据④ 全 landed = **家族#3 与 IME 同级合法家族**。三次 XS 收口均发现排期报告 stale（机制早 landed）。
+## 在飞（★当前并行度 N=0 · productive 自决队列实质排空 · 禁停机制 #2:列剩余请求排序）
+- **无活动线**。**★X-SCALAR 收口核心完成**（XS-M0/M1/M3/M4·3b537919）：N2 boundary PASS 完整（家族#3 与 IME 同级）+ owned 内核/zvfh/判据④/F-6 门 CI 全 landed + C2 经济学第二点（1501/1148 行·C2 1→2 点）。三次 XS 收口均发现排期报告 stale（机制早 landed·X-SCALAR 比报告更完备）。
+- ✅ 本轮巨量产出全落：**M4 真 100%（84/91=92.31%·全 IME 格 silicon-sealed）· G4 IME 全家族 · 测量总攻覆盖批①-⑤+T6（perf-covered 2/84·天花板=接线+micro↛e2e）· AUDIT docs-先行 CI GREEN · X-SCALAR 家族#3 N2 收口 · [T8·LAW-FIRST-EMISSION]**。
+- **禁停机制 #2 排序请求**（productive 自决队列排空·剩余=大新战役/speculative/必问 batch·非 pause）：见下「剩余待排序」。
+
+## 剩余待排序（2026-07-11 · productive 自决队列排空后 · 禁停机制 #2 请用户排序）
+1. **[接线战役]（perf-covered 头条唯一拉绿杠杆·队列外·必问级新战役）**：把 emitted tcrv 核 wire 进 ggml forward（类比 q4_0 routing）→ FLAT 5+IME 3 内核轴对称候选转 perf-covered 绿格（2/84→潜在多格·受 micro↛e2e 封顶）。= 唯一能动头条指标的大战役。
+2. **累积必问 batch（canon/不可逆·用户裁·我不执行）**：① check_docs_canon 2 RED（门过严误报） ② C5 .o 移出 VC + C11 §7 锚 ③ XS-M4 <300 口径（1501 超标·措辞宪法级） ④ XS-M0 等级翻转（S-2/X-ZVFH·供复核） ⑤ **T2-anchor drift（IME --family 现报 5153≠锚 2484·regen 会污 2484 C2 锚·独立处置）**。
+3. **AUDIT 档 B（R2/R3 lib 分子目录+RENAME 命名统一·触发满足·主会话 lib-quiet·与 VariantSelection 串行）** + safe deletions（C7/C8/C9/C10·自决 reversible·复原 b3e3fef4）。
+4. **XS-M2（scalar.zfh 事实注册·speculative·无 fp16 scalar kernel 消费者·家族五件套完整性·低价值）**。
+5. **static_order→prior reason 燃减（canon·必问·SEL-1-T5 已 enable）** · 声明例外 7 格年度重估（无工作量钩子）· **论文期 [远期·非驱动]**。
 
 ## X-SCALAR/zvfh 收口（C2 曲线家族#3 · 2026-07-11 排期报告 · 已 70-80% landed）
 **发现**：非从零接入·已 landed（owned 内核 tq2_0/q4_0·曳光弹·F-6 机检）·需收口 4 open boundary。**[X-1] 顺序 = Zvfh → X-SCALAR → 硅核查 → AME**（zvfh 先行·实际序偏离已披露）。里程碑：**XS-M0 正名（doc-code sync）→ XS-M1 zvfh 事实注册+闭包 → XS-M2 scalar.zfh → XS-M3 判据④连线（N2 boundary 最后一环:向量缺席→标量 only_feasible 真实选中）→ XS-M4 LED-2 登记**。
