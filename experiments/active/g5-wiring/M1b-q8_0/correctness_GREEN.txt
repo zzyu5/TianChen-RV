@@ -1,0 +1,44 @@
+# G5-M1b q8_0 e2e correctness gate — greedy-token A(ON emitted vl=8)==B(OFF stock) + logits sanity
+# board rvv openEuler VLEN128, gcc-15.2.0, same-tree physical .so swap
+# A(ON)  = q8_0 gate flipped -> arch/riscv VLEN128 branch INTERCEPTS with OUR EMITTED
+#          vl=8 two-strip repack GEVM (decode) + GEMM (prefill), returning BEFORE the
+#          broken upstream vl=16 body.  <-- the correctness-carrier (distinct from M1)
+# B(OFF) = q8_0 gate off -> ggml block-dot vec_dot (upstream default @VLEN128)
+#
+# ENGAGE (real forward): ON -> EMITTED GEVM banner x8 + EMITTED GEMM banner x8 FIRE;
+#                        OFF -> 0 banners. (engage_ON.stderr / engage_OFF.stderr)
+#   e.g. "TCRV G5-M1b EMITTED GEMM(q8_0_16x1 VLEN128 compiler-emitted vl=8) ENGAGED n=2048 nr=32 nc=64"
+
+== FULL-STRING greedy gate (3 prompts, llama-cli -st --temp 0 --top-k 1 --seed 1 -n 24) ==
+consistent=3  failed=0   CORRECTNESS_GATE: GREEN
+LOGITS SANITY: OK (no NaN/Inf; finite logits)
+
+== GENERATED-TEXT-ONLY A/B diff (banner-stripped; the airtight evidence) ==
+prompt: 'The capital of France is'
+   A(ON  emitted vl=8): The capital of France is Paris.
+   B(OFF stock blkdot): The capital of France is Paris.
+   -> GEN-TEXT A==B (non-empty)  PASS   [COHERENT]
+
+prompt: 'Once upon a time'
+   A(ON  emitted vl=8): Once upon a time, there was a young girl named Lily who lived in a small village. She was a kind
+   B(OFF stock blkdot): Once upon a time, there was a young girl named Lily who lived in a small village. She was a kind
+   -> GEN-TEXT A==B (non-empty)  PASS   [COHERENT]
+
+prompt: 'Q: What is 2 + 2? A:'
+   A(ON  emitted vl=8): The answer to the question "What is 2 + 2?" is 4.
+   B(OFF stock blkdot): The answer to the question "What is 2 + 2?" is 4.
+   -> GEN-TEXT A==B (non-empty)  PASS   [COHERENT]
+
+GENERATED-TEXT CORRECTNESS: pass=3 fail=0
+
+# ------------------------------------------------------------------------------
+# CONTRAST WITH M1 (the whole point of M1b):
+#   M1 (banner-ONLY, fell through to broken upstream vl=16 body):
+#       A(ON) = "olta"  <-- GARBAGE (half-column skip), correctness RED, perf VOID.
+#   M1b (OUR emitted vl=8 kernel intercepts):
+#       A(ON) = "The capital of France is Paris."  <-- COHERENT, byte-identical to stock.
+#   => Our emitted vl=8 kernel IS the VLEN128 correctness-carrier. The routing-freebie
+#      is IMPOSSIBLE for q8_0 without it (upstream VLEN128 repack kernel is broken,
+#      [GAP-Q8_0-VLEN128-KERNEL]).
+# objdump seal (objdump_gevm_seal.txt / objdump_gemm_seal.txt): BOTH emitted symbols
+#   use `vsetivli zero,8,e32,m2` (vl=8), ZERO vl=16 -> deployed variant == proven variant.

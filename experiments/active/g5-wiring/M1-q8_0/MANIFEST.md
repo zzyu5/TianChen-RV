@@ -29,7 +29,7 @@
 
 **engage 验证（objdump/banner seal）**：
 - ON `.so` `strings` 含 gevm+gemm banner（各 ≥1）；OFF `.so` = 0。
-- 真实 forward 触发：ON 运行 `llama-bench` → **GEVM banner ×8 + GEMM banner ×4 FIRE**（`engage_ON.stderr`）；OFF → **0**（`engage_OFF.stderr`）。→ **route 确实 engage 上游 repack GEMM(prefill)+GEVM(decode) @VLEN128**。与 T6 q8_0-unwired banner-ABSENT 互补：此处 banner-PRESENT = **已路由**。
+- 真实 forward 触发：ON 运行 `llama-bench` → **GEVM banner ×8 + GEMM banner ×4 FIRE**（`engage_ON.err`）；OFF → **0**（`engage_OFF.err`）。→ **route 确实 engage 上游 repack GEMM(prefill)+GEVM(decode) @VLEN128**。与 T6 q8_0-unwired banner-ABSENT 互补：此处 banner-PRESENT = **已路由**。
 
 ---
 
@@ -71,7 +71,7 @@ sumi = __riscv_vwadd_wv_i32m2(sumi, __riscv_vwmul_vx_i16m1(b_0, a_ptr[l].qs[i], 
 ## 六、可复现 / 触碰集 / 交付
 
 - **新建脚本（deploy harness，触碰集内）**：`tools/e2e-harness/board/g5-m1-q8/{deploy_patch_q8.py, g5_build_variants.sh, g5_engage_correctness.sh, g5_phase_split_swap.sh}`。
-- **新建 casefile（本目录）**：`MANIFEST.md`(本文) · `transmission_accounting.csv` · `correctness_RED.txt` · `phase_split_raw_VOID.txt` · `evidence_VOID.json`(stamped VOID) · `engage_ON.stderr` / `engage_OFF.stderr`。
+- **新建 casefile（本目录）**：`MANIFEST.md`(本文) · `transmission_accounting.csv` · `correctness_RED.txt` · `phase_split_raw_VOID.txt` · `evidence_VOID.json`(stamped VOID) · `engage_ON.err` / `engage_OFF.err`。
 - **板 provision（新文件，非 stock 改动）**：`/home/ubuntu/tcrv-llamacpp/models/tinyllama-q8_0.gguf`（requantize，reusable；留存）。
 - **A-tree restore 证据（零 stock 永久改动）**：测后 GEN md5=`deb61a29…`、ARCH md5=`99131cf7…`、live `.so` md5=`05a62e6a…`（== OFF-pristine，banner=0），全 == baseline。source restore byte-exact + pristine rebuild md5-identical（确定性构建）。
 - **HEAD (TianChen-RV) = `ab054260` 未变** · 全程禁 git · lib/(selector)·schema·ROADMAP 未碰。
@@ -81,5 +81,5 @@ sumi = __riscv_vwadd_wv_i32m2(sumi, __riscv_vwmul_vx_i16m1(b_0, a_ptr[l].qs[i], 
 - `correctness_RED.txt`
 - `phase_split_raw_VOID.txt`
 - `evidence_VOID.json`
-- `engage_ON.stderr`
-- `engage_OFF.stderr`
+- `engage_ON.err`
+- `engage_OFF.err`

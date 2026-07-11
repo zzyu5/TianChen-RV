@@ -1,0 +1,8 @@
+axis,phase,ours,stock,ratio,ci95_lo,ci95_hi,n_per_side,verdict,opponent,account,notes
+micro-kernel,prefill-GEMM,5.10 GMAC/s,1.242 GMAC/s,4.10x,,,,paired,DIFFERENCE,ggml_vec_dot_q8_0_q8_0(hand_tuned RVV m2),kernel(gcc-symmetric),flat-covering-batch1 flat_gemm_paired.csv (host micro)
+e2e,prefill-pp128,39.191 t/s,9.011 t/s,4.350x,4.343,4.355,20,DIFFERENCE,ggml block-dot vec_dot(RVV) dispatched VLEN128,system(kernel-symmetric gcc-15.2.0),same-tree .so-swap; DVFS 2.6GHz locked; IQR 0.10%/0.22%
+e2e,decode-tg32,8.473 t/s,2.223 t/s,3.812x,3.801,3.818,20,DIFFERENCE,ggml block-dot vec_dot(RVV) dispatched VLEN128,system(kernel-symmetric gcc-15.2.0),same-tree .so-swap; DVFS 2.6GHz locked; IQR 0.39%/0.39%
+transmission,prefill,micro 4.10x,,e2e 4.350x,,,,TRANSMITS,,,"micro->e2e TRANSMITS (prefill compute-path dominated; repack-GEMM is the bottleneck)"
+transmission,decode,micro 4.10x(GEMM proxy),,e2e 3.812x,,,,TRANSMITS,,,"repack-GEVM memory-locality + 16-col streaming beats per-row block-dot; NOT memory-wall parity (M0 predicted parity, empirically DIFFERENCE)"
+mirage-contrast,prefill,78.11 t/s(M1),8.99 t/s(M1),8.69x MIRAGE,,,,VOID,,,"M1 broken vl=16 = half-column skip -> 2x faster BUT garbage; M1b correct vl=8 = 39.19 ~= half of 78.11 (full work), correctness GREEN"
+mirage-contrast,decode,7.55 t/s(M1),2.23 t/s(M1),3.39x MIRAGE,,,,VOID,,,"M1 garbage; M1b correct decode 8.473 t/s (3.812x) actually HIGHER than mirage"

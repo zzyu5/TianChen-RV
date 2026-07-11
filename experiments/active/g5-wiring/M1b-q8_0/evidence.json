@@ -1,0 +1,57 @@
+{
+  "campaign": "G5-wiring / M1b",
+  "cell": "q8_0",
+  "verdict": "PERF-COVERED (correctness-carrier); prefill DIFFERENCE + decode DIFFERENCE, correctness GREEN",
+  "preregistered_branch": "R1 (prefill >= DIFFERENCE AND correctness GREEN)",
+  "board": "ssh rvv = openEuler 24.03 / VLEN128 / gcc-15.2.0 / 64c / governor=performance @2.6GHz",
+  "tcrv_head": "92c27389 (UNCHANGED; no git)",
+  "a_tree_head": "f3e1828 (WinB-q4_0-ON working tree; restored byte-exact after run)",
+  "ab_mechanism": "same-tree physical .so swap; one llama-bench; gcc-15.2.0 symmetric; only diff = q8_0 gate + emitted-kernel intercept branches + one #include",
+  "model": "tinyllama-q8_0.gguf (1.09GiB, 8.50BPW; requantized from q4_0; A/B same file)",
+  "emitted_kernels": {
+    "gevm_decode": "tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0",
+    "gemm_prefill": "tcrv_emitc_ggml_gemm_q8_0_q8_0_kernel_ggml_gemm_q8_0_q8_0",
+    "form": "front-door constructed (quant_contraction auto-lower -> typed_repack_gem{v,m}_loop_body), VLEN128 vl=8 two-8-lane-halves",
+    "emit_recipe": "tcrv-opt --tcrv-rvv-lower-quant-contraction=march=rv64gcv --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp (LLVM 20.1.8), VERBATIM",
+    "inc_md5": "b5177a4d39756ad364af1dd4de3ca274",
+    "objdump_seal": "both symbols vsetivli imm=8 (e32,m2), ZERO imm=16 -> deployed==proven variant"
+  },
+  "correctness": {
+    "gate": "GREEN",
+    "greedy_full_string": "3/3 consistent",
+    "generated_text_only": "3/3 A==B non-empty COHERENT",
+    "logits": "finite, no NaN/Inf",
+    "contrast_M1": "M1 (banner-only, broken upstream vl=16) = 'olta' GARBAGE RED; M1b (emitted vl=8) = 'Paris.' COHERENT"
+  },
+  "engage": {"gevm_banner_on": 8, "gemm_banner_on": 8, "banner_off": 0},
+  "perf": {
+    "prefill_pp128": {"ours_tps": 39.191, "stock_tps": 9.011, "ratio": 4.350, "ci95": [4.343, 4.355], "iqr_pct": [0.10, 0.22], "n": 20, "verdict": "DIFFERENCE"},
+    "decode_tg32":  {"ours_tps": 8.473,  "stock_tps": 2.223, "ratio": 3.812, "ci95": [3.801, 3.818], "iqr_pct": [0.39, 0.39], "n": 20, "verdict": "DIFFERENCE"},
+    "dvfs": "locked 2600000 kHz (performance governor), span 0%",
+    "opponent": "ggml block-dot vec_dot (RVV-vectorized, objdump-confirmed vle8/vwmul), dispatched VLEN128",
+    "micro_reference": "flat-covering-batch1 prefill-GEMM 4.10x (kernel-symmetric gcc)"
+  },
+  "framing_locks": {
+    "mechanism": "capability-keyed repack routing (block_q8_0x16 weight + q8_0 activation + tiled GEVM/GEMM) vs stock block-dot; NOT kernel-quality-vs-hand-tuned",
+    "correctness_carrier": "our emitted vl=8 kernel; UNLIKE q4_0 (upstream had a working kernel, ours byte-equal), q8_0 upstream VLEN128 kernel is BROKEN [GAP-Q8_0-VLEN128-KERNEL] so the freebie is IMPOSSIBLE without our kernel -> stronger provenance than q4_0 routing-freebie",
+    "tension_A_selector": "our selector DECLINES q8_0 repack (RVVContractionPathSelection.cpp:111 block-dot-decline-q8_0-lean-fallback, !blockDotComputeHeavy); M1b is a FORCE-ROUTING transmission probe, NOT a selector-selected path; selector UNCHANGED (canon-level = must-ask)",
+    "tension_B_memory": "M0 predicted decode PARITY (q8_0 = 2x bytes, memory wall); empirically DIFFERENCE 3.812x -> repack streaming/locality dominates, not raw bandwidth"
+  },
+  "eight_gates": {
+    "byte_exact": "greedy A==B generated-text byte-identical + prefill kernel bounded-ULP (NOT 'byte-exact vs ggml')",
+    "opponent_symmetric": "gcc-15.2.0 both sides (same-tree .so swap)",
+    "dual_ledger": "kernel-symmetric (gcc both) + system-account e2e",
+    "opponent_identity_probe": "ggml block-dot vec_dot (RVV) objdump-confirmed",
+    "micro_and_e2e": "micro 4.10x AND e2e prefill 4.35x/decode 3.81x both present",
+    "selector_routing": "banner FIRES (GEVM x8 + GEMM x8) = routed+engaged",
+    "discipline": "A-tree reversible, restored byte-exact, zero stock permanent change, HEAD unchanged, no git",
+    "wording": "routing-win mechanism + correctness-carrier provenance + selector-decline tension all disclosed"
+  },
+  "reversibility": {
+    "gen_md5_restored": "deb61a29dd079440ffdc8996b5bd2fa1 (==base)",
+    "arch_md5_restored": "99131cf791e30348b588423b2388e0b8 (==base)",
+    "live_so_md5": "05a62e6a82857cdf247ba1933c695849 (==OFF-pristine)",
+    "live_q8_0_tcrv_sym": 0,
+    "stray_inc": "none"
+  }
+}

@@ -1,0 +1,2 @@
+# G5-M1b engage OFF: q8_0 gate off -> block-dot vec_dot; ZERO TCRV banners (expected).
+# grep -c "TCRV G5-M1b" = 0 (see MANIFEST engage table).

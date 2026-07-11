@@ -1,0 +1,76 @@
+
+/tmp/g5_q8b/libggml-cpu.so.q8ON:     file format elf64-littleriscv
+
+
+Disassembly of section .plt:
+
+Disassembly of section .text:
+
+0000000000094206 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0>:
+   94206:	00465713          	srli	a4,a2,0x4
+   9420a:	cb65                	beqz	a4,942fa <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0xf4>
+   9420c:	00555f13          	srli	t5,a0,0x5
+   94210:	004f1613          	slli	a2,t5,0x4
+   94214:	cd147057          	vsetivli	zero,8,e32,m2,ta,ma
+   94218:	071a                	slli	a4,a4,0x6
+   9421a:	967a                	add	a2,a2,t5
+   9421c:	5e003857          	vmv.v.i	v16,0
+   94220:	5e003657          	vmv.v.i	v12,0
+   94224:	832e                	mv	t1,a1
+   94226:	00e58e33          	add	t3,a1,a4
+   9422a:	00561e93          	slli	t4,a2,0x5
+   9422e:	22068593          	addi	a1,a3,544
+   94232:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   94236:	9f00b557          	vmv2r.v	v10,v16
+   9423a:	9f00b457          	vmv2r.v	v8,v16
+   9423e:	00be88b3          	add	a7,t4,a1
+   94242:	0a0f0163          	beqz	t5,942e4 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0xde>
+   94246:	853e                	mv	a0,a5
+   94248:	00be88b3          	add	a7,t4,a1
+   9424c:	9ec0b157          	vmv2r.v	v2,v12
+   94250:	9ec0b257          	vmv2r.v	v4,v12
+   94254:	de058813          	addi	a6,a1,-544
+   94258:	e0058713          	addi	a4,a1,-512
+   9425c:	00250693          	addi	a3,a0,2
+   94260:	a019                	j	94266 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0x60>
+   94262:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   94266:	00870613          	addi	a2,a4,8
+   9426a:	02060087          	vle8.v	v1,(a2)
+   9426e:	02070387          	vle8.v	v7,(a4)
+   94272:	00068603          	lb	a2,0(a3)
+   94276:	9e20b757          	vmv2r.v	v14,v2
+   9427a:	0741                	addi	a4,a4,16
+   9427c:	0685                	addi	a3,a3,1
+   9427e:	ee166357          	vwmul.vx	v6,v1,a2
+   94282:	ee7660d7          	vwmul.vx	v1,v7,a2
+   94286:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   9428a:	d6e32157          	vwadd.wv	v2,v14,v6
+   9428e:	9e40b357          	vmv2r.v	v6,v4
+   94292:	d660a257          	vwadd.wv	v4,v6,v1
+   94296:	fce596e3          	bne	a1,a4,94262 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0x5c>
+   9429a:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+   9429e:	df058713          	addi	a4,a1,-528
+   942a2:	02085307          	vle16.v	v6,(a6)
+   942a6:	02075087          	vle16.v	v1,(a4)
+   942aa:	00051787          	flh	fa5,0(a0)
+   942ae:	4a419257          	vfcvt.f.x.v	v4,v4
+   942b2:	4a219157          	vfcvt.f.x.v	v2,v2
+   942b6:	0c807057          	vsetvli	zero,zero,e16,m1,ta,ma
+   942ba:	e267d757          	vfwmul.vf	v14,v6,fa5
+   942be:	e217d357          	vfwmul.vf	v6,v1,fa5
+   942c2:	22058593          	addi	a1,a1,544
+   942c6:	0d107057          	vsetvli	zero,zero,e32,m2,ta,ma
+   942ca:	02250513          	addi	a0,a0,34
+   942ce:	b2e21557          	vfmacc.vv	v10,v4,v14
+   942d2:	b2611457          	vfmacc.vv	v8,v2,v6
+   942d6:	00b88563          	beq	a7,a1,942e0 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0xda>
+   942da:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   942de:	b7bd                	j	9424c <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0x46>
+   942e0:	0c707057          	vsetvli	zero,zero,e8,mf2,ta,ma
+   942e4:	02036527          	vse32.v	v10,(t1)
+   942e8:	02030713          	addi	a4,t1,32
+   942ec:	04030313          	addi	t1,t1,64
+   942f0:	85c6                	mv	a1,a7
+   942f2:	02076427          	vse32.v	v8,(a4)
+   942f6:	f46e10e3          	bne	t3,t1,94236 <tcrv_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0+0x30>
+   942fa:	8082                	ret
