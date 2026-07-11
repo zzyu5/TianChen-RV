@@ -1,0 +1,17 @@
+# G5-M2 q4_1 曳光弹 perf phase-split — dual-ledger transmission accounting
+# board=rvv openEuler VLEN128 gcc-15.2.0 | 2026-07-12
+# A/B = same-tree physical .so swap: ours=q4ON(net-new scaffold + q8_1 mat-quant + emitted vl=8 repack GEMM+GEVM, md5 a3774cdf, 2 tcrv syms)
+#       stock=q4OFF(pristine ggml q4_1 block-dot, NO scaffold, md5 05a62e6a, 0 tcrv syms). ONE llama-bench, ONE tree, gcc-15.2.0 symmetric.
+# model=DeepSeek-R1-Distill-Llama-8B-Q4_1.gguf (sha256 e10c9d9936fa1901, requantized Q5_0->Q4_1 --allow-requantize, decision-card 4) | pin taskset 8-15, 8 threads | DVFS performance locked 2.6GHz
+# T-N: PASSES=2 x REPS=10 => n=20 samples/side/phase | banner engage-probe = 12 fires on real p16n8 run (deployment-during-e2e verified) | freq_khz=2600000 all 4 ###AB
+# LEDGER NOTE: board rv64gcv shipped toolchain == gcc-15 => kernel-axis == system-axis (NO clang asymmetry; contrast [CASE-COMPILER-ASYMMETRY]). Both ledgers identical & valid.
+# HONESTY CAVEAT: stock q4_1 baseline is WEAK -- q4_1 has NO stock riscv repack path (like q5_0/q5_1) so stock=generic block-dot; stock q4_1 (1.51 pp / 1.06 tg) is notably slower
+#   than stock q5_0 (3.37 pp) / q5_1 (3.18 pp / 1.57 tg). The large ratio = our net-new repack GEMM/GEVM vs UNOPTIMIZED stock q4_1 block-dot (an L1 path win, cf q4_0 WinB 5.9x),
+#   NOT a claim q4_1 is 3.68x faster than a well-tuned kernel. The BOTH-phase win (incl decode 1.67x) is ATYPICAL vs the q5_0/q5_1/q4_0 prefill-win/decode-wash pattern and is
+#   driven by the weak stock decode baseline (q4_1's smaller no-qh 320B repacked layout also aids decode bandwidth vs q5_1's 384B). Flag for scrutiny; verdict rests on prefill>=parity.
+# values from analyze_phase_split.py (median of n=20 samples_ts).
+phase,ledger,ours_med_ts,stock_med_ts,ratio,ours_relIQR,stock_relIQR,n_samples,opponent_identity,compiler_ours,compiler_stock,board_shipped_compiler,verdict
+prefill_pp128,kernel(gcc-symmetric),5.561785,1.509540,3.6844,0.00610,0.00109,20,stock-q4_1-block-dot(same-tree-no-repack),gcc-15.2.0,gcc-15.2.0,gcc-15,GREEN>=parity(WIN +268%)
+prefill_pp128,system(toolchain-disclosed),5.561785,1.509540,3.6844,0.00610,0.00109,20,stock-q4_1-block-dot(same-tree-no-repack),gcc-15.2.0,gcc-15.2.0,gcc-15,GREEN>=parity(WIN +268%)
+decode_tg32,kernel(gcc-symmetric),1.761415,1.056795,1.6668,0.00889,0.00040,20,stock-q4_1-block-dot(same-tree-no-repack),gcc-15.2.0,gcc-15.2.0,gcc-15,WIN +66.8%(atypical both-phase; weak stock decode baseline)
+decode_tg32,system(toolchain-disclosed),1.761415,1.056795,1.6668,0.00889,0.00040,20,stock-q4_1-block-dot(same-tree-no-repack),gcc-15.2.0,gcc-15.2.0,gcc-15,WIN +66.8%(atypical both-phase; weak stock decode baseline)
