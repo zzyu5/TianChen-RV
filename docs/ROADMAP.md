@@ -30,7 +30,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 | 维度 | 值 |
 |---|---|
-| **★perf-covered（头条·测量轴）** | **2/84 = 2.38%**（头条·基线 `docs/reports/2026-07-11-perf-covered-baseline.md`）｜ **规则明文（禁定义与登记册各说各话）**：分子 = fair-protocol（双账本+对手探针）测得 ≥parity/赢 的格·**账本+八门状态逐格披露** → q4_K（**kernel 账·full 八门·Win-K1-VLEN RATIFIED**）+ q4_0（**系统账·routing-win·5/8 门·disclosed**）｜严判 sub-tier（限 kernel 账 full-八门）= 1/84｜**★最近绿格候选 = q8_0**（G5-M1b 55022402·e2e **已传导** prefill 4.35×/decode 3.81× DIFFERENCE·correctness-carrier·成色强于 q4_0）——但 **deployed≠proven**（强制路由探针·selector 现 decline）→ **gated on 张力A selector-fix（在飞）·修成即转 3/84**（区别于下列候选：q8_0 已过 e2e 传导墙·仅差 selector 路由）｜**内核轴对称候选（黄格·待 e2e 传导）**：FLAT 5 格 [GAP-FLAT-E2E]（gcc-symmetric ≥parity 全幸存·待 T6 e2e 传导）+ IME 3 格 [GAP-IME-LEAF-PIPELINE]（批处理后 compute-account ~2×·对手 SELF·待 vs-opponent/e2e）｜其余 K-quant S6 撤回·iq/tq 全 LOSS·流式未测｜**造得出≠立得住·候选≠绿格** |
+| **★perf-covered（头条·测量轴）** | **3/84 = 3.57%**（头条·登记 `docs/reports/2026-07-12-perf-covered-q8_0-green-3of84.md`·基线 `2026-07-11-perf-covered-baseline.md`）｜ **规则明文（禁定义与登记册各说各话）**：分子 = fair-protocol（双账本+对手探针）测得 ≥parity/赢 的格·**账本+八门状态逐格披露** → ① q4_K（**kernel 账·full 八门·Win-K1-VLEN RATIFIED**）② q4_0（**系统账·routing-win·5/8 门·带"上游本有路径"注记**）③ **★q8_0（系统账·full-stack correctness-carrier 绿格·无星号·用户追认 2026-07-12）**：能力事实→发射正确 vl=8 变体→部署→真路由→正确性修复（上游 VLEN128 破损）→e2e prefill 4.35×/decode 3.81×（CI 排除 parity·部署五验+反汇编 vl=8）·**成色强于 q4_0**（不背"上游本有路径"注记）·张力A selector-fix 在飞=**强化非 gate**（强制探针→selector 自然路由）｜严判 sub-tier（限 kernel 账 full-八门）= 1/84｜**内核轴对称候选（黄格·待 e2e 传导）**：FLAT 5 格 [GAP-FLAT-E2E]（gcc-symmetric ≥parity 全幸存·待 T6 e2e 传导）+ IME 3 格 [GAP-IME-LEAF-PIPELINE]（批处理后 compute-account ~2×·对手 SELF·待 L-接线③ IME forward bridge）｜其余 K-quant S6 撤回·iq/tq 全 LOSS·流式未测｜**造得出≠立得住·候选≠绿格** |
 | C_construct（**结构轴**·非头条） | **certified 84/91 = 92.31%**（M4 真 100%·结构轴收口·committed 74ffc575）｜ 全表 certified 84 · blocked-on-IME 0 · 声明例外 7 · 域外 2 = roster 93 · recon True · 零未定义格 ｜ 旁路 0 · RED 0 ｜ **⚠ 结构造得出 ≠ 性能立得住**：certified 高 ≠ perf-covered 高（见头条）|
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
@@ -93,10 +93,12 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · G5-张力A selector-fix[workflow] · 串行理由：唯一 lib/selector 触碰线 + board 单资源 + 队列余项全 gated/争用）
-- **G5 张力A — selector 语义修（lib/selector 域·board·workflow·自决 within G5·T5c precedent[测量→机制]）**：M1b 实测 q8_0 repack e2e decode **3.812× DIFFERENCE 证伪** selector 的 `blockDotComputeHeavy` lean-decline（`RVVContractionPathSelection.cpp`：compute-heaviness 是错轴·真受益 = repack 内存局部性）。目标 = 让 selector **能力键控**地 route q8_0 repack（识别 repack-locality 受益的结构/能力事实·**非 measured-guard·非 q8_0 special-case·守 static_order/SEL-1/能力键做主键 canon**）→ deployed=proven → **perf-covered 2/84→3/84**。硬约束：ZERO-MODEL 正确性 + 八门 + 无意外 selection 翻转（全 VariantSelection lit + F-5）+ board 重测 **selector-自然路径**（非强制探针）。★若唯一正解需 canon 级变更（新 schema 事实/改 blockDotComputeHeavy 定义/违能力键做主键）→ 停并 surface 必问。
-- ✅ **G5-M1b（55022402·★R1 HIT·correctness GREEN·prefill 4.350×/decode 3.812× 双 DIFFERENCE·correctness-carrier 决定性正例）**：部署我方 emitted vl=8 kernel 拦截破损上游→coherent "Paris"（vs M1 "olta" garbage）·成色强于 q4_0（其 correctness 白送于上游可用 kernel）。★caveat：强制路由传导探针·**deployed≠proven**（selector 现 decline）·perf-covered **未冒绿**·待张力A。**M2-recon（deploy-readiness 地图·84 格）证接线干净链路层仅 q8_0 一格**（q5_0/q5_1/q4_K 需净新上游 repack scaffold=超 G5「补丁/链接层」charter=horizon 决策）。
-- ✅ **G5-M1 曳光弹 q8_0（f8b8dabb·R4 correctness RED·[GAP-Q8_0-VLEN128-KERNEL] source-confirmed·correctness-gate-catches-mirage 教科书教材）**：上游 VLEN128 repack vl=16 硬编码钳 8→garbage·我方 kernel 未部署→routes 破损上游 body。
+## 在飞（★当前并行度 N=3·2026-07-12 度假期全自主·接线板批 ‖ 本地）
+- **① q4_K 曳光弹（L-接线②·板接线·workflow `wyhnspmt6`）**：recon q4_K 上游链路完整度（M2-recon 记 chain 多数已建+deploy_patch 存·仅缺 gguf provisioning）→ 补缺（provisioning+scaffold if missing）+ emit q4_K kernel → deploy **correctness-first**（破损上游检查防 MIRAGE）→ e2e 分相 → **perf-covered 3→4/84**·scaffold 建法文档化供 q5_0/q5_1 复用。
+- **② 张力A selector-fix（lib/selector 域·workflow `wrt3za9le`·host-primary）**：M1b decode 3.812× 证伪 selector lean-decline → 能力键控 route q8_0（非 measured-guard·守 static_order/SEL-1 canon）→ selector-自然路由（**强化**已追认的 q8_0 绿格·非 gate）。撞 canon 级变更则停+surface。
+- **③ 三具名 GAP 修复评估（本地 read-only·不占板批·workflow `wez16hgku`）**：[GAP-CLANG-GATHER-TRAP]（真赢潜伏·S6 镜像）/[GAP-DEQ-KQUANT-UNPACK]/[GAP-FWD-M8-VSETVL] 根因+可修性+Amdahl 上限+排序 → 报告。
+- ✅ **G5-M1b（55022402·★R1 HIT·4.35×/3.81× 双 DIFFERENCE·correctness-carrier）→ q8_0 追认 perf-covered 3/84**（用户裁 2026-07-12·full-stack 无星号绿格·登记 `2026-07-12-perf-covered-q8_0-green-3of84.md`）。M2-recon 证干净链路层仅 q8_0（→三级分层）。
+- ✅ **G5-M1 曳光弹 q8_0（f8b8dabb·R4 RED·[GAP-Q8_0-VLEN128-KERNEL]·correctness-gate-catches-mirage）**。
 
 ## ★G5-M1b 解决 canon-framing 纠缠（RESOLVED·codified 2026-07-12·非留裁）
 - **★approach 修正（M1b 证实）**：G5 接线 ≠ routing-freebie 白嫖（对 q8_0）。**通用接线 = 部署我方 emitted kernel**（correctness-carrier）——上游 VLEN128 kernel 可能破损（q8_0 确证 [GAP-Q8_0-VLEN128-KERNEL]·翻 gate=garbage）。M1b R1 HIT 证部署 emitted 修好 correctness+得 4.35×/3.81×。
@@ -107,14 +109,26 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 ## ★G5 = 接线战役（2026-07-11 用户立项 · perf-covered 唯一拉绿杠杆 · 新战役授权）
 **定位**：把 emitted tcrv kernel 接入 ggml 真实 forward = [GAP-FLAT-E2E-ROUTING]+[GAP-IME-E2E-INTEGRATION] 统一解。**q4_0 routing 是唯一成熟先例·其接线机制就是模板**。
-**执行（曳光弹铁律 + T4b/K1-SEAL 部署教训复用）**：✅**M0** 接线机制侦察（ab054260·两挂点解剖）→ ✅**M1** 曳光弹 q8_0（f8b8dabb·R4 RED·[GAP-Q8_0-VLEN128-KERNEL]）→ ✅**M1b** 部署 emitted q8_0（55022402·★R1 HIT·4.35×/3.81×·correctness-carrier·但 deployed≠proven）→ **张力A** selector-fix（在飞·让 selector 能力键控 route q8_0→deployed=proven→perf-covered 3/84）→ **M2** 铺线【★M2-recon 收窄：干净链路层仅 q8_0 一格·q5_0/q5_1/q4_K 需净新上游 repack scaffold=超 charter「补丁/链接层·不做图框架」】→ **M3** 收口（接线机制文档化·外部可复现）。**★horizon 决策（M2 后·surface 非现在）**：构建净新上游 repack scaffold（q5_0/q5_1/q4_K 接线）是否属 G5 charter 扩张 vs 另立战役（NG-2 不违·仍 ggml 量化 kernel 域·但超「链路层」定义）——待 q8_0 收口后裁。
+**执行（曳光弹铁律 + T4b/K1-SEAL 部署教训复用）**：✅**M0** 侦察（ab054260·两挂点）→ ✅**M1** 曳光弹 q8_0（f8b8dabb·R4 RED·[GAP-Q8_0-VLEN128-KERNEL]）→ ✅**M1b** 部署 emitted q8_0（55022402·★R1 HIT·4.35×/3.81×·correctness-carrier）→ ✅**q8_0 追认 perf-covered 3/84**（用户裁 2026-07-12·full-stack correctness-carrier 无星号绿格·登记 `2026-07-12-perf-covered-q8_0-green-3of84.md`）· **张力A** selector-fix（在飞·强化非 gate）→ **M2 三级接线分层**（见下节·用户裁 2026-07-12）→ **M3** 收口。
 **预期管理**：接线 ≠ 自动转绿——micro↛e2e 铁律仍管辖·内存墙格诚实 parity·目标="每格得到真实 e2e 判决"·绿格数以实测为准。**边界**：接线=补丁/链接层集成（LD_PRELOAD/.o link 既有先例）·**NG-2 不动**（不做图框架）·A-tree 可逆+板 restore 照旧。
-**执行方式重启（2026-07-11 用户裁·点名既有纪律）**：① workflow 重启——G5 M1/M2 各格接线/卫生档 B/按族批量**一律走 workflow**（可并行/监控/retry）·主会话只裁决消化+验收·单线长跑仅限单点裁决类 ② trellis 重启——G5 建 campaign+任务树·必问 batch 五项各建任务 finish-task·存量补账一轮 ③ 并行恢复——G5-M0/M1 ‖ 卫生档 B（lib 重组+[RENAME]+deletions·与 VariantSelection 串行）‖ canon/ledger 修订。
+**执行方式（2026-07-12 用户重申·点名）**：接线各格**走 workflow**（可并行/retry）·主会话只验收；trellis 任务树挂齐（每格接线=任务+workflow+finish-task）；**简报瘦身**（三数 + 本轮 diff + 岔路·砍历史重述）；**并行度目标 N≥2**（接线板批 ‖ 本地 GAP/卫生）。perf-covered 随格更新·预注册转绿判据自动执行不回门。
 
-## 剩余队列（G5 立项后 · 2026-07-11）
-1. **G5 接线战役**（在飞 M0·主线·perf-covered 拉绿）：M0→M1 q8_0→M2 铺线→M3 收口
-2. **卫生档 B**（R2/R3 lib 分子目录+[RENAME] 命名统一[P1/P4/F-1 碰撞基准已 codify]+safe deletions C7-C10·与 VariantSelection 串行·走 workflow）
-3. **X-SCALAR 剩余**（XS-M2 scalar.zfh speculative 低优先·文档正名已收口部分）· **zvfh f16 实测**（挂板批机会项）
+## ★G5-M2 三级接线分层 + 优先级（用户裁决 2026-07-12·度假期全自主·接线不再是单一工作量级）
+**三层各自立任务、各自评估**：
+- **L-接线①（链路层·直接复用 M1b 模板）**：**q8_0✓ q4_0✓ 已成**（零新增上游代码·最便宜绿格）。**此层已基本穷尽**（这两格已绿）。
+- **L-接线②（新建上游 scaffold）**：**q5_0/q5_1/q4_K**——ggml 侧新增 repack scaffold + dispatch trait + arch plumbing = **真工程非补丁**。每格按曳光弹起手（单格走通 scaffold→发射正确变体→forward→correctness→e2e）。**首格 = q4_K**（kernel 优势最明确+部分链路已有）验证 scaffold 建法可复用 → 再铺 q5_0/q5_1。每格 correctness-first + 部署五验 + **破损上游检查**（防第二个 q8_0-MIRAGE）。
+- **L-接线③（跨框架 forward bridge）**：**IQ 系 + IME e2e**——缺完整 forward 桥·工作量最大·依赖最多。IME e2e 桥 = [GAP-IME-E2E-INTEGRATION] 的解·**排②之后**。★IME 桥建成后其 kernel-axis ~2× 能否传导**仍受 micro↛e2e 约束**（Amdahl/内存墙重核·不预设转绿）。
+
+**优先级（perf-covered 爬升 vs 工程成本平衡·用户裁 2026-07-12）**：
+1. **★立即**：L-接线② **q4_K 曳光弹**（最可能下一高价值绿格+验证 scaffold 建法·**走 workflow 不主会话单线**）— 在飞 `wyhnspmt6`。
+2. **随后**：q4_K scaffold 成 → 复用铺 **q5_0/q5_1**（perf-covered 潜在 →6/84）。
+3. **再后**：L-接线③ **IME forward bridge**（k1 板·解 IME 集成缺口）。
+4. **★并行（不占接线板批·本地/文档域）**：**三具名 GAP 修复评估**（[GAP-CLANG-GATHER-TRAP]/[GAP-DEQ-KQUANT-UNPACK]/[GAP-FWD-M8-VSETVL]·在飞 `wez16hgku`）/ **T3p 命名碰撞并入 [RENAME]** / **卫生档 B**。
+
+## 剩余队列（2026-07-12 用户裁重排·G5 三级优先级为 live 主线）
+1. **★G5 接线战役主线**（见「G5-M2 三级分层+优先级」节）：① q4_K 曳光弹（在飞 wyhnspmt6）→ ② q5_0/q5_1（复用 scaffold·→6/84）→ ③ IME forward bridge（k1）→ M3 收口。张力A selector-fix 在飞（强化 q8_0）。
+2. **★并行本地/文档域**（不占接线板批·N≥2）：三具名 GAP 修复评估（在飞 wez16hgku）· T3p 命名碰撞并入 [RENAME]· 卫生档 B（R2/R3 lib 重组+deletions·与 VariantSelection/张力A 串行）。
+3. **X-SCALAR 剩余**（XS-M2 scalar.zfh 低优先）· **zvfh f16 实测**（挂板批机会项）· **T5d 厂商路径**（照既定排队）。
 4. **static_order→prior 燃减**（canon·必问）· 声明例外重估（无工作量）· **写作期 [远期·非驱动]**
 
 ## X-SCALAR/zvfh 收口（C2 曲线家族#3 · 2026-07-11 排期报告 · 已 70-80% landed）
