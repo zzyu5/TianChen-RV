@@ -3,7 +3,7 @@
 > **campaign**: G5 接线战役 · **M2 L-接线② q5_0**（首个真净新上游 scaffold·验证 template 建 upstream scaffold 能力 = C1 extensibility）
 > **board**: `ssh rvv` openEuler VLEN128 gcc-15.2.0 · A-tree f3e1828（restore 中·workflow glitch 后 board-restore agent 收尾）
 > **workflow**: `wtpdeaoes`（phase-1 recon）+ `w7cwrau8d`（phase-2 build·**末尾 StructuredOutput glitch FAILED·但工作已完成**）· **HEAD (TianChen-RV)** = a7cacf68
-> **★结论**: **净新 12-piece scaffold BUILT + correctness GREEN**（make_block_q5_0x16 interleaver 成功·5/5 byte-identical·45 banner·PPL 17.88 coherent·objdump vl=8 never-16/64）→ **L-接线② 净新方法学验证成功 = C1 template extensibility 实证**（template 能从零建 upstream repack scaffold + correctness-carrier）。**但 workflow glitch → phase-2 perf 未测 → perf-covered 维持 3/84**（q5_0 = correctness-carrier·perf 待重测·不冒绿）。
+> **★结论**: **净新 12-piece scaffold BUILT + correctness GREEN + perf GREEN（prefill-axis）→ perf-covered 3/84→4/84**。scaffold（make_block_q5_0x16 interleaver 成功）+ correctness（5/5 byte-identical·PPL 17.88·objdump vl=8）+ **perf 重测（a68526c0）prefill 1.2097× WIN（≥parity·1.23× micro 确传导·非 wash）/ decode 0.8165× regression（memory-bound GEVM·披露）**·八门全过 prefill 轴·双账本 kernel==system（gcc-15 出货对称）。**= L-接线② 净新方法学验证成功 · C1 template extensibility 实证 + perf 传导**（template 从零建 upstream repack scaffold·prefill e2e ≥parity）。★caveat：**prefill-axis green**（非 q8_0 式双相赢·decode 回退 −18% 披露）。
 
 ## 一、phase-1 recon（wtpdeaoes·02bfa2c4）
 - **upstream_absent 确证**（q5_0 GEN+ARCH grep=0·block<K,N> 模板无法表达第 5 位 qh·与 q4_K 全-present 决定性相反）·kernel EMITTED（vl=8·VLEN128-safe）·12-piece 净新 scaffold recipe 全设计（evidence.md §三）。
@@ -21,6 +21,8 @@
 ## durable files
 - `evidence.md`（recon + emit recipe + 12-piece 净新 scaffold recipe·全锚点）
 - `correctness_GREEN_raw.txt`（phase-2 correctness 证据·5/5 byte-identical·PPL·banner）
+- `phase_split_raw.txt`（perf 重测·prefill 1.21×/decode 0.82×·llama-bench json·n=20）
+- `transmission_accounting.csv`（双账本·per-pass·八门键）
 - `seal_raw.txt`（build+patch+seal 全 log·12-piece 建成证据）
 - `objdump_gemm_q5_0_seal.txt`（GEMM vl=8 objdump seal）
 - `objdump_gevm_q5_0_seal.txt`（GEVM vl=8 objdump seal）

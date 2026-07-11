@@ -65,3 +65,29 @@ trait `tensor_traits<block_q5_0, 1, 16, GGML_TYPE_Q8_0>` 全链需净新（activ
 2. **先 make_block_q5_0x16 单元对照**（构一小 q5_0 张量·repack→对比 emitted kernel 期望布局 byte-exact）再全模型。
 3. 板 build OFF/ON（gcc-15.2.0 对称）+ objdump vl-seal（imm=8 only）+ greedy A==B / PPL correctness-first。
 4. correctness GREEN 后才 perf 分相（FLAT class·kernel-axis 1.23× gcc-symmetric·**别预设绿**·1.23× 小 margin 可能 washes）。
+
+## 七、phase-2 perf 分相（★clean 重测·2026-07-12·board rvv openEuler VLEN128 gcc-15.2.0）
+
+> workflow glitch 后的 phase-2 perf 补测。测量进程经 nohup 存活跨 agent glitch → **单次连续未中断 clean run**（非拼接）。同树物理 .so swap（ours=q5ON `8d136dd9` 2 syms / stock=q5OFF `05a62e6a` 0 syms）·ONE llama-bench·gcc-15.2.0 双侧对称·唯一 A/B diff = q5_0 净新 dispatch gate + emitted kernels。
+> model=DeepSeek-R1-Distill-Llama-8B-Q5_0.gguf（sha256 4b11ec8d…）·taskset 8-15 · 8 threads · DVFS performance 锁 2.6GHz · **T-N: PASSES=2×REPS=10 = n=20/side/phase** · engage-probe banner = 11 fires（部署-during-e2e 实证）。
+
+**结果（analyze_phase_split.py·中位·relIQR 卫生）**：
+
+| phase | ours(q5ON) t/s | stock(q5OFF) t/s | ratio | ours relIQR | stock relIQR | n | 判 |
+|---|---|---|---|---|---|---|---|
+| **prefill pp128** | **4.08104** | 3.37359 | **1.2097×** | 0.044% | 0.19% | 20 | **≥parity · WIN +21%** |
+| decode tg32 | 1.470735 | 1.80124 | 0.8165× | 0.92% | 1.9% | 20 | regression −18%（memory-bound GEVM wash） |
+
+per-pass 无漂移（prefill ours 4.0817/4.0802·stock 3.3771/3.3704 = 岩石稳；decode 略噪 memory-bound 预期内）·全 relIQR 远低地板×1.5·freq 全程 2600000·co-tenant clean（692% = 自身 8-thread bench，VLLM idle 0.2%）。
+
+**★verdict = GREEN-4/84**（perf-covered 3/84→4/84·FLAT 净新 scaffold 首个 perf 绿）。判据 = 预注册规则「prefill ≥parity 过 T-N+八门 → 绿」，prefill 1.21× 清晰 ≥parity。**★1.23× kernel-axis micro margin 【确传导】到 e2e prefill 1.21×（非 wash）**——预测「很可能 yellow」被证伪，prefill 侧确赢（GEMM compute+repack locality）。
+
+**八门状态**（全过·prefill 轴）：① 同树同 binary 物理 .so swap ✓ ② 部署验 nm ON=2/OFF=0 syms ✓ ③ banner engage 11 fires 真模型 ✓ ④ objdump vl=8 seal（never 16/64，build_seal §3）✓ ⑤ 对手身份 = stock q5_0 block-dot 同树（非 SELF）✓ ⑥ 编译器对称 gcc-15.2.0 双侧（board shipped rv64gcv=gcc-15 → kernel==system，无 clang 不对称）✓ ⑦ correctness GREEN 前置（byte-identical A==B·PPL 17.88，correctness_GREEN_raw.txt）✓ ⑧ T-N 卫生 n=20·relIQR≪地板·DVFS 锁·无 co-tenant ✓。
+
+**双账本**：board rv64gcv 出货工具链 == gcc-15 ⇒ **kernel-axis == system-axis**（两账本数值同 1.2097×/0.8165×，均有效；对照 [CASE-COMPILER-ASYMMETRY] k1=clang-18 才需分账）。opponent identity = stock ggml q5_0 block-dot（同树·仅 scaffold diff·objdump 探针对手身份）。
+
+**诚实 caveat**：decode −18% 是 memory-bound GEVM 回退（repack 布局利 prefill GEMM locality、损 decode 带宽），与 q4_0 WinB 同型 prefill-win/decode-wash split。kernel+e2e / prefill+decode 永分报（[[kernel-wins-dont-transplant-to-e2e]]）。perf-covered 绿基于 prefill ≥parity 公平协议格。
+
+**durable perf files**：`phase_split_raw.txt`（4×###END·n=20·llama-bench -o json 全量）·`transmission_accounting.csv`（双账本·per-pass·八门键）·本 §七。
+
+**A-tree restore（测后·board 铁律）**：phase_split.sh 尾 `swap OFF` 自恢复 → live=05a62e6a·both trees（build-gcc15-rv64gcv + build_verify）live .so 05a62e6a 0 syms·source 3-file baseline md5（deb61a29/57851439/99131cf7）·无 q5_0 .inc stray·git 无 q5_0 stray（`tcrv_emitted_repack_gemm/gemv.inc` = 2026-07-06 WinB-q4_0 baseline infra 非本次 stray）·DVFS performance 2.6GHz。**板 clean 验讫。**

@@ -1,0 +1,12 @@
+# G5-M2 q5_0 phase-2 perf phase-split — dual-ledger transmission accounting
+# board=rvv openEuler VLEN128 gcc-15.2.0 | 2026-07-12 clean re-measure (uninterrupted continuous run, nohup-survived)
+# A/B = same-tree physical .so swap: ours=q5ON(net-new 12-piece scaffold + emitted vl=8 repack GEMM+GEVM, md5 8d136dd9, 2 tcrv syms)
+#       stock=q5OFF(pristine ggml q5_0 block-dot, NO scaffold, md5 05a62e6a, 0 tcrv syms). ONE llama-bench, ONE tree, gcc-15.2.0 symmetric.
+# model=DeepSeek-R1-Distill-Llama-8B-Q5_0.gguf (sha256 4b11ec8d06e24600) | pin taskset 8-15, 8 threads | DVFS performance locked 2.6GHz
+# T-N: PASSES=2 x REPS=10 => n=20 samples/side/phase | banner engage-probe = 11 fires on real p16n8 run (deployment-during-e2e verified)
+# LEDGER NOTE: board rv64gcv shipped toolchain == gcc-15 => kernel-axis == system-axis (NO clang asymmetry; contrast [CASE-COMPILER-ASYMMETRY] k1=clang-18). Both ledgers identical & valid.
+phase,ledger,ours_med_ts,stock_med_ts,ratio,ours_relIQR,stock_relIQR,n_samples,opponent_identity,compiler_ours,compiler_stock,board_shipped_compiler,pass1_ours,pass2_ours,pass1_stock,pass2_stock,verdict
+prefill_pp128,kernel(gcc-symmetric),4.08104,3.37359,1.2097,0.00044,0.00194,20,stock-q5_0-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,4.081693,4.080181,3.377080,3.370383,GREEN>=parity(WIN +21%)
+prefill_pp128,system(toolchain-disclosed),4.08104,3.37359,1.2097,0.00044,0.00194,20,stock-q5_0-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,4.081693,4.080181,3.377080,3.370383,GREEN>=parity(WIN +21%)
+decode_tg32,kernel(gcc-symmetric),1.470735,1.80124,0.8165,0.00916,0.01916,20,stock-q5_0-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,1.477370,1.463687,1.783174,1.818364,REGRESSION(-18% memory-bound GEVM wash)
+decode_tg32,system(toolchain-disclosed),1.470735,1.80124,0.8165,0.00916,0.01916,20,stock-q5_0-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,1.477370,1.463687,1.783174,1.818364,REGRESSION(-18% memory-bound GEVM wash)
