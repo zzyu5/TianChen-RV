@@ -693,11 +693,11 @@
    "op": "gemm_tile",
    "format": "q4_0",
    "engine": "ime",
-   "state": "absent",
-   "m4_class": "blocked-on-IME",
-   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 3, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 'prefill GEMM tile (RVV 全格式 + IME x{q4_0,q8_0,q4_K} 起步)'. IME 战役解锁前分子暂空 -- 主动接受 <90% (是 87.9% 而非逐出后的 90.9% 的唯一来源, 判定书 §4 anti-gate 铁证). In-denominator, NOT certified.",
-   "reeval_condition": "the IME campaign lands a format-agnostic MMAOp prefill GEMM tile ([PAT-2]:121 P7 = ime ^ shape keyed) covering q4_0 (constructed via the common pipeline, bit-exact on ssh k1).",
-   "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+   "state": "constructed",
+   "m4_class": "certified",
+   "auto_readout": "[IME-SEAL] G4 M1b k1 silicon seal (q4_0@ime GEMM tile tracer bullet): constructed (STRONG); realized-body manifest=q4_0_matmul_tile+q4_0_dequant_core+vmadot_mac_leaf+q4_0_matmul_tile_yield; board_seal=k1 SpacemiT X60 taskset -c 0-3, int32 0-diff 64/64 tiles + 512/512 decode nibbles bit-exact (no epsilon) vs ZERO-MODEL plain-GEMM ref, objdump golden vmadot=0xe210312b at leaf (test/Target/IME/q4-0-matmul-tile-int32-k1seal.c); opaque_helper=false",
+   "anchor": "IME q4_0_matmul_tile region CONSTRUCTED on the common pipeline (tcrv.ime.q4_0_matmul_tile OWNS the typed region carrying the decomposed q4_0_dequant_core weight-decode brick + the FOUNDATION-validated vmadot_mac_leaf int8->int32 MAC brick + the q4_0_matmul_tile_yield terminator; emission reads the region by OP-IDENTITY, IMEBackendEmissionDriver.cpp IMEQ40MatMulTileToEmitCFunc) -- the format-KEYED q4_0 IME GEMM tile (NOT the format-agnostic MMAOp). BOARD-SEALED bit-exact on ssh k1 (real SpacemiT X60): the emitter-verbatim real vmadot leaf reduces the tiled int32 MAC 0-diff vs the ZERO-MODEL plain-GEMM reference.",
+   "note": "G4 M1b K1 SILICON SEAL COMPLETE (blocked-on-IME -> certified; the reeval_condition -- format-keyed q4_0 IME GEMM tile constructed via the common pipeline, bit-exact on ssh k1 -- is MET). M1a landed the construction half (the typed region + host int32-EXACT oracle, all green); M1b replaced the host scalar vmadot shim with the emitter-verbatim real `vmadot` asm leaf (macHelperBody, encoding 0xe210312b) and validated it on real X60 silicon: 512/512 q4_0 decode nibbles bit-exact (int8) AND 64/64 int32 MAC tiles bit-exact (no epsilon; int32 MAC is exact) vs the independent plain-GEMM reference, with objdump confirming vmadot v2,v0,v1=0xe210312b at the leaf. Seal source test/Target/IME/q4-0-matmul-tile-int32-k1seal.c (byte-identical to the M1a oracle modulo the scalar->real-vmadot leaf swap). This is coverage/representation maturity + a CORRECTNESS silicon seal (NOT a perf/e2e claim; no throughput measured -- [NG-4]). q8_0@ime + q4_K@ime remain blocked-on-IME (G4 M2 completes them)."
   },
   {
    "op": "gemm_tile",

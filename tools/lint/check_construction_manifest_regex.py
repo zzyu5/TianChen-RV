@@ -60,6 +60,24 @@ FEMIT_ENVELOPE_RE = re.compile(
     r"\(GEMM prefill\)=(?P<gemm>[^;]+); "
     r"(?P<tail>.*)$"
 )
+# [IME-SEAL] board-sealed envelope (G4 IME family). User-authorized (G4 M1b relay):
+# the IME q4_0_matmul_tile region is a REAL front-door construction on the common
+# pipeline (tcrv.ime.q4_0_matmul_tile OWNS the typed region carrying the decomposed
+# q4_0_dequant_core + vmadot_mac_leaf bricks + the q4_0_matmul_tile_yield terminator,
+# read by OP-IDENTITY at emission -- IMEBackendEmissionDriver.cpp
+# IMEQ40MatMulTileToEmitCFunc). It is NOT an RVV typed loop, so it carries its OWN
+# envelope + shape rather than loosening the RVV side. Certification STRICTLY parses
+# the manifest into the ime_matmul_tile shape (wrapper + BOTH decode/MAC bricks + the
+# yield terminator, opaque_helper=false, no opaque token) AND requires the board_seal
+# pointer to name the k1 int32 0-diff evidence + the objdump vmadot golden encoding --
+# so an IME cert is a checkable BOARD-SEALED shape, not a hand wave (NOT a rubber stamp).
+IME_ENVELOPE_RE = re.compile(
+    r"^\[IME-SEAL\][^:]*: constructed \(STRONG\); "
+    r"realized-body manifest=(?P<manifest>[^;]+); "
+    r"board_seal=(?P<seal>[^;]+); "
+    r"opaque_helper=(?P<opaque>true|false)$"
+)
+
 # Strip a trailing/inline `[…]` provenance annotation off a manifest token
 # (e.g. `repack_lane_wise_q4_x_i8_dot[weight_nibble_unsigned]` → the bare op).
 _ANNOTATION_RE = re.compile(r"\[[^\]]*\]")
@@ -222,6 +240,20 @@ def classify_shape(tokens):
             return None, f"repack_{mb.group(1)}_loop missing a *_dot / fused *_core token"
         return f"repack_{mb.group(1)}_loop", "typed repack GEM{V,M} loop body/yield"
 
+    # IME q4_0 matmul-tile shape (G4): the tcrv.ime.q4_0_matmul_tile region OWNS the
+    # body (first token) + is terminated by tcrv.ime.q4_0_matmul_tile_yield (last
+    # token), and carries BOTH decomposed bricks by op-identity: the q4_0_dequant_core
+    # (offset-binary nibble decode) AND the vmadot_mac_leaf (the FOUNDATION-validated
+    # int8->int32 MAC). Kept NARROW: a body/yield-only region (bricks missing) or a
+    # region missing either the decode or the MAC brick is rejected. NOT an RVV loop --
+    # the RVV shapes above are untouched.
+    if first == "q4_0_matmul_tile" and last == "q4_0_matmul_tile_yield":
+        if "q4_0_dequant_core" not in tokens:
+            return None, "ime_matmul_tile missing q4_0_dequant_core decode brick"
+        if "vmadot_mac_leaf" not in tokens:
+            return None, "ime_matmul_tile missing vmadot_mac_leaf MAC brick"
+        return "ime_matmul_tile", "typed IME q4_0 matmul-tile region body/yield"
+
     # N-operand product_reduce route: straight-line op list, no loop wrapper, terminates in store.
     if last == "store" and not any(t in ALLOWED_WRAPPERS for t in tokens):
         if "standalone_reduce" not in tokens:
@@ -259,12 +291,41 @@ def classify_femit_repack(auto_readout):
     return True, "compliant ([F-EMIT] repack dual-manifest GEVM+GEMM)", "repack_femit_dual"
 
 
+def classify_ime_seal(auto_readout):
+    """Strict [IME-SEAL] board-sealed gate (G4). The manifest must classify as the
+    ime_matmul_tile shape AND the board_seal pointer must name the k1 int32 0-diff
+    evidence + the objdump vmadot golden encoding (0xe210312b) -- so the IME cert is
+    tied to the real silicon seal, not just a structural claim."""
+    m = IME_ENVELOPE_RE.match(auto_readout)
+    if not m:
+        return False, "[IME-SEAL] envelope mismatch (not the IME matmul-tile seal form)", None
+    if m.group("opaque") != "false":
+        return False, "[IME-SEAL] opaque_helper=true ([L-8] opaque hand helper)", None
+    seal = m.group("seal")
+    if "0xe210312b" not in seal or "0-diff" not in seal:
+        return False, ("[IME-SEAL] board_seal missing the k1 int32 0-diff evidence / "
+                       "vmadot 0xe210312b golden encoding"), None
+    tokens = [_ANNOTATION_RE.sub("", t) for t in m.group("manifest").split("+")]
+    tokens = [t for t in tokens if t != ""]
+    if not tokens:
+        return False, "[IME-SEAL] empty realized-body manifest", None
+    for t in tokens:
+        if is_opaque_helper_token(t):
+            return False, f"[IME-SEAL] opaque hand-helper token '{t}' ([L-8])", None
+    shape, why = classify_shape(tokens)
+    if shape != "ime_matmul_tile":
+        return False, f"[IME-SEAL] shape {shape or 'none'} != ime_matmul_tile ({why})", None
+    return True, "compliant ([IME-SEAL] q4_0 matmul-tile, board-sealed)", "ime_matmul_tile"
+
+
 def classify_auto_readout(auto_readout):
     """Pure gate. Returns (ok: bool, reason: str, shape: str|None)."""
     if not isinstance(auto_readout, str):
         return False, f"auto_readout is {type(auto_readout).__name__}, not a string", None
     if auto_readout.startswith("[F-EMIT]"):
         return classify_femit_repack(auto_readout)
+    if auto_readout.startswith("[IME-SEAL]"):
+        return classify_ime_seal(auto_readout)
     m = ENVELOPE_RE.match(auto_readout)
     if not m:
         return False, "envelope mismatch (not the E5 STRONG-constructed form)", None
@@ -332,6 +393,16 @@ def self_test():
     fwd_empty = "typed_elementwise_loop_body+typed_elementwise_loop_yield"
     fwd_nocore = ("typed_elementwise_loop_body+some_scale_only_brick+"
                   "typed_elementwise_loop_yield")
+
+    # IME q4_0 matmul-tile board-sealed shape (G4 M1b).
+    IME_MANIFEST = ("q4_0_matmul_tile+q4_0_dequant_core+vmadot_mac_leaf+"
+                    "q4_0_matmul_tile_yield")
+    IME_SEAL_OK = "k1 taskset -c 0-3 int32 0-diff 64/64 tiles, objdump vmadot=0xe210312b at leaf"
+
+    def ime_seal(manifest=IME_MANIFEST, seal=IME_SEAL_OK, opaque="false"):
+        return (f"[IME-SEAL] G4 M1b k1 silicon seal: constructed (STRONG); "
+                f"realized-body manifest={manifest}; board_seal={seal}; "
+                f"opaque_helper={opaque}")
 
     flat_compact_binary = ("typed_flat_block_dot_loop_body+q1_0_q8_0_binary_sign_core+"
                            "typed_flat_block_dot_loop_yield")
@@ -405,6 +476,23 @@ def self_test():
          "(GEVM decode)=typed_repack_gemv_loop_body+repack_lane_wise_q4_x_i8_dot+"
          "typed_repack_gemv_loop_yield; (GEMM prefill)=typed_repack_gemm_loop_body+"
          "q4_0_block_dot+typed_repack_gemm_loop_yield; fold_model=x; opaque_helper=false.", False),
+        # [IME-SEAL] board-sealed IME q4_0 matmul-tile (G4 M1b).
+        ("[IME-SEAL] q4_0 matmul-tile (board-sealed)", ime_seal(), True),
+        ("[IME-SEAL] missing decode brick (rejected)",
+         ime_seal("q4_0_matmul_tile+vmadot_mac_leaf+q4_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] missing MAC brick (rejected)",
+         ime_seal("q4_0_matmul_tile+q4_0_dequant_core+q4_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] body/yield-only, no bricks (rejected)",
+         ime_seal("q4_0_matmul_tile+q4_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] board_seal missing 0diff/encoding (rejected)",
+         ime_seal(seal="ran on k1, looked fine"), False),
+        ("[IME-SEAL] opaque hand-helper token (rejected)",
+         ime_seal("q4_0_matmul_tile+emit_ime_q4_0_body+vmadot_mac_leaf+"
+                  "q4_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] opaque_helper=true (rejected)", ime_seal(opaque="true"), False),
+        ("[IME-SEAL] wrong wrapper (RVV loop, rejected)",
+         ime_seal("typed_flat_block_dot_loop_body+q4_0_dequant_core+vmadot_mac_leaf+"
+                  "typed_flat_block_dot_loop_yield"), False),
     ]
     print("-- F-1 construction-manifest shape classifier --")
     for label, ar, expect in cases:
