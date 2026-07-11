@@ -1,0 +1,17 @@
+############ BUILD-IME (vendor SPACEMIT IME ON, vmadot live) ############
+| model                          |       size |     params | backend    | threads |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | ------: | --------------: | -------------------: |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |           pp256 |         40.06 ± 2.93 |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |           pp512 |         36.18 ± 0.47 |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |            tg64 |          8.26 ± 0.02 |
+
+build: unknown (0)
+
+############ BUILD-OFF (RVV fallback, no vmadot) ############
+| model                          |       size |     params | backend    | threads |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | ------: | --------------: | -------------------: |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |           pp256 |         24.90 ± 0.02 |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |           pp512 |         24.26 ± 0.04 |
+| llama 1B Q4_0                  | 606.53 MiB |     1.10 B | CPU        |       4 |            tg64 |          5.66 ± 0.00 |
+
+build: unknown (0)

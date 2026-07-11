@@ -1,0 +1,7 @@
+# T6 batch-k1 IME transduction REFERENCE (VENDOR ggml-spacemit backend, NOT tcrv)
+# board=k1 X60 VLEN256 harts0-3 taskset -c 0-3; model=tinyllama-1B-Q4_0; toolchain=clang-18 -fno-integrated-as; r=3
+# build-ime=GGML_CPU_RISCV64_SPACEMIT=ON (32 vmadot); build-off=OFF (0 vmadot)
+regime,phase,off_rvv_tok_s,off_std,on_ime_tok_s,on_std,on_over_off,excess_over_decode_floor
+pp256,prefill,24.90,0.02,40.06,2.93,1.609,0.150
+pp512,prefill,24.26,0.04,36.18,0.47,1.491,0.032
+tg64,decode_M1,5.66,0.00,8.26,0.02,1.459,0.000
