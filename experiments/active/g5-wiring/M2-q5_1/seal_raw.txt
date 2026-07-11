@@ -1,0 +1,38 @@
+[g5-m2-q5_1] board=rvv openEuler VLEN128 load=4.08 2.96 3.40 1/1673 2096087
+=== [0] baseline verify (3 files) + backup ===
+  GEN =deb61a29dd079440ffdc8996b5bd2fa1 (base deb61a29dd079440ffdc8996b5bd2fa1)
+  HDR =57851439e7c6f5e35aca7986e148e42b (base 57851439e7c6f5e35aca7986e148e42b)
+  ARCH=99131cf791e30348b588423b2388e0b8 (base 99131cf791e30348b588423b2388e0b8)
+  .inc md5s: gemm=0f52ad460e3e643722f4b79864dafbc8 gevm=84b69d6092f135dd9818a58fa6c2dd92
+=== [1] build OFF variant (pristine baseline = NO q5_1 scaffold) ===
+  OFF build OK
+  OFF .so md5=05a62e6a82857cdf247ba1933c695849  q5_1_tcrv_sym(expect 0)=0
+=== [2] copy emitted .inc + apply scaffold patch + build ON ===
+PATCH OK (G5-M2 q5_1 net-new scaffold + q8_1 mat-quant + emitted vl=8 deploy)
+HDR  md5: 9dee74b3376fb07d9ed5b131a88102f2  struct_w: True  struct_a: True  decls: 2
+GEN  md5: 0a55e0b2244808f04efb7546d983e1aa  q81mat: True  make: True  repack_tmpl: True  gemv_tmpl: True  gemm_tmpl: True  trait: True  dispatch: True  generics: 2
+ARCH md5: c6926ee185af8bf9bd61848c2b152525  inc_gemm: True  inc_gevm: True  gevm_body: True  gemm_body: True  gevm_call: True  gemm_call: True
+  ON build OK
+  ON .so md5=38377d3a41d9bf145cba7d4d03d6b0f6
+=== [3] SEAL: nm symbols + banners + objdump vl-width ===
+    0000000000097094 T tcrv_emitc_ggml_gemm_q5_1_q8_1_kernel_ggml_gemm_q5_1_q8_1
+    0000000000097372 T tcrv_emitc_ggml_vec_dot_q5_1_q8_1_kernel_ggml_vec_dot_q5_1_q8_1
+  banner gevm(expect>=1)=1  gemm(expect>=1)=1
+  ON != OFF (variants differ, good)
+  -- objdump vsetivli widths inside emitted q5_1 symbols (must be 8, NEVER 16/64) --
+    tcrv_emitc_ggml_vec_dot_q5_1_q8_1_kernel_ggml_vec_dot_q5_1_q8_1:
+      vsetivli(imm=8)=1  vsetivli(imm=16)=0[MUST BE 0]  vsetivli(imm=64)=0[MUST BE 0]  dyn_vsetvli=10
+      SEW,LMUL forms:       7 e16,m1       3 e32,m2       1 e8,mf2 
+    tcrv_emitc_ggml_gemm_q5_1_q8_1_kernel_ggml_gemm_q5_1_q8_1:
+      vsetivli(imm=8)=1  vsetivli(imm=16)=0[MUST BE 0]  vsetivli(imm=64)=0[MUST BE 0]  dyn_vsetvli=19
+      SEW,LMUL forms:      11 e16,m1       6 e32,m2       3 e8,mf2 
+=== [4] restore 3 source files to baseline + rebuild pristine ===
+  restored md5: GEN=deb61a29dd079440ffdc8996b5bd2fa1 HDR=57851439e7c6f5e35aca7986e148e42b ARCH=99131cf791e30348b588423b2388e0b8
+  SOURCE RESTORED byte-exact
+  pristine rebuild OK
+  live .so md5=05a62e6a82857cdf247ba1933c695849 (expect==OFF 05a62e6a82857cdf247ba1933c695849)  q5_1_sym(expect 0)=0
+  LIVE == OFF-pristine (zero net change)
+=== [g5-m2-q5_1 build+seal DONE] variants:
+05a62e6a82857cdf247ba1933c695849  /tmp/g5_q51/libggml-cpu.so.q5OFF
+38377d3a41d9bf145cba7d4d03d6b0f6  /tmp/g5_q51/libggml-cpu.so.q5ON
+05a62e6a82857cdf247ba1933c695849  /home/ubuntu/tcrv-llamacpp/build-gcc15-rv64gcv/bin/libggml-cpu.so.0.15.1

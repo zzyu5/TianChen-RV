@@ -1,0 +1,4 @@
+# patched ggml scaffold source: regenerable via tools/e2e-harness/board/g5-m2-q5_1/deploy_patch_q5_1_emitted.py · avoid bloat
+board-src/
+# board-only build/quantize logs (regenerable)
+*.log

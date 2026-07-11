@@ -1,0 +1,14 @@
+# G5-M2 q5_1 phase-2 perf phase-split — dual-ledger transmission accounting
+# board=rvv openEuler VLEN128 gcc-15.2.0 | 2026-07-12
+# A/B = same-tree physical .so swap: ours=q5ON(net-new scaffold + q8_1 mat-quant + emitted vl=8 repack GEMM+GEVM, md5 38377d3a, 2 tcrv syms)
+#       stock=q5OFF(pristine ggml q5_1 block-dot, NO scaffold, md5 05a62e6a, 0 tcrv syms). ONE llama-bench, ONE tree, gcc-15.2.0 symmetric.
+# model=DeepSeek-R1-Distill-Llama-8B-Q5_1.gguf (sha256 5ffdc7c5c75d3325, requantized Q5_0->Q5_1 --allow-requantize) | pin taskset 8-15, 8 threads | DVFS performance locked 2.6GHz
+# T-N: PASSES=2 x REPS=10 => n=20 samples/side/phase | banner engage-probe = 5 fires on real p16n8 run (deployment-during-e2e verified) | freq_khz=2600000 all 4 ###AB
+# LEDGER NOTE: board rv64gcv shipped toolchain == gcc-15 => kernel-axis == system-axis (NO clang asymmetry; contrast [CASE-COMPILER-ASYMMETRY]). Both ledgers identical & valid.
+# NOTE: q5_1 = q5_0 qh gather (unsigned/no -16) + q4_1 min fold + net-new q8_1 activation. FLAT class prefill-win/decode-wash split (as q5_0/q4_0 WinB).
+# values from analyze_phase_split.py (median of n=20 samples_ts).
+phase,ledger,ours_med_ts,stock_med_ts,ratio,ours_relIQR,stock_relIQR,n_samples,opponent_identity,compiler_ours,compiler_stock,board_shipped_compiler,verdict
+prefill_pp128,kernel(gcc-symmetric),3.462485,3.176470,1.0900,0.00118,0.00474,20,stock-q5_1-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,GREEN>=parity(WIN +9.0%)
+prefill_pp128,system(toolchain-disclosed),3.462485,3.176470,1.0900,0.00118,0.00474,20,stock-q5_1-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,GREEN>=parity(WIN +9.0%)
+decode_tg32,kernel(gcc-symmetric),1.228230,1.567385,0.7836,0.00419,0.03018,20,stock-q5_1-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,REGRESSION(-21.6% memory-bound GEVM wash)
+decode_tg32,system(toolchain-disclosed),1.228230,1.567385,0.7836,0.00419,0.03018,20,stock-q5_1-block-dot(same-tree),gcc-15.2.0,gcc-15.2.0,gcc-15,REGRESSION(-21.6% memory-bound GEVM wash)

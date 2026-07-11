@@ -5,7 +5,7 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**65 cells** (active=50, sealed=10, archive=5).
+**66 cells** (active=51, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
@@ -16,6 +16,7 @@
 | active | `M1b-q8_0` | unknown | — | 11 | `q8_0_gemm_raw.c`, `q8_0_gevm_raw.c`, `tcrv_emitted_q8_0.inc` | — |
 | active | `M2-q4_K` | unknown | — | 2 | — | — |
 | active | `M2-q5_0` | unknown | — | 10 | `tcrv_emitted_gemm_q5_0.inc`, `tcrv_emitted_gevm_q5_0.inc` | — |
+| active | `M2-q5_1` | unknown | — | 10 | `tcrv_emitted_gemm_q5_1.inc`, `tcrv_emitted_gevm_q5_1.inc` | — |
 | active | `M2-recon` | unknown | — | 1 | — | — |
 | active | `t3p-pattern-ablation` | unknown | — | 1 | — | — |
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
