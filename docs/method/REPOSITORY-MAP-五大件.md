@@ -170,9 +170,9 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 |---|---|---|---|
 | 头号 = 缺五大件→目录映射 | **本 doc 已补（R1）** | done | docs（本 doc） |
 | ⑤ falsifier 无 F→文件索引 | **[FALSIFIER-INDEX.md] 已补（R4）** | done | docs |
-| ③ 前门无专属目录、靠命名 | `*SourceFrontDoor.cpp` 散在 `lib/Plugin/RVV/` | R3：统一 `FrontDoor/` 归属（动 lib，主会话） | code（互斥·主会话） |
-| ② RVV 插件 ~36 文件爆炸 | 未按件分子目录 | R2：按格位 `FrontDoor/·Selection/·Schedule/·BodyRealization/` 分组（对齐 Template）（动 lib，主会话） | code（互斥·主会话） |
+| ③ 前门无专属目录、靠命名 | **✅ R3 landed（2026-07-12·cbe21c3e）**：10 前门归 `lib/Plugin/RVV/FrontDoor/` | **done**（build+lit 验绿·behavior-preserving） | code（已执行·主会话） |
+| ② RVV 插件顶层文件爆炸 | **✅ R2 landed（2026-07-12·cbe21c3e）**：33 顶层 `.cpp`→4 桶（BodyRealization13/FrontDoor10/Schedule7/Selection1）+2 root·零 #include 破坏·单 target 子路径 | **done**（计划 `docs/reports/2026-07-12-卫生档B-lib重组-move计划.md`·一次执行·build [82/82]+lit 904/907） | code（已执行·主会话） |
 | ④ 选择器四处二层散 | 无 `selector/` 目录 | R5：文档 co-locate（不必物理搬） | docs |
 | P 编号碰撞 | 三 P1 / P4 双所指 | **§3 已 codify；[RENAME] 部分落地（2026-07-12）**：P1-(b) 代码裸标已退役（4 处注释·behavior-preserving）；P1-(a) 宽LMUL→`SCHED-WIDE-LMUL` / P4·PAT-2→registry pattern_id = **DEFERRED**（canon 三总纲 + schema·主会话/用户裁） | docs（本 doc）+ lib 注释 |
 
-> R2/R3 动 `lib/`，与构造互斥、须排 G4 M1 贯通后（[RENAME] 并行拓扑）；本 doc 只**标注不执行**。
+> **✅ R2/R3 已 landed（2026-07-12·cbe21c3e·Plugin/RVV 内部 4 桶）**。剩余 [F-3] 完全可判定欠「跨 4 lib 根（Dialect/Conversion/Plugin/Target）收拢 vs 维持 MLIR 分层」的上层裁定（必要不充分·另议）+ 移 `include/` 42 头（HIGH-risk·另立批）。R5/R6/R7 见上表。

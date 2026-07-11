@@ -62,5 +62,6 @@ F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3 gated on 目录归拢�
 
 - **进 CI 的 falsifier**：**F-2′ + F-6**（[F-1..F-6] 真进 CI 的两个）+ [F-EMIT] / opponent-pin / monolith-retire / cert-三要件 / RETIRED-INDEX。
 - **可跑未进 CI**：F-5（fuzz，17/20，3 fail-OPEN 已记 T1b）。
-- **部分**：F-1 shape 门（可跑）/ F-4（编译期富属性在位、JSONL 出口缺）/ F-6（家族 owned 内核 + lit + 989-LOC gtest 在位；闭包脚本 + `only_feasible` 真实选中缺）。
-- **缺失 / gated**：F-1 零分支 manifest（缺 manifest+CI+判读规程）· F-3（gated on R2/R3 目录归拢）· F-6 闭包脚本（家族 owned 内核已落地；剩闭包脚本 + `only_feasible` 真实选中 = XS-M3）。
+- **部分**：[C1-SHAPE] shape 门（可跑·非 CI）/ F-4（编译期富属性在位、JSONL 出口缺）/ F-6（家族 owned 内核 + lit + 989-LOC gtest 在位；闭包脚本 + `only_feasible` 真实选中缺）。
+- **缺失 / gated**：F-1 零分支 manifest（缺 manifest+CI+判读规程）· **F-3（★R2/R3 已 landed 2026-07-12·cbe21c3e·Plugin/RVV 内部 4 桶可判定；剩跨 4 lib 根收拢裁定=必要不充分）** · F-6 闭包脚本（家族 owned 内核已落地；剩闭包脚本 + `only_feasible` 真实选中 = XS-M3）。
+- **★[C1-SHAPE] 门 finding（2026-07-12·非 reorg 引入·pre-existing·非 CI 非阻塞）**：`check_construction_manifest_regex.py` 全跑报 RED 3/84 = `gemm_tile/{q4_0,q8_0,q4_K}` "[IME-SEAL] envelope mismatch (not the IME matmul-tile seal form)"。判 pre-existing（reorg behavior-preserving·lit 同 904/907·tcrv-opt 输出不变→门验不变）。疑似 G4 IME-SEAL 期门 quirk（RVV gemm_tile 被拿 IME form 检）或真 manifest 议题·**待 later triage**（非本会话 code 引入）。
