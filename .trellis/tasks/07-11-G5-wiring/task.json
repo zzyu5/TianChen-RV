@@ -18,7 +18,14 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "07-12-G5-M2-qk-tracer",
+    "07-12-G5-tensionA-selector",
+    "07-12-G5-gap-assessment",
+    "07-12-G5-M1b-q8_0-deploy",
+    "07-12-G5-M2-q5x-tracers",
+    "07-12-G5-M3-wiring-doc"
+  ],
   "parent": "07-02-full-refactor",
   "relatedFiles": [],
   "notes": "",
