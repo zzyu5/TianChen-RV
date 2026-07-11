@@ -93,10 +93,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=2 · G5 接线战役立项 + 必问 batch 收口 · 各线域不相交 · 执行方式重启[workflow/trellis/并行]）
-- **G5-M0（接线机制侦察·接线域 scout）· agent a2217026**：q4_0 现有接线解剖（dispatch 挂点 repack.cpp:4592/符号导出/选择器介入/构造→.o→link/五验）+ 通用接线方案（FLAT 直类比 q4_0 / IME 需 GEMM 挂点差异 / K-quant 现状）+ M1 曳光弹 q8_0 接线路径预案。
-- **必问 batch 五项收口（canon/ledger docs 域·用户已裁授权执行）· agent a8acfb1f**：①check_docs_canon 2 RED 修门(marker+allowlist·RFC) ②<300 口径→双轨预期(integrated <300/independent 真实 emitter 成本·X-SCALAR 1148 锚·撤超标定性) ③XS-M0 翻转确认+「排期前先跑代码事实核查」纪律 ④T2-anchor drift 先查后改(5153 vs 2484 口径说明·双数并存/工具数为准·禁静默替换) ⑤C5 .o RETIRED-INDEX 登记(供主会话 git rm)。
-- ✅ 本轮巨量产出全落：**M4 真 100% · G4 IME 全家族 · 测量总攻①-⑤+T6 · AUDIT CI GREEN · X-SCALAR 家族#3 N2 收口 · [T8·LAW-FIRST-EMISSION]**。
+## 在飞（★当前并行度 N=2 · G5-M1 曳光弹[workflow] + 必问 batch 收口 · 各线域不相交 · 执行方式重启）
+- **G5-M1 曳光弹 q8_0（接线域·board·workflow wyb4hslpu）**：翻 repack.cpp:4713 gate（routing-freebie 白嫖·同 q4_0）+ 可选 arch/riscv kernel 挂点 → forward 真实路由 banner+objdump 验部署==证过 → e2e 分相全协议（双账本+对手对称+五验+T-N）。**两张力**：selector DECLINE q8_0（框成 routing-freebie 探针·修 selector=canon 必问留后）· q8_0 2× 字节 decode memory 墙。判读预注册 R1(prefill 传导→绿 3/84)/R2(decode parity 黄)/R3(已路由仍 parity=强 micro↛e2e negative)/R4(correctness red)。
+- **必问 batch 五项收口（canon/ledger docs 域·用户已裁授权执行）· agent a8acfb1f**：①修门 ②<300→双轨预期 ③纪律 ④T2-drift 先查后改 ⑤C5 .o 登记（在飞）。
+- ✅ 本轮已收：**G5-M0 接线机制侦察（ab054260·q4_0 两挂点全解剖·通用方案·M1 q8_0 预案·NG-2 boundary）**。前序：M4 真 100% · G4 IME 全家族 · 测量总攻①-⑤+T6 · X-SCALAR N2 收口 · [T8·LAW-FIRST-EMISSION]。
 
 ## ★G5 = 接线战役（2026-07-11 用户立项 · perf-covered 唯一拉绿杠杆 · 新战役授权）
 **定位**：把 emitted tcrv kernel 接入 ggml 真实 forward = [GAP-FLAT-E2E-ROUTING]+[GAP-IME-E2E-INTEGRATION] 统一解。**q4_0 routing 是唯一成熟先例·其接线机制就是模板**。
