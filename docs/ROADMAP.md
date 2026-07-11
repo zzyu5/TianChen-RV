@@ -93,8 +93,14 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · G5-M1 曳光弹[workflow] · 必问 batch 已全收 · 执行方式重启）
-- **G5-M1 曳光弹 q8_0（接线域·board·workflow wyb4hslpu）**：翻 repack.cpp:4713 gate（routing-freebie 白嫖·同 q4_0）+ 可选 arch/riscv kernel 挂点 → forward 真实路由 banner+objdump 验部署==证过 → e2e 分相全协议（双账本+对手对称+五验+T-N）。**两张力**：selector DECLINE q8_0（框成 routing-freebie 探针·修 selector=canon 必问留后）· q8_0 2× 字节 decode memory 墙。判读预注册 R1(prefill 传导→绿 3/84)/R2(decode parity 黄)/R3(已路由仍 parity=强 micro↛e2e negative)/R4(correctness red)。
+## 在飞（★当前并行度 N=1 · G5-M1b 部署 emitted q8_0[workflow] · 执行方式重启）
+- **G5-M1b 部署 emitted q8_0 kernel（接线域·board·workflow）**：G5-M1 发现 q8_0 上游 VLEN128 破损（[GAP-Q8_0-VLEN128-KERNEL]·翻 gate=garbage）→ **接线=部署我方 emitted kernel（correctness-carrier）非 routing-freebie**。host emit q8_0 .inc（tcrv-opt+mlir-translate）→ deploy_patch 挂点③（我方 vl=8 kernel 拦截破损上游）→ board 重测（correctness-first·byte-exact→再 perf 分相）。若 correctness 过→genuine kernel 接线 e2e（比 q4_0 routing 白嫖更强=我方 kernel 承载正确性+perf）。
+- ✅ **G5-M1 曳光弹 q8_0（f8b8dabb·★R4 correctness RED·[GAP-Q8_0-VLEN128-KERNEL] source-confirmed·correctness-gate-catches-mirage 教科书教材·8.69× MIRAGE VOID）**：翻 gate 通+engage 已证 banner×12·但上游 VLEN128 repack 破损（vl=16 硬编码钳 8→garbage）·我方 emitted kernel 未部署→routes 破损上游 body。
+
+## ★G5-M1 关键发现改变 approach + canon-framing 精化（必问·surface 主会话·2026-07-11）
+- **★approach 修正**：G5 接线 ≠ routing-freebie 白嫖（M0 "翻一行即得" 对 q4_0 成立仅因我方 emitted vl=8 kernel 已部署）。**通用接线 = 部署我方 emitted kernel**（correctness-carrier）——上游 VLEN128 kernel 可能破损（q8_0 确证 [GAP-Q8_0-VLEN128-KERNEL]）·翻 gate 只 route 到破损上游。G5-M2 铺线据此=部署 emitted（非翻 gate）。
+- **★canon-framing 精化（必问·未 codify·留裁）**：收窄 memory `q4-0-e2e-is-routing-not-kernel` 的"routing 白嫖"——**VLEN128 上 correctness 不 free**：q4_0 正确是因我方 emitted vl=8 kernel **拦截**在破损上游 vl=16 body 之前 → **emitted kernel = VLEN128 correctness-carrier**（routing 主导 perf·emitted 承担正确性·q4_0 5.9× 非纯 routing 白嫖）。建议更新 memory/canon。
+- **selector-decline 获正确性支撑**（必问）：selector 判 q8_0 block-dot-decline·M1 证直翻 gate=e2e garbage→为 decline 提供非预期正确性支撑（修 selector 语义=canon 必问）。
 - ✅ **必问 batch 五项全执行完毕**（d1910c3b 9 文件 + 717b2eb9/.o 删 + 5404ceeb/MANIFEST·全门 GREEN）：①check_docs_canon 修门 GREEN ②**<300→双轨预期**（integrated 廉价/independent 真实 emitter 成本·超标撤销·1148 诚实价格） ③代码事实核查纪律入档 ④**T2-drift=REAL DRIFT**（IME 2484→5153 家族增长·双数并存 5153 live/2484 frozen 锚·禁静默替换） ⑤**C5 5 .o 移出 VC**（MOVES.md §9 登记·CI GREEN）。
 - ✅ **G5-M0 接线机制侦察（ab054260·两挂点全解剖·通用方案·M1 q8_0 预案·NG-2 boundary）**。前序：M4 真 100% · G4 IME 全家族 · 测量总攻①-⑤+T6 · X-SCALAR N2 收口 · [T8·LAW-FIRST-EMISSION]。
 
