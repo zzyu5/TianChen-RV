@@ -5,12 +5,13 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**59 cells** (active=44, sealed=10, archive=5).
+**60 cells** (active=45, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
 | active | `g4-m1b-reseal-batched` | unknown | — | 3 | — | — |
 | active | `g4-m3-ime-paradigm-t5b` | unknown | — | 4 | — | — |
+| active | `g5-wiring` | unknown | — | 1 | — | — |
 | active | `t3p-pattern-ablation` | unknown | — | 1 | — | — |
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
 | active | `t4b-m1-minterm-bisect` | unknown | — | 1 | — | — |
@@ -65,7 +66,7 @@
 | sealed | `silicon-validation-gemm` | sealed | silicon | 5 | `kernels/q4_0_repack_gemm.kernel.c` | constructed q4_0 REPACK GEMM (PREFILL, M>1) FMA-fold bounded-ULP; board rvv/VLEN128 + f64 ref. |
 | archive | `T3_step3` | archive | perf-historical | 13 | `kernel_factory.c`, `kernel_m1.cpp`, `kernel_m1.emitc.mlir`, `kernel_m2.cpp`, `kernel_m2.emitc.mlir` | q8_0 m1/m2 dual-board evidence bundle (T3_A/T3_B q8_0 rows): emitc + factory + raw + objdump seals. Local *.o ignored via in-cell .gitignor… |
 | archive | `ondevice-q5_K` | stale | perf-historical | 6 | `kernel_factory.c`, `kernel_ours.emitc.mlir` | q5_K deferred-reduce vs aux8-roundtrip dual-board split (k1/VLEN256 win / rvv/VLEN128 loss), bit-exact; perf-char #4 decode-width evidence.… |
-| archive | `ondevice-q8_0` | archive | perf-historical | 9 | `kernel_q8_0_q8_0_flat_block_dot.o` | q8_0 flat block-dot dual-board bit-exact + micro (host_k1 / host_rvv). |
-| archive | `ondevice-q8_0-deferred` | stale | perf-historical | 3 | `A_deferred.o` | q8_0 deferred-fold P2c fair perf (perf_rvv_vlen128_FAIR.csv, referenced by schema/pattern-registry.v1.json) + A_deferred.o vsetvli-diagnosi… |
-| archive | `ondevice-q8_0-mbf` | archive | perf-historical | 4 | `kernel_core_mbf2.o`, `kernel_ggml_factory.o`, `kernel_q8_mbf1.o` | q8_0 mbf1/mbf2 (e8m1) fold-segment objdump seal + kernel_core_mbf2.o / kernel_q8_mbf1.o / kernel_ggml_factory.o vsetvli-diagnosis .o. |
+| archive | `ondevice-q8_0` | archive | perf-historical | 8 | — | q8_0 flat block-dot dual-board bit-exact + micro (host_k1 / host_rvv). |
+| archive | `ondevice-q8_0-deferred` | stale | perf-historical | 2 | — | q8_0 deferred-fold P2c fair perf (perf_rvv_vlen128_FAIR.csv, referenced by schema/pattern-registry.v1.json) + A_deferred.o vsetvli-diagnosi… |
+| archive | `ondevice-q8_0-mbf` | archive | perf-historical | 1 | — | q8_0 mbf1/mbf2 (e8m1) fold-segment objdump seal + kernel_core_mbf2.o / kernel_q8_mbf1.o / kernel_ggml_factory.o vsetvli-diagnosis .o. |
 

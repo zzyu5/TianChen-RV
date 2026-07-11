@@ -14,7 +14,6 @@
 - `host_rvv/run_rv64gc.txt`
 - `host_rvv/run_rv64gcv.txt`
 - `host_rvv/target_profile.txt`
-- `kernel_q8_0_q8_0_flat_block_dot.o`
 - `results_summary.csv`
 
 > Evidence-pointer code (`*.kernel.c` / `*.emitc.mlir` / sealed `*.o` / `*.cpp`) stays in-cell as an evidence pointer; harness/protocol scripts live under `tools/`. Gitignored scratch rides with the cell but is not durable.

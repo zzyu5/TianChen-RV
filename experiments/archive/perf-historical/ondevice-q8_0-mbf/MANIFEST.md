@@ -7,9 +7,6 @@
 
 ## durable files (git-tracked + untracked-not-ignored in this cell)
 
-- `kernel_core_mbf2.o`
-- `kernel_ggml_factory.o`
-- `kernel_q8_mbf1.o`
 - `seal/fold_segment_objdump.txt`
 
 > Evidence-pointer code (`*.kernel.c` / `*.emitc.mlir` / sealed `*.o` / `*.cpp`) stays in-cell as an evidence pointer; harness/protocol scripts live under `tools/`. Gitignored scratch rides with the cell but is not durable.

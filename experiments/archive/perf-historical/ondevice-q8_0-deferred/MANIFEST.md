@@ -7,7 +7,6 @@
 
 ## durable files (git-tracked + untracked-not-ignored in this cell)
 
-- `A_deferred.o`
 - `A_deferred.rv64gcv_zvfhmin.objdump`
 - `fair/perf_rvv_vlen128_FAIR.csv`
 
