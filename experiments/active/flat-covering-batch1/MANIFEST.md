@@ -83,3 +83,10 @@ eight-gate beats (micro∧e2e gate open). Reported as candidates + named gap, no
 ## data-only cell
 Evidence + recipe only; the exported .kernel.c are deterministically regenerable (see method). Board scratch
 /tmp/flat_export cleaned after archiving. Nothing git-added.
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+- `EXPORT_RECIPE.md` — deterministic re-export recipe for the 5 FLAT repack GEMM kernels (HEAD 2be7f3d2).
+- `flat_gemm_paired.csv` — the paired repack-vs-block-dot A/B measurement grid (q4_0/q4_1/q5_0/q5_1/q8_0).
+- `opponent_probe.md` — opponent-identity probe (board `libggml-cpu.so` md5 + dispatched `ggml_vec_dot_qX_qY`).
+- `raw_board_results.txt` — full board stdout (fingerprint + ZERO-MODEL correctness gate + paired timing).

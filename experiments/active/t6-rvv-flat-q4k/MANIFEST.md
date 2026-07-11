@@ -103,3 +103,18 @@
 - `results/q4_0_reprefill_raw.txt` — 干净暖 3-pass 重测（prefill 5.755× / decode 1.910×）
 - `results/routing_gap_probe.txt` — engage-banner 对照 + q8_0 A/B parity 实证
 - `results/q4_0_harness_stdout.log` — 首跑全日志（含冷启诊断）
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+> Machine-registry (supersedes the human `## data-only cell · files` list for the dir-lint). NOTE:
+> `results/q4_0_harness_stdout.log` is **gitignored scratch** (not durable) so it is NOT registered here;
+> `results/q4_0-tinyllama-vlen128/` is a directory whose five run-artifact files are registered individually.
+
+- `transmission_accounting.csv` — 6 格传导会计四列（micro / wired / e2e-prefill / e2e-decode / 稀释 / 判读 / GAP）.
+- `results/q4_0-tinyllama-vlen128/aggregate.txt` — 分相聚合（中位 + IQR% + bootstrap CI + PARITY/DIFFERENCE 判决）.
+- `results/q4_0-tinyllama-vlen128/correctness.txt` — greedy-token A==B 一致门 + logits sanity.
+- `results/q4_0-tinyllama-vlen128/evidence.json` — run_e2e.sh 结构化证据出口（分相 + 指纹 + 判决）.
+- `results/q4_0-tinyllama-vlen128/phase_split_raw.txt` — llama-bench 分相原始逐 rep 样本.
+- `results/q4_0-tinyllama-vlen128/preflight.txt` — preflight 4 门（同编译器 / march-complete / libcall-free / VLEN 指纹）.
+- `results/q4_0_reprefill_raw.txt` — 干净暖 3-pass 重测原始（prefill 5.755× / decode 1.910×）.
+- `results/routing_gap_probe.txt` — engage-banner 对照 + q8_0 A/B parity 实证.

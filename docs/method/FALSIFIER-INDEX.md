@@ -1,0 +1,67 @@
+# FALSIFIER-INDEX — [F-1..F-6] → 具体 checker / lit / gtest 映射（R4）
+
+> **用途**：模板五大件之 ⑤falsifier 组的**软肋 = 无 F→文件映射索引**（[TEMPLATE-AUDIT] 认定）。
+> 本 doc 补这张表：canon 的 [F-1..F-6] 每一个 → 它的**权威定义位置** + **具体机检工件**（脚本 / lit / gtest / CI job）
+> + **诚实机制化状态**。配套 [REPOSITORY-MAP-五大件.md](./REPOSITORY-MAP-五大件.md) §1.⑤。
+>
+> **[F-1..F-6] 定义权威 = `docs/canon/TianChen-RV_科研目标总纲v2.md:105–110`**（不在此重抄语义，只做文件映射）；
+> 现状栏对齐 `docs/canon/TianChen-RV_执行总纲v2.md:32–37`。**本 doc 只索引，不改 code / 不改判据。**
+
+---
+
+## 1. [F-1..F-6] 主映射表
+
+| F | 一句话判据 | 定义（权威） | 具体机检工件 | CI | 机制化状态（诚实） |
+|---|---|---|---|---|---|
+| **[F-1]** | 零核心分支（family-branch grep=0）+ family-regex manifest + 判读规程 | `科研目标总纲v2:105` · `.trellis/spec/testing/mlir-testing-contract.md:72`（[F-1] 判读规程 + manifest 形态） | **⚠ 见 §2 命名碰撞**：零分支 grep 的 family-regex manifest **尚未落盘**（执行总纲 F-1 = 「部分」，缺 manifest/CI/判读规程）。另有一个**同名不同物**的工具 `tools/lint/check_construction_manifest_regex.py`（自标 "F-1 construction-manifest shape gate"，实为 C1 合取的**构造体 SHAPE 正则门**，非零分支门） | 无（零分支门）/ CI 外（shape 门可跑） | **零分支门：部分**（不变量本身绿=core family 分支 grep=0，但 manifest/CI/判读规程缺）；shape 门：**在位可跑** |
+| **[F-2′]** | 家族接入 PR diff ∩ schema.def = ∅（操作门）+ 报告门（shape-hash + 版本日志） | `科研目标总纲v2:106` · `core-invariants.md:80` | `.trellis/scripts/check_schema_gate.py`（self-test / `report --check` / `gate --base --head`）+ 红队 `.trellis/scripts/redteam_schema_gate.py` | **✅ `falsifier-gate.yml` job `schema-def-gate`** | **在位 · CI 常绿 · 带红队证伪** |
+| **[F-3]** | 变更收容：接入 PR 仅触 `plugins/<family>/` + 表行 + docs | `科研目标总纲v2:107` · `.trellis/spec/plugin-protocol/locality-contract.md:76` | **无专属脚本**（结构原则，非机检门）；**前提 = 家族代码目录归拢**（当前单家族横跨 `lib/{Dialect,Plugin,Conversion,Target}/<fam>` → 不可判定） | 无 | **缺失 · 有界工作项**（gated on R2/R3 目录归拢；归拢后才可判定） |
+| **[F-4]** | 归因完备（[D-4] 分级：M1 查①②，M2+ 查③）；`only_feasible`/`static_order`/`prior`/`measured` 归因出口 | `科研目标总纲v2:108` | lit `test/Transforms/VariantSelection/attribution-jsonl.mlir`（归因 JSONL 出口 lit）；in-IR 归因属性在编译期选择阶段（D-4① 原料） | 无 | **部分**（编译期选择阶段富属性在位；JSONL 出口 + 调度/合法性阶段归因缺；不进 CI） |
+| **[F-5]** | fail-closed 模糊：随机删/伪造事实下非法 plan 全被拒（非误编译/误发射） | `科研目标总纲v2:109` | `tools/fuzz/f5_failclosed_fuzz.sh`（变异 valid typed-region → `tcrv-opt --tcrv-rvv-lower-to-emitc`，断言 graceful-diagnostic + 非零退出 + 不崩 + 不静默过）→ 产出 `experiments/active/result-tables/T1b_failclosed_runtime.csv`；lit 语料 `test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-*-fail-closed.test`（14 个） | 未进 CI（fuzz 可重跑，确定性指纹） | **在位可跑**（2026-07-07 发现 17/20 fail-closed，3 fail-OPEN = neg_qk/neg_weight_stride/neg_activ_stride，已记 T1b 不藏；未进 CI） |
+| **[F-6]** | 独立家族判据：变体能力谓词 implies 闭包 ∩ {rvv.*} = ∅（脚本化）+ 存在向量缺席实例使其变体 `only_feasible` 且真实被选中 | `科研目标总纲v2:110` · `core-invariants.md:84` | lit `test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir`（向量缺席标量家族 emittable）；受测家族 [X-SCALAR] 仍空桩（`lib/Dialect/Scalar/IR/ScalarDialect.cpp` 空 initialize） | 无 | **缺失 / 部分**（lit 资产存在；闭包∩rvv.*=∅ 脚本未建；`only_feasible` 真实选中未连；gated on [X-SCALAR] 家族落地） |
+
+**[P-3] 接入验收 = falsifier 组全绿**（`科研目标总纲v2:71`：[F-1..F-6]，独立家族含 F-6）。
+**M1 = 证据线闭合**目标（`科研目标总纲v2:211`）= F-1 / F-2′ / F-5 / F-6 进 CI。**当前只有 F-2′ 真进 CI**；
+F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3/F-6 gated on 目录归拢 / [X-SCALAR] 家族。
+
+---
+
+## 2. ★[F-1] 命名碰撞 codify（供 [RENAME] · 与 REPOSITORY-MAP §3 并列）
+
+「F-1」在仓库里指**两个不同的东西**：
+
+| 记号 | 所指 | 工件 | 语义 |
+|---|---|---|---|
+| **F-1-(零分支)** | canon 的**零核心分支** falsifier | 尚缺：family-regex manifest + grep-clean CI + 真/假阳性判读规程 | grep `<family_regex>` core/ = 0；家族名不得进核心控制流 |
+| **F-1-(shape 门)** | `check_construction_manifest_regex.py` **自标**的 "F-1 construction-manifest shape gate" | `tools/lint/check_construction_manifest_regex.py` | C1 合取的**构造体 SHAPE 正则门**：对 constructed cell 的 E5 realized-body manifest 正则出合法 typed-primitive 形态、拒不透明手写 helper（[L-8]） |
+
+**二者不同层**（一个查「家族名不进核心分支」= I3 不变量；一个查「constructed 是可检形态」= C1 合取证据件）。
+**建议 [RENAME]**：给 shape 门改一个不占「F-1」的标签（如 `[C1-SHAPE]` 或 `[F-STRONG]`），把「F-1」留给零分支门，
+消除 grep/阅读时的歧义。**本节是唯一权威碰撞记录**（与 REPOSITORY-MAP-五大件.md §3.1 的 P1 三所指并列）。
+
+---
+
+## 3. 相邻机检门（falsifier 家族外，同在 `falsifier-gate.yml` / `tools/lint/` 的 fail-closed 门）
+
+这些不是 [F-1..F-6] 编号项，但同属模板 ⑤ 机检面，列此避免外来者误以为 falsifier 只有六个：
+
+| 门 | 工件 | CI job | 判据 |
+|---|---|---|---|
+| **[F-EMIT] 前门 provenance**（裁决一.3） | `tools/lint/check_frontdoor_provenance.py` | `frontdoor-provenance-gate` | 手写 `emitRepackGem*` 直发射旁路必须白名单登记（`schema/emit-bypass-whitelist.v1.json`）+ shrink-only ratchet；旁路存量→0 |
+| **opponent-facts pin**（裁决九.2） | `tools/lint/check_opponent_facts_pin.sh` | `opponent-facts-pin` | ggml-pin 一 bump 就 STALE-fail，逼重验 opponent-fact 行锚 |
+| **monolith-retire**（裁决九.4） | `tools/lint/check_monolith_retire.py` | `monolith-retire-gate` | 每存活 vec_dot monolith 必须白名单命名+批次；无 `#if 0` verifier tomb |
+| **cert 三要件**（cert-hardening） | `tools/lint/check_cert_requirements.py` | `cert-requirements-gate` | claim=full 的数值 cert 必须过语料完备 / 输入路径同源 / oracle 独立三要件（`schema/cert-lineage.v1.json`） |
+| **RETIRED-INDEX**（判定书轴B③） | `tools/lint/gen_retired_index.py`（生成）+ `tools/lint/check_retired_index.py`（校验） | `retired-index-gate` | `schema/retired-index.generated.json` 机生+FRESH+四要件+覆盖完备 |
+
+**证据卷宗 dir-lints**（`tools/lint/`，非 CI-in-falsifier-gate 但机检 experiments/ 卫生）：
+`gen_experiments_index.py` / `check_index_consistency.py` / `check_experiments_layout.py` /
+`check_experiments_data_only.py` / `check_manifest.py` / `check_docs_canon.py`。
+
+---
+
+## 4. 一句话状态板（M1 证据线闭合视角）
+
+- **进 CI 的 falsifier**：**F-2′**（唯一 [F-1..F-6] 真进 CI）+ [F-EMIT] / opponent-pin / monolith-retire / cert-三要件 / RETIRED-INDEX。
+- **可跑未进 CI**：F-5（fuzz，17/20，3 fail-OPEN 已记 T1b）。
+- **部分**：F-1 shape 门（可跑）/ F-4（编译期富属性在位、JSONL 出口缺）。
+- **缺失 / gated**：F-1 零分支 manifest（缺 manifest+CI+判读规程）· F-3（gated on R2/R3 目录归拢）· F-6 闭包脚本（gated on [X-SCALAR] 家族）。

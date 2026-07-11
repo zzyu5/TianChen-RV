@@ -15,6 +15,14 @@
 - `T2_C2_ledger_marginal_cost.csv`
 - `T1b_failclosed_runtime.csv`
 - `T-PERF1_q4_0_vlen128_prefill_8gate.md`
+- `T-PERF1b_q4k_e2e_prefill_regression.md`
+- `T-VALIDITY-STAGE1_k1_symmetric_remeasure.md`
+- `T-VALIDITY-STAGE1_rvv_symmetric_remeasure.md`
+- `T-VALIDITY_compiler_symmetry_ledger.md`
+
+> **T-PERF1b + T-VALIDITY×3** = [CASE-COMPILER-ASYMMETRY] 承重证据 (kernel-vs-shipped compiler-symmetry
+> ledger + k1/rvv symmetric-remeasure that WITHDREW the S6 1.884×/1.413×/2.193× kernel-axis ratios +
+> the q4_K e2e prefill regression row). Registration only — data unchanged.
 
 ## notes — T-PERF1 口径
 

@@ -5,10 +5,13 @@
 > refresh; consistency is gated by `tools/lint/check_index_consistency.py`.
 > Old→new path map: `experiments/archive/MOVES.md`.
 
-**49 cells** (active=34, sealed=10, archive=5).
+**59 cells** (active=44, sealed=10, archive=5).
 
 | tier | cell | status | campaign | durable | artifact pointers | snapshot |
 |---|---|---|---|---:|---|---|
+| active | `g4-m1b-reseal-batched` | unknown | — | 3 | — | — |
+| active | `g4-m3-ime-paradigm-t5b` | unknown | — | 4 | — | — |
+| active | `t3p-pattern-ablation` | unknown | — | 1 | — | — |
 | active | `t4b-m0-q4k-tracer` | unknown | — | 0 | — | — |
 | active | `t4b-m1-minterm-bisect` | unknown | — | 1 | — | — |
 | active | `t4b-m1-repacker` | unknown | — | 0 | — | — |
@@ -16,11 +19,15 @@
 | active | `t4b-m2c-dispatch` | unknown | — | 1 | — | — |
 | active | `t4b-m4-decisive` | unknown | — | 1 | — | — |
 | active | `t4b-model-manifest` | unknown | — | 0 | — | — |
-| active | `cert-status` | active | DEBT-CERT + DEBT-VIS (construction-manifest certification audit) | 2 | — | labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue |
+| active | `t4b-selector-ablation` | unknown | — | 0 | — | — |
+| active | `t6-k1-ime-q4k-e2e` | unknown | — | 2 | — | — |
+| active | `cert-status` | active | DEBT-CERT + DEBT-VIS (construction-manifest certification audit) | 30 | `repack-probes/iq2_s-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_s-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xs-repack-gevm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gemm-cert-probe.mlir`, `repack-probes/iq2_xxs-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_nl-repack-gevm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gemm-cert-probe.mlir`, `repack-probes/iq4_xs-repack-gevm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gemm-cert-probe.mlir`, `repack-probes/mxfp4-repack-gevm-cert-probe.mlir`, `repack-probes/q2_K-repack-gemm-cert-probe.mlir`, `repack-probes/q2_K-repack-gevm-cert-probe.mlir`, `repack-probes/q3_K-repack-gemm-cert-probe.mlir`, `repack-probes/q3_K-repack-gevm-cert-probe.mlir`, `repack-probes/q4_K-repack-gemm-cert-probe.mlir`, `repack-probes/q4_K-repack-gevm-cert-probe.mlir`, `repack-probes/q5_K-repack-gemm-cert-probe.mlir`, `repack-probes/q5_K-repack-gevm-cert-probe.mlir`, `repack-probes/q6_K-repack-gemm-cert-probe.mlir`, `repack-probes/q6_K-repack-gevm-cert-probe.mlir`, `repack-probes/q8_0-repack-gemm-cert-probe.mlir`, `repack-probes/q8_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq1_0-repack-gevm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gemm-cert-probe.mlir`, `repack-probes/tq2_0-repack-gevm-cert-probe.mlir` | labeled-vs-certified C_construct account + RED per-cell cause roster + repair queue |
 | active | `g2-e2e-wholemodel` | active | G2 fusion (rms_norm→mul) — G3 四.1 whole-model e2e | 6 | — | board e2e phase-split A/B of the rms_norm→mul fusion on a real llama forward pass (rvv/VLEN128) |
-| active | `result-tables` | active | cross-cutting result tables | 8 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
+| active | `rvv-e2e-m1 (RVV-E2E M1a token-tile 静态选型)` | active | RVV-E2E / M1a — token-tile 深度选型（静态账先行：objdump + emitter 源 + cache 拓扑账） | 1 | — | 纯静态选型证据 for the M1b 曳光弹（loop-interchange / token-tile depth）—— 部署 kernel 的 |
+| active | `vlen-adapt (VLEN-ADAPT M0 静态账 · Win-K1-VLEN 承重证据)` | active | VLEN-ADAPT / M0 — VLEN256-native vl=16 emit 的寄存器账 + 半宽根因定位 + M1 可行性判定 | 1 | — | 纯静态账 (objdump 类比 / emitter 源 / plugin 源 / lit gate / RVV 寄存器语义) 判定 vl=16 不越 |
+| active | `result-tables` | active | cross-cutting result tables | 12 | — | T-N noise floor + T3_A/T3_B dual-board measurements + T8 win/loss gap ledger + T1 C1 structural-conjunction rows + T2 C2 marginal-cost curv… |
 | active | `e2e-harness (index)` | active | e2e-harness | 2 | — | README (result-cell schema + Win ladder) + models.manifest.csv. Protocol/driver scripts live in tools/e2e-harness/; sealed result cells mov… |
-| active | `frontdoor-framework` | active | frontdoor-framework (C2 layer-B — per-family front-door-ization cost) | 2 | — | NEW C2 evidence line ("layer B"): the LOC/labor cost to lift a decode family from a DIRECT-EMIT bypass to a front-door typed-region CONSTRU… |
+| active | `frontdoor-framework` | active | frontdoor-framework (C3′ front-door-ization construction-cost ledger — per-decode-format) | 2 | — | NEW C3′ construction-cost evidence line: the LOC/labor cost to lift a decode FORMAT from a DIRECT-EMIT bypass to a front-door typed-region… |
 | active | `g2-fuse-rms-norm-mul` | active | fuse (G2 [FUSE] rms_norm→mul epilogue; L3 memory axis) | 5 | — | G2 [FUSE] rms_norm→mul (llama attn_norm/ffn_norm) 贯通 tracer + 设计评审包. The |
 | active | `fmtprop-rms-norm-mul-quantize` | active | fuse / [FMT-PROP] (三 G2 铺量 phase1b — format propagation: fold activation quantize | 3 | — | [FMT-PROP] board evidence. The rms_norm→mul→quantize(q8_0) fused chain (commit 2b814e46, |
 | active | `active/repack (parked repack interim)` | parked | repack | 0 | — | q4_0 REPACK GEMM finale perf seal, incomplete 5× (ours-pass1 only, no stock/pass2). Board-recovery (P3) completes it, then `git add -f` pro… |
@@ -43,6 +50,9 @@
 | active | `roofline` | active | roofline (physical-reference calibration) | 2 | — | the two PHYSICAL ceilings every decode/prefill parity judgment is measured against |
 | active | `format-micro-rvv-vlen128` | active | silicon (format micro, step 4 of lineA-batch1) | 54 | `gaprp_tq2_0/raw/tq2_0_POST.kernel.c`, `gaprp_tq2_0/raw/tq2_0_PRE.kernel.c` | rvv/VLEN128 format micro for the 8 constructed super-block formats |
 | active | `visibility` | active | visibility | 4 | — | T0 sixstate / T7 burndown / T2 ledger-anchor auto-generated pack. Generators + drift-check live in tools/visibility/ (hardcode this path —… |
+| active | `t6-rvv-flat-q4k` | unknown | 测量总攻 / T6（内核轴对称候选 → perf-covered 绿格的 e2e 传导验证）· rvv 批 | 8 | — | 用整模型 llama-bench 分相（prefill/decode）A/B 验 flat-covering-batch1（f78ad2da）证得的 |
+| active | `flat-covering-batch1 (线乙 覆盖式铺面①：FLAT 对位)` | active | 测量总攻 / 覆盖式铺面① — FLAT (q4_0-family) repack GEMM prefill fair-align vs ggml's | 4 | — | fair repack-vs-block-dot paired A/B on the constructed FLAT repack GEMM kernels, with a REAL |
+| active | `- covering-batch③ (线丙 覆盖式铺面③：流式格 kernel-axis 对位)` | active | 测量总攻 / 覆盖式铺面③ — streaming-format (dequantize_row / quantize_row / forward | 4 | — | fair OUR-front-door-streaming-kernel vs ggml-dispatched-streaming paired A/B on cold-streamed |
 | sealed | `opponent-facts-provenance` | sealed | c1-cleanliness | 2 | — | opponent-fact provenance -> pinned ggml line anchors. opponent-facts.pin.json is consumed by tools/lint/check_opponent_facts_pin.sh (pin ch… |
 | sealed | `quant-label-proof` | sealed | c1-cleanliness | 2 | — | string-deletion byte-exact proof (fact-drives-routing, label-inert); NOTES sha256 a457e1b9 + machine evidence.json. |
 | sealed | `k1-vlen256-q4_0-flip` | sealed | repack | 5 | — | k1/VLEN256 q4_0 flip e2e; decode 0.857x PARK-P1 reversal source. |

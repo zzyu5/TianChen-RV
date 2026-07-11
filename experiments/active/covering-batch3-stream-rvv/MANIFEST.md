@@ -77,3 +77,10 @@ candidate with the deploy-gap caveat, NOT asserted as a beat. Correctness-gated,
 ## data-only cell
 Evidence + recipe only; exported .kernel.c deterministically regenerable (see EXPORT_RECIPE.md). Board
 scratch /tmp/stream_batch3 cleaned after archiving. Nothing git-added.
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+- `EXPORT_RECIPE.md` — deterministic re-export recipe for OUR streaming kernels (HEAD 11e86139).
+- `opponent_probe.md` — opponent-identity probe (board `libggml-base/cpu.so` md5 + symbol dispatch).
+- `raw_board_results.txt` — full board stdout (fingerprint + correctness gate + paired timing).
+- `stream_paired.csv` — the paired ours/opp streaming A/B measurement grid (dequant/quant/forward).

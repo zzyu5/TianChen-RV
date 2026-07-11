@@ -176,3 +176,7 @@ ROADMAP 测量欠账表 T3p row (0→6) + `T8` cross-refs (main-session-owned; n
   (`MANIFEST.md` + `T3p_pattern_ablation.csv`). All verdicts CODIFY pre-existing board/structural evidence
   or the honest absence thereof; nothing was re-run, re-measured, or re-implemented.
 - **HEAD not moved by this agent** (no git); rows snapshot-stamped `13706e79` per task pin.
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+- `T3p_pattern_ablation.csv` — the T3p pattern-ablation table (6 rows: P1/P2/P2b/P4/P7/winc mechanism→verdict).

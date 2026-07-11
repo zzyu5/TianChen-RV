@@ -123,3 +123,13 @@ q4_0@ime moves from **0 perf data → measured**, with a **contingent** ≥parit
 it is a LOSS (~4×) ⇒ **not yet perf-covered**; with the named lever (Cell1b) it is a ~2× prefill win ⇒
 perf-covered **pending `[GAP-IME-LEAF-PIPELINE]`**. Reported as a **yellow cell with a named fixable GAP**, not
 a green cell — the honest state is "matrix-range advantage board-demonstrated, blocked on emitter maturity."
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+> Machine-registry of the durable evidence (supersedes the human-readable `## Artifacts` list above for the
+> dir-lint; the in-tree harness source `test/Target/IME/q4-0-paradigm-lever-t5b-k1.c` lives under `test/`, not here).
+
+- `T5b_ime_paradigm_lever.csv` — the measurement grid (6 cells × 10 M-values), run1.
+- `t5b_run1_full_raw.txt` — full board stdout (fingerprint header + ZERO-MODEL gate + self-check + grid).
+- `t5b_run2_keyrows_raw.txt` — reproducibility rerun #2 (key rows).
+- `t5b_run3_keyrows_raw.txt` — reproducibility rerun #3 (key rows).

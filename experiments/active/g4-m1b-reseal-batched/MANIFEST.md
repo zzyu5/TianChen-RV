@@ -110,3 +110,9 @@ Pre-registered condition (ROADMAP T5c row): **`[GAP-IME-LEAF-PIPELINE]` closed �
 - GAP closed (线甲a emitter fix, silicon-re-sealed here).
 - Real M\*: matrix range wins ∀M∈{1..512} compute-isolated (M\*≤1), saturating M≥4 at ~2×.
 ⇒ **T5c can auto-land**: write M\* to P7 prior by instance-hash (M≥M\* prefer matrix in the compute-bound prefill regime; **decode M=1 recorded as roofline parity** — do NOT key selection on the 1.33× compute-micro) + T4a attribution sample verifies "M>M\* auto-selects matrix". Selector prior writeback is **in-tree另一域** — left to 线甲c / main session; this board line does **not** touch the selector.
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+- `seal_run_raw.txt` — objdump golden (vmadot 0xe210312b at every leaf) + k1 silicon int32 0-diff SEAL PASS ×3.
+- `t5b_batched_run1_full.txt` — full T5b batched re-measurement sweep (6 cells × 10 M-values), run1.
+- `t5b_batched_run2_run3_keyrows.txt` — two reproducibility reruns (key rows).

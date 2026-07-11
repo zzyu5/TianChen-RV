@@ -1,0 +1,142 @@
+# 模板五大件 → 目录映射（外来者 30 分钟定位图）+ 命名统一基准
+
+> **用途**：TianChen-RV 的头条 = 「可复制 / 可扩展的能力驱动执行层软件栈**参考模板**」。
+> 一个外来贡献者读完 README + 本图，应能在 **30 分钟内** 定位模板的每一大件、并知道
+> 接入一个新家族要动哪些格位。本图补 [TEMPLATE-AUDIT] 认定的**头号定位债**（R1）。
+> **本 doc 只描述结构与命名约定，不改任何 code / schema / 选择逻辑 / 测量数据。**
+>
+> 生成基准 = TEMPLATE-AUDIT 结构审计（`docs/reports/2026-07-11-TEMPLATE-AUDIT-structure.md`，
+> 快照 `b3e3fef4`）；本图把审计的评分表落成**可导航的目录映射 + 代表文件清单**，并 codify
+> T3p（`658e5c0f`）暴露的 **P 编号命名碰撞**，为后续 [RENAME] 提供命名统一基准。
+
+---
+
+## 0. 术语消歧（先读 —— 两个「五」不是同一个）
+
+- **模板五大件（本图主体，仓库级）**：模板在**仓库目录**上的六个结构组件 ——
+  ①schema · ②插件五件套 · ③前门 · ④选择器 · ⑤falsifier 组 · ⑥测量库。习惯口语称「五大件」，
+  实为 **6 件**（早期未把「测量库」单列）。**本图统一按 6 件编号 ①–⑥。**
+- **插件五件套（[P-2]，单家族级）**：②这一件**内部**的五个协议实现文件（见 §1.②）。
+  一个家族接入 = 落齐这五件。**「五件套」= 一个家族的五个文件；「五大件」= 整个仓库的六个组件。**
+  参考范本 = `Template/` 家族（干净、无历史包袱，五件齐全）。
+
+---
+
+## 1. 五大件（六组件）→ 目录映射表
+
+| # | 大件 | 主目录 | 代表文件（30 秒可辨） | 定位度 |
+|---|---|---|---|---|
+| **①** | **schema**（能力 / coverage / roster / pattern / cert / retire） | `schema/`（顶层单目录，清洁独立） | `capability.schema.v1.json` · `coverage-sixstate.v1.json`（84 certified 源）· `coverage-roster.v1.json`（93 格分母）· `pattern-registry.v1.json` · `cert-lineage.v1.json` · `retired-index.generated.json`（机生） | **HIGH** |
+| **②** | **插件五件套**（每家族） | `lib/Plugin/<家族>/` + `include/TianChenRV/Plugin/<家族>/` + `lib/Dialect/<家族>/IR/` | 参考范本 `Template/`：`TemplateExtensionPlugin` · `TemplateVariantLegality` · `TemplateConstructionProtocol` · `TemplateEmitCRouteProvider` · `TemplateBackendEmissionDriver`（= [P-2] 五件，见 §2） | **MEDIUM**（RVV 家族 ~36 文件爆炸；见 R2） |
+| **③** | **前门**（front-door 构造：抽象 contraction → in-compiler 构造 typed 区域） | 散在 `lib/Plugin/RVV/*SourceFrontDoor.cpp` + `lib/Plugin/RVV/RVVLowerQuantContraction.cpp` + `lib/Plugin/Construction/` + `lib/Dialect/RVV/IR/RVV*Construction.cpp` | `RVVMonolithicBlockDotSourceFrontDoor.cpp` · `RVVDequantDotSourceFrontDoor.cpp` · `RVVCodebookDotSourceFrontDoor.cpp` · `RVVLowerQuantContraction.cpp` · `Construction/ConstructionProtocol.cpp` | **LOW-MEDIUM**（无专属 `FrontDoor/` 目录，靠命名约定；见 R3） |
+| **④** | **选择器**（能力键控 cost-model / 先验） | 二层散：`lib/Transforms/VariantSelection.cpp` + 各插件 `estimateVariantCost` + `include/.../Plugin/RVV/RVVRepackTilingSelection.h` + `schema/tiling-measurements.v1.json`（先验/测量契约） | `lib/Transforms/VariantSelection.cpp`（通用能力键控 pass）· `include/TianChenRV/Plugin/ExtensionPlugin.h`（`estimateVariantCost` 接口声明） | **MEDIUM**（无单一 `selector/` 目录；四处二层，需 R5 co-locate 文档） |
+| **⑤** | **falsifier 组**（机检验收 [F-1..F-6]） | `tools/lint/` + `tools/fuzz/` + `.trellis/scripts/` + `.github/workflows/falsifier-gate.yml` + `test/` 语料 | **见 [FALSIFIER-INDEX.md](./FALSIFIER-INDEX.md)（R4：F-1..F-6 → 文件逐条映射）** | **MEDIUM-HIGH** |
+| **⑥** | **测量库**（板上 A/B harness + 双账本） | `tools/e2e-harness/`（清洁独立家）+ `schema/tiling-measurements.v1.json`（double_ledger 数据契约） | `tools/e2e-harness/run_e2e.sh` · `board/*driver.c` · `aggregate_e2e.py` · `board_ab.sh` | **HIGH** |
+
+**证据落点（与五大件正交）**：`experiments/{active,sealed,archive}/**` = 逐 cell MANIFEST + INDEX
+（机检 = `tools/lint/{gen_experiments_index,check_index_consistency}.py`）；`docs/` = ROADMAP + canon
+三总纲 + method（本 doc）+ reports（证据卷宗）。
+
+---
+
+## 2. 插件五件套 [P-2]（一个家族接入落齐这五件）
+
+参考范本 = `lib/Plugin/Template/`（+ `include/TianChenRV/Plugin/Template/` 头）：
+
+| 件 | Template 范本文件 | 职责 |
+|---|---|---|
+| 1. 能力 / 插件入口 | `TemplateExtensionPlugin.cpp/.h` | 声明家族能力事实 + `estimateVariantCost` override + 注册进 registry |
+| 2. 合法性 | `TemplateVariantLegality.cpp` | 变体合法性（能力谓词 → 可行变体集） |
+| 3. 构造协议 | `TemplateConstructionProtocol.cpp/.h` | 抽象 op → in-compiler 构造 typed 区域（前门③的家族侧实现） |
+| 4. 发射路由 | `TemplateEmitCRouteProvider.cpp/.h` | 选中变体 → EmitC 发射路由 |
+| 5. 后端发射驱动 | `TemplateBackendEmissionDriver.cpp/.h` | 具体 backend body 发射 |
+
+**接入协议**：新家族 = 复制 `Template/` 五件 + 填能力事实 + 注册表行 + 文档；理想触碰集 =
+`plugins/<family>/` + 表行 + docs（[F-3] 变更收容；**目录归拢是 F-3 可判定的前置**，见 R2/R3）。
+其它家族对照：`IME/`（~4 文件，能力/构造内联进 ExtensionPlugin）· `Scalar/`（3，空桩待接 [X-SCALAR]）·
+`RVV/`（~36，历史爆炸展开，R2 待按件分子目录）· `Offload/` `Toy/` `TensorExtLite/`（参考/兜底）。
+
+---
+
+## 3. ★命名碰撞 codify（[RENAME] 命名统一基准 · T3p `658e5c0f` 暴露）
+
+Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一个。**[RENAME] 会话应据此统一，
+本节是唯一权威碰撞清单。**
+
+### 3.1 「P1」有三个所指（THREE distinct referents）
+
+| 记号 | 所指 | 出处 | 语义 |
+|---|---|---|---|
+| **P1-(a)** | **宽 LMUL 分组** | `docs/canon/TianChen-RV_科研目标总纲v2.md:121` | 一个 schedule/emit 优化模式（LMUL 宽度旋钮） |
+| **P1-(b)** | **N-operand 构造统一**（4 前门已机制化） | `docs/canon/TianChen-RV_执行总纲v2.md:91`「P1 已机制化」 | 构造协议主张（本 = T3p 的 P1；构造轴 validated-REAL / perf-novelty RETIRED） |
+| **P1-(c)** | **[GAP-P1]** = 宽 VLEN 喂饱 schedule 的 roofline gap | T8 `q4_0-gevm-k1-vlen256` 行 | 一个具名性能 GAP（misselection：selector 只键 isRVV0p7、不键 VLEN128-vs-256） |
+
+**统一建议（供 RENAME 裁）**：三者互不相关，**不应共享「P1」字面**。建议保留 [GAP-P1] 为 GAP-域记号
+（§3.3 前缀约定内自洽），把 (a) 宽 LMUL 分组、(b) N-operand 构造 各自改为**模式注册表 pattern_id**
+（如 `SCHED-WIDE-LMUL` / `CONSTRUCT-N-OPERAND-ROUTE`），退役裸「P1」标签。
+
+### 3.2 「P4」= PAT-2 vs PAT-S6（形式槽空 vs 机制已实现）
+
+- **P4 = 布局 / repack** 模式。`执行总纲v2.md:91` 标注**形式化的 `PAT-2` "P4" 注册对象 = 未启动**；
+- 然而 repack **机制**已在 `schema/pattern-registry.v1.json` 的**另一个注册条目 `PAT-S6`** 下重度实现
+  （`PAT-S6-repack-gemm-output-tiling-register-cliff-XFER-1`，status=`mechanized`，7/7 XFER-1 三类边界）。
+- **碰撞**：canon 谈 P4 时可能指「未启动的 PAT-2 形式槽」或「已机制化的 PAT-S6 实现」——二者被同一个「P4」遮蔽。
+
+**统一建议**：`pattern-registry.v1.json` 现有实际 pattern_id 命名族 = `MFLAT-1..5` / `MFLAT-P2c` /
+`WIDE-DECODE-*` / `PAT-S6-*`。建议 [RENAME] **以 registry 的 pattern_id 为唯一真源**，退役 canon 散落的
+「P4」「PAT-2」裸标签：把「未启动的 P4 形式槽」显式记为一个 pending pattern_id，把已实现的指向 `PAT-S6-*`。
+
+### 3.3 [GAP-*] 前缀约定（现状 roster + 建议规范）
+
+现存 [GAP-*] 记号（`docs/` + `schema/` + `experiments/` 全域，去重）：
+
+```
+[GAP-1]                       通用 GAP-1 闭环规程记号（name→close→retest→cite）
+[GAP-P1]                      宽 VLEN 喂饱 roofline（misselection：selector 不键 VLEN）
+[GAP-SB]                      super-block per-subblock-gather 未 pair-batch
+[GAP-RP]                      register-pressure whole-reg spill
+[GAP-NUM]                     数值双档（relaxed 仅 q8_0 materialized）
+[GAP-GRID]                    grid/codebook 解码
+[GAP-FLAT-E2E]               FLAT kernel 赢未过 micro∧e2e
+[GAP-FLAT-E2E-ROUTING]       FLAT/K-quant VLEN128 未路由进 forward
+[GAP-IME-LEAF-PIPELINE]      IME 发射器 per-fragment leaf 未流水（4× loss）
+[GAP-IME-E2E-INTEGRATION]    tcrv IME 未 wire 进 llama forward
+[GAP-KQUANT-E2E-INTEGRATION] q4_K vl16 未部署 + 无 board 模型
+[GAP-DEQ-KQUANT-UNPACK]      dequant super-block scale-unpack compute-bound
+[GAP-FWD-M8-VSETVL]          forward 显式 m8 map 的 per-iter vsetvl
+[GAP-CLANG-GATHER-TRAP]      clang vluxei gather 标量化陷阱
+[GAP-XXX]                     模板占位（非真 GAP）
+```
+
+**约定（现状已自洽，建议 [RENAME] 只做归档、勿动语义）**：
+- `[GAP-<AREA>-<SPECIFIC>]` = 具名性能/接线 GAP，绑 objdump/board 证据 + 三级 triage
+  ∈ {missing_fact | missing_pattern | misselection | physical}，住 T8 台账。
+- `[GAP-1]` 是**规程**记号（闭环四步），与具名 GAP 不同层，勿混。
+- `[GAP-P1]` 虽用 P1 字面，属 GAP-域自洽命名，**保留**（§3.1 已裁不与 P1-(a)/(b) 合并）。
+- `[GAP-XXX]` 是模板占位，非真 GAP，[RENAME] 时可核实模板引用后清理。
+
+---
+
+## 4. 外来者 30 分钟定位路径（推荐阅读序）
+
+1. `README.md` 「Repository layout」→ 顶层 include/lib/tools/test/scripts/.trellis 泛目录。
+2. **本图 §1** → 五大件（六组件）各指到具体目录 + 代表文件。
+3. 想**接一个新家族** → §2 插件五件套（照 `Template/` 五件复制）+ [F-3] 触碰集纪律。
+4. 想懂**机检验收** → [FALSIFIER-INDEX.md](./FALSIFIER-INDEX.md)（F-1..F-6 → 脚本/lit/gtest）。
+5. 想懂**证据在哪** → `experiments/INDEX.md`（机生 registry）+ 逐 cell MANIFEST。
+6. 想懂**命名** → §3 P 碰撞 codify（避开三个 P1 / P4 双所指的坑）。
+
+---
+
+## 5. 已知定位债（→ [RENAME] R1–R7）
+
+| 债 | 现状 | 收法 | 触碰域 |
+|---|---|---|---|
+| 头号 = 缺五大件→目录映射 | **本 doc 已补（R1）** | done | docs（本 doc） |
+| ⑤ falsifier 无 F→文件索引 | **[FALSIFIER-INDEX.md] 已补（R4）** | done | docs |
+| ③ 前门无专属目录、靠命名 | `*SourceFrontDoor.cpp` 散在 `lib/Plugin/RVV/` | R3：统一 `FrontDoor/` 归属（动 lib，主会话） | code（互斥·主会话） |
+| ② RVV 插件 ~36 文件爆炸 | 未按件分子目录 | R2：按格位 `FrontDoor/·Selection/·Schedule/·BodyRealization/` 分组（对齐 Template）（动 lib，主会话） | code（互斥·主会话） |
+| ④ 选择器四处二层散 | 无 `selector/` 目录 | R5：文档 co-locate（不必物理搬） | docs |
+| P 编号碰撞 | 三 P1 / P4 双所指 | **§3 已 codify（RENAME 基准）** | docs（本 doc）→ RENAME 落地 |
+
+> R2/R3 动 `lib/`，与构造互斥、须排 G4 M1 贯通后（[RENAME] 并行拓扑）；本 doc 只**标注不执行**。

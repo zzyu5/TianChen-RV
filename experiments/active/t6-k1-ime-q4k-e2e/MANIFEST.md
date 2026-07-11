@@ -112,3 +112,8 @@ a disclosed boundary, not a failure. The perf-covered pipeline for these cells
 routes through **building the tcrv-IME→ggml-forward bridge** (analogous to the
 existing RVV q4_0 repack deployment), then re-measuring — a future battle, not
 this board line.
+
+## durable files (git-tracked + untracked-not-ignored in this cell)
+
+- `vendor_ime_toggle.csv` — vendor SPACEMIT-IME ON/OFF llama-bench toggle grid (pp256/pp512/tg64 · reference ceiling, NOT tcrv).
+- `vendor_toggle_run_raw.txt` — full board stdout (fingerprint + `vmadot` engagement re-verify + toggle runs).
