@@ -389,6 +389,89 @@ std::string q40MatmulHelperBody(llvm::StringRef vmadotHelperName) {
   return text;
 }
 
+//===----------------------------------------------------------------------===//
+// G4 M2: the FORMAT-KEYED q8_0 IME GEMM tile emitter (the FLAT-int8 copy-adapt
+// sibling of the q4_0 emitter above).
+//
+// The typed region (tcrv.ime.q8_0_matmul_tile) carries two decomposed bricks:
+//   * tcrv.ime.q8_0_dequant_core -> the q8_0 DIRECT int8 read, emitted as ONE
+//     structured C helper (no asm, no nibble unpack, no offset): out[j]=qs[j],
+//     the ggml q8_0 int8 quant in [-128,127] copied straight into the fragment;
+//   * tcrv.ime.vmadot_mac_leaf -> the SAME FOUNDATION-validated single-fragment
+//     vmadot MAC as q4_0 (reused verbatim). The K reduction accumulates in int32.
+// The output is the int32-EXACT MAC accumulator (what the K1 seal validates
+// bit-exact); the per-block fp16 scale fold is a SEPARATE downstream epilogue.
+//===----------------------------------------------------------------------===//
+constexpr llvm::StringLiteral kQ80DequantHelperName(
+    "tcrv_ime_q8_0_dequant_fragment");
+constexpr llvm::StringLiteral kQ80MatmulHelperName(
+    "tcrv_ime_q8_0_vmadot_matmul");
+
+/// The q8_0 DIRECT int8 DECODE helper (structured C, no asm). Copies one 34-byte
+/// ggml q8_0 block ([fp16 d][32 int8 quants]) into a 32-int8 4x8 MAC fragment. The
+/// fp16 scale `d` is NOT applied (a separate float fold), so this is a PURE
+/// integer transform and the fragment feeds the int8->int32 vmadot exactly.
+std::string q80DequantHelperBody() {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.decode_core=" << kQ80DequantHelperName
+     << " decode_model=q8_0_direct_int8 qk=32 weight_block_stride=34 "
+        "weight_quant_byte_offset=2\n";
+  os << "static inline void " << kQ80DequantHelperName
+     << "(const uint8_t *blk, int8_t *out) {\n";
+  os << "  const int8_t *qs = (const int8_t *)(blk + 2); // past the 2-byte fp16 d\n";
+  os << "  for (int j = 0; j < 32; ++j) {\n";
+  os << "    out[j] = qs[j];\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+/// The tiled q8_0 int8->int32 GEMM helper (the copy-adapt sibling of
+/// q40MatmulHelperBody). Per 4x4 output tile (mi,nj) it reduces over the K/8
+/// contraction blocks: DECODE the q8_0 weight block (direct int8) into an int8 4x8
+/// fragment, run the FOUNDATION-validated `vmadot` MAC on it and the pre-packed
+/// int8 activation fragment, and accumulate the 4x4 int32 fragment into the tile's
+/// int32 accumulator (int32-EXACT). The weight is pre-packed FRAGMENT-MAJOR (one
+/// 34-byte q8_0 block per 4x8 MAC fragment). `vmadotHelperName` is the FOUNDATION
+/// single-fragment MAC helper this reuses.
+std::string q80MatmulHelperBody(llvm::StringRef vmadotHelperName) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.asm_leaf=" << vmadotHelperName
+     << " tiled_q8_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
+        "weight_format=q8_0 int32_exact=1\n";
+  os << "static inline void " << kQ80MatmulHelperName
+     << "(const int8_t *Apack, const uint8_t *Bq8, int32_t *C,\n";
+  os << "    long M, long N, long K) {\n";
+  os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
+  os << "  const long q80_block_bytes = 34; // fp16 d + 32 int8 quant bytes\n";
+  os << "  for (long mi = 0; mi < mt; ++mi) {\n";
+  os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
+  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
+  os << "      const uint8_t *Bcol = Bq8 + (long)nj * kt * q80_block_bytes;\n";
+  os << "      int32_t acc[16];\n";
+  os << "      for (int r = 0; r < 16; ++r) acc[r] = 0;\n";
+  os << "      for (long kf = 0; kf < kt; ++kf) {\n";
+  os << "        int8_t Bframe[32];\n";
+  os << "        int32_t frag[16];\n";
+  os << "        " << kQ80DequantHelperName
+     << "(Bcol + kf * q80_block_bytes, Bframe);\n";
+  os << "        " << vmadotHelperName
+     << "(Arow + kf * 32, Bframe, frag);\n";
+  os << "        for (int r = 0; r < 16; ++r) acc[r] += frag[r];\n";
+  os << "      }\n";
+  os << "      for (long r = 0; r < 4; ++r)\n";
+  os << "        for (long c = 0; c < 4; ++c)\n";
+  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += acc[r * 4 + c];\n";
+  os << "    }\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
 /// Lowers a selected IME MAC boundary (`tcrv.ime.mma` signed / `tcrv.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
 ///   #include <stdint.h>
@@ -874,6 +957,126 @@ public:
   }
 };
 
+/// Lowers the FORMAT-KEYED q8_0 IME GEMM tile (`tcrv.ime.q8_0_matmul_tile`) into a
+/// standalone EmitC module (the FLAT-int8 copy-adapt sibling of
+/// IMEQ40MatMulTileToEmitCFunc). This op OWNS a typed region carrying the
+/// DECOMPOSED q8_0-decode (DIRECT int8 read) + vmadot MAC bricks; emission reads
+/// the region by OP-IDENTITY (I5) -- the tcrv.ime.q8_0_dequant_core brick keys the
+/// q8_0 direct-read helper, the tcrv.ime.vmadot_mac_leaf brick keys the validated
+/// vmadot MAC leaf -- never a q4/q8 name string. The int32 output is the
+/// int32-EXACT MAC accumulator (the K1-seal bit-exact contract).
+class IMEQ80MatMulTileToEmitCFunc final
+    : public mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp> {
+public:
+  using mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp>::OpConversionPattern;
+  using OpAdaptor =
+      typename mlir::OpConversionPattern<tcrv::ime::Q80MatMulTileOp>::OpAdaptor;
+
+  mlir::LogicalResult
+  matchAndRewrite(tcrv::ime::Q80MatMulTileOp tile, OpAdaptor /*adaptor*/,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::MLIRContext *context = tile.getContext();
+    mlir::Location loc = tile.getLoc();
+
+    // Read the typed region by OP-IDENTITY (I5): the decode core keys the q8_0
+    // direct-read helper, the vmadot leaf keys the validated MAC leaf. Absence of
+    // either brick is a fail-closed match failure (never emit an opaque body).
+    mlir::Block &body = tile.getBody().front();
+    auto dequantCores = body.getOps<tcrv::ime::Q80DequantCoreOp>();
+    auto macLeaves = body.getOps<tcrv::ime::VmadotMacLeafOp>();
+    if (dequantCores.empty() || macLeaves.empty())
+      return rewriter.notifyMatchFailure(
+          tile, "q8_0 tile region must carry the q8_0_dequant_core + "
+                "vmadot_mac_leaf bricks");
+    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot).
+    llvm::StringRef vmadotHelperName = kVmadotHelperName;
+
+    auto variant =
+        tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    auto sourceKernel =
+        tile->getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!variant || !sourceKernel)
+      return rewriter.notifyMatchFailure(
+          tile, "IME q8_0 tile requires selected_variant and source_kernel "
+                "attributes");
+    std::string functionName =
+        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+
+    int64_t matM = tile.getMatM();
+    int64_t matN = tile.getMatN();
+    int64_t matK = tile.getMatK();
+
+    llvm::StringRef sourceOpName = tile.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = tile.getTCRVEmitCLowerableSourceRole();
+
+    auto module = tile->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return rewriter.notifyMatchFailure(tile, "IME q8_0 tile has no module");
+
+    auto i8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const int8_t"));
+    auto u8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const uint8_t"));
+    auto i32PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "int32_t"));
+    auto longType = emitc::OpaqueType::get(context, "long");
+
+    // Module-scope prologue: include + the validated vmadot MAC leaf + the q8_0
+    // decode helper + the tiled q8_0 kernel.
+    {
+      mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
+                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(loc, vmadotHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, q80DequantHelperBody());
+      rewriter.create<emitc::VerbatimOp>(
+          loc, q80MatmulHelperBody(vmadotHelperName));
+    }
+
+    mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+    rewriter.setInsertionPointToEnd(module.getBody());
+
+    // Exported wrapper: extern "C" void <name>(const int8_t* Apack,
+    // const uint8_t* Bq8, int32_t* C).
+    llvm::SmallVector<mlir::Type, 3> paramTypes{i8PtrType, u8PtrType,
+                                                i32PtrType};
+    mlir::FunctionType functionType =
+        rewriter.getFunctionType(paramTypes, /*results=*/{});
+    llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
+    funcAttrs.push_back(rewriter.getNamedAttr(
+        "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+    auto func = rewriter.create<emitc::FuncOp>(loc, functionName, functionType,
+                                               funcAttrs);
+    mlir::Block *entry = func.addEntryBlock();
+    rewriter.setInsertionPointToStart(entry);
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, routeSourceComment(sourceOpName, sourceRole));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(sourceOpName, sourceRole, kQ80MatmulHelperName));
+
+    // Structured dataflow into the leaf: call_opaque on the Apack/Bq8/C block
+    // args plus the M/N/K problem-dim constants (compile-time variant facts).
+    llvm::SmallVector<mlir::Value, 6> callOperands;
+    for (mlir::BlockArgument arg : entry->getArguments())
+      callOperands.push_back(arg);
+    for (int64_t dim : {matM, matN, matK}) {
+      auto dimAttr = emitc::OpaqueAttr::get(context, std::to_string(dim));
+      auto constOp = rewriter.create<emitc::ConstantOp>(loc, longType, dimAttr);
+      callOperands.push_back(constOp.getResult());
+    }
+    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{},
+                                         kQ80MatmulHelperName, callOperands);
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(tile);
+    return mlir::success();
+  }
+};
+
 class IMEBackendEmissionDriver final
     : public tcrvemitc::TypedBackendEmissionDriver {
 public:
@@ -887,7 +1090,8 @@ public:
     target.addIllegalOp<tcrv::ime::MMAOp, tcrv::ime::MMAUOp,
                         tcrv::ime::MMASUOp, tcrv::ime::MMAUSOp,
                         tcrv::ime::MMASlideOp, tcrv::ime::MatMulOp,
-                        tcrv::ime::Q40MatMulTileOp>();
+                        tcrv::ime::Q40MatMulTileOp,
+                        tcrv::ime::Q80MatMulTileOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -898,7 +1102,8 @@ public:
                  IMEMACToEmitCFunc<tcrv::ime::MMAUOp>,
                  IMEMACToEmitCFunc<tcrv::ime::MMASUOp>,
                  IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>, IMEMACSlideToEmitCFunc,
-                 IMEMatMulToEmitCFunc, IMEQ40MatMulTileToEmitCFunc>(
+                 IMEMatMulToEmitCFunc, IMEQ40MatMulTileToEmitCFunc,
+                 IMEQ80MatMulTileToEmitCFunc>(
         typeConverter, patterns.getContext());
   }
 

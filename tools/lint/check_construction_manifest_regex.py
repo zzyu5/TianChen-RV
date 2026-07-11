@@ -240,19 +240,25 @@ def classify_shape(tokens):
             return None, f"repack_{mb.group(1)}_loop missing a *_dot / fused *_core token"
         return f"repack_{mb.group(1)}_loop", "typed repack GEM{V,M} loop body/yield"
 
-    # IME q4_0 matmul-tile shape (G4): the tcrv.ime.q4_0_matmul_tile region OWNS the
-    # body (first token) + is terminated by tcrv.ime.q4_0_matmul_tile_yield (last
-    # token), and carries BOTH decomposed bricks by op-identity: the q4_0_dequant_core
-    # (offset-binary nibble decode) AND the vmadot_mac_leaf (the FOUNDATION-validated
-    # int8->int32 MAC). Kept NARROW: a body/yield-only region (bricks missing) or a
-    # region missing either the decode or the MAC brick is rejected. NOT an RVV loop --
-    # the RVV shapes above are untouched.
-    if first == "q4_0_matmul_tile" and last == "q4_0_matmul_tile_yield":
-        if "q4_0_dequant_core" not in tokens:
-            return None, "ime_matmul_tile missing q4_0_dequant_core decode brick"
-        if "vmadot_mac_leaf" not in tokens:
-            return None, "ime_matmul_tile missing vmadot_mac_leaf MAC brick"
-        return "ime_matmul_tile", "typed IME q4_0 matmul-tile region body/yield"
+    # IME matmul-tile shape (G4/G4-M2): a tcrv.ime.<fmt>_matmul_tile region OWNS the
+    # body (first token) + is terminated by tcrv.ime.<fmt>_matmul_tile_yield (last
+    # token), and carries BOTH decomposed bricks by op-identity: the format-keyed
+    # <fmt>_dequant_core decode (q4_0 offset-binary nibble / q8_0 direct int8) AND
+    # the vmadot_mac_leaf (the FOUNDATION-validated int8->int32 MAC, reused across
+    # formats). Kept NARROW: the body-op token and the yield token must name the SAME
+    # format prefix; a body/yield-only region (bricks missing), a region missing
+    # either the decode or the MAC brick, or a decode brick of the WRONG format is
+    # rejected. Only the two board-sealed formats (q4_0, q8_0) are admitted. NOT an
+    # RVV loop -- the RVV shapes above are untouched.
+    IME_TILE_FORMATS = ("q4_0", "q8_0")
+    for fmt in IME_TILE_FORMATS:
+        if first == fmt + "_matmul_tile" and last == fmt + "_matmul_tile_yield":
+            if fmt + "_dequant_core" not in tokens:
+                return None, (f"ime_matmul_tile missing {fmt}_dequant_core "
+                              "decode brick")
+            if "vmadot_mac_leaf" not in tokens:
+                return None, "ime_matmul_tile missing vmadot_mac_leaf MAC brick"
+            return "ime_matmul_tile", f"typed IME {fmt} matmul-tile region body/yield"
 
     # N-operand product_reduce route: straight-line op list, no loop wrapper, terminates in store.
     if last == "store" and not any(t in ALLOWED_WRAPPERS for t in tokens):
@@ -315,7 +321,7 @@ def classify_ime_seal(auto_readout):
     shape, why = classify_shape(tokens)
     if shape != "ime_matmul_tile":
         return False, f"[IME-SEAL] shape {shape or 'none'} != ime_matmul_tile ({why})", None
-    return True, "compliant ([IME-SEAL] q4_0 matmul-tile, board-sealed)", "ime_matmul_tile"
+    return True, f"compliant ([IME-SEAL] {why})", "ime_matmul_tile"
 
 
 def classify_auto_readout(auto_readout):
@@ -493,6 +499,22 @@ def self_test():
         ("[IME-SEAL] wrong wrapper (RVV loop, rejected)",
          ime_seal("typed_flat_block_dot_loop_body+q4_0_dequant_core+vmadot_mac_leaf+"
                   "typed_flat_block_dot_loop_yield"), False),
+        # [IME-SEAL] board-sealed IME q8_0 matmul-tile (G4 M2, the FLAT-int8 sibling).
+        ("[IME-SEAL] q8_0 matmul-tile (board-sealed)",
+         ime_seal("q8_0_matmul_tile+q8_0_dequant_core+vmadot_mac_leaf+"
+                  "q8_0_matmul_tile_yield"), True),
+        ("[IME-SEAL] q8_0 missing decode brick (rejected)",
+         ime_seal("q8_0_matmul_tile+vmadot_mac_leaf+q8_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] q8_0 missing MAC brick (rejected)",
+         ime_seal("q8_0_matmul_tile+q8_0_dequant_core+q8_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] q8_0 body/yield-only, no bricks (rejected)",
+         ime_seal("q8_0_matmul_tile+q8_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] q8_0 mismatched format decode brick (rejected)",
+         ime_seal("q8_0_matmul_tile+q4_0_dequant_core+vmadot_mac_leaf+"
+                  "q8_0_matmul_tile_yield"), False),
+        ("[IME-SEAL] q8_0 mismatched body/yield prefix (rejected)",
+         ime_seal("q8_0_matmul_tile+q8_0_dequant_core+vmadot_mac_leaf+"
+                  "q4_0_matmul_tile_yield"), False),
     ]
     print("-- F-1 construction-manifest shape classifier --")
     for label, ar, expect in cases:

@@ -101,6 +101,10 @@ constexpr llvm::StringLiteral kWeightQuantByteOffsetAttrName(
 constexpr llvm::StringLiteral kQ40DecodeModel("q4_0_offset_binary_nibble");
 constexpr int64_t kQ40BFragmentLanes = 32;
 constexpr int64_t kQ40AccTileLanes = 16;
+// G4 M2: the q8_0 tile reuses the SAME 4x8 int8 fragment / 4x4 int32 tile lane
+// counts (the MAC fragment shape is format-agnostic).
+constexpr int64_t kQ80BFragmentLanes = kQ40BFragmentLanes;
+constexpr int64_t kQ80AccTileLanes = kQ40AccTileLanes;
 
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 
@@ -145,6 +149,18 @@ constexpr llvm::StringLiteral kWeightFormatQ40("q4_0");
 constexpr int64_t kQ40Qk = 32;
 constexpr int64_t kQ40WeightBlockStride = 18;
 constexpr int64_t kQ40WeightQuantByteOffset = 2;
+// G4 M2: the SECOND format-keyed weight format, "q8_0" (FLAT int8). Requested
+// via the SAME ime_weight_format capability property (alongside
+// ime_matmul_shape). The q8_0 weight matrix is decoded (DIRECT int8 read) into
+// the int8 MAC fragment before the vmadot MAC. A weight-FORMAT fact of the SAME
+// capability, NOT a family-name string.
+constexpr llvm::StringLiteral kWeightFormatQ80("q8_0");
+constexpr llvm::StringLiteral kQ80DecodeModel("q8_0_direct_int8");
+// The ggml q8_0 block layout FACTS: fp16 d (2B) + 32 int8 quants (32B) = 34B,
+// 32 weights per block; the int8 quants follow the 2-byte fp16 scale.
+constexpr int64_t kQ80Qk = 32;
+constexpr int64_t kQ80WeightBlockStride = 34;
+constexpr int64_t kQ80WeightQuantByteOffset = 2;
 // The optional SLIDING-WINDOW stride FACT. When the capability carries it as
 // "1"|"2"|"3", the kernel requests the IME1 slide boundary (tcrv.ime.mma_slide)
 // over the SAME 8x8 A-pair MAC fragment with the A read-window shifted DOWN by
@@ -237,6 +253,11 @@ struct IMEMatmulCapability {
   // fact; the q4_0 weight matrix is decoded into the int8 MAC fragment. 0 =>
   // format-agnostic pre-packed int8 matmul.
   bool isQ40Weight = false;
+  // G4 M2: the FORMAT-KEYED q8_0 (FLAT int8) whole-matrix fact. True (only when
+  // isMatmul) when the kernel requests the q8_0 tiled boundary via
+  // ime_weight_format="q8_0"; the q8_0 weight is decoded (direct int8 read) into
+  // the int8 MAC fragment. Mutually exclusive with isQ40Weight.
+  bool isQ80Weight = false;
   // The sliding-window stride FACT (1/2/3) when the kernel requests the IME1
   // slide boundary; 0 => non-slide MAC. Derived from the ime_slide property.
   int64_t slide = 0;
@@ -368,31 +389,36 @@ deriveIMEMatmulCapability(const support::CapabilityDescriptor &capability) {
   llvm::StringRef weightFormat =
       capability.getProperty(kWeightFormatPropertyName).trim();
   if (!weightFormat.empty()) {
-    if (weightFormat != kWeightFormatQ40)
+    if (weightFormat != kWeightFormatQ40 && weightFormat != kWeightFormatQ80)
       return makeIMEPluginError(
           llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
           kWeightFormatPropertyName + "' = '" + weightFormat +
-          "' is outside the modeled IME weight-format envelope (only 'q4_0' is "
-          "modeled in M1; other formats are M2)");
+          "' is outside the modeled IME weight-format envelope (only 'q4_0' and "
+          "'q8_0' are modeled; other formats need their own format-keyed tile)");
     if (!derived.isMatmul)
       return makeIMEPluginError(
           llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
-          kWeightFormatPropertyName +
-          "' (q4_0 format-keyed tile) requires the whole-matrix shape '" +
+          kWeightFormatPropertyName + "' ('" + weightFormat +
+          "' format-keyed tile) requires the whole-matrix shape '" +
           kMatmulShapePropertyName + "'");
     if (derived.signedness != kSignednessSigned)
       return makeIMEPluginError(
           llvm::Twine("capability id '") + kIMECapabilityID + "' property '" +
-          kWeightFormatPropertyName +
-          "' (q4_0) is only modeled for the signed vmadot form (the decoded "
-          "q4_0 quant is signed [-8,7])");
+          kWeightFormatPropertyName + "' ('" + weightFormat +
+          "') is only modeled for the signed vmadot form (the decoded q4_0/q8_0 "
+          "quant is signed)");
+    // Both q4_0 and q8_0 carry qk=32 (32 weights per block); K must partition
+    // into whole blocks (fail-closed: no remainder path).
     if (derived.matK % kQ40Qk != 0)
       return makeIMEPluginError(
-          llvm::Twine("capability id '") + kIMECapabilityID + "' q4_0 mat_k=" +
-          llvm::Twine(derived.matK) +
+          llvm::Twine("capability id '") + kIMECapabilityID + "' " +
+          weightFormat + " mat_k=" + llvm::Twine(derived.matK) +
           " must be a whole multiple of qk=" + llvm::Twine(kQ40Qk) +
-          " (whole q4_0 blocks; no remainder path)");
-    derived.isQ40Weight = true;
+          " (whole quant blocks; no remainder path)");
+    if (weightFormat == kWeightFormatQ40)
+      derived.isQ40Weight = true;
+    else
+      derived.isQ80Weight = true;
   }
 
   // Optional SLIDING-WINDOW stride FACT. Absent/"0" => non-slide MAC (back-compat).
@@ -539,6 +565,12 @@ buildIMEProposal(const VariantProposalRequest &request) {
     proposal.addPluginAttribute(
         mlir::StringAttr::get(context, kWeightFormatVariantAttrName),
         mlir::StringAttr::get(context, kWeightFormatQ40));
+  // G4 M2: likewise record the q8_0 weight-format FACT so the materializer
+  // routes to tcrv.ime.q8_0_matmul_tile (data flow of the derived fact).
+  if (derived->isQ80Weight)
+    proposal.addPluginAttribute(
+        mlir::StringAttr::get(context, kWeightFormatVariantAttrName),
+        mlir::StringAttr::get(context, kWeightFormatQ80));
   return proposal;
 }
 
@@ -794,16 +826,19 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
       request.getCapabilities().lookupProviderByID(kIMECapabilityID);
   bool isMatmul = false;
   bool isQ40Weight = false;
+  bool isQ80Weight = false;
   if (planCapability) {
     if (llvm::Expected<IMEMatmulCapability> planDerived =
             deriveIMEMatmulCapability(*planCapability)) {
       isMatmul = planDerived->isMatmul;
       isQ40Weight = planDerived->isQ40Weight;
+      isQ80Weight = planDerived->isQ80Weight;
     } else
       llvm::consumeError(planDerived.takeError());
   }
   llvm::StringRef boundaryOpName =
       isQ40Weight ? tcrv::ime::Q40MatMulTileOp::getOperationName()
+      : isQ80Weight ? tcrv::ime::Q80MatMulTileOp::getOperationName()
       : isMatmul  ? tcrv::ime::MatMulOp::getOperationName()
                   : singleFragmentBoundaryOpForVariant(request.getVariant());
   out = VariantEmissionPlan::getSupported(
@@ -988,6 +1023,132 @@ llvm::Error IMEExtensionPlugin::materializeSelectedLoweringBoundary(
     return llvm::Error::success();
   }
 
+  // G4 M2: the FORMAT-KEYED q8_0 (FLAT int8) whole-matrix boundary. The
+  // copy-adapt sibling of the q4_0 block above: CONSTRUCT the typed-region
+  // tcrv.ime.q8_0_matmul_tile op carrying the decomposed q8_0-decode (DIRECT int8
+  // read) + vmadot-MAC bricks + the int32 yield. Handled here (early) because it
+  // owns a region the flat OperationState path below cannot build.
+  if (derived->isQ80Weight) {
+    mlir::Location loc = variant.getLoc();
+    mlir::OperationState tileState(
+        loc, tcrv::ime::Q80MatMulTileOp::getOperationName());
+    tileState.addAttribute(kSourceKernelAttrName,
+                           builder.getStringAttr(kernel.getSymName()));
+    tileState.addAttribute(
+        kSelectedVariantAttrName,
+        mlir::FlatSymbolRefAttr::get(context, variant.getSymName()));
+    tileState.addAttribute(kOriginAttrName,
+                           builder.getStringAttr(kIMEPluginName));
+    tileState.addAttribute(
+        kRoleAttrName,
+        builder.getStringAttr(stringifyVariantEmissionRole(request.getRole())));
+    tileState.addAttribute(kStatusAttrName,
+                           builder.getStringAttr(kRoleOpBoundaryStatusValue));
+    tileState.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
+    tileState.addAttribute(kIMEOpAttrName, builder.getStringAttr(derived->imeOp));
+    tileState.addAttribute(kElemInBitsAttrName,
+                           builder.getI64IntegerAttr(derived->elemInBits));
+    tileState.addAttribute(kAccumBitsAttrName,
+                           builder.getI64IntegerAttr(derived->accumBits));
+    tileState.addAttribute(kMacMAttrName,
+                           builder.getI64IntegerAttr(derived->macM));
+    tileState.addAttribute(kMacNAttrName,
+                           builder.getI64IntegerAttr(derived->macN));
+    tileState.addAttribute(kMacKAttrName,
+                           builder.getI64IntegerAttr(derived->macK));
+    tileState.addAttribute(kMatMAttrName,
+                           builder.getI64IntegerAttr(derived->matM));
+    tileState.addAttribute(kMatNAttrName,
+                           builder.getI64IntegerAttr(derived->matN));
+    tileState.addAttribute(kMatKAttrName,
+                           builder.getI64IntegerAttr(derived->matK));
+    tileState.addAttribute(kWeightFormatAttrName,
+                           builder.getStringAttr(kWeightFormatQ80));
+    tileState.addAttribute(kQkAttrName, builder.getI64IntegerAttr(kQ80Qk));
+    tileState.addAttribute(kWeightBlockStrideAttrName,
+                           builder.getI64IntegerAttr(kQ80WeightBlockStride));
+    tileState.addAttribute(
+        kWeightQuantByteOffsetAttrName,
+        builder.getI64IntegerAttr(kQ80WeightQuantByteOffset));
+    tileState.addAttribute(kAvailableHartsAttrName,
+                           builder.getStringAttr(derived->availableHarts));
+    tileState.addAttribute(
+        kIMEReasonAttrName,
+        builder.getStringAttr(
+            llvm::Twine("capability-derived IME1 int8->int32 ") + derived->imeOp +
+            " FORMAT-KEYED q8_0 tiled matmul (" + llvm::Twine(derived->matM) +
+            "x" + llvm::Twine(derived->matN) + "x" + llvm::Twine(derived->matK) +
+            ") over the MAC fragment from march xsmtvdotii + VLEN/SEW; the q8_0 "
+            "weight is decoded (direct int8 read) into the int8 MAC fragment"));
+    tileState.addRegion();
+    auto tile = llvm::cast<tcrv::ime::Q80MatMulTileOp>(builder.create(tileState));
+
+    // Construct the typed region: the innermost contraction-block tile body. Entry
+    // args = block_index (index), the loaded 4x8 int8 activation fragment
+    // (vector<32xi8>), and the carried-IN 4x4 int32 accumulator tile
+    // (vector<16xi32>). The region carries exactly the three decomposed bricks.
+    auto i8FragType = mlir::VectorType::get({kQ80BFragmentLanes},
+                                            builder.getI8Type());
+    auto i32AccType =
+        mlir::VectorType::get({kQ80AccTileLanes}, builder.getI32Type());
+    mlir::Block &body = tile.getBody().emplaceBlock();
+    mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
+    mlir::Value aFragment = body.addArgument(i8FragType, loc);
+    mlir::Value accIn = body.addArgument(i32AccType, loc);
+
+    mlir::OpBuilder::InsertionGuard bodyGuard(builder);
+    builder.setInsertionPointToStart(&body);
+
+    // Brick 1: the q8_0 weight DECODE core (block_index -> decoded int8 B tile).
+    mlir::OperationState dequantState(
+        loc, tcrv::ime::Q80DequantCoreOp::getOperationName());
+    dequantState.addOperands({blockIndex});
+    dequantState.addAttribute("decode_model",
+                              builder.getStringAttr(kQ80DecodeModel));
+    dequantState.addAttribute(kQkAttrName, builder.getI64IntegerAttr(kQ80Qk));
+    dequantState.addAttribute(kWeightBlockStrideAttrName,
+                              builder.getI64IntegerAttr(kQ80WeightBlockStride));
+    dequantState.addAttribute(
+        kWeightQuantByteOffsetAttrName,
+        builder.getI64IntegerAttr(kQ80WeightQuantByteOffset));
+    dequantState.addAttribute("weight_scale_byte_offset",
+                              builder.getI64IntegerAttr(0));
+    dequantState.addTypes({i8FragType});
+    mlir::Operation *dequant = builder.create(dequantState);
+    mlir::Value bFragment = dequant->getResult(0);
+
+    // Brick 2: the vmadot int8->int32 MAC leaf (a, decoded b, acc_in -> acc_out).
+    mlir::OperationState macState(
+        loc, tcrv::ime::VmadotMacLeafOp::getOperationName());
+    macState.addOperands({aFragment, bFragment, blockIndex, accIn});
+    macState.addAttribute(kIMEOpAttrName, builder.getStringAttr(derived->imeOp));
+    macState.addAttribute(kElemInBitsAttrName,
+                          builder.getI64IntegerAttr(derived->elemInBits));
+    macState.addAttribute(kAccumBitsAttrName,
+                          builder.getI64IntegerAttr(derived->accumBits));
+    macState.addAttribute(kMacMAttrName, builder.getI64IntegerAttr(derived->macM));
+    macState.addAttribute(kMacNAttrName, builder.getI64IntegerAttr(derived->macN));
+    macState.addAttribute(kMacKAttrName, builder.getI64IntegerAttr(derived->macK));
+    macState.addTypes({i32AccType});
+    mlir::Operation *mac = builder.create(macState);
+
+    // Terminator: name the carried-out int32 accumulator tile.
+    mlir::OperationState yieldState(
+        loc, tcrv::ime::Q80MatMulTileYieldOp::getOperationName());
+    yieldState.addOperands({mac->getResult(0)});
+    builder.create(yieldState);
+
+    VariantLoweringBoundaryValidationRequest validationRequest(
+        variant, kernel, request.getCapabilities(), request.getRole(), tile);
+    if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+      return error;
+
+    out = VariantLoweringBoundaryResult::getMaterialized(
+        kIMEPluginName, kernel.getSymName(), variant.getSymName(),
+        request.getRole(), tile);
+    return llvm::Error::success();
+  }
+
   // Route to the boundary op matching the DERIVED signedness fact: signed =>
   // tcrv.ime.mma (vmadot), unsigned => tcrv.ime.mma_u (vmadotu), signed_unsigned
   // => tcrv.ime.mma_su (vmadotsu), unsigned_signed => tcrv.ime.mma_us
@@ -1109,11 +1270,15 @@ llvm::Error IMEExtensionPlugin::validateSelectedLoweringBoundary(
   else if (auto q40tile =
                llvm::dyn_cast_if_present<tcrv::ime::Q40MatMulTileOp>(boundaryOp))
     verifierFailed = mlir::failed(q40tile.verify());
+  else if (auto q80tile =
+               llvm::dyn_cast_if_present<tcrv::ime::Q80MatMulTileOp>(boundaryOp))
+    verifierFailed = mlir::failed(q80tile.verify());
   else
     return makeIMEPluginError(
         "selected IME path requires a tcrv.ime.mma, tcrv.ime.mma_u, "
         "tcrv.ime.mma_su, tcrv.ime.mma_us, tcrv.ime.mma_slide, "
-        "tcrv.ime.matmul, or tcrv.ime.q4_0_matmul_tile operation");
+        "tcrv.ime.matmul, tcrv.ime.q4_0_matmul_tile, or "
+        "tcrv.ime.q8_0_matmul_tile operation");
 
   // The ODS verifier (fail-closed, I7) already enforces the int8->int32 MAC
   // envelope of the op's signedness, origin/role/status, and selected-path

@@ -88,6 +88,15 @@ constexpr llvm::StringLiteral kExpectedQ4_0DecodeModel(
 constexpr int64_t kExpectedQ4_0Qk = 32;
 constexpr int64_t kExpectedQ4_0WeightBlockStride = 18;
 constexpr int64_t kExpectedQ4_0WeightQuantByteOffset = 2;
+
+// G4 M2: the format-keyed q8_0 IME GEMM tile facts (the FLAT-int8 sibling of
+// q4_0). The ONLY q8_0 weight format + decode model modeled (fail-closed, I7).
+constexpr llvm::StringLiteral kExpectedQ8_0Format("q8_0");
+constexpr llvm::StringLiteral kExpectedQ8_0DecodeModel("q8_0_direct_int8");
+// ggml q8_0 block: fp16 d (2B) + 32 int8 quants (32B) = 34B, 32 weights/block.
+constexpr int64_t kExpectedQ8_0Qk = 32;
+constexpr int64_t kExpectedQ8_0WeightBlockStride = 34;
+constexpr int64_t kExpectedQ8_0WeightQuantByteOffset = 2;
 // The int8 4x8 MAC fragment carries 32 int8; the int32 4x4 output tile 16 int32.
 constexpr int64_t kIMEBFragmentLanes = 32;
 constexpr int64_t kIMEAccTileLanes = 16;
@@ -137,6 +146,12 @@ bool isAllowedQ4_0TileAttr(llvm::StringRef attrName) {
          attrName == kWeightFormatAttrName || attrName == kQkAttrName ||
          attrName == kWeightBlockStrideAttrName ||
          attrName == kWeightQuantByteOffsetAttrName;
+}
+
+// G4 M2: the q8_0 tile op admits the SAME attribute set as the q4_0 tile (the
+// shared MAC envelope + whole-matrix problem dims + the weight-format facts).
+bool isAllowedQ8_0TileAttr(llvm::StringRef attrName) {
+  return isAllowedQ4_0TileAttr(attrName);
 }
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
@@ -607,6 +622,121 @@ mlir::LogicalResult Q40MatMulTileOp::verify() {
     if (!llvm::isa<Q40DequantCoreOp, VmadotMacLeafOp, Q40MatMulTileYieldOp>(
             nested))
       return emitOpError() << "typed region admits ONLY the decomposed q4_0 "
+                              "dequant / vmadot-leaf / yield bricks; found '"
+                           << nested.getName().getStringRef() << "'";
+  }
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// G4 M2: format-keyed q8_0 IME GEMM tile typed-region verifiers (the FLAT-int8
+// copy-adapt siblings of the q4_0 verifiers above).
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult Q80DequantCoreOp::verify() {
+  // Fail-closed (I7): only the q8_0 DIRECT int8 read decode is modeled.
+  if (getDecodeModel() != kExpectedQ8_0DecodeModel)
+    return emitOpError() << "decode_model must be '" << kExpectedQ8_0DecodeModel
+                         << "' (the only modeled q8_0 weight decode)";
+  if (getQk() != kExpectedQ8_0Qk)
+    return emitOpError() << "qk must be " << kExpectedQ8_0Qk
+                         << " (a ggml q8_0 block carries 32 weights)";
+  if (getWeightBlockStride() != kExpectedQ8_0WeightBlockStride)
+    return emitOpError() << "weight_block_stride must be "
+                         << kExpectedQ8_0WeightBlockStride
+                         << " (fp16 d + 32 int8 quant bytes)";
+  if (getWeightQuantByteOffset() != kExpectedQ8_0WeightQuantByteOffset)
+    return emitOpError() << "weight_quant_byte_offset must be "
+                         << kExpectedQ8_0WeightQuantByteOffset
+                         << " (the int8 quants follow the 2-byte fp16 d)";
+  if (getWeightScaleByteOffset() != 0)
+    return emitOpError()
+           << "weight_scale_byte_offset must be 0 (the fp16 d leads the block)";
+  if (!isIntVectorOfLanes(getBFragment().getType(), kIMEBFragmentLanes, 8))
+    return emitOpError() << "decoded b_fragment must be vector<"
+                         << kIMEBFragmentLanes << "xi8> (the 4x8 int8 MAC "
+                            "fragment; the direct int8 quant fits exactly)";
+  return mlir::success();
+}
+
+mlir::LogicalResult Q80MatMulTileYieldOp::verify() {
+  if (getAccOut().empty())
+    return emitOpError()
+           << "must name at least one carried-out int32 accumulator tile";
+  for (mlir::Value acc : getAccOut())
+    if (!isIntVectorOfLanes(acc.getType(), kIMEAccTileLanes, 32))
+      return emitOpError() << "every carried-out accumulator must be vector<"
+                           << kIMEAccTileLanes << "xi32>";
+  return mlir::success();
+}
+
+llvm::StringRef Q80MatMulTileOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef Q80MatMulTileOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult Q80MatMulTileOp::verify() {
+  // The int8->int32 vmadot MAC envelope + selected-path binding (signed vmadot).
+  if (mlir::failed(verifyIMEMACBoundary(getOperation(), kExpectedSignedIMEOp,
+                                        isAllowedQ8_0TileAttr,
+                                        [this]() { return emitOpError(); })))
+    return mlir::failure();
+
+  // The q8_0 weight-format facts (fail-closed: only q8_0 is modeled here).
+  if (getWeightFormat() != kExpectedQ8_0Format)
+    return emitOpError() << "weight_format must be '" << kExpectedQ8_0Format
+                         << "' (this is the q8_0 format-keyed IME tile)";
+  if (getQk() != kExpectedQ8_0Qk)
+    return emitOpError() << "qk must be " << kExpectedQ8_0Qk;
+  if (getWeightBlockStride() != kExpectedQ8_0WeightBlockStride)
+    return emitOpError() << "weight_block_stride must be "
+                         << kExpectedQ8_0WeightBlockStride;
+  if (getWeightQuantByteOffset() != kExpectedQ8_0WeightQuantByteOffset)
+    return emitOpError() << "weight_quant_byte_offset must be "
+                         << kExpectedQ8_0WeightQuantByteOffset;
+
+  // Whole-matrix problem dims: present, positive, whole multiples of the MAC
+  // fragment (fail-closed: NO remainder path).
+  int64_t matM = getMatM(), matN = getMatN(), matK = getMatK();
+  if (matM <= 0 || matN <= 0 || matK <= 0)
+    return emitOpError() << "problem dims (mat_m/mat_n/mat_k) must be positive";
+  int64_t macM = getMacM(), macN = getMacN(), macK = getMacK();
+  if (matM % macM != 0 || matN % macN != 0 || matK % macK != 0)
+    return emitOpError()
+           << "problem dims must each be a whole multiple of the MAC fragment "
+              "(no remainder path is emitted, I7)";
+  // The K dimension must partition into whole q8_0 blocks (qk=32).
+  if (matK % kExpectedQ8_0Qk != 0)
+    return emitOpError() << "mat_k=" << matK
+                         << " must be a whole multiple of qk=" << kExpectedQ8_0Qk
+                         << " (whole q8_0 blocks; no remainder path)";
+
+  // Fail-closed region SHAPE: the single-block region must be exactly the three
+  // decomposed typed bricks -- q8_0_dequant_core, vmadot_mac_leaf, and the yield
+  // terminator -- and NO opaque hand helper.
+  mlir::Region &body = getBody();
+  if (!body.hasOneBlock())
+    return emitOpError() << "typed region must have exactly one block";
+  mlir::Block &block = body.front();
+  auto dequantCores = block.getOps<Q80DequantCoreOp>();
+  auto macLeaves = block.getOps<VmadotMacLeafOp>();
+  if (std::distance(dequantCores.begin(), dequantCores.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.q8_0_dequant_core weight-decode brick";
+  if (std::distance(macLeaves.begin(), macLeaves.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.vmadot_mac_leaf MAC brick";
+  if (!llvm::isa<Q80MatMulTileYieldOp>(block.getTerminator()))
+    return emitOpError() << "typed region must be terminated by "
+                            "tcrv.ime.q8_0_matmul_tile_yield";
+  // No brick outside the three-op decomposed vocabulary (anti-opaque).
+  for (mlir::Operation &nested : block) {
+    if (!llvm::isa<Q80DequantCoreOp, VmadotMacLeafOp, Q80MatMulTileYieldOp>(
+            nested))
+      return emitOpError() << "typed region admits ONLY the decomposed q8_0 "
                               "dequant / vmadot-leaf / yield bricks; found '"
                            << nested.getName().getStringRef() << "'";
   }

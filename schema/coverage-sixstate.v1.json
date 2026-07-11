@@ -703,11 +703,11 @@
    "op": "gemm_tile",
    "format": "q8_0",
    "engine": "ime",
-   "state": "absent",
-   "m4_class": "blocked-on-IME",
-   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 4, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 (IME x{q4_0,q8_0,q4_K} 逐名). IME 战役解锁前分子暂空. In-denominator, NOT certified.",
-   "reeval_condition": "the IME campaign lands the format-agnostic MMAOp prefill GEMM tile covering q8_0 (constructed via the common pipeline, bit-exact on ssh k1).",
-   "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+   "state": "constructed",
+   "m4_class": "certified",
+   "auto_readout": "[IME-SEAL] G4 M2 k1 silicon seal (q8_0@ime GEMM tile, FLAT-int8 copy-adapt sibling of q4_0): constructed (STRONG); realized-body manifest=q8_0_matmul_tile+q8_0_dequant_core+vmadot_mac_leaf+q8_0_matmul_tile_yield; board_seal=k1 SpacemiT X60 taskset -c 0-3, int32 0-diff 64/64 tiles + 512/512 decode int8 quants bit-exact (no epsilon) vs ZERO-MODEL plain-GEMM ref, objdump golden vmadot=0xe210312b at leaf (test/Target/IME/q8-0-matmul-tile-int32-k1seal.c); opaque_helper=false",
+   "anchor": "IME q8_0_matmul_tile region CONSTRUCTED on the common pipeline (tcrv.ime.q8_0_matmul_tile OWNS the typed region carrying the decomposed q8_0_dequant_core weight-decode brick + the FOUNDATION-validated vmadot_mac_leaf int8->int32 MAC brick, REUSED verbatim from q4_0, + the q8_0_matmul_tile_yield terminator; emission reads the region by OP-IDENTITY, IMEBackendEmissionDriver.cpp IMEQ80MatMulTileToEmitCFunc) -- the format-KEYED q8_0 IME GEMM tile (NOT the format-agnostic MMAOp). BOARD-SEALED bit-exact on ssh k1 (real SpacemiT X60): the emitter-verbatim real vmadot leaf reduces the tiled int32 MAC 0-diff vs the ZERO-MODEL plain-GEMM reference.",
+   "note": "G4 M2 K1 SILICON SEAL COMPLETE (blocked-on-IME -> certified; the format-keyed q8_0 IME GEMM tile is constructed via the common pipeline, bit-exact on ssh k1). q8_0 is FLAT int8 (ggml block = fp16 d + int8 qs[32] = 34 bytes), so the decode is a DIRECT int8 read (no nibble unpack, no offset-binary centering) -- strictly simpler than q4_0; the direct int8 quant is the COMPLETE integer content of q8_0 (only the per-block fp16 scale d fold remains, a separate downstream epilogue exactly as q4_0). The vmadot MAC leaf is REUSED verbatim from q4_0 (its validated envelope already admits |q8_0 quant| <= 127). Construction: new ODS q8_0_dequant_core + q8_0_matmul_tile + q8_0_matmul_tile_yield (IMEOps.td) + fail-closed verifiers (IMEDialect.cpp) + deriveIMEMatmulCapability accepts ime_weight_format=q8_0 (IMEExtensionPlugin.cpp) + IMEQ80MatMulTileToEmitCFunc op-identity emitter (IMEBackendEmissionDriver.cpp); host int32-EXACT oracle (test/Target/IME/q8-0-matmul-tile-int32-oracle.c) 512/512 decode + 64/64 int32 MAC tiles bit-exact vs independent ZERO-MODEL plain-GEMM ref. Board seal replaced the host scalar shim with the emitter-verbatim real vmadot leaf (encoding 0xe210312b) and validated on real X60 silicon: 512/512 q8_0 decode int8 quants bit-exact AND 64/64 int32 MAC tiles bit-exact (no epsilon; int32 MAC is exact, max|C|=102040 no overflow), objdump confirming vmadot v2,v0,v1=0xe210312b at the leaf. Seal source test/Target/IME/q8-0-matmul-tile-int32-k1seal.c (byte-identical to the oracle modulo the scalar->real-vmadot leaf swap). This is coverage/representation maturity + a CORRECTNESS silicon seal (NOT a perf/e2e claim; no throughput measured -- [NG-4]). q4_K@ime remains blocked-on-IME (the super-block two-level 6-bit scale/min fold is a new mechanism beyond the q4_0/q8_0 single-decode copy-adapt; needs a dedicated effort)."
   },
   {
    "op": "gemm_tile",
@@ -715,9 +715,9 @@
    "engine": "ime",
    "state": "absent",
    "m4_class": "blocked-on-IME",
-   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 5, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 (IME x{q4_0,q8_0,q4_K} 逐名); [PAT-2]:121 P7=ime ^ shape 键控 (非 format) -> 一个 format-agnostic MMAOp 统一接管三格. IME 战役解锁前分子暂空. In-denominator, NOT certified.",
-   "reeval_condition": "the IME campaign lands the format-agnostic MMAOp prefill GEMM tile covering q4_K (constructed via the common pipeline, bit-exact on ssh k1).",
-   "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
+   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 5, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 (IME x{q4_0,q8_0,q4_K} 逐名). G4 M1b 封 q4_0@ime, G4 M2 封 q8_0@ime (两格 certified); q4_K@ime 需专项、非 q4_0/q8_0 copy-adapt: q4_K 是 super-block K-quant (256 元素/super-block, 4 字节 d/dmin + 12 字节 6-bit 打包 scales/mins + 128 字节 4-bit quants = 144 字节), 完整 dequant = d*Σ_b sc_b*(Σ_{i∈b} A_i q_i) - dmin*Σ_b m_b*(Σ_{i∈b} A_i). vmadot MAC 只算裸 nibble 收缩 Σ A_i q_i; 只封裸 nibble MAC 是 q4_K 的空心表示 (丢掉定义 q4_K 的 per-sub-block scale 加权 + min bias). 忠实的整数核封印需 (a) 6-bit scale/min 位解包 brick, (b) per-sub-block scale 加权累加 (S_scale=Σ sc_b*sumi_b, int32-exact), (c) 激活子块和 asum_b + min bias (S_min=Σ m_b*asum_b, int32-exact) 三个新 typed brick, 之后只剩 d/dmin fp16 fold 作 downstream epilogue (类比 q4_0 的标量 d) — 都超出 vmadot leaf 单解码 copy-adapt, 是 dedicated 专项. In-denominator, NOT certified.",
+   "reeval_condition": "a dedicated q4_K@ime effort constructs the K-quant two-level fold as int32-exact bricks (6-bit scale/min bit-unpack + per-sub-block scale-weighted accumulation S_scale + activation-sub-block-sum min-bias S_min), board-sealed bit-exact on ssh k1 with the d/dmin fp16 fold as the sole deferred float epilogue (mirrors the RVV q4_K kquant_dmin_bsums_min fold, minus the final fp16 fold).",
+   "anchor": "IME q4_K needs a format-keyed tile with the K-quant two-level 6-bit scale/min + min-bias fold; the raw-nibble-only vmadot int32 MAC (the q4_0/q8_0 copy-adapt shape) is an incomplete q4_K representation (new mechanism required, not copy-adapt)"
   },
   {
    "op": "rms_norm",
