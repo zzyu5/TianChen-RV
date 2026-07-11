@@ -28,14 +28,15 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 80/93 = 86.02%**（committed 口径）｜ **★分母 93→91 已用户确认**（bf16/flash_attn 出域·Line D 执行中·落地后 **80/91=87.9%**，q1_0 dequant 建成 81/91=89.0%）｜ **退役路径完全穷尽**（每个 in-code emitter 格已前门构造+认证·旁路 0·RED 0） |
+| C_construct | **certified 81/91 = 89.01%**（★M4 三分类终态达成·committed 6dcb5db4）｜ **M4 全表**：certified 81 · blocked-on-IME 3 · 声明例外 7 · 域外 2 = roster 93 · **recon True · 零未定义格** ｜ 旁路 0 · dispatch-wired 0 · RED 0 ｜ **字面 90% 门 gated 于 IME 立项**（解锁 3 blocked → 84/91=92.3%） |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
 | 矿脉 | **0 可退役格剩余**；absent 13 格全 net-new/aspirational/out-of-scope（见下 M4 收口三步） |
 | sealed Win | **1 · Win-K1-VLEN（★双板方法验证 · RATIFIED 2026-07-10）**：能力驱动方法两板各交付编译器对称 kernel-account e2e 赢——k1 vl=16 vs 真出货 hand-brick **1.085×** + rvv col-outer vs clang-sym block-dot **1.336×**（**方法跨板泛化、非同-kernel 双板**；杠杆各有辖区）；3 caveat 全 resolved；登记册定稿 + 加固报告 |
 
-## M4 收口三步（2026-07-11 用户裁定 · C 改良版 · 一次走完不回门 · 判据全锚 canon 原文·禁"为过门而定义"）
-**certified 80/93=86.02% = byte-exact-by-retirement 路径完全穷尽**（旁路 0 / dispatch-wired 0 / RED 0）。M4 收口按三步走：
+## M4 收口三步（2026-07-11 用户裁定 · C 改良版 · ★三步全部完成 · 一次走完未回门）
+> **★M4 三分类终态达成（6dcb5db4）**：certified 81 · blocked-on-IME 3 · 声明例外 7 · 域外 2 = roster 93 · recon True · **零未定义格**。第一步（分母正名判定书 bf5f7523）→ 用户确认（唯一回门点，已过）→ 第二步（Line D 6dcb5db4 分母 91 + q1_0 翻正 + 6 声明例外 + 终态全表）。字面 90% 门 gated 于 IME 立项（解锁 3 blocked → 92.3%）。
+**certified 80/93=86.02% = byte-exact-by-retirement 路径完全穷尽**（旁路 0 / dispatch-wired 0 / RED 0）。M4 收口按三步走（现全部 ✅）：
 
 **第一步·分母正名核查（judge = canon 条文，不是百分比）** — 在飞 workflow wrh8bpj6d，逐格出具归类判定书（格名/canon 依据/去向）：
 1. bf16 系：float 类型路径而非量化 kernel？若是 → 依 [G-2] 出域，挂"域外声明名单"（永久保留、附依据、可查）。
@@ -56,16 +57,16 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=2 · 各线域不相交·触碰集 diff 已核 · M4 收口第二步执行中）
-- **Line D（coverage 域）· agent a7598eb4**：M4 收口二步执行 —— 分母 93→91（bf16/flash_attn 出域·coverage_metrics）+ q1_0 dequant net-new-do 构造（byte-exact 可证→certified 81 / 否则诚实声明例外）+ 6 gemm_tile 声明例外登记 + M4 三分类终态全表
-- **Line E（退役账本域）· agent a5b48d51**：退役账本收口 —— .td RETIRED NOTE 判合格明文 + 档3 六格补建 monolith ledger（四要件·git ref）+ ★RETIRED-INDEX 生成脚本（.td+JSON 合并只读单一查询点）+ CI 校验"一切已退役格 ⊆ 索引且四要件非空"
-- ✅ 本轮已收：**[SEL-1-T5] cost-model 能力先验（estimateVariantCost 常量分→capability-derived·消能力盲·P7 enabler·2942f603）** · **[Line A] M4 分母正名判定书（红队 0 改判·★anti-gate 铁证·bf5f7523）** · **[Line C] IME gating 报告上桌（N2 CLOSED/M4-linkage·e82195fe）** · **mxfp4 gemm_tile 退役·★旁路清零（91aafd23）** · tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
+## 在飞（★当前并行度 N=0 · 五并行线 A/B/C/D/E 全落 · 下一临界路径 = IME 立项[必问·新战役]）
+- **无活动线**：M4 收口三步全部完成（分母正名→确认→三分类终态达成）；退役账本收口完备；SEL-1-T5 + IME 报告上桌全落。下一步 = **IME 战役立项**（必问·新战役·待用户裁；报告已上桌·就绪度满·SEL-1-T5 已 enable·= 字面 90% + C1/C2/C3′ 唯一临界路径）。
+- ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
+- ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
 
 ## 排队（主线区 · 顺序即优先级 · 2026-07-11 M4 收口裁定重排）
 1. ~~iq2-grid/矿脉/tq/mxfp4 退役·★旁路清零~~ ✅ · ~~SEL-1-T5 零 static_order + cost-model 能力先验~~ ✅ · ~~CERT-FD 全闭合~~ ✅ · ~~[M4 收口·一] 分母正名核查判定书~~ ✅（红队 0 改判·anti-gate 铁证）· ~~IME gating 报告上桌~~ ✅
 2. ~~[M4 收口·一] 用户确认（分母 93→91 + 轴B 两问 + 索引件）~~ ✅（★唯一回门点已过·此后不回门）
-3. **[M4 收口·二] 二步收口执行**（在飞 Line D a7598eb4：分母→91 + q1_0 dequant + 6 声明例外 + 三分类全表）‖ **退役账本收口**（在飞 Line E a5b48d51：档3 补建 + RETIRED-INDEX + CI）
-4. **IME 战役立项**（报告已上桌 · 触发满足 · N3 perf 半边 + blocked-on-IME 3 格解锁 = **M4 真正 100% 必经、与收口合流**）
+3. ~~[M4 收口·二] 二步收口执行（Line D 6dcb5db4：分母→91 + q1_0 翻正 81 + 6 声明例外 + 三分类终态全表）‖ 退役账本收口（Line E 0e3edba1：档3 补建 + RETIRED-INDEX + CI）~~ ✅（★M4 三分类终态达成·零未定义格）
+4. **★IME 战役立项**（必问·新战役·下一临界路径 · 报告已上桌 6dcb5db4·就绪度满·SEL-1-T5 已 enable · N3 perf 半边 + blocked-on-IME 3 格解锁 = **字面 90% + C1/C2/C3′ 唯一临界路径、与收口合流**）
 5. **[X-SCALAR]/zvfh**（C2 从 1 点→曲线的唯一路径 · 按 [X-1] 顺序）
 6. **[RENAME] 改名会话**（单独会话）
 7. **矿脉/net-new 余格**（按第二步裁定的最小批次执行、禁凑数格）
