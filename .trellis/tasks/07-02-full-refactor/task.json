@@ -36,7 +36,13 @@
     "07-09-G3-selector",
     "07-09-B-dequant-family",
     "07-09-G3-e2e-seal",
-    "07-09-G3-minterm-fix"
+    "07-09-G3-minterm-fix",
+    "07-11-G5-wiring",
+    "07-11-mustask-docs-canon-marker",
+    "07-11-mustask-xsm4-300-caliber",
+    "07-11-mustask-xsm0-grade-flip",
+    "07-11-mustask-t2-anchor-drift",
+    "07-11-mustask-c5-o-retire"
   ],
   "parent": null,
   "relatedFiles": [],
