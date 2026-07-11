@@ -3,7 +3,7 @@
   "name": "G5-M2-qk-tracer",
   "title": "G5-M2 L-接线② q4_K 曳光弹(首格·验 scaffold 建法)",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "claude",
   "assignee": "claude",
   "createdAt": "2026-07-12",
-  "completedAt": null,
+  "completedAt": "2026-07-12",
   "branch": null,
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-11-G5-wiring",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "correctness-carrier GREEN·perf<parity yellow·维持 3/84·[GAP-Q4K-VLEN128]·a7cacf68",
   "meta": {}
 }
