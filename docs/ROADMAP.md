@@ -50,11 +50,11 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 | T3（格×杠杆对位） | 活跃 T3_A=41 行/T3_B=7 行·**真 measured-symmetric-fair 仅 iq/tq 8 行全 LOSS**·余 stale/INVALID/撤回/n_a | FLAT 4 格零对位 · K-quant 全族 5 格 kernel 账撤回→对称重填 · dequant24/quantize3 流式未测 |
 | T3p（模式消融） | **0 行（仅模板）** | P1/P2/P2b/P4/P7 逐条配对待系统化 |
 | T4b（选择器四配置消融） | **0 行**（`t4b-m*/` 是 minterm/dispatch tracer 非消融表） | 矩阵静默落败复现/消失专项（M0 falsifier 起点） |
-| T5b（2×2 范式×布局×M） | **0 行** | G4-M3 在飞填 |
-| T5c（M* 写回先验闭环） | **0 行** | G4-M3 产出 |
-| T5d（厂商路径对照） | **0 行** | G4-M3 附带 |
+| T5b（2×2 范式×布局×M） | **骨架起步·q4_0@ime 首批行**（a9d7a9c6·6 cell·M{1..512}·k1·ZERO-MODEL 闸） | 铺 q8_0/q4_K@ime·GAP 关闭后重测 |
+| T5c（M* 写回先验闭环） | **staged 提案**（MANIFEST·prefill M≥4 偏矩阵范式·decode M=1 roofline parity） | canon·必问②·待用户裁（触碰 selector cost-model 先验）|
+| T5d（厂商路径对照） | **0 行·defer** | 未跑（诚实） |
 | T6（整模型 e2e 分相双板） | **1 行**（kquant transmission=projection 非实测·BLOCKED 3/8 门） | col-outer+vl16 修复后双板重跑 · q4_0 e2e 落 T6 分相行 |
-| IME 3 格吞吐 | **0**（结构 certified 零 perf） | T5b 产出 |
+| IME 3 格吞吐 | **范式优势板上已证**（compute-account ~2× prefill·M3 a9d7a9c6）·但 as-emitted LOSS 4× | ★**[GAP-IME-LEAF-PIPELINE]**：emitter `macHelperBody` 发寄存器驻留批处理叶子（单 vsetvli/只存一次）→ 4× 败翻 ~2× 胜 → perf-covered +3（高杠杆·类比 K-quant repack tiling） |
 | T4a（归因 JSONL） | **absent** | 未建 |
 > **头号定位债**（AUDIT）：缺"五大件→目录"顶层映射（[RENAME] R1）· 前门无专属目录（R3·最难找）· RVV 插件 ~36 文件（R2）。清理清单 C1-C11（35 issue·只列不删·过 RETIRED-INDEX 闸）见 `docs/reports/2026-07-11-TEMPLATE-AUDIT-structure.md`。
 
@@ -93,10 +93,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · G4-M3 · 串行理由=测量总攻第一战·铺面①-⑤ 板攒批顺序在后·[RENAME+AUDIT 清理] 排 G4 后）
-- **G4-M3（IME 范式测量·总攻第一战·board+selector 域）· agent a41825ca**：T5b 2×2 范式×布局×M 扫描{1..512}·k1·双账本+八门+对手探针·M* 写回 P7 先验（T5c 闭环）·T5d 厂商对照·[NG-4] 方法学名义。
-- ✅ 本轮已收：**[TEMPLATE-AUDIT]（f1afb157·★perf-covered=1/84=1.19% 诚实起点·结构审计五大件定位度·清理清单 C1-C11 只列不删·测量欠账表精填·[RENAME] R1-R7 合并建议）**
-- ✅ **★★G4 IME GEMM 三格全 silicon-sealed（结构轴·零 perf 数·待 T5b 填）**：q4_0@ime（字面门 90.11%）+ q8_0@ime（91.21%）+ q4_K@ime（74ffc575·92.31% 真 100%·反空心 verifier）·首个自有 IME GEMM 全家族。
+## 在飞（★当前并行度 N=0 · G4-M3 收 · 下一步待定：[GAP-IME-LEAF-PIPELINE] 修 / 覆盖式铺面① / T5c 裁）
+- **无活动线**。G4-M3 已收（a9d7a9c6）。下一测量总攻步待用户/我定：① 修 [GAP-IME-LEAF-PIPELINE]（emitter 发批处理叶子→IME 3 格 4× 败翻 ~2× 胜→perf-covered +3·高杠杆）② 覆盖式铺面①（FLAT 对位·用户 plan 序）③ T5c 写回先验裁（canon·必问②）。
+- ✅ 本轮已收：**[G4-M3] IME 范式测量 T5b 骨架（a9d7a9c6·★[GAP-IME-LEAF-PIPELINE] 具名机制·perf-covered 仍 1/84 诚实·对手=SELF 八门未启·T5c staged 提案待裁）** · **[TEMPLATE-AUDIT]（f1afb157·perf-covered=1/84 基线·结构审计·清理清单 C1-C11）**
+- ✅ **★★G4 IME GEMM 三格全 silicon-sealed（结构轴·q4_0/q8_0/q4_K@ime·首个自有 IME GEMM 全家族）·范式优势板上已证（compute-account ~2×）卡 [GAP-IME-LEAF-PIPELINE] emitter 成熟度**
 - ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
 - ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
 
