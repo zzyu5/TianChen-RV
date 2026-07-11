@@ -1,0 +1,72 @@
+# G4-M3 T5b q4_0@ime paradigm-lever  phase=matmul(prefill M-sweep)+GEVM(M=1)
+# board=k1(SpacemiT X60)  VLEN=256bit  harts_pinned=0-3(taskset)
+# format=q4_0@ime  N=256 K=256  gates=structural-sealed(0perf)  ledger=KERNEL(compiler-symmetric)+SYSTEM
+# paradigms: IME-matrix(vmadot 0xe210312b) vs RVV-vector(rvv-1.0 intrinsics)
+# opponent-identity: SELF(our RVV-vector construction) -- range-vs-range ablation, NOT vs-ggml, NO eight-gate release
+# both-ranges-compiler: k1 SpacemiT gcc -O2 -march=rv64gcv_xsmtvdotii1p0 (SAME binary => kernel-symmetric)
+# k1-shipped-baseline-compiler: clang-18 (not exercised here; no vs-shipped claim)
+# NG-4: methodology framing (paradigm lever / crossover M*), no 'IME X-times' headline, no e2e beat
+# ZERO-MODEL: all cells x all M are int32-EXACT vs plain-GEMM reference (0-diff)
+# self-check(M=64,Cell3,3x): 1542197/1457155/1460864 ns  spread=5.84%  NOISY(record+interpret with care)
+# ratio column = ns_per_gemm / Cell1b(register-resident IME) = fair matrix baseline; <1 => faster than batched-IME
+M,M_ime_padded,cell,paradigm,layout,ns_per_gemm_median,macs,ratio_vs_Cell1b
+1,4,Cell1,IME-matrix-leaf,tiled,138436,65536,8.487
+1,4,Cell1b,IME-matrix-batched,tiled,16311,65536,1.000
+1,4,Cell2,RVV-vector,tiled,620745,65536,38.057
+1,4,Cell3,RVV-vector,vector-opt-perrow,21156,65536,1.297
+1,4,Cell3b,RVV-vector,vector-opt-mr4-i16w,21187,65536,1.299
+1,4,Cell3c,RVV-vector,vector-opt-mr4-i8w,25205,65536,1.545
+2,4,Cell1,IME-matrix-leaf,tiled,138519,131072,8.528
+2,4,Cell1b,IME-matrix-batched,tiled,16242,131072,1.000
+2,4,Cell2,RVV-vector,tiled,620704,131072,38.216
+2,4,Cell3,RVV-vector,vector-opt-perrow,42463,131072,2.614
+2,4,Cell3b,RVV-vector,vector-opt-mr4-i16w,42478,131072,2.615
+2,4,Cell3c,RVV-vector,vector-opt-mr4-i8w,50181,131072,3.090
+4,4,Cell1,IME-matrix-leaf,tiled,138478,262144,8.509
+4,4,Cell1b,IME-matrix-batched,tiled,16275,262144,1.000
+4,4,Cell2,RVV-vector,tiled,620870,262144,38.149
+4,4,Cell3,RVV-vector,vector-opt-perrow,85176,262144,5.234
+4,4,Cell3b,RVV-vector,vector-opt-mr4-i16w,31309,262144,1.924
+4,4,Cell3c,RVV-vector,vector-opt-mr4-i8w,38124,262144,2.342
+8,8,Cell1,IME-matrix-leaf,tiled,278477,524288,8.597
+8,8,Cell1b,IME-matrix-batched,tiled,32393,524288,1.000
+8,8,Cell2,RVV-vector,tiled,1240573,524288,38.298
+8,8,Cell3,RVV-vector,vector-opt-perrow,170332,524288,5.258
+8,8,Cell3b,RVV-vector,vector-opt-mr4-i16w,61588,524288,1.901
+8,8,Cell3c,RVV-vector,vector-opt-mr4-i8w,75905,524288,2.343
+16,16,Cell1,IME-matrix-leaf,tiled,557370,1048576,8.608
+16,16,Cell1b,IME-matrix-batched,tiled,64749,1048576,1.000
+16,16,Cell2,RVV-vector,tiled,2491397,1048576,38.478
+16,16,Cell3,RVV-vector,vector-opt-perrow,342748,1048576,5.293
+16,16,Cell3b,RVV-vector,vector-opt-mr4-i16w,122999,1048576,1.900
+16,16,Cell3c,RVV-vector,vector-opt-mr4-i8w,150624,1048576,2.326
+32,32,Cell1,IME-matrix-leaf,tiled,1112283,2097152,8.553
+32,32,Cell1b,IME-matrix-batched,tiled,130040,2097152,1.000
+32,32,Cell2,RVV-vector,tiled,4979836,2097152,38.295
+32,32,Cell3,RVV-vector,vector-opt-perrow,688911,2097152,5.298
+32,32,Cell3b,RVV-vector,vector-opt-mr4-i16w,247477,2097152,1.903
+32,32,Cell3c,RVV-vector,vector-opt-mr4-i8w,302248,2097152,2.324
+64,64,Cell1,IME-matrix-leaf,tiled,2221399,4194304,8.567
+64,64,Cell1b,IME-matrix-batched,tiled,259310,4194304,1.000
+64,64,Cell2,RVV-vector,tiled,9947422,4194304,38.361
+64,64,Cell3,RVV-vector,vector-opt-perrow,1385531,4194304,5.343
+64,64,Cell3b,RVV-vector,vector-opt-mr4-i16w,498412,4194304,1.922
+64,64,Cell3c,RVV-vector,vector-opt-mr4-i8w,616954,4194304,2.379
+128,128,Cell1,IME-matrix-leaf,tiled,4435257,8388608,8.555
+128,128,Cell1b,IME-matrix-batched,tiled,518455,8388608,1.000
+128,128,Cell2,RVV-vector,tiled,19906136,8388608,38.395
+128,128,Cell3,RVV-vector,vector-opt-perrow,2787812,8388608,5.377
+128,128,Cell3b,RVV-vector,vector-opt-mr4-i16w,1032242,8388608,1.991
+128,128,Cell3c,RVV-vector,vector-opt-mr4-i8w,1265531,8388608,2.441
+256,256,Cell1,IME-matrix-leaf,tiled,8901722,16777216,8.514
+256,256,Cell1b,IME-matrix-batched,tiled,1045534,16777216,1.000
+256,256,Cell2,RVV-vector,tiled,39832272,16777216,38.098
+256,256,Cell3,RVV-vector,vector-opt-perrow,5736872,16777216,5.487
+256,256,Cell3b,RVV-vector,vector-opt-mr4-i16w,2140859,16777216,2.048
+256,256,Cell3c,RVV-vector,vector-opt-mr4-i8w,2609063,16777216,2.495
+512,512,Cell1,IME-matrix-leaf,tiled,17793653,33554432,8.402
+512,512,Cell1b,IME-matrix-batched,tiled,2117900,33554432,1.000
+512,512,Cell2,RVV-vector,tiled,79717835,33554432,37.640
+512,512,Cell3,RVV-vector,vector-opt-perrow,11659284,33554432,5.505
+512,512,Cell3b,RVV-vector,vector-opt-mr4-i16w,4415549,33554432,2.085
+512,512,Cell3c,RVV-vector,vector-opt-mr4-i8w,5318458,33554432,2.511
