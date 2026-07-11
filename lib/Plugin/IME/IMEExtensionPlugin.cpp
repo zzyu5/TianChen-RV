@@ -209,8 +209,27 @@ constexpr llvm::StringLiteral kSlidePropertyName("ime_slide");
 //     scalar fallback (1000.0): a leaf MAC boundary beats scalar yet never
 //     displaces a full vectorized kernel.
 // The RVV vector base is defined symmetrically in the RVV plugin.
+//
+// T5c M-AWARE refinement: the whole-matrix GEMM preference is CONDITIONAL on the
+// problem M dimension (rows / tokens) reaching the capability-derived crossover
+// M* = macM (the MAC fragment's row dimension). Below M* the systolic array's
+// rows are underfed (matrix-VECTOR / decode — a MEMORY-BOUND roofline regime);
+// at/above M* the array is fully fed (matrix-matrix / prefill — COMPUTE-BOUND).
+// The T5b K1-silicon paradigm-lever sweep CONFIRMS the matrix advantage saturates
+// exactly at M >= macM (=4 @ VLEN256). So the preferred cost fires only in the
+// compute-bound regime; a below-M* boundary is recorded at roofline PARITY with
+// the RVV vector base (do NOT let the compute-isolated micro-advantage — which
+// does not transduce to the memory-bound decode roofline, micro↛e2e — displace
+// the vector path). NOTE: the tiled-shape derivation fail-closes when M is not a
+// whole multiple of macM (no remainder path — protects the emitter), so every
+// emittable tiled GEMM reaching cost already has matM >= macM; the parity cost is
+// the explicit, auditable roofline guard on the cost layer, not a routinely-hit
+// path (decode/GEVM can NEVER obtain the matrix-preferred cost).
 constexpr double kIMEMatmulGemmPreferredCost = 0.5;
 constexpr double kIMESingleFragmentMacCost = 20.0;
+// Must equal the RVV vector base (kRVVVectorBaseCost = 1.0 in the RVV plugin):
+// roofline parity for a whole-matrix boundary whose M is below the crossover M*.
+constexpr double kIMEMatmulDecodeParityCost = 1.0;
 
 // The load-bearing IME1 march token (FOUNDATION task 2: absent => assembler
 // rejects `vmadot`). The capability is the proven IME1 envelope ONLY when this
@@ -789,20 +808,54 @@ llvm::Error IMEExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kIMEPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   if (derived->isMatmul) {
-    // Whole-matrix GEMM takeover (P7 pattern: ime ∧ matmul-shape). The systolic
-    // MAC unit is the preferred paradigm for a whole-matrix contraction, so the
-    // capability-derived cost ranks the matrix variant AHEAD of the RVV vector
-    // base — IME wins the GEMM because ime_matmul_shape derives, not because a
-    // constant sorts first.
-    out.setScore(kIMEMatmulGemmPreferredCost);
-    out.setExplanation(
-        "IME whole-matrix vmadot GEMM boundary; cost DERIVED from the available "
-        "spacemit.ime capability + ime_matmul_shape fact deriving to the "
-        "validated IME1 4x4x8 MAC envelope — the matrix paradigm is preferred "
-        "over the RVV vector base for this contraction");
-    out.setPolicy(
-        "prefer the IME matrix paradigm for a whole-matrix GEMM when the "
-        "spacemit.ime capability fact derives an in-envelope tiled matmul shape");
+    // M-AWARE capability prior (T5c: writeback of the T5b K1-silicon paradigm-
+    // lever measurement). The whole-matrix M dimension (rows / tokens) is read
+    // from the derived ime_matmul_shape fact and ranked against the capability-
+    // DERIVED crossover M* = macM (the MAC fragment's row dimension; macM itself
+    // derives from VLEN — the N1 hook — so M* is NOT a naked constant). The T5b
+    // measurement is the audit source: the matrix advantage saturates exactly at
+    // M >= macM (=4 @ VLEN256).
+    const int64_t crossoverM = derived->macM; // capability-derived M*
+    if (derived->matM >= crossoverM) {
+      // M >= M*: COMPUTE-BOUND prefill takeover (P7 pattern: ime ∧ matmul-shape
+      // ∧ M>=M*). The whole-matrix contraction fully feeds the systolic array, so
+      // the capability-derived cost ranks the matrix variant AHEAD of the RVV
+      // vector base — IME wins the GEMM because ime_matmul_shape derives AND the M
+      // dimension reaches the crossover, not because a constant sorts first.
+      out.setScore(kIMEMatmulGemmPreferredCost);
+      out.setExplanation(
+          "IME whole-matrix vmadot GEMM boundary; cost DERIVED from the available "
+          "spacemit.ime capability + ime_matmul_shape fact deriving to the "
+          "validated IME1 4x4x8 MAC envelope, with the whole-matrix M dimension "
+          "at/above the capability-derived crossover M* (the MAC fragment row "
+          "dimension) — the compute-bound prefill regime where the matrix "
+          "paradigm is preferred over the RVV vector base");
+      out.setPolicy(
+          "prefer the IME matrix paradigm for a whole-matrix GEMM when the "
+          "spacemit.ime capability derives an in-envelope tiled matmul shape whose "
+          "M dimension reaches the capability-derived crossover M* (macM)");
+    } else {
+      // M < M*: MEMORY-BOUND decode / matrix-vector regime. Record ROOFLINE
+      // PARITY, NOT a matrix win: the compute-isolated M<M* micro-advantage does
+      // NOT transduce to the memory-bound decode/GEVM roofline (weight streaming +
+      // dequant dominate; micro↛e2e). Score the matrix variant at PARITY with the
+      // RVV vector base so a compute-micro signal the decode roofline never
+      // realizes cannot displace the vector path. (Guard: the tiled derivation
+      // fail-closes below macM — no remainder path — so this is auditable defense-
+      // in-depth on the cost layer, not a routinely-hit path.)
+      out.setScore(kIMEMatmulDecodeParityCost);
+      out.setExplanation(
+          "IME whole-matrix vmadot boundary whose M dimension is BELOW the "
+          "capability-derived crossover M* (the MAC fragment row dimension): the "
+          "memory-bound decode / matrix-vector roofline regime; cost recorded at "
+          "PARITY with the RVV vector base (the compute-isolated micro-advantage "
+          "does not transduce to the decode roofline) so the matrix paradigm is "
+          "NOT preferred over the vector path");
+      out.setPolicy(
+          "record roofline parity (do NOT prefer the matrix paradigm) for a "
+          "whole-matrix boundary whose M dimension is below the capability-derived "
+          "crossover M* (macM): the memory-bound decode / matrix-vector regime");
+    }
   } else {
     // Single-fragment MAC boundary (mma / mma_u / mma_su / mma_us / mma_slide):
     // a leaf MAC surface, not a whole-kernel GEMM takeover. The capability-derived
