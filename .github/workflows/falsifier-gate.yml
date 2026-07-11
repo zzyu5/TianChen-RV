@@ -192,3 +192,24 @@ jobs:
       # index, or hand-edits the machine-generated index.
       - name: Retired-index gate (fresh index, four requirements, full vec_dot coverage)
         run: python3 tools/lint/check_retired_index.py
+
+  f6-independence-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves the classifier DISCRIMINATES ([F-6] independent
+      # scalar family: closure INTERSECT rvv.* = EMPTY + vector-absent instance truly
+      # selects the scalar variant as only_feasible + pure-scalar emit -> GREEN; each
+      # violation -- chosen-not-scalar / reason != only_feasible / rvv.zvfh in closure /
+      # bare-rvv token / __riscv_/tcrv_rvv/popcount in emit -> RED) before judging the tree.
+      - name: F-6 scalar-family independence gate self-test
+        run: python3 tools/lint/check_f6_scalar_family_independence.py --self-test
+
+      # Default-path gate on the COMMITTED f6 instance. Build-free lane SKIPs (exit 0)
+      # when the compiler binaries are absent; the self-test above still proves the
+      # classifier fires. When binaries are present it asserts the vector-absent
+      # instance really selects the scalar family (only_feasible, closure independent).
+      - name: F-6 scalar-family independence gate (only_feasible scalar selection, closure INTERSECT rvv.* = EMPTY)
+        run: python3 tools/lint/check_f6_scalar_family_independence.py
