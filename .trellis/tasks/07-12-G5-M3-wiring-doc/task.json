@@ -3,7 +3,7 @@
   "name": "G5-M3-wiring-doc",
   "title": "G5-M3 接线机制文档化收口",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "claude",
   "assignee": "claude",
   "createdAt": "2026-07-12",
-  "completedAt": null,
+  "completedAt": "2026-07-12",
   "branch": null,
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "07-11-G5-wiring",
   "relatedFiles": [],
-  "notes": "SOP drafted docs/reports/2026-07-12-G5-接线机制方法学-SOP.md·q5_0 净新 scaffold §8 占位待 finalize",
+  "notes": "SOP finalized §8 净新 scaffold 家族实测(q5_0/q5_1/q4_1 全绿·C1/C2/C3′)·6f... ",
   "meta": {}
 }
