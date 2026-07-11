@@ -1,0 +1,40 @@
+# 线甲b k1 IME batched re-seal -- board raw capture 2026-07-11T10:18:24Z
+# host: Linux bianbu 6.6.63 #2.2.7.2 SMP PREEMPT Fri Aug 15 12:32:44 UTC 2025 riscv64 riscv64 riscv64 GNU/Linux
+# gcc: gcc (Bianbu 13.2.0-23ubuntu4bb3) 13.2.0
+# objdump: GNU objdump (GNU Binutils for Ubuntu) 2.42
+# march=rv64gcv_xsmtvdotii1p0 -mabi=lp64d -O2 ; taskset -c 0-3 ; nproc=8
+# source md5:
+ea8ef66ced3f6bf892f42c3f70ed454c  q4-0-matmul-tile-int32-k1seal.c
+e7c4d0c57771db33be61333ed03b36a5  q8-0-matmul-tile-int32-k1seal.c
+7bb64d7287fae016e1ad4168446c65d7  q4-K-matmul-tile-int32-k1seal.c
+c0565b6a55091de3a454064d2b6febf2  q4-0-paradigm-lever-t5b-k1.c
+
+===== OBJDUMP GOLDEN (vmadot 0xe210312b at leaf) =====
+--- q4-0seal ---
+   10838:	e210312b          	vmadot	v2,v0,v1
+--- q8-0seal ---
+   10860:	e210312b          	vmadot	v2,v0,v1
+--- q4-Kseal ---
+   10ece:	e210312b          	vmadot	v2,v0,v1
+--- t5b ---
+   1160e:	e210312b          	vmadot	v2,v0,v1
+   11746:	e210312b          	vmadot	v2,v0,v1
+
+===== SEAL RUNS (batched leaf, int32 0-diff) =====
+--- RUN q4-0seal ---
+decode nibbles: 512/512 bit-exact (mismatch=0)
+int32 MAC (real vmadot): 64/64 tiles bit-exact (mismatch=0, max|C|=7946)
+SEAL PASS: q4_0 decode + real-vmadot int32 MAC are int32-EXACT on K1
+exit=0
+--- RUN q8-0seal ---
+decode int8 quants: 512/512 bit-exact (mismatch=0)
+int32 MAC (real vmadot): 64/64 tiles bit-exact (mismatch=0, max|C|=102040)
+SEAL PASS: q8_0 decode + real-vmadot int32 MAC are int32-EXACT on K1
+exit=0
+--- RUN q4-Kseal ---
+decode raw nibbles: 2048/2048 bit-exact (mismatch=0)
+6-bit scale/min unpack: 128/128 bit-exact (mismatch=0)
+int32 core S_scale+S_min (real vmadot): 128/128 tiles bit-exact (mismatch=0, max|S_scale|=1403271)
+float epilogue C=d*S_scale-dmin*S_min: 64/64 byte-exact vs same-fold ref (mismatch=0)
+SEAL PASS: q4_K decode + 6-bit sc/m + real-vmadot two-level int32 core (S_scale AND S_min) are int32-EXACT on K1
+exit=0
