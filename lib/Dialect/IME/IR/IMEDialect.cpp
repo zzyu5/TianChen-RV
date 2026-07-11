@@ -97,6 +97,24 @@ constexpr llvm::StringLiteral kExpectedQ8_0DecodeModel("q8_0_direct_int8");
 constexpr int64_t kExpectedQ8_0Qk = 32;
 constexpr int64_t kExpectedQ8_0WeightBlockStride = 34;
 constexpr int64_t kExpectedQ8_0WeightQuantByteOffset = 2;
+// G4 M2b: the format-keyed q4_K IME GEMM tile facts (the SUPER-BLOCK K-quant
+// sibling of q4_0/q8_0). q4_K needs the TWO-LEVEL 6-bit scale/min fold, so beyond
+// the reused vmadot MAC leaf it carries three NEW bricks (raw-nibble decode +
+// 6-bit scale/min unpack + scale-weighted / min-bias accumulate). Fail-closed (I7).
+constexpr llvm::StringLiteral kExpectedQ4_KFormat("q4_K");
+constexpr llvm::StringLiteral kExpectedQ4_KDecodeModel("q4_K_raw_nibble");
+constexpr llvm::StringLiteral kExpectedQ4_KScaleMinModel("get_scale_min_k4");
+constexpr llvm::StringLiteral kExpectedQ4_KScaleWeightedModel("scale_weighted_sum");
+constexpr llvm::StringLiteral kExpectedQ4_KMinBiasModel("activation_sum_min_bias");
+// ggml q4_K super-block: fp16 d (2B) + fp16 dmin (2B) + 12B packed 6-bit
+// scales/mins + 128B 4-bit quants = 144B, 256 weights / 8 sub-blocks per block.
+constexpr int64_t kExpectedQ4_KQk = 256;
+constexpr int64_t kExpectedQ4_KWeightBlockStride = 144;
+constexpr int64_t kExpectedQ4_KWeightQuantByteOffset = 16;
+constexpr int64_t kExpectedQ4_KWeightScaleByteOffset = 4;
+constexpr int64_t kExpectedQ4_KNumSubBlocks = 8;
+constexpr int64_t kExpectedQ4_KScaleBits = 6;
+constexpr int64_t kExpectedQ4_KKScaleSize = 12;
 // The int8 4x8 MAC fragment carries 32 int8; the int32 4x4 output tile 16 int32.
 constexpr int64_t kIMEBFragmentLanes = 32;
 constexpr int64_t kIMEAccTileLanes = 16;
@@ -151,6 +169,13 @@ bool isAllowedQ4_0TileAttr(llvm::StringRef attrName) {
 // G4 M2: the q8_0 tile op admits the SAME attribute set as the q4_0 tile (the
 // shared MAC envelope + whole-matrix problem dims + the weight-format facts).
 bool isAllowedQ8_0TileAttr(llvm::StringRef attrName) {
+  return isAllowedQ4_0TileAttr(attrName);
+}
+
+// G4 M2b: the q4_K tile op admits the SAME attribute set as the q4_0/q8_0 tiles
+// (the shared MAC envelope + whole-matrix problem dims + the weight-format facts;
+// the q4_K-specific super-block facts ride on the region bricks, not the tile op).
+bool isAllowedQ4_KTileAttr(llvm::StringRef attrName) {
   return isAllowedQ4_0TileAttr(attrName);
 }
 
@@ -738,6 +763,204 @@ mlir::LogicalResult Q80MatMulTileOp::verify() {
             nested))
       return emitOpError() << "typed region admits ONLY the decomposed q8_0 "
                               "dequant / vmadot-leaf / yield bricks; found '"
+                           << nested.getName().getStringRef() << "'";
+  }
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// G4 M2b: format-keyed q4_K IME GEMM tile typed-region verifiers (the SUPER-BLOCK
+// K-quant tile; the DEDICATED effort with the two-level 6-bit scale/min fold).
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult Q4KDequantCoreOp::verify() {
+  // Fail-closed (I7): only the q4_K RAW-nibble (unsigned) decode is modeled.
+  if (getDecodeModel() != kExpectedQ4_KDecodeModel)
+    return emitOpError() << "decode_model must be '" << kExpectedQ4_KDecodeModel
+                         << "' (the only modeled q4_K weight decode; raw unsigned "
+                            "nibble, NOT q4_0 offset-binary)";
+  if (getQk() != kExpectedQ4_KQk)
+    return emitOpError() << "qk must be " << kExpectedQ4_KQk
+                         << " (a ggml q4_K super-block carries 256 weights)";
+  if (getWeightBlockStride() != kExpectedQ4_KWeightBlockStride)
+    return emitOpError() << "weight_block_stride must be "
+                         << kExpectedQ4_KWeightBlockStride
+                         << " (fp16 d + fp16 dmin + 12B scales + 128B nibbles)";
+  if (getWeightQuantByteOffset() != kExpectedQ4_KWeightQuantByteOffset)
+    return emitOpError() << "weight_quant_byte_offset must be "
+                         << kExpectedQ4_KWeightQuantByteOffset
+                         << " (the nibbles follow d/dmin + the 12-byte scales)";
+  if (getWeightScaleByteOffset() != kExpectedQ4_KWeightScaleByteOffset)
+    return emitOpError() << "weight_scale_byte_offset must be "
+                         << kExpectedQ4_KWeightScaleByteOffset
+                         << " (the 6-bit scales follow the 4-byte fp16 d/dmin)";
+  if (!isIntVectorOfLanes(getBFragment().getType(), kIMEBFragmentLanes, 8))
+    return emitOpError() << "decoded b_fragment must be vector<"
+                         << kIMEBFragmentLanes << "xi8> (the 4x8 int8 MAC "
+                            "fragment; the raw nibble [0,15] fits int8 exactly)";
+  return mlir::success();
+}
+
+mlir::LogicalResult Q4KScaleMinUnpackCoreOp::verify() {
+  // Fail-closed (I7): only the canonical ggml get_scale_min_k4 6-bit unpack.
+  if (getScaleMinModel() != kExpectedQ4_KScaleMinModel)
+    return emitOpError() << "scale_min_model must be '"
+                         << kExpectedQ4_KScaleMinModel
+                         << "' (the canonical ggml 6-bit scale/min bit-unpack)";
+  if (getNumSubBlocks() != kExpectedQ4_KNumSubBlocks)
+    return emitOpError() << "num_sub_blocks must be " << kExpectedQ4_KNumSubBlocks
+                         << " (a q4_K super-block has 8 sub-blocks of 32)";
+  if (getScaleBits() != kExpectedQ4_KScaleBits)
+    return emitOpError() << "scale_bits must be " << kExpectedQ4_KScaleBits
+                         << " (q4_K scales/mins are 6-bit)";
+  if (getKScaleSize() != kExpectedQ4_KKScaleSize)
+    return emitOpError() << "k_scale_size must be " << kExpectedQ4_KKScaleSize
+                         << " (the packed 6-bit scales/mins region is 12 bytes)";
+  if (getWeightScaleByteOffset() != kExpectedQ4_KWeightScaleByteOffset)
+    return emitOpError() << "weight_scale_byte_offset must be "
+                         << kExpectedQ4_KWeightScaleByteOffset;
+  if (!isIntVectorOfLanes(getSc().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getM().getType(), kIMEAccTileLanes, 32))
+    return emitOpError() << "unpacked sc/m must be vector<" << kIMEAccTileLanes
+                         << "xi32> (the per-column 6-bit scale/min tile lanes)";
+  return mlir::success();
+}
+
+mlir::LogicalResult Q4KScaleWeightedAccumOp::verify() {
+  // Fail-closed (I7): only the int32-exact per-sub-block scale-weighted sum.
+  if (getAccumModel() != kExpectedQ4_KScaleWeightedModel)
+    return emitOpError() << "accum_model must be '"
+                         << kExpectedQ4_KScaleWeightedModel
+                         << "' (S_scale += sc_b * sumi_b)";
+  if (!isIntVectorOfLanes(getSumi().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getSc().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getAccScaleIn().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getAccScaleOut().getType(), kIMEAccTileLanes, 32))
+    return emitOpError() << "sumi/sc/acc_scale_in/acc_scale_out must be vector<"
+                         << kIMEAccTileLanes << "xi32> (the int32 4x4 tiles)";
+  return mlir::success();
+}
+
+mlir::LogicalResult Q4KMinBiasAccumOp::verify() {
+  // Fail-closed (I7): only the int32-exact activation-sum min-bias.
+  if (getBiasModel() != kExpectedQ4_KMinBiasModel)
+    return emitOpError() << "bias_model must be '" << kExpectedQ4_KMinBiasModel
+                         << "' (S_min += m_b * asum_b; asum_b = the pure "
+                            "activation sub-block sum vmadot cannot express)";
+  if (!isIntVectorOfLanes(getAFragment().getType(), kIMEBFragmentLanes, 8))
+    return emitOpError() << "a_fragment must be vector<" << kIMEBFragmentLanes
+                         << "xi8> (the int8 activation fragment reduced to asum_b)";
+  if (!isIntVectorOfLanes(getM().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getAccMinIn().getType(), kIMEAccTileLanes, 32) ||
+      !isIntVectorOfLanes(getAccMinOut().getType(), kIMEAccTileLanes, 32))
+    return emitOpError() << "m/acc_min_in/acc_min_out must be vector<"
+                         << kIMEAccTileLanes << "xi32> (the int32 4x4 tiles)";
+  return mlir::success();
+}
+
+mlir::LogicalResult Q4KMatMulTileYieldOp::verify() {
+  // The q4_K tile carries TWO accumulators (S_scale + S_min); the yield names both.
+  if (getAccOut().size() != 2)
+    return emitOpError() << "must name exactly the two carried-out int32 "
+                            "accumulator tiles (S_scale, S_min)";
+  for (mlir::Value acc : getAccOut())
+    if (!isIntVectorOfLanes(acc.getType(), kIMEAccTileLanes, 32))
+      return emitOpError() << "every carried-out accumulator must be vector<"
+                           << kIMEAccTileLanes << "xi32>";
+  return mlir::success();
+}
+
+llvm::StringRef Q4KMatMulTileOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef Q4KMatMulTileOp::getTCRVEmitCLowerableSourceRole() {
+  return kSourceRoleValue;
+}
+
+mlir::LogicalResult Q4KMatMulTileOp::verify() {
+  // The int8->int32 vmadot MAC envelope + selected-path binding (signed vmadot).
+  if (mlir::failed(verifyIMEMACBoundary(getOperation(), kExpectedSignedIMEOp,
+                                        isAllowedQ4_KTileAttr,
+                                        [this]() { return emitOpError(); })))
+    return mlir::failure();
+
+  // The q4_K weight-format facts (fail-closed: only q4_K is modeled here).
+  if (getWeightFormat() != kExpectedQ4_KFormat)
+    return emitOpError() << "weight_format must be '" << kExpectedQ4_KFormat
+                         << "' (this is the q4_K super-block format-keyed IME tile)";
+  if (getQk() != kExpectedQ4_KQk)
+    return emitOpError() << "qk must be " << kExpectedQ4_KQk;
+  if (getWeightBlockStride() != kExpectedQ4_KWeightBlockStride)
+    return emitOpError() << "weight_block_stride must be "
+                         << kExpectedQ4_KWeightBlockStride;
+  if (getWeightQuantByteOffset() != kExpectedQ4_KWeightQuantByteOffset)
+    return emitOpError() << "weight_quant_byte_offset must be "
+                         << kExpectedQ4_KWeightQuantByteOffset;
+
+  // Whole-matrix problem dims: present, positive, whole multiples of the MAC
+  // fragment (fail-closed: NO remainder path).
+  int64_t matM = getMatM(), matN = getMatN(), matK = getMatK();
+  if (matM <= 0 || matN <= 0 || matK <= 0)
+    return emitOpError() << "problem dims (mat_m/mat_n/mat_k) must be positive";
+  int64_t macM = getMacM(), macN = getMacN(), macK = getMacK();
+  if (matM % macM != 0 || matN % macN != 0 || matK % macK != 0)
+    return emitOpError()
+           << "problem dims must each be a whole multiple of the MAC fragment "
+              "(no remainder path is emitted, I7)";
+  // The K dimension must partition into whole q4_K super-blocks (qk=256).
+  if (matK % kExpectedQ4_KQk != 0)
+    return emitOpError() << "mat_k=" << matK
+                         << " must be a whole multiple of qk=" << kExpectedQ4_KQk
+                         << " (whole q4_K super-blocks; no remainder path)";
+
+  // Fail-closed region SHAPE: the single-block region must be exactly the SIX
+  // decomposed typed bricks -- the raw-nibble decode, the 6-bit scale/min unpack,
+  // the vmadot MAC leaf, the scale-weighted accum (S_scale), the min-bias accum
+  // (S_min), and the two-tile yield -- and NO opaque hand helper. Dropping the
+  // scale-weighted-accum or min-bias-accum brick (the HOLLOW bare-MAC shape) is
+  // rejected: those two bricks ARE the per-sub-block scale weighting + min bias
+  // that define q4_K.
+  mlir::Region &body = getBody();
+  if (!body.hasOneBlock())
+    return emitOpError() << "typed region must have exactly one block";
+  mlir::Block &block = body.front();
+  auto dequantCores = block.getOps<Q4KDequantCoreOp>();
+  auto scaleMinCores = block.getOps<Q4KScaleMinUnpackCoreOp>();
+  auto macLeaves = block.getOps<VmadotMacLeafOp>();
+  auto scaleAccums = block.getOps<Q4KScaleWeightedAccumOp>();
+  auto minBiasAccums = block.getOps<Q4KMinBiasAccumOp>();
+  if (std::distance(dequantCores.begin(), dequantCores.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.q4_K_dequant_core weight-decode brick";
+  if (std::distance(scaleMinCores.begin(), scaleMinCores.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.q4_K_scale_min_unpack_core brick";
+  if (std::distance(macLeaves.begin(), macLeaves.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.vmadot_mac_leaf MAC brick";
+  if (std::distance(scaleAccums.begin(), scaleAccums.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.q4_K_scale_weighted_accum brick (the "
+                            "per-sub-block scale weighting; dropping it is the "
+                            "HOLLOW bare-MAC q4_K representation)";
+  if (std::distance(minBiasAccums.begin(), minBiasAccums.end()) != 1)
+    return emitOpError() << "typed region must contain exactly one "
+                            "tcrv.ime.q4_K_min_bias_accum brick (the min bias; "
+                            "dropping it is the HOLLOW bare-MAC q4_K "
+                            "representation)";
+  if (!llvm::isa<Q4KMatMulTileYieldOp>(block.getTerminator()))
+    return emitOpError() << "typed region must be terminated by "
+                            "tcrv.ime.q4_K_matmul_tile_yield";
+  // No brick outside the six-op decomposed vocabulary (anti-opaque).
+  for (mlir::Operation &nested : block) {
+    if (!llvm::isa<Q4KDequantCoreOp, Q4KScaleMinUnpackCoreOp, VmadotMacLeafOp,
+                   Q4KScaleWeightedAccumOp, Q4KMinBiasAccumOp,
+                   Q4KMatMulTileYieldOp>(nested))
+      return emitOpError() << "typed region admits ONLY the decomposed q4_K "
+                              "raw-nibble / scale-min-unpack / vmadot-leaf / "
+                              "scale-weighted-accum / min-bias-accum / yield "
+                              "bricks; found '"
                            << nested.getName().getStringRef() << "'";
   }
   return mlir::success();

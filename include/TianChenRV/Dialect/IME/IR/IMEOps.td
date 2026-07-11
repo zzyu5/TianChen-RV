@@ -664,4 +664,262 @@ def Q80MatMulTileOp : TCRVIME_Op<"q8_0_matmul_tile",
   let hasVerifier = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// G4 M2b: the FORMAT-KEYED q4_K IME GEMM tile (the SUPER-BLOCK K-quant tile, the
+// DEDICATED effort beyond the q4_0/q8_0 single-decode copy-adapt). q4_K is a
+// super-block format: the ggml block is 256 weights / 144 bytes = (fp16 d, fp16
+// dmin, 12-byte 6-bit packed scales/mins for 8 sub-blocks, 128-byte 4-bit
+// quants). The bare vmadot int8 MAC computes ONLY the raw-nibble contraction
+// Sum(A_i*q_i); sealing ONLY that is a HOLLOW q4_K representation (it drops the
+// per-sub-block scale weighting + the min bias that DEFINE q4_K). The faithful
+// int32-exact core (the board-seal object) is the TWO-LEVEL fold, mirroring the
+// RVV kquant_dmin_bsums_min precedent:
+//
+//   S_scale = Sum_b sc_b * (Sum_{i in b} A_i * q_i)     (int32-exact)
+//   S_min   = Sum_b m_b  * (Sum_{i in b} A_i)           (int32-exact)
+//   C       = d * S_scale - dmin * S_min                (deferred fp16 float epilogue)
+//
+// where sc_b / m_b are the 6-bit per-sub-block scale / min (get_scale_min_k4),
+// sumi_b = the per-sub-block vmadot MAC result, asum_b = the per-sub-block
+// activation sum. This tile therefore carries THREE NEW typed bricks beyond the
+// reused vmadot MAC leaf: the 6-bit scale/min bit-unpack, the per-sub-block
+// scale-weighted accumulate (S_scale), and the activation-sum min-bias
+// accumulate (S_min); plus a q4_K RAW-nibble decode core (q4_K nibbles are
+// UNSIGNED [0,15], NOT the q4_0 offset-binary [-8,7]). The d/dmin fp16 fold is
+// the SOLE deferred float epilogue (exactly the q4_0/q8_0 scalar-d epilogue,
+// two-scalar here). BOARD-PENDING until the K1 seal: gemm_tile/q4_K@ime stays
+// blocked-on-IME until the silicon seal validates the int32 core bit-exact.
+//===----------------------------------------------------------------------===//
+
+def Q4KDequantCoreOp : TCRVIME_Op<"q4_K_dequant_core"> {
+  let summary = "IME q4_K -> int8 RAW-nibble (unsigned) dequant core brick";
+  let description = [{
+    The typed q4_K WEIGHT DECODE primitive of the format-keyed IME GEMM tile (the
+    super-block sibling of q4_0_dequant_core). It takes the per-tile
+    contraction-block induction variable `block_index` and produces the decoded
+    4x8 int8 B-fragment (a builtin vector<32xi8>): a ggml q4_K super-block is 144
+    bytes ([fp16 d][fp16 dmin][12-byte packed 6-bit scales/mins][128-byte 4-bit
+    quants]) carrying 256 nibbles across 8 sub-blocks of 32. Each 4-bit nibble q in
+    [0,15] decodes to the RAW UNSIGNED int8 quant value q (NO offset-binary
+    centering -- UNLIKE q4_0's q-8: the q4_K quant is x = d*sc*q - dmin*m, so the
+    quant fed to the MAC is the raw non-negative nibble and the min bias is applied
+    separately downstream), which fits int8 exactly, so the decoded fragment feeds
+    the int8->int32 vmadot MAC with NO precision loss. Neither the per-sub-block
+    6-bit scale `sc` nor the per-block fp16 scale `d` is applied here (both are
+    separate downstream folds), so the decode is a PURE integer transform and the
+    produced fragment is int32-MAC-exact.
+
+    The op carries the bounded q4_K layout FACTS (decode_model, qk=256 weights per
+    super-block, the 144-byte weight_block_stride, the +16 weight_quant_byte_offset
+    past the fp16 d/dmin + 12-byte scales, and the +4 weight_scale_byte_offset) so
+    emission is structural (I5). For the bounded surface decode_model is limited to
+    "q4_K_raw_nibble".
+  }];
+  let arguments = (ins
+    AnyType:$block_index,
+    StrAttr:$decode_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset
+  );
+  let results = (outs AnyType:$b_fragment);
+  let assemblyFormat =
+      "$block_index attr-dict `:` type($block_index) `->` type($b_fragment)";
+  let hasVerifier = 1;
+}
+
+def Q4KScaleMinUnpackCoreOp : TCRVIME_Op<"q4_K_scale_min_unpack_core"> {
+  let summary = "IME q4_K 6-bit per-sub-block scale/min bit-unpack brick (get_scale_min_k4)";
+  let description = [{
+    The typed q4_K SCALE/MIN UNPACK primitive (the FIRST of the three NEW q4_K
+    bricks). It takes the per-tile contraction-block induction variable
+    `block_index` and produces the two per-sub-block 6-bit quantities as int32 tile
+    vectors: `sc` (the 8 per-sub-block scales sc_b) and `m` (the 8 per-sub-block
+    mins m_b), unpacked from the 12-byte packed scales region by the canonical ggml
+    `get_scale_min_k4` bit-dance (sub-blocks 0..3: low-6-bit of scales[j] /
+    scales[j+4]; sub-blocks 4..7: a 4-bit-plus-2-high-bit reassembly). Both sc_b and
+    m_b are 6-bit unsigned in [0,63]. This is a PURE integer transform of the packed
+    bytes; the sc weighting and the m bias are applied by the two accumulate bricks
+    below.
+
+    The op carries the bounded q4_K scale-layout FACTS (scale_min_model, the 8
+    num_sub_blocks, the 6 scale_bits, the 12-byte k_scale_size, and the +4
+    weight_scale_byte_offset). For the bounded surface scale_min_model is limited to
+    "get_scale_min_k4".
+  }];
+  let arguments = (ins
+    AnyType:$block_index,
+    StrAttr:$scale_min_model,
+    I64Attr:$num_sub_blocks,
+    I64Attr:$scale_bits,
+    I64Attr:$k_scale_size,
+    I64Attr:$weight_scale_byte_offset
+  );
+  let results = (outs AnyType:$sc, AnyType:$m);
+  let assemblyFormat =
+      "$block_index attr-dict `:` type($block_index) `->` type($sc) `,` type($m)";
+  let hasVerifier = 1;
+}
+
+def Q4KScaleWeightedAccumOp : TCRVIME_Op<"q4_K_scale_weighted_accum"> {
+  let summary = "IME q4_K per-sub-block scale-weighted accumulate brick (S_scale += sc_b*sumi_b)";
+  let description = [{
+    The typed q4_K SCALE-WEIGHTED ACCUMULATE primitive (the SECOND of the three NEW
+    q4_K bricks -- the part a bare-nibble-MAC hollow cert would DROP). It takes the
+    per-sub-block vmadot MAC result `sumi_b` (vector<16xi32>, the raw int32
+    contraction Sum_{i in b} A_i*q_i produced by the reused vmadot_mac_leaf), the
+    per-sub-block 6-bit scale `sc_b` (vector<16xi32>, from the scale/min unpack
+    brick), and the carried-IN int32 scale accumulator tile `acc_scale_in`
+    (vector<16xi32>), and produces the carried-OUT scale accumulator
+    `acc_scale_out` = acc_scale_in + sc_b * sumi_b (int32-EXACT). Over the 8
+    sub-blocks this realizes S_scale = Sum_b sc_b * sumi_b. There is NO overflow in
+    the validated envelope (|sc_b| <= 63, |sumi_b| <= 32*128*15, 8 sub-blocks;
+    S_scale <= ~3.1e7 << INT32_MAX), so the accumulator is int32-EXACT.
+
+    For the bounded surface accum_model is limited to "scale_weighted_sum".
+  }];
+  let arguments = (ins
+    AnyType:$sumi,
+    AnyType:$sc,
+    AnyType:$acc_scale_in,
+    StrAttr:$accum_model
+  );
+  let results = (outs AnyType:$acc_scale_out);
+  let assemblyFormat = [{
+    $sumi `,` $sc `,` $acc_scale_in attr-dict `:`
+    `(` type($sumi) `,` type($sc) `,` type($acc_scale_in) `)` `->` type($acc_scale_out)
+  }];
+  let hasVerifier = 1;
+}
+
+def Q4KMinBiasAccumOp : TCRVIME_Op<"q4_K_min_bias_accum"> {
+  let summary = "IME q4_K activation-sum min-bias accumulate brick (S_min += m_b*asum_b)";
+  let description = [{
+    The typed q4_K MIN-BIAS ACCUMULATE primitive (the THIRD of the three NEW q4_K
+    bricks -- the OTHER part a bare-nibble-MAC hollow cert would DROP). The q4_K
+    min bias needs the PURE activation sub-block sum asum_b = Sum_{i in b} A_i,
+    which the vmadot MAC leaf CANNOT express (vmadot always contracts A against a
+    weight fragment), so it is an INDEPENDENT reduce. This op takes the int8
+    activation fragment `a_fragment` (vector<32xi8>, whose per-row lanes it reduces
+    to asum_b), the per-sub-block 6-bit min `m_b` (vector<16xi32>, from the
+    scale/min unpack brick), and the carried-IN int32 min accumulator tile
+    `acc_min_in` (vector<16xi32>), and produces `acc_min_out` = acc_min_in + m_b *
+    asum_b (int32-EXACT). Over the 8 sub-blocks this realizes S_min = Sum_b m_b *
+    asum_b, which the float epilogue subtracts as dmin * S_min. There is NO overflow
+    in the validated envelope (|m_b| <= 63, |asum_b| <= 32*128, 8 sub-blocks; S_min
+    <= ~2.1e6 << INT32_MAX).
+
+    For the bounded surface bias_model is limited to "activation_sum_min_bias".
+  }];
+  let arguments = (ins
+    AnyType:$a_fragment,
+    AnyType:$m,
+    AnyType:$acc_min_in,
+    StrAttr:$bias_model
+  );
+  let results = (outs AnyType:$acc_min_out);
+  let assemblyFormat = [{
+    $a_fragment `,` $m `,` $acc_min_in attr-dict `:`
+    `(` type($a_fragment) `,` type($m) `,` type($acc_min_in) `)` `->` type($acc_min_out)
+  }];
+  let hasVerifier = 1;
+}
+
+def Q4KMatMulTileYieldOp : TCRVIME_Op<"q4_K_matmul_tile_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::ime::Q4KMatMulTileOp">]> {
+  let summary =
+      "terminator naming the carried-out (S_scale, S_min) int32 accumulator tiles "
+      "of the q4_K IME GEMM tile region";
+  let description = [{
+    Terminates the tcrv.ime.q4_K_matmul_tile region by naming the TWO carried-out
+    4x4 int32 accumulator tiles: `acc_out` = (acc_scale_out, acc_min_out) -- the
+    S_scale scale-weighted accumulator and the S_min min-bias accumulator carried
+    into the next contraction-block iteration. It makes the loop-carried TWO-LEVEL
+    int32 dataflow explicit (both the scale accumulator and the min accumulator), so
+    the emitter maps them to the two in-register int32 accumulators with no implicit
+    convention. It carries no compute, dtype, memory, or route semantics.
+  }];
+  let arguments = (ins Variadic<AnyType>:$acc_out);
+  let assemblyFormat = "$acc_out attr-dict `:` type($acc_out)";
+  let hasVerifier = 1;
+}
+
+def Q4KMatMulTileOp : TCRVIME_Op<"q4_K_matmul_tile",
+    [SingleBlock,
+     DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary =
+      "IME format-keyed q4_K super-block vmadot GEMM tile boundary (typed region)";
+  let description = [{
+    The selected IME execution boundary for a FORMAT-KEYED q4_K whole-matrix
+    int8->int32 GEMM: C[M,N] += dequant_q4_K(Bq4K)[N,K] applied to A[M,K] int8
+    activations, realized by tiling the FOUNDATION-validated 4x4x8 `vmadot` fragment
+    over the (M/mac_m) x (N/mac_n) x (K/mac_k) grid, with the q4_K super-block
+    weight matrix decoded (RAW unsigned nibble) into the int8 MAC fragment and the
+    K-quant TWO-LEVEL 6-bit scale/min fold applied per super-block. This is the
+    SUPER-BLOCK format-keyed sibling of tcrv.ime.q4_0_matmul_tile / q8_0_matmul_tile
+    (the single-decode flat tiles): it carries the same capability-derived MAC
+    envelope + problem dims (mat_m/mat_n/mat_k) PLUS the q4_K weight-format FACTS
+    (weight_format="q4_K", qk=256, the 144-byte weight_block_stride, the +16
+    weight_quant_byte_offset).
+
+    Like q4_0_matmul_tile, this op OWNS a single-block typed region, BUT its region
+    is the DEDICATED q4_K super-block body (NOT a copy-adapt of the flat tile): the
+    entry args are the `block_index` induction variable (index), the loaded 4x8 int8
+    activation fragment `a_fragment` (vector<32xi8>), and the carried-IN TWO int32
+    accumulator tiles `acc_scale_in` + `acc_min_in` (vector<16xi32>). The region
+    contains exactly the DECOMPOSED typed bricks -- one tcrv.ime.q4_K_dequant_core
+    (the raw-nibble weight decode), one tcrv.ime.q4_K_scale_min_unpack_core (the
+    6-bit scale/min bit-unpack), one tcrv.ime.vmadot_mac_leaf (the int8->int32 MAC,
+    REUSED from q4_0), one tcrv.ime.q4_K_scale_weighted_accum (S_scale += sc_b*sumi_b),
+    one tcrv.ime.q4_K_min_bias_accum (S_min += m_b*asum_b), and the
+    tcrv.ime.q4_K_matmul_tile_yield terminator (naming the carried-out S_scale +
+    S_min tiles) -- and NO opaque hand helper. The emitter wraps the outer
+    row/col/super-block/sub-block loops around the region and binds the
+    weight/activation/output pointers (op-identity driven, I5).
+
+    A fail-closed verifier (I7) admits ONLY the validated IME1 int8->int32 vmadot
+    envelope, the whole q4_K problem dims (whole multiples of the MAC fragment AND
+    of the 256-weight super-block; no remainder path), AND the exact SIX-brick region
+    shape (the raw-nibble decode + the scale/min unpack + the vmadot MAC + the
+    scale-weighted accum + the min-bias accum + the two-tile yield). Dropping the
+    scale-weighted-accum or the min-bias-accum brick (the hollow bare-MAC shape) is
+    REJECTED. It is an IME execution op, not a high-level matmul op: it carries the
+    structural executable facts so emission is structural; it makes no
+    correctness/performance claim in the IR (correctness is proven int32-exact for
+    the two-level S_scale/S_min core + the vmadot bit-exact K1 seal; the d/dmin fp16
+    fold is a deferred deterministic float epilogue). The coverage cell
+    gemm_tile/q4_K@ime stays blocked-on-IME until the K1 seal.
+  }];
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    I64Attr:$mat_m,
+    I64Attr:$mat_n,
+    I64Attr:$mat_k,
+    StrAttr:$weight_format,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
 #endif // TIANCHENRV_DIALECT_IME_IR_IMEOPS_TD

@@ -472,6 +472,199 @@ std::string q80MatmulHelperBody(llvm::StringRef vmadotHelperName) {
   return text;
 }
 
+//===----------------------------------------------------------------------===//
+// G4 M2b: the FORMAT-KEYED q4_K IME GEMM tile emitter (the SUPER-BLOCK K-quant
+// sibling; the DEDICATED effort with the TWO-LEVEL 6-bit scale/min fold).
+//
+// The typed region (tcrv.ime.q4_K_matmul_tile) carries SIX decomposed bricks:
+//   * tcrv.ime.q4_K_dequant_core -> the q4_K RAW-nibble decode (unsigned [0,15],
+//     NOT q4_0 offset-binary), emitted as tcrv_ime_q4_K_dequant_fragment;
+//   * tcrv.ime.q4_K_scale_min_unpack_core -> the canonical 6-bit get_scale_min_k4
+//     bit-unpack, emitted as tcrv_ime_q4_K_get_scale_min;
+//   * tcrv.ime.vmadot_mac_leaf -> the SAME FOUNDATION vmadot MAC (reused verbatim),
+//     producing the per-sub-block sumi_b = Sum A_i*q_i;
+//   * tcrv.ime.q4_K_scale_weighted_accum -> S_scale += sc_b*sumi_b (int32-exact);
+//   * tcrv.ime.q4_K_min_bias_accum -> S_min += m_b*asum_b (int32-exact; asum_b is
+//     the pure activation sub-block sum vmadot cannot express);
+//   * tcrv.ime.q4_K_matmul_tile_yield -> the two-tile (S_scale, S_min) terminator.
+// The int32-EXACT core (S_scale, S_min) is what the K1 seal validates bit-exact;
+// the d/dmin fp16 fold C = d*S_scale - dmin*S_min is the SOLE deferred float
+// epilogue (the two-level kquant_dmin_bsums_min fold, mirroring the RVV precedent).
+//===----------------------------------------------------------------------===//
+constexpr llvm::StringLiteral kQ4KDequantHelperName(
+    "tcrv_ime_q4_K_dequant_fragment");
+constexpr llvm::StringLiteral kQ4KScaleMinHelperName(
+    "tcrv_ime_q4_K_get_scale_min");
+constexpr llvm::StringLiteral kQ4KFp16HelperName("tcrv_ime_fp16_to_f32");
+constexpr llvm::StringLiteral kQ4KMatmulHelperName(
+    "tcrv_ime_q4_K_vmadot_matmul");
+
+/// The q4_K RAW-nibble DECODE helper (structured C, no asm). Decodes 8 nibbles of
+/// one column's super-block (sub-block b, fragment kf) into an 8-int8 vmadot lane
+/// group. q4_K nibbles are UNSIGNED [0,15] (NO offset-binary centering); the min
+/// bias is applied separately downstream, so this is a PURE integer transform.
+std::string q4KDequantHelperBody() {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.decode_core=" << kQ4KDequantHelperName
+     << " decode_model=q4_K_raw_nibble qk=256 weight_block_stride=144 "
+        "weight_quant_byte_offset=16\n";
+  os << "static inline void " << kQ4KDequantHelperName
+     << "(const uint8_t *blk, int b, int kf, int8_t *out8) {\n";
+  os << "  const uint8_t *qs = blk + 16; // past fp16 d/dmin + 12-byte 6-bit "
+        "scales\n";
+  os << "  for (int kl = 0; kl < 8; ++kl) {\n";
+  os << "    int pl = kf * 8 + kl;\n";
+  os << "    uint8_t byte = qs[(b / 2) * 32 + pl];\n";
+  os << "    out8[kl] = (int8_t)((b & 1) ? (byte >> 4) : (byte & 0x0F));\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+/// The q4_K 6-bit scale/min UNPACK helper (canonical ggml get_scale_min_k4). For
+/// sub-block j in [0,8) it unpacks the 6-bit scale `sc` and min `m` from the
+/// 12-byte packed scales region.
+std::string q4KScaleMinHelperBody() {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.scale_min_core=" << kQ4KScaleMinHelperName
+     << " scale_min_model=get_scale_min_k4 num_sub_blocks=8 scale_bits=6 "
+        "k_scale_size=12\n";
+  os << "static inline void " << kQ4KScaleMinHelperName
+     << "(int j, const uint8_t *q, uint8_t *sc, uint8_t *m) {\n";
+  os << "  if (j < 4) {\n";
+  os << "    *sc = q[j] & 63;\n";
+  os << "    *m = q[j + 4] & 63;\n";
+  os << "  } else {\n";
+  os << "    *sc = (q[j + 4] & 0xF) | ((q[j - 4] >> 6) << 4);\n";
+  os << "    *m = (q[j + 4] >> 4) | ((q[j - 0] >> 6) << 4);\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+/// The q4_K deferred fp16 epilogue helpers (deterministic IEEE half->float). Only
+/// the d/dmin float fold uses these; the int32 core (S_scale/S_min) is fp16-free.
+std::string q4KFp16HelperBody() {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.fp16_epilogue=" << kQ4KFp16HelperName
+     << " (deterministic IEEE half->float; the deferred d/dmin float fold)\n";
+  os << "static inline unsigned short tcrv_ime_load_fp16(const uint8_t *p) {\n";
+  os << "  return (unsigned short)((unsigned)p[0] | ((unsigned)p[1] << 8));\n";
+  os << "}\n";
+  os << "static inline float " << kQ4KFp16HelperName
+     << "(unsigned short h) {\n";
+  os << "  unsigned int sign = (unsigned int)(h & 0x8000u) << 16;\n";
+  os << "  unsigned int exp = (h >> 10) & 0x1Fu;\n";
+  os << "  unsigned int mant = h & 0x3FFu;\n";
+  os << "  unsigned int bits;\n";
+  os << "  if (exp == 0u) {\n";
+  os << "    if (mant == 0u) {\n";
+  os << "      bits = sign;\n";
+  os << "    } else {\n";
+  os << "      exp = 127u - 15u + 1u;\n";
+  os << "      while ((mant & 0x400u) == 0u) { mant <<= 1; exp--; }\n";
+  os << "      mant &= 0x3FFu;\n";
+  os << "      bits = sign | (exp << 23) | (mant << 13);\n";
+  os << "    }\n";
+  os << "  } else if (exp == 0x1Fu) {\n";
+  os << "    bits = sign | 0x7F800000u | (mant << 13);\n";
+  os << "  } else {\n";
+  os << "    bits = sign | ((exp - 15u + 127u) << 23) | (mant << 13);\n";
+  os << "  }\n";
+  os << "  float f;\n";
+  os << "  __builtin_memcpy(&f, &bits, 4);\n";
+  os << "  return f;\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+/// The tiled q4_K int8->int32 GEMM helper (the SUPER-BLOCK K-quant kernel). Per
+/// (mi,nj) output tile it walks the K/256 super-blocks; per super-block it unpacks
+/// the 8 per-column 6-bit sc/m, runs the 8 sub-blocks (each = 4 vmadot fragments
+/// -> sumi_b + the pure activation sub-block sum asum_b), and folds the TWO-LEVEL
+/// int32-EXACT core S_scale = Sum_b sc_b*sumi_b + S_min = Sum_b m_b*asum_b (the
+/// board-seal object), then the deferred fp16 epilogue C = d*S_scale - dmin*S_min.
+/// The weight is pre-packed as 4 native block_q4_K per (col-tile, super-block).
+/// `vmadotHelperName` is the FOUNDATION single-fragment MAC helper this reuses.
+std::string q4KMatmulHelperBody(llvm::StringRef vmadotHelperName) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.asm_leaf=" << vmadotHelperName
+     << " tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
+        "weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min\n";
+  os << "static void " << kQ4KMatmulHelperName
+     << "(const int8_t *Apack, const uint8_t *Bq4k, int32_t *Sscale,\n";
+  os << "    int32_t *Smin, float *Cf, long M, long N, long K) {\n";
+  os << "  const long mt = M / 4, nt = N / 4, nsb = K / 256;\n";
+  os << "  const long q4k_block_bytes = 144; // fp16 d+dmin + 12B scales + 128B "
+        "nibbles\n";
+  os << "  for (long mi = 0; mi < mt; ++mi) {\n";
+  os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
+  os << "    for (long nj = 0; nj < nt; ++nj) {\n";
+  os << "      for (long sb = 0; sb < nsb; ++sb) {\n";
+  os << "        const uint8_t *blk[4];\n";
+  os << "        uint8_t sc[8][4], mm[8][4];\n";
+  os << "        for (int nl = 0; nl < 4; ++nl) {\n";
+  os << "          blk[nl] = Bq4k + ((((nj * nsb) + sb) * 4) + nl) * "
+        "q4k_block_bytes;\n";
+  os << "          for (int b = 0; b < 8; ++b)\n";
+  os << "            " << kQ4KScaleMinHelperName
+     << "(b, blk[nl] + 4, &sc[b][nl], &mm[b][nl]);\n";
+  os << "        }\n";
+  os << "        int32_t Sc[16], Sm[16];\n";
+  os << "        for (int r = 0; r < 16; ++r) { Sc[r] = 0; Sm[r] = 0; }\n";
+  os << "        for (int b = 0; b < 8; ++b) {\n";
+  os << "          int32_t sumi[16];\n";
+  os << "          for (int r = 0; r < 16; ++r) sumi[r] = 0;\n";
+  os << "          int32_t asum[4] = {0, 0, 0, 0};\n";
+  os << "          for (int kf = 0; kf < 4; ++kf) {\n";
+  os << "            long gf = sb * 32 + b * 4 + kf;\n";
+  os << "            const int8_t *Aframe = Arow + gf * 32;\n";
+  os << "            int8_t Bframe[32];\n";
+  os << "            for (int nl = 0; nl < 4; ++nl)\n";
+  os << "              " << kQ4KDequantHelperName
+     << "(blk[nl], b, kf, Bframe + nl * 8);\n";
+  os << "            int32_t frag[16];\n";
+  os << "            " << vmadotHelperName << "(Aframe, Bframe, frag);\n";
+  os << "            for (int r = 0; r < 16; ++r) sumi[r] += frag[r];\n";
+  os << "            for (int ml = 0; ml < 4; ++ml)\n";
+  os << "              for (int kl = 0; kl < 8; ++kl)\n";
+  os << "                asum[ml] += (int32_t)Aframe[ml * 8 + kl];\n";
+  os << "          }\n";
+  os << "          for (int ml = 0; ml < 4; ++ml)\n";
+  os << "            for (int nl = 0; nl < 4; ++nl) {\n";
+  os << "              Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + "
+        "nl];\n";
+  os << "              Sm[ml * 4 + nl] += (int32_t)mm[b][nl] * asum[ml];\n";
+  os << "            }\n";
+  os << "        }\n";
+  os << "        for (int ml = 0; ml < 4; ++ml)\n";
+  os << "          for (int nl = 0; nl < 4; ++nl) {\n";
+  os << "            long mo = mi * 4 + ml, no = nj * 4 + nl;\n";
+  os << "            long oidx = sb * M * N + mo * N + no;\n";
+  os << "            Sscale[oidx] = Sc[ml * 4 + nl];\n";
+  os << "            Smin[oidx] = Sm[ml * 4 + nl];\n";
+  os << "            float d = " << kQ4KFp16HelperName
+     << "(tcrv_ime_load_fp16(blk[nl] + 0));\n";
+  os << "            float dmin = " << kQ4KFp16HelperName
+     << "(tcrv_ime_load_fp16(blk[nl] + 2));\n";
+  os << "            Cf[mo * N + no] += d * (float)Sc[ml * 4 + nl] - dmin * "
+        "(float)Sm[ml * 4 + nl];\n";
+  os << "          }\n";
+  os << "      }\n";
+  os << "    }\n";
+  os << "  }\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
 /// Lowers a selected IME MAC boundary (`tcrv.ime.mma` signed / `tcrv.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
 ///   #include <stdint.h>
@@ -1077,6 +1270,137 @@ public:
   }
 };
 
+/// Lowers the FORMAT-KEYED q4_K IME GEMM tile (`tcrv.ime.q4_K_matmul_tile`) into a
+/// standalone EmitC module (the SUPER-BLOCK K-quant sibling; the DEDICATED effort
+/// beyond the q4_0/q8_0 single-decode tiles). This op OWNS a typed region carrying
+/// the SIX DECOMPOSED bricks -- the raw-nibble decode, the 6-bit scale/min unpack,
+/// the reused vmadot MAC, the scale-weighted accum (S_scale), the min-bias accum
+/// (S_min), and the two-tile yield; emission reads the region by OP-IDENTITY (I5).
+/// The int32 S_scale/S_min core is the K1-seal bit-exact contract; the d/dmin fp16
+/// fold is the sole deferred float epilogue.
+class IMEQ4KMatMulTileToEmitCFunc final
+    : public mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp> {
+public:
+  using mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp>::OpConversionPattern;
+  using OpAdaptor =
+      typename mlir::OpConversionPattern<tcrv::ime::Q4KMatMulTileOp>::OpAdaptor;
+
+  mlir::LogicalResult
+  matchAndRewrite(tcrv::ime::Q4KMatMulTileOp tile, OpAdaptor /*adaptor*/,
+                  mlir::ConversionPatternRewriter &rewriter) const override {
+    mlir::MLIRContext *context = tile.getContext();
+    mlir::Location loc = tile.getLoc();
+
+    // Read the typed region by OP-IDENTITY (I5). The two-level q4_K fold requires
+    // ALL of: the raw-nibble decode, the 6-bit scale/min unpack, the vmadot MAC,
+    // the scale-weighted accum (S_scale), and the min-bias accum (S_min). Absence
+    // of ANY brick -- ESPECIALLY the scale-weighted or min-bias accum (the HOLLOW
+    // bare-MAC shape) -- is a fail-closed match failure.
+    mlir::Block &body = tile.getBody().front();
+    auto dequantCores = body.getOps<tcrv::ime::Q4KDequantCoreOp>();
+    auto scaleMinCores = body.getOps<tcrv::ime::Q4KScaleMinUnpackCoreOp>();
+    auto macLeaves = body.getOps<tcrv::ime::VmadotMacLeafOp>();
+    auto scaleAccums = body.getOps<tcrv::ime::Q4KScaleWeightedAccumOp>();
+    auto minBiasAccums = body.getOps<tcrv::ime::Q4KMinBiasAccumOp>();
+    if (dequantCores.empty() || scaleMinCores.empty() || macLeaves.empty() ||
+        scaleAccums.empty() || minBiasAccums.empty())
+      return rewriter.notifyMatchFailure(
+          tile, "q4_K tile region must carry the q4_K_dequant_core + "
+                "q4_K_scale_min_unpack_core + vmadot_mac_leaf + "
+                "q4_K_scale_weighted_accum + q4_K_min_bias_accum bricks (the "
+                "hollow bare-MAC shape is rejected)");
+    llvm::StringRef vmadotHelperName = kVmadotHelperName;
+
+    auto variant =
+        tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    auto sourceKernel = tile->getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!variant || !sourceKernel)
+      return rewriter.notifyMatchFailure(
+          tile, "IME q4_K tile requires selected_variant and source_kernel "
+                "attributes");
+    std::string functionName =
+        ("tcrv_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+
+    int64_t matM = tile.getMatM();
+    int64_t matN = tile.getMatN();
+    int64_t matK = tile.getMatK();
+
+    llvm::StringRef sourceOpName = tile.getTCRVEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = tile.getTCRVEmitCLowerableSourceRole();
+
+    auto module = tile->getParentOfType<mlir::ModuleOp>();
+    if (!module)
+      return rewriter.notifyMatchFailure(tile, "IME q4_K tile has no module");
+
+    auto i8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const int8_t"));
+    auto u8PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "const uint8_t"));
+    auto i32PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "int32_t"));
+    auto f32PtrType = emitc::PointerType::get(
+        context, emitc::OpaqueType::get(context, "float"));
+    auto longType = emitc::OpaqueType::get(context, "long");
+
+    // Module-scope prologue: include + the validated vmadot MAC leaf + the q4_K
+    // fp16 epilogue helpers + the raw-nibble decode + the 6-bit scale/min unpack +
+    // the tiled q4_K two-level-fold kernel (declared-before-use ordering).
+    {
+      mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
+                                        /*is_standard_include=*/true);
+      rewriter.create<emitc::VerbatimOp>(loc, vmadotHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, q4KFp16HelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, q4KDequantHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, q4KScaleMinHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc,
+                                         q4KMatmulHelperBody(vmadotHelperName));
+    }
+
+    mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+    rewriter.setInsertionPointToEnd(module.getBody());
+
+    // Exported wrapper: extern "C" void <name>(const int8_t* Apack,
+    // const uint8_t* Bq4k, int32_t* Sscale, int32_t* Smin, float* Cf).
+    llvm::SmallVector<mlir::Type, 5> paramTypes{i8PtrType, u8PtrType, i32PtrType,
+                                                i32PtrType, f32PtrType};
+    mlir::FunctionType functionType =
+        rewriter.getFunctionType(paramTypes, /*results=*/{});
+    llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
+    funcAttrs.push_back(rewriter.getNamedAttr(
+        "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
+    auto func = rewriter.create<emitc::FuncOp>(loc, functionName, functionType,
+                                               funcAttrs);
+    mlir::Block *entry = func.addEntryBlock();
+    rewriter.setInsertionPointToStart(entry);
+
+    rewriter.create<emitc::VerbatimOp>(
+        loc, routeSourceComment(sourceOpName, sourceRole));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(sourceOpName, sourceRole, kQ4KMatmulHelperName));
+
+    // Structured dataflow into the kernel: call_opaque on the pointer block args
+    // plus the M/N/K problem-dim constants (compile-time variant facts).
+    llvm::SmallVector<mlir::Value, 8> callOperands;
+    for (mlir::BlockArgument arg : entry->getArguments())
+      callOperands.push_back(arg);
+    for (int64_t dim : {matM, matN, matK}) {
+      auto dimAttr = emitc::OpaqueAttr::get(context, std::to_string(dim));
+      auto constOp = rewriter.create<emitc::ConstantOp>(loc, longType, dimAttr);
+      callOperands.push_back(constOp.getResult());
+    }
+    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{},
+                                         kQ4KMatmulHelperName, callOperands);
+
+    rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
+
+    rewriter.eraseOp(tile);
+    return mlir::success();
+  }
+};
+
 class IMEBackendEmissionDriver final
     : public tcrvemitc::TypedBackendEmissionDriver {
 public:
@@ -1091,7 +1415,8 @@ public:
                         tcrv::ime::MMASUOp, tcrv::ime::MMAUSOp,
                         tcrv::ime::MMASlideOp, tcrv::ime::MatMulOp,
                         tcrv::ime::Q40MatMulTileOp,
-                        tcrv::ime::Q80MatMulTileOp>();
+                        tcrv::ime::Q80MatMulTileOp,
+                        tcrv::ime::Q4KMatMulTileOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -1103,7 +1428,7 @@ public:
                  IMEMACToEmitCFunc<tcrv::ime::MMASUOp>,
                  IMEMACToEmitCFunc<tcrv::ime::MMAUSOp>, IMEMACSlideToEmitCFunc,
                  IMEMatMulToEmitCFunc, IMEQ40MatMulTileToEmitCFunc,
-                 IMEQ80MatMulTileToEmitCFunc>(
+                 IMEQ80MatMulTileToEmitCFunc, IMEQ4KMatMulTileToEmitCFunc>(
         typeConverter, patterns.getContext());
   }
 

@@ -240,18 +240,17 @@ def classify_shape(tokens):
             return None, f"repack_{mb.group(1)}_loop missing a *_dot / fused *_core token"
         return f"repack_{mb.group(1)}_loop", "typed repack GEM{V,M} loop body/yield"
 
-    # IME matmul-tile shape (G4/G4-M2): a tcrv.ime.<fmt>_matmul_tile region OWNS the
-    # body (first token) + is terminated by tcrv.ime.<fmt>_matmul_tile_yield (last
-    # token), and carries BOTH decomposed bricks by op-identity: the format-keyed
-    # <fmt>_dequant_core decode (q4_0 offset-binary nibble / q8_0 direct int8) AND
-    # the vmadot_mac_leaf (the FOUNDATION-validated int8->int32 MAC, reused across
-    # formats). Kept NARROW: the body-op token and the yield token must name the SAME
-    # format prefix; a body/yield-only region (bricks missing), a region missing
-    # either the decode or the MAC brick, or a decode brick of the WRONG format is
-    # rejected. Only the two board-sealed formats (q4_0, q8_0) are admitted. NOT an
-    # RVV loop -- the RVV shapes above are untouched.
-    IME_TILE_FORMATS = ("q4_0", "q8_0")
-    for fmt in IME_TILE_FORMATS:
+    # IME matmul-tile shape (G4/G4-M2/G4-M2b): a tcrv.ime.<fmt>_matmul_tile region
+    # OWNS the body (first token) + is terminated by tcrv.ime.<fmt>_matmul_tile_yield
+    # (last token), and carries its decomposed bricks by op-identity. The body-op
+    # token and the yield token must name the SAME format prefix (kept NARROW).
+    #
+    # FLAT tiles (q4_0 offset-binary nibble / q8_0 direct int8): the single-decode
+    # copy-adapt shape -- the format-keyed <fmt>_dequant_core decode AND the
+    # vmadot_mac_leaf (the FOUNDATION int8->int32 MAC, reused across formats). Two
+    # required bricks.
+    IME_FLAT_TILE_FORMATS = ("q4_0", "q8_0")
+    for fmt in IME_FLAT_TILE_FORMATS:
         if first == fmt + "_matmul_tile" and last == fmt + "_matmul_tile_yield":
             if fmt + "_dequant_core" not in tokens:
                 return None, (f"ime_matmul_tile missing {fmt}_dequant_core "
@@ -259,6 +258,30 @@ def classify_shape(tokens):
             if "vmadot_mac_leaf" not in tokens:
                 return None, "ime_matmul_tile missing vmadot_mac_leaf MAC brick"
             return "ime_matmul_tile", f"typed IME {fmt} matmul-tile region body/yield"
+
+    # SUPER-BLOCK K-quant tile (q4_K): the DEDICATED two-level-fold shape. The bare
+    # vmadot nibble MAC alone is a HOLLOW q4_K representation (it drops the
+    # per-sub-block scale weighting + the min bias that DEFINE q4_K), so the q4_K
+    # manifest is REQUIRED to carry ALL of: the raw-nibble decode
+    # (q4_K_dequant_core), the 6-bit scale/min unpack (q4_K_scale_min_unpack_core),
+    # the vmadot MAC leaf, the scale-weighted accum (q4_K_scale_weighted_accum ->
+    # S_scale), AND the min-bias accum (q4_K_min_bias_accum -> S_min). A q4_K IME
+    # manifest missing the scale-weighted or min-bias accum is REJECTED (anti-hollow).
+    if first == "q4_K_matmul_tile" and last == "q4_K_matmul_tile_yield":
+        if "q4_K_dequant_core" not in tokens:
+            return None, "ime_matmul_tile missing q4_K_dequant_core decode brick"
+        if "q4_K_scale_min_unpack_core" not in tokens:
+            return None, ("ime_matmul_tile missing q4_K_scale_min_unpack_core "
+                          "6-bit unpack brick")
+        if "vmadot_mac_leaf" not in tokens:
+            return None, "ime_matmul_tile missing vmadot_mac_leaf MAC brick"
+        if "q4_K_scale_weighted_accum" not in tokens:
+            return None, ("ime_matmul_tile missing q4_K_scale_weighted_accum brick "
+                          "(HOLLOW bare-MAC q4_K: no per-sub-block scale weighting)")
+        if "q4_K_min_bias_accum" not in tokens:
+            return None, ("ime_matmul_tile missing q4_K_min_bias_accum brick "
+                          "(HOLLOW bare-MAC q4_K: no min bias)")
+        return "ime_matmul_tile", "typed IME q4_K super-block matmul-tile region body/yield"
 
     # N-operand product_reduce route: straight-line op list, no loop wrapper, terminates in store.
     if last == "store" and not any(t in ALLOWED_WRAPPERS for t in tokens):
@@ -515,6 +538,33 @@ def self_test():
         ("[IME-SEAL] q8_0 mismatched body/yield prefix (rejected)",
          ime_seal("q8_0_matmul_tile+q8_0_dequant_core+vmadot_mac_leaf+"
                   "q4_0_matmul_tile_yield"), False),
+        # [IME-SEAL] board-sealed IME q4_K matmul-tile (G4 M2b, the SUPER-BLOCK
+        # K-quant two-level-fold tile). The FULL six-brick manifest is admitted.
+        ("[IME-SEAL] q4_K matmul-tile (board-sealed)",
+         ime_seal("q4_K_matmul_tile+q4_K_dequant_core+q4_K_scale_min_unpack_core+"
+                  "vmadot_mac_leaf+q4_K_scale_weighted_accum+q4_K_min_bias_accum+"
+                  "q4_K_matmul_tile_yield"), True),
+        # ANTI-HOLLOW: q4_K missing the scale-weighted accum (S_scale) is REJECTED
+        # (the bare-nibble-MAC shape M2 refused -- no per-sub-block scale weighting).
+        ("[IME-SEAL] q4_K HOLLOW missing scale-weighted accum (rejected)",
+         ime_seal("q4_K_matmul_tile+q4_K_dequant_core+q4_K_scale_min_unpack_core+"
+                  "vmadot_mac_leaf+q4_K_min_bias_accum+q4_K_matmul_tile_yield"),
+         False),
+        # ANTI-HOLLOW: q4_K missing the min-bias accum (S_min) is REJECTED.
+        ("[IME-SEAL] q4_K HOLLOW missing min-bias accum (rejected)",
+         ime_seal("q4_K_matmul_tile+q4_K_dequant_core+q4_K_scale_min_unpack_core+"
+                  "vmadot_mac_leaf+q4_K_scale_weighted_accum+"
+                  "q4_K_matmul_tile_yield"), False),
+        # ANTI-HOLLOW: q4_K bare-MAC only (the copy-adapt flat shape) is REJECTED --
+        # this is EXACTLY the hollow representation M2 refused for q4_K.
+        ("[IME-SEAL] q4_K bare-nibble-MAC only (hollow; rejected)",
+         ime_seal("q4_K_matmul_tile+q4_K_dequant_core+vmadot_mac_leaf+"
+                  "q4_K_matmul_tile_yield"), False),
+        # q4_K missing the 6-bit scale/min unpack is REJECTED.
+        ("[IME-SEAL] q4_K missing scale/min unpack (rejected)",
+         ime_seal("q4_K_matmul_tile+q4_K_dequant_core+vmadot_mac_leaf+"
+                  "q4_K_scale_weighted_accum+q4_K_min_bias_accum+"
+                  "q4_K_matmul_tile_yield"), False),
     ]
     print("-- F-1 construction-manifest shape classifier --")
     for label, ar, expect in cases:
