@@ -47,9 +47,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## ★测量欠账表（常驻 · 对账实验总纲 T 表 · 精填 2026-07-11 AUDIT `docs/reports/2026-07-11-perf-covered-baseline.md`）
 | T 表 | 现状（精算） | 欠账 |
 |---|---|---|
-| T3（格×杠杆对位） | **FLAT 5 格内核轴对称 ≥parity 全幸存**（f78ad2da·q4_0 6.76×/q4_1 6.86×/q8_0 4.10×/q5_1 1.41×/q5_0 1.23× gcc-symmetric·真路径赢非 clang artifact·黄格 [GAP-FLAT-E2E] 6/8 门）｜ iq/tq 8 行全 LOSS·余 stale/撤回 | ★**[GAP-FLAT-E2E]**：5 格 kernel 轴赢待 **T6 分相整模型验传导**（与 K-quant 铺面② T6 合并·prefill/局部性赢倾向传导=高价值）· K-quant 全族对称重填 · dequant24/quantize3 流式未测 |
-| T3p（模式消融） | **0 行（仅模板）** | P1/P2/P2b/P4/P7 逐条配对待系统化 |
-| T4b（选择器四配置消融） | **0 行**（`t4b-m*/` 是 minterm/dispatch tracer 非消融表） | 矩阵静默落败复现/消失专项（M0 falsifier 起点） |
+| T3（格×杠杆对位） | **FLAT 5 内核轴对称幸存**（f78ad2da·gcc-symmetric·[GAP-FLAT-E2E-ROUTING]）+ **流式 8 格铺面③**（813f6462·parity-physical 4[dequant/q8_0·quant/q8_0·q8_K·forward/gelu 满分]·具名 GAP 3·split iq4_nl）｜ iq/tq 8 行 LOSS | **3 新具名 GAP（emitter 成熟可修·非物理墙）**：[GAP-DEQ-KQUANT-UNPACK]·[GAP-FWD-M8-VSETVL]·★**[GAP-CLANG-GATHER-TRAP]**（iq4_nl vluxei 索引-gather 陷阱·clang-ours 拖后腿·K-quant S6 不对称镜像·真赢潜伏）· K-quant 全族对称重填 |
+| T3p（模式消融） | **0 行（仅模板）** | P1/P2/P2b/P4/P7 逐条配对待系统化（⑤队列在后） |
+| T4b（选择器四配置消融） | **★在飞（a767bedd·系统化四配置）** | 常量盲×能力派生 × GEMM×decode·矩阵静默落败复现/消失·机制 C3′ 证据 |
 | T5b（2×2 范式×布局×M） | **骨架起步·q4_0@ime 首批行**（a9d7a9c6·6 cell·M{1..512}·k1·ZERO-MODEL 闸） | 铺 q8_0/q4_K@ime·GAP 关闭后重测 |
 | T5c（M* 写回先验闭环） | **★已闭环**（11358834·条件满足自动落·走⑦） | M*=macM 能力派生写回 P7 先验（matM≥M*→0.5 偏矩阵·matM<M*→parity 不偏·decode 误路由 shape+M-aware 双排除）· T4a 首样本 lit 落地 · reason 枚举未动 · 测量输出→机制参数 = C3′ 范式杠杆闭环 |
 | T5d（厂商路径对照） | **0 行·defer** | 未跑（诚实） |
@@ -93,9 +93,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=0 · T6 两批全落 · 队列自动衔接铺面③流式·禁停机制适用）
-- **无活动线**。T6 e2e 传导两批全落（batch-rvv 2eb7ae10 + batch-k1 46be704e）·**perf-covered 新增绿格 0**（真瓶颈=接线+micro↛e2e·见下 T6 关键发现）。**队列自动衔接**：铺面③流式抽样（kernel-axis 对位·预期 parity 为主）→ ④T4b → ⑤T3p。
-- ✅ 本轮已收（T6 全落）：**T6 batch-rvv（2eb7ae10·q4_0 分相 e2e 5.76×prefill/1.91×decode·routing 白嫖披露·维持+强化·4+1 格 [GAP-FLAT-E2E-ROUTING]·新增绿格 0）** · **T6 batch-k1（46be704e·[GAP-IME-E2E-INTEGRATION]·IME 核未 wired·厂商天花板证 micro↛e2e·0 转绿）** · **[GAP-IME-LEAF-PIPELINE] 全闭环**（C3′ 范式杠杆）· 线乙 铺面①· [T8·LAW-FIRST-EMISSION] · CLAUDE.md 禁停机制
+## 在飞（★当前并行度 N=1 · ④T4b 选择器四配置消融·in-tree · 队列自动衔接·禁停机制适用）
+- **④T4b（选择器四配置消融·in-tree selector 域）· agent a767bedd**：系统化 M0 falsifier(2 配置)+T5c M-aware 为四配置消融矩阵（常量盲×能力派生 × GEMM×decode·矩阵静默落败复现/消失专项）·机制 C3′ 证据·保行为只观测不改逻辑·欠账表 T4b 0→四配置表。
+- ✅ 本轮已收：**铺面③ 流式抽样（813f6462·parity 为主满分 4 格·3 新具名 GAP[DEQ-KQUANT-UNPACK/FWD-M8-VSETVL/CLANG-GATHER-TRAP]·★iq4_nl gather-trap=K-quant S6 不对称镜像·perf-covered 0 新绿如预期）** · **T6 两批全落（2eb7ae10 q4_0 5.76×/1.91× routing + 46be704e IME 集成缺·天花板判定接线+micro↛e2e）** · [GAP-IME-LEAF-PIPELINE] 全闭环 · [T8·LAW-FIRST-EMISSION] · 禁停机制
 
 ## ★T6 关键发现（perf-covered 管道真实瓶颈·2026-07-11）
 **perf-covered 从 2/84 拉绿的真瓶颈 = 集成/接线（tcrv 核多数未 wired 进 forward）+ micro↛e2e 封顶**（非 kernel 质量）：
