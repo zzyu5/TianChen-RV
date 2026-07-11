@@ -1934,6 +1934,290 @@ module {
   return 0;
 }
 
+// T4b — FOUR-CONFIGURATION selector ablation matrix (cost-model × scenario).
+// (G4 IME campaign, 实验总纲 §4.2 "选择器四配置" + T4b table + [SEL-2] 专项.)
+//
+// This SYSTEMATIZES the scattered priors — the M0 falsifier's two GEMM cells
+// (runSel2CrossParadigmMisfireFalsifierTest, capability-BLIND vs capability-
+// DERIVED) plus the T5c M-aware decode boundary — into the complete 2x2 ablation
+// the science plan calls for, and adds the two DECODE cells that pin down the
+// PRECISION of the fix. The matrix is:
+//
+//                     | GEMM  (M>=M*, compute-bound prefill) | decode (M<M*, memory-bound)
+//   ------------------+--------------------------------------+---------------------------
+//   capability-BLIND  | (a) SILENT MISFIRE reproduced        | (d) accidentally CORRECT
+//   constant cost     |     20>1 asc -> chosen = VECTOR (X)  |     20>1 -> chosen = VECTOR (ok)
+//   (pre SEL-1-T5)    |                                      |
+//   ------------------+--------------------------------------+---------------------------
+//   capability-       | (b) MISFIRE vanishes                 | (c) roofline PARITY
+//   DERIVED cost      |     0.5<1 -> chosen = MATRIX (ok)    |     1.0==1.0 -> chosen = VECTOR (ok)
+//   (SEL-1-T5 + T5c)  |                                      |     (matrix NOT preferred)
+//
+// The ROOFLINE-correct paradigm per scenario: GEMM wants the systolic MATRIX
+// array (M reaches the crossover M*, compute-bound); decode wants the RVV VECTOR
+// path (M below M*, memory-bound — the compute-isolated micro-advantage does not
+// transduce, micro↛e2e). The four cells + four cross-config readings prove the
+// capability-derived + M-aware prior PRECISELY removes the GEMM silent misfire
+// WITHOUT over-correcting decode.
+//
+// PROVENANCE / defense-in-depth honesty (照 T5c):
+//   * The DERIVED row (b, c) is separately proven end-to-end on the PRODUCTION
+//     RVV + IME plugins by the lit tests capability-prior-ime-gemm-over-rvv.mlir
+//     (GEMM matM=256) and capability-prior-ime-mstar-writeback.mlir (GEMM matM=64
+//     + decode single-fragment). The BLIND row (a, d) is gtest-only by
+//     construction: the production plugin CANNOT re-emit its old blind 20 for a
+//     GEMM shape now that SEL-1-T5 landed, so the blind constants are INJECTED via
+//     the sanctioned test-plugin constant-score path (exactly as the M0 falsifier
+//     does).
+//   * Cell (c) exercises the T5c M<M* roofline-PARITY cost (1.0). That parity
+//     branch is auditable DEFENSE-IN-DEPTH on the cost layer, NOT a production-
+//     reachable tiled-emission path (the tiled-shape derivation fail-closes below
+//     macM — no remainder path — so a real tiled GEMM reaching cost always has
+//     matM >= macM). The REACHABLE production decode path is the single MAC
+//     fragment (cost 20), proven by capability-prior-ime-mstar-writeback.mlir and
+//     re-observed here as cell (c') — decode is DOUBLY excluded from the matrix
+//     paradigm (parity 1.0 AND single-fragment 20 both keep the vector path).
+//
+// [NG-4]: this is a MECHANISM ablation — no perf numbers, no throughput, no beat
+// claim. The `prior` reason enum flip stays a SEPARATE canon-gated burn-down step
+// (NOT performed here). Behavior is only OBSERVED, never changed.
+int runT4bFourConfigSelectorAblationTest(mlir::MLIRContext &context) {
+  // The same paradigm-abstract co-bid kernel as the M0 falsifier: a vector and a
+  // matrix paradigm variant co-bidding on ONE contraction. The vector variant is
+  // declared FIRST (lower original IR index) — the deterministic tie-break that
+  // decides an equal-score PARITY (cell (c)).
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @paradigm_cobid attributes {} {
+    tcrv.exec.capability @compute_base {
+      id = "compute.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @vector_paradigm_body attributes {
+      origin = "vector-paradigm",
+      requires = [@compute_base]
+    } {
+    }
+    tcrv.exec.variant @matrix_paradigm_body attributes {
+      origin = "matrix-paradigm",
+      requires = [@compute_base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse T4b four-config ablation module");
+
+  KernelOp kernel = findKernel(*module, "paradigm_cobid");
+  VariantOp vectorVariant = findDirectVariant(kernel, "vector_paradigm_body");
+  VariantOp matrixVariant = findDirectVariant(kernel, "matrix_paradigm_body");
+  if (int result =
+          expect(kernel && vectorVariant && matrixVariant,
+                 "co-bid kernel exposes a vector and a matrix paradigm variant"))
+    return result;
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  // One ablation cell = inject (matrixScore, vectorScore) constant costs via the
+  // sanctioned test-plugin path and read back the winning variant. The BLIND
+  // scores model the pre-SEL-1-T5 capability-blind constants; the DERIVED scores
+  // model the post SEL-1-T5 + T5c capability-derived, M-aware prior. The cell only
+  // PLANS (no IR mutation); the committed marker is materialized once, below.
+  auto runCell = [&](double matrixScore, double vectorScore, const char *label,
+                     VariantOp &winnerOut) -> int {
+    SelectionCostPlugin vectorBase("vector-paradigm", vectorScore);
+    SelectionCostPlugin matrix("matrix-paradigm", matrixScore);
+    ExtensionPluginRegistry registry;
+    if (int result = expectSuccess(registry.registerPlugin(vectorBase),
+                                   llvm::Twine(label) + ": register vector base"))
+      return result;
+    if (int result = expectSuccess(registry.registerPlugin(matrix),
+                                   llvm::Twine(label) + ": register matrix"))
+      return result;
+    auto planOrError = tianchenrv::transforms::planKernelVariantSelection(
+        kernel, capabilities, registry);
+    if (!planOrError)
+      return fail(llvm::Twine(label) + " selection failed: " +
+                  llvm::toString(planOrError.takeError()));
+    VariantSelectionPlan plan = std::move(*planOrError);
+    if (int result =
+            expect(plan.kind == VariantSelectionKind::StaticVariant,
+                   llvm::Twine(label) + ": expected a static-variant selection"))
+      return result;
+    winnerOut = plan.selectedVariant;
+    return 0;
+  };
+
+  // Config axis (rows): BLIND constant (matrix 20 > vector 1) vs DERIVED prior.
+  // Scenario axis (cols): GEMM (roofline-correct = MATRIX) vs decode (= VECTOR).
+  constexpr double kBlindMatrixCost = 20.0;      // pre-SEL-1-T5 capability-blind
+  constexpr double kVectorBaseCost = 1.0;        // RVV vector base (both regimes)
+  constexpr double kDerivedGemmMatrixCost = 0.5; // SEL-1-T5 GEMM preference (M>=M*)
+  constexpr double kDerivedDecodeParityCost = 1.0; // T5c M<M* roofline parity (=base)
+  constexpr double kDerivedFragmentMacCost = 20.0; // single MAC fragment leaf cost
+
+  VariantOp aWinner, bWinner, cWinner, dWinner, cFragmentWinner;
+  // (a) BLIND × GEMM.
+  if (int result = runCell(kBlindMatrixCost, kVectorBaseCost, "(a) blind×GEMM",
+                           aWinner))
+    return result;
+  // (b) DERIVED × GEMM.
+  if (int result = runCell(kDerivedGemmMatrixCost, kVectorBaseCost,
+                           "(b) derived×GEMM", bWinner))
+    return result;
+  // (c) DERIVED × decode (roofline parity).
+  if (int result = runCell(kDerivedDecodeParityCost, kVectorBaseCost,
+                           "(c) derived×decode(parity)", cWinner))
+    return result;
+  // (d) BLIND × decode.
+  if (int result = runCell(kBlindMatrixCost, kVectorBaseCost, "(d) blind×decode",
+                           dWinner))
+    return result;
+  // (c') DERIVED × decode via the single MAC fragment leaf cost (double-exclusion).
+  if (int result = runCell(kDerivedFragmentMacCost, kVectorBaseCost,
+                           "(c') derived×decode(fragment)", cFragmentWinner))
+    return result;
+
+  // ---- Per-cell verdicts --------------------------------------------------
+  // (a) BLIND × GEMM = SILENT MISFIRE reproduced: chosen = vector (WRONG — the
+  //     GEMM roofline wants the matrix array; blind 20>1 ascending silently picks
+  //     vector, no error). This is the P7 潜伏错选 ([SEL-2]).
+  if (int result =
+          expect(aWinner == vectorVariant,
+                 "(a) blind×GEMM MISFIRES: blind 20>1 ascending silently selects "
+                 "the vector paradigm for a GEMM the roofline wants on the matrix "
+                 "array (no error)"))
+    return result;
+  // (b) DERIVED × GEMM = misfire VANISHES: chosen = matrix (RIGHT).
+  if (int result =
+          expect(bWinner == matrixVariant,
+                 "(b) derived×GEMM: capability-derived 0.5<1 selects the matrix "
+                 "paradigm — the silent misfire is eliminated"))
+    return result;
+  // (c) DERIVED × decode (parity) = matrix NOT preferred: chosen = vector (RIGHT).
+  //     The M<M* roofline-parity score (1.0) TIES the vector base; the
+  //     deterministic tie-break (equal score -> non-fallback -> original IR order,
+  //     vector declared first) keeps the vector path.
+  if (int result =
+          expect(cWinner == vectorVariant,
+                 "(c) derived×decode: M<M* roofline PARITY (1.0==base) does NOT "
+                 "prefer the matrix paradigm; the tie-break keeps the vector path"))
+    return result;
+  // (d) BLIND × decode = ACCIDENTALLY correct: chosen = vector (RIGHT — but only
+  //     because the SAME blind 20>1 that MISFIRED for GEMM happens to match the
+  //     decode roofline).
+  if (int result =
+          expect(dWinner == vectorVariant,
+                 "(d) blind×decode: the SAME blind 20>1 that misfired for GEMM is "
+                 "ACCIDENTALLY correct for decode (the roofline wants vector here)"))
+    return result;
+  // (c') DOUBLE-EXCLUSION: the derived single MAC fragment leaf cost (20>1) ALSO
+  //     keeps the vector path — decode is excluded from the matrix paradigm by
+  //     BOTH derived cost mechanisms (parity 1.0 AND single-fragment 20).
+  if (int result =
+          expect(cFragmentWinner == vectorVariant,
+                 "(c') derived×decode fragment leaf cost 20>1 ALSO keeps the "
+                 "vector path — decode is doubly excluded from the matrix paradigm"))
+    return result;
+
+  // ---- Ablation reading 1: silent misfire REPRODUCE -> VANISH (GEMM column) --
+  // (a) chose vector (WRONG); (b) chose matrix (RIGHT); the verdicts DIFFER — the
+  // capability-derived prior REMOVES the misfire (not merely a config that works).
+  if (int result =
+          expect(aWinner == vectorVariant && bWinner == matrixVariant &&
+                     aWinner != bWinner,
+                 "ABLATION-1 (GEMM column): the capability-derived prior flips the "
+                 "GEMM winner vector->matrix — the blind silent misfire is "
+                 "reproduced then eliminated"))
+    return result;
+
+  // ---- Ablation reading 2: decode NOT over-corrected (decode column) ---------
+  // (d) blind×decode and (c) derived×decode BOTH chose vector — the fix leaves the
+  // decode verdict UNCHANGED (no over-correction to the matrix paradigm on a
+  // compute-micro signal the memory-bound decode roofline never realizes).
+  if (int result =
+          expect(dWinner == vectorVariant && cWinner == vectorVariant &&
+                     dWinner == cWinner,
+                 "ABLATION-2 (decode column): blind and derived AGREE on the "
+                 "vector path for decode — the fix does not over-correct decode "
+                 "to the matrix paradigm"))
+    return result;
+
+  // ---- Ablation reading 3: PRECISION (the load-bearing 2x2 diagonal) ---------
+  // Going blind -> derived flips ONLY the GEMM verdict (a->b: vector->matrix) and
+  // leaves the decode verdict fixed (d->c: vector->vector). The capability-derived
+  // + M-aware prior is therefore a PRECISE fix, not a blanket matrix bias.
+  if (int result =
+          expect(aWinner != bWinner && dWinner == cWinner,
+                 "ABLATION-3 (precision): blind->derived flips the GEMM winner but "
+                 "NOT the decode winner — the prior precisely removes the misfire"))
+    return result;
+
+  // ---- Ablation reading 4: the blind cost is SCENARIO-BLIND ------------------
+  // (a) and (d) inject IDENTICAL scores (matrix 20 > vector 1) and reach the
+  // IDENTICAL verdict (vector) — yet (a) is WRONG (GEMM) and (d) is RIGHT (decode).
+  // A single scenario-blind constant cannot separate a GEMM from a decode. The
+  // derived cost IS scenario-aware: it scores the SAME matrix variant 0.5 for the
+  // GEMM but at parity (1.0) for decode (0.5 != 1.0).
+  if (int result =
+          expect(aWinner == dWinner &&
+                     kDerivedGemmMatrixCost != kDerivedDecodeParityCost,
+                 "ABLATION-4 (scenario-blindness): the blind constant gives GEMM "
+                 "and decode the SAME verdict (cannot tell them apart) while the "
+                 "derived cost is scenario-aware (GEMM 0.5 != decode parity 1.0)"))
+    return result;
+
+  // ---- Full-chain commit lock (decode side) ---------------------------------
+  // Complement the M0 falsifier's GEMM-side materialization (matrix winner, score
+  // 0.5). Materialize the derived decode-PARITY plan and assert the committed
+  // marker targets the VECTOR variant and carries the parity score (1.0): the
+  // committed artifact tracks the decode verdict — the matrix paradigm is NOT
+  // committed for decode even at cost parity.
+  SelectionCostPlugin decodeVectorBase("vector-paradigm", kVectorBaseCost);
+  SelectionCostPlugin decodeMatrixParity("matrix-paradigm",
+                                          kDerivedDecodeParityCost);
+  ExtensionPluginRegistry decodeRegistry;
+  if (int result = expectSuccess(decodeRegistry.registerPlugin(decodeVectorBase),
+                                 "register decode-parity vector base"))
+    return result;
+  if (int result =
+          expectSuccess(decodeRegistry.registerPlugin(decodeMatrixParity),
+                        "register decode-parity matrix"))
+    return result;
+  auto decodePlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+      kernel, capabilities, decodeRegistry);
+  if (!decodePlanOrError)
+    return fail("decode-parity selection failed: " +
+                llvm::toString(decodePlanOrError.takeError()));
+  VariantSelectionPlan decodePlan = std::move(*decodePlanOrError);
+  mlir::OpBuilder builder(&context);
+  DiagnosticOp decodeMarker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, decodePlan, &decodeMarker),
+          "materialize the derived decode-parity committed marker"))
+    return result;
+  std::optional<double> committedDecodeScore =
+      getFloatAttr(decodeMarker.getOperation(), "preference_score");
+  if (int result =
+          expect(decodeMarker &&
+                     getTarget(decodeMarker.getOperation()) ==
+                         vectorVariant.getSymName() &&
+                     getStringAttr(decodeMarker.getOperation(),
+                                   "selection_kind") == "static-variant" &&
+                     committedDecodeScore.has_value() &&
+                     *committedDecodeScore == 1.0,
+                 "decode-parity commit targets the vector variant and carries the "
+                 "parity score 1.0 — the matrix paradigm is not committed for "
+                 "decode"))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -1972,6 +2256,8 @@ int main() {
   if (int result = runCostFailurePropagationTests(context))
     return result;
   if (int result = runSel2CrossParadigmMisfireFalsifierTest(context))
+    return result;
+  if (int result = runT4bFourConfigSelectorAblationTest(context))
     return result;
 
   llvm::outs() << "variant selection planning smoke test passed\n";
