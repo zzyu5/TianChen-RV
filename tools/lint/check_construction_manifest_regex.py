@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lint/check_construction_manifest_regex.py — F-1 construction-manifest shape gate.
+# tools/lint/check_construction_manifest_regex.py — [C1-SHAPE] construction-manifest shape gate.
 #
 # C1 (合取存在性) fail-closed STRUCTURAL machine-check. For every `constructed` (== STRONG)
 # cell in the six-state schema, the E5 `auto_readout` carries a MACHINE-DERIVED realized-body

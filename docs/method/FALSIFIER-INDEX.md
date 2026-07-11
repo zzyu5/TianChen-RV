@@ -33,11 +33,10 @@ F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3 gated on 目录归拢�
 | 记号 | 所指 | 工件 | 语义 |
 |---|---|---|---|
 | **F-1-(零分支)** | canon 的**零核心分支** falsifier | 尚缺：family-regex manifest + grep-clean CI + 真/假阳性判读规程 | grep `<family_regex>` core/ = 0；家族名不得进核心控制流 |
-| **F-1-(shape 门)** | `check_construction_manifest_regex.py` **自标**的 "F-1 construction-manifest shape gate" | `tools/lint/check_construction_manifest_regex.py` | C1 合取的**构造体 SHAPE 正则门**：对 constructed cell 的 E5 realized-body manifest 正则出合法 typed-primitive 形态、拒不透明手写 helper（[L-8]） |
+| **[C1-SHAPE]（原 F-1-shape 门）** | `check_construction_manifest_regex.py` 自标 **"[C1-SHAPE] construction-manifest shape gate"** | `tools/lint/check_construction_manifest_regex.py` | C1 合取的**构造体 SHAPE 正则门**：对 constructed cell 的 E5 realized-body manifest 正则出合法 typed-primitive 形态、拒不透明手写 helper（[L-8]） |
 
 **二者不同层**（一个查「家族名不进核心分支」= I3 不变量；一个查「constructed 是可检形态」= C1 合取证据件）。
-**建议 [RENAME]**：给 shape 门改一个不占「F-1」的标签（如 `[C1-SHAPE]` 或 `[F-STRONG]`），把「F-1」留给零分支门，
-消除 grep/阅读时的歧义。**本节是唯一权威碰撞记录**（与 REPOSITORY-MAP-五大件.md §3.1 的 P1 三所指并列）。
+**✅ [RENAME] 已执行（2026-07-12）**：shape 门自标已从 "F-1 ..." 改为 **"[C1-SHAPE] ..."**（`check_construction_manifest_regex.py`），「F-1」标号自此**独归零分支门**，grep/阅读歧义消除。**本节是唯一权威碰撞记录**（与 REPOSITORY-MAP-五大件.md §3.1 的 P1 三所指并列）。历史 dated 报告（`2026-07-11-TEMPLATE-AUDIT-structure.md` 等）内的旧 "F-1-shape" 引用属 append-only 存档·不回改·以本节为准。
 
 ---
 
