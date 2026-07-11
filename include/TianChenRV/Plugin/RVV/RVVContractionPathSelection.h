@@ -16,9 +16,9 @@ namespace tianchenrv::plugin::rvv {
 // TRUE: the choice that today is frozen by OP IDENTITY in the hand-authored input
 // IR moves INTO a capability-fact-driven pass.
 //
-// The selection is BRANCH-FREE over a small static prior (a 3-fact AND), reads
-// the abstract op's committed WHAT axis (M-regime) plus the two PER-FORMAT
-// OPPONENT FACTS the op now carries as STRUCTURED ATTRS (block_dot_compute_heavy,
+// The selection is BRANCH-FREE over a small static prior, reads the abstract op's
+// committed WHAT axis (M-regime) plus the PER-FORMAT OPPONENT/ROOFLINE FACTS the op
+// now carries as STRUCTURED ATTRS (block_dot_compute_heavy, block_dot_memory_bound,
 // opponent_vlen_native_floor) and the DERIVED capability fact minVLEN
 // (deriveMinimumVLEN(march, hints)). It NEVER string-matches an op kind, an ABI
 // string, a family name, OR the quant FORMAT LABEL (the I3/N2 discipline): the
@@ -59,8 +59,23 @@ struct ContractionOpponentFacts {
   // Fact 2: the plain block-dot is COMPUTE-HEAVY enough that the repacked
   // out-of-block stream removes work. (q4_0: true -- nibble decode + per-block
   // vredsum + scattered reads. q8_0: false -- LEAN, one vwredsum/block, nothing
-  // for repack to remove.)
+  // for repack to remove ON THE COMPUTE SIDE.)
   bool blockDotComputeHeavy;
+  // Fact 2b: the ROOFLINE DUAL of fact 2. The plain block-dot is
+  // MEMORY-BANDWIDTH-BOUND -- wide weight bytes/block streamed against LEAN
+  // arithmetic -- so the repacked interleaved block_<fmt>x16 layout removes
+  // REDUNDANT MEMORY TRAFFIC (one contiguous 16-column weight stream + activation-
+  // block reuse across the 16 columns) rather than compute work. This is the
+  // SECOND, INDEPENDENT repack benefit mechanism the compute-heavy fact CANNOT
+  // capture: a block-dot can be compute-LEAN yet bandwidth-bound, and repack then
+  // out-STREAMS (not out-COMPUTES) it. (q8_0: true -- the WIDEST linear quant, 34
+  // bytes/block ~= 1 byte/weight against one vwredsum/block, so its lean block-dot
+  // is bandwidth-bound; repack's x16 stream is what removes the redundant traffic.
+  // q4_0: false/absent -- q4_0's benefit is compute-side, fact 2.) STRUCTURAL (read
+  // off the block byte layout + the vec_dot roofline), NOT a measured guard: a
+  // measured e2e number only CONFIRMS it, exactly as fact 2 is confirmed but not
+  // ESTABLISHED by q4_0's 5.9x.
+  bool blockDotMemoryBound;
 };
 
 struct ContractionSelection {
@@ -71,9 +86,10 @@ struct ContractionSelection {
 };
 
 // Capability-fact-driven, branch-free over the static prior. Prefers Repack iff
-// ALL THREE facts hold; else BlockDot (= decline = match the ggml VLEN-native
-// kernel). The two PER-FORMAT facts (1, 2) arrive as `facts` READ from the op's
-// structured attrs; the capability fact (3) is derived from minVLEN + mRegime:
+// fact 1 is clear AND repack removes redundant work (fact 2 OR fact 2b) AND fact 3
+// holds; else BlockDot (= decline = match the ggml VLEN-native kernel). The
+// PER-FORMAT facts (1, 2, 2b) arrive as `facts` READ from the op's structured
+// attrs; the capability fact (3) is derived from minVLEN + mRegime:
 //   1. NO ggml VLEN-native hand-tuned kernel that repack LOSES to exists for this
 //      (format, VLEN): facts.ggmlVlenNativeKernelFloor is unset, OR minVLEN is
 //      below it. (q4_K carries floor 128 -> repack loses at every VLEN >= 128 ->
@@ -81,8 +97,14 @@ struct ContractionSelection {
 //      at the top of the .cpp for the empirical justification of the fixture
 //      values -- note it corrects an earlier premise that q4_K@128 was a scalar
 //      fallback: it is the roster's STRONGEST opponent, inline RVV assembly.)
-//   2. the plain block-dot is COMPUTE-HEAVY enough that repack out-streams it:
-//      facts.blockDotComputeHeavy (q4_0 yes; q8_0 no -> decline).
+//   2. the plain block-dot is COMPUTE-HEAVY enough that repack out-COMPUTES it:
+//      facts.blockDotComputeHeavy (q4_0 yes; q8_0 no on the compute side).
+//   2b. OR the plain block-dot is MEMORY-BANDWIDTH-BOUND so repack out-STREAMS it
+//      (contiguous x16 weight stream + activation reuse removes redundant traffic):
+//      facts.blockDotMemoryBound (q8_0 yes -- widest linear quant, lean but
+//      bandwidth-bound; q4_0 no -- its benefit is fact 2). Facts 2 and 2b are DUAL
+//      roofline mechanisms; requiring compute-heaviness ALONE wrongly declined the
+//      bandwidth-bound q8_0 cell that repack demonstrably out-streams.
 //   3. VLEN==128 OR Prefill favors repack (q4_0 @ VLEN256 decode measured a
 //      0.74x LOSS -> decline that decode cell).
 ContractionSelection

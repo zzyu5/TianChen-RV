@@ -59,10 +59,19 @@ namespace tianchenrv::plugin::rvv {
 
 // The roster above is now the EMPIRICAL JUSTIFICATION for the per-format opponent
 // facts the abstract op CARRIES as structured attrs (the IR declaration layer),
-// NOT a set of C++ switches this selector reads. Facts 1 and 2 arrive in the
+// NOT a set of C++ switches this selector reads. Facts 1, 2 and 2b arrive in the
 // `facts` parameter (read from the op's opponent_vlen_native_floor /
-// block_dot_compute_heavy attrs by RVVLowerQuantContraction); only fact 3 (the
-// pure VLEN/M-regime capability rule) is still computed here.
+// block_dot_compute_heavy / block_dot_memory_bound attrs by
+// RVVLowerQuantContraction); only fact 3 (the pure VLEN/M-regime capability rule)
+// is still computed here.
+//
+// Fact 2 (compute-heavy) and fact 2b (memory-bandwidth-bound) are the two DUAL
+// roofline mechanisms by which the repacked block_<fmt>x16 stream removes redundant
+// work: fact 2 removes COMPUTE (scattered nibble decode -> out-of-block stream,
+// q4_0), fact 2b removes MEMORY TRAFFIC (contiguous 16-column weight stream +
+// activation reuse, q8_0 -- the widest linear quant, lean compute but bandwidth-
+// bound). Both are read off the format's block layout + the ggml vec_dot roofline
+// (STRUCTURAL provenance, see opponent-facts.pin.json), never a measured e2e number.
 
 namespace {
 
@@ -88,17 +97,36 @@ selectContractionAlgorithm(const ContractionOpponentFacts &facts,
       facts.ggmlVlenNativeKernelFloor.has_value() &&
       minVLEN >= *facts.ggmlVlenNativeKernelFloor;
 
-  bool selectRepack = !ggmlVlenNativeExists && facts.blockDotComputeHeavy &&
+  // The repack rewrite removes REDUNDANT WORK when EITHER benefit mechanism holds
+  // (facts 2 and 2b are DUAL roofline mechanisms): the plain block-dot is COMPUTE-
+  // heavy (fact 2 -- repack out-COMPUTES the scattered nibble decode, q4_0) OR it is
+  // MEMORY-BANDWIDTH-bound (fact 2b -- repack's contiguous x16 stream + activation
+  // reuse out-STREAMS the redundant traffic, q8_0). Requiring compute-heaviness
+  // ALONE wrongly declined q8_0: its block-dot is compute-LEAN yet the WIDEST linear
+  // quant (~1 byte/weight) so it is bandwidth-bound, and repack removes MEMORY work
+  // it cannot remove on the compute side.
+  bool repackRemovesRedundantWork =
+      facts.blockDotComputeHeavy || facts.blockDotMemoryBound;
+
+  bool selectRepack = !ggmlVlenNativeExists && repackRemovesRedundantWork &&
                       vlenOrPrefillFavorsRepack(minVLEN, mRegime);
 
   if (selectRepack) {
-    // Repack SELECTED. Differentiate the prefill (amortized) reason from the
-    // VLEN128 decode reason so the audit reflects WHICH fact carried it. The
-    // audit token retains the historical format spelling as pure PROVENANCE (it
-    // names the fact-pattern/cell, it is NOT read from the op's format label).
+    // Repack SELECTED. Differentiate the reason by (a) WHICH benefit mechanism
+    // carried it -- compute-heavy out-stream (fact 2) vs memory-bandwidth-bound
+    // locality (fact 2b) -- and (b) prefill (amortized) vs VLEN128 decode, so the
+    // audit reflects the carrying fact. When BOTH facts hold the compute reason
+    // wins (nibble decode is the stronger, historically-first cell). The audit
+    // token retains the historical format spelling as pure PROVENANCE (it names the
+    // fact-pattern/cell, it is NOT read from the op's format label).
+    bool memoryCarried = !facts.blockDotComputeHeavy; // then fact 2b carried it
     if (mRegime == MRegime::Prefill)
-      return {ContractionAlgorithm::Repack, "repack-kept-q4_0-prefill"};
-    return {ContractionAlgorithm::Repack, "repack-kept-q4_0-vlen128-decode"};
+      return {ContractionAlgorithm::Repack,
+              memoryCarried ? "repack-kept-q8_0-memory-bound-prefill"
+                            : "repack-kept-q4_0-prefill"};
+    return {ContractionAlgorithm::Repack,
+            memoryCarried ? "repack-kept-q8_0-memory-bound-vlen128-decode"
+                          : "repack-kept-q4_0-vlen128-decode"};
   }
 
   // BlockDot (decline) SELECTED. Differentiate the reason by WHICH fact declined
@@ -106,10 +134,11 @@ selectContractionAlgorithm(const ContractionOpponentFacts &facts,
   if (ggmlVlenNativeExists)
     return {ContractionAlgorithm::BlockDot,
             "block-dot-decline-q4_K-vlen-native-exists"};
-  if (!facts.blockDotComputeHeavy)
+  if (!repackRemovesRedundantWork)
     return {ContractionAlgorithm::BlockDot,
-            "block-dot-decline-q8_0-lean-fallback"};
-  // Heavy + no native kernel, but fact 3 declined: the VLEN256 decode loss cell.
+            "block-dot-decline-lean-no-repack-benefit"};
+  // A benefit fact holds + no native kernel, but fact 3 declined: the VLEN256
+  // decode loss cell.
   return {ContractionAlgorithm::BlockDot,
           "block-dot-decline-q4_0-vlen256-decode-k1-loss"};
 }

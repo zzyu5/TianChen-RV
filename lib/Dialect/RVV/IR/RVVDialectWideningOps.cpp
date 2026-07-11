@@ -1826,7 +1826,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // WHAT attrs (I4): an OPTIONAL quant format LABEL, the dual-fp16 scale model,
   // the M-regime, the PLAIN weight-layout commitment, the plain block-format byte
   // facts, the STRUCTURED OPPONENT FACTS that drive routing
-  // (opponent_vlen_native_floor / block_dot_compute_heavy), and an optional
+  // (opponent_vlen_native_floor / block_dot_compute_heavy /
+  // block_dot_memory_bound), and an optional
   // advisory min_vlen capability snapshot. Anything else -- a forbidden local
   // element_count/SEW/LMUL/policy attr, an unexpected name, or any REPACK-only
   // layout fact (weight_interleave / half_lanes / the x16 stride 288) -- is
@@ -1839,7 +1840,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" ||
            name == "opponent_vlen_native_floor" ||
-           name == "block_dot_compute_heavy" || name == "min_vlen";
+           name == "block_dot_compute_heavy" ||
+           name == "block_dot_memory_bound" || name == "min_vlen";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -1857,7 +1859,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
                 "'weight_block_stride', 'activation_block_stride', "
                 "'quant_byte_offset', 'activation_high_byte_offset', the "
                 "structured opponent facts 'opponent_vlen_native_floor' / "
-                "'block_dot_compute_heavy', and the advisory 'min_vlen'; "
+                "'block_dot_compute_heavy' / 'block_dot_memory_bound', and the "
+                "advisory 'min_vlen'; "
                 "unexpected attribute '"
              << attr.getName()
              << "' (the repack-only weight_interleave / half_lanes / x16 layout "
@@ -1880,7 +1883,8 @@ mlir::LogicalResult GgmlQuantContractionOp::verify() {
   // format LABEL (a table-lookup / provenance token) -- the verifier does NOT
   // require it and NEVER routes on it: the repack-vs-block-dot decision is driven
   // by the structured opponent facts (opponent_vlen_native_floor /
-  // block_dot_compute_heavy) plus the derived capability VLEN, so an op with the
+  // block_dot_compute_heavy / block_dot_memory_bound) plus the derived capability
+  // VLEN, so an op with the
   // facts but NO `quant` label lowers to the IDENTICAL concrete region. The
   // decode FAMILY of a request is pinned STRUCTURALLY by the committed
   // `scale_model` WHAT (NOT the label) plus the plain block-format facts below.

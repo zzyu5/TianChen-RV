@@ -860,17 +860,19 @@ public:
 private:
   // Read the abstract op's STRUCTURED OPPONENT FACTS (the IR declaration layer)
   // into the selector's pure fact struct. This is the C1 relocation: routing
-  // reads opponent_vlen_native_floor / block_dot_compute_heavy from the IR, NEVER
-  // the quant format LABEL, so a request that deleted its `quant` label but kept
-  // the facts selects the IDENTICAL algorithm. Absent facts default to the
-  // conservative "no repack advantage" (no VLEN-native opponent floor / not
-  // compute-heavy), which routes to the safe block-dot path.
+  // reads opponent_vlen_native_floor / block_dot_compute_heavy /
+  // block_dot_memory_bound from the IR, NEVER the quant format LABEL, so a request
+  // that deleted its `quant` label but kept the facts selects the IDENTICAL
+  // algorithm. Absent facts default to the conservative "no repack advantage" (no
+  // VLEN-native opponent floor / neither compute-heavy nor memory-bandwidth-bound),
+  // which routes to the safe block-dot path.
   static pluginrvv::ContractionOpponentFacts
   readOpponentFacts(tcrvrvv::GgmlQuantContractionOp op) {
     pluginrvv::ContractionOpponentFacts facts;
     if (mlir::IntegerAttr floor = op.getOpponentVlenNativeFloorAttr())
       facts.ggmlVlenNativeKernelFloor = floor.getInt();
     facts.blockDotComputeHeavy = op.getBlockDotComputeHeavy().value_or(false);
+    facts.blockDotMemoryBound = op.getBlockDotMemoryBound().value_or(false);
     return facts;
   }
 

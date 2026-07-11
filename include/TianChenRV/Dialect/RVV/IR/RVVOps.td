@@ -4266,9 +4266,22 @@ def GgmlQuantContractionOp
       measured repack out-streams). Fact 1 of the selection.
 
     - **`block_dot_compute_heavy` (optional bool).** Whether the plain block-dot
-      is compute-heavy enough that the repacked out-of-block stream removes work
-      (q4_0 = true: nibble decode + per-block vredsum + scattered reads; q8_0/absent
-      = lean). Fact 2 of the selection.
+      is compute-heavy enough that the repacked out-of-block stream removes COMPUTE
+      work (q4_0 = true: nibble decode + per-block vredsum + scattered reads;
+      q8_0/absent = compute-lean). Fact 2 of the selection.
+
+    - **`block_dot_memory_bound` (optional bool).** The ROOFLINE DUAL of
+      `block_dot_compute_heavy`: whether the plain block-dot is MEMORY-BANDWIDTH-
+      bound (wide weight bytes/block streamed against lean arithmetic) so the
+      repacked interleaved x16 layout removes REDUNDANT MEMORY TRAFFIC (one
+      contiguous 16-column weight stream + activation-block reuse) rather than
+      compute work (q8_0 = true: 34 bytes/block ~= 1 byte/weight, one vwredsum/block
+      -- the widest linear quant, bandwidth-bound; q4_0/absent = the benefit is
+      compute-side, fact 2). Fact 2b of the selection. Repack is selected when fact
+      1 is clear AND (fact 2 OR fact 2b) AND fact 3 holds; facts 2 and 2b are dual
+      roofline mechanisms, so requiring compute-heaviness alone wrongly declined the
+      bandwidth-bound q8_0 cell repack out-streams. STRUCTURAL (block byte layout +
+      vec_dot roofline), not a measured guard.
 
     The `quant` attribute is now an OPTIONAL, purely human-readable format LABEL
     (a table-lookup entry point / provenance token). The
@@ -4306,6 +4319,7 @@ def GgmlQuantContractionOp
     // bumped away from that sha — re-verify the anchors before trusting these facts.
     OptionalAttr<I64Attr>:$opponent_vlen_native_floor,
     OptionalAttr<BoolAttr>:$block_dot_compute_heavy,
+    OptionalAttr<BoolAttr>:$block_dot_memory_bound,
     OptionalAttr<I64Attr>:$min_vlen
   );
   let results = (outs AnyType:$result);

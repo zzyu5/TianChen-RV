@@ -5,8 +5,11 @@
 // G3-lode-flat FLAT-4 收官格 -- q8_0 gemm_tile (PREFILL) FRONT-DOOR construction on
 // the SUPPORTED RVV1.0 regime (march=rv64gcv => Zvl128b => VLEN128). The abstract,
 // algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op (q8_0 / PREFILL) is
-// AUTO-LOWERED: the in-compiler selection picks REPACK and -- because m_regime ==
-// "prefill" -- the C1 bridge CONSTRUCTS the typed tcrv_rvv.typed_repack_gemm_loop_body
+// AUTO-LOWERED: the in-compiler selection picks REPACK on the HONEST q8_0 fact set
+// -- block_dot_memory_bound = true (fact 2b: q8_0's LEAN block-dot is bandwidth-
+// bound, 34 bytes/block ~= 1 byte/weight, so repack's x16 stream removes redundant
+// MEMORY traffic) with NO forced block_dot_compute_heavy -- and -- because
+// m_regime == "prefill" -- the C1 bridge CONSTRUCTS the typed tcrv_rvv.typed_repack_gemm_loop_body
 // REGION carrying the SHARED q4_0 GEMM bricks -- the one-strip N-column integer CORE
 // (repack_gemm_lane_wise_q4_x_i8_dot, stamping the NEW weight_full_i8 selector = the
 // FULL signed int8 decode: NO nibble unpack; qk=32 positions/block, vle8 i8 strip at
@@ -29,7 +32,7 @@ module {
       %vy = tcrv_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_gemm_q8_0_q8_0, sew = 32 : i64, source_kernel = "ggml_gemm_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q8_0", scale_model = "dual-fp16-per-block-d_x.d_y-full-i8", m_regime = "prefill", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q8_0", scale_model = "dual-fp16-per-block-d_x.d_y-full-i8", m_regime = "prefill", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_memory_bound = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }

@@ -6,7 +6,11 @@
 // the SUPPORTED RVV1.0 regime (march=rv64gcv => Zvl128b => VLEN128). The abstract,
 // algorithm-UNCOMMITTED tcrv_rvv.quant_contraction op (q8_0 / decode) is
 // AUTO-LOWERED by --tcrv-rvv-lower-quant-contraction: the in-compiler selection
-// picks REPACK (deriveMinimumVLEN(rv64gcv)=128) and the C1 bridge CONSTRUCTS the
+// picks REPACK (deriveMinimumVLEN(rv64gcv)=128) on the HONEST q8_0 fact set --
+// block_dot_memory_bound = true (fact 2b: q8_0's LEAN block-dot streams 34
+// bytes/block ~= 1 byte/weight, the widest linear quant, so it is bandwidth-bound
+// and repack's x16 stream removes redundant MEMORY traffic) with NO forced
+// block_dot_compute_heavy -- and the C1 bridge CONSTRUCTS the
 // typed tcrv_rvv.typed_repack_gemv_loop_body region carrying the SHARED lane-wise
 // integer CORE brick (repack_lane_wise_q4_x_i8_dot) stamping the NEW weight_full_i8
 // selector (the FULL signed int8 decode: NO nibble unpack; qk=32 positions/block,
@@ -34,7 +38,7 @@ module {
       %nrc = tcrv_rvv.runtime_abi_value {c_name = "nrc", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "nrc", role = "rhs-scalar-value"} : i32
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_q8_0_q8_0, sew = 32 : i64, source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %bs, %vl {quant = "q8_0", scale_model = "dual-fp16-per-block-d_x.d_y-full-i8", m_regime = "decode", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %dot = tcrv_rvv.quant_contraction %vx, %vy, %s, %n, %bs, %vl {quant = "q8_0", scale_model = "dual-fp16-per-block-d_x.d_y-full-i8", m_regime = "decode", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_memory_bound = true} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       } : !tcrv_rvv.vl
     }
   }
