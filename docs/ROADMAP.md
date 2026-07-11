@@ -10,7 +10,7 @@
 
 ## 北极星（成熟 compiler 终态）
 C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** + **sealed Win ≥1** + **论文三贡献证据链闭合**
-> **M4 状态（2026-07-11）**：三分类终态达成（certified 81/91=89.01%·零未定义格·旁路 0）+ **字面 90% 门 gated on G4-M2**（IME 3 格解锁 → 84/91=92.3% = M4 真 100%：全分母声明制 + 字面门双满足）。旗舰吞吐=q4_0 5.9× ✓·旁路清零 ✓·sealed Win=Win-K1-VLEN ✓·论文=[远期·非驱动]。
+> **★M4 状态（2026-07-11·门达成）**：三分类终态达成 + **字面 90% 门达成**（certified 82/91=90.11%≥90%·q4_0@ime k1 硅上封印·在 G4-M1 达成、比预注册 M2 早一格）。**北极星 4/5 组件已满足**：M4 门 ✓·旗舰吞吐 q4_0 5.9× ✓·旁路清零 ✓·sealed Win=Win-K1-VLEN ✓；仅**论文三贡献证据链闭合**=[远期·非驱动]剩。G4 续 M2（q8_0/q4_K@ime）→ 84/91=92.3% = M4 真 100%（全分母声明制 + 字面门双满足 + 全 IME 格 certified）。
 
 ## 方向定调（2026-07-10 合并裁决入档）
 - **rvv 四格蒸发 = gcc 后端质量 + 历史赛制不对称清算，非 kernel 实力问题**。我方出货 = **clang .o 正门**（L3 定义），**永不立项"适配 gcc"**。
@@ -29,7 +29,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 81/91 = 89.01%**（★M4 三分类终态达成·committed 6dcb5db4）｜ **M4 全表**：certified 81 · blocked-on-IME 3 · 声明例外 7 · 域外 2 = roster 93 · **recon True · 零未定义格** ｜ 旁路 0 · dispatch-wired 0 · RED 0 ｜ **字面 90% 门 gated 于 IME 立项**（解锁 3 blocked → 84/91=92.3%） |
+| C_construct | **certified 82/91 = 90.11%**（★★字面 M4 门达成·committed e2eaf7c4·q4_0@ime k1 硅上封印）｜ **M4 全表**：certified 82 · blocked-on-IME 2 · 声明例外 7 · 域外 2 = roster 93 · **recon True · 零未定义格** ｜ 旁路 0 · RED 0 ｜ G4 续 M2 补 q8_0/q4_K@ime → 84/91=92.3% 全 IME 格 |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
 | 矿脉 | **0 可退役格剩余**；absent 13 格全 net-new/aspirational/out-of-scope（见下 M4 收口三步） |
@@ -70,9 +70,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · G4-M1b 板封印 · 串行理由=曳光弹硅证半边、M2 gated 于 M1 贯通、[RENAME]/X-SCALAR gated）
-- **G4-M1b（q4_0@ime 板 k1 硅上封印·board 域）· agent afa3695343**：oracle-mirror C 换真 vmadot asm leaf → SpacemiT GCC15.2 march=xsmtvdotii 交叉编译 → objdump golden（vmadot 0xe210312b）→ k1 硅上逐位 int32 0-diff → 翻 q4_0@ime certified。**★90% 越门前瞻**：q4_0@ime 翻 certified → **82/91=90.11% ≥ 90% = 字面 M4 门在 M1 达成**（比预注册 M2 早一格；q8_0/q4_K@ime 仍 blocked、G4 续 M2 补全 84/91=92.3%）。板不可达/vmadot 语义不符 → 诚实留 board-pending 不假封印。
-- ✅ G4 已收：**M1a 构造半边（1dd87796·format-keyed q4_0 tile·typed region 非 opaque·host int32 oracle 512/512+64/64 bit-exact·禁铺格守住）** · **M0 先验层关门（c6142da3·SEL-2 时序义务 + T4b falsifier·变异证判别力）**
+## 在飞（★当前并行度 N=1 · G4-M2 铺格 · 串行理由=IME 格构造共享 IMEOps/emitter/checker 需串行、板批共享 k1、[RENAME]/X-SCALAR gated）
+- **G4-M2（q8_0/q4_K@ime 铺格·构造+板封印）**：照 q4_0@ime 模板（M1 貫通已立）copy-adapt——q8_0（flat int8·易）+ q4_K（super-block·较难）各 format-keyed tile 构造 + k1 硅上 int32 封印 → 84/91=92.3% 全 IME 格 = M4 真 100%。M2 完成报备一行（预注册不回门）。
+- ✅ **★G4-M1 曳光弹全贯通**（M0 c6142da3 关门 → M1a 1dd87796 构造 → M1b e2eaf7c4 k1 硅证 → **字面 M4 门达成 82/91=90.11%**）：首个自有 IME GEMM（format-keyed q4_0 tile·vmadot 0xe210312b 硅上 int32 0-diff·IME cert 绑死真硅封印）。
 - ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
 - ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
 
