@@ -1,0 +1,37 @@
+# G5-M1 q8_0 e2e correctness gate — greedy-token A(ON)==B(OFF) + logits sanity
+# board rvv openEuler VLEN128, gcc-15.2.0, same-tree physical .so swap
+# A(ON)  = q8_0 gate flipped -> routed to UPSTREAM q8_0_16x1_q8_0 repack GEMM/GEVM (VLEN128)
+# B(OFF) = q8_0 gate off -> ggml block-dot vec_dot (upstream default @VLEN128)
+# NOTE: NO tcrv-emitted kernel deployed. A(ON) uses the UPSTREAM repack kernel body.
+
+-- prompt[1]: 'The capital of France is'
+   A(ON) : olta                                   <-- GARBAGE
+   B(OFF): The capital of France is Paris.         <-- coherent
+   VERDICT: MISMATCH (A != B)
+
+-- prompt[2]: 'Once upon a time'
+   A(ON) : olta                                   <-- GARBAGE
+   B(OFF): Once upon a time, there was a young girl named Lily who lived in a small village. She was a kind
+   VERDICT: MISMATCH (A != B)
+
+-- prompt[3]: 'Q: What is 2 + 2? A:'
+   A(ON) : olta                                   <-- GARBAGE
+   B(OFF): The answer to the question "What is 2 + 2?" is 4.
+   VERDICT: MISMATCH (A != B)
+
+== LOGITS SANITY ==  OK: no NaN/Inf (finite logits; the ON path produces finite-but-WRONG logits)
+== CORRECTNESS SUMMARY: consistent=0  failed=3 ==
+CORRECTNESS_GATE: RED
+
+# ROOT CAUSE (source-confirmed, arch/riscv/repack.cpp ggml_gemv/gemm_q8_0_16x1_q8_0):
+# The upstream q8_0 repack kernel is HARDCODED vl=16 in every RVV intrinsic, e.g.
+#   vfloat32m2_t sumf = __riscv_vfmv_v_f_f32m2(0.0f, 16);
+#   vint8mf2_t   b_0  = __riscv_vle8_v_i8mf2(..., 16);
+#   ... all ops pass AVL=16 (e32,m2) ...
+# At VLEN256, e32m2 VLMAX=16 -> correct (this is why upstream routes case256 only).
+# At VLEN128, e32m2 VLMAX=8  -> hardware CLAMPS vl 16->8 -> only 8 of the 16
+# interleaved columns are computed -> numerically WRONG. This is the exact
+# seal-fix "vl=16 vs vl=8" pathology (see zero-model-adjudication-cert-hardening
+# memory: deployed-variant != proven-variant). It is why upstream left the q8_0
+# case128 as `break; // TODO`: the VLEN128 kernel is genuinely unimplemented/broken,
+# NOT merely a working-but-gated freebie.

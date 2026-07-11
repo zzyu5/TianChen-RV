@@ -1,0 +1,41 @@
+{
+  "board": "rvv-openeuler-vlen128/gcc-15.2.0-rv64gcv",
+  "model": "tinyllama-q8_0.gguf",
+  "quant": "q8_0",
+  "phases": {
+    "prefill": {
+      "ours_median_tps": 78.115,
+      "stock_median_tps": 8.988,
+      "ratio_ours_over_stock": 8.6906,
+      "ci95": [
+        8.6486,
+        8.7155
+      ],
+      "iqr_pct_ours": 0.749,
+      "iqr_pct_stock": 0.024,
+      "between_pass_floor_pct": 0.691,
+      "n_ours": 8,
+      "n_stock": 8,
+      "verdict": "DIFFERENCE"
+    },
+    "decode": {
+      "ours_median_tps": 7.553,
+      "stock_median_tps": 2.228,
+      "ratio_ours_over_stock": 3.3904,
+      "ci95": [
+        3.3572,
+        3.4102
+      ],
+      "iqr_pct_ours": 1.418,
+      "iqr_pct_stock": 0.25,
+      "between_pass_floor_pct": 1.425,
+      "n_ours": 8,
+      "n_stock": 8,
+      "verdict": "DIFFERENCE"
+    }
+  },
+  "dvfs_span_pct": 0.0,
+  "correctness_gate": "RED (greedy A(ON)!=B(OFF): ON emits garbage 'olta' vs OFF coherent 'Paris'/'Lily'/'4'; 0/3 consistent)",
+  "perf_verdict": "VOID — NOT ADJUDICATED. Aggregator 'DIFFERENCE' is a MIRAGE: the ON (repack-routed) path is numerically INCORRECT (upstream q8_0 VLEN128 kernel hardcoded vl=16, hardware clamps to vl=8 at VLEN128 -> computes only 8 of 16 interleaved columns). Any throughput delta rides on skipped+wrong work. Per R4 / correctness-gate discipline, no perf claim.",
+  "result_branch": "R4-refined (correctness RED; defect is UPSTREAM repack kernel, not a tcrv-emitted variant — we deployed no emitted kernel)"
+}
