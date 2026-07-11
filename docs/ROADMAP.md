@@ -30,7 +30,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 | 维度 | 值 |
 |---|---|
-| **★perf-covered（头条·测量轴）** | **2/84 = 2.38%**（头条·基线 `docs/reports/2026-07-11-perf-covered-baseline.md`）｜ **规则明文（禁定义与登记册各说各话）**：分子 = fair-protocol（双账本+对手探针）测得 ≥parity/赢 的格·**账本+八门状态逐格披露** → q4_K（**kernel 账·full 八门·Win-K1-VLEN RATIFIED**）+ q4_0（**系统账·routing-win·5/8 门·disclosed**）｜严判 sub-tier（限 kernel 账 full-八门）= 1/84｜其余 82 格零 qualifying（K-quant S6 撤回·iq/tq 全 LOSS·**IME 3 格 first-emission LOSS→[GAP-IME-LEAF-PIPELINE] 修中**·FLAT 4 格对位中·流式未测）｜**造得出≠立得住** |
+| **★perf-covered（头条·测量轴）** | **2/84 = 2.38%**（头条·基线 `docs/reports/2026-07-11-perf-covered-baseline.md`）｜ **规则明文（禁定义与登记册各说各话）**：分子 = fair-protocol（双账本+对手探针）测得 ≥parity/赢 的格·**账本+八门状态逐格披露** → q4_K（**kernel 账·full 八门·Win-K1-VLEN RATIFIED**）+ q4_0（**系统账·routing-win·5/8 门·disclosed**）｜严判 sub-tier（限 kernel 账 full-八门）= 1/84｜**内核轴对称候选（黄格·管道变绿）**：FLAT 5 格 [GAP-FLAT-E2E]（gcc-symmetric ≥parity 全幸存·待 T6 e2e 传导）+ IME 3 格 [GAP-IME-LEAF-PIPELINE]（批处理后 compute-account ~2×·对手 SELF·待 vs-opponent/e2e）｜其余 K-quant S6 撤回·iq/tq 全 LOSS·流式未测｜**造得出≠立得住·候选≠绿格** |
 | C_construct（**结构轴**·非头条） | **certified 84/91 = 92.31%**（M4 真 100%·结构轴收口·committed 74ffc575）｜ 全表 certified 84 · blocked-on-IME 0 · 声明例外 7 · 域外 2 = roster 93 · recon True · 零未定义格 ｜ 旁路 0 · RED 0 ｜ **⚠ 结构造得出 ≠ 性能立得住**：certified 高 ≠ perf-covered 高（见头条）|
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
@@ -47,7 +47,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## ★测量欠账表（常驻 · 对账实验总纲 T 表 · 精填 2026-07-11 AUDIT `docs/reports/2026-07-11-perf-covered-baseline.md`）
 | T 表 | 现状（精算） | 欠账 |
 |---|---|---|
-| T3（格×杠杆对位） | 活跃 T3_A=41 行/T3_B=7 行·**真 measured-symmetric-fair 仅 iq/tq 8 行全 LOSS**·余 stale/INVALID/撤回/n_a | FLAT 4 格零对位 · K-quant 全族 5 格 kernel 账撤回→对称重填 · dequant24/quantize3 流式未测 |
+| T3（格×杠杆对位） | **FLAT 5 格内核轴对称 ≥parity 全幸存**（f78ad2da·q4_0 6.76×/q4_1 6.86×/q8_0 4.10×/q5_1 1.41×/q5_0 1.23× gcc-symmetric·真路径赢非 clang artifact·黄格 [GAP-FLAT-E2E] 6/8 门）｜ iq/tq 8 行全 LOSS·余 stale/撤回 | ★**[GAP-FLAT-E2E]**：5 格 kernel 轴赢待 **T6 分相整模型验传导**（与 K-quant 铺面② T6 合并·prefill/局部性赢倾向传导=高价值）· K-quant 全族对称重填 · dequant24/quantize3 流式未测 |
 | T3p（模式消融） | **0 行（仅模板）** | P1/P2/P2b/P4/P7 逐条配对待系统化 |
 | T4b（选择器四配置消融） | **0 行**（`t4b-m*/` 是 minterm/dispatch tracer 非消融表） | 矩阵静默落败复现/消失专项（M0 falsifier 起点） |
 | T5b（2×2 范式×布局×M） | **骨架起步·q4_0@ime 首批行**（a9d7a9c6·6 cell·M{1..512}·k1·ZERO-MODEL 闸） | 铺 q8_0/q4_K@ime·GAP 关闭后重测 |
@@ -93,10 +93,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · 线乙 铺面① · 串行理由=线甲a 已收·线甲b 板重封印按板批流水排铺面①后·无零碰撞非板工作）
-- **线乙 铺面①（FLAT 对位·board 测量域）· agent a0dc80eb**：q4_1/q5_0/q5_1 空白格（对手探针→路径赢候选走八门）+ q8_0 争夺格如实·杠杆能力先验铺（rvv col-outer/k1 vl16·FLAT lean 不强套 S6）·双账本+对手对称+测量卫生·黄格三出口零未定义。
-- **线甲b（k1 IME 重封印 + T5b 重测·board·pending）**：三 seal 源已改批处理（asm 叶子 byte-identical 于发射）→ k1 objdump golden vmadot 0xe210312b（encoding 未变）+ int32 逐位 0-diff + T5b 全 M 重测确认 ~2× 胜 → 若成 IME 3 格入 perf-covered。**排铺面①后排板**（避 k1 争用·遵板批流水）。
-- ✅ 本轮已收：**线甲a（2f1af5c8·[GAP-IME-LEAF-PIPELINE] emitter 修复·逐片段→批处理叶子·correctness by construction 三重证·一改三受益·schema 维持 certified）** · [T8·LAW-FIRST-EMISSION] 立卷 · [G4-M3] T5b 骨架 · [TEMPLATE-AUDIT]
+## 在飞（★当前并行度 N=1 · 线甲b · 串行理由=k1 IME 重封印·铺面②-⑤ 板攒批顺序在后·清理线触 experiments 树碰撞风险）
+- **线甲b（k1 IME 重封印 + T5b 重测·board）· agent a185c21e**：三 seal 已批处理 → k1 objdump golden vmadot 0xe210312b + int32 逐位 0-diff + T5b 全 M 重测确认 ~2× = Cell1b（消 as-emitted 4× 败）→ 刷新 schema board_seal 指针（三格维持 certified）·IME 3 格归**内核轴对称候选黄格**（对手 SELF·八门未启·不计绿格·诚实）·GAP 关闭 ∧ 真 M* 出 → T5c 落地条件满足（selector 先验 writeback 留线甲c/主会话·in-tree 另域）。
+- ✅ 本轮已收：**线乙 铺面①（f78ad2da·★FLAT 5 格内核轴对称 ≥parity 全幸存 gcc-symmetric[q4_0 6.76×/q4_1 6.86×/q8_0 4.10×/q5_1 1.41×/q5_0 1.23×]·与 K-quant S6 蒸发根本不同=真路径赢·黄格 [GAP-FLAT-E2E] 待 T6·perf-covered 仍 2/84 诚实·q8_0 争夺记档）** · **线甲a（2f1af5c8·[GAP-IME-LEAF-PIPELINE] emitter 修复·correctness by construction 三重证）** · [T8·LAW-FIRST-EMISSION] · [G4-M3] T5b 骨架
 - ✅ 本轮已收：**[G4-M3] T5b 骨架（a9d7a9c6·[GAP-IME-LEAF-PIPELINE] 具名·T5c 落地条件预注册·对手 SELF 八门未启）** · **[T8·LAW-FIRST-EMISSION] 元规律立卷（`docs/method/LAW-FIRST-EMISSION.md`·四例同律：K-quant S6/col-outer/vl16/IME leaf-pipeline·C3′ 实证·perf-covered 变绿依据）** · **[TEMPLATE-AUDIT]（f1afb157·perf-covered 基线·清理清单）**
 - ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
 - ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
