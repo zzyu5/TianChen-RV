@@ -71,10 +71,17 @@ FEMIT_ENVELOPE_RE = re.compile(
 # yield terminator, opaque_helper=false, no opaque token) AND requires the board_seal
 # pointer to name the k1 int32 0-diff evidence + the objdump vmadot golden encoding --
 # so an IME cert is a checkable BOARD-SEALED shape, not a hand wave (NOT a rubber stamp).
+# board_seal is a free-form evidence blurb that may itself contain '; ' separators
+# (e.g. the 2026-07-11 re-seal note "…store-once; re-sealed by 线甲b …"), so it is
+# captured GREEDILY up to the FINAL '; opaque_helper=<bool>' at the end-anchor —
+# NOT with [^;]+, which would stop at the first internal semicolon and spuriously
+# reject the envelope. The manifest field stays [^;]+ ('+'-joined tokens, never a
+# semicolon), and the seal-content checks (0xe210312b + 0-diff) below are unchanged,
+# so this is a parse fix, not a loosening of the gate.
 IME_ENVELOPE_RE = re.compile(
     r"^\[IME-SEAL\][^:]*: constructed \(STRONG\); "
     r"realized-body manifest=(?P<manifest>[^;]+); "
-    r"board_seal=(?P<seal>[^;]+); "
+    r"board_seal=(?P<seal>.+); "
     r"opaque_helper=(?P<opaque>true|false)$"
 )
 
@@ -507,6 +514,13 @@ def self_test():
          "q4_0_block_dot+typed_repack_gemm_loop_yield; fold_model=x; opaque_helper=false.", False),
         # [IME-SEAL] board-sealed IME q4_0 matmul-tile (G4 M1b).
         ("[IME-SEAL] q4_0 matmul-tile (board-sealed)", ime_seal(), True),
+        # REGRESSION (2026-07-12): a board_seal blurb that itself contains an internal
+        # '; ' separator (the re-seal note) must STILL parse — the seal is captured
+        # greedily to the final '; opaque_helper=', not truncated at the first ';'.
+        ("[IME-SEAL] q4_0 matmul-tile (seal w/ internal semicolon)",
+         ime_seal(seal="k1 X60 batched vmadot leaf (single vsetvli + store-once; "
+                       "re-sealed 2026-07-11 encoding UNCHANGED), int32 0-diff 64/64, "
+                       "objdump vmadot=0xe210312b at leaf"), True),
         ("[IME-SEAL] missing decode brick (rejected)",
          ime_seal("q4_0_matmul_tile+vmadot_mac_leaf+q4_0_matmul_tile_yield"), False),
         ("[IME-SEAL] missing MAC brick (rejected)",
