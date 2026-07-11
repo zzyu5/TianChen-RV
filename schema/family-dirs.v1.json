@@ -46,6 +46,44 @@
         "note": "ExtensionPlugin virtual overrides the IME plugin implements"
       },
       "notes": "IME = Spacemit X60 Integer Matrix Extension (N2 second family). First LED-1 point: code_LOC ~1866 cloc-approx / 2484 raw."
+    },
+    {
+      "family": "Scalar",
+      "code_dirs": [
+        "lib/Dialect/Scalar",
+        "lib/Plugin/Scalar",
+        "include/TianChenRV/Dialect/Scalar",
+        "include/TianChenRV/Plugin/Scalar"
+      ],
+      "test_files": {
+        "dialect_verification": [
+          "test/Dialect/Scalar/no-exec-scalar-boundary.mlir"
+        ],
+        "lowering": [
+          "test/Target/Scalar/tq2-0-q8-k-ternary-vec-dot.mlir",
+          "test/Target/Scalar/tq2-0-q8-k-ternary-vec-dot.golden.c",
+          "test/Target/Scalar/dequantize-row-q4-0-scalar.mlir",
+          "test/Target/Scalar/dequantize-row-q4-0-scalar.golden.c",
+          "test/Target/Scalar/scalar-emitc-to-cpp.mlir",
+          "test/Plugin/scalar-extension-plugin.test",
+          "test/Plugin/ScalarExtensionPluginTest.cpp",
+          "test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir",
+          "test/Transforms/LoweringBoundary/scalar-lowering-boundary-rerun.mlir"
+        ],
+        "e2e": []
+      },
+      "test_files_note": "FULL test footprint (uniform口径 ruling 2026-07-03, same口径 fixed in family_ledger.py and applied to every family -- never per-family discretion). Segments: dialect_verification = the no-exec Scalar dialect boundary verifier; lowering = the two owned-kernel emission golden pairs (tq2_0 ternary vec_dot + dequantize_row_q4_0), the emitc-to-cpp materialization, the scalar-extension-plugin lit + ScalarExtensionPluginTest.cpp (the C++ machine-check carrying the [F-6] runFamilyIndependenceAcceptanceTest), the [F-6] independent-family-emittable VariantSelection acceptance, and the LoweringBoundary rerun; e2e = none. The C++ plugin machine-check (989 raw) + the [F-6] acceptance test are mandatory [P-2] onboarding-kit deliverables and are real C2 generalization cost.",
+      "table_anchor": {
+        "file": "include/TianChenRV/Dialect/Scalar/IR/ScalarOps.td",
+        "pattern": "^def [A-Za-z0-9_]+Op",
+        "note": "Scalar dialect op table (compute_skeleton tracer + tq2_0_q8_k ternary vec_dot + dequantize_row_q4_0)"
+      },
+      "interface_anchor": {
+        "file": "include/TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h",
+        "pattern": "override",
+        "note": "ExtensionPlugin virtual overrides the Scalar plugin implements"
+      },
+      "notes": "X-SCALAR = vector-absent independent capability family (N2 family #3, [S-8] capability-gate family; closure ∩ rvv.* = ∅). [LED-2] second C2 marginal-cost data point: code_LOC = 1501 raw wc-l / 1148 cloc-approx (family_ledger.py recompute; 排期报告甲.5 hand-estimate was ~1131) vs the IME founding-slice anchor 2484 raw. HONEST GAP: canon [C2-1] '<300 行' target is NOT met (~4-5x over); root cause = [F-6] independence forbids reusing the RVV EmitC emitter (reuse would pull rvv.* into the capability closure and break independence), so an independent family pays a net-new pure-C emitter (ScalarBackendEmissionDriver.cpp = 878 raw, the single largest component). The <300口径 adjudication is PENDING (canon-level, user-gated); this ledger records only the factual measured cost -- it does NOT redefine the target. See docs/method/C2_marginal_cost_ledger.md 'C2 extension-family 接入成本' appendix."
     }
   ]
 }

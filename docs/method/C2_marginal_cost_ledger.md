@@ -3,7 +3,7 @@
 > **贡献归属(2026-07-10 正名)**:本 ledger 属 **C3′(能力键控优化模式库)的构造经济学 /
 > 成熟编译器覆盖轴**,量的是 **decode 格式**(q4_K/q5_K/…/iq*)从 monolith→constructed 的
 > **构造边际成本**。**这不是 C2**:C2 = 独立 **extension family**(RVV/IME/scalar/zvfh)的
-> 逐家族接入成本,锚 = IME ≈2484 行(见 `experiments/active/visibility/T2-ledger-anchor.md`),曲线尚缺失(待 X-SCALAR)。
+> 逐家族接入成本,锚 = IME ≈2484 行(见 `experiments/active/visibility/T2-ledger-anchor.md`)。**[LED-2] 第二点已落**(X-SCALAR 家族#3 = 1501 raw / 1148 cloc-approx,见文末「附录:C2 extension-family 接入成本」),但**仍非完整曲线**(2 点、缺 ≥1 点;zvfh 子扩展点未落)。
 > decode 格式的能力谓词闭包全 ∩ rvv.*≠∅,按 core-invariants [F-6] 不是 independent family,不进 C2 分母。
 > **数值一个不改,仅正名贡献标签 + "家族"→"decode 格式/op 谱"用词。**
 
@@ -87,3 +87,40 @@ K-quant 谱证了 super-block 算术 decode 谱系内的构造边际成本律。
 **★跨族复证**:iq1_s→iq1_m = q4_K→q5_K 的精确同构。**首个 grid-family 成员付 greenfield 基础(iq1_s:新砖+fold+branch+selector),次个成员(iq1_m,同 2048-grid 只 re-param 核)一个 workflow 就 flip=零边际复用。** 证 C3′ 构造经济学"成本∝结构距离到已覆盖原语空间"跨【三个不同 decode/loop-shape 谱系】(K-quant 算术 super-block / IQ grid super-block / repack GEVM)成立——不是 K-quant 偶然,是模式库的普适经济学。**预测**:iq2(+sign-plane 砖变体)/iq3(+i32 grid 砖变体)成本 = iq1_m tier(便宜、复用 grid scaffold)+ 一个 brick-variant 增量(有界,像 q6_K 的 +213 泛化 tier);iq2/iq3 用【不同 grid 内容/宽】,故比 iq1_m(同 grid)略贵、但远低于 iq1_s greenfield。
 
 *关联:C_construct=17(session 起 13:q4_0 repack=14/iq4_nl=15/iq1_s=16/iq1_m=17);travel-decision-ledger.md F8/F11/F14/F15。*
+
+---
+
+## 附录:C2 extension-family 接入成本(真 C2 · [LED-2],**非** C3′ 构造经济学)
+
+> **区分**:上文全部是 C3′ decode 格式**构造**边际成本(闭包 ∩ rvv.*≠∅,同一 RVV 家族内的
+> op 谱扩展)。**本附录才是 C2** = 独立 **extension family** 的**逐家族接入**成本(每家族一个数据点,
+> 锚 = IME 首接入 slice)。行数取 `family_ledger.py`(stdlib recompute,`schema/family-dirs.v1.json`
+> 驱动),口径:code_dirs raw wc-l 排除 tests + CMakeLists;cloc-approx = block-comment-stripped 近似。
+
+| # | 家族 | code_LOC raw / cloc-approx | test_LOC(单列) | family_kind | 边际刻画 |
+|---|---|---|---|---|---|
+| 1（锚）| **IME**(Spacemit X60 IME 矩阵扩展) | **2484 / ~1866** | 1003 | integrated-attached extension-family | 首接入 slice = C2 绝对锚（[C2-1]/[C2-4] 可复现；`T2-ledger-anchor.md`）。**注:`--family IME` 现报 raw 5153 = 家族已长到 6 op 的【扩展】(属 C3′)、非首接入;C2 锚永远钉 2484。** |
+| 2 | **X-SCALAR**（向量缺席独立标量家族 #3） | **1501 / 1148** | 1401 | independent extension-family（闭包 ∩ rvv.* = ∅） | [LED-2] 第二点。方向对（1501 < 2484 ≈ 60% #2）**但幅度不对**：canon [C2-1]「<300 行」目标**未 met（~4-5×）**。 |
+
+**★C2 第二点的诚实刻画（[NG-4]，不吹成曲线）**:
+
+1. **两点 ≠ 单调递减曲线**。IME 2484 → X-SCALAR 1501 只是 2 个真数据点(仍 <3),**缺 ≥1 点**
+   (zvfh 向量族**子扩展**粒度点未落 —— 且它是 *sub-extension* 粒度,与家族级点不同 KIND)。
+   「1/≥3 曲线缺失」标注继续保留:landed X-SCALAR 把「1 点」变「2 点」,**未成完整曲线**。
+
+2. **`<300` 目标当前 NOT met(实测 ~4-5× 超标)——本 ledger 只登记 factual 实测成本,不改口径定义。**
+   canon [C2-1]「标量家族 <300 行」的**口径裁决 = canon 级 · 必问用户**(pending;是措辞宪法级,
+   已入累积必问 batch)。本附录**不预设**修「<300」还是重定义口径,只钉实测数。
+
+3. **结构根因(比 <300 直觉更精确的 C2 主张)= [F-6] 独立性禁止复用抬高了独立家族成本。**
+   X-SCALAR 主体是**净新 pure-C emitter**(`ScalarBackendEmissionDriver.cpp` = 878 raw,单文件最大头),
+   **不能复用 RVV EmitC 发射机器**(复用会把 rvv.* 拉进能力闭包、破坏 F-6 独立性)。这与
+   「integrated 子扩展(如 zvfh,复用宿主家族机器)= 便宜」形成对比。
+   → **C2 曲线的正确刻画不是「随家族序号单调递减」,而是「integrated 子扩展廉价 / independent
+   家族付真 emitter 成本」([L-2] integrated vs independent-attached 术语的经济学体现)**。这比
+   原「<300 / 1-of-10-of-#2」直觉**更精确、更可辩护**。审稿人预答([C2-5])的「1/10 of #2」当前**不成立**。
+
+*证据/复算:`python3 .trellis/scripts/family_ledger.py report --family Scalar`(raw 1501 / cloc-approx 1148 /
+test 1401);`experiments/active/result-tables/T2_C2_ledger_marginal_cost.csv` seq 14;
+排期报告 `docs/reports/2026-07-11-X-SCALAR-AUDIT后续-排期报告.md` 甲.5(hand-est ~1131);
+`schema/family-dirs.v1.json` Scalar 条目。快照 HEAD=2d2d8a1b。*
