@@ -28,7 +28,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 | 维度 | 值 |
 |---|---|
-| C_construct | **certified 80/93 = 86.02%**（★主数·论文口径，+mxfp4 gemm_tile 退役 79→80）｜ labeled 80/93（certified=labeled·RED 0）｜ **每个有 in-code emitter 的格已全部前门构造+认证 → 退役路径完全穷尽** |
+| C_construct | **certified 80/93 = 86.02%**（committed 口径）｜ **★分母 93→91 已用户确认**（bf16/flash_attn 出域·Line D 执行中·落地后 **80/91=87.9%**，q1_0 dequant 建成 81/91=89.0%）｜ **退役路径完全穷尽**（每个 in-code emitter 格已前门构造+认证·旁路 0·RED 0） |
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
 | 矿脉 | **0 可退役格剩余**；absent 13 格全 net-new/aspirational/out-of-scope（见下 M4 收口三步） |
@@ -53,23 +53,23 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 ## 退役与记忆两闸（2026-07-11 入档常驻）
 1. **退役可复原闸**：一切 retirement 必须 = **git 历史可查 + retired-ledger 登记**（格名/退役依据/替代路径/复原指针）；无 ledger 条目的删除 = **违规**。既有退役已启动一次**补账扫描**（在飞 workflow 内、预期全绿 RED 0 佐证）。
-2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md`）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（SEL-1-T5 / IME gating / [RENAME] / 写作裁决[远期]）。
+2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
+3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=3 · 各线域不相交·触碰集 diff 已核）
-- **Line A（docs 域）· workflow wrh8bpj6d**：M4 分母正名核查判定书 + 退役补账扫描（唯一回门点·report-only 不改 schema）→ classify∥ledger → 对抗式红队"为过门而定义" → 判定书交付 → **用户确认**
-- **Line B（selector 域）· agent a90c63a2**：SEL-1-T5 cost-model 能力先验（`VariantSelection.cpp`/`ExtensionPlugin` 常量分 RVV 1.0<IME 20.0 → capability-derived · 保行为 RVV regime 逐格不变 + 消能力盲）= IME gating 关门 + P7 enabler
-- **Line C（docs·IME 报告文件）· agent a1af92c0**：IME gating 报告上桌（升级 2026-07-10 + ★M4-linkage：blocked-on-IME 3 格存在 → IME 立项 = M4 真正 100% 必经、两事合流）
-- ✅ 已收：**mxfp4 gemm_tile 退役·★旁路清零（79→80·91aafd23）** · **tq1_0/tq2_0 dequant（77→79·b1edc0fc）** · **★Win-K1-VLEN RATIFIED 双板方法验证** · CERT-FD 全闭合（41→70）· SEL-1-T5 零 static_order · 定位升级 · [CASE-MICRO-E2E] · M1c · RVV-E2E 全线 · FLAT 4/4
+## 在飞（★当前并行度 N=2 · 各线域不相交·触碰集 diff 已核 · M4 收口第二步执行中）
+- **Line D（coverage 域）· agent a7598eb4**：M4 收口二步执行 —— 分母 93→91（bf16/flash_attn 出域·coverage_metrics）+ q1_0 dequant net-new-do 构造（byte-exact 可证→certified 81 / 否则诚实声明例外）+ 6 gemm_tile 声明例外登记 + M4 三分类终态全表
+- **Line E（退役账本域）· agent a5b48d51**：退役账本收口 —— .td RETIRED NOTE 判合格明文 + 档3 六格补建 monolith ledger（四要件·git ref）+ ★RETIRED-INDEX 生成脚本（.td+JSON 合并只读单一查询点）+ CI 校验"一切已退役格 ⊆ 索引且四要件非空"
+- ✅ 本轮已收：**[SEL-1-T5] cost-model 能力先验（estimateVariantCost 常量分→capability-derived·消能力盲·P7 enabler·2942f603）** · **[Line A] M4 分母正名判定书（红队 0 改判·★anti-gate 铁证·bf5f7523）** · **[Line C] IME gating 报告上桌（N2 CLOSED/M4-linkage·e82195fe）** · **mxfp4 gemm_tile 退役·★旁路清零（91aafd23）** · tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
 
 ## 排队（主线区 · 顺序即优先级 · 2026-07-11 M4 收口裁定重排）
-1. ~~iq2-grid/矿脉/tq/mxfp4 退役~~ ✅ · ~~SEL-1-T5 零 static_order~~ ✅ · ~~CERT-FD 全闭合（41→70）~~ ✅ · ~~★旁路清零（80/93）~~ ✅
-2. **[M4 收口·一] 分母正名核查**（在飞 wrh8bpj6d）→ 判定书 → **用户确认**（★唯一回门点）
-3. **[M4 收口·二] 确认后收口**（预注册自动执行：达 90% 关门 / 缺口三问过→最小 net-new 批 / 三问不过→声明例外）→ **三分类全表**交付
-4. **[SEL-1-T5] cost-model 能力先验**（在飞 a90c63a2 · selector 域并行）
-5. **IME 战役立项**（IME gating 报告上桌后 · 触发已满足 · N3 perf 半边 + blocked-on-IME 3 格解锁 = **M4 真正 100% 必经、与收口合流**）
-6. **[X-SCALAR]/zvfh**（C2 从 1 点→曲线的唯一路径 · 按 [X-1] 顺序）
-7. **[RENAME] 改名会话**（单独会话）
-8. **矿脉/net-new 余格**（按第二步裁定的最小批次执行、禁凑数格）
+1. ~~iq2-grid/矿脉/tq/mxfp4 退役·★旁路清零~~ ✅ · ~~SEL-1-T5 零 static_order + cost-model 能力先验~~ ✅ · ~~CERT-FD 全闭合~~ ✅ · ~~[M4 收口·一] 分母正名核查判定书~~ ✅（红队 0 改判·anti-gate 铁证）· ~~IME gating 报告上桌~~ ✅
+2. ~~[M4 收口·一] 用户确认（分母 93→91 + 轴B 两问 + 索引件）~~ ✅（★唯一回门点已过·此后不回门）
+3. **[M4 收口·二] 二步收口执行**（在飞 Line D a7598eb4：分母→91 + q1_0 dequant + 6 声明例外 + 三分类全表）‖ **退役账本收口**（在飞 Line E a5b48d51：档3 补建 + RETIRED-INDEX + CI）
+4. **IME 战役立项**（报告已上桌 · 触发满足 · N3 perf 半边 + blocked-on-IME 3 格解锁 = **M4 真正 100% 必经、与收口合流**）
+5. **[X-SCALAR]/zvfh**（C2 从 1 点→曲线的唯一路径 · 按 [X-1] 顺序）
+6. **[RENAME] 改名会话**（单独会话）
+7. **矿脉/net-new 余格**（按第二步裁定的最小批次执行、禁凑数格）
+8. **[待裁·canon] static_order→prior reason 燃减**（SEL-1-T5 cost-model 能力先验已 enable；翻 prior 改 reason 枚举/八门定义 = canon·必问，独立步待裁）
 
 > **纪律·优先级论证禁以"论文需要"为由**（2026-07-11 补充裁）：任何任务立项/排序理由**只能是贡献链条 + 工程成熟度本身**。论文素材照常被动维护（证据落地就挂指针），**不为它立任务、不为它排板批**。写作期 = [远期·非驱动]（见末尾专区）。
 
