@@ -1,0 +1,14 @@
+=== e2e phase-split aggregate  board=rvv-openeuler-vlen128/gcc-15.2.0-rv64gcv model=tinyllama-q4_0.gguf quant=q4_0 ===
+freq_khz: min=2600000 max=2600000 span=0.00%  (DVFS guard; >2% span => INVALIDATE run)
+
+[prefill]  ours median=22.35 t/s (IQR%=70.05, n=10)   stock median=5.24 t/s (IQR%=0.18, n=10)
+  A/B ratio (ours/stock) = 4.2662x   95% CI [2.7604, 5.7533]
+  |delta|=326.62%   between-pass floor=108.26%   within-IQR=70.05%   2x-eff-floor=216.53%
+  VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+
+[decode]  ours median=8.98 t/s (IQR%=0.99, n=10)   stock median=4.72 t/s (IQR%=0.08, n=10)
+  A/B ratio (ours/stock) = 1.9029x   95% CI [1.8939, 1.9131]
+  |delta|=90.29%   between-pass floor=0.99%   within-IQR=0.99%   2x-eff-floor=1.98%
+  VERDICT: DIFFERENCE (passes 2x floor & CI excl 1.0)
+
+wrote /home/kingdom/phdworks/TianchenRV/experiments/active/t6-rvv-flat-q4k/results/q4_0-tinyllama-vlen128/evidence.json

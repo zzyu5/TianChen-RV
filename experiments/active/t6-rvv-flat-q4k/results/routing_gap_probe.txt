@@ -1,0 +1,211 @@
+
+Authorized users only. All activities may be monitored and reported.
+== quantize tinyllama q4_0 -> q8_0 (requantize; fidelity irrelevant for A/B routing test) ==
+
+llama_quantize: quantize time = 11606.77 ms
+llama_quantize:    total time = 11606.77 ms
+== quantize q4_0 -> q4_1 ==
+
+llama_quantize: quantize time =  9195.16 ms
+llama_quantize:    total time =  9195.16 ms
+
+== A-TREE ENGAGE-BANNER PROBE (grep TCRV EMITTED) ==
+--- format=q8_0 : A-tree llama-bench, look for TCRV banner ---
+   NO TCRV BANNER => not routed at VLEN128 (block-dot fallback) [routing-gap CONFIRMED]
+--- format=q4_1 : A-tree llama-bench, look for TCRV banner ---
+   NO TCRV BANNER => not routed at VLEN128 (block-dot fallback) [routing-gap CONFIRMED]
+
+== q4_0 CONTROL (banner SHOULD fire) ==
+TCRV EMITTED GEMM(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nr=16 nc=128 nb=64
+TCRV EMITTED GEMV(q4_0_16x1 VLEN128 compiler-emitted) ENGAGED nc=352 nb=64
+
+== quick A/B parity check for q8_0 (expect A~=B, both block-dot) ==
+###AB pass=1 side=ours
+[
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/tmp/tinyllama-q8_0.gguf",
+    "model_type": "llama 1B Q8_0",
+    "model_size": 1169072128,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-11T11:44:01Z",
+    "avg_ns": 28224837844,
+    "stddev_ns": 797781,
+    "avg_ts": 4.535013,
+    "stddev_ts": 0.000125,
+    "samples_ns": [ 28224126234, 28224715697, 28225671602 ],
+    "samples_ts": [ 4.53513, 4.53503, 4.53488 ]
+  },
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/tmp/tinyllama-q8_0.gguf",
+    "model_type": "llama 1B Q8_0",
+    "model_size": 1169072128,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-11T11:45:54Z",
+    "avg_ns": 28690323775,
+    "stddev_ns": 1134156,
+    "avg_ts": 1.115359,
+    "stddev_ts": 0.000044,
+    "samples_ns": [ 28689876154, 28689495280, 28691599892 ],
+    "samples_ts": [ 1.11538, 1.11539, 1.11531 ]
+  }
+]
+###END
+###AB pass=1 side=stock
+[
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/tmp/tinyllama-q8_0.gguf",
+    "model_type": "llama 1B Q8_0",
+    "model_size": 1169072128,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 128,
+    "n_gen": 0,
+    "n_depth": 0,
+    "test_time": "2026-07-11T11:47:22Z",
+    "avg_ns": 29617452789,
+    "stddev_ns": 817890,
+    "avg_ts": 4.321776,
+    "stddev_ts": 0.000119,
+    "samples_ns": [ 29616508464, 29617913452, 29617936451 ],
+    "samples_ts": [ 4.32191, 4.32171, 4.32171 ]
+  },
+  {
+    "build_commit": "f3e1828",
+    "build_number": 1,
+    "cpu_info": "CPU",
+    "gpu_info": "",
+    "backends": "CPU",
+    "model_filename": "/tmp/tinyllama-q8_0.gguf",
+    "model_type": "llama 1B Q8_0",
+    "model_size": 1169072128,
+    "model_n_params": 1100048384,
+    "n_batch": 2048,
+    "n_ubatch": 512,
+    "n_threads": 4,
+    "cpu_mask": "0x0",
+    "cpu_strict": false,
+    "poll": 50,
+    "type_k": "f16",
+    "type_v": "f16",
+    "n_gpu_layers": -1,
+    "n_cpu_moe": 0,
+    "split_mode": "layer",
+    "main_gpu": 0,
+    "no_kv_offload": false,
+    "flash_attn": -1,
+    "devices": "auto",
+    "tensor_split": "0.00",
+    "tensor_buft_overrides": "none",
+    "use_mmap": true,
+    "use_direct_io": false,
+    "embeddings": false,
+    "no_op_offload": 0,
+    "no_host": false,
+    "fit_target": 0,
+    "fit_min_ctx": 0,
+    "n_prompt": 0,
+    "n_gen": 32,
+    "n_depth": 0,
+    "test_time": "2026-07-11T11:49:20Z",
+    "avg_ns": 30150876866,
+    "stddev_ns": 1706055,
+    "avg_ts": 1.061329,
+    "stddev_ts": 0.000060,
+    "samples_ns": [ 30150460417, 30149417591, 30152752590 ],
+    "samples_ts": [ 1.06134, 1.06138, 1.06126 ]
+  }
+]
+###END
+== DONE_ROUTING ==
