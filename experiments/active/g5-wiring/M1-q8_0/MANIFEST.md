@@ -75,3 +75,11 @@ sumi = __riscv_vwadd_wv_i32m2(sumi, __riscv_vwmul_vx_i16m1(b_0, a_ptr[l].qs[i], 
 - **板 provision（新文件，非 stock 改动）**：`/home/ubuntu/tcrv-llamacpp/models/tinyllama-q8_0.gguf`（requantize，reusable；留存）。
 - **A-tree restore 证据（零 stock 永久改动）**：测后 GEN md5=`deb61a29…`、ARCH md5=`99131cf7…`、live `.so` md5=`05a62e6a…`（== OFF-pristine，banner=0），全 == baseline。source restore byte-exact + pristine rebuild md5-identical（确定性构建）。
 - **HEAD (TianChen-RV) = `ab054260` 未变** · 全程禁 git · lib/(selector)·schema·ROADMAP 未碰。
+
+## durable files
+- `transmission_accounting.csv`
+- `correctness_RED.txt`
+- `phase_split_raw_VOID.txt`
+- `evidence_VOID.json`
+- `engage_ON.stderr`
+- `engage_OFF.stderr`
