@@ -4,9 +4,9 @@
 # Two invariants over docs/ (durable lens = git-tracked + untracked-not-ignored):
 #
 #   (A) canon/ WHITELIST.  docs/canon/ holds ONLY the user-sovereign 总纲 (charter) docs
-#       (实验总纲 / 执行总纲 / 科研目标总纲). An agent-generated artifact (report / template /
-#       dated snapshot / ledger) mixed into canon/ -> RED.  A canon file is recognised by a
-#       charter marker in its basename ("总纲" / "canon" / "charter").
+#       (实验总纲 / 执行总纲 / 科研目标总纲 / 定位). An agent-generated artifact (report /
+#       template / dated snapshot / ledger) mixed into canon/ -> RED.  A canon file is recognised
+#       by a charter marker in its basename ("总纲" / "定位" / "canon" / "charter").
 #
 #   (B) reports/ APPEND-ONLY.  docs/reports/ is an append-only stream: every file name must be
 #       date-stamped (`YYYY-MM-DD-…`) so a report is never silently overwritten. The only
@@ -25,11 +25,20 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _manifest_common as mc  # noqa: E402
 
-CANON_MARKER_RE = re.compile(r"(总纲|canon|charter)", re.IGNORECASE)
+# RFC: 门过严误报修正 (2026-07-11 用户裁). "定位" added as a first-class charter marker so the
+# authoritative one-page positioning charter (docs/canon/TianChen-RV_定位-v2.md, referenced by
+# CLAUDE.md/ROADMAP) is recognised as a legitimate charter — it IS user-sovereign canon, the
+# checker just lacked its marker (fail-closed误报, not a misplaced file). Rename-to-add-总纲 was
+# rejected (breaks全仓 pointers); extending the marker set is the minimal-churn fix.
+CANON_MARKER_RE = re.compile(r"(总纲|定位|canon|charter)", re.IGNORECASE)
 DATE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-")
 
-# declared continuous append-only ledgers that grow in place (no per-snapshot date prefix).
-REPORTS_LEDGER_ALLOWLIST = {"travel-decision-ledger.md"}
+# Declared continuous append-only ledgers that grow in place (no per-snapshot date prefix).
+# RFC: 门过严误报修正 (2026-07-11 用户裁). SEALED-WIN-REGISTRY.md is a declarative continuous
+# append-only Win ledger (same KIND as travel-decision-ledger.md) — it grows in place and is
+# never a silently-overwritten snapshot, so the date-prefix rule does not apply. Allowlisting it
+# fixes a fail-closed误报, not a naming violation.
+REPORTS_LEDGER_ALLOWLIST = {"travel-decision-ledger.md", "SEALED-WIN-REGISTRY.md"}
 
 
 def classify_canon(basename):
@@ -55,6 +64,7 @@ def self_test():
         ("TianChen-RV_实验总纲v1.md", True),
         ("TianChen-RV_执行总纲v2.md", True),
         ("TianChen-RV_科研目标总纲v2.md", True),
+        ("TianChen-RV_定位-v2.md", True),     # 定位 charter (RFC 2026-07-11)
         ("project-charter.md", True),
         ("CANON-overview.md", True),
         ("2026-07-06-T3-report.md", False),   # dated agent report leaked in
@@ -72,6 +82,7 @@ def self_test():
         ("2026-07-06-T3-kernel-micro-report-template.md", True),
         ("2026-07-06-并行线纪律-worktree-与触碰集.md", True),
         ("travel-decision-ledger.md", True),   # allowlisted continuous ledger
+        ("SEALED-WIN-REGISTRY.md", True),      # allowlisted append-only Win ledger (RFC 2026-07-11)
         ("T6-e2e-report-template.md", False),  # undated -> would overwrite
         ("notes.md", False),
         ("2026-7-6-bad.md", False),            # not zero-padded ISO

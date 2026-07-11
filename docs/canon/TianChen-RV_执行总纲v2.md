@@ -257,7 +257,9 @@
 | `include/…/Plugin/IME` | 92 | IMEExtensionPlugin.h(65)+IMEBackendEmissionDriver.h(27) |
 | **合计** | **2484** | 排除 5 个 CMakeLists |
 
-**结论:2484 精确复算为 4 目录 raw `wc-l`(与 README 吻合)。但 [LED-1] 口径是 cloc(不含注释/空行/测试)≈1865;test_LOC≈659 应单列。README 的 2484 是 raw-wc 非 cloc,复算须双列。无 ledger 脚本(git-历史生成 grep=0)。**
+**结论:2484 精确复算为 4 目录 raw `wc-l`(与 README 吻合)。但 [LED-1] 口径是 cloc(不含注释/空行/测试)≈1865;test_LOC≈659 应单列。README 的 2484 是 raw-wc 非 cloc,复算须双列。**
+
+**★锚 drift 已查(先查后改·2026-07-11 用户裁·禁静默替换 2484):上表 = C2 founding-slice(@git `54465ee7`/2026-07-03,历史 slice 口径)。`family_ledger.py --family IME` 现报 raw `5153` = 同 7 文件从 founding-slice 长起(delta +2669)= C3′ 家族内扩展(更多 MMA op 变体+发射路),【非首接入成本、非计数口径差】(同工具同 raw-wc-l)。C2 边际曲线锚永远钉 founding-slice `2484`;live `5153` 是当前家族体积(informational)。ledger 脚本已建(`.trellis/scripts/family_ledger.py` + `tools/visibility/recompute_ledger_anchor.sh` 双数口径,`experiments/active/visibility/T2-ledger-anchor.md`)。**
 
 ---
 

@@ -257,3 +257,41 @@ These point at old paths and will break until STAGE2 rewires them. **Do not comm
 - **`docs/canon/TianChen-RV_执行总纲v2.md`** — `experiments/perf-characterizations-layer4.md` (→ docs/method/), `experiments/T8_winloss_gap_ledger.csv` (→ active/result-tables/); also a pre-existing stale ref to `experiments/T3_step3/board_ab.sh` (that script already lives in tools/).
 - **`docs/reports/2026-07-06-T3-…` / `-T6-…` templates** — reference silicon + e2e cell paths (self-contained agent reports; low priority).
 - **`.trellis/spec/…` + `.trellis/tasks/…`** — T-N / visibility / ondevice / T3_step3 path refs (spec refs are by-reference, archived-task refs are historical; low priority).
+
+---
+
+## 9. VC-retirement: 5 tracked `.o` build artifacts moved out of version control (必问 batch ⑤, 2026-07-11 user ruling)
+
+**Decision (user-ruled)**: build artifacts do not belong in git. The 5 tracked `.o` under
+`experiments/archive/perf-historical/` are STALE cross-compiled/on-device perf binaries (pre-board-swap,
+not comparable) that only inflate the repo; they are retired from version control (reconstructible).
+
+**Where this is registered**: HERE, in the file-lifecycle ledger (MOVES.md). NOT in
+`schema/retired-index.generated.json` — that machine-generated RETIRED-INDEX is scoped to **quant-format
+op/emitter retirements** (axis ∈ {vec_dot monolith op-def, gemm_tile repack direct-emitter}); a build-`.o`
+artifact has no such axis and adding one would break `check_retired_index.py` coverage. MOVES.md is the
+correct home for physical file lifecycle events (moves + VC-retirements).
+
+**Four/five requirements (per the RETIRED-INDEX四要件 shape)**:
+
+| # | 格名 (format) | op (files) | 退役依据 (basis) | 替代路径 (alternative) | 复原指针 (restore_ref) |
+|---|---|---|---|---|---|
+| 1 | `.o` build artifact | `perf-historical/ondevice-q8_0-deferred/A_deferred.o` | 构建产物不入 VC + STALE perf (换板前不可比) | 可重建 (clang re-emit from cell `.kernel.c`/`.emitc.mlir`); MOVES §5 move-record #56 | `git show b3e3fef4:<path>` (also any pre-rm commit incl. aeed7e0b) |
+| 2 | `.o` build artifact | `perf-historical/ondevice-q8_0/kernel_q8_0_q8_0_flat_block_dot.o` | 同上 | 可重建; MOVES §5 move-record #70 | `git show b3e3fef4:<path>` |
+| 3 | `.o` build artifact | `perf-historical/ondevice-q8_0-mbf/kernel_core_mbf2.o` | 同上 | 可重建; MOVES §5 move-record #59 | `git show b3e3fef4:<path>` |
+| 4 | `.o` build artifact | `perf-historical/ondevice-q8_0-mbf/kernel_ggml_factory.o` | 同上 | 可重建; MOVES §5 move-record #60 | `git show b3e3fef4:<path>` |
+| 5 | `.o` build artifact | `perf-historical/ondevice-q8_0-mbf/kernel_q8_mbf1.o` | 同上 | 可重建; MOVES §5 move-record #61 | `git show b3e3fef4:<path>` |
+
+**★承重引用核查 (确认无 load-bearing 引用 → 批准移除)**:
+- `docs/reports/SEALED-WIN-REGISTRY.md`: **0 refs** to any of the 5 `.o`.
+- casefiles / `*.casefile`: **0 refs**.
+- MANIFEST (`experiments/active/t3p-pattern-ablation/MANIFEST.md`): references the sibling `perf_rvv_vlen128_FAIR.csv` **only** — NOT any `.o` (the `.csv` is NOT being removed).
+- Non-load-bearing descriptive refs that DO exist (safe): `experiments/INDEX.md` (auto-gen inventory column), this MOVES.md (move-records + this section), and one archived task diagnosis note
+  (`.trellis/tasks/archive/2026-07/07-03-m-flat-s5a1-perblock-load/research/skeleton-vsetvli-diagnosis-2a.md`) that cites the **pre-MOVE** path as the objdump source for a vsetvli-count table — the actual counts (19/15) are already transcribed in that markdown, the binary was only the raw source.
+- b3e3fef4 confirmed to contain all 5 `.o` (restore reproducible).
+
+**Downstream consistency (for the main session that executes `git rm`)**: after removing the `.o`, the
+per-cell MANIFESTs still register them, so `check_index_consistency` (per-cell drift) will flag
+"registered but MISSING" until the MANIFESTs drop them and `experiments/INDEX.md` is regenerated. The
+full recipe is in the task hand-off (git rm + 3 MANIFEST edits + gen_experiments_index.py + optional
+`.gitignore`). This section (a tier-root doc, exempt from per-cell drift) does NOT itself affect the gate.
