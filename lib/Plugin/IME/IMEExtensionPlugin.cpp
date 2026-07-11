@@ -116,6 +116,22 @@ constexpr llvm::StringLiteral kMatmulShapePropertyName("ime_matmul_shape");
 // family-name string and NOT a second capability id.
 constexpr llvm::StringLiteral kSlidePropertyName("ime_slide");
 
+// Capability-DERIVED cross-paradigm ranking costs (SEL-1 exec-level capability
+// prior). These are NOT capability-blind literals: which cost estimateVariantCost
+// emits is DECIDED by whether the spacemit.ime capability fact derives to a
+// whole-matrix GEMM shape (ime_matmul_shape) or to a single MAC fragment. The
+// registry ranks ascending (lower = preferred), so:
+//   * the whole-matrix GEMM cost sits BELOW the RVV vector-paradigm base (1.0):
+//     when the matrix-shape fact derives, the systolic MAC paradigm WINS the
+//     contraction because the capability fact says so (P7 pattern: ime ∧ shape),
+//     not because a constant happened to sort first;
+//   * the single-fragment MAC cost sits ABOVE the vector base but below the
+//     scalar fallback (1000.0): a leaf MAC boundary beats scalar yet never
+//     displaces a full vectorized kernel.
+// The RVV vector base is defined symmetrically in the RVV plugin.
+constexpr double kIMEMatmulGemmPreferredCost = 0.5;
+constexpr double kIMESingleFragmentMacCost = 20.0;
+
 // The load-bearing IME1 march token (FOUNDATION task 2: absent => assembler
 // rejects `vmadot`). The capability is the proven IME1 envelope ONLY when this
 // token is present. It assembles BOTH signedness forms below.
@@ -577,17 +593,60 @@ llvm::Error IMEExtensionPlugin::estimateVariantCost(
     return makeIMEPluginError(
         "cost estimation requires a materialized tcrv.exec.variant");
 
+  // Capability-DERIVED cost (SEL-1 exec-level capability prior). Consult the
+  // spacemit.ime capability FACT instead of returning a capability-blind
+  // constant: a materialized IME variant only exists when the fact is available,
+  // so fail closed otherwise rather than let the cross-paradigm selector prefer
+  // an unbacked matrix variant on a phantom score.
+  const support::CapabilityDescriptor *capability =
+      request.getCapabilities().lookupProviderByID(kIMECapabilityID);
+  if (!capability || !capability->isAvailable())
+    return makeIMEPluginError(
+        "IME cost estimation requires an available capability id "
+        "'spacemit.ime'");
+
+  // The MAC envelope FACT (VLEN=256 => 4x4x8) and the optional whole-matrix
+  // SHAPE FACT (ime_matmul_shape) both DERIVE from the capability — this shared,
+  // fail-closed derivation (same one legality and emission use) is the key that
+  // decides how strongly the matrix paradigm is preferred for THIS kernel.
+  llvm::Expected<IMEMatmulCapability> derived =
+      deriveIMEMatmulCapability(*capability);
+  if (!derived)
+    return derived.takeError();
+
   out = VariantCostEstimate();
-  out.setScore(20.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kIMEPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
-  out.setExplanation(
-      "IME int8->int32 vmadot MAC boundary; lowers to the FOUNDATION-validated "
-      "vmadot kernel through the common EmitC route");
-  out.setPolicy(
-      "prefer IME only when the spacemit.ime capability fact is available and "
-      "derives to the validated IME1 int8->int32 MAC envelope");
+  if (derived->isMatmul) {
+    // Whole-matrix GEMM takeover (P7 pattern: ime ∧ matmul-shape). The systolic
+    // MAC unit is the preferred paradigm for a whole-matrix contraction, so the
+    // capability-derived cost ranks the matrix variant AHEAD of the RVV vector
+    // base — IME wins the GEMM because ime_matmul_shape derives, not because a
+    // constant sorts first.
+    out.setScore(kIMEMatmulGemmPreferredCost);
+    out.setExplanation(
+        "IME whole-matrix vmadot GEMM boundary; cost DERIVED from the available "
+        "spacemit.ime capability + ime_matmul_shape fact deriving to the "
+        "validated IME1 4x4x8 MAC envelope — the matrix paradigm is preferred "
+        "over the RVV vector base for this contraction");
+    out.setPolicy(
+        "prefer the IME matrix paradigm for a whole-matrix GEMM when the "
+        "spacemit.ime capability fact derives an in-envelope tiled matmul shape");
+  } else {
+    // Single-fragment MAC boundary (mma / mma_u / mma_su / mma_us / mma_slide):
+    // a leaf MAC surface, not a whole-kernel GEMM takeover. The capability-derived
+    // cost beats the scalar fallback but stays above the RVV vector base, so a
+    // single MAC fragment never displaces a full vectorized kernel.
+    out.setScore(kIMESingleFragmentMacCost);
+    out.setExplanation(
+        "IME int8->int32 vmadot MAC boundary; cost DERIVED from the available "
+        "spacemit.ime capability deriving to the FOUNDATION-validated single MAC "
+        "fragment (lowered to the vmadot kernel through the common EmitC route)");
+    out.setPolicy(
+        "prefer IME only when the spacemit.ime capability fact is available and "
+        "derives to the validated IME1 int8->int32 MAC envelope");
+  }
   return llvm::Error::success();
 }
 

@@ -53,6 +53,13 @@ constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 
+// Capability-DERIVED vector-paradigm ranking cost (SEL-1 exec-level capability
+// prior). Emitted only when an available RVV isa-vector capability fact backs the
+// variant — NOT a capability-blind literal. The registry ranks ascending, so this
+// base sits below the scalar fallback (1000.0) and, symmetrically, defines the
+// bar the IME matrix paradigm must undercut to take over a whole-matrix GEMM.
+constexpr double kRVVVectorBaseCost = 1.0;
+
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
@@ -688,14 +695,29 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
   if (llvm::Error error = requireExplicitTypedRVVBody(request.getVariant()))
     return error;
 
+  // Capability-DERIVED cost (SEL-1 exec-level capability prior). Anchor the
+  // vector-paradigm base on an available RVV isa-vector capability FACT consulted
+  // from the target set instead of returning a capability-blind literal. A
+  // materialized/typed RVV variant is always backed by this fact (legality
+  // enforces it), so fail closed otherwise; consulting it here makes the
+  // cross-paradigm score auditable (capability-fact -> score).
+  const support::CapabilityDescriptor *vectorCapability =
+      request.getCapabilities().lookupProviderByID(kRVVCapabilityID);
+  if (!vectorCapability || !vectorCapability->isAvailable())
+    return makeRVVPluginError(
+        "RVV cost estimation requires an available RVV isa-vector capability id "
+        "'rvv'");
+
   out = VariantCostEstimate();
-  out.setScore(1.0);
+  out.setScore(kRVVVectorBaseCost);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kRVVPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
-  out.setExplanation("explicit typed RVV variant body; no runtime performance "
-                     "claim");
-  out.setPolicy("plugin-local typed RVV extension-family IR");
+  out.setExplanation("explicit typed RVV variant body; vector-paradigm base cost "
+                     "DERIVED from the available RVV isa-vector capability fact; "
+                     "no runtime performance claim");
+  out.setPolicy("plugin-local typed RVV extension-family IR; cost anchored on the "
+                "available RVV isa-vector capability fact");
   return llvm::Error::success();
 }
 
