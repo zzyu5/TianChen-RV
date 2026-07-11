@@ -93,9 +93,9 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · X-SCALAR 收口 XS-M3 判据④ · 队列自动衔接·禁停机制）
-- **XS-M3（判据④连线·N2 boundary 最后一环·in-tree selector 域）· agent a21b433c**：向量缺席→标量变体 only_feasible 真实选中（capability-driven·零-core-branch）·闭 X-SCALAR N2 boundary（PASS Case-A 剩判据④→PASS 完整）·保行为铁门（RVV/IME regime 逐格不变）·撞 canon 枚举/需硅则停报。
-- ✅ 本轮已收：**XS-M0+M1（a820e87a·★发现 zvfh 代码早已 landed[95f1a482 排期报告 stale]·据 NG-4 未重复注册·仅文档正名 STUB→landed·保行为全过）** · X-SCALAR 排期报告（8f90e319·70-80% landed·C2 ledger 1501 行）· [TEMPLATE-AUDIT docs-先行·CI GREEN] · ★铺面①-⑤ 全落 · T6 两批全落
+## 在飞（★当前并行度 N=1 · X-SCALAR 收口 XS-M4 LED-2 · 队列自动衔接·禁停机制）
+- **XS-M4（LED-2 C2 经济学第二点·schema/ledger 域）· agent（下派）**：Scalar 家族进 `schema/family-dirs.v1.json`（LED-2 阻塞项）+ C2 ledger 记 X-SCALAR 接入成本第二点（实测 1501 行·对照锚 IME 2484）= C2 曲线家族#3 证据核心（1/≥3→2 点）。<300 口径已入累积必问 batch 留裁（factual 记录不阻）。
+- ✅ **★X-SCALAR N2 boundary 收口核心完成**：XS-M0+M1（a820e87a·zvfh 早 landed·仅正名）· XS-M3（61f0c8fe·判据④机制早 landed·补独立 F-6 门·N2 boundary PASS 完整）· F-6 门进 CI（bcd3c6bd·[F-1..F-6] 第二个真进 CI）· owned 内核+zvfh+判据④ 全 landed = **家族#3 与 IME 同级合法家族**。三次 XS 收口均发现排期报告 stale（机制早 landed）。
 
 ## X-SCALAR/zvfh 收口（C2 曲线家族#3 · 2026-07-11 排期报告 · 已 70-80% landed）
 **发现**：非从零接入·已 landed（owned 内核 tq2_0/q4_0·曳光弹·F-6 机检）·需收口 4 open boundary。**[X-1] 顺序 = Zvfh → X-SCALAR → 硅核查 → AME**（zvfh 先行·实际序偏离已披露）。里程碑：**XS-M0 正名（doc-code sync）→ XS-M1 zvfh 事实注册+闭包 → XS-M2 scalar.zfh → XS-M3 判据④连线（N2 boundary 最后一环:向量缺席→标量 only_feasible 真实选中）→ XS-M4 LED-2 登记**。
