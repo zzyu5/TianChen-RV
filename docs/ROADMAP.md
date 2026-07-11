@@ -10,6 +10,7 @@
 
 ## 北极星（成熟 compiler 终态）
 C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** + **sealed Win ≥1** + **论文三贡献证据链闭合**
+> **M4 状态（2026-07-11）**：三分类终态达成（certified 81/91=89.01%·零未定义格·旁路 0）+ **字面 90% 门 gated on G4-M2**（IME 3 格解锁 → 84/91=92.3% = M4 真 100%：全分母声明制 + 字面门双满足）。旗舰吞吐=q4_0 5.9× ✓·旁路清零 ✓·sealed Win=Win-K1-VLEN ✓·论文=[远期·非驱动]。
 
 ## 方向定调（2026-07-10 合并裁决入档）
 - **rvv 四格蒸发 = gcc 后端质量 + 历史赛制不对称清算，非 kernel 实力问题**。我方出货 = **clang .o 正门**（L3 定义），**永不立项"适配 gcc"**。
@@ -52,13 +53,25 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 **终态强制形态（="100%"的定义）**：**分母内每一格 ∈ {certified, blocked-on-IME, 声明例外}，域外格全在域外声明名单 —— 零个未定义格。** M4 收口报告以此**三分类全表**交付。
 
+## G4 = IME 战役（2026-07-11 用户批准立项 · 家族#2 跨范式 · 与 M4 真 100% 两事合流）
+**M4 绑定**：G4 的 3 blocked-on-IME 格解锁 = certified 84/91=92.3% = 字面 90% 门关闭 = **M4 真 100%**（全分母声明制 + 字面门双满足）。不另立收口任务。
+**范围（IME 报告 §5 正表·一次钉死）**：N3 性能半边**先验层** + 3 格（gemm_tile/{q4_0,q8_0,q4_K}@ime）的构造与认证。
+**红线 [NG-4]（全程）**：立项名义 = C1 跨范式家族#2 + C2 经济学第二点 + C3′ 第三轴（范式杠杆）+ M4 门解锁；**不以 perf 为名、不预承诺 e2e beat、不以论文需要为由**。性能若来按八门+双账本走、一字不提前写。
+**接入纪律**：插件五件套 + F-1..F-6 falsifier 全绿（含跨范式收容）+ schema.def 逐 PR 不可触 = C1"可复制协议"在家族#2 的正式审计；LED ledger 逐日记账（C2 第二点=IME 接入成本实测·对照锚 2484）。
+**执行结构（曳光弹铁律·贯通前禁铺格）**：
+- **M0** forced-stub 先验层 in-tree 关门（在飞 a9f253c1）：GEMM∧ime.present→矩阵范式变体 选择→归因→lit 全链 + [SEL-2] 时序义务落死 + T4b 专项行（静默落败复现·先验消除 misfire）。
+- **M1** 曳光弹：单格 q4_0@ime 最细线贯通 —— vmadot leaf → typed region front-door 构造 → 硅上逐位（int32 整数精确 oracle·板 k1）→ objdump golden。**贯通前禁铺格**。
+- **M2** 铺格：q8_0/q4_K@ime 跟进（每格 front-door + certified checker + falsifier 绿）；3 格落=certified 84/91、字面门关闭、报备一行（预注册不回门）。
+- **M3** 范式测量（T5b 骨架起步）：2×2 因子（范式×布局）×M 扫描最小实施，交叉点 M* 写回先验（T5c 闭环）；判读预注册 M=1≈parity（roofline 设计内预测·非尴尬）；厂商路径只作 T5d 方法学对照。全程双账本+八门+对手身份探针。
+**并行拓扑**：G4 主线（k1 板+ime emitter 域）‖ 声明例外 7 格年度重估钩子（无工作量）‖ [RENAME]（排 M1 贯通后·与构造互斥）‖ X-SCALAR（排 M2 后）。
+
 ## 退役与记忆两闸（2026-07-11 入档常驻）
 1. **退役可复原闸**：一切 retirement 必须 = **git 历史可查 + retired-ledger 登记**（格名/退役依据/替代路径/复原指针）；无 ledger 条目的删除 = **违规**。既有退役已启动一次**补账扫描**（在飞 workflow 内、预期全绿 RED 0 佐证）。
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=0 · 五并行线 A/B/C/D/E 全落 · 下一临界路径 = IME 立项[必问·新战役]）
-- **无活动线**：M4 收口三步全部完成（分母正名→确认→三分类终态达成）；退役账本收口完备；SEL-1-T5 + IME 报告上桌全落。下一步 = **IME 战役立项**（必问·新战役·待用户裁；报告已上桌·就绪度满·SEL-1-T5 已 enable·= 字面 90% + C1/C2/C3′ 唯一临界路径）。
+## 在飞（★当前并行度 N=1 · G4-M0 · 串行理由=曳光弹关门 gate、M1/M2/M3 顺序在后、[RENAME]/X-SCALAR gated 于 G4 里程碑）
+- **G4-M0（先验层关门·in-tree·selector 域）· agent a9f253c1**：forced-stub 先验层「GEMM ∧ ime.present → 矩阵范式变体」选择→归因→lit 全链关门 + [SEL-2] 时序义务落死 + ★T4b 专项行（静默落败复现:常量分坏配置误选 RVV / 能力派生好配置正确选 IME、先验消除 misfire）。建在 SEL-1-T5（2942f603）上、无板、不构造真 IME kernel（留 M1）。
 - ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
 - ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
 
@@ -66,11 +79,12 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 1. ~~iq2-grid/矿脉/tq/mxfp4 退役·★旁路清零~~ ✅ · ~~SEL-1-T5 零 static_order + cost-model 能力先验~~ ✅ · ~~CERT-FD 全闭合~~ ✅ · ~~[M4 收口·一] 分母正名核查判定书~~ ✅（红队 0 改判·anti-gate 铁证）· ~~IME gating 报告上桌~~ ✅
 2. ~~[M4 收口·一] 用户确认（分母 93→91 + 轴B 两问 + 索引件）~~ ✅（★唯一回门点已过·此后不回门）
 3. ~~[M4 收口·二] 二步收口执行（Line D 6dcb5db4：分母→91 + q1_0 翻正 81 + 6 声明例外 + 三分类终态全表）‖ 退役账本收口（Line E 0e3edba1：档3 补建 + RETIRED-INDEX + CI）~~ ✅（★M4 三分类终态达成·零未定义格）
-4. **★IME 战役立项**（必问·新战役·下一临界路径 · 报告已上桌 6dcb5db4·就绪度满·SEL-1-T5 已 enable · N3 perf 半边 + blocked-on-IME 3 格解锁 = **字面 90% + C1/C2/C3′ 唯一临界路径、与收口合流**）
-5. **[X-SCALAR]/zvfh**（C2 从 1 点→曲线的唯一路径 · 按 [X-1] 顺序）
-6. **[RENAME] 改名会话**（单独会话）
-7. **矿脉/net-new 余格**（按第二步裁定的最小批次执行、禁凑数格）
-8. **[待裁·canon] static_order→prior reason 燃减**（SEL-1-T5 cost-model 能力先验已 enable；翻 prior 改 reason 枚举/八门定义 = canon·必问，独立步待裁）
+4. **★G4 = IME 战役【已立项·进行中】**（家族#2 跨范式 · canon 既定正主 · 曳光弹 M0→M1→M2→M3 见下 G4 专节）：
+   - **M0** 先验层关门（在飞 a9f253c1·in-tree）→ **M1** 曳光弹单格 q4_0@ime 贯通（板 k1·硅上逐位·objdump golden·贯通前禁铺格）→ **M2** 铺格 q8_0/q4_K@ime（3 格落=certified 84/91·字面 90% 门关闭·预注册报备不回门）→ **M3** 范式测量（2×2 范式×布局×M 扫描·M* 写回先验·双账本+八门）
+5. **[RENAME] 改名会话**（排 **G4-M1 贯通后**插入 · 改名会话独占、与构造互斥）
+6. **[X-SCALAR]/zvfh**（C2 第三点·叙事刚需 · 排 **G4-M2 后**与写作裁决材料一并报优先级 · 按 [X-1] 顺序）
+7. **[待裁·canon] static_order→prior reason 燃减**（SEL-1-T5 已 enable；翻 prior 改 reason 枚举/八门定义 = canon·必问，独立步待裁）
+8. **声明例外 7 格年度重估**（无工作量·钩子挂档：ggml 建该格 repack-GEMM 或 board 证非 LOSS 即重估）
 
 > **纪律·优先级论证禁以"论文需要"为由**（2026-07-11 补充裁）：任何任务立项/排序理由**只能是贡献链条 + 工程成熟度本身**。论文素材照常被动维护（证据落地就挂指针），**不为它立任务、不为它排板批**。写作期 = [远期·非驱动]（见末尾专区）。
 
