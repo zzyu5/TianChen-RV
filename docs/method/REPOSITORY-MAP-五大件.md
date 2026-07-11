@@ -75,6 +75,19 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 （§3.3 前缀约定内自洽），把 (a) 宽 LMUL 分组、(b) N-operand 构造 各自改为**模式注册表 pattern_id**
 （如 `SCHED-WIDE-LMUL` / `CONSTRUCT-N-OPERAND-ROUTE`），退役裸「P1」标签。
 
+**✅ [RENAME] 部分执行（2026-07-12 · 本节唯一权威碰撞记录 · 以本节为准）**：
+- **P1-(b) N-operand 构造**：仓库内仅有的 **in-domain（代码）** 裸「P1」footprint 已消歧（behavior-preserving·仅注释）——
+  `lib/Plugin/RVV/Construction/RVVContractionRouteIdentity.cpp`（3 处：`P1 generic ABI-order`×2 + `NOT consumed by the P1`）
+  + `include/TianChenRV/Plugin/RVV/RVVMonolithicBlockDotFamily.h`（1 处：`P1 N-operand descriptor refactor`）
+  一律改为自描述的 **「N-operand generic ABI-order」/「N-operand descriptor refactor」**，裸「P1」token 自代码退役。
+  其**建议 pattern_id = `CONSTRUCT-N-OPERAND-ROUTE`**，pending `schema/pattern-registry.v1.json` 注册（见下 ⏸）。
+- **P1-(c) = [GAP-P1]**：**保留**（GAP-域自洽命名，§3.3 已裁不与 (a)/(b) 合并），无动作。
+- **⏸ DEFERRED（canon 级 + schema 域·本会话触碰域外·主会话/用户裁）**：
+  (1) 把 pattern-library 槽位 **P1-(a) 宽 LMUL 分组 → `SCHED-WIDE-LMUL`** 落到 canon 三总纲
+  （`科研目标总纲v2.md:121` 定义行 + `:168`[C3-3]/`:170`[C3-5] 引用 + `执行总纲v2.md:91`）——牵动 **C3′ headline 模式库 [C3-1] 措辞**，属 canon 级；
+  (2) 把 `CONSTRUCT-N-OPERAND-ROUTE` / `SCHED-WIDE-LMUL` **正式注册进 `schema/pattern-registry.v1.json`**（schema 域，本会话禁碰）。
+  二者未落地前，代码侧裸「P1」已清，canon 的「P1」按本节 = (a)/(b) 双所指、**以本节消歧为准**。历史 dated 报告内旧「P1」引用属 append-only 存档·不回改。
+
 ### 3.2 「P4」= PAT-2 vs PAT-S6（形式槽空 vs 机制已实现）
 
 - **P4 = 布局 / repack** 模式。`执行总纲v2.md:91` 标注**形式化的 `PAT-2` "P4" 注册对象 = 未启动**；
@@ -85,6 +98,14 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 **统一建议**：`pattern-registry.v1.json` 现有实际 pattern_id 命名族 = `MFLAT-1..5` / `MFLAT-P2c` /
 `WIDE-DECODE-*` / `PAT-S6-*`。建议 [RENAME] **以 registry 的 pattern_id 为唯一真源**，退役 canon 散落的
 「P4」「PAT-2」裸标签：把「未启动的 P4 形式槽」显式记为一个 pending pattern_id，把已实现的指向 `PAT-S6-*`。
+
+**✅ [RENAME] 裁定（2026-07-12 · 本节唯一权威碰撞记录 · 以本节为准）**：
+- **无 in-domain 代码 footprint 可安全消歧**：代码里的 **`SP4`**（`RVVLowerQuantContraction.cpp` / `RVVRepackTilingSelection.h` /
+  `执行总纲v2.md:246`）= output-tiling 选择变体（register-cliff），**已= 机制化的 `PAT-S6`**、命名一致，**非** pattern-library「P4 布局/repack」槽——**不改**（`grep P4\b` 命中 `SP4` 属正则边界假阳性，勿误伤）。
+  `tools/e2e-harness/g3-lode-flat-q41/MANIFEST.md` 的 `[PAT-S6]` 引用亦正确、不改。
+- **⏸ DEFERRED 全项（canon 级 + schema 域·本会话触碰域外·主会话/用户裁）**：pattern-library「P4」/「PAT-2」裸标签仅存于 canon 三总纲
+  （`科研目标总纲v2.md:121`定义 + `:168`/`:213`; `执行总纲v2.md:91`/`:282`/`:289`），已机制化实现的真源 = `PAT-S6-*`（in `schema/pattern-registry.v1.json`）。
+  落地建议仍如上（registry pattern_id 为唯一真源、pending 槽显式记 pending id），**须编辑 canon + schema**，本会话均不碰。**以本节消歧为准**。
 
 ### 3.3 [GAP-*] 前缀约定（现状 roster + 建议规范）
 
@@ -152,6 +173,6 @@ Canon 自身携带**不一致的 P 编号**；T3p 记录碰撞而非静默选一
 | ③ 前门无专属目录、靠命名 | `*SourceFrontDoor.cpp` 散在 `lib/Plugin/RVV/` | R3：统一 `FrontDoor/` 归属（动 lib，主会话） | code（互斥·主会话） |
 | ② RVV 插件 ~36 文件爆炸 | 未按件分子目录 | R2：按格位 `FrontDoor/·Selection/·Schedule/·BodyRealization/` 分组（对齐 Template）（动 lib，主会话） | code（互斥·主会话） |
 | ④ 选择器四处二层散 | 无 `selector/` 目录 | R5：文档 co-locate（不必物理搬） | docs |
-| P 编号碰撞 | 三 P1 / P4 双所指 | **§3 已 codify（RENAME 基准）** | docs（本 doc）→ RENAME 落地 |
+| P 编号碰撞 | 三 P1 / P4 双所指 | **§3 已 codify；[RENAME] 部分落地（2026-07-12）**：P1-(b) 代码裸标已退役（4 处注释·behavior-preserving）；P1-(a) 宽LMUL→`SCHED-WIDE-LMUL` / P4·PAT-2→registry pattern_id = **DEFERRED**（canon 三总纲 + schema·主会话/用户裁） | docs（本 doc）+ lib 注释 |
 
 > R2/R3 动 `lib/`，与构造互斥、须排 G4 M1 贯通后（[RENAME] 并行拓扑）；本 doc 只**标注不执行**。

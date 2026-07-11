@@ -287,7 +287,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     //   lhs -> role "lhs-input-buffer", c-name "lhs", c-type "const int16_t *"
     //   rhs -> role "rhs-input-buffer", c-name "rhs", c-type "const int16_t *"
     // ONLY the ordered product-factor abiCName prefix ("lhs,rhs") is consumed --
-    // by getContractionProductReductionRuntimeABIOrder (P1 generic ABI-order),
+    // by getContractionProductReductionRuntimeABIOrder (N-operand generic ABI-order),
     // which is IDEMPOTENT for this N=2 route (strips the abstract lhs,rhs prefix,
     // re-attaches the descriptor lhs,rhs, keeps the form tail) -> byte-exact.
     //
@@ -320,7 +320,7 @@ const std::vector<ContractionRouteIdentity> &contractionRouteRegistry() {
     // ----------------------------------------------------------------------
     // The computed-mask dot-reduce head (ComputedMaskWideningDotReduceAdd +
     // ComputedMaskStridedInputWideningDotReduceAdd). Registered as route-DATA to
-    // document the family's full shape, but DELIBERATELY NOT consumed by the P1
+    // document the family's full shape, but DELIBERATELY NOT consumed by the N-operand
     // generic ABI-order path -- and it CANNOT be, byte-exact: the computed-mask ABI
     // order is "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n", i.e. the TWO compare-input
     // sources PREFIX the dot multiplicands. getContractionProductReductionRuntimeABI-
@@ -785,7 +785,7 @@ bool contractionProductSourceBindingC4SelfCheck() {
 //===----------------------------------------------------------------------===//
 // OPTIONAL P2-a dot-reduce self-check (NOT wired into any emit path).
 //
-// Proves the P1 generic ABI-order derivation (getContractionProductReduction-
+// Proves the N-operand generic ABI-order derivation (getContractionProductReduction-
 // RuntimeABIOrder) reproduces the dot-reduce family's op-kind-keyed ABI orders
 // byte-for-byte from the registered widening_dot_reduce descriptor, for the TWO
 // forms whose slice carries the fused head (base / strided). The derivation is

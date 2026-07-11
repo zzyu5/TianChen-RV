@@ -28,7 +28,7 @@
 //   (3) The per-op DATA (op identity, route family, kind, ordered runtime-ABI
 //       expectation) as a table. The STRUCTURAL wiring is generic (family-keyed);
 //       the per-op data parameterizes it -- the same generic-vs-data split as the
-//       P1 N-operand descriptor refactor. q4_K/iq4_nl carry the 4-role ggml
+//       N-operand descriptor refactor. q4_K/iq4_nl carry the 4-role ggml
 //       vec_dot ABI (n, s, vx, vy); q4_0 carries the full 8-role strided ggml
 //       vec_dot ABI (n, s, bs, vx, bx, vy, by, nrc) -- the block-dot op consumes
 //       only vx/vy/s/n but the exported C signature mirrors ggml's prototype.
