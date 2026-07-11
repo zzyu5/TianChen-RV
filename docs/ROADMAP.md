@@ -93,9 +93,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=1 · [TEMPLATE-AUDIT 清理]+[RENAME] docs-先行 · ★铺面①-⑤ 全落 · 队列自动衔接·禁停机制）
-- **AUDIT 清理+RENAME docs-先行（docs/data 注册域）· agent a4ca80cb**：R6 注册修 CI RED（check_index_consistency 35 issue→GREEN·补 cert-probe/result-table 注册）+ R1 五大件→目录映射 doc（头号定位债+P1/P4 命名碰撞 codify）+ R4 falsifier 索引·标注 C5-C11 删除项/R2-R3 lib 移动待主会话（只注册不删不动 lib）。
-- ✅ 本轮已收：**★铺面①-⑤ 全落**（① FLAT 内核轴对称幸存 · ② IME 范式杠杆 [GAP-IME-LEAF-PIPELINE] 全闭环 · ③ 流式 parity+3 GAP · ④T4b 四配置消融 · ⑤T3p 五模式机理判决 658e5c0f）· **T6 两批全落**（天花板=接线+micro↛e2e）· [T8·LAW-FIRST-EMISSION]
+## 在飞（★当前并行度 N=1 · X-SCALAR 排期报告 · 测量总攻覆盖批完成 · 队列自动衔接·禁停机制）
+- **X-SCALAR/zvfh 排期报告（C2 曲线家族#3·scout/分析域）· agent（下派）**：scout [X-1] 顺序 + 家族#3 接入 plan（capability-fact dispatch·zero-core-branch·N2 family entry boundary）+ C2 经济学 ledger 预期（接入成本·对照锚 2484）+ 排期。产出立项裁决材料（用户 queue "一并报排期"）。
+- ✅ 本轮已收：**[TEMPLATE-AUDIT 清理+RENAME] docs-先行（f468cf6c·★修 CI RED check_index_consistency GREEN·R1 五大件映射+R4 falsifier 索引·P1/P4/F-1 命名碰撞 codify·承重证据注册非删）** · **★铺面①-⑤ 全落**（FLAT/IME 范式杠杆闭环/流式 parity/T4b 四配置/T3p 五模式）· **T6 两批全落**（天花板=接线+micro↛e2e）· [T8·LAW-FIRST-EMISSION]
+- **待主会话 careful-pass**（AUDIT 清理执行·非阻塞）：C5-C11 删除（.o/scratch/.touch-set stale·复原指针 b3e3fef4·部分"评估"类）+ R2/R3 lib 分子目录移动（动 lib·风险·排 careful）。
 
 ## ★T6 关键发现（perf-covered 管道真实瓶颈·2026-07-11）
 **perf-covered 从 2/84 拉绿的真瓶颈 = 集成/接线（tcrv 核多数未 wired 进 forward）+ micro↛e2e 封顶**（非 kernel 质量）：
