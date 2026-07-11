@@ -2,7 +2,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-dequantize-row-stream-front-door --tcrv-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 // RUN: sed 's/"q8_0"/"tq2_0"/g' %s | tcrv-opt --tcrv-rvv-materialize-dequantize-row-stream-front-door | FileCheck %s --check-prefix=TERNARY
 
-// CERT-FD首族 (dequant×21) -- the PRE-EMITC dequant-stream FRONT DOOR. It runs ONLY
+// CERT-FD首族 (dequant×24) -- the PRE-EMITC dequant-stream FRONT DOOR. It runs ONLY
 // the CONSTRUCTION half of constructOrEmitGgmlDequantizeRow (the shared byte-exact
 // tcrv::rvv::constructTypedDequantizeRowLoopBody): it rewrites the abstract
 // tcrv_rvv.dequantize_row into the typed tcrv_rvv.typed_dequantize_row_loop_body region
@@ -16,11 +16,11 @@
 // whether the region is built here (pre-emitc, REALIZE) or in emitc: the EMIT run below (front
 // door THEN --tcrv-rvv-lower-to-emitc) is byte-identical to the atomic
 // `--tcrv-rvv-lower-to-emitc`-only path locked by rvv-to-emitc-ggml-dequantize-row-q8-0.mlir
-// (the 0-diff is verified format-by-format across all 23 constructed formats out-of-band).
-// The ternary super-blocks (tq1_0/tq2_0) are NOW front-door CONSTRUCTED too: the front door
-// rewrites their abstract op into the SAME typed region (TERNARY run below), completing the
-// whole 23-format dequantize_row spectrum -- NO format remains dispatch-wired. Numerical
-// semantics: zero change (byte-exact by construction).
+// (the 0-diff is verified format-by-format across all 24 constructed formats out-of-band).
+// The ternary super-blocks (tq1_0/tq2_0) and the flat 1-bit binary-sign leaf (q1_0) are NOW
+// front-door CONSTRUCTED too: the front door rewrites their abstract op into the SAME typed
+// region (TERNARY run below), completing the whole 24-format dequantize_row spectrum -- NO
+// format remains dispatch-wired. Numerical semantics: zero change (byte-exact by construction).
 
 module {
   tcrv.exec.kernel @dequant_q8_0_kernel {

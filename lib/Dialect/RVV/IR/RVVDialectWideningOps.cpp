@@ -10544,6 +10544,8 @@ mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
 static bool isWiredDequantizeRowFormat(llvm::StringRef format) {
   return format == "q4_0" || format == "q4_1" || format == "q5_0" ||
          format == "q5_1" || format == "q8_0" ||
+         // Flat 1-bit binary-sign leaf (block_q1_0: y[j] = bit ? d : -d).
+         format == "q1_0" ||
          // K-quant super-blocks (get_scale_min_k4 / aux 6-bit scale shuffle).
          format == "q2_K" || format == "q3_K" || format == "q4_K" ||
          format == "q5_K" || format == "q6_K" ||
@@ -10584,7 +10586,8 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
     return emitOpError()
            << "format '" << getFormat()
            << "' is not a wired dequantize_row decode; the dispatch-wired "
-              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (legacy) + "
+              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (legacy) + q1_0 (binary "
+              "sign) + "
               "q2_K/q3_K/q4_K/q5_K/q6_K (K-quant) + mxfp4/nvfp4 (FP4) + "
               "tq1_0/tq2_0 (ternary) + iq4_nl (codebook) + "
               "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m/iq4_xs (IQ "
@@ -10645,7 +10648,8 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
 static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
   return decodeModel == "q8_0" || decodeModel == "q4_0" ||
          decodeModel == "q4_1" || decodeModel == "q5_0" ||
-         decodeModel == "q5_1" || decodeModel == "q2_K" ||
+         decodeModel == "q5_1" || decodeModel == "q1_0" ||
+         decodeModel == "q2_K" ||
          decodeModel == "q3_K" || decodeModel == "q4_K" ||
          decodeModel == "q5_K" || decodeModel == "q6_K" ||
          decodeModel == "iq2_xxs" || decodeModel == "iq2_xs" ||
@@ -10694,7 +10698,8 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
               "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 (the flat streaming "
               "family: the block_q8_0 bare-int8 scale family-head + the 4-bit nibble "
-              "leaves) + q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
+              "leaves) + q1_0 (the flat 1-bit binary-sign leaf) + "
+              "q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
               "leaves) + iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s (the QK_K=256 IQ grid-table "
               "super-block leaves) + iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 (the codebook "
               "/ ternary-grid extended leaves) + tq1_0/tq2_0 (the base-3 / 2-bit ternary "
@@ -10794,7 +10799,8 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     return emitOpError()
            << "decode_model '" << getDecodeModel()
            << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
+              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the binary-sign "
+              "leaf q1_0 + the K-quant "
               "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table super-blocks "
               "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / ternary-grid leaves "
               "iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the ternary super-blocks "

@@ -3179,7 +3179,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
   // valid-verify region here.
   llvm::StringRef decodeModel = loopBody.getDecodeModel();
   if (decodeModel != "q8_0" && decodeModel != "q4_0" && decodeModel != "q4_1" &&
-      decodeModel != "q5_0" && decodeModel != "q5_1" && decodeModel != "q2_K" &&
+      decodeModel != "q5_0" && decodeModel != "q5_1" && decodeModel != "q1_0" &&
+      decodeModel != "q2_K" &&
       decodeModel != "q3_K" && decodeModel != "q4_K" && decodeModel != "q5_K" &&
       decodeModel != "q6_K" && decodeModel != "iq2_xxs" &&
       decodeModel != "iq2_xs" && decodeModel != "iq2_s" &&
@@ -3190,7 +3191,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
       decodeModel != "tq1_0" && decodeModel != "tq2_0")
     return rewriter.notifyMatchFailure(
         loopBody, "typed dequantize_row loop body only lowers the constructed "
-                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1 + the K-quant "
+                  "streaming decode_models q8_0/q4_0/q4_1/q5_0/q5_1 + the flat "
+                  "binary-sign leaf q1_0 + the K-quant "
                   "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table "
                   "super-blocks iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / "
                   "ternary-grid leaves iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the "
@@ -3274,6 +3276,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedDequantizeRowLoopBody(
     return emitDequantizeRowCodebookGridBodyShared(rewriter, loc, weightBase,
                                                    output, avlArg, sizeType,
                                                    opName, role, decodeModel);
+  // The flat 1-bit binary-sign leaf (q1_0) forwards to the SAME hand-written
+  // binary-sign decode the dispatch-wired monolith fallback runs (via the shared
+  // emitGgmlDequantizeRowExtended, keyed by the format string alone), so the
+  // constructed emit is byte-exact to the monolith by construction.
+  if (decodeModel == "q1_0")
+    return emitGgmlDequantizeRowExtended(rewriter, loc, decodeModel, weightBase,
+                                         output, avlArg, sizeType, opName, role);
   return emitDequantizeRowQ8_0BodyShared(rewriter, loc, weightBase, output,
                                          avlArg, sizeType, opName, role);
 }
@@ -3348,6 +3357,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
     llvm::StringRef role) const {
   enum Fmt {
     Q2K, Q3K, Q4K, Q5K, Q6K, MXFP4, NVFP4, TQ1, TQ2, IQ4NL,
+    // The flat 1-bit binary-sign leaf (block_q1_0).
+    Q10,
     // The 8 IQ grid-table formats (each reuses its block-dot vec_dot grid decl).
     IQ2XXS, IQ2XS, IQ2S, IQ3XXS, IQ3S, IQ1S, IQ1M, IQ4XS, NONE
   };
@@ -3361,6 +3372,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
                 .Case("nvfp4", NVFP4)
                 .Case("tq1_0", TQ1)
                 .Case("tq2_0", TQ2)
+                .Case("q1_0", Q10)
                 .Case("iq4_nl", IQ4NL)
                 .Case("iq2_xxs", IQ2XXS)
                 .Case("iq2_xs", IQ2XS)
@@ -3758,6 +3770,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
   case NVFP4: qk = 64; stride = 36; break;
   case TQ1: stride = 54; break;
   case TQ2: stride = 66; break;
+  case Q10: qk = 128; stride = 18; break;
   case IQ4NL: qk = 32; stride = 18; break;
   case IQ2XXS: stride = 66; break;
   case IQ2XS: stride = 74; break;
@@ -3919,6 +3932,34 @@ mlir::LogicalResult VariantToEmitCFunc::emitGgmlDequantizeRowExtended(
               loadIntAt(xb, inputPtrType, addSz(sizeLit(48), j), constU8Type);
           tq1Decode(qb, pow3n, addSz(sizeLit(base), j));
         });
+      }
+    } else if (fmt == Q10) {
+      // Flat 1-bit binary-sign leaf (block_q1_0: fp16 d @0, qs[16] @2, qk=128).
+      // ggml dequantize_row_q1_0: d = fp16(x.d); neg_d = -d; for j in 0..128:
+      //   bit = (qs[j/8] >> (j%8)) & 1; y[j] = bit ? d : neg_d.
+      mlir::Value d = fp16ReadAt(xb, 0);
+      mlir::Value negD =
+          rewriter.create<emitc::UnaryMinusOp>(loc, floatType, d).getResult();
+      mlir::Value zeroI = intLit(0);
+      rewriter.create<emitc::VerbatimOp>(
+          loc, stepComment(opName, role, "q1_0_binary_sign_decode"));
+      // qk/8 = 16 packed bytes x 8 bits = 128 lanes, output in ASCENDING j order.
+      for (int64_t jb = 0; jb < qk / 8; ++jb) {
+        mlir::Value qi =
+            loadIntAt(xb, inputPtrType, sizeLit(2 + jb), constU8Type);
+        for (int64_t bo = 0; bo < 8; ++bo) {
+          mlir::Value bit = iAnd(iShr(qi, intLit(bo)), intLit(1));
+          mlir::Value isSet = rewriter
+                                  .create<emitc::CmpOp>(loc, boolType,
+                                                        emitc::CmpPredicate::ne,
+                                                        bit, zeroI)
+                                  .getResult();
+          mlir::Value val =
+              rewriter
+                  .create<emitc::ConditionalOp>(loc, floatType, isSet, d, negD)
+                  .getResult();
+          storeF32At(yb, sizeLit(jb * 8 + bo), val);
+        }
       }
     } else if (fmt == Q2K) {
       // scales[16]@0, qs[64]@16, d@80, dmin@82. y = dl*((q>>shift)&3) - ml.

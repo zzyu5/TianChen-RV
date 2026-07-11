@@ -105,8 +105,11 @@ def compute_metrics(roster_kernels, sixstate_rows):
     (global / by_class / by_op) plus the headline, C_attr, pending-E5 accounting,
     and any roster keys missing a six-state row.
     """
-    # six-state lookup: key -> (best_state_index, auto_readout_of_best)
+    # six-state lookup: key -> (best_state_index, auto_readout_of_best). The ladder
+    # `state` still drives the metric arithmetic; the M4 three-classification
+    # (scope / m4_class) rides on SEPARATE fields so the LADDER logic is untouched.
     best = {}
+    meta = {}   # key -> {"scope": str|None, "m4_class": str|None}
     for row in sixstate_rows:
         k = kernel_key(row)
         i = IDX.get(row["state"])
@@ -115,11 +118,23 @@ def compute_metrics(roster_kernels, sixstate_rows):
         cur = best.get(k)
         if cur is None or i > cur[0]:
             best[k] = (i, row.get("auto_readout"))
+        m = meta.setdefault(k, {"scope": None, "m4_class": None})
+        if row.get("scope"):
+            m["scope"] = row["scope"]
+        if row.get("m4_class"):
+            m["m4_class"] = row["m4_class"]
 
     resolved = []      # per roster key: (key, class, op, idx, auto_readout)
     missing = []
+    out_of_domain = []  # roster keys marked scope=out-of-domain (EXCLUDED from denom)
     for kern in roster_kernels:
         k = kernel_key(kern)
+        km = meta.get(k, {"scope": None, "m4_class": None})
+        # M4 分母正名: out-of-domain cells (bf16/all, flash_attn/tile) are kept in the
+        # roster + sixstate for auditability but EXCLUDED from the coverage denominator.
+        if km.get("scope") == "out-of-domain":
+            out_of_domain.append(list(k))
+            continue
         b = best.get(k)
         if b is None:
             missing.append(list(k))
@@ -142,6 +157,45 @@ def compute_metrics(roster_kernels, sixstate_rows):
     strong_pending = [k for (k, auto) in strong_keys if auto == "pending-E5"]
 
     denom_by_class = {c: by_class[c]["C_dispatch"]["den"] for c in ("A", "B", "C")}
+
+    # M4 三分类终态 (ROADMAP:52): every IN-DENOMINATOR cell resolves to EXACTLY one of
+    # {certified, blocked-on-IME, declared-exception}; out-of-domain cells sit OUTSIDE
+    # the denominator. certified = best-state >= constructed (STRONG); the rest carry an
+    # explicit m4_class marker. reconciliation MUST close: denominator + out_of_domain ==
+    # roster_total, and there must be ZERO undefined cells.
+    m4 = {"certified": [], "blocked-on-IME": [], "declared-exception": [],
+          "undefined": []}
+    for (k, cls, op, idx, auto) in resolved:
+        if idx >= I_STRONG:
+            m4["certified"].append(list(k))
+        else:
+            cls_m4 = meta.get(k, {}).get("m4_class")
+            if cls_m4 in ("blocked-on-IME", "declared-exception"):
+                m4[cls_m4].append(list(k))
+            else:
+                m4["undefined"].append(list(k))
+    roster_total = len(resolved) + len(out_of_domain)
+    m4_classification = {
+        "certified": len(m4["certified"]),
+        "blocked_on_IME": len(m4["blocked-on-IME"]),
+        "declared_exception": len(m4["declared-exception"]),
+        "out_of_domain": len(out_of_domain),
+        "denominator": len(resolved),
+        "roster_total": roster_total,
+        "undefined_cells": m4["undefined"],
+        "reconciliation_ok": (
+            len(m4["certified"]) + len(m4["blocked-on-IME"])
+            + len(m4["declared-exception"]) == len(resolved)
+            and len(resolved) + len(out_of_domain) == roster_total
+            and len(m4["undefined"]) == 0
+        ),
+        "note": ("M4 three-classification over the denominator + out-of-domain; "
+                 "reconciliation_ok asserts zero undefined cells and denom + "
+                 "out_of_domain == roster_total"),
+        "blocked_on_IME_cells": m4["blocked-on-IME"],
+        "declared_exception_cells": m4["declared-exception"],
+        "out_of_domain_cells": out_of_domain,
+    }
 
     return {
         "denominator": {"total": len(resolved), "by_class": denom_by_class},
@@ -168,6 +222,7 @@ def compute_metrics(roster_kernels, sixstate_rows):
                      "manifest); the strong labels here are hand-assigned"),
         },
         "missing_sixstate_keys": missing,
+        "m4_classification": m4_classification,
     }
 
 
@@ -295,6 +350,42 @@ def cmd_self_test(_args) -> int:
     check("gemm_tile rvv/ime are distinct keys (C_dispatch = 1/2)",
           mg["metrics"]["global"]["C_dispatch"]["num"] == 1
           and mg["metrics"]["global"]["C_dispatch"]["den"] == 2)
+
+    # M4 三分类: out-of-domain exclusion + the three-classification reconciliation.
+    roster_od = [
+        {"op": "vec_dot", "format": "cert", "class": "A"},
+        {"op": "gemm_tile", "format": "ime1", "class": "A", "engine": "ime"},
+        {"op": "gemm_tile", "format": "de1", "class": "A", "engine": "rvv"},
+        {"op": "bf16", "format": "all", "class": "C"},
+    ]
+    sixstate_od = [
+        {"op": "vec_dot", "format": "cert", "state": "constructed",
+         "auto_readout": "pending-E5"},
+        {"op": "gemm_tile", "format": "ime1", "engine": "ime", "state": "absent",
+         "m4_class": "blocked-on-IME"},
+        {"op": "gemm_tile", "format": "de1", "engine": "rvv", "state": "absent",
+         "m4_class": "declared-exception"},
+        {"op": "bf16", "format": "all", "state": "absent",
+         "scope": "out-of-domain", "m4_class": "out-of-domain"},
+    ]
+    mo = compute_metrics(roster_od, sixstate_od)
+    m4s = mo["m4_classification"]
+    check("out-of-domain EXCLUDED from denominator (4 roster -> 3 denom, 1 out)",
+          m4s["denominator"] == 3 and m4s["out_of_domain"] == 1
+          and m4s["roster_total"] == 4 and mo["denominator"]["total"] == 3)
+    check("M4 three-classification 1 certified + 1 blocked-on-IME + 1 declared-exception",
+          m4s["certified"] == 1 and m4s["blocked_on_IME"] == 1
+          and m4s["declared_exception"] == 1)
+    check("M4 reconciliation closes with ZERO undefined cells",
+          m4s["reconciliation_ok"] is True and m4s["undefined_cells"] == [])
+
+    # a non-certified in-denominator cell with NO m4_class surfaces as UNDEFINED.
+    roster_u = [{"op": "vec_dot", "format": "x", "class": "A"}]
+    sixstate_u = [{"op": "vec_dot", "format": "x", "state": "absent"}]
+    mu = compute_metrics(roster_u, sixstate_u)
+    check("un-marked non-certified cell surfaces as undefined (reconciliation fails)",
+          mu["m4_classification"]["undefined_cells"] == [["vec_dot", "x", "", ""]]
+          and mu["m4_classification"]["reconciliation_ok"] is False)
 
     # determinism of the canonical hash.
     check("canonical hash is order-insensitive",

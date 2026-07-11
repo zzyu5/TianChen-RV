@@ -9573,7 +9573,8 @@ def TypedDequantizeRowLoopBodyOp
     "q8_0" (the family-head block_q8_0 bare signed-int8 scale `y[j] = qs[j] * d`, the
     structurally simplest flat-block dequant, no nibble unpack) plus the 4-bit nibble
     leaves "q4_0"/"q4_1"/"q5_0"/"q5_1" (the nibble unpack + the optional qh 5th-bit
-    merge / min fold) plus the QK_K=256 K-quant super-block leaves
+    merge / min fold) plus the flat 1-bit binary-sign leaf "q1_0" (block_q1_0: fp16 d
+    seam + the packed 1-bit sign unpack `y[j] = bit ? d : -d`) plus the QK_K=256 K-quant super-block leaves
     "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" (the fp16 d/dmin seam + the per-format
     super-block scale/min unpack -- get_scale_min_k4 6-bit, the q3_K aux kmask shuffle,
     the q2_K packed 4-bit scale/min, the q6_K signed int8 scales -- then the 2/3/4/5/6-bit
@@ -9652,6 +9653,8 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     `y[j] = qs[j] * d` over all qk block lanes (the load sign-extends); for the 4-bit
     nibble leaves "q4_0"/"q4_1"/"q5_0"/"q5_1": the fp16 d (+ optional min m) seam, the
     optional qh 5th-bit plane, then the per-nibble unpack + bias/min fold + scale; for
+    the flat 1-bit binary-sign leaf "q1_0": the fp16 d seam + neg_d = -d, then the
+    packed 1-bit sign unpack `y[j] = ((qs[j/8] >> (j%8)) & 1) ? d : neg_d`; for
     the QK_K=256 K-quant super-block leaves "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K": the
     fp16 d (+ optional dmin) seam + the per-format super-block scale/min unpack, then
     the 2/3/4/5/6-bit quant unpack + fold; for the QK_K=256 IQ grid-table super-block
@@ -9668,7 +9671,8 @@ def DequantizeRowDecodeCoreOp : TCRVRVV_Op<"dequantize_row_decode_core",
     block-layout facts (qk, weight_block_stride, scale_byte_offset, quant_byte_offset)
     are the ggml ABI constants; decode_model pins WHICH decode leaf. For the current
     bounded surface decode_model is limited to the flat streaming family
-    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the K-quant super-blocks
+    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the flat binary-sign leaf "q1_0" + the
+    K-quant super-blocks
     "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" + the IQ grid-table super-blocks
     "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s" + the codebook / ternary-grid leaves
     "iq1_s"/"iq1_m"/"iq4_nl"/"iq4_xs"/"mxfp4"/"nvfp4" + the ternary super-blocks

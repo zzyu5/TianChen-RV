@@ -41,6 +41,10 @@ lookupDequantizeRowStreamFacts(llvm::StringRef format) {
     stride = 22; qsOff = 6;
   } else if (format == "q5_1") {
     stride = 24; qsOff = 8;
+  } else if (format == "q1_0") {
+    // block_q1_0: fp16 d @0, qs[16] @2 (QK1_0=128 packed 1-bit binary {-1,+1}
+    // signs, 8 weights/byte). The flat binary-sign leaf: y[j] = bit ? d : -d.
+    qk = 128; stride = 18; dOff = 0; qsOff = 2;
   } else if (format == "q2_K") {
     qk = 256; stride = 84; dOff = 80; qsOff = 16;
   } else if (format == "q3_K") {

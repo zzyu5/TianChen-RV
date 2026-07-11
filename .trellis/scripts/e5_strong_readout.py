@@ -685,16 +685,16 @@ REPACK_DUAL_PATHS = [
                 "tq2_0", "tq1_0"]
 ]
 
-# --- CERT-FD首族: the 21 CONSTRUCTED streaming dequantize_row cells (FIX-5) --------
+# --- CERT-FD首族: the 24 CONSTRUCTED streaming dequantize_row cells (FIX-5) --------
 # The dequant-stream front door (--tcrv-rvv-materialize-dequantize-row-stream-front-door)
 # runs ONLY the CONSTRUCTION half of constructOrEmitGgmlDequantizeRow: it rewrites the
 # abstract tcrv_rvv.dequantize_row into the typed tcrv_rvv.typed_dequantize_row_loop_body
 # region { dequantize_row_decode_core; typed_dequantize_row_loop_yield } and STOPS -- BEFORE
 # --tcrv-rvv-lower-to-emitc (stage discipline). The walk feeds the SAME abstract-op
 # conversion fixtures the emitc lit uses, so the certification walks the REAL realized region
-# the compiler builds (not a hand fixture). The whole 23-format dequantize_row spectrum is now
-# front-door CONSTRUCTED (the tq1_0/tq2_0 base-3 / 2-bit ternary super-blocks were the LAST two
-# dispatch-wired dequant cells, flipped here). The streaming shape (a pure decode: body + decode_core + yield, NO
+# the compiler builds (not a hand fixture). The whole 24-format dequantize_row spectrum is now
+# front-door CONSTRUCTED (q1_0 -- the flat 1-bit binary-sign leaf, host golden dequantize_row_q1_0 --
+# was the LAST net-new dequant cell, flipped here). The streaming shape (a pure decode: body + decode_core + yield, NO
 # product/reduce) is its OWN legal shape -- checked directly here (like _walk_repack_regime),
 # NOT via the contraction-shaped derive() decomposed gate.
 _DEQUANT_STREAM_FRONT_DOOR = "--tcrv-rvv-materialize-dequantize-row-stream-front-door"
@@ -709,6 +709,7 @@ DEQUANT_STREAM_PATHS = [
         ("iq3_s", "iq3-s"), ("iq1_s", "iq1-s"), ("iq1_m", "iq1-m"),
         ("iq4_nl", "iq4-nl"), ("iq4_xs", "iq4-xs"), ("mxfp4", "mxfp4"),
         ("nvfp4", "nvfp4"), ("tq1_0", "tq1-0"), ("tq2_0", "tq2-0"),
+        ("q1_0", "q1-0"),
     ]
 ]
 

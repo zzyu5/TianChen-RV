@@ -186,6 +186,9 @@
    "format": "mxfp4",
    "state": "constructed-weak",
    "auto_readout": "pending-E5",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 表末注 + §5, 红队 UPHELD): the codified ZERO-MODEL deliberate-weak NEGATIVE CONTROL. mxfp4 vec_dot stays constructed-weak (NOT flipped to constructed) ON PURPOSE -- it is the discriminator that proves the certification gate has teeth (e5_strong_readout.py derives it NOT-strong; C_construct_plus 81 vs C_construct 80 is exactly this cell). In-denominator, NOT certified BY DESIGN. NOT a gap: it is the gate's negative control.",
+   "reeval_condition": "NONE -- deliberately retained as the certification negative control; flipping it would remove the gate's teeth. (Only revisit if a DIFFERENT negative control replaces it.)",
    "anchor": "RVVToEmitCCodebookFp4.cpp emitFlatBlockDot via CodebookGatherNibble/hasCodebook"
   },
   {
@@ -300,8 +303,10 @@
   {
    "op": "dequantize_row",
    "format": "q1_0",
-   "state": "absent",
-   "anchor": "no in-code op"
+   "state": "constructed",
+   "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=typed_dequantize_row_loop_body+dequantize_row_decode_core+typed_dequantize_row_loop_yield; opaque_helper=false",
+   "anchor": "FRONT-DOOR CONSTRUCTED streaming dequant (M4 net-new-do, flat 1-bit binary-sign leaf of the dequantize_row spectrum, family-head q8_0): RVVToEmitC.cpp isGgmlDequantizeRowBody -> RVVToEmitCForwardElementwise.cpp constructOrEmitGgmlDequantizeRow CONSTRUCTS the typed tcrv_rvv.typed_dequantize_row_loop_body region { tcrv_rvv.dequantize_row_decode_core (decode_model \"q1_0\", qk=128, stride=18); tcrv_rvv.typed_dequantize_row_loop_yield (VOID -- the streaming store is the sink, no loop-carried accumulator) } in place of the abstract tcrv_rvv.dequantize_row, then lowers it via isTypedDequantizeRowLoopBody -> emitTypedDequantizeRowLoopBody -> emitGgmlDequantizeRowExtended (keyed by the format string alone, NO deqOp -- the SAME code the dispatch-wired monolith fallback runs): the AoS nb=k/128 block loop, the fp16 d (float)*(const _Float16 *) seam (@0), neg_d = -d (emitc.unary_minus), then the packed 1-bit sign unpack bit = (qs[j/8] >> (j%8)) & 1 over the 16 qs bytes (@2), y[j] = bit ? d : neg_d (emitc.conditional) in ASCENDING j order. ODS TypedDequantizeRowLoopBodyOp/DequantizeRowDecodeCoreOp/TypedDequantizeRowLoopYieldOp (RVVOps.td, hasVerifier) verified by RVVDialectWideningOps.cpp (fail-closed I7: kind/decode_model allowlist ...+q1_0, qk/stride positivity, region single block_index arg + void yield, anti-bypass block_index==region-arg-0). lit: test/Conversion/RVV/rvv-to-emitc-ggml-dequantize-row-q1-0.mlir (construct-from-abstract, route_source_op provenance CHECK).",
+   "note": "byte-identical-to-monolith emit by construction (single-source: BOTH the constructed lowering AND the dispatch-wired monolith fallback reach the SAME emitGgmlDequantizeRowExtended q1_0 binary-sign decode leaf, format-keyed, no deqOp -- no duplicated decode leaf to drift; the neg_d = -d and bit ? d : neg_d fold are DERIVED at emit, NO op-attr). The q1_0 dequantize_row is now CONSTRUCTED from typed pattern-library primitives (the streaming typed_dequantize_row_loop_body + the dequantize_row_decode_core leaf + the VOID yield), not an opaque hand-written monolith (q1_0 dequant was ABSENT before this M4 net-new-do; the decode leaf is net-new but rides the CERT-FD dequant front-door family built ONCE at the q8_0 family-head, marginal cost ~= decode leaf only). M4 net-new-do: the flat 1-bit binary-sign leaf COMPLETES the 24-format dequantize_row spectrum. ALL streaming CONSTRUCTION-ONLY (no reduction/accumulator, no tiling decision, no S6/[XFER-1]). Coverage/representation maturity, NOT a numerical or perf claim. byte-exact-vs-ggml PROVEN on the host: the emitted scalar decode is a line-by-line transcription of ggml's reference dequantize_row_q1_0 (ggml-quants.c:381; d=fp16(x.d), neg_d=-d, bit=(qs[byte]>>off)&1, y=bit?d:neg_d) and a random-block host harness (the REAL compiler output tcrv-opt --tcrv-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp, clang++ -O2, vs the ggml golden dequantize_row_q1_0 over 400 seeds x 9 blocks = 460800 elements) reports 0 byte mismatches; bit-exact-vs-ggml on ssh rvv pending-hardware. The q1_0 binary-sign facts (qk=128, stride=18, d@0, qs@2) match the block_q1_0 layout the q1_0 block-dot vec_dot already reads."
   },
   {
    "op": "dequantize_row",
@@ -512,6 +517,9 @@
    "format": "q1_0",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 7, 红队 UPHELD): ggml_gem[vm]_q1_0 = 0 hit (no framework repack-GEMM reference layer for the project-native 1-bit format); [L-6] core-invariants:51 vs-naive != vs-framework = there is NO framework-repack opponent to beat, so a repack-GEMM here would be vs-naive-only (not a defensible construction target). In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds a q1_0 repack-GEMM reference layer (a real vs-framework opponent) OR a board (ssh rvv) run proves a constructed q1_0 repack-GEMM is not-LOSS.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -564,6 +572,9 @@
    "format": "iq1_s",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 8, 红队 UPHELD): ggml_gem[vm]_iq1_s = 0 hit (no framework repack-GEMM reference layer); 1.5-bit 2048-entry grid, grid-decode-bound '疑似 LOSS 族' (the grid gather dominates, a repacked GEMM has no leverage). In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds an iq1_s repack-GEMM reference layer OR a board (ssh rvv) run proves a constructed iq1_s repack-GEMM is not-LOSS.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -571,6 +582,9 @@
    "format": "iq1_m",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 9, 红队 UPHELD): ggml_gem[vm]_iq1_m = 0 hit (no framework repack-GEMM reference layer); iq1_s sibling (same 2048-entry grid + delta), same grid-decode-bound '疑似 LOSS 族'. In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds an iq1_m repack-GEMM reference layer OR a board (ssh rvv) run proves a constructed iq1_m repack-GEMM is not-LOSS.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -605,6 +619,9 @@
    "format": "iq3_xxs",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 10, 红队 UPHELD): ggml_gem[vm]_iq3_xxs = 0 hit (no framework repack-GEMM reference layer); board 实测 compute-axis 0.38x LOSS (a constructed repack-GEMM measured slower than the opponent -- constructing it would ship a certified LOSS). In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds an iq3_xxs repack-GEMM reference layer AND a board (ssh rvv) run proves the constructed repack-GEMM is not-LOSS (>= parity), reversing the 0.38x measurement.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -612,6 +629,9 @@
    "format": "iq3_s",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 11, 红队 UPHELD): ggml_gem[vm]_iq3_s = 0 hit (no framework repack-GEMM reference layer); board 实测 compute-axis 0.56x LOSS (a constructed repack-GEMM measured slower than the opponent). In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds an iq3_s repack-GEMM reference layer AND a board (ssh rvv) run proves the constructed repack-GEMM is not-LOSS (>= parity), reversing the 0.56x measurement.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -646,6 +666,9 @@
    "format": "nvfp4",
    "engine": "rvv",
    "state": "absent",
+   "m4_class": "declared-exception",
+   "exception_reason": "M4 声明例外 (判定书 §2 行 12, 红队 UPHELD): ggml_gem[vm]_nvfp4 = 0 hit (ggml only built a repack-GEMM for the sibling mxfp4, not nvfp4); tiny-codebook repack has no leverage (<=32-vreg cliff, the memory-gather decode already saturates registers -- the SAME structural NULL that made mxfp4/iq4_nl/iq4_xs GEMM ship PLAIN/UNTILED). In-denominator, NOT certified.",
+   "reeval_condition": "ggml builds an nvfp4 repack-GEMM reference layer OR a board (ssh rvv) run proves a constructed nvfp4 repack-GEMM is not-LOSS.",
    "anchor": "no in-code repack GEMM"
   },
   {
@@ -671,6 +694,9 @@
    "format": "q4_0",
    "engine": "ime",
    "state": "absent",
+   "m4_class": "blocked-on-IME",
+   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 3, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 'prefill GEMM tile (RVV 全格式 + IME x{q4_0,q8_0,q4_K} 起步)'. IME 战役解锁前分子暂空 -- 主动接受 <90% (是 87.9% 而非逐出后的 90.9% 的唯一来源, 判定书 §4 anti-gate 铁证). In-denominator, NOT certified.",
+   "reeval_condition": "the IME campaign lands a format-agnostic MMAOp prefill GEMM tile ([PAT-2]:121 P7 = ime ^ shape keyed) covering q4_0 (constructed via the common pipeline, bit-exact on ssh k1).",
    "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
   },
   {
@@ -678,6 +704,9 @@
    "format": "q8_0",
    "engine": "ime",
    "state": "absent",
+   "m4_class": "blocked-on-IME",
+   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 4, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 (IME x{q4_0,q8_0,q4_K} 逐名). IME 战役解锁前分子暂空. In-denominator, NOT certified.",
+   "reeval_condition": "the IME campaign lands the format-agnostic MMAOp prefill GEMM tile covering q8_0 (constructed via the common pipeline, bit-exact on ssh k1).",
    "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
   },
   {
@@ -685,6 +714,9 @@
    "format": "q4_K",
    "engine": "ime",
    "state": "absent",
+   "m4_class": "blocked-on-IME",
+   "exception_reason": "M4 blocked-on-IME (判定书 §2 行 5, 红队 UPHELD): [COV-1]:129 A 类逐名纳入分母 (IME x{q4_0,q8_0,q4_K} 逐名); [PAT-2]:121 P7=ime ^ shape 键控 (非 format) -> 一个 format-agnostic MMAOp 统一接管三格. IME 战役解锁前分子暂空. In-denominator, NOT certified.",
+   "reeval_condition": "the IME campaign lands the format-agnostic MMAOp prefill GEMM tile covering q4_K (constructed via the common pipeline, bit-exact on ssh k1).",
    "anchor": "IME MMAOp is format-agnostic; no format-keyed tile (aspirational)"
   },
   {
@@ -763,13 +795,19 @@
    "op": "flash_attn",
    "format": "tile",
    "state": "absent",
-   "anchor": "no flash_attn in lib/ or include/"
+   "scope": "out-of-domain",
+   "m4_class": "out-of-domain",
+   "scope_reason": "M4 分母正名 (用户已确认 2026-07-11 判定书 §2/§4/§5): flash-attn tile 是负载域外. canon 依据: 科研目标总纲v2.md:131 C 类明列 flash-attn tile; [NG-2] 输入止于 kernel 级接口 (fused attention block 在门外); [B-1] front-door=product-归约形状族, 掩码/比较变体显式排除. 红队 verdict UPHELD (判定书 §2 行 2, 附措辞收窄修正: 出域主张由 [G-2] 类型/形状锁 + ROADMAP:41-42 用户预注册支撑, 不援引 总纲:129). 分母之外 (93-2->91), NOT certified, NOT counted; 保留 (不删) for auditability.",
+   "anchor": "no flash_attn in lib/ or include/ (out-of-domain: fused softmax attention block, not a ggml block-quant kernel-level interface)"
   },
   {
    "op": "bf16",
    "format": "all",
    "state": "absent",
-   "anchor": "no dedicated bf16 forward/vec_dot op"
+   "scope": "out-of-domain",
+   "m4_class": "out-of-domain",
+   "scope_reason": "M4 分母正名 (用户已确认 2026-07-11 判定书 §2/§4/§5): bf16 全套是负载域外. canon 依据: 科研目标总纲v2.md:131 C 类明列 bf16 全套; [G-2] 负载域锁 'ggml 型量化 kernel'; [PAT-2]:121 bf16=P5 精度路径 (zvfh/bf16)=float 类型非块量化. 红队 verdict UPHELD (判定书 §2 行 1, 附措辞收窄修正: 同 flash_attn, 出域主张由 [G-2] 类型/形状锁 + ROADMAP:41-42 支撑, 不援引 总纲:129). 分母之外 (93-2->91), NOT certified, NOT counted; 保留 (不删) for auditability.",
+   "anchor": "no dedicated bf16 forward/vec_dot op (out-of-domain: bf16 is a float precision path, not a ggml block-quant format)"
   }
  ]
 }

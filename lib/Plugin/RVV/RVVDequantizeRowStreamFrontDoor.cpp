@@ -46,10 +46,11 @@ public:
   llvm::StringRef getDescription() const final {
     return "Pre-emitc CONSTRUCT the typed tcrv_rvv.typed_dequantize_row_loop_body "
            "{ dequantize_row_decode_core; typed_dequantize_row_loop_yield } region "
-           "in place of each abstract tcrv_rvv.dequantize_row (one of the 21 "
+           "in place of each abstract tcrv_rvv.dequantize_row (one of the 24 "
            "constructed streaming formats) and STOP before --tcrv-rvv-lower-to-emitc "
            "so the realized region is walkable (the shared byte-exact construction; "
-           "the emit half is unchanged). tq1_0/tq2_0 stay dispatch-wired.";
+           "the emit half is unchanged). The whole dequantize_row spectrum is now "
+           "front-door CONSTRUCTED (q1_0 was the last flat leaf flipped).";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -70,7 +71,7 @@ public:
       std::optional<tcrvrvv::DequantizeRowStreamFacts> facts =
           tcrvrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
       if (!facts)
-        continue; // tq1_0 / tq2_0: leave abstract (dispatch-wired monolith).
+        continue; // unrecognized format: leave abstract (dispatch-wired monolith).
       if (mlir::failed(tcrvrvv::constructTypedDequantizeRowLoopBody(
               rewriter, deqOp, *facts))) {
         deqOp.emitError()
@@ -100,7 +101,7 @@ llvm::Error registerRVVDequantizeRowStreamFrontDoorPasses(
       "(tcrv_rvv.typed_dequantize_row_loop_body { dequantize_row_decode_core; "
       "yield }) in place of the abstract tcrv_rvv.dequantize_row so the realized "
       "region is walkable before --tcrv-rvv-lower-to-emitc (the shared byte-exact "
-      "construction; tq1_0/tq2_0 stay dispatch-wired)",
+      "construction; the whole dequantize_row spectrum is front-door constructed)",
       [] { return createMaterializeRVVDequantizeRowStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));
