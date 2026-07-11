@@ -116,7 +116,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 
 ## ★G5-M2 三级接线分层 + 优先级（用户裁决 2026-07-12·度假期全自主·接线不再是单一工作量级）
 **三层各自立任务、各自评估**：
-- **L-接线①（链路层·直接复用 M1b 模板）**：**q8_0✓ q4_0✓ 已成**（零新增上游代码·最便宜绿格）。**此层已基本穷尽**（这两格已绿）。
+- **L-接线①（链路层·上游全 present·3 挂点 deploy 模板·零新增上游代码）**——★M3-SOP `docs/reports/2026-07-12-G5-接线机制方法学-SOP.md` 精化层内两分：**①a routing-freebie**（上游 kernel 可用·q4_0·correctness 白送·带注记）· **①b correctness-carrier**（上游 VLEN128 破损·我方 vl=8 承载正确性·q8_0[perf 绿]/q4_K[perf<parity yellow]）。**perf 绿只 q8_0**（q4_0 带注记绿·q4_K carrier 但 yellow）。此层格已穷尽（q4_0/q8_0/q4_K）。
 - **L-接线②（新建上游 scaffold）**：**q5_0/q5_1/q4_K**。★**q4_K 实为 q8_0-class（上游全 present·非 scaffold-needing·a7cacf68 纠偏）**：只需 3 挂点 deploy 模板（零 scaffold）。**真需净新 scaffold 的仅 q5_0/q5_1**（上游零 riscv repack 分支·须净新 GEN trait+case route+ARCH gemv/gemm skeleton）。每格 correctness-first + 部署五验 + **破损上游检查**（防 MIRAGE·q4_K 已确证第 2 个 [GAP-Q4K-VLEN128]）。
 - **L-接线③（跨框架 forward bridge）**：**IQ 系 + IME e2e**——缺完整 forward 桥·工作量最大·依赖最多。IME e2e 桥 = [GAP-IME-E2E-INTEGRATION] 的解·**排②之后**。★IME 桥建成后其 kernel-axis ~2× 能否传导**仍受 micro↛e2e 约束**（Amdahl/内存墙重核·不预设转绿）。
 
