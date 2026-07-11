@@ -30,11 +30,15 @@
 
 ---
 
-## 2. selector 状态披露（张力 A·在飞·不构成注记降级）
+## 2. ✅ 张力 A LANDED → deployed=proven（selector-自然路由·2026-07-12·commit 40ac20ca）
 
-M1b 的路由是**能力键控构造强制 repack**（front-door `block_dot_compute_heavy=true`）+ gate flip。默认 selector 现判 q8_0 `block-dot-decline-lean-fallback`（`RVVContractionPathSelection.cpp`：compute-heaviness 错轴·真受益 = repack 内存局部性）。M1b decode 3.812× DIFFERENCE **证伪**该 lean-decline。
+M1b 的路由曾是**能力键控构造强制 repack**（front-door `block_dot_compute_heavy=true`）——但那是 provenance 记为 structurally-FALSE 的谎（q8_0 的诚实事实 compute_heavy=false）。**load-bearing 发现**：q8_0 **无** block-dot decline 路（identity lowering 仅 q4_0-nibble）→ 诚实事实下 selector DECLINE → lowering ERROR 即便 VLEN128 → 这正是 M1b 必须强制 compute_heavy 的原因。
 
-**张力 A selector-fix（在飞·自决 within G5）**：让 selector **能力键控**地自然 route q8_0 repack → 部署路径 selector-自然（非强制探针）。**用户已追认 3/84**（登记不 gated on 张力 A）；张力 A 落地仅**强化**本绿格（强制探针 → selector 自然路由 = 更"无星号"），不改登记数。
+**张力 A 修法（LANDED·40ac20ca）**：加 `block_dot_memory_bound`（OptionalAttr<BoolAttr>·`block_dot_compute_heavy` 的 **roofline dual**）——q8_0 结构事实（最宽线性量化 stride34 + lean vec_dot → DRAM 带宽受限 → repack x16 连续流除冗余内存流量）。benefit = `compute_heavy || memory_bound` 双 roofline arm。**能力键控做主键·非 measured-guard**（fact 从 block 字节布局 + ggml vec_dot roofline 结构读出·quants.c:435·M1b 数字只 CONFIRM 不 establish·reason=capability 类）。
+
+**★deployed=proven 达成**：default-compile q8_0（诚实事实·无强制）→ selector **自然**选 repack（reason `repack-kept-q8_0-memory-bound-vlen128-decode`）→ emitted .inc **字节等于** M1b `b5177a4d` → M1b board 4.35×/3.81× **传导·无需重测板** → **部署变体 == 证过变体**（closes deployed≠proven caveat）。over-flip audit：q8_0 唯一 flip（新 attr 默认 absent）·余格 byte-identical·ZERO-MODEL exact·attribution=capability·lit 904/907（3 失败 pre-existing 无关）。**八门⑥ selector-routing 从"强制探针"升"自然路由"**。
+
+> **sealed-pin debt（诚实记录）**：`block_dot_memory_bound` 的 provenance 锚（quants.c:435）本应进 opponent-facts 审计 pin（对称既有 `block_dot_compute_heavy` 锚），但该 pin 住 `experiments/sealed/`·禁 casual 改（sealed immutability canon）→ pin-registry 扩展 **revert·记为 debt**（provenance 暂存 selector 注释·日后经 sanctioned STALE-flip 补锚）。opponent-pin 门只验 pin_sha·未破。
 
 ---
 
