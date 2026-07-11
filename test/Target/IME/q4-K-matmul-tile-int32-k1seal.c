@@ -6,18 +6,20 @@
 // -- the q4_K raw-nibble DECODE, the 6-bit scale/min UNPACK, the fp16 epilogue
 // helpers, the tiled two-level-fold matmul, the ZERO-MODEL plain-loop reference,
 // and the test grid are all unchanged -- with EXACTLY ONE difference: the scalar
-// substitute for the vmadot 4x4x8 MAC leaf (tcrv_ime_vmadot_mma_4x4x8) is replaced
-// by the REAL `vmadot` inline-asm leaf emitted VERBATIM by the IME backend emitter
-// (lib/Plugin/IME/IMEBackendEmissionDriver.cpp macHelperBody(), the SAME leaf the
-// q4_0/q8_0 tiles reuse). So on real K1 silicon the per-sub-block sumi_b reduces
-// through the actual `vmadot` instruction (encoding 0xe210312b), and the int32
-// core check below is a HARDWARE validation of the q4_K TWO-LEVEL fold (S_scale =
-// Sum_b sc_b*sumi_b AND S_min = Sum_b m_b*asum_b) -- NOT the hollow bare-nibble MAC.
+// substitute for the batched vmadot MAC leaf (tcrv_ime_vmadot_mac_kloop) is
+// replaced by the REAL `vmadot` inline-asm leaf emitted VERBATIM by the IME
+// backend emitter (lib/Plugin/IME/IMEBackendEmissionDriver.cpp macKloopHelperBody(),
+// the SAME leaf the q4_0/q8_0 tiles reuse). So on real K1 silicon the per-sub-block
+// sumi_b reduces through the actual `vmadot` instruction (encoding 0xe210312b) in a
+// register-resident 4-fragment loop, and the int32 core check below is a HARDWARE
+// validation of the q4_K TWO-LEVEL fold (S_scale = Sum_b sc_b*sumi_b AND S_min =
+// Sum_b m_b*asum_b) -- NOT the hollow bare-nibble MAC.
 //
-// The vmadot leaf contract (identical to the scalar shim it replaces):
-//   A: (M,K)=(4,8) int8 row-major   -> v0
-//   B: stored (N,K)=(4,8) int8      -> v1   (== B^T of the math matrix)
-//   C: (M,N)=(4,4) int32 (v2/v3)    ,  C[i][j] = sum_k A[i][k]*B_stored[j][k]
+// The batched vmadot leaf contract (identical to the scalar shim it replaces):
+// over the sub-block's 4 contiguous 4x8 A/B fragments, v2/v3 accumulate
+// sumi_b = Sum_kf A_kf . B_kf^T (int32), single vsetvli, one store. Per-fragment:
+//   A: (4,8) int8 row-major -> v0 ; B: stored (4,8) int8 -> v1 (== B^T)
+//   sumi_b: (4,4) int32 (v2/v3), sumi_b[i][j] += sum_k A_kf[i][k]*B_kf[j][k]
 // pinned by `vsetvli e8,m1` => vl=32 at VLEN=256 => the 4x4x8 MAC unit.
 //
 // Build (SpacemiT/board toolchain that assembles `vmadot`; on this K1 the stock
@@ -38,28 +40,35 @@
 
 // ---------------------------------------------------------------------------
 // (A) The emitted structured helpers (mirror of the M2b emitter output). The asm
-// leaf below is the EMITTER-VERBATIM `vmadot` MAC (macHelperBody(), signed vmadot),
-// the ONE justified instruction leaf; all surrounding dataflow is the same
-// structured C the IME emitter emits for the region.
+// leaf below is the EMITTER-VERBATIM batched `vmadot` MAC (macKloopHelperBody(),
+// signed vmadot), the ONE justified instruction leaf; all surrounding dataflow is
+// the same structured C the IME emitter emits for the region.
 // ---------------------------------------------------------------------------
 
-// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mma_4x4x8 mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot
-static inline void tcrv_ime_vmadot_mma_4x4x8(const int8_t *A, const int8_t *B,
-                                             int32_t *C) {
+// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mac_kloop batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot register_resident_accumulate=1 single_vsetvli=1 store_once=1
+static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B, long kt, int32_t *frag) {
   __asm__ volatile(
       "vsetvli   t0, zero, e8, m1, ta, ma   \n\t"
-      "vle8.v    v0, (%[pa])                \n\t"
-      "vle8.v    v1, (%[pb])                \n\t"
-      "vmv.v.i   v2, 0                      \n\t"
-      "vmv.v.i   v3, 0                      \n\t"
+      "vmv.v.i   v2, 0                       \n\t"
+      "vmv.v.i   v3, 0                       \n\t"
+      "mv        t2, %[kt]                   \n\t"
+      "mv        t3, %[pa]                   \n\t"
+      "mv        t4, %[pb]                   \n\t"
+      "1:                                    \n\t"
+      "vle8.v    v0, (t3)                    \n\t"
+      "vle8.v    v1, (t4)                    \n\t"
       "vmadot    v2, v0, v1                 \n\t"
-      "vsetvli   t0, zero, e32, m1, ta, ma  \n\t"
-      "vse32.v   v2, (%[pc])                \n\t"
-      "addi      t1, %[pc], 32              \n\t"
-      "vse32.v   v3, (t1)                   \n\t"
+      "addi      t3, t3, 32                  \n\t"
+      "addi      t4, t4, 32                  \n\t"
+      "addi      t2, t2, -1                  \n\t"
+      "bnez      t2, 1b                      \n\t"
+      "vsetvli   t0, zero, e32, m1, ta, ma   \n\t"
+      "vse32.v   v2, (%[pf])                 \n\t"
+      "addi      t5, %[pf], 32               \n\t"
+      "vse32.v   v3, (t5)                    \n\t"
       :
-      : [pa] "r"(A), [pb] "r"(B), [pc] "r"(C)
-      : "t0", "t1", "v0", "v1", "v2", "v3", "memory");
+      : [pa] "r"(A), [pb] "r"(B), [kt] "r"(kt), [pf] "r"(frag)
+      : "t0", "t2", "t3", "t4", "t5", "v0", "v1", "v2", "v3", "memory");
 }
 
 // tcrv_ime.fp16_epilogue=tcrv_ime_fp16_to_f32 (deterministic IEEE half->float; the deferred d/dmin float fold)
@@ -111,7 +120,7 @@ static inline void tcrv_ime_q4_K_get_scale_min(int j, const uint8_t *q, uint8_t 
   }
 }
 
-// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mma_4x4x8 tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min
+// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mac_kloop tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min register_resident_accumulate=1
 static void tcrv_ime_q4_K_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4k, int32_t *Sscale,
     int32_t *Smin, float *Cf, long M, long N, long K) {
   const long mt = M / 4, nt = N / 4, nsb = K / 256;
@@ -131,21 +140,19 @@ static void tcrv_ime_q4_K_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4k
         for (int r = 0; r < 16; ++r) { Sc[r] = 0; Sm[r] = 0; }
         for (int b = 0; b < 8; ++b) {
           int32_t sumi[16];
-          for (int r = 0; r < 16; ++r) sumi[r] = 0;
           int32_t asum[4] = {0, 0, 0, 0};
+          int8_t Bdec[128];
           for (int kf = 0; kf < 4; ++kf) {
             long gf = sb * 32 + b * 4 + kf;
             const int8_t *Aframe = Arow + gf * 32;
-            int8_t Bframe[32];
             for (int nl = 0; nl < 4; ++nl)
-              tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bframe + nl * 8);
-            int32_t frag[16];
-            tcrv_ime_vmadot_mma_4x4x8(Aframe, Bframe, frag);
-            for (int r = 0; r < 16; ++r) sumi[r] += frag[r];
+              tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bdec + kf * 32 + nl * 8);
             for (int ml = 0; ml < 4; ++ml)
               for (int kl = 0; kl < 8; ++kl)
                 asum[ml] += (int32_t)Aframe[ml * 8 + kl];
           }
+          const int8_t *Ablk = Arow + (long)(sb * 32 + b * 4) * 32;
+          tcrv_ime_vmadot_mac_kloop(Ablk, Bdec, 4, sumi);
           for (int ml = 0; ml < 4; ++ml)
             for (int nl = 0; nl < 4; ++nl) {
               Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + nl];

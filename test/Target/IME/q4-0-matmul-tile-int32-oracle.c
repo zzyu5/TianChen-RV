@@ -5,8 +5,8 @@
 // nibble DECODE (tcrv_ime_q4_0_dequant_fragment) and the tiled q4_0 int8->int32
 // GEMM (tcrv_ime_q4_0_vmadot_matmul) that reduces via the FOUNDATION-validated
 // vmadot MAC leaf. The vmadot INSTRUCTION runs only on real K1 (M1b board seal),
-// so this host oracle substitutes a SCALAR reference of the vmadot 4x4x8 MAC with
-// the SAME int8->int32 semantics the seal validates bit-exact. The DECODE + the
+// so this host oracle substitutes a SCALAR reference of the batched vmadot MAC
+// with the SAME int8->int32 semantics the seal validates bit-exact. The DECODE + the
 // int32 MAC arithmetic (the "what") are validated here on host; the vmadot "how"
 // is board-proven at M1b.
 //
@@ -30,22 +30,33 @@
 
 // ---------------------------------------------------------------------------
 // (A) The emitted structured helpers (mirror of the M1a emitter output; the ONLY
-// asm leaf tcrv_ime_vmadot_mma_4x4x8 is replaced by the scalar-vmadot substitute
+// asm leaf tcrv_ime_vmadot_mac_kloop is replaced by the scalar-vmadot substitute
 // below). These are byte-for-byte the C the IME emitter emits for the region.
 // ---------------------------------------------------------------------------
 
-// The scalar substitute for the FOUNDATION-validated vmadot 4x4x8 MAC: fresh
-// C[4x4] int32 = A[4x8] . B[4x8]^T (int8*int8 -> int32). This is the exact int32
-// contract the real vmadot instruction satisfies (proven bit-exact on K1 at M1b).
-static inline void tcrv_ime_vmadot_mma_4x4x8(const int8_t *A, const int8_t *B,
-                                             int32_t *C) {
-  for (int m = 0; m < 4; ++m)
-    for (int n = 0; n < 4; ++n) {
-      int32_t s = 0;
-      for (int k = 0; k < 8; ++k)
-        s += (int32_t)A[m * 8 + k] * (int32_t)B[n * 8 + k];
-      C[m * 4 + n] = s;
-    }
+// The scalar substitute for the BATCHED register-resident vmadot MAC leaf:
+// frag[4x4] int32 = Sum_kf A_kf[4x8] . B_kf[4x8]^T over `kt` contiguous 32B
+// fragments. This is the exact int32 contract the real batched vmadot loop
+// satisfies (v2/v3 accumulate in-register across the K/8 loop; single vsetvli;
+// one store -- proven bit-exact on K1 at M1b). It is int32-identical to the
+// per-fragment `acc[r] += vmadot(A_kf,B_kf)[r]` form: same reductions, summed in
+// the same kf order.
+static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B,
+                                             long kt, int32_t *frag) {
+  int32_t acc[16];
+  for (int r = 0; r < 16; ++r) acc[r] = 0;
+  for (long kf = 0; kf < kt; ++kf) {
+    const int8_t *Af = A + kf * 32;
+    const int8_t *Bf = B + kf * 32;
+    for (int m = 0; m < 4; ++m)
+      for (int n = 0; n < 4; ++n) {
+        int32_t s = 0;
+        for (int k = 0; k < 8; ++k)
+          s += (int32_t)Af[m * 8 + k] * (int32_t)Bf[n * 8 + k];
+        acc[m * 4 + n] += s;
+      }
+  }
+  for (int r = 0; r < 16; ++r) frag[r] = acc[r];
 }
 
 // The q4_0 offset-binary nibble DECODE (identical to the emitted decode core).
@@ -58,28 +69,27 @@ static inline void tcrv_ime_q4_0_dequant_fragment(const uint8_t *blk,
   }
 }
 
-// The tiled q4_0 int8->int32 GEMM (identical to the emitted tiled kernel).
-static inline void tcrv_ime_q4_0_vmadot_matmul(const int8_t *Apack,
-                                               const uint8_t *Bq4, int32_t *C,
-                                               long M, long N, long K) {
+// The tiled q4_0 int8->int32 GEMM (identical to the emitted tiled kernel). The
+// tile's kt q4_0 blocks are decoded into a contiguous int8 fragment buffer, then
+// ONE register-resident batched MAC runs over the K/8 loop (single vsetvli, one
+// store) -- int32-identical to the old per-fragment form.
+static void tcrv_ime_q4_0_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4,
+                                        int32_t *C, long M, long N, long K) {
   const long mt = M / 4, nt = N / 4, kt = K / 8;
   const long q40_block_bytes = 18;
   for (long mi = 0; mi < mt; ++mi) {
     const int8_t *Arow = Apack + (long)mi * 4 * K;
     for (long nj = 0; nj < nt; ++nj) {
       const uint8_t *Bcol = Bq4 + (long)nj * kt * q40_block_bytes;
-      int32_t acc[16];
-      for (int r = 0; r < 16; ++r) acc[r] = 0;
-      for (long kf = 0; kf < kt; ++kf) {
-        int8_t Bframe[32];
-        int32_t frag[16];
-        tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes, Bframe);
-        tcrv_ime_vmadot_mma_4x4x8(Arow + kf * 32, Bframe, frag);
-        for (int r = 0; r < 16; ++r) acc[r] += frag[r];
-      }
+      int8_t Bdec[kt * 32];
+      for (long kf = 0; kf < kt; ++kf)
+        tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes,
+                                       Bdec + kf * 32);
+      int32_t frag[16];
+      tcrv_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag);
       for (long r = 0; r < 4; ++r)
         for (long c = 0; c < 4; ++c)
-          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += acc[r * 4 + c];
+          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];
     }
   }
 }

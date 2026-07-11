@@ -50,11 +50,14 @@ module {
 // REGION-SAME: -> vector<16xi32>
 // REGION: tcrv_ime.q4_0_matmul_tile_yield %{{.*}} : vector<16xi32>
 
-// The emitted kernel: the q4_0 decode helper + the validated vmadot MAC leaf +
-// the tiled q4_0 kernel + the structured extern "C" wrapper. int32-EXACT.
+// The emitted kernel: the register-resident BATCHED vmadot MAC leaf (single
+// vsetvli, store once) + the q4_0 decode helper + the tiled q4_0 kernel
+// (decode-to-scratch then one batched MAC per tile) + the structured extern "C"
+// wrapper. int32-EXACT ([GAP-IME-LEAF-PIPELINE] closed in the emitter).
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
-// EMITC-SAME: static inline void tcrv_ime_vmadot_mma_4x4x8
+// EMITC-SAME: register_resident_accumulate=1
+// EMITC-SAME: static inline void tcrv_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC: emitc.verbatim
 // EMITC-SAME: decode_model=q4_0_offset_binary_nibble
@@ -62,9 +65,9 @@ module {
 // EMITC-SAME: (int8_t)((int)(qs[j] & 0x0F) - 8)
 // EMITC: emitc.verbatim
 // EMITC-SAME: int32_exact=1
-// EMITC-SAME: static inline void tcrv_ime_q4_0_vmadot_matmul
-// EMITC-SAME: tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes, Bframe)
-// EMITC-SAME: tcrv_ime_vmadot_mma_4x4x8(Arow + kf * 32, Bframe, frag)
+// EMITC-SAME: static void tcrv_ime_q4_0_vmadot_matmul
+// EMITC-SAME: tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes, Bdec + kf * 32)
+// EMITC-SAME: tcrv_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag)
 // EMITC: emitc.func @tcrv_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
 // EMITC: tcrv_emitc.route_source_op=tcrv_ime.q4_0_matmul_tile role=compute
 // EMITC: call_opaque "tcrv_ime_q4_0_vmadot_matmul"

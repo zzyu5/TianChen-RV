@@ -145,6 +145,79 @@ std::string vmadotusHelperBody() {
   return macHelperBody(kVmadotusHelperName, "vmadotus");
 }
 
+// The BATCHED register-resident MAC leaf name. Same single justified `vmadot`
+// instruction leaf as macHelperBody, but driven over a K/8 FRAGMENT LOOP with the
+// 4x4 int32 accumulator (v2/v3) kept RESIDENT across the whole loop: ONE
+// `vsetvli e8` at entry, ZERO the accumulator ONCE, `vmadot` MACs into v2/v3 per
+// fragment (the instruction accumulates C += A.B^T in-register), then ONE
+// `vsetvli e32` + a SINGLE store at the end. This drops the per-fragment
+// vsetvli e8<->e32 toggle + zeroing + store + scalar acc[] that the un-batched
+// leaf incurred once per fragment ([GAP-IME-LEAF-PIPELINE]). The int32 result is
+// bit-identical to the per-fragment form (same vmadot reductions, summed in the
+// same kf order); only the accumulate/store SCHEDULE changes.
+constexpr llvm::StringLiteral kVmadotMacKloopHelperName(
+    "tcrv_ime_vmadot_mac_kloop");
+
+/// The batched register-resident int8->int32 MAC leaf, emitted as ONE
+/// self-contained `static inline` helper. It reduces `kt` contiguous 4x8 A/B
+/// fragments (32B each) into a single 4x4 int32 result, accumulating in the
+/// v2/v3 VD pair across the WHOLE fragment loop:
+///   A: kt fragments of (4,8) int8 row-major, contiguous -> vs1 = v0 per iter
+///   B: kt fragments of stored (4,8) int8, contiguous     -> vs2 = v1 per iter
+///   frag: (M,N)=(4,4) int32 (v2/v3), frag = Sum_kf A_kf . B_kf^T
+/// This is the SAME 0xe210312b `vmadot` leaf as macHelperBody; the only structural
+/// change vs the un-batched leaf is that the accumulator stays register-resident
+/// (single vsetvli, one store) instead of being cleared/stored per fragment. The
+/// per-fragment form's `acc[r] += vmadot(A_kf,B_kf)[r]` becomes an in-register
+/// `v2 += vmadot(A_kf,B_kf)` over the same kf order => int32 bit-identical. The
+/// helper has fixed parameter names, so no translator-generated SSA name is
+/// interpolated into the asm.
+std::string macKloopHelperBody(llvm::StringRef helperName,
+                               llvm::StringRef mnemonic) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_ime.asm_leaf=" << helperName
+     << " batched_kloop mac=4x4x8 elem_in=int8 accum=int32 ime_op=" << mnemonic
+     << " register_resident_accumulate=1 single_vsetvli=1 store_once=1\n";
+  os << "static inline void " << helperName
+     << "(const int8_t *A, const int8_t *B, long kt, int32_t *frag) {\n";
+  os << "  __asm__ volatile(\n";
+  // ONE vsetvli e8 + clear the 4x4 int32 accumulator (v2/v3) ONCE for the tile.
+  os << "      \"vsetvli   t0, zero, e8, m1, ta, ma   \\n\\t\"\n";
+  os << "      \"vmv.v.i   v2, 0                       \\n\\t\"\n";
+  os << "      \"vmv.v.i   v3, 0                       \\n\\t\"\n";
+  os << "      \"mv        t2, %[kt]                   \\n\\t\"\n";
+  os << "      \"mv        t3, %[pa]                   \\n\\t\"\n";
+  os << "      \"mv        t4, %[pb]                   \\n\\t\"\n";
+  // K/8 fragment loop: each iter MACs one 4x8 A + 4x8 B fragment into v2/v3
+  // (the instruction accumulates), advancing both pointers by 32 bytes.
+  os << "      \"1:                                    \\n\\t\"\n";
+  os << "      \"vle8.v    v0, (t3)                    \\n\\t\"\n";
+  os << "      \"vle8.v    v1, (t4)                    \\n\\t\"\n";
+  os << "      \"" << mnemonic << "    v2, v0, v1                 \\n\\t\"\n";
+  os << "      \"addi      t3, t3, 32                  \\n\\t\"\n";
+  os << "      \"addi      t4, t4, 32                  \\n\\t\"\n";
+  os << "      \"addi      t2, t2, -1                  \\n\\t\"\n";
+  os << "      \"bnez      t2, 1b                      \\n\\t\"\n";
+  // ONE vsetvli e32 + a SINGLE store of the 4x4 int32 result (v2 rows 0,1;
+  // v3 rows 2,3 -- the FOUNDATION store shape).
+  os << "      \"vsetvli   t0, zero, e32, m1, ta, ma   \\n\\t\"\n";
+  os << "      \"vse32.v   v2, (%[pf])                 \\n\\t\"\n";
+  os << "      \"addi      t5, %[pf], 32               \\n\\t\"\n";
+  os << "      \"vse32.v   v3, (t5)                    \\n\\t\"\n";
+  os << "      :\n";
+  os << "      : [pa] \"r\"(A), [pb] \"r\"(B), [kt] \"r\"(kt), [pf] \"r\"(frag)\n";
+  os << "      : \"t0\", \"t2\", \"t3\", \"t4\", \"t5\", \"v0\", \"v1\", \"v2\", "
+        "\"v3\", \"memory\");\n";
+  os << "}";
+  os.flush();
+  return text;
+}
+
+std::string vmadotMacKloopHelperBody() {
+  return macKloopHelperBody(kVmadotMacKloopHelperName, "vmadot");
+}
+
 /// The sliding-window MAC helper. UNLIKE macHelperBody (single 32B A fragment),
 /// the slide kernel loads A as an EVEN VS1:VS1+1 PAIR holding an 8x8 int8 block
 /// (v0 = A rows 0..3 at A+0, v1 = A rows 4..7 at A+32; 64B total), B as one 4x8
@@ -353,13 +426,13 @@ std::string q40DequantHelperBody() {
 /// fragment): Bq4 col-tile nj is kt contiguous q4_0 blocks. The activation is the
 /// SAME fragment-major int8 pack as tcrv.ime.matmul. `vmadotHelperName` is the
 /// FOUNDATION single-fragment MAC helper this reuses.
-std::string q40MatmulHelperBody(llvm::StringRef vmadotHelperName) {
+std::string q40MatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << vmadotHelperName
+  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q4_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
-        "weight_format=q4_0 int32_exact=1\n";
-  os << "static inline void " << kQ40MatmulHelperName
+        "weight_format=q4_0 int32_exact=1 register_resident_accumulate=1\n";
+  os << "static void " << kQ40MatmulHelperName
      << "(const int8_t *Apack, const uint8_t *Bq4, int32_t *C,\n";
   os << "    long M, long N, long K) {\n";
   os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
@@ -368,20 +441,19 @@ std::string q40MatmulHelperBody(llvm::StringRef vmadotHelperName) {
   os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
   os << "    for (long nj = 0; nj < nt; ++nj) {\n";
   os << "      const uint8_t *Bcol = Bq4 + (long)nj * kt * q40_block_bytes;\n";
-  os << "      int32_t acc[16];\n";
-  os << "      for (int r = 0; r < 16; ++r) acc[r] = 0;\n";
-  os << "      for (long kf = 0; kf < kt; ++kf) {\n";
-  os << "        int8_t Bframe[32];\n";
-  os << "        int32_t frag[16];\n";
+  // Decode the tile's kt q4_0 weight blocks into a contiguous int8 fragment
+  // buffer, then run ONE register-resident batched MAC over the K/8 loop (v2/v3
+  // accumulate, single vsetvli, single store) => frag = Sum_kf A_kf . B_kf^T.
+  // int32-identical to the per-fragment `acc[r] += vmadot(...)[r]` form.
+  os << "      int8_t Bdec[kt * 32];\n";
+  os << "      for (long kf = 0; kf < kt; ++kf)\n";
   os << "        " << kQ40DequantHelperName
-     << "(Bcol + kf * q40_block_bytes, Bframe);\n";
-  os << "        " << vmadotHelperName
-     << "(Arow + kf * 32, Bframe, frag);\n";
-  os << "        for (int r = 0; r < 16; ++r) acc[r] += frag[r];\n";
-  os << "      }\n";
+     << "(Bcol + kf * q40_block_bytes, Bdec + kf * 32);\n";
+  os << "      int32_t frag[16];\n";
+  os << "      " << macKloopHelperName << "(Arow, Bdec, kt, frag);\n";
   os << "      for (long r = 0; r < 4; ++r)\n";
   os << "        for (long c = 0; c < 4; ++c)\n";
-  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += acc[r * 4 + c];\n";
+  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];\n";
   os << "    }\n";
   os << "  }\n";
   os << "}";
@@ -436,13 +508,13 @@ std::string q80DequantHelperBody() {
 /// int32 accumulator (int32-EXACT). The weight is pre-packed FRAGMENT-MAJOR (one
 /// 34-byte q8_0 block per 4x8 MAC fragment). `vmadotHelperName` is the FOUNDATION
 /// single-fragment MAC helper this reuses.
-std::string q80MatmulHelperBody(llvm::StringRef vmadotHelperName) {
+std::string q80MatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << vmadotHelperName
+  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q8_0_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
-        "weight_format=q8_0 int32_exact=1\n";
-  os << "static inline void " << kQ80MatmulHelperName
+        "weight_format=q8_0 int32_exact=1 register_resident_accumulate=1\n";
+  os << "static void " << kQ80MatmulHelperName
      << "(const int8_t *Apack, const uint8_t *Bq8, int32_t *C,\n";
   os << "    long M, long N, long K) {\n";
   os << "  const long mt = M / 4, nt = N / 4, kt = K / 8;\n";
@@ -451,20 +523,19 @@ std::string q80MatmulHelperBody(llvm::StringRef vmadotHelperName) {
   os << "    const int8_t *Arow = Apack + (long)mi * 4 * K;\n";
   os << "    for (long nj = 0; nj < nt; ++nj) {\n";
   os << "      const uint8_t *Bcol = Bq8 + (long)nj * kt * q80_block_bytes;\n";
-  os << "      int32_t acc[16];\n";
-  os << "      for (int r = 0; r < 16; ++r) acc[r] = 0;\n";
-  os << "      for (long kf = 0; kf < kt; ++kf) {\n";
-  os << "        int8_t Bframe[32];\n";
-  os << "        int32_t frag[16];\n";
+  // Decode the tile's kt q8_0 blocks (direct int8) into a contiguous int8
+  // fragment buffer, then run ONE register-resident batched MAC over the K/8
+  // loop (v2/v3 accumulate, single vsetvli, single store). int32-identical to
+  // the per-fragment `acc[r] += vmadot(...)[r]` form.
+  os << "      int8_t Bdec[kt * 32];\n";
+  os << "      for (long kf = 0; kf < kt; ++kf)\n";
   os << "        " << kQ80DequantHelperName
-     << "(Bcol + kf * q80_block_bytes, Bframe);\n";
-  os << "        " << vmadotHelperName
-     << "(Arow + kf * 32, Bframe, frag);\n";
-  os << "        for (int r = 0; r < 16; ++r) acc[r] += frag[r];\n";
-  os << "      }\n";
+     << "(Bcol + kf * q80_block_bytes, Bdec + kf * 32);\n";
+  os << "      int32_t frag[16];\n";
+  os << "      " << macKloopHelperName << "(Arow, Bdec, kt, frag);\n";
   os << "      for (long r = 0; r < 4; ++r)\n";
   os << "        for (long c = 0; c < 4; ++c)\n";
-  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += acc[r * 4 + c];\n";
+  os << "          C[(long)(mi * 4 + r) * N + (nj * 4 + c)] += frag[r * 4 + c];\n";
   os << "    }\n";
   os << "  }\n";
   os << "}";
@@ -592,12 +663,13 @@ std::string q4KFp16HelperBody() {
 /// board-seal object), then the deferred fp16 epilogue C = d*S_scale - dmin*S_min.
 /// The weight is pre-packed as 4 native block_q4_K per (col-tile, super-block).
 /// `vmadotHelperName` is the FOUNDATION single-fragment MAC helper this reuses.
-std::string q4KMatmulHelperBody(llvm::StringRef vmadotHelperName) {
+std::string q4KMatmulHelperBody(llvm::StringRef macKloopHelperName) {
   std::string text;
   llvm::raw_string_ostream os(text);
-  os << "// tcrv_ime.asm_leaf=" << vmadotHelperName
+  os << "// tcrv_ime.asm_leaf=" << macKloopHelperName
      << " tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot "
-        "weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min\n";
+        "weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min "
+        "register_resident_accumulate=1\n";
   os << "static void " << kQ4KMatmulHelperName
      << "(const int8_t *Apack, const uint8_t *Bq4k, int32_t *Sscale,\n";
   os << "    int32_t *Smin, float *Cf, long M, long N, long K) {\n";
@@ -621,22 +693,25 @@ std::string q4KMatmulHelperBody(llvm::StringRef vmadotHelperName) {
   os << "        for (int r = 0; r < 16; ++r) { Sc[r] = 0; Sm[r] = 0; }\n";
   os << "        for (int b = 0; b < 8; ++b) {\n";
   os << "          int32_t sumi[16];\n";
-  os << "          for (int r = 0; r < 16; ++r) sumi[r] = 0;\n";
   os << "          int32_t asum[4] = {0, 0, 0, 0};\n";
+  // Decode the sub-block's 4 MAC fragments into a contiguous int8 buffer (and
+  // sum the activation sub-block asum_b alongside -- vmadot cannot express it),
+  // then run ONE register-resident batched MAC over the 4 fragments (v2/v3
+  // accumulate, single vsetvli, single store) => sumi_b = Sum_kf A_kf . B_kf^T.
+  // The 4 A fragments (kf=0..3) are contiguous at Arow + (sb*32+b*4)*32.
+  os << "          int8_t Bdec[128];\n";
   os << "          for (int kf = 0; kf < 4; ++kf) {\n";
   os << "            long gf = sb * 32 + b * 4 + kf;\n";
   os << "            const int8_t *Aframe = Arow + gf * 32;\n";
-  os << "            int8_t Bframe[32];\n";
   os << "            for (int nl = 0; nl < 4; ++nl)\n";
   os << "              " << kQ4KDequantHelperName
-     << "(blk[nl], b, kf, Bframe + nl * 8);\n";
-  os << "            int32_t frag[16];\n";
-  os << "            " << vmadotHelperName << "(Aframe, Bframe, frag);\n";
-  os << "            for (int r = 0; r < 16; ++r) sumi[r] += frag[r];\n";
+     << "(blk[nl], b, kf, Bdec + kf * 32 + nl * 8);\n";
   os << "            for (int ml = 0; ml < 4; ++ml)\n";
   os << "              for (int kl = 0; kl < 8; ++kl)\n";
   os << "                asum[ml] += (int32_t)Aframe[ml * 8 + kl];\n";
   os << "          }\n";
+  os << "          const int8_t *Ablk = Arow + (long)(sb * 32 + b * 4) * 32;\n";
+  os << "          " << macKloopHelperName << "(Ablk, Bdec, 4, sumi);\n";
   os << "          for (int ml = 0; ml < 4; ++ml)\n";
   os << "            for (int nl = 0; nl < 4; ++nl) {\n";
   os << "              Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + "
@@ -1061,8 +1136,9 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q4_0 tile region must carry the q4_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot).
-    llvm::StringRef vmadotHelperName = kVmadotHelperName;
+    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot); the
+    // leaf is the register-resident BATCHED K/8-loop form ([GAP-IME-LEAF-PIPELINE]).
+    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1102,10 +1178,10 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q40DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
-          loc, q40MatmulHelperBody(vmadotHelperName));
+          loc, q40MatmulHelperBody(macKloopHelperName));
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -1181,8 +1257,9 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q8_0 tile region must carry the q8_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot).
-    llvm::StringRef vmadotHelperName = kVmadotHelperName;
+    // The MAC leaf's ime_op fact keys the emitted MAC instruction (vmadot); the
+    // leaf is the register-resident BATCHED K/8-loop form ([GAP-IME-LEAF-PIPELINE]).
+    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1222,10 +1299,10 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q80DequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(
-          loc, q80MatmulHelperBody(vmadotHelperName));
+          loc, q80MatmulHelperBody(macKloopHelperName));
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
@@ -1309,7 +1386,9 @@ public:
                 "q4_K_scale_min_unpack_core + vmadot_mac_leaf + "
                 "q4_K_scale_weighted_accum + q4_K_min_bias_accum bricks (the "
                 "hollow bare-MAC shape is rejected)");
-    llvm::StringRef vmadotHelperName = kVmadotHelperName;
+    // The register-resident BATCHED K-loop MAC leaf ([GAP-IME-LEAF-PIPELINE]);
+    // for q4_K it batches the 4 fragments of each sub-block into one sumi_b.
+    llvm::StringRef macKloopHelperName = kVmadotMacKloopHelperName;
 
     auto variant =
         tile->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1351,12 +1430,12 @@ public:
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
-      rewriter.create<emitc::VerbatimOp>(loc, vmadotHelperBody());
+      rewriter.create<emitc::VerbatimOp>(loc, vmadotMacKloopHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q4KFp16HelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q4KDequantHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc, q4KScaleMinHelperBody());
       rewriter.create<emitc::VerbatimOp>(loc,
-                                         q4KMatmulHelperBody(vmadotHelperName));
+                                         q4KMatmulHelperBody(macKloopHelperName));
     }
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);

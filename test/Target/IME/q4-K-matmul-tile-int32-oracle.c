@@ -8,7 +8,7 @@
 // (tcrv_ime_fp16_to_f32), and the tiled q4_K TWO-LEVEL-fold GEMM
 // (tcrv_ime_q4_K_vmadot_matmul) that reduces via the FOUNDATION-validated vmadot
 // MAC leaf. The vmadot INSTRUCTION runs only on real K1 (M2b board seal), so this
-// host oracle substitutes a SCALAR reference of the vmadot 4x4x8 MAC with the SAME
+// host oracle substitutes a SCALAR reference of the batched vmadot MAC with the SAME
 // int8->int32 semantics the seal validates bit-exact.
 //
 // The q4_K two-level fold (mirrors the RVV kquant_dmin_bsums_min precedent):
@@ -45,22 +45,33 @@
 
 // ---------------------------------------------------------------------------
 // (A) The emitted structured helpers (mirror of the M2b emitter output; the ONLY
-// asm leaf tcrv_ime_vmadot_mma_4x4x8 is replaced by the scalar-vmadot substitute
+// asm leaf tcrv_ime_vmadot_mac_kloop is replaced by the scalar-vmadot substitute
 // below). These are byte-for-byte the C the IME emitter emits for the region.
 // ---------------------------------------------------------------------------
 
-// The scalar substitute for the FOUNDATION-validated vmadot 4x4x8 MAC: fresh
-// C[4x4] int32 = A[4x8] . B[4x8]^T (int8*int8 -> int32). This is the exact int32
-// contract the real vmadot instruction satisfies (proven bit-exact on K1 at seal).
-static inline void tcrv_ime_vmadot_mma_4x4x8(const int8_t *A, const int8_t *B,
-                                             int32_t *C) {
-  for (int m = 0; m < 4; ++m)
-    for (int n = 0; n < 4; ++n) {
-      int32_t s = 0;
-      for (int k = 0; k < 8; ++k)
-        s += (int32_t)A[m * 8 + k] * (int32_t)B[n * 8 + k];
-      C[m * 4 + n] = s;
-    }
+// The scalar substitute for the BATCHED register-resident vmadot MAC leaf:
+// frag[4x4] int32 = Sum_kf A_kf[4x8] . B_kf[4x8]^T over `kt` contiguous 32B
+// fragments. This is the exact int32 contract the real batched vmadot loop
+// satisfies (v2/v3 accumulate in-register across the sub-block's 4 fragments;
+// single vsetvli; one store -- proven bit-exact on K1 at seal). It is
+// int32-identical to the per-fragment `sumi[r] += vmadot(A_kf,B_kf)[r]` form:
+// same reductions, summed in the same kf order.
+static inline void tcrv_ime_vmadot_mac_kloop(const int8_t *A, const int8_t *B,
+                                             long kt, int32_t *frag) {
+  int32_t acc[16];
+  for (int r = 0; r < 16; ++r) acc[r] = 0;
+  for (long kf = 0; kf < kt; ++kf) {
+    const int8_t *Af = A + kf * 32;
+    const int8_t *Bf = B + kf * 32;
+    for (int m = 0; m < 4; ++m)
+      for (int n = 0; n < 4; ++n) {
+        int32_t s = 0;
+        for (int k = 0; k < 8; ++k)
+          s += (int32_t)Af[m * 8 + k] * (int32_t)Bf[n * 8 + k];
+        acc[m * 4 + n] += s;
+      }
+  }
+  for (int r = 0; r < 16; ++r) frag[r] = acc[r];
 }
 
 // tcrv_ime.fp16_epilogue=tcrv_ime_fp16_to_f32 (deterministic IEEE half->float; the deferred d/dmin float fold)
@@ -112,7 +123,7 @@ static inline void tcrv_ime_q4_K_get_scale_min(int j, const uint8_t *q, uint8_t 
   }
 }
 
-// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mma_4x4x8 tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min
+// tcrv_ime.asm_leaf=tcrv_ime_vmadot_mac_kloop tiled_q4_K_matmul mac=4x4x8 elem_in=int8 accum=int32 ime_op=vmadot weight_format=q4_K int32_exact=1 two_level_fold=kquant_dmin_bsums_min register_resident_accumulate=1
 static void tcrv_ime_q4_K_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4k, int32_t *Sscale,
     int32_t *Smin, float *Cf, long M, long N, long K) {
   const long mt = M / 4, nt = N / 4, nsb = K / 256;
@@ -132,21 +143,19 @@ static void tcrv_ime_q4_K_vmadot_matmul(const int8_t *Apack, const uint8_t *Bq4k
         for (int r = 0; r < 16; ++r) { Sc[r] = 0; Sm[r] = 0; }
         for (int b = 0; b < 8; ++b) {
           int32_t sumi[16];
-          for (int r = 0; r < 16; ++r) sumi[r] = 0;
           int32_t asum[4] = {0, 0, 0, 0};
+          int8_t Bdec[128];
           for (int kf = 0; kf < 4; ++kf) {
             long gf = sb * 32 + b * 4 + kf;
             const int8_t *Aframe = Arow + gf * 32;
-            int8_t Bframe[32];
             for (int nl = 0; nl < 4; ++nl)
-              tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bframe + nl * 8);
-            int32_t frag[16];
-            tcrv_ime_vmadot_mma_4x4x8(Aframe, Bframe, frag);
-            for (int r = 0; r < 16; ++r) sumi[r] += frag[r];
+              tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bdec + kf * 32 + nl * 8);
             for (int ml = 0; ml < 4; ++ml)
               for (int kl = 0; kl < 8; ++kl)
                 asum[ml] += (int32_t)Aframe[ml * 8 + kl];
           }
+          const int8_t *Ablk = Arow + (long)(sb * 32 + b * 4) * 32;
+          tcrv_ime_vmadot_mac_kloop(Ablk, Bdec, 4, sumi);
           for (int ml = 0; ml < 4; ++ml)
             for (int nl = 0; nl < 4; ++nl) {
               Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + nl];

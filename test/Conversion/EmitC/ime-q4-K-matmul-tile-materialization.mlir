@@ -63,7 +63,8 @@ module {
 // epilogue.
 // EMITC: emitc.include <"stdint.h">
 // EMITC: emitc.verbatim
-// EMITC-SAME: static inline void tcrv_ime_vmadot_mma_4x4x8
+// EMITC-SAME: register_resident_accumulate=1
+// EMITC-SAME: static inline void tcrv_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC: emitc.verbatim
 // EMITC-SAME: tcrv_ime.fp16_epilogue=tcrv_ime_fp16_to_f32
@@ -77,8 +78,8 @@ module {
 // EMITC: emitc.verbatim
 // EMITC-SAME: two_level_fold=kquant_dmin_bsums_min
 // EMITC-SAME: static void tcrv_ime_q4_K_vmadot_matmul
-// EMITC-SAME: tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bframe + nl * 8)
-// EMITC-SAME: tcrv_ime_vmadot_mma_4x4x8(Aframe, Bframe, frag)
+// EMITC-SAME: tcrv_ime_q4_K_dequant_fragment(blk[nl], b, kf, Bdec + kf * 32 + nl * 8)
+// EMITC-SAME: tcrv_ime_vmadot_mac_kloop(Ablk, Bdec, 4, sumi)
 // EMITC-SAME: Sc[ml * 4 + nl] += (int32_t)sc[b][nl] * sumi[ml * 4 + nl]
 // EMITC-SAME: Sm[ml * 4 + nl] += (int32_t)mm[b][nl] * asum[ml]
 // EMITC: emitc.func @tcrv_emitc_ime_q4_K_matmul_kernel_ime_vmadot_matmul_slice
