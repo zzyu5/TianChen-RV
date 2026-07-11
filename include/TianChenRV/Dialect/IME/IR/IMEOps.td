@@ -347,4 +347,185 @@ def MatMulOp : TCRVIME_Op<"matmul",
   let hasVerifier = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// G4 M1a: the FORMAT-KEYED q4_0 IME GEMM tile typed-region front door.
+//
+// The ops above (mma / matmul / ...) are FORMAT-AGNOSTIC: their inputs are
+// already int8 (the tiled tcrv.ime.matmul consumes pre-packed int8 A/B). The
+// three ops below add the FIRST format-keyed IME tile: a q4_0-quantized weight
+// matrix decoded (offset-binary nibble) into the int8 MAC fragment, fed to the
+// int8->int32 vmadot MAC, in-register K-accumulated. This mirrors the RVV
+// typed_repack front door (RVVLowerQuantContraction lowerToRepackGemm) but
+// targets the IME MATRIX paradigm (vmadot MAC) instead of the RVV vector
+// paradigm (block-dot). Correctness of the int8->int32 MAC is int32-EXACT (no
+// float tolerance); the vmadot instruction itself is proven bit-exact on real
+// K1 (M1b board seal). This front door is CONSTRUCTED (typed region), landed
+// but BOARD-PENDING: the coverage cell gemm_tile/q4_0@ime stays blocked-on-IME
+// until the K1 silicon seal.
+//===----------------------------------------------------------------------===//
+
+def Q40DequantCoreOp : TCRVIME_Op<"q4_0_dequant_core"> {
+  let summary = "IME q4_0 -> int8 offset-binary nibble dequant core brick";
+  let description = [{
+    The typed q4_0 WEIGHT DECODE primitive of the format-keyed IME GEMM tile
+    (the format-keyed sibling of the RVV repack decode brick). It takes the
+    per-tile contraction-block induction variable `block_index` and produces the
+    decoded 4x8 int8 B-fragment (a builtin vector<32xi8>): the ggml q4_0 block is
+    (fp16 d, uint8 qs[16]) = 18 bytes carrying 32 packed nibbles; each 4-bit
+    nibble q in [0,15] decodes to the OFFSET-BINARY int8 quant value (q - 8) in
+    [-8,7], which fits int8 exactly, so the decoded fragment feeds the int8->int32
+    vmadot MAC with NO precision loss. The per-block fp16 scale `d` is NOT applied
+    here (it is a separate float fold AFTER the int32 MAC), so the decode is a
+    PURE integer transform and the produced fragment is int32-MAC-exact.
+
+    The op carries the bounded q4_0 layout FACTS (decode_model, qk=32, the 18-byte
+    weight_block_stride, the +2 weight_quant_byte_offset past the fp16 d, and the
+    +0 weight_scale_byte_offset) so emission is structural (I5): the emitter reads
+    the op identity + these facts, never a q4/q8 name. For the bounded surface
+    decode_model is limited to "q4_0_offset_binary_nibble".
+  }];
+  let arguments = (ins
+    AnyType:$block_index,
+    StrAttr:$decode_model,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$weight_scale_byte_offset
+  );
+  let results = (outs AnyType:$b_fragment);
+  let assemblyFormat =
+      "$block_index attr-dict `:` type($block_index) `->` type($b_fragment)";
+  let hasVerifier = 1;
+}
+
+def VmadotMacLeafOp : TCRVIME_Op<"vmadot_mac_leaf"> {
+  let summary = "IME int8->int32 vmadot MAC leaf brick (typed, not opaque asm)";
+  let description = [{
+    The typed vmadot MAC LEAF of the format-keyed IME GEMM tile: it consumes the
+    4x8 int8 activation fragment `a_fragment` (vector<32xi8>), the decoded 4x8 int8
+    weight fragment `b_fragment` (vector<32xi8>, the q4_0_dequant_core result), the
+    contraction-block induction variable `block_index`, and the carried-IN 4x4
+    int32 accumulator tile `acc_in` (vector<16xi32>), and produces the carried-OUT
+    4x4 int32 accumulator tile `acc_out`: acc_out = acc_in + A . B^T computed by
+    the IME1 `vmadot` MAC unit (int8*int8 -> int32, the FOUNDATION-validated 4x4x8
+    fragment at VLEN=256/SEW=8). The MAC accumulates in int32 with NO overflow in
+    the validated envelope (|q4_0 quant| <= 8, |q8_0 quant| <= 127, K=8 per
+    fragment) so the accumulator is int32-EXACT.
+
+    This is the vmadot INSTRUCTION as a first-class TYPED body op (I5), NOT the
+    opaque hand-written asm helper: emission reads the op identity + the ime_op /
+    MAC-fragment facts, never a name. The vmadot instruction's numeric semantics
+    are proven bit-exact on real K1 (the M1b board seal); this op models the
+    int8->int32 MAC contract the seal validates. For the bounded surface ime_op is
+    limited to "vmadot", elem_in_bits to 8, accum_bits to 32.
+  }];
+  let arguments = (ins
+    AnyType:$a_fragment,
+    AnyType:$b_fragment,
+    AnyType:$block_index,
+    AnyType:$acc_in,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k
+  );
+  let results = (outs AnyType:$acc_out);
+  let assemblyFormat = [{
+    $a_fragment `,` $b_fragment `,` $block_index `,` $acc_in attr-dict `:`
+    `(` type($a_fragment) `,` type($b_fragment) `,` type($block_index) `,`
+    type($acc_in) `)` `->` type($acc_out)
+  }];
+  let hasVerifier = 1;
+}
+
+def Q40MatMulTileYieldOp : TCRVIME_Op<"q4_0_matmul_tile_yield",
+    [Terminator,
+     HasParent<"::tianchenrv::tcrv::ime::Q40MatMulTileOp">]> {
+  let summary =
+      "terminator naming the carried-out 4x4 int32 accumulator tile of the "
+      "q4_0 IME GEMM tile region";
+  let description = [{
+    Terminates the tcrv.ime.q4_0_matmul_tile region by naming the carried-out 4x4
+    int32 accumulator tile `acc_out` (the VmadotMacLeafOp result). It makes the
+    loop-carried int32 dataflow explicit (the SSA value carried into the next
+    contraction-block iteration), so the emitter maps it to the in-register int32
+    accumulator with no implicit convention. It carries no compute, dtype, memory,
+    or route semantics.
+  }];
+  let arguments = (ins Variadic<AnyType>:$acc_out);
+  let assemblyFormat = "$acc_out attr-dict `:` type($acc_out)";
+  let hasVerifier = 1;
+}
+
+def Q40MatMulTileOp : TCRVIME_Op<"q4_0_matmul_tile",
+    [SingleBlock,
+     DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary =
+      "IME format-keyed q4_0 whole-matrix vmadot GEMM tile boundary (typed region)";
+  let description = [{
+    The selected IME execution boundary for a FORMAT-KEYED q4_0 whole-matrix
+    int8->int32 GEMM: C[M,N] += dequant_q4_0(Bq4)[N,K] applied to A[M,K] int8
+    activations, realized by tiling the FOUNDATION-validated 4x4x8 `vmadot`
+    fragment over the (M/mac_m) x (N/mac_n) x (K/mac_k) grid, with the q4_0 weight
+    matrix decoded (offset-binary nibble) into the int8 MAC fragment per
+    contraction block. This is the format-keyed sibling of tcrv.ime.matmul (which
+    is format-AGNOSTIC pre-packed int8): it carries the same capability-derived MAC
+    envelope + problem dims (mat_m/mat_n/mat_k) PLUS the q4_0 weight-format FACTS
+    (weight_format="q4_0", qk=32, the 18-byte weight_block_stride, the +2
+    weight_quant_byte_offset).
+
+    Unlike the flat boundary ops above, this op OWNS a single-block typed region
+    (the M-FLAT typed-region front door, the RVV lowerToRepackGemm precedent
+    applied to the IME matrix paradigm): the region is the INNERMOST
+    contraction-block tile body, whose entry arguments are the `block_index`
+    induction variable (index), the loaded 4x8 int8 activation fragment
+    `a_fragment` (vector<32xi8>), and the carried-IN 4x4 int32 accumulator tile
+    `acc_in` (vector<16xi32>). The region contains exactly the DECOMPOSED typed
+    bricks -- one tcrv.ime.q4_0_dequant_core (the q4_0 weight decode), one
+    tcrv.ime.vmadot_mac_leaf (the int8->int32 MAC), and the
+    tcrv.ime.q4_0_matmul_tile_yield terminator (naming the carried-out int32 tile)
+    -- and NO opaque hand helper. The emitter wraps the outer row/col/K loops
+    around the region and binds the weight/activation/output pointers (op-identity
+    driven, I5).
+
+    A fail-closed verifier (I7) admits ONLY the validated IME1 int8->int32 vmadot
+    envelope, the whole q4_0 problem dims (whole multiples of the MAC fragment; no
+    remainder path), AND the exact three-brick region shape. It is an IME execution
+    op, not a high-level matmul op: it carries the structural executable facts so
+    emission is structural; it makes no correctness/performance claim in the IR
+    (correctness is proven int32-exact + the vmadot bit-exact K1 seal). The
+    coverage cell gemm_tile/q4_0@ime stays blocked-on-IME until the K1 seal.
+  }];
+  let arguments = (ins
+    StrAttr:$source_kernel,
+    FlatSymbolRefAttr:$selected_variant,
+    StrAttr:$origin,
+    StrAttr:$role,
+    StrAttr:$status,
+    ArrayAttr:$required_capabilities,
+    StrAttr:$ime_op,
+    I64Attr:$elem_in_bits,
+    I64Attr:$accum_bits,
+    I64Attr:$mac_m,
+    I64Attr:$mac_n,
+    I64Attr:$mac_k,
+    I64Attr:$mat_m,
+    I64Attr:$mat_n,
+    I64Attr:$mat_k,
+    StrAttr:$weight_format,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_quant_byte_offset,
+    StrAttr:$available_harts,
+    OptionalAttr<StrAttr>:$ime_reason
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
 #endif // TIANCHENRV_DIALECT_IME_IR_IMEOPS_TD

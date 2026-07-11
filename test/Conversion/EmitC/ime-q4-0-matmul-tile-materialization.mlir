@@ -1,0 +1,70 @@
+// G4 M1a: the FORMAT-KEYED q4_0 IME GEMM tile typed-region front door.
+//
+// A kernel carrying ONLY the spacemit.ime capability FACT + a whole-matrix SHAPE
+// fact (ime_matmul_shape) + a WEIGHT-FORMAT fact (ime_weight_format = "q4_0") --
+// no high-level op, no family-name branch -- drives the generic
+// proposal/selection/boundary pipeline to CONSTRUCT the typed-region
+// tcrv_ime.q4_0_matmul_tile op (the RVV lowerToRepackGemm front-door precedent
+// applied to the IME matrix paradigm). The weight-format fact is pure data flow of
+// the capability, keyed ON TOP of the whole-matrix GEMM prior.
+//
+// RUN 1 (STRUCTURE): stop at boundary materialization and assert the CONSTRUCTED
+// typed region is the three DECOMPOSED bricks (q4_0_dequant_core + vmadot_mac_leaf
+// + yield), NOT an opaque body -- the certified-shape checker.
+// RUN: tcrv-opt %s --tcrv-materialize-plugin-variants --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REGION
+//
+// RUN 2 (EMISSION): the full pipeline lowers the region to the q4_0-decode +
+// vmadot MAC EmitC kernel (op-identity driven, I5).
+// RUN: tcrv-opt %s --tcrv-materialize-plugin-variants --tcrv-select-variants --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy"
+
+module {
+  tcrv.exec.kernel @ime_q4_0_matmul_kernel {
+    tcrv.exec.capability @spacemit_ime {
+      id = "spacemit.ime",
+      kind = "isa-matrix-vector-backed",
+      status = "available",
+      march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
+      vlen_bits = "256",
+      available_harts = "0-3",
+      ime_matmul_shape = "256x256x256",
+      ime_weight_format = "q4_0"
+    }
+  }
+}
+
+// The prior routes GEMM ^ ime ^ q4_0 to the format-keyed q4_0 whole-matrix variant
+// (still cost 0.5, GEMM takeover) and CONSTRUCTS the typed region.
+// REGION: tcrv.exec.variant @ime_vmadot_matmul_slice
+// REGION-SAME: ime.weight_format = "q4_0"
+// REGION: tcrv_ime.q4_0_matmul_tile
+// REGION-SAME: ime_op = "vmadot"
+// REGION-SAME: mat_k = 256
+// REGION-SAME: weight_format = "q4_0"
+// The typed region is the three DECOMPOSED bricks (block_index + int8 activation
+// fragment + int32 accumulator entry args), NOT an opaque helper.
+// REGION: ^bb0(%{{.*}}: index, %{{.*}}: vector<32xi8>, %{{.*}}: vector<16xi32>):
+// REGION: tcrv_ime.q4_0_dequant_core %{{.*}} {decode_model = "q4_0_offset_binary_nibble"
+// REGION-SAME: -> vector<32xi8>
+// REGION: tcrv_ime.vmadot_mac_leaf %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} {accum_bits = 32
+// REGION-SAME: ime_op = "vmadot"
+// REGION-SAME: -> vector<16xi32>
+// REGION: tcrv_ime.q4_0_matmul_tile_yield %{{.*}} : vector<16xi32>
+
+// The emitted kernel: the q4_0 decode helper + the validated vmadot MAC leaf +
+// the tiled q4_0 kernel + the structured extern "C" wrapper. int32-EXACT.
+// EMITC: emitc.include <"stdint.h">
+// EMITC: emitc.verbatim
+// EMITC-SAME: static inline void tcrv_ime_vmadot_mma_4x4x8
+// EMITC-SAME: vmadot    v2, v0, v1
+// EMITC: emitc.verbatim
+// EMITC-SAME: decode_model=q4_0_offset_binary_nibble
+// EMITC-SAME: static inline void tcrv_ime_q4_0_dequant_fragment
+// EMITC-SAME: (int8_t)((int)(qs[j] & 0x0F) - 8)
+// EMITC: emitc.verbatim
+// EMITC-SAME: int32_exact=1
+// EMITC-SAME: static inline void tcrv_ime_q4_0_vmadot_matmul
+// EMITC-SAME: tcrv_ime_q4_0_dequant_fragment(Bcol + kf * q40_block_bytes, Bframe)
+// EMITC-SAME: tcrv_ime_vmadot_mma_4x4x8(Arow + kf * 32, Bframe, frag)
+// EMITC: emitc.func @tcrv_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
+// EMITC: tcrv_emitc.route_source_op=tcrv_ime.q4_0_matmul_tile role=compute
+// EMITC: call_opaque "tcrv_ime_q4_0_vmadot_matmul"
