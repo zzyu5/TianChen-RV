@@ -19,7 +19,14 @@
       "checker": "tools/lint/check_monolith_retire.py",
       "ci": ".github/workflows/falsifier-gate.yml (job: monolith-retire-gate)"
     },
-    "generated_survey": "As of 裁决九.4: 8 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 6 pending_retirement). All other flat/K/IQ/TQ vec_dot monoliths (q8_0, q4_1, q5_0, q5_1, iq4_nl, nvfp4, iq1_s, iq1_m, iq3_xxs, iq4_xs, iq2_xxs, iq2_xs, iq2_s, iq3_s, tq1_0, tq2_0) are ALREADY op-def-retired (front door keys off string literals; see the RETIRED NOTE markers in RVVOps.td)."
+    "generated_survey": "As of 裁决九.4: 8 vec_dot monolith op-defs survive in ODS (2 deliberately_retained + 6 pending_retirement). All other flat/K/IQ/TQ vec_dot monoliths (q8_0, q4_1, q5_0, q5_1, iq4_nl, nvfp4, iq1_s, iq1_m, iq3_xxs, iq4_xs, iq2_xxs, iq2_xs, iq2_s, iq3_s, tq1_0, tq2_0) are ALREADY op-def-retired (front door keys off string literals; see the RETIRED NOTE markers in RVVOps.td).",
+    "retired_ledger_forms": {
+      "ruling": "判定书 §3 轴B 裁决①: a RETIRED vec_dot monolith is registered in EITHER of TWO EQUALLY-VALID canonical forms -- there is NO forced migration to a single form (合规 != 体例统一).",
+      "form_A_json_retired_ledger": "A structured entry in THIS file's retired_ledger array (format + op_def + retired_at + front_door/cleanup + restore_ref). This is the form for op-defs that were ALREADY absent from ODS at the whitelist's birth, or retired after it.",
+      "form_B_td_retired_note": "A `// NOTE: def <OpDef> (the monolith <fmt> block-dot op) was RETIRED at ...` prose marker in the ODS source_of_truth file (include/TianChenRV/Dialect/RVV/IR/RVVOps.td) that carries the FOUR REQUIREMENTS (四要件齐): (1) 格名+op-def, (2) 退役依据 = the front door now CONSTRUCTS the typed loop body instead, (3) 替代路径 = the createTyped*LoopChain front-door construction + the code-moved emit anchor, (4) 复原指针 = the named flip (C_construct delta, git-findable). A .td RETIRED NOTE with all four IS a compliant retired-ledger form -- the canon source_of_truth already designates RVVOps.td as authoritative, and a four-requirement marker there is substantively compliant. Do NOT migrate .td RETIRED NOTE markers into this JSON; JSON retired_ledger entries and .td RETIRED NOTE markers COEXIST legally.",
+      "back_fill_note": "判定书 §3 轴B 裁决②: six flat/IQ monoliths (q8_0/q4_1/q5_0/q5_1/iq1_s/iq4_nl) were FLIP/plain-deleted BEFORE this whitelist was born (commit 1076d75e) and left NEITHER a JSON entry NOR a .td RETIRED NOTE (git-history-only, constitutionally non-violating but leaving the retired ledger incomplete). They are BACK-FILLED into retired_ledger below (form A) to close the three-tier asymmetry -- one-time completeness pass, each with the four requirements incl. the real retirement git ref."
+    },
+    "retired_index": "判定书 §3 轴B 裁决③ (机检化): tools/lint/gen_retired_index.py merges (a) the .td RETIRED NOTE markers + (b) this file's retired_ledger + (c) schema/emit-bypass-whitelist.v1.json retired_ledger into the single read-only query point schema/retired-index.generated.json (machine-generated, DO NOT hand-edit). tools/lint/check_retired_index.py (CI job retired-index-gate) fails closed unless the index is fresh AND every RETIRED vec_dot monolith format -- derived independently as {vec_dot rows in schema/coverage-sixstate.v1.json} MINUS {surviving ODS monolith formats} -- is in the index with non-empty four requirements."
   },
 
   "deliberately_retained": [
@@ -136,6 +143,66 @@
       "retired_at": "nvfp4 flip (C_construct 27->28) — the LAST dispatch-wired vec_dot flip.",
       "cleanup": "裁决九.4: the op-def was already gone from ODS at the flip; the residual `#if 0 ... GgmlBlockDotNVFP4Q80Op::verify() ... #endif` tomb (~165 lines) was PLAIN-REMOVED from RVVDialectWideningOps.cpp by this ruling. Live bounded-surface gate = GgmlBlockDotNVFP4Q80CodebookCoreOp::verify (the per-super-block codebook-core brick).",
       "note": "nvfp4 is the DECOMPOSED FP4 sibling; its undecomposed control mxfp4 STAYS a monolith (see deliberately_retained)."
+    },
+    {
+      "format": "q8_0",
+      "op_def": "GgmlBlockDotQ80Q80Op",
+      "mnemonic": "q8_0_q8_0_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A (see $meta.retired_ledger_forms.back_fill_note).",
+      "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q8_0 vec_dot to typed-flat construction and the monolith op-def was plain-deleted together with q4_1/q5_0/q5_1 in ONE commit -- BEFORE this whitelist was born at 1076d75e, so it left git history only.",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs tcrv_rvv.typed_flat_block_dot_loop_body -> RVVToEmitC.cpp emitTypedFlatBlockDotLoopBody (realized body = decomposed load+widening_product+standalone_reduce, byte-identical-to-monolith emit).",
+      "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ80Q80Op` from RVVOps.td; the op-def was ADDED at parent-lineage 8518b819 INC-7).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
+    },
+    {
+      "format": "q4_1",
+      "op_def": "GgmlBlockDotQ41Q81Op",
+      "mnemonic": "q4_1_q8_1_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
+      "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q4_1 vec_dot to typed-flat construction (unsigned-nibble dot + operand-driven dual-fp16 scale+MIN fold) and the monolith op-def was plain-deleted with q8_0/q5_0/q5_1 in ONE commit BEFORE this whitelist's birth (1076d75e).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+unsigned_nibble_x_i8_product+standalone_reduce, Family-B dual-fp16 scale+MIN dequant fold, byte-identical-to-monolith emit).",
+      "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ41Q81Op`; op-def ADDED at parent-lineage 3a32d40b INC-9).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
+    },
+    {
+      "format": "q5_0",
+      "op_def": "GgmlBlockDotQ50Q80Op",
+      "mnemonic": "q5_0_q8_0_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
+      "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q5_0 vec_dot to typed-flat construction (five-bit offset-binary dot fed by a per-block qh 5th-bit source brick) and the monolith op-def was plain-deleted with q8_0/q4_1/q5_1 in ONE commit BEFORE this whitelist's birth (1076d75e).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isQ50TypedFlat gate) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product + block_five_bit_qh_source brick, byte-identical-to-monolith emit).",
+      "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ50Q80Op`; op-def ADDED at parent-lineage fc64b476 INC-21).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
+    },
+    {
+      "format": "q5_1",
+      "op_def": "GgmlBlockDotQ51Q81Op",
+      "mnemonic": "q5_1_q8_1_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
+      "retired_at": "flat-family monolith retirement (M-FLAT P2c deferred-ordered fold, '退役 4 格 flat monolith'): the front door FLIPPED q5_1 vec_dot to typed-flat construction (five-bit offset-binary dot bias-off + qh 5th-bit brick + fp16 min-product) and the monolith op-def was plain-deleted with q8_0/q4_1/q5_0 in ONE commit BEFORE this whitelist's birth (1076d75e).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (q5_1 branch) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> emitTypedFlatBlockDotLoopBody (decomposed load+five_bit_offset_binary_x_i8_product+block_fp16_min_product, ScalePlusMin fold, byte-identical-to-monolith emit).",
+      "restore_ref": "git 1185729a (task(m-flat): P2c deferred-ordered fold + 退役 4 格 flat monolith -- REMOVED `def GgmlBlockDotQ51Q81Op`; op-def ADDED at parent-lineage 08a7ac0e INC-22).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
+    },
+    {
+      "format": "iq1_s",
+      "op_def": "GgmlBlockDotIQ1SQ8KOp",
+      "mnemonic": "iq1_s_q8_k_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
+      "retired_at": "iq1_s FLIP (L3, C_construct 15->16): the front door FLIPPED iq1_s vec_dot dispatch-wired -> constructed via the typed super-block scalar-delta-grid loop body; the monolith op-def was plain-deleted at the flip, BEFORE this whitelist's birth (1076d75e).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedSuperBlockScalarDeltaGridLoopChain constructs tcrv_rvv.typed_super_block_block_dot_loop_body (fold_model \"scalar_delta_grid\") carrying the iq1_s grid-core brick -> RVVToEmitCKQuant.cpp emitTypedSuperBlockScalarDeltaGridLoopBody (byte-identical-to-monolith emit).",
+      "restore_ref": "git cc4b5559 (task(L3-iq1_s-FLIP): iq1_s vec_dot CONSTRUCTED -- C_construct 15->16 -- REMOVED `def GgmlBlockDotIQ1SQ8KOp`; op-def ADDED at parent-lineage 6fe29dd1 INC-38).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
+    },
+    {
+      "format": "iq4_nl",
+      "op_def": "GgmlBlockDotIQ4NLQ80Op",
+      "mnemonic": "iq4_nl_q8_0_block_dot",
+      "back_filled": "判定书 §3 轴B 裁决② -- git-history-only retirement structured back into form A.",
+      "retired_at": "iq4_nl FLIP (L3 M2, C_construct 14->15, the FIRST constructed IQ/codebook vec_dot): the front door FLIPPED iq4_nl vec_dot dispatch-wired -> constructed via the typed FLAT block-dot loop body (codebook branch); the monolith op-def was plain-deleted at the flip, BEFORE this whitelist's birth (1076d75e).",
+      "front_door": "RVVMonolithicBlockDotSourceFrontDoor.cpp createTypedFlatBlockDotLoopChain (isIq4Nl codebook branch) constructs tcrv_rvv.typed_flat_block_dot_loop_body -> RVVToEmitCBlockQuantLinear.cpp emitTypedFlatBlockDotLoopBody (decomposed codebook_table_broadcast + load..., byte-identical-to-monolith emit).",
+      "restore_ref": "git ede04009 (task(L3-iq4_nl-FLIP): iq4_nl vec_dot CONSTRUCTED -- C_construct 14->15 -- REMOVED `def GgmlBlockDotIQ4NLQ80Op`; op-def ADDED at parent-lineage d237d37e INC-30).",
+      "note": "四要件齐: format+op_def / retired_at(退役依据) / front_door(替代路径) / restore_ref(复原 git ref)."
     }
   ]
 }
