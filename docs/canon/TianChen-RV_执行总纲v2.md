@@ -34,20 +34,20 @@
 | **F-3** 变更收容 | 无顶层 `plugins/<family>/`;单家族代码横跨 `lib/{Dialect,Plugin,Conversion,Target}/<fam>` + `include/…/<fam>`(IME/RVV 各 4 类 lib 目录)→ "接入仅触 plugins/<fam>/" 不可判定 | 缺失 | 有界工作项 | 工程 |
 | **F-4** 归因完备 | 无 JSONL(`only_feasible` token grep=0);仅编译期选择阶段富属性(D-4① 重构原料);调度/合法性阶段缺;无 CI | 部分 | 重构现有 | C1 |
 | **F-5** fail-closed 模糊 | 未知即拒在位(`lib/Plugin/ExtensionPlugin.cpp:1433`、`lib/Dialect/Exec/IR/ExecOps.cpp:838`);随机删/伪造事实的 fuzz grep=0、不进 CI;向量缺席测试资产未建 | 部分 | 增量新建 | C1 |
-| **F-6** 独立性判据 | 闭包∩rvv.*=∅ 脚本 grep=0;`only_feasible` 真实选中 grep=0;受测家族 [X-SCALAR] 仍空桩(`lib/Dialect/Scalar/IR/ScalarDialect.cpp:7` 空 initialize) | 缺失 | 有界工作项 | C1 |
+| **F-6** 独立性判据 | 闭包∩rvv.*=∅ 脚本 grep=0;`only_feasible` 真实选中 grep=0;受测家族 [X-SCALAR] owned 内核**已落地**(tq2_0 主选 `f96f767a` / q4_0 保底 `2dd654d8` · 曳光弹 `5c010b2b` · F-6 双断言机检 989-LOC gtest+lit)——F-6 剩闭包脚本化 + `only_feasible` 真实选中(判据④,XS-M3) | 缺失 | 有界工作项 | C1 |
 
 ### 能力 Schema [S-*]
 
 | 条款 | 现状(锚点) | 等级 | 标签 | 关联 |
 |---|---|---|---|---|
 | **S-1** 结构化事实 + provenance/trust | `CapabilityDescriptor{id,kind,status,properties,relations}`(`include/TianChenRV/Support/CapabilityModel.h:69-78`);`kind`=开放 StrAttr(`ExecOps.td:112`),`status`=闭合 I32Enum(`:42-58`);`params`=隐式 `map<string,string>` CSV(`CapabilityModel.cpp:82-95`);**provenance/trust grep=0(完全缺席)** | 部分 | 有界工作项 | C1 |
-| **S-2** 关系语义 | conflicts 双向 fail-closed(`CapabilityModel.cpp:375-417`→`CheckCapabilityRequires.cpp:162-172`)、未知=假 已成立;**implies 无传递闭包**(一跳,`:235-238`) | 部分 | 有界工作项 | C1 |
+| **S-2** 关系语义 | conflicts 双向 fail-closed(`CapabilityModel.cpp:375-417`→`CheckCapabilityRequires.cpp:162-172`)、未知=假 已成立;**implies 传递闭包已建**(worklist BFS 到不动点 `computeImpliedClosure`+`satisfiesIDTransitively`,路由 5 个 set 级 satisfies 调用点,`95f1a482`;`CapabilityModelTest` 传递性+cycle-safety+zvfh 实例测) | 满足 | 已满足 | C1 |
 | **S-3** 探针只写事实 | 探针层不存在(`hwprobe` grep=0);"探到X走Y"隐藏分支 grep=0(规则未违,机制未启动);build-time facts 适配器自述 "probes no hardware"(`include/…/RVVCapabilityProfile.h:61-75`) | 缺失 | 有界工作项 | C1 |
 | **S-4** uarch 事实 / P6 | 粗粒度 `hart_count`(kind=uarch)真驱动选择(`RVVCapabilityProfile.cpp:490-494`→`HartParallelCapabilities.cpp:43-98`,走表);**每核 quirk 表(vrgather_slow…)grep=0**,P6 键控未建 | 部分 | 增量新建(quirk 表) | C3′ |
 | **S-5** schema.def 声明工件 | 六项契约全散落 TableGen/C++/map,无哈希对象、无版本日志(全 grep=0)。六项反写见 §4 | 缺失 | 增量新建 | C1 |
 | **S-6** 两级门 | 无 schema.def 可 diff、无排序 JSON→SHA256、无 RFC 日志、无 CI;依赖 S-5 先落盘 | 缺失 | 有界工作项 | C1 |
 | **S-7** 成本住测量库 | (a) schema 本体不含成本(`CapabilityModel.h:69-78` 无 cost 成员)✓;(b) 按 instance-hash 键控测量库缺失(`resource_cost_model` 是静态 in-IR 串) | 部分 | 有界工作项 | C3′ |
-| **S-8** 家族语义(能力门家族) | "家族=能力声明+所有权"机制在(各插件 own 能力 ID);[X-SCALAR] 能力门家族未建(zbb/zvbb 子事实 grep=0;Scalar 只 own `scalar.fallback` 不 own vec_dot) | 部分 | 有界工作项 | C2 |
+| **S-8** 家族语义(能力门家族) | "家族=能力声明+所有权"机制在(各插件 own 能力 ID);[X-SCALAR] owned 内核**已落地**(Scalar 现 own tq2_0 vec_dot `f96f767a` + q4_0 dequant `2dd654d8`);能力门子事实(zbb/zvbb/`scalar.zfh`)仍 grep=0 未建(XS-M2) | 部分 | 有界工作项 | C2 |
 
 ### 插件 · 调度 · 归因 · 选择器 [P-*]/[D-*]/[SEL-*]
 
@@ -103,8 +103,8 @@
 
 | 条款 | 现状(锚点) | 等级 | 标签 | 关联 |
 |---|---|---|---|---|
-| **X-ZVFH**(第一优先) | 事实未注册:`@zvfh` 在 `test/Dialect/Exec/verify.mlir:58-59` 被判 "unknown capability" 拒(恰是所需 fail-closed 预实现态);仅 march 子串检测(`RVVCapabilityProfile.cpp:112`);兼作 [S-2] 闭包探针 | 缺失 | 增量新建 | C3′ |
-| **X-SCALAR**(第二优先) | 仅 fallback 骨架(`ScalarExtensionPlugin.cpp:16`,自述无 body/无 EmitC/无 runtime ABI);空 STUB;owned 内核未落地;判据④未验。数学素材在向量路已存(见 §6) | 部分 | 有界工作项 | C1 |
+| **X-ZVFH**(第一优先) | 事实**已注册**:`rvv.zvfh`(kind=isa-vector-fp16)从 probed ISA 证据 mint 一等事实 + implies 链 `rvv.zvfh⇒rvv.zvfhmin⇒rvv.zve32f`(`RVVCapabilityProfile.cpp:527-554`,token-boundary guard 防伪造 I5,`95f1a482`);[S-2] 传递闭包实体夹具已连(`CapabilityModelTest.cpp:697-736`)。注:`verify.mlir:58-59` 的裸 `@zvfh` 是 Exec verifier 对**未声明局部符号**的通用负控,非 rvv.zvfh 注册缺席证据(误读已更正)。**剩:f16 路径实测(P5,pending-hardware)** | 部分 | 有界工作项 | C3′ |
+| **X-SCALAR**(第二优先) | owned 内核**已落地**:主选三值 2-bit `tq2_0_q8_k_vec_dot`(byte-exact golden,`f96f767a`)+ 保底 `dequantize_row_q4_0`(`2dd654d8`) · 曳光弹 `compute_skeleton`(`5c010b2b`) · F-6 双断言机检 989-LOC gtest+lit;剩 判据④ 真实选中(XS-M3)/`scalar.zfh` 事实(XS-M2)/ledger(XS-M4)未闭。数学素材在向量路亦存(见 §6) | 部分 | 有界工作项 | C1 |
 | **X-ZVBB** | zvbb grep=0;无事实行/P8 条目/micro | 缺失 | 有界工作项 | C3′ |
 | **X-AME** | 仅 Passes.td 注释 3 处;conflicts 含 AME-vs-IME 但 inert;条件项/论文不押注,缺失符合预期 | 缺失 | 有界工作项 | C1 |
 | **uarch 表/P6** | 粗粒度事实在(X60 per-hart);每核 quirk 表(vrgather_slow)grep=0,"走表不走 if" 未起步 | 部分 | 增量新建 | C3′ |
@@ -187,15 +187,15 @@
 
 ## §6 [X-SCALAR] owned 内核落点(数学可行性 + [F-6] 独立性走查)
 
-**当前落点态:** 标量家族是 fallback 骨架(`ScalarExtensionPlugin.cpp:16`,无 body/EmitC/runtime ABI;`ScalarDialect.cpp:7` 空 STUB)。两候选 owned 内核都是**净新增发射器**,非重构现有。
+**当前落点态(已落地):** 两候选 owned 内核**均已落地为净新增发射器**(非重构现有):主选三值 2-bit `vec_dot`(`f96f767a`)+ 保底 q4_0 `dequantize_row`(`2dd654d8`),前接曳光弹 `compute_skeleton`(`5c010b2b`,parse→verify→lower→byte-exact 纯标量 C 已贯通)。`ScalarExtensionPlugin` own `scalar.fallback`;F-6 双断言机检(989-LOC gtest + lit)已落。
 
 **数学素材已在向量路存在(可移植为标量路):**
 - 三值/2-bit 点积走 **base-3 trit 拆包 + 整数 MAC,非 XOR-popcount**(`RVVToEmitCTernaryBinary.cpp:1981` "(A) the BASE-3 trit unpack",`:1985` `xi-1` 三值映射);**全仓 `popcount` grep=0** → [J-3] "低比特不走 popcount" 代码级 CONFIRM。
 
 | 候选 | 可行性 | 依据 | 判据① |
 |---|---|---|---|
-| **主选 = 三值 2-bit `vec_dot` 标量路** | **可行** | 2-bit 位域抽取=base-I;`xi-1`=base-I 减法;整数点积=标量累加;等价体已在 tq2_0 向量路 byte-exact(`RVVScheduleDescriptorRegistry.cpp:266-283`) | A 类热内核(最强) |
-| **保底 = q4_0 `dequantize_row` 标量路** | **可行** | 逐元素 nibble 抽取,无归约,字节精确近乎 by-construction | 辅助算子(较弱) |
+| **主选 = 三值 2-bit `vec_dot` 标量路** | **已落地** | 2-bit 位域抽取=base-I;`xi-1`=base-I 减法;整数点积=标量累加;标量路 byte-exact golden 已落(`f96f767a`;向量路等价体 `RVVScheduleDescriptorRegistry.cpp:266-283`) | A 类热内核(最强) |
+| **保底 = q4_0 `dequantize_row` 标量路** | **已落地** | 逐元素 nibble 抽取,无归约,字节精确近乎 by-construction(`2dd654d8`) | 辅助算子(较弱) |
 
 **[F-6] 独立性走查:** 每原语(2-bit 抽取 / `xi-1` / 整数 MAC)非向量 → 闭包 ∩ {rvv.*}=∅ 成立;判据④(向量缺席实例真实选中)**未验,落地必做**。
 
@@ -203,7 +203,7 @@
 - **zfh(标量半精)**:声明为 `scalar.zfh` 事实 → 闭包 ∩ {rvv.*}=∅,**独立性保持**;
 - **zvfh(向量半精)**:会把 `rvv.*` 拉进闭包 → **破坏 [F-6],禁止**;
 - **软件 fp16→fp32(纯 base-I)**:不需新能力,**最干净的独立性叙事**。
-- 现仓 zfh 未作独立标量事实注册 → 这是 [X-SCALAR] 落地的**前置声明工作项**。
+- 现仓 `scalar.zfh`(标量半精,独立性保持)**未作独立标量事实注册** → 仍是 [X-SCALAR] 的**前置声明工作项(XS-M2)**。(注:向量族 `rvv.zvfh` 已注册 `95f1a482`,但那会把 rvv.* 拉进闭包、故**不用于标量路**——见上「禁止」条;二者是不同 fact。)
 
 ---
 
@@ -275,16 +275,16 @@
 
 | 贡献 | 满足 | 部分 | 缺失/越界 | 关键缺口 |
 |---|---|---|---|---|
-| **C1** | K-3;(GOV) | S-1/S-2/D-1/D-2a/D-4/P-1/X-SCALAR/C1-RW | F-2′/F-6/P-3/P-4/D-2b/D-3/S-5/S-6/S-3 | schema.def 工件化 + 独立家族 owned 内核 + 目录归拢 + 外部接入 |
+| **C1** | K-3;S-2;(GOV) | S-1/D-1/D-2a/D-4/P-1/X-SCALAR/C1-RW | F-2′/F-6/P-3/P-4/D-2b/D-3/S-5/S-6/S-3 | schema.def 工件化 + 独立家族 owned 内核(已落地,剩 F-6 判据④) + 目录归拢 + 外部接入 |
 | **C2** | — | LED-1/S-8 | LED-2/LED-3 | 自动 ledger + 第二家族(依赖 X-SCALAR)成曲线 |
-| **C3′** | R-6(结构翻转) | K-0/K-2/L-8/SEL-1/SEL-3/PAT-1/S-4/S-7/COV-2 | K-2b/K-3b/K-6/SEL-2/PAT-2/PAT-3/COV-3/COV-4/COV-5/X-ZVFH/X-ZVBB/PERF-1 | body 模式库(C_construct 主战场)+ 归因 JSONL + 先验层 + 覆盖率 CI |
+| **C3′** | R-6(结构翻转) | K-0/K-2/L-8/SEL-1/SEL-3/PAT-1/S-4/S-7/COV-2/X-ZVFH | K-2b/K-3b/K-6/SEL-2/PAT-2/PAT-3/COV-3/COV-4/COV-5/X-ZVBB/PERF-1 | body 模式库(C_construct 主战场)+ 归因 JSONL + 先验层 + 覆盖率 CI |
 | **工程** | GOV-1/GOV-3/NG-1235 6 | K-1/K-5/GOV-2 | F-3/K-4/F-1/COV-1/NG-4(越界) | 目录归拢 + 六态状态机 + CI + 越界清理 |
 
 ### 按等级
 
-- **满足/已满足(~8):** K-3、R-6、GOV-1、GOV-3、NG-1/2/3/5/6、PERF-1 门②。
-- **部分(~20):** F-1/F-4/F-5、S-1/S-2/S-4/S-7/S-8、P-1/P-2、D-1/D-2a/D-4、SEL-1/SEL-3、K-0/K-1/K-2/K-5/L-8、PAT-1、LED-1、COV-2、X-SCALAR/uarch、C1-RW、GOV-2。
-- **缺失(~22):** F-2′/F-3/F-6、S-3/S-5/S-6、P-3/P-4、D-2b/D-3、SEL-2、K-2b/K-3b/K-4/K-6、PAT-2/PAT-3、LED-2/LED-3、COV-1/COV-3/COV-4/COV-5、X-ZVFH/X-ZVBB/X-AME/X-ZVQDOT、PERF-1(整体)。
+- **满足/已满足(~9):** K-3、S-2、R-6、GOV-1、GOV-3、NG-1/2/3/5/6、PERF-1 门②。
+- **部分(~20):** F-1/F-4/F-5、S-1/S-4/S-7/S-8、P-1/P-2、D-1/D-2a/D-4、SEL-1/SEL-3、K-0/K-1/K-2/K-5/L-8、PAT-1、LED-1、COV-2、X-SCALAR/X-ZVFH/uarch、C1-RW、GOV-2。
+- **缺失(~21):** F-2′/F-3/F-6、S-3/S-5/S-6、P-3/P-4、D-2b/D-3、SEL-2、K-2b/K-3b/K-4/K-6、PAT-2/PAT-3、LED-2/LED-3、COV-1/COV-3/COV-4/COV-5、X-ZVBB/X-AME/X-ZVQDOT、PERF-1(整体)。
 - **越界(1):** NG-4(beat 措辞)。
 
 ### TOP-10 优先动作(证据线优先,便宜且解锁最多 → 引擎线主战场 → 硬件)

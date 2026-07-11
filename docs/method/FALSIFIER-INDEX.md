@@ -18,11 +18,11 @@
 | **[F-3]** | 变更收容：接入 PR 仅触 `plugins/<family>/` + 表行 + docs | `科研目标总纲v2:107` · `.trellis/spec/plugin-protocol/locality-contract.md:76` | **无专属脚本**（结构原则，非机检门）；**前提 = 家族代码目录归拢**（当前单家族横跨 `lib/{Dialect,Plugin,Conversion,Target}/<fam>` → 不可判定） | 无 | **缺失 · 有界工作项**（gated on R2/R3 目录归拢；归拢后才可判定） |
 | **[F-4]** | 归因完备（[D-4] 分级：M1 查①②，M2+ 查③）；`only_feasible`/`static_order`/`prior`/`measured` 归因出口 | `科研目标总纲v2:108` | lit `test/Transforms/VariantSelection/attribution-jsonl.mlir`（归因 JSONL 出口 lit）；in-IR 归因属性在编译期选择阶段（D-4① 原料） | 无 | **部分**（编译期选择阶段富属性在位；JSONL 出口 + 调度/合法性阶段归因缺；不进 CI） |
 | **[F-5]** | fail-closed 模糊：随机删/伪造事实下非法 plan 全被拒（非误编译/误发射） | `科研目标总纲v2:109` | `tools/fuzz/f5_failclosed_fuzz.sh`（变异 valid typed-region → `tcrv-opt --tcrv-rvv-lower-to-emitc`，断言 graceful-diagnostic + 非零退出 + 不崩 + 不静默过）→ 产出 `experiments/active/result-tables/T1b_failclosed_runtime.csv`；lit 语料 `test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-*-fail-closed.test`（14 个） | 未进 CI（fuzz 可重跑，确定性指纹） | **在位可跑**（2026-07-07 发现 17/20 fail-closed，3 fail-OPEN = neg_qk/neg_weight_stride/neg_activ_stride，已记 T1b 不藏；未进 CI） |
-| **[F-6]** | 独立家族判据：变体能力谓词 implies 闭包 ∩ {rvv.*} = ∅（脚本化）+ 存在向量缺席实例使其变体 `only_feasible` 且真实被选中 | `科研目标总纲v2:110` · `core-invariants.md:84` | lit `test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir`（向量缺席标量家族 emittable）；受测家族 [X-SCALAR] 仍空桩（`lib/Dialect/Scalar/IR/ScalarDialect.cpp` 空 initialize） | 无 | **缺失 / 部分**（lit 资产存在；闭包∩rvv.*=∅ 脚本未建；`only_feasible` 真实选中未连；gated on [X-SCALAR] 家族落地） |
+| **[F-6]** | 独立家族判据：变体能力谓词 implies 闭包 ∩ {rvv.*} = ∅（脚本化）+ 存在向量缺席实例使其变体 `only_feasible` 且真实被选中 | `科研目标总纲v2:110` · `core-invariants.md:84` | lit `test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir`（向量缺席标量家族 emittable）+ gtest `test/Plugin/ScalarExtensionPluginTest.cpp`（F-6 双断言机检，989 LOC）；受测家族 [X-SCALAR] owned 内核**已落地**（tq2_0 `f96f767a` / q4_0 `2dd654d8` / 曳光弹 `5c010b2b`） | 无（gtest+lit 可跑，未作 F-6 CI job） | **部分**（家族 owned 内核 + lit + 989-LOC gtest 已落；剩闭包∩rvv.*=∅ 脚本化 + `only_feasible` 真实选中连线（判据④，XS-M3）） |
 
 **[P-3] 接入验收 = falsifier 组全绿**（`科研目标总纲v2:71`：[F-1..F-6]，独立家族含 F-6）。
 **M1 = 证据线闭合**目标（`科研目标总纲v2:211`）= F-1 / F-2′ / F-5 / F-6 进 CI。**当前只有 F-2′ 真进 CI**；
-F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3/F-6 gated on 目录归拢 / [X-SCALAR] 家族。
+F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3 gated on 目录归拢；F-6 家族 owned 内核**已落地**（`f96f767a`/`2dd654d8`/`5c010b2b` + 989-LOC gtest），剩闭包脚本 + `only_feasible` 真实选中（判据④，XS-M3）进 CI。
 
 ---
 
@@ -63,5 +63,5 @@ F-5 可跑未进 CI；F-1 零分支门 manifest 缺；F-3/F-6 gated on 目录归
 
 - **进 CI 的 falsifier**：**F-2′**（唯一 [F-1..F-6] 真进 CI）+ [F-EMIT] / opponent-pin / monolith-retire / cert-三要件 / RETIRED-INDEX。
 - **可跑未进 CI**：F-5（fuzz，17/20，3 fail-OPEN 已记 T1b）。
-- **部分**：F-1 shape 门（可跑）/ F-4（编译期富属性在位、JSONL 出口缺）。
-- **缺失 / gated**：F-1 零分支 manifest（缺 manifest+CI+判读规程）· F-3（gated on R2/R3 目录归拢）· F-6 闭包脚本（gated on [X-SCALAR] 家族）。
+- **部分**：F-1 shape 门（可跑）/ F-4（编译期富属性在位、JSONL 出口缺）/ F-6（家族 owned 内核 + lit + 989-LOC gtest 在位；闭包脚本 + `only_feasible` 真实选中缺）。
+- **缺失 / gated**：F-1 零分支 manifest（缺 manifest+CI+判读规程）· F-3（gated on R2/R3 目录归拢）· F-6 闭包脚本（家族 owned 内核已落地；剩闭包脚本 + `only_feasible` 真实选中 = XS-M3）。
