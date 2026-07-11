@@ -1,9 +1,0 @@
-# line: line-D-f5 — F-5 fail-closed verifier fuzz → T1b runtime evidence row.
-# Write scope is DISJOINT from other lines: only the F-5 fuzz harness under
-# tools/ and the T1b result-table cell + its regenerated INDEX. No lib/ include/
-# schema/ touches (this line reads the verifier, never edits it).
-tools/fuzz/
-experiments/active/result-tables/T1b_failclosed_runtime.csv
-experiments/active/result-tables/MANIFEST.md
-experiments/INDEX.md
-.touch-set/line-D-f5.txt

@@ -295,3 +295,16 @@ per-cell MANIFESTs still register them, so `check_index_consistency` (per-cell d
 "registered but MISSING" until the MANIFESTs drop them and `experiments/INDEX.md` is regenerated. The
 full recipe is in the task hand-off (git rm + 3 MANIFEST edits + gen_experiments_index.py + optional
 `.gitignore`). This section (a tier-root doc, exempt from per-cell drift) does NOT itself affect the gate.
+
+---
+
+## 10. VC-cleanup: C7 artifacts scratch (5) + C8 stale per-line touch-set (4) removed (卫生档B·TEMPLATE-AUDIT C7/C8·2026-07-12)
+
+非 kernel/证据·**不涉 RETIRED-INDEX vec_dot 闸**（那是 op/format monolith 退役专用）·纯 scratch/config housekeeping·复原指针 git `b3e3fef4`。
+
+| # | 路径 | 类 | 退役依据 | 复原指针 |
+|---|---|---|---|---|
+| C7 | `artifacts/{grill-consensus-20260515, grill-rvv-maturity-ladder-2026051{8,9}, tianchenrv_rvv_gearbox_autotuning_pass_v3, trellis_spec_audit_prompt}.md` | pre-refactor scratch/prompt (2026-05) | 散在 artifacts 根·非证据·对应 task 已归档 | b3e3fef4 |
+| C8 | `.touch-set/{line-C-iq2s, line-D-f5, line-xscalar-f6, line-xscalar}.txt` | per-line 触碰集 scratch | 对应线已落地·stale（保留 `_example.txt`+`README.md`）·活动线用 `.touch-set/ACTIVE` | b3e3fef4 |
+
+ref-check: 无 load-bearing 引用（.touch-set 自引 + `.trellis/backup/tasks-archive/` 历史 prose 提及·非依赖·TEMPLATE-AUDIT 报告 append-only 存档不改）。C9（parallel-writer-leftover·已不在树）· C10（`.worktrees/cache/` gitignored disk·可能在用·不动）。
