@@ -47,7 +47,7 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 ## ★测量欠账表（常驻 · 对账实验总纲 T 表 · 精填 2026-07-11 AUDIT `docs/reports/2026-07-11-perf-covered-baseline.md`）
 | T 表 | 现状（精算） | 欠账 |
 |---|---|---|
-| T3（格×杠杆对位） | **FLAT 5 内核轴对称幸存**（f78ad2da·gcc-symmetric·[GAP-FLAT-E2E-ROUTING]）+ **流式 8 格铺面③**（813f6462·parity-physical 4[dequant/q8_0·quant/q8_0·q8_K·forward/gelu 满分]·具名 GAP 3·split iq4_nl）｜ iq/tq 8 行 LOSS | **3 新具名 GAP（emitter 成熟可修·非物理墙）**：[GAP-DEQ-KQUANT-UNPACK]·[GAP-FWD-M8-VSETVL]·★**[GAP-CLANG-GATHER-TRAP]**（iq4_nl vluxei 索引-gather 陷阱·clang-ours 拖后腿·K-quant S6 不对称镜像·真赢潜伏）· K-quant 全族对称重填 |
+| T3（格×杠杆对位） | **FLAT 5 内核轴对称幸存**（f78ad2da·gcc-symmetric·[GAP-FLAT-E2E-ROUTING]）+ **流式 8 格铺面③**（813f6462·parity-physical 4·具名 GAP 3·split iq4_nl）｜ iq/tq 8 行 LOSS ｜ ✅**3 GAP 修复评估已 triage**（`docs/reports/2026-07-12-三具名GAP修复评估.md`·wez16hgku·全 Amdahl <噪声地板→**C3′ 机制名义·无一 perf 立项**·perf-covered 新绿 0） | **triage 结果（非 perf 杠杆）**：[GAP-DEQ-KQUANT-UNPACK]=LAW-FIRST 第5例+**诚实反例**（修完 e2e-inert·off 热路）·[GAP-FWD-M8-VSETVL]=机制未证（须 objdump-first·低产）·★**[GAP-CLANG-GATHER-TRAP]**=**新第5根因类**（deploy-autovec-roulette+可路由 uarch quirk·真赢潜伏在**分离热 vec_dot iq 族**非本冷叶·scalar-pin robust 4.8×·实例化 `uarch.vrgather_slow` P6）· K-quant 全族对称重填 |
 | T3p（模式消融） | **★落地（658e5c0f·6 行:P1/P2/P2b/P4/P7+winc）** | 机理声明获数据判决:获支持(P1/P4-HOLDS/P7)·被证伪(P2/winc/P4-class2)·structural-NULL 教材(winc/P4 q6_K)·命名碰撞警示喂 [RENAME] |
 | T4b（选择器四配置消融） | **★落地（13706e79·四配置消融表）** | 矩阵静默落败复现/消失·4 消融硬断言+变异证判别力·机制 C3′ |
 | T5b（2×2 范式×布局×M） | **骨架起步·q4_0@ime 首批行**（a9d7a9c6·6 cell·M{1..512}·k1·ZERO-MODEL 闸） | 铺 q8_0/q4_K@ime·GAP 关闭后重测 |
@@ -93,10 +93,10 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=3·2026-07-12 度假期全自主·接线板批 ‖ 本地）
+## 在飞（★当前并行度 N=2·2026-07-12 度假期全自主·接线板批 ‖ host·③ GAP 评估已收）
 - **① q4_K 曳光弹（L-接线②·板接线·workflow `wyhnspmt6`）**：recon q4_K 上游链路完整度（M2-recon 记 chain 多数已建+deploy_patch 存·仅缺 gguf provisioning）→ 补缺（provisioning+scaffold if missing）+ emit q4_K kernel → deploy **correctness-first**（破损上游检查防 MIRAGE）→ e2e 分相 → **perf-covered 3→4/84**·scaffold 建法文档化供 q5_0/q5_1 复用。
 - **② 张力A selector-fix（lib/selector 域·workflow `wrt3za9le`·host-primary）**：M1b decode 3.812× 证伪 selector lean-decline → 能力键控 route q8_0（非 measured-guard·守 static_order/SEL-1 canon）→ selector-自然路由（**强化**已追认的 q8_0 绿格·非 gate）。撞 canon 级变更则停+surface。
-- **③ 三具名 GAP 修复评估（本地 read-only·不占板批·workflow `wez16hgku`）**：[GAP-CLANG-GATHER-TRAP]（真赢潜伏·S6 镜像）/[GAP-DEQ-KQUANT-UNPACK]/[GAP-FWD-M8-VSETVL] 根因+可修性+Amdahl 上限+排序 → 报告。
+- ✅ **③ 三具名 GAP 修复评估（wez16hgku·报告 `docs/reports/2026-07-12-三具名GAP修复评估.md`）**：全 Amdahl <噪声→C3′ 机制名义·无一 perf 立项·perf-covered 新绿 0（LAW-FIRST 第5-6例入档）。GAP-CLANG-GATHER 真赢潜伏在**分离热 vec_dot iq 族**（未来 parity 杠杆·iq 少数部署·低优先）。
 - ✅ **G5-M1b（55022402·★R1 HIT·4.35×/3.81× 双 DIFFERENCE·correctness-carrier）→ q8_0 追认 perf-covered 3/84**（用户裁 2026-07-12·full-stack 无星号绿格·登记 `2026-07-12-perf-covered-q8_0-green-3of84.md`）。M2-recon 证干净链路层仅 q8_0（→三级分层）。
 - ✅ **G5-M1 曳光弹 q8_0（f8b8dabb·R4 RED·[GAP-Q8_0-VLEN128-KERNEL]·correctness-gate-catches-mirage）**。
 
