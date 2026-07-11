@@ -93,11 +93,15 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 2. **M4 终局对账清单（简报快照必引 · 缺项即简报不合格）**：① 三分类全表指针（判定书 `docs/reports/2026-07-11-M4-分母正名核查判定书.md` + 终态全表 `2026-07-11-M4-三分类终态全表.md`[Line D 产出]）② sealed Win 登记册 `docs/reports/SEALED-WIN-REGISTRY.md` ③ 双账本性能底账（kernel/系统 + compiler-identity）④ 三案例卷宗（[CASE-MINTERM] 结 / [CASE-COMPILER-ASYMMETRY] / [CASE-MICRO-E2E]）⑤ C2 诚实标注（IME 1/≥3 曲线）⑥ 在飞队列（IME 立项 / [X-SCALAR] / [RENAME] / static_order→prior / 写作[远期]）⑦ **★anti-gate 铁证（论文方法学可引）**：分母正名任何裁决组合都 <90%（86.02/87.9/89.0），越门须额外逐出 IME 3 格（→90.9%）而判定书明文拒绝、主动停 87.9% = "分母修正非为过门"的自证。
 3. **域外声明名单**（Line E/D 产出·永久可查）：bf16/all、flash_attn/tile —— 分母之外、附 [G-2]/C类/[NG-2] 依据 + 红队记录；退役账本走 **RETIRED-INDEX**（.td+JSON 合并·CI 校验一切已退役格 ⊆ 索引且四要件非空）= 去记忆化、错误退役由 CI 拦。
 
-## 在飞（★当前并行度 N=2 · T6 e2e 传导立项·两批异板并行 · 板批攒批·按批报行·无回门点）
-- **T6 batch-rvv（FLAT 5+K-quant e2e·rvv 板）· agent a9568b16**：整模型 llama-bench 分相 prefill/decode·col-outer 杠杆·验 FLAT 5 [GAP-FLAT-E2E] kernel 赢是否 e2e 传导·双账本+八门+对手探针+部署五验+传导会计四列·转绿则入 SEALED-WIN。
-- **T6 batch-k1（IME 3+K-quant e2e·k1 板）· agent acbabb2d**：先 scout IME 是否 wired 进 forward（未集成→具名 [GAP-IME-E2E-INTEGRATION] 高价值 negative）·IME prefill 矩阵/decode RVV 照 T5c 先验·q4_K vl16 补 T6 行·传导会计诚实不冒绿。
-- 判读预注册（⑦无回门）：每格 e2e ≥parity 且过 T-N+八门全绿 → **perf-covered 转绿**+SEALED-WIN 候选；传导稀释/集成缺 → 传导会计四列入表·记 kernel-axis-only+具名 GAP。**以实测为准·禁提前庆**（预期 2/84→潜在 10/84）。
-- ✅ 本轮已收：**[GAP-IME-LEAF-PIPELINE] 全闭环**（线甲a 2f1af5c8 emitter→线甲b 9c3dcfec k1 硅证 ~2.09×→线甲c 11358834 T5c M* 写回先验=C3′ 范式杠杆闭环）· **线乙 铺面①（f78ad2da·FLAT 5 内核轴对称幸存 gcc-symmetric）** · [T8·LAW-FIRST-EMISSION] · [G4-M3] T5b · **CLAUDE.md 禁停机制增补（d078fba3）**
+## 在飞（★当前并行度 N=1 · T6 batch-rvv finalize · 串行理由=batch-k1 已收·铺面③-⑤ 板攒批在后）
+- **T6 batch-rvv（FLAT 5+K-quant e2e·rvv 板·finalize q4_0）· agent a9568b16**：结构结论已定（VLEN128 板仅 q4_0 wired 进 forward·q4_1/q5_0/q5_1/q8_0/q4_K 未路由=[GAP-FLAT-E2E-ROUTING]）·finalize q4_0 分相传导数（q4_0 有 routing 路径·可能确认既有 5.9×）。
+- ✅ 本轮已收：**T6 batch-k1（46be704e·★[GAP-IME-E2E-INTEGRATION] 确认·tcrv IME 核未 wired 进 forward=集成缺口非壁垒·0 格转绿·厂商 IME 天花板参照证即便接线在内存墙也不传导[micro↛e2e]·perf-covered 管道瓶颈精确定位=接线+micro↛e2e 封顶）** · **[GAP-IME-LEAF-PIPELINE] 全闭环**（2f1af5c8→9c3dcfec→11358834·C3′ 范式杠杆闭环）· 线乙 铺面①（f78ad2da）· [T8·LAW-FIRST-EMISSION] · CLAUDE.md 禁停机制（d078fba3）
+
+## ★T6 关键发现（perf-covered 管道真实瓶颈·2026-07-11）
+**perf-covered 从 2/84 拉绿的真瓶颈 = 集成/接线（tcrv 核多数未 wired 进 forward）+ micro↛e2e 封顶**（非 kernel 质量）：
+- **接线缺口**：板 ggml 唯一 wired 的 tcrv 核 = RVV q4_0 repack（VLEN256·5.9× routing）。IME 3 格 + q4_K vl16 + FLAT 4 格（VLEN128）**均未接进 forward** → 具名 [GAP-IME-E2E-INTEGRATION]/[GAP-KQUANT-E2E-INTEGRATION]/[GAP-FLAT-E2E-ROUTING]（集成缺口非壁垒·桥机制存在[q4_0 repack 先例]·从未为这些格建过）。
+- **micro↛e2e 封顶**：厂商 IME 天花板参照（best-case·NOT tcrv）证即便完全接线·在内存墙 1B 模型 decode regime 也无 cleanly-isolated IME-unit e2e win → 我方 compute-account ~2× 即使接线也不传导。
+- **含义**：perf-covered 拉绿的管道 = **先建 tcrv-核→ggml-forward 桥（部署战役·类比 q4_0 repack）+ 受 micro↛e2e 律封顶**。这些内核轴对称候选（FLAT 5+IME 3）的结构 cert + kernel 轴赢是真成就·e2e 集成缺是**披露边界非失败**。
 - ✅ 本轮已收：**[G4-M3] T5b 骨架（a9d7a9c6·[GAP-IME-LEAF-PIPELINE] 具名·T5c 落地条件预注册·对手 SELF 八门未启）** · **[T8·LAW-FIRST-EMISSION] 元规律立卷（`docs/method/LAW-FIRST-EMISSION.md`·四例同律：K-quant S6/col-outer/vl16/IME leaf-pipeline·C3′ 实证·perf-covered 变绿依据）** · **[TEMPLATE-AUDIT]（f1afb157·perf-covered 基线·清理清单）**
 - ✅ 本轮全落（M4 收口五线）：**[D] M4 三分类终态达成 certified 81/91=89.01%·q1_0 dequant 实跑 byte-exact 翻正（6dcb5db4）** · **[E] 退役账本收口·RETIRED-INDEX·CI 去记忆化（0e3edba1）** · **[SEL-1-T5] cost-model 能力先验·P7 enabler（2942f603）** · **[A] 分母正名判定书·红队 0 改判·★anti-gate 铁证（bf5f7523）** · **[C] IME 报告上桌·M4-linkage 两事合流（e82195fe）**
 - ✅ 前序已收：mxfp4 退役·★旁路清零（91aafd23）· tq1_0/tq2_0 dequant（b1edc0fc）· ★Win-K1-VLEN RATIFIED · CERT-FD 全闭合 · 定位升级 · [CASE-MICRO-E2E]
