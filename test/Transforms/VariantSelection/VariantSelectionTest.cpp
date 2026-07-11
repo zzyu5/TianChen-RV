@@ -1781,6 +1781,159 @@ module {
   return 0;
 }
 
+// [SEL-2] cross-paradigm silent-misfire FALSIFIER + capability-prior commit-timing lock
+// (G4 IME campaign M0, 实验总纲 T4b persistent negative control).
+//
+// Reproduces — as a regression guard that runs every check-tianchenrv — the
+// "matrix/vector co-bid silent misfire" the exec-level capability prior closes:
+//
+//   * BAD config (capability-BLIND constant scores == the pre-SEL-1-T5 IME plugin:
+//     matrix score 20.0 > vector base 1.0 under the registry's ASCENDING stable_sort):
+//     for a whole-matrix GEMM co-bid the matrix paradigm SILENTLY loses — chosen =
+//     vector, NO error. This is the P7 潜伏错选 ([SEL-2]).
+//   * GOOD config (capability-DERIVED prior == post SEL-1-T5: matrix score 0.5 < vector
+//     base 1.0): the SAME GEMM co-bid → chosen = matrix. The prior makes the misfire
+//     vanish.
+//   * The two verdicts DIFFER (bad chosen = vector, good chosen = matrix): the assertion
+//     that proves the prior layer actually removes the misfire, not merely that a good
+//     config happens to work.
+//
+// The constant scores are INJECTED via a test plugin (the sanctioned constant-score
+// path — the real plugin cannot re-emit its old blind 20 for a GEMM shape now that
+// SEL-1-T5 landed). The capability-DERIVATION of the 0.5-vs-20 scores from the
+// spacemit.ime ime_matmul_shape fact is proven separately against the PRODUCTION RVV +
+// IME plugins by test/Transforms/VariantSelection/capability-prior-ime-gemm-over-rvv.mlir.
+// This falsifier and that lit are the two halves of the same closure: the lit proves the
+// score is derived; this test proves the two score regimes flip the winner.
+//
+// [SEL-2] hard timing obligation (capability prior consulted BEFORE variant commit):
+// planKernelVariantSelection consults the prior (via rankKernelVariantsByCost) to build
+// the plan; the commit (materializeSelectedVariantMarker) is a strict downstream consumer
+// of that already-built plan. We lock this by asserting the COMMITTED marker carries the
+// derived prior score (0.5) and targets the derived winner — a commit artifact cannot
+// carry the prior's verdict unless the prior ran first.
+int runSel2CrossParadigmMisfireFalsifierTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @gemm_cobid attributes {} {
+    tcrv.exec.capability @compute_base {
+      id = "compute.base",
+      kind = "toolchain"
+    }
+    tcrv.exec.variant @vector_paradigm_body attributes {
+      origin = "vector-paradigm",
+      requires = [@compute_base]
+    } {
+    }
+    tcrv.exec.variant @matrix_paradigm_body attributes {
+      origin = "matrix-paradigm",
+      requires = [@compute_base]
+    } {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse SEL-2 cross-paradigm falsifier module");
+
+  KernelOp gemmKernel = findKernel(*module, "gemm_cobid");
+  VariantOp vectorVariant =
+      findDirectVariant(gemmKernel, "vector_paradigm_body");
+  VariantOp matrixVariant =
+      findDirectVariant(gemmKernel, "matrix_paradigm_body");
+  if (int result = expect(gemmKernel && vectorVariant && matrixVariant,
+                          "GEMM co-bid kernel exposes a vector and a matrix "
+                          "paradigm variant"))
+    return result;
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(gemmKernel);
+
+  // BAD config: capability-blind constant scores (pre-SEL-1-T5). Matrix 20 > vector 1.
+  SelectionCostPlugin vectorBaseBlind("vector-paradigm", 1.0);
+  SelectionCostPlugin matrixBlind("matrix-paradigm", 20.0);
+  ExtensionPluginRegistry blindRegistry;
+  if (int result = expectSuccess(blindRegistry.registerPlugin(vectorBaseBlind),
+                                 "register blind vector base"))
+    return result;
+  if (int result = expectSuccess(blindRegistry.registerPlugin(matrixBlind),
+                                 "register blind matrix constant"))
+    return result;
+
+  auto blindPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+      gemmKernel, capabilities, blindRegistry);
+  if (!blindPlanOrError)
+    return fail("blind-config selection failed: " +
+                llvm::toString(blindPlanOrError.takeError()));
+  VariantSelectionPlan blindPlan = std::move(*blindPlanOrError);
+  if (int result =
+          expect(blindPlan.kind == VariantSelectionKind::StaticVariant &&
+                     blindPlan.selectedVariant == vectorVariant,
+                 "BAD config MISFIRES: blind ascending 20>1 silently picks the "
+                 "vector paradigm for the GEMM (matrix loses, no error)"))
+    return result;
+
+  // GOOD config: capability-derived prior (post SEL-1-T5). Matrix 0.5 < vector 1.
+  SelectionCostPlugin vectorBaseDerived("vector-paradigm", 1.0);
+  SelectionCostPlugin matrixDerived("matrix-paradigm", 0.5);
+  ExtensionPluginRegistry derivedRegistry;
+  if (int result =
+          expectSuccess(derivedRegistry.registerPlugin(vectorBaseDerived),
+                        "register derived vector base"))
+    return result;
+  if (int result = expectSuccess(derivedRegistry.registerPlugin(matrixDerived),
+                                 "register derived matrix prior"))
+    return result;
+
+  auto derivedPlanOrError = tianchenrv::transforms::planKernelVariantSelection(
+      gemmKernel, capabilities, derivedRegistry);
+  if (!derivedPlanOrError)
+    return fail("derived-config selection failed: " +
+                llvm::toString(derivedPlanOrError.takeError()));
+  VariantSelectionPlan derivedPlan = std::move(*derivedPlanOrError);
+  if (int result =
+          expect(derivedPlan.kind == VariantSelectionKind::StaticVariant &&
+                     derivedPlan.selectedVariant == matrixVariant,
+                 "GOOD config: capability-derived 0.5<1 prior picks the matrix "
+                 "paradigm for the GEMM (misfire eliminated)"))
+    return result;
+
+  // The verdicts DIFFER: this is the load-bearing falsifier assertion that the prior
+  // layer really removes the silent misfire (bad chosen = vector, good chosen = matrix).
+  if (int result =
+          expect(blindPlan.selectedVariant != derivedPlan.selectedVariant &&
+                     blindPlan.selectedVariant == vectorVariant &&
+                     derivedPlan.selectedVariant == matrixVariant,
+                 "capability prior flips the GEMM winner vector->matrix: the "
+                 "blind-config misfire is gone under the derived prior"))
+    return result;
+
+  // [SEL-2] timing: the COMMIT is a strict downstream consumer of the prior-built plan.
+  // Materialize from the GOOD plan and assert the marker carries the derived prior score
+  // and targets the derived winner — proving the prior was consulted before the commit.
+  mlir::OpBuilder builder(&context);
+  DiagnosticOp marker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, derivedPlan, &marker),
+          "materialize the capability-prior-committed selected marker"))
+    return result;
+  std::optional<double> committedScore =
+      getFloatAttr(marker.getOperation(), "preference_score");
+  if (int result =
+          expect(marker && getTarget(marker.getOperation()) ==
+                               matrixVariant.getSymName() &&
+                     getStringAttr(marker.getOperation(), "selection_kind") ==
+                         "static-variant" &&
+                     committedScore.has_value() && *committedScore == 0.5,
+                 "[SEL-2] commit consumes the prior: committed marker targets "
+                 "the matrix variant and carries the derived prior score 0.5"))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -1817,6 +1970,8 @@ int main() {
   if (int result = runMaterializationNegativeTests(context))
     return result;
   if (int result = runCostFailurePropagationTests(context))
+    return result;
+  if (int result = runSel2CrossParadigmMisfireFalsifierTest(context))
     return result;
 
   llvm::outs() << "variant selection planning smoke test passed\n";

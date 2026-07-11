@@ -14,6 +14,18 @@
 //
 // RUN: tcrv-opt %s --tcrv-check-capability-requires --tcrv-verify-plugin-variant-legality "--tcrv-select-variants=attribution-jsonl=%t.jsonl attribution-jsonl-no-timestamp" -o /dev/null
 // RUN: FileCheck %s --input-file=%t.jsonl
+//
+// Full-chain closure (选择 -> 归因 -> 材化 commit) + [SEL-2] hard timing obligation
+// (G4 IME campaign M0). The two RUN lines above prove the SELECTION and the ATTRIBUTION
+// (JSONL: candidates/score/chosen/reason). This third RUN re-runs the SAME pipeline
+// WITHOUT discarding the IR and asserts the COMMITTED selected-path marker the selector
+// materializes. That marker carries the capability-DERIVED prior score (0.5) AND targets
+// the IME matrix variant — closing the chain to the actual IR mutation and, at the same
+// time, locking the [SEL-2] timing contract: a commit artifact cannot carry the prior's
+// derived score / derived winner unless the capability prior was consulted BEFORE the
+// commit. The `prior` reason enum flip is a SEPARATE canon-gated burn-down step and is
+// deliberately NOT performed here; the attribution reason stays `static_order`.
+// RUN: tcrv-opt %s --tcrv-check-capability-requires --tcrv-verify-plugin-variant-legality --tcrv-select-variants | FileCheck %s --check-prefix=COMMIT
 
 module {
   // ime.present derives a whole-matrix GEMM (ime_matmul_shape): the IME matrix
@@ -123,3 +135,22 @@ module {
     }
   }
 }
+
+// --- Full-chain / [SEL-2] timing COMMIT assertions -------------------------------
+//
+// GEMM kernel: the capability-derived prior (IME matrix 0.5 < RVV vector 1.0) is
+// COMMITTED. The materialized selected-path marker targets the IME matrix variant and
+// carries the derived prior score on the commit artifact — the prior ran before commit.
+// COMMIT: tcrv.exec.diagnostic {message = "static variant selected
+// COMMIT-SAME: preference_score = 5.000000e-01 : f64
+// COMMIT-SAME: reason = "variant-selected"
+// COMMIT-SAME: selection_kind = "static-variant"
+// COMMIT-SAME: target = @ime_vmadot_matmul_slice
+//
+// Fragment kernel: same two surfaces, but the capability derives a single MAC fragment
+// (score 20 > 1) so the vector base is COMMITTED — the marker targets the RVV variant
+// and carries the vector-base score. Winner tracks the capability fact end-to-end.
+// COMMIT: tcrv.exec.diagnostic {message = "static variant selected
+// COMMIT-SAME: preference_score = 1.000000e+00 : f64
+// COMMIT-SAME: reason = "variant-selected"
+// COMMIT-SAME: target = @rvv_typed_body
