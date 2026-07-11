@@ -1,0 +1,9 @@
+mode,fmt,family_form,opponent,byte_exact,deploy_clang_ratio,kernel_gcc_ratio,ours_GBs_clang,opp_GBs,roofline_class,exit
+dequant,q8_0,flat,ggml_dequantize_row_q8_0(base.so),yes(maxrel0),0.9815,0.8563,3.705,3.775,mem-bound-scalar-3.8GBs,parity-physical
+dequant,q4_K,super-block,ggml_dequantize_row_q4_K(base.so),yes(maxrel0),0.8790,0.6362,2.999,3.411,mem-bound-scaleunpack-3.0GBs,named-gap-DEQ-KQUANT-UNPACK
+dequant,iq4_nl,codebook,ggml_dequantize_row_iq4_nl(base.so),yes(maxrel0),0.9375,4.8253,0.545,0.581,compute-bound-gather-0.55GBs,split-deploy-parity_kernel-candidate-4.83x-blocked-CLANG-GATHER-TRAP
+quant,q8_0,flat,ggml_quantize_row_q8_0(cpu.so),yes(bytediff0),0.9880,0.9995,2.815,2.849,mem-bound-2.8GBs,parity-physical
+quant,q8_K,super-block,ggml_quantize_row_q8_K(cpu.so),yes(bytediff0),1.0774,0.9847,2.604,2.417,mem-bound-2.5GBs,parity-physical
+forward,add,binary-vector-map,transcribed-ggml_vec_add_f32(gcc-autovec),yes(maxrel0),0.8300,0.8101,7.335,8.837,near-wall-7.3GBs,named-gap-FWD-M8-VSETVL
+forward,mul,binary-vector-map,transcribed-ggml_vec_mul_f32(gcc-autovec),yes(maxrel0),0.7649,0.7621,6.359,8.314,near-wall-6.4GBs,named-gap-FWD-M8-VSETVL
+forward,gelu,unary-scalar-map,transcribed-ggml_gelu_f32-tanh-ref,yes(maxrel1.31e-6),0.9910,1.0002,0.106,0.107,compute-bound-tanhf-0.11GBs,parity-physical(LUT-deploy-caveat)

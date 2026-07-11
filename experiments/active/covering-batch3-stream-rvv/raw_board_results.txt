@@ -1,0 +1,42 @@
+# covering-batch③ streaming kernel-axis paired A/B -- RAW board results
+# board: rvv (localhost.localdomain / openEuler 24.03 / VLEN128 / rv64gcv+zfh+zvfh / 64c / core40 perf-gov)
+# date: 2026-07-11T12:11Z  HEAD 11e86139 (no git; main tree + build/ untouched)
+# ggml opponent md5: d1adc634c2ca04ffc389536b30d9d9c4 (libggml-cpu.so.0) / 1b4580c4f248c91cad26fccc617415e1 (libggml-base.so.0)
+# toolchains: deploy clang 18.1.8 / kernel-symmetric gcc 15.2.0 ; driver+link ALWAYS g++-15 (neutral)
+# N=25165824 elems, rounds=15, taskset -c 40, best-of paired alternation, median reported
+# ledger: only OUR kernel .o codegen varies (clang deploy / gcc kernel-symmetric); opponent fixed gcc-15 .so
+#         (forward opponents are transcribed ggml_vec_* refs, gcc-autovec, symmetric both ledgers)
+
+### self-check (3x deq q8_0 clang) -- IQR baseline << noise-floor*1.5
+RESULT ledger=clang mode=dequant fmt=q8_0 GATE=PASS(maxrel=0) ours_GBs=3.734 opp_GBs=3.810 ratio=0.9800 ours_iqrpct=0.17
+RESULT ledger=clang mode=dequant fmt=q8_0 GATE=PASS(maxrel=0) ours_GBs=3.701 opp_GBs=3.771 ratio=0.9814 ours_iqrpct=0.19
+RESULT ledger=clang mode=dequant fmt=q8_0 GATE=PASS(maxrel=0) ours_GBs=3.747 opp_GBs=3.785 ratio=0.9900 ours_iqrpct=0.14
+
+### DEQUANT reps (q8_0 flat / q4_K super-block / iq4_nl codebook) -- opponent = ggml dequantize_row_<fmt> (base .so)
+RESULT ledger=clang mode=dequant fmt=q8_0   GATE=PASS(maxrel=0)       ours_GBs=3.705 opp_GBs=3.775 ratio=0.9815 iqr=0.13
+RESULT ledger=gcc   mode=dequant fmt=q8_0   GATE=PASS(maxrel=0)       ours_GBs=3.229 opp_GBs=3.771 ratio=0.8563 iqr=0.13
+RESULT ledger=clang mode=dequant fmt=q4_K   GATE=PASS(maxrel=0)       ours_GBs=2.999 opp_GBs=3.411 ratio=0.8790 iqr=1.73
+RESULT ledger=gcc   mode=dequant fmt=q4_K   GATE=PASS(maxrel=0)       ours_GBs=2.162 opp_GBs=3.398 ratio=0.6362 iqr=8.25
+RESULT ledger=clang mode=dequant fmt=iq4_nl GATE=PASS(maxrel=0)       ours_GBs=0.545 opp_GBs=0.581 ratio=0.9375 iqr=0.39
+RESULT ledger=gcc   mode=dequant fmt=iq4_nl GATE=PASS(maxrel=0)       ours_GBs=2.789 opp_GBs=0.578 ratio=4.8253 iqr=3.05
+#   iq4_nl reproducibility: clang 0.9381/0.9371/0.9376 ; gcc 4.8347/4.8137/4.8307 (rock-stable, NOT noise)
+
+### QUANT reps (q8_0 / q8_K) -- opponent = ggml quantize_row_<fmt> (cpu .so, arch-dispatched, vectorized)
+RESULT ledger=clang mode=quant fmt=q8_0 GATE=PASS(bytes_diff=0)      ours_GBs=2.815 opp_GBs=2.849 ratio=0.9880 iqr=0.11
+RESULT ledger=gcc   mode=quant fmt=q8_0 GATE=PASS(bytes_diff=0)      ours_GBs=2.849 opp_GBs=2.850 ratio=0.9995 iqr=0.13
+RESULT ledger=clang mode=quant fmt=q8_K GATE=PASS(bytes_diff=0)      ours_GBs=2.604 opp_GBs=2.417 ratio=1.0774 iqr=0.56
+RESULT ledger=gcc   mode=quant fmt=q8_K GATE=PASS(bytes_diff=0)      ours_GBs=2.371 opp_GBs=2.408 ratio=0.9847 iqr=0.80
+
+### FORWARD reps (add / mul vector-map ; gelu scalar-map) -- opponent = transcribed ggml_vec_* ref (gcc-autovec)
+RESULT ledger=clang mode=forward fmt=add  GATE=PASS(maxrel=0)         ours_GBs=7.335 opp_GBs=8.837 ratio=0.8300 iqr=0.19
+RESULT ledger=gcc   mode=forward fmt=add  GATE=PASS(maxrel=0)         ours_GBs=7.043 opp_GBs=8.695 ratio=0.8101 iqr=0.96
+RESULT ledger=clang mode=forward fmt=mul  GATE=PASS(maxrel=0)         ours_GBs=6.359 opp_GBs=8.314 ratio=0.7649 iqr=0.40
+RESULT ledger=gcc   mode=forward fmt=mul  GATE=PASS(maxrel=0)         ours_GBs=6.335 opp_GBs=8.313 ratio=0.7621 iqr=0.62
+RESULT ledger=clang mode=forward fmt=gelu GATE=PASS(maxrel=1.31e-6)   ours_GBs=0.106 opp_GBs=0.107 ratio=0.9910 iqr=0.04
+RESULT ledger=gcc   mode=forward fmt=gelu GATE=PASS(maxrel=1.31e-6)   ours_GBs=0.107 opp_GBs=0.107 ratio=1.0002 iqr=0.03
+
+### objdump attribution -- iq4_nl codebook gather trap (mechanistic root of the ledger split)
+# our gcc  iq4_nl kernel: 0 RVV insns -> FULLY SCALAR (32 lb + 16 lbu codebook lookup, 33 fcvt, 32 fmul) = 2.79 GB/s
+# our clang iq4_nl kernel: vluxei32.v x2 (indexed gather) + vfwcvt + vfmul = 0.545 GB/s  (gather = perf trap)
+# opp ggml iq4_nl (gcc):   vluxei64.v x2 (indexed gather) + vfwcvt + vfmul = 0.578 GB/s  (same trap)
+# => vluxei indexed-gather codebook lookup is SLOW on this SG2044; gcc scalarizes OUR source (fast), clang & ggml don't.
