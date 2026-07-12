@@ -1,6 +1,6 @@
 # TianChen-RV ROADMAP（常驻工件 · 随裁决更新 · agent 只读 + 引用）
 
-> **简报纪律**：每份简报第一节 = 本 ROADMAP 快照。**★头条三数并列（2026-07-11 纠偏）= perf-covered / certified / 测量欠账表剩余行数**（不再单挂 certified）；随后 当前坐标 + 在飞 + 队首三项 + **并行度 N + 各线域** + 对账清单指针。缺此节 = 简报不合格。
+> **简报纪律**：每份简报第一节 = 本 ROADMAP 快照。**★头条三数并列（2026-07-11 纠偏）= perf-covered / certified / 测量欠账表剩余行数**（不再单挂 certified）；**★新增（2026-07-12 用户裁·五）= 黄格分类计数一行**（黄-未接线 / 黄-传导稀释 / 黄-物理墙 / 黄-对手更强 / 声明例外 各计数·零未定义格视角）；随后 当前坐标 + 在飞 + 队首三项 + **并行度 N + 各线域** + 对账清单指针。缺此节 = 简报不合格。
 > **★定调纠偏（2026-07-11 用户裁·禁"实质胜利"表述）**：全项目状态 = **结构轴收口（M4 真 100%）∧ 测量轴大面积欠账（perf-covered 低）**。"北极星 4/5 满足"**仅限结构轴**；测量轴（perf-covered + T 表填充）是主战场欠账。**禁止"实质胜利/目标实质达成"类表述**——结构造得出 ≠ 性能立得住。
 > **并行纪律（2026-07-11 补充裁）**：能并行一律并行；每轮先做**触碰集 diff**，不相交即同跑。快照必报**并行度 N + 各线域**；**N=1 必须附串行理由**（无理由的单线 = 违例）。板批照旧攒批共享。
 > **更新权**：坐标数字随事实更新（agent 可改）；**排队顺序仅随用户裁决变更**（agent 不得自改优先级）。
@@ -26,11 +26,14 @@ C_construct **≥90%**（M4 门） + **旗舰吞吐兑现** + **旁路清零** +
 - **底线预案**（两线皆卡时启用、报裁）：sealed Win 退 q4_0 路由格（5.9× 系统账 + 补八门缺项）；当前两线均有静态账支撑，**预案不启动**。
 
 ## 当前坐标（2026-07-11 · 结构轴收口 ∧ 测量轴大面积欠账）
-> **头条指标（新·纠偏）**：**perf-covered = 已构造格中经公平协议（八门+双账本+对手探针）测得 ≥parity/赢 的格数 / 已构造格数**。目标态 = T3 表成片绿 + 少数黄格逐格具名归因（物理/待修/声明例外），非"存在若干 sealed 点"。
+> **头条指标（新·纠偏）**：**perf-covered = 已构造格中经公平协议（八门+双账本+对手探针）测得 ≥parity/赢 的格数 / 已构造格数**。
+> **★终态定义（2026-07-12 用户裁·一·与 M4 同构 = 零未定义格）**：每格 ∈ **{绿（e2e ≥parity·成色注记）| 黄-未接线 | 黄-传导稀释（带 Amdahl 账）| 黄-物理墙（roofline 证）| 黄-对手更强（具名 GAP + 是否可修）| 声明例外}**·**零未定义格**。目标态 = 每格有判读（非"存在若干 sealed 点"）。
+> **★禁两滑坡（用户裁·一）**：① **禁为拉数字硬啃低价值格**——每格开工前过 **[X-0] 三问 + Amdahl 上限预估**·上限低于噪声地板者**直接判「声明例外」不做**；② **禁因"可能不转绿"停止推进**——**不转绿也要接线到出判读·黄格带账（Amdahl/roofline/具名 GAP）同样是交付**。后续顺序按「预期收益 × 成本」：**K-quant 净新接线（验证中·续）→ IQ 系 → IME bridge（跨范式名义·见下）**。
 
 | 维度 | 值 |
 |---|---|
 | **★perf-covered（头条·测量轴）** | **6/84 = 7.14%**（头条·★**FLAT 家族全绿**·登记 `docs/reports/2026-07-12-perf-covered-{q4_1-green-6of84,q5_1-green-5of84,q5_0-green-4of84,q8_0-green-3of84}.md`·基线 `2026-07-11-perf-covered-baseline.md`）｜ **规则明文（禁定义与登记册各说各话）**：分子 = fair-protocol（双账本+对手探针）测得 ≥parity/赢 的格·**账本+八门状态逐格披露** → ① q4_K（**kernel 账·full 八门·Win-K1-VLEN RATIFIED**）② q4_0（**系统账·routing-win·5/8 门·带"上游本有路径"注记**）③ **★q8_0（系统账·full-stack correctness-carrier 绿格·无星号·用户追认 2026-07-12·✅ deployed=proven 40ac20ca）**：能力事实→发射正确 vl=8 变体→部署→真路由→正确性修复（上游 VLEN128 破损）→e2e prefill 4.35×/decode 3.81×（CI 排除 parity·部署五验+反汇编 vl=8）·**成色强于 q4_0**（不背"上游本有路径"注记）·**张力A LANDED**：selector 能力键控（`block_dot_memory_bound` roofline dual）**自然** route q8_0·default-compile .inc 字节等于 M1b→部署==证过（八门⑥ 自然路由·非强制探针）④ **★q5_0（净新-scaffold prefill-axis green·C1 extensibility 实证·G5-M2 d92a706d）**：首个真净新上游 repack scaffold（上游零 riscv 分支·12-piece net-new·make_block_q5_0x16 interleaver）→ prefill 1.21× WIN（≥parity·1.23× micro 确传导·非 wash）+ **decode 0.82× regression 披露**（memory-bound GEVM·prefill-win/decode-loss split·非 q8_0 式双相赢）·八门全过 prefill 轴·双账本 kernel==system ⑤ **★q5_1（净新-scaffold prefill-axis green·q8_1-activation 家族首成员·G5-M2 3744ebe0）**：prefill 1.09× WIN + decode 0.78× reg 披露·**material finding**=板 ggml 零 q8_1 mat-quant→净新 block_q8_1x4+quantize_mat_t<Q8_1>=q8_1-activation repack 家族(q4_1/q5_1)首成员=C1 extensibility 扩展 ⑥ **★q4_1（净新-scaffold green·q8_1 家族第2·FLAT 家族全绿·1d818621）**：prefill 3.68×+decode 1.67× both-win·**★诚实 caveat**：stock q4_1 baseline 弱(无 stock repack·generic block-dot·异常慢 2×)→3.68×=path-win(repack vs 未优化 generic·同 q4_0·非比调优核快)·both-phase-win 反常(与 q5_x decode-loss 相反·flag scrutiny)·verdict 立于 prefill≥parity·**C2 边际成本递减**(零改动复用 q5_1 q8_1 sub-scaffold)｜严判 sub-tier（限 kernel 账 full-八门）= 1/84｜**内核轴对称候选（黄格·待 e2e 传导）**：FLAT 5 格 [GAP-FLAT-E2E]（gcc-symmetric ≥parity 全幸存·待 T6 e2e 传导）+ IME 3 格 [GAP-IME-LEAF-PIPELINE]（批处理后 compute-account ~2×·对手 SELF·待 L-接线③ IME forward bridge）｜**correctness-carrier（C1 证据·非 perf 绿）**：q4_K（a7cacf68·上游 present·复用·perf<parity yellow·[GAP-Q4K-VLEN128]）｜其余 K-quant S6 撤回·iq/tq 全 LOSS·流式未测｜**造得出≠立得住·候选≠绿格** |
+| **★黄格分类计数（零未定义格·2026-07-12 用户裁·五·WIP）** | 绿 **6**（FLAT 家族）· 声明例外 ~10（3 GAP Amdahl<噪声 + 7 M4）· 黄-物理墙 ~4（streaming parity-at-floor·roofline 证）· 黄-传导稀释 ~3（IME compute-account ~2×·decode wash·带 Amdahl 账）· 黄-对手更强 ~9（q4_K correctness-carrier perf<parity + iq/tq LOSS·具名 GAP）· **黄-未接线 ~52**（constructed 未 wire 进 forward·多数·随 K-quant/IQ/IME 接线线逐格判读转分类）｜**零未定义格 = 终态·当前 WIP**（每格开工过 [X-0]+Amdahl·<噪声→声明例外·不转绿也接线到判读=黄格带账交付） |
 | C_construct（**结构轴**·非头条） | **certified 84/91 = 92.31%**（M4 真 100%·结构轴收口·committed 74ffc575）｜ 全表 certified 84 · blocked-on-IME 0 · 声明例外 7 · 域外 2 = roster 93 · recon True · 零未定义格 ｜ 旁路 0 · RED 0 ｜ **⚠ 结构造得出 ≠ 性能立得住**：certified 高 ≠ perf-covered 高（见头条）|
 | 吞吐兑现 | q4_0 routing 5.9×（稳）+ k1 kernel-轴 对称-clang micro（3.10/1.92×，NON-e2e）；rvv S6 撤回；rvv e2e = [RVV-E2E] 修中 |
 | 旁路 | **0 · ★清零**（全 monolith direct emitter 退役进前门；dispatch-wired 0） |
