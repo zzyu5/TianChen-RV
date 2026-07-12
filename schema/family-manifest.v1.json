@@ -1,0 +1,228 @@
+{
+ "$meta": {
+  "schema": "family-manifest.v1",
+  "manifest_version": "v1",
+  "gate": "f3-family-locality",
+  "checker": "tools/lint/check_family_locality.py",
+  "ci": ".github/workflows/falsifier-gate.yml (job: f3-family-locality)",
+  "falsifier": "[F-3] 变更收容 (docs/canon/TianChen-RV_科研目标总纲v2.md:107 · .trellis/spec/plugin-protocol/locality-contract.md:76)",
+  "invariant": "Change containment: a family-integration PR is contained to that family's declared territory + capability/coverage TABLE ROWS + DOCS (the containment form of [P-1] no-core-edit, spatial counterpart of the [P-2] five-piece set). Combined with I3 zero family-name branches ([F-1]) this is the auditable evidence for C2 marginal-cost generalization.",
+  "ruling": "2026-07-12 用户裁「MLIR 分层为主 + family 清单机检」: DO NOT do a cross-Dialect/Conversion/Target family-root 大搬迁 (violates MLIR-ecosystem convention; the reference-template must look like an MLIR project, not a bespoke layout). INSTEAD each family keeps this manifest listing its files/symbols across the layers, and the falsifier machine-checks CONTAINMENT off the manifest -- containment is asserted by the manifest, NOT by a physical directory move. This REPLACES the earlier F-3 premise ('gated on 跨根目录归拢') which is now WITHDRAWN as the mechanism.",
+  "purpose": "Per-family address book across the MLIR layers + the CONTAINMENT machine-check source of truth. Each family declares its OWNED source territory (source_ranges: lib/{Dialect,Conversion,Plugin,Target}/<Fam>/ + include/ mirrors -- the enforced containment scope), plus an informational inventory of its test/schema-table/docs footprint. The [F-3] gate asserts: (default) every family-territory source file is claimed by exactly one manifest (no orphan, no cross-family pollution) and no family range escapes into the family-AGNOSTIC core scope; (CI) a family-integration PR's diff touches ONLY that one family's territory plus the shared allowances (TABLE ROWS + DOCS + [P-2] tests). A cross-family or core-source file touched by a family PR is a containment violation (RED).",
+  "gate_semantics": "RED iff (a) DEFAULT: a lib/include family-territory code file (under lib/{Dialect,Conversion,Plugin,Target}/<X>/ or its include mirror, X not a declared core_subdir) is claimed by zero manifests (orphan) or by >=2 manifests (cross-family pollution), OR a family source_range matches an authoritative core-scope file (range widened into core), OR a family-shaped directory exists with no manifest entry, OR the shrink-only ratchet breaks (baseline_range_count != total declared source_ranges); (b) CI: a base..head diff touches >=2 distinct families' source territory (cross-family), OR touches a core-source code file while it is a family-integration PR (core edit). GREEN == every family stays contained to its own territory + shared allowances.",
+  "containment_scope": {
+   "enforced": "SOURCE CODE only: tracked *.cpp/*.h/*.td under lib/ and include/TianChenRV/. This is where the [F-3] '(no core-file edits)' claim bites and where the per-family directories are clean and unambiguous. A file is family-source iff a family source_range matches it; every other lib/include code file is CORE-source (family-agnostic).",
+   "shared_allowances": {
+    "note": "Buckets a family-integration PR may freely touch BEYOND its own source territory -- the canon [F-3] '+ 表格行 + 文档' plus the [P-2] onboarding-kit tests. These are NOT core-dispatch source, so touching them is NOT a containment violation.",
+    "table_rows": "schema/**  (capability facts / coverage cells / ledger rows -- the '表行')",
+    "docs": "docs/** · *.md · .trellis/**  (integration doc [P-4] -- the '文档')",
+    "tests": "test/**  (dialect-verification / lowering / e2e -- a mandatory [P-2] five-piece deliverable, a real C2 cost, not a core edit)",
+    "build_and_tooling": "**/CMakeLists.txt · tools/**  (build wiring / lint tooling -- not core dispatch source)"
+   },
+   "core_authority": "The authoritative family-AGNOSTIC core scope is schema/family-regex.v1.json core_scope (the I3 zero-branch core control-flow file set). The anti-widen check asserts NO family source_range matches any file in that set -- a family may never claim family-agnostic core source. Reusing that manifest keeps a single authoritative core definition (no duplication of canon)."
+  },
+  "core_subdirs": {
+   "note": "Non-family subdirectories that legitimately live under the four family roots (lib/{Dialect,Conversion,Plugin,Target}/ and include mirrors). A subdir here is CORE, not a missing-manifest family directory -- the orphan check skips them. Any OTHER subdir under a family root that is not a declared family => unknown-family-dir RED (a new family added without a manifest).",
+   "names": ["Exec", "EmitC", "Builtin", "Construction", "IR"]
+  },
+  "same_address_discipline": "Maintained SAME-ADDRESS as the [F-EMIT] emit-bypass whitelist (schema/emit-bypass-whitelist.v1.json) and the [F-1] family-regex manifest (schema/family-regex.v1.json): one schema/ directory, one shrink-only ratchet idiom, one checker-in-tools/lint + job-in-falsifier-gate.yml idiom. SCOPE NOTE: the family list here is a SUPERSET of family-regex.v1.json (which lists only dispatch-KEY families + the illustrative forbidden Sophgo/AME) and family-dirs.v1.json (which lists only families with a C2 cost-ledger row, IME/Scalar) -- containment covers EVERY directory-owning family, including the scaffold/example families (Template / TensorExtLite / Toy) that own lib/{Dialect,Plugin,Target}/<Fam>/ dirs and must therefore also be contained. Any RVV/IME/Scalar/Offload entry MUST stay consistent with the corresponding family-regex.v1.json entry.",
+  "shrink_only": true,
+  "ratchet_note": "baseline_range_count MUST EQUAL the total number of declared source_ranges patterns across all families (the gate fails closed on drift), so a range can never be added OR removed SILENTLY -- any change forces a visible baseline_range_count bump in the same diff (the tamper-evident tripwire, identical mechanism to the [F-EMIT] baseline_count==len(entries) ratchet). The containment direction: an EXISTING family's declared territory only NARROWS ('只减不增' -- a widened range that swallows a core/other-family file is independently caught by the anti-widen + no-overlap checks); a NEW family adds its block WITH a baseline bump. This blocks '偷偷扩范围骗绿' (silently widening a family's declared territory to make an improper core edit fall inside it and pass containment).",
+  "baseline_range_count": 40,
+  "head_snapshot": "6f9099e5",
+  "head_status": "GREEN -- every lib/include family-territory source file is claimed by exactly one family manifest; no orphan, no cross-family pollution, no range escapes the core scope (default gate GREEN at HEAD)."
+ },
+
+ "families": [
+  {
+   "family": "RVV",
+   "dispatch_keys": ["rvv"],
+   "note": "RISC-V Vector (N1/N2 founding family). The largest family: dialect + its OWN Conversion lowering (lib/Conversion/RVV, incl. RVVToEmitC.cpp / RVVLowerQuantContraction.cpp) + plugin + target.",
+   "source_ranges": [
+    "lib/Dialect/RVV",
+    "lib/Conversion/RVV",
+    "lib/Plugin/RVV",
+    "lib/Target/RVV",
+    "include/TianChenRV/Dialect/RVV",
+    "include/TianChenRV/Conversion/RVV",
+    "include/TianChenRV/Plugin/RVV",
+    "include/TianChenRV/Target/RVV"
+   ],
+   "test_ranges": [
+    "test/Dialect/RVV",
+    "test/Conversion/RVV",
+    "test/Target/RVV",
+    "test/Transforms/RVV",
+    "test/Support/RVV",
+    "test/Conversion/EmitC/rvv-*",
+    "test/Scripts/rvv-*",
+    "test/Plugin/rvv-*",
+    "test/Plugin/RVV*"
+   ],
+   "schema_tables": [
+    "schema/coverage-sixstate.v1.json (engine=rvv cells)",
+    "schema/coverage-roster.v1.json (rvv coverage rows)",
+    "schema/capability.schema.v1.json (rvv.* capability facts)",
+    "schema/emit-bypass-whitelist.v1.json (rvv repack gemm_tile bypass entries)",
+    "schema/family-regex.v1.json (RVV family entry)"
+   ],
+   "docs": [
+    "docs/method/FALSIFIER-INDEX.md",
+    ".trellis/spec/plugin-protocol/locality-contract.md",
+    "docs/method/C2_marginal_cost_ledger.md"
+   ]
+  },
+  {
+   "family": "IME",
+   "dispatch_keys": ["ime"],
+   "note": "Spacemit X60 Integer Matrix Extension (N2 second family). IME reuses the shared EmitC/RVV lowering path (no lib/Conversion/IME of its own at this cut); its owned territory is the IME dialect + plugin.",
+   "source_ranges": [
+    "lib/Dialect/IME",
+    "lib/Plugin/IME",
+    "include/TianChenRV/Dialect/IME",
+    "include/TianChenRV/Plugin/IME"
+   ],
+   "test_ranges": [
+    "test/Dialect/IME",
+    "test/Target/IME",
+    "test/Conversion/EmitC/ime-*",
+    "test/Plugin/ime-*"
+   ],
+   "schema_tables": [
+    "schema/coverage-sixstate.v1.json (engine=ime cells)",
+    "schema/family-regex.v1.json (IME family entry)",
+    "schema/family-dirs.v1.json (IME family entry)"
+   ],
+   "docs": [
+    "docs/method/FALSIFIER-INDEX.md",
+    ".trellis/spec/plugin-protocol/locality-contract.md"
+   ]
+  },
+  {
+   "family": "Scalar",
+   "dispatch_keys": ["scalar"],
+   "note": "X-SCALAR vector-absent independent family (N2 third family; [F-6] closure INTERSECT rvv.* = EMPTY). Owns its OWN pure-scalar target emitter (lib/Target/Scalar) -- [F-6] independence forbids reusing the RVV EmitC emitter.",
+   "source_ranges": [
+    "lib/Dialect/Scalar",
+    "lib/Plugin/Scalar",
+    "lib/Target/Scalar",
+    "include/TianChenRV/Dialect/Scalar",
+    "include/TianChenRV/Plugin/Scalar",
+    "include/TianChenRV/Target/Scalar"
+   ],
+   "test_ranges": [
+    "test/Dialect/Scalar",
+    "test/Target/Scalar",
+    "test/Plugin/scalar-*",
+    "test/Plugin/Scalar*",
+    "test/Transforms/VariantSelection/f6-independent-scalar-family-emittable.mlir",
+    "test/Transforms/LoweringBoundary/scalar-*"
+   ],
+   "schema_tables": [
+    "schema/coverage-sixstate.v1.json (engine=scalar cells)",
+    "schema/family-regex.v1.json (Scalar family entry)",
+    "schema/family-dirs.v1.json (Scalar family entry)"
+   ],
+   "docs": [
+    "docs/method/FALSIFIER-INDEX.md",
+    ".trellis/spec/plugin-protocol/locality-contract.md",
+    "docs/method/C2_marginal_cost_ledger.md"
+   ]
+  },
+  {
+   "family": "Offload",
+   "dispatch_keys": ["offload"],
+   "note": "Offload capability family (dialect + plugin).",
+   "source_ranges": [
+    "lib/Dialect/Offload",
+    "lib/Plugin/Offload",
+    "include/TianChenRV/Dialect/Offload",
+    "include/TianChenRV/Plugin/Offload"
+   ],
+   "test_ranges": [
+    "test/Dialect/Offload",
+    "test/Plugin/offload-*",
+    "test/Plugin/Offload*"
+   ],
+   "schema_tables": [
+    "schema/family-regex.v1.json (Offload family entry)"
+   ],
+   "docs": [
+    ".trellis/spec/plugin-protocol/locality-contract.md"
+   ]
+  },
+  {
+   "family": "Template",
+   "dispatch_keys": ["template"],
+   "note": "Template scaffold family (the family-onboarding TEMPLATE skeleton: dialect + plugin + target).",
+   "source_ranges": [
+    "lib/Dialect/Template",
+    "lib/Plugin/Template",
+    "lib/Target/Template",
+    "include/TianChenRV/Dialect/Template",
+    "include/TianChenRV/Plugin/Template",
+    "include/TianChenRV/Target/Template"
+   ],
+   "test_ranges": [
+    "test/Dialect/Template",
+    "test/Target/Template",
+    "test/Conversion/EmitC/template-*",
+    "test/Plugin/template-*",
+    "test/Plugin/Template*"
+   ],
+   "schema_tables": [],
+   "docs": [
+    ".trellis/spec/plugin-protocol/locality-contract.md"
+   ]
+  },
+  {
+   "family": "TensorExtLite",
+   "dispatch_keys": ["tensorext"],
+   "note": "TensorExtLite example family (dialect + plugin + target).",
+   "source_ranges": [
+    "lib/Dialect/TensorExtLite",
+    "lib/Plugin/TensorExtLite",
+    "lib/Target/TensorExtLite",
+    "include/TianChenRV/Dialect/TensorExtLite",
+    "include/TianChenRV/Plugin/TensorExtLite",
+    "include/TianChenRV/Target/TensorExtLite"
+   ],
+   "test_ranges": [
+    "test/Dialect/TensorExtLite",
+    "test/Target/TensorExtLite",
+    "test/Transforms/TensorExtLite",
+    "test/Conversion/EmitC/tensorext-*",
+    "test/Plugin/TensorExtLite*"
+   ],
+   "schema_tables": [],
+   "docs": [
+    ".trellis/spec/plugin-protocol/locality-contract.md"
+   ]
+  },
+  {
+   "family": "Toy",
+   "dispatch_keys": ["toy"],
+   "note": "Toy example family (dialect + plugin + target).",
+   "source_ranges": [
+    "lib/Dialect/Toy",
+    "lib/Plugin/Toy",
+    "lib/Target/Toy",
+    "include/TianChenRV/Dialect/Toy",
+    "include/TianChenRV/Plugin/Toy",
+    "include/TianChenRV/Target/Toy"
+   ],
+   "test_ranges": [
+    "test/Dialect/Toy",
+    "test/Target/Toy",
+    "test/Transforms/Toy",
+    "test/Conversion/EmitC/toy-*",
+    "test/Plugin/toy-*",
+    "test/Plugin/Toy*"
+   ],
+   "schema_tables": [],
+   "docs": [
+    ".trellis/spec/plugin-protocol/locality-contract.md"
+   ]
+  }
+ ]
+}

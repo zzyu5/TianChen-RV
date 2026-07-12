@@ -318,3 +318,37 @@ jobs:
       # --require-binaries to make the absence itself RED.
       - name: F-4 attribution-JSONL gate (compile-time selection attribution export == [D-4] (1))
         run: python3 tools/lint/check_f4_attribution_jsonl.py
+
+  # [F-3] family change-containment gate (M1 evidence-line closure). Per the 2026-07-12 user
+  # ruling「MLIR 分层为主 + family 清单机检」, containment is asserted by a per-family MANIFEST
+  # (schema/family-manifest.v1.json), NOT by a cross-root physical directory move (the repo
+  # keeps the idiomatic MLIR layered layout). Each family declares its OWNED source territory
+  # (lib/{Dialect,Conversion,Plugin,Target}/<Fam>/ + include/ mirrors). The gate machine-checks,
+  # over SOURCE CODE only (*.cpp/*.h/*.td under lib/ + include/): (default) every family-territory
+  # source file is claimed by exactly one manifest (no orphan / no cross-family pollution), no
+  # family range escapes the family-AGNOSTIC core scope (anti-widen, reusing family-regex.v1.json
+  # core_scope), and the shrink-only ratchet holds (baseline_range_count == total source_ranges);
+  # (CI, --base/--head) a family-integration PR's diff stays contained to ONE family's territory
+  # plus the shared allowances (schema TABLE ROWS + DOCS + [P-2] tests). An orphan, cross-family
+  # pollution, a range widened into core, a ratchet breach, or a cross-family/core-editing family
+  # PR fails the job closed. Maintained SAME-ADDRESS as the [F-EMIT] whitelist / [F-1] family-regex
+  # manifest. Touches NO kernel / NO selection / NO numerics -- build-free path grep. Stdlib-Python.
+  f3-family-locality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hermetic self-test: proves BOTH evaluators DISCRIMINATE (default: clean tree -> GREEN;
+      # each violation class -- orphan / unknown-family-dir / cross-family-pollution / anti-widen /
+      # ratchet -> RED. CI: single-family PR + table rows + docs + tests -> GREEN; cross-family PR /
+      # core-editing family PR -> RED; pure core-refactor or pure table/docs/tests PR -> GREEN)
+      # before it judges the committed tree.
+      - name: F-3 family-locality gate self-test
+        run: python3 tools/lint/check_family_locality.py --self-test
+
+      # Default-path gate on the COMMITTED tree: non-zero exit (orphan / pollution / anti-widen /
+      # ratchet / setup error) fails the job. Fires on EVERY PR/push that adds a family-territory
+      # source file outside its manifest range, widens a range into core, or breaks the ratchet.
+      - name: F-3 family-locality gate (every family source file contained, no orphan/pollution)
+        run: python3 tools/lint/check_family_locality.py
