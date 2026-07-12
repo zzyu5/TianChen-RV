@@ -29,12 +29,14 @@
 
 | 条款 | 现状(锚点) | 等级 | 标签 | 关联 |
 |---|---|---|---|---|
-| **F-1** 零分支 + regex-manifest + CI | 不变量绿(核心 family 分支 grep=0;唯一 `origin==` 是身份比较 `lib/Target/TargetArtifactExport.cpp:1785`);缺 family-regex manifest、缺 `.github` CI、缺真/假阳性判读规程 | 部分 | 增量新建 | C1 |
-| **F-2′** schema.def 操作门 | schema.def/shape-hash/instance-hash 全 grep=0;逐 PR diff∩schema.def=∅ 与版本报告门无载体 | 缺失 | 增量新建 | C1 |
-| **F-3** 变更收容 | 无顶层 `plugins/<family>/`;单家族代码横跨 `lib/{Dialect,Plugin,Conversion,Target}/<fam>` + `include/…/<fam>`(IME/RVV 各 4 类 lib 目录)→ "接入仅触 plugins/<fam>/" 不可判定 | 缺失 | 有界工作项 | 工程 |
-| **F-4** 归因完备 | 无 JSONL(`only_feasible` token grep=0);仅编译期选择阶段富属性(D-4① 重构原料);调度/合法性阶段缺;无 CI | 部分 | 重构现有 | C1 |
-| **F-5** fail-closed 模糊 | 未知即拒在位(`lib/Plugin/ExtensionPlugin.cpp:1433`、`lib/Dialect/Exec/IR/ExecOps.cpp:838`);随机删/伪造事实的 fuzz grep=0、不进 CI;向量缺席测试资产未建 | 部分 | 增量新建 | C1 |
-| **F-6** 独立性判据 | 闭包∩rvv.*=∅ 脚本 grep=0;`only_feasible` 真实选中 grep=0;受测家族 [X-SCALAR] owned 内核**已落地**(tq2_0 主选 `f96f767a` / q4_0 保底 `2dd654d8` · 曳光弹 `5c010b2b` · F-6 双断言机检 989-LOC gtest+lit)——F-6 剩闭包脚本化 + `only_feasible` 真实选中(判据④,XS-M3) | 缺失 | 有界工作项 | C1 |
+> **★现状同步(2026-07-13·自决现状-维护·权威源 = `docs/method/FALSIFIER-INDEX.md` + `.github/workflows/falsifier-gate.yml`)**：**[F-1..F-6] 六门全进 CI(2026-07-12) = [P-3] falsifier 组达成**。本表旧「grep=0/缺失/无 CI/不可判定」快照 comprehensively stale，下同步为 landed；细节不在此复制(见 FALSIFIER-INDEX)。
+
+| **F-1** 零分支 + regex-manifest + CI | ✅ **进 CI** `f1-zero-branch-gate`(`schema/family-regex.v1.json` manifest + `tools/lint/check_zero_core_family_branch.py` 判读规程·核心 family 分支 grep=0 across 69 core files·I3 holds) | 满足 | — | C1 |
+| **F-2′** schema.def 操作门 | ✅ **进 CI** `schema-def-gate`(在位·常绿·`check_schema_gate.py` + 红队 `redteam_schema_gate.py`) | 满足 | — | C1 |
+| **F-3** 变更收容 | ✅ **进 CI** `f3-family-locality`(用户裁「MLIR 分层为主 + family 清单机检·非物理目录搬迁」·`schema/family-manifest.v1.json` + `tools/lint/check_family_locality.py`·GREEN @ HEAD·242 family-root 归一 manifest·shrink-only ratchet 持·旧「gated on 目录归拢」WITHDRAWN) | 满足 | — | C1 |
+| **F-4** 归因完备 | ✅ **进 CI** `f4-attribution-jsonl`(编译期归因 D-4① JSONL 出口在位 `lib/Transforms/VariantSelection.cpp:1094+` + 门·lit 双绿) | 满足(M1) | D-4② 装载期 = M2 增量 | C1 |
+| **F-5** fail-closed 模糊 | ✅ **进 CI** `f5-failclosed-fuzz`(`check_f5_failclosed_fingerprint.py` + `schema/f5-failclosed-baseline.v1.json`·现 20/20·指纹不退化棘轮) | 满足 | — | C1 |
+| **F-6** 独立性判据 | ✅ **进 CI** `f6-independence-gate`(机制已闭·独立门 `tools/lint/check_f6_scalar_family_independence.py` 在位·判据④ landed·闭包∩rvv.*=∅ 脚本化 + `only_feasible` 真实选中·[X-SCALAR] owned 内核已落地) | 满足 | XS-M2 `scalar.zfh`/XS-M4 = 家族完整性非 F-6 条件 | C1 |
 
 ### 能力 Schema [S-*]
 
@@ -103,8 +105,8 @@
 
 | 条款 | 现状(锚点) | 等级 | 标签 | 关联 |
 |---|---|---|---|---|
-| **X-ZVFH**(第一优先) | 事实**已注册**:`rvv.zvfh`(kind=isa-vector-fp16)从 probed ISA 证据 mint 一等事实 + implies 链 `rvv.zvfh⇒rvv.zvfhmin⇒rvv.zve32f`(`RVVCapabilityProfile.cpp:527-554`,token-boundary guard 防伪造 I5,`95f1a482`);[S-2] 传递闭包实体夹具已连(`CapabilityModelTest.cpp:697-736`)。注:`verify.mlir:58-59` 的裸 `@zvfh` 是 Exec verifier 对**未声明局部符号**的通用负控,非 rvv.zvfh 注册缺席证据(误读已更正)。**剩:f16 路径实测(P5,pending-hardware)** | 部分 | 有界工作项 | C3′ |
-| **X-SCALAR**(第二优先) | owned 内核**已落地**:主选三值 2-bit `tq2_0_q8_k_vec_dot`(byte-exact golden,`f96f767a`)+ 保底 `dequantize_row_q4_0`(`2dd654d8`) · 曳光弹 `compute_skeleton`(`5c010b2b`) · F-6 双断言机检 989-LOC gtest+lit;剩 判据④ 真实选中(XS-M3)/`scalar.zfh` 事实(XS-M2)/ledger(XS-M4)未闭。数学素材在向量路亦存(见 §6) | 部分 | 有界工作项 | C1 |
+| **X-ZVFH**(第一优先) | 事实**已注册**:`rvv.zvfh`(kind=isa-vector-fp16)从 probed ISA 证据 mint 一等事实 + implies 链 `rvv.zvfh⇒rvv.zvfhmin⇒rvv.zve32f`(`RVVCapabilityProfile.cpp:527-554`,token-boundary guard 防伪造 I5,`95f1a482`);[S-2] 传递闭包实体夹具已连(`CapabilityModelTest.cpp:697-736`)。注:`verify.mlir:58-59` 的裸 `@zvfh` 是 Exec verifier 对**未声明局部符号**的通用负控,非 rvv.zvfh 注册缺席证据(误读已更正)。**f16 路径 board 实测已落**(P5 functional·`abf57268`/`0219d816`·标量 `fcvt.s.h`+向量 `vfadd.vv` f16m1 双板正确);**剩:zvfh packager fact-keying**(`RVVTargetSupportBundle.cpp:2227` 硬编码 deployment-assumed·deliberate/parked·低紧急) | 部分 | 有界工作项 | C3′ |
+| **X-SCALAR**(第二优先) | owned 内核**已落地**:主选三值 2-bit `tq2_0_q8_k_vec_dot`(byte-exact golden,`f96f767a`)+ 保底 `dequantize_row_q4_0`(`2dd654d8`) · 曳光弹 `compute_skeleton`(`5c010b2b`) · F-6 双断言机检 989-LOC gtest+lit;判据④ 真实选中(XS-M3)**已 landed**(`61f0c8fe`·N2 boundary PASS 完整·独立 F-6 门进 CI `bcd3c6bd`)·ledger(XS-M4)**已落**(1501 raw·LED-2 `c46678e1`);剩 `scalar.zfh` 事实(XS-M2·**DEFER**·标量族无 object-packager 可键控·裸注册 vestigial)未闭。数学素材在向量路亦存(见 §6) | 部分 | 有界工作项 | C1 |
 | **X-ZVBB** | zvbb grep=0;无事实行/P8 条目/micro | 缺失 | 有界工作项 | C3′ |
 | **X-AME** | 仅 Passes.td 注释 3 处;conflicts 含 AME-vs-IME 但 inert;条件项/论文不押注,缺失符合预期 | 缺失 | 有界工作项 | C1 |
 | **uarch 表/P6** | 粗粒度事实在(X60 per-hart);每核 quirk 表(vrgather_slow)grep=0,"走表不走 if" 未起步 | 部分 | 增量新建 | C3′ |
